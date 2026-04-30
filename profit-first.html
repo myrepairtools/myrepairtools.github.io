@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profit First Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #DC282E; --dark: #2D2D3B; --dark-grey: #4E4E50;
+    --blue: #4FB0E3; --grey: #B9BDCB; --light-grey: #F3F2F2;
+    --white: #FFFFFF; --border: #E0E2EA; --green: #10b981;
+    --profit: #8b5cf6; --owner: #DC282E; --tax: #f59e0b; --opex: #4FB0E3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--light-grey); font-family: 'Nunito Sans', sans-serif; min-height: 100vh; padding: 0 0 60px; }
+
+  .site-header {
+    background: var(--white); border-bottom: 3px solid var(--red);
+    padding: 16px 32px; display: flex; align-items: center;
+    justify-content: space-between; gap: 12px;
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
+    text-decoration: none; padding: 6px 12px;
+    border: 1.5px solid var(--border); border-radius: 5px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .back-btn:hover { color: var(--red); border-color: var(--red); }
+  .logo-wrap img { height: 34px; width: auto; display: block; }
+  .page-badge {
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--white); background: var(--red); padding: 4px 10px; border-radius: 4px;
+  }
+
+  .container { max-width: 600px; margin: 36px auto; padding: 0 16px; }
+
+  .page-title {
+    font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 22px;
+    color: var(--dark); letter-spacing: -0.4px; margin-bottom: 4px;
+  }
+  .page-sub { font-size: 13px; color: var(--grey); font-weight: 600; margin-bottom: 24px; }
+
+  /* INCOME ROW */
+  .income-row {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  .income-label {
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--grey);
+    white-space: nowrap; width: 130px; flex-shrink: 0;
+  }
+  .income-input-wrap {
+    display: flex; align-items: center; flex: 1;
+    background: var(--light-grey); border: 1.5px solid var(--border);
+    border-radius: 7px; overflow: hidden; transition: border-color 0.15s;
+  }
+  .income-input-wrap:focus-within { border-color: var(--dark); }
+  .income-prefix {
+    padding: 9px 12px; font-family: 'Nunito', sans-serif;
+    font-size: 16px; font-weight: 900; color: var(--grey);
+    border-right: 1.5px solid var(--border);
+  }
+  #income-amount {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 900;
+    color: var(--dark); padding: 9px 12px;
+    -moz-appearance: textfield;
+  }
+  #income-amount::-webkit-inner-spin-button,
+  #income-amount::-webkit-outer-spin-button { -webkit-appearance: none; }
+  #income-amount::placeholder { color: var(--border); }
+  .btn-clear {
+    padding: 9px 14px; font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--grey); background: transparent;
+    border: none; cursor: pointer; white-space: nowrap;
+    transition: color 0.15s;
+  }
+  .btn-clear:hover { color: var(--red); }
+
+  /* MAIN TABLE CARD */
+  .table-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+    margin-bottom: 12px;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead th {
+    padding: 10px 16px; text-align: left;
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--grey);
+    background: #fafafa; border-bottom: 1px solid var(--border);
+  }
+  thead th:not(:first-child) { text-align: right; }
+
+  tbody tr { border-bottom: 1px solid rgba(224,226,234,0.6); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(79,176,227,0.03); }
+
+  tbody td { padding: 12px 16px; vertical-align: middle; }
+
+  /* Account column */
+  .td-account { display: flex; align-items: center; gap: 10px; }
+  .acct-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .acct-name {
+    font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 800;
+    color: var(--dark-grey);
+  }
+
+  /* Pct column */
+  .td-pct { text-align: right; width: 90px; }
+  .pct-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+  .pct-input {
+    width: 52px; background: var(--light-grey);
+    border: 1.5px solid var(--border); border-radius: 5px;
+    font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 800;
+    color: var(--dark-grey); padding: 4px 6px; text-align: center;
+    -moz-appearance: textfield; transition: border-color 0.15s;
+  }
+  .pct-input::-webkit-inner-spin-button,
+  .pct-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .pct-input:focus { outline: none; border-color: var(--blue); }
+  .pct-sym { font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700; color: var(--grey); }
+
+  /* Amount column */
+  .td-amount { text-align: right; width: 140px; }
+  .amount-val {
+    font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 900;
+    color: var(--dark);
+  }
+  .amount-val.zero { color: var(--border); }
+
+  /* Copy column */
+  .td-copy { text-align: right; width: 80px; }
+  .copy-btn {
+    padding: 5px 12px; font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--light-grey); color: var(--dark-grey);
+    border: 1.5px solid var(--border); border-radius: 5px;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .copy-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .copy-btn.copied { background: var(--green); color: white; border-color: var(--green); }
+
+  /* Color accents */
+  .dot-profit { background: var(--profit); }
+  .dot-owner  { background: var(--owner); }
+  .dot-tax    { background: var(--tax); }
+  .dot-opex   { background: var(--opex); }
+  .val-profit { color: var(--profit) !important; }
+  .val-owner  { color: var(--owner)  !important; }
+  .val-tax    { color: var(--tax)    !important; }
+  .val-opex   { color: var(--opex)   !important; }
+
+  /* FOOTER ROW */
+  .footer-row {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 20px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  .pct-status {
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    flex: 1;
+  }
+  .pct-status.warn { color: var(--red); }
+  .pct-status.ok   { color: var(--green); }
+
+  .bar-wrap { flex: 1; height: 6px; border-radius: 3px; overflow: hidden; display: flex; }
+  .seg { transition: width 0.3s ease; height: 100%; }
+  .seg-profit { background: var(--profit); }
+  .seg-owner  { background: var(--owner); }
+  .seg-tax    { background: var(--tax); }
+  .seg-opex   { background: var(--opex); }
+
+  .total-val {
+    font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 900;
+    color: var(--dark); white-space: nowrap;
+  }
+
+  footer {
+    text-align: center; padding: 20px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px; color: var(--grey); text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="site-header">
+  <div class="header-left">
+    <a class="back-btn" href="admin.html">← Back</a>
+    <div class="logo-wrap">
+      <img src="CPRLogo_NoAssurant_Black.png" alt="CPR Cell Phone Repair" />
+    </div>
+  </div>
+  <span class="page-badge">🔒 Admin</span>
+</div>
+
+<div class="container">
+  <div class="page-title">Profit First Calculator</div>
+  <div class="page-sub">Enter your income account balance to calculate distributions</div>
+
+  <!-- INCOME -->
+  <div class="income-row">
+    <div class="income-label">Income Balance</div>
+    <div class="income-input-wrap">
+      <span class="income-prefix">$</span>
+      <input type="number" id="income-amount" placeholder="0.00" min="0" step="0.01" oninput="calculate()" />
+      <button class="btn-clear" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>%</th>
+          <th>Amount</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="td-account"><div class="acct-dot dot-profit"></div><div class="acct-name">Profit</div></div></td>
+          <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-profit" value="10" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
+          <td class="td-amount"><div class="amount-val val-profit zero" id="amt-profit">$0.00</div></td>
+          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-profit', this)">Copy</button></td>
+        </tr>
+        <tr>
+          <td><div class="td-account"><div class="acct-dot dot-owner"></div><div class="acct-name">Owner's Comp</div></div></td>
+          <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-owner" value="5" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
+          <td class="td-amount"><div class="amount-val val-owner zero" id="amt-owner">$0.00</div></td>
+          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-owner', this)">Copy</button></td>
+        </tr>
+        <tr>
+          <td><div class="td-account"><div class="acct-dot dot-tax"></div><div class="acct-name">Tax</div></div></td>
+          <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-tax" value="5" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
+          <td class="td-amount"><div class="amount-val val-tax zero" id="amt-tax">$0.00</div></td>
+          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-tax', this)">Copy</button></td>
+        </tr>
+        <tr>
+          <td><div class="td-account"><div class="acct-dot dot-opex"></div><div class="acct-name">OpEx</div></div></td>
+          <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-opex" value="80" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
+          <td class="td-amount"><div class="amount-val val-opex zero" id="amt-opex">$0.00</div></td>
+          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-opex', this)">Copy</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FOOTER ROW -->
+  <div class="footer-row">
+    <div class="pct-status ok" id="pct-status">✓ 100%</div>
+    <div class="bar-wrap">
+      <div class="seg seg-profit" id="seg-profit" style="width:10%"></div>
+      <div class="seg seg-owner"  id="seg-owner"  style="width:5%"></div>
+      <div class="seg seg-tax"    id="seg-tax"    style="width:5%"></div>
+      <div class="seg seg-opex"   id="seg-opex"   style="width:80%"></div>
+    </div>
+    <div class="total-val" id="total-val">$0.00 distributed</div>
+  </div>
+</div>
+
+<footer>CPR Cell Phone Repair — Oregon · Admin · Profit First</footer>
+
+<script>
+function fmt(n) {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function calculate() {
+  const income  = parseFloat(document.getElementById('income-amount').value) || 0;
+  const pProfit = parseFloat(document.getElementById('pct-profit').value) || 0;
+  const pOwner  = parseFloat(document.getElementById('pct-owner').value)  || 0;
+  const pTax    = parseFloat(document.getElementById('pct-tax').value)    || 0;
+  const pOpex   = parseFloat(document.getElementById('pct-opex').value)   || 0;
+  const pTotal  = pProfit + pOwner + pTax + pOpex;
+
+  // % status
+  const statusEl = document.getElementById('pct-status');
+  if (Math.abs(pTotal - 100) < 0.01) {
+    statusEl.textContent = '✓ 100%';
+    statusEl.className = 'pct-status ok';
+  } else {
+    statusEl.textContent = `⚠ ${pTotal.toFixed(1)}% (need 100%)`;
+    statusEl.className = 'pct-status warn';
+  }
+
+  const aProfit = income * pProfit / 100;
+  const aOwner  = income * pOwner  / 100;
+  const aTax    = income * pTax    / 100;
+  const aOpex   = income * pOpex   / 100;
+  const aTotal  = aProfit + aOwner + aTax + aOpex;
+
+  [['amt-profit', aProfit], ['amt-owner', aOwner], ['amt-tax', aTax], ['amt-opex', aOpex]].forEach(([id, amt]) => {
+    const el = document.getElementById(id);
+    el.textContent = fmt(amt);
+    el.classList.toggle('zero', income === 0);
+  });
+
+  document.getElementById('total-val').textContent = fmt(aTotal) + ' distributed';
+
+  // Bar segments
+  [['seg-profit', pProfit], ['seg-owner', pOwner], ['seg-tax', pTax], ['seg-opex', pOpex]].forEach(([id, pct]) => {
+    document.getElementById(id).style.width = (pTotal > 0 ? (pct / pTotal * 100) : 0) + '%';
+  });
+}
+
+function copyAmount(amtId, btn) {
+  const text = document.getElementById(amtId).textContent.replace('$','').replace(/,/g,'');
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+function clearAll() {
+  document.getElementById('income-amount').value = '';
+  document.getElementById('pct-profit').value = 10;
+  document.getElementById('pct-owner').value  = 5;
+  document.getElementById('pct-tax').value    = 5;
+  document.getElementById('pct-opex').value   = 80;
+  calculate();
+}
+
+calculate();
+</script>
+</body>
+</html>
