@@ -171,7 +171,81 @@
     color: var(--muted); border-bottom: 1px solid var(--border);
     background: #fafafa;
   }
-  thead th.qty-th { text-align: right; width: 80px; }
+  thead th.qty-th { text-align: right; width: 70px; }
+  thead th.cost-th { text-align: right; width: 80px; }
+  thead th.total-th { text-align: right; width: 80px; }
+
+  tbody td.cost-cell { text-align: right; }
+  tbody td.total-cell {
+    text-align: right;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 12px;
+    color: var(--dark-grey);
+  }
+  tbody td.total-cell.has-total { color: var(--red); }
+
+  input[type="number"].cost-input {
+    width: 70px; background: var(--light-grey);
+    border: 1.5px solid var(--border); border-radius: 5px;
+    color: var(--dark-grey);
+    font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 13px; padding: 5px 8px; text-align: right;
+    -moz-appearance: textfield;
+  }
+  input[type="number"].cost-input::-webkit-inner-spin-button,
+  input[type="number"].cost-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type="number"].cost-input:focus { outline: none; border-color: var(--blue); }
+
+  /* Section total bar */
+  .section-total-bar {
+    padding: 8px 18px;
+    border-top: 1px solid var(--border);
+    background: #fafafa;
+    display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700;
+    color: var(--muted);
+  }
+  .section-total-bar span { color: var(--red); font-weight: 800; }
+
+  /* Grand total bar */
+  .grand-total-bar {
+    max-width: 860px; margin: 0 auto 20px; padding: 0 16px;
+  }
+  .grand-total-inner {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  .grand-total-inner .gt-label {
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+  }
+  .grand-total-inner .gt-sections {
+    display: flex; gap: 24px; align-items: center;
+  }
+  .gt-section {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .gt-section-label {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted);
+  }
+  .gt-section-value {
+    font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 900;
+    color: var(--dark);
+  }
+  .gt-divider { color: var(--border); font-size: 20px; }
+  .gt-grand {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  }
+  .gt-grand-label {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted);
+  }
+  .gt-grand-value {
+    font-family: 'Nunito', sans-serif; font-size: 18px; font-weight: 900;
+    color: var(--red);
+  }
 
   tbody tr {
     border-bottom: 1px solid rgba(224,226,234,0.6);
@@ -356,8 +430,35 @@
   </div>
 </div>
 
+<!-- GRAND TOTAL BAR -->
+<div class="grand-total-bar">
+  <div class="grand-total-inner">
+    <div class="gt-label">Estimated Cost</div>
+    <div class="gt-sections">
+      <div class="gt-section">
+        <div class="gt-section-label">Screen Protectors</div>
+        <div class="gt-section-value" id="gt-sp">$0.00</div>
+      </div>
+      <div class="gt-divider">|</div>
+      <div class="gt-section">
+        <div class="gt-section-label">Tools</div>
+        <div class="gt-section-value" id="gt-tools">$0.00</div>
+      </div>
+      <div class="gt-divider">|</div>
+      <div class="gt-section">
+        <div class="gt-section-label">Supplies</div>
+        <div class="gt-section-value" id="gt-supplies">$0.00</div>
+      </div>
+    </div>
+    <div class="gt-grand">
+      <div class="gt-grand-label">Grand Total</div>
+      <div class="gt-grand-value" id="gt-grand">$0.00</div>
+    </div>
+  </div>
+</div>
+
 <!-- TABS -->
-<div class="tabs-wrapper">
+
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('sp',this)">Screen Protectors</button>
     <button class="tab-btn" onclick="switchTab('tools',this)">Tools</button>
@@ -380,7 +481,7 @@
           </div>
         </div>
         <div class="section-body">
-          <table><thead><tr><th>Item</th><th class="qty-th">Qty</th></tr></thead>
+          <table><thead><tr><th>Item</th><th class="qty-th">Qty</th><th class="cost-th">Unit Cost</th><th class="total-th">Total</th></tr></thead>
           <tbody id="tools-body"></tbody></table>
           <div class="add-row-bar">
             <input type="text" class="add-input" id="tools-new" placeholder="Add tool..." />
@@ -402,7 +503,7 @@
           </div>
         </div>
         <div class="section-body">
-          <table><thead><tr><th>Item</th><th class="qty-th">Qty</th></tr></thead>
+          <table><thead><tr><th>Item</th><th class="qty-th">Qty</th><th class="cost-th">Unit Cost</th><th class="total-th">Total</th></tr></thead>
           <tbody id="supplies-body"></tbody></table>
           <div class="add-row-bar">
             <input type="text" class="add-input" id="supplies-new" placeholder="Add supply..." />
@@ -433,8 +534,22 @@
 
 <script>
 const spConfig = [
-  { id:'galaxy-a', label:'Galaxy A Series', type:'simple', models:[
-    'Galaxy A17','Galaxy A16','Galaxy A15','Galaxy A14','Galaxy A13','Galaxy A12'
+  { id:'galaxy-a', label:'Galaxy A Series', type:'nested', subsections:[
+    { id:'galaxy-a5x', label:'Galaxy A5x', models:[
+      'Galaxy A56','Galaxy A55','Galaxy A54','Galaxy A53','Galaxy A52','Galaxy A51'
+    ]},
+    { id:'galaxy-a3x', label:'Galaxy A3x', models:[
+      'Galaxy A36','Galaxy A35','Galaxy A33','Galaxy A32'
+    ]},
+    { id:'galaxy-a2x', label:'Galaxy A2x', models:[
+      'Galaxy A26','Galaxy A25'
+    ]},
+    { id:'galaxy-a1x', label:'Galaxy A1x', models:[
+      'Galaxy A17','Galaxy A16','Galaxy A15','Galaxy A14','Galaxy A13','Galaxy A12'
+    ]},
+    { id:'galaxy-aother', label:'Other A Models', models:[
+      'Galaxy A42'
+    ]}
   ]},
   { id:'pixel', label:'Google Pixel', type:'simple', models:[
     'Pixel 10 Pro XL','Pixel 10 Pro','Pixel 10',
@@ -445,29 +560,33 @@ const spConfig = [
   ]},
   { id:'motorola', label:'Motorola', type:'nested', subsections:[
     { id:'moto-stylus', label:'Moto G Stylus', models:[
-      'Moto G Stylus (2020) XT2043','Moto G Stylus (2021) XT2115',
-      'Moto G Stylus (2022) XT2211','Moto G Stylus (2023) XT2317',
-      'Moto G Stylus (2024) XT2415','Moto G Stylus (2025) XT2617'
+      'Moto G Stylus (2025) XT2617','Moto G Stylus (2024) XT2415',
+      'Moto G Stylus (2023) XT2317','Moto G Stylus (2022) XT2211',
+      'Moto G Stylus (2021) XT2115','Moto G Stylus (2020) XT2043'
     ]},
     { id:'moto-stylus5g', label:'Moto G Stylus 5G', models:[
-      'Moto G Stylus 5G (2021) XT2131','Moto G Stylus 5G (2022) XT2215',
-      'Moto G Stylus 5G (2023) XT2315','Moto G Stylus 5G (2024) XT2419',
-      'Moto G Stylus 5G (2025) XT2533'
+      'Moto G Stylus 5G (2025) XT2533','Moto G Stylus 5G (2024) XT2419',
+      'Moto G Stylus 5G (2023) XT2315','Moto G Stylus 5G (2022) XT2215',
+      'Moto G Stylus 5G (2021) XT2131'
     ]},
     { id:'moto-power', label:'Moto G Power', models:[
-      'Moto G Power (2020) XT2041','Moto G Power (2021) XT2117',
-      'Moto G Power (2022) XT2165','Moto G Power 5G (2023) XT2311',
-      'Moto G Power 5G (2024) XT2415'
+      'Moto G Power 5G (2024) XT2415','Moto G Power 5G (2023) XT2311',
+      'Moto G Power (2022) XT2165','Moto G Power (2021) XT2117',
+      'Moto G Power (2020) XT2041'
     ]},
     { id:'moto-g5g', label:'Moto G 5G', models:[
-      'Moto G 5G (2021) XT2113','Moto G 5G (2022) XT2213',
-      'Moto G 5G (2023) XT2313','Moto G 5G (2024) XT2417','Moto G 5G (2025) XT2513'
+      'Moto G 5G (2025) XT2513','Moto G 5G (2024) XT2417',
+      'Moto G 5G (2023) XT2313','Moto G 5G (2022) XT2213','Moto G 5G (2021) XT2113'
     ]}
   ]}
 ];
 
-const toolsPreset   = ['Vetus-13 Flat Tweezers'];
-const suppliesPreset = ['Front Film 6.9"','Front Film 6.7"','Front Film 6.3"','Front Film 6.1"','Front Film 5.4"','Front Film 4.7"'];
+const toolsPreset   = [['Vetus-13 Flat Tweezers', 2.20]];
+const suppliesPreset = [
+  ['Front Film 6.9"', 0.06], ['Front Film 6.7"', 0.06],
+  ['Front Film 6.3"', 0.06], ['Front Film 6.1"', 0.06],
+  ['Front Film 5.4"', 0.06], ['Front Film 4.7"', 0.06]
+];
 
 let rowId = 0;
 
@@ -477,7 +596,7 @@ function buildSPStack() {
     if (sec.type === 'simple') {
       const div = buildSimpleSection(sec.id, sec.label, `count-${sec.id}`);
       stack.appendChild(div);
-      sec.models.forEach(m => addPresetRow(`body-${sec.id}`, m, `count-${sec.id}`));
+      sec.models.forEach(m => addPresetRow(`body-${sec.id}`, m, `count-${sec.id}`, 0.50));
       bindEnter(`new-${sec.id}`, `body-${sec.id}`, `count-${sec.id}`);
     } else if (sec.type === 'nested') {
       buildNestedSection(sec);
@@ -487,7 +606,7 @@ function buildSPStack() {
 
 function buildSimpleSection(id, label, countId) {
   const div = document.createElement('div');
-  div.className = 'section';
+  div.className = 'section collapsed';
   div.id = `sec-${id}`;
   div.innerHTML = `
     <div class="section-header" onclick="toggleSection('sec-${id}')">
@@ -498,7 +617,7 @@ function buildSimpleSection(id, label, countId) {
       <i class="chevron">▾</i>
     </div>
     <div class="section-body">
-      <table><thead><tr><th>Model</th><th class="qty-th">Qty</th></tr></thead>
+      <table><thead><tr><th>Model</th><th class="qty-th">Qty</th><th class="cost-th">Unit Cost</th><th class="total-th">Total</th></tr></thead>
       <tbody id="body-${id}"></tbody></table>
       <div class="add-row-bar">
         <input type="text" class="add-input" id="new-${id}" placeholder="Add model..." />
@@ -511,7 +630,7 @@ function buildSimpleSection(id, label, countId) {
 function buildNestedSection(sec) {
   const stack = document.getElementById('sp-stack');
   const div = document.createElement('div');
-  div.className = 'section';
+  div.className = 'section collapsed';
   div.id = `sec-${sec.id}`;
   div.innerHTML = `
     <div class="section-header" onclick="toggleSection('sec-${sec.id}')">
@@ -529,7 +648,7 @@ function buildNestedSection(sec) {
   const subStack = div.querySelector(`#subsections-${sec.id}`);
   sec.subsections.forEach(sub => {
     const subDiv = document.createElement('div');
-    subDiv.className = 'subsection';
+    subDiv.className = 'subsection collapsed';
     subDiv.id = `subsec-${sub.id}`;
     subDiv.innerHTML = `
       <div class="subsection-header" onclick="toggleSubsection('subsec-${sub.id}')">
@@ -540,7 +659,7 @@ function buildNestedSection(sec) {
         <i class="chevron">▾</i>
       </div>
       <div class="subsection-body">
-        <table><thead><tr><th>Model</th><th class="qty-th">Qty</th></tr></thead>
+        <table><thead><tr><th>Model</th><th class="qty-th">Qty</th><th class="cost-th">Unit Cost</th><th class="total-th">Total</th></tr></thead>
         <tbody id="body-${sub.id}"></tbody></table>
         <div class="add-row-bar">
           <input type="text" class="add-input" id="new-${sub.id}" placeholder="Add model..." />
@@ -548,21 +667,26 @@ function buildNestedSection(sec) {
         </div>
       </div>`;
     subStack.appendChild(subDiv);
-    sub.models.forEach(m => addPresetRow(`body-${sub.id}`, m, `count-${sub.id}`));
+    sub.models.forEach(m => addPresetRow(`body-${sub.id}`, m, `count-${sub.id}`, 0.50));
     bindEnter(`new-${sub.id}`, `body-${sub.id}`, `count-${sub.id}`);
   });
 }
 
-function addPresetRow(tbodyId, label, countId) {
+function addPresetRow(tbodyId, label, countId, defaultCost = '') {
   const tbody = document.getElementById(tbodyId);
   const id = `qty-${rowId++}`;
+  const cid = `cost-${rowId++}`;
   const tr = document.createElement('tr');
   tr.dataset.countId = countId;
   tr.innerHTML = `
     <td class="model-cell">${label}</td>
     <td class="qty-cell">
-      <input type="number" id="${id}" min="0" placeholder="—" oninput="onQtyChange(this,'${countId}')" />
-    </td>`;
+      <input type="number" id="${id}" min="0" placeholder="—" oninput="onQtyChange(this,'${countId}','${cid}','${tbodyId}')" />
+    </td>
+    <td class="cost-cell">
+      <input type="number" class="cost-input" id="${cid}" min="0" step="0.01" placeholder="$0.00" value="${defaultCost}" oninput="onCostChange(this,'${id}','${tbodyId}')" />
+    </td>
+    <td class="total-cell" id="line-${id}">—</td>`;
   tbody.appendChild(tr);
 }
 
@@ -572,25 +696,115 @@ function addCustomRow(tbodyId, inputId, countId) {
   if (!val) return;
   const tbody = document.getElementById(tbodyId);
   const id = `qty-${rowId++}`;
+  const cid = `cost-${rowId++}`;
   const tr = document.createElement('tr');
   tr.dataset.countId = countId;
   tr.innerHTML = `
     <td class="model-cell"><input type="text" class="inline-edit" value="${val}" /></td>
     <td class="qty-cell">
       <div class="qty-cell-inner">
-        <input type="number" id="${id}" min="0" placeholder="—" oninput="onQtyChange(this,'${countId}')" />
-        <button class="delete-btn" onclick="deleteRow(this,'${countId}')">✕</button>
+        <input type="number" id="${id}" min="0" placeholder="—" oninput="onQtyChange(this,'${countId}','${cid}','${tbodyId}')" />
+        <button class="delete-btn" onclick="deleteRow(this,'${countId}','${tbodyId}')">✕</button>
       </div>
-    </td>`;
+    </td>
+    <td class="cost-cell">
+      <input type="number" class="cost-input" id="${cid}" min="0" step="0.01" placeholder="$0.00" oninput="onCostChange(this,'${id}','${tbodyId}')" />
+    </td>
+    <td class="total-cell" id="line-${id}">—</td>`;
   tbody.appendChild(tr);
   input.value = '';
   input.focus();
 }
 
-function deleteRow(btn, countId) {
+function deleteRow(btn, countId, tbodyId) {
   btn.closest('tr').remove();
   updateCount(countId);
   updateMotoCount();
+  updateTotals(tbodyId);
+  updateGrandTotal();
+}
+
+function onQtyChange(input, countId, costId, tbodyId) {
+  const val = parseInt(input.value);
+  if (val > 0) { input.classList.add('has-value'); }
+  else { input.classList.remove('has-value'); input.value = ''; }
+  updateCount(countId);
+  updateMotoCount();
+  updateLineTotal(input.id, costId);
+  updateTotals(tbodyId);
+  updateGrandTotal();
+}
+
+function onCostChange(costInput, qtyId, tbodyId) {
+  updateLineTotal(qtyId, costInput.id);
+  updateTotals(tbodyId);
+  updateGrandTotal();
+}
+
+function updateLineTotal(qtyId, costId) {
+  const qty = parseFloat(document.getElementById(qtyId)?.value) || 0;
+  const cost = parseFloat(document.getElementById(costId)?.value) || 0;
+  const lineEl = document.getElementById(`line-${qtyId}`);
+  if (!lineEl) return;
+  if (qty > 0 && cost > 0) {
+    lineEl.textContent = '$' + (qty * cost).toFixed(2);
+    lineEl.classList.add('has-total');
+  } else {
+    lineEl.textContent = '—';
+    lineEl.classList.remove('has-total');
+  }
+}
+
+function getTabForBody(tbodyId) {
+  if (['tools-body'].includes(tbodyId)) return 'gt-tools';
+  if (['supplies-body'].includes(tbodyId)) return 'gt-supplies';
+  return 'gt-sp';
+}
+
+function updateTotals(tbodyId) {
+  if (!tbodyId) return;
+  // Find all tbodies that map to the same tab
+  let bodies = [tbodyId];
+  // If it's an SP body, collect all SP bodies
+  const spBodyIds = [];
+  spConfig.forEach(sec => {
+    if (sec.type === 'simple') spBodyIds.push(`body-${sec.id}`);
+    else if (sec.type === 'nested') sec.subsections.forEach(sub => spBodyIds.push(`body-${sub.id}`));
+  });
+  
+  let total = 0;
+  if (spBodyIds.includes(tbodyId)) {
+    spBodyIds.forEach(bid => {
+      document.querySelectorAll(`#${bid} tr`).forEach(row => {
+        const qtyInp = row.querySelector('input[type="number"]:not(.cost-input)');
+        const costInp = row.querySelector('input.cost-input');
+        const qty = parseFloat(qtyInp?.value) || 0;
+        const cost = parseFloat(costInp?.value) || 0;
+        total += qty * cost;
+      });
+    });
+    const el = document.getElementById('gt-sp');
+    if (el) el.textContent = '$' + total.toFixed(2);
+  } else {
+    document.querySelectorAll(`#${tbodyId} tr`).forEach(row => {
+      const qtyInp = row.querySelector('input[type="number"]:not(.cost-input)');
+      const costInp = row.querySelector('input.cost-input');
+      const qty = parseFloat(qtyInp?.value) || 0;
+      const cost = parseFloat(costInp?.value) || 0;
+      total += qty * cost;
+    });
+    const gtId = tbodyId === 'tools-body' ? 'gt-tools' : 'gt-supplies';
+    const el = document.getElementById(gtId);
+    if (el) el.textContent = '$' + total.toFixed(2);
+  }
+}
+
+function updateGrandTotal() {
+  const sp = parseFloat(document.getElementById('gt-sp')?.textContent.replace('$','')) || 0;
+  const tools = parseFloat(document.getElementById('gt-tools')?.textContent.replace('$','')) || 0;
+  const supplies = parseFloat(document.getElementById('gt-supplies')?.textContent.replace('$','')) || 0;
+  const el = document.getElementById('gt-grand');
+  if (el) el.textContent = '$' + (sp + tools + supplies).toFixed(2);
 }
 
 function bindEnter(inputId, tbodyId, countId) {
@@ -600,14 +814,6 @@ function bindEnter(inputId, tbodyId, countId) {
       if (e.key === 'Enter') addCustomRow(tbodyId, inputId, countId);
     });
   }, 0);
-}
-
-function onQtyChange(input, countId) {
-  const val = parseInt(input.value);
-  if (val > 0) { input.classList.add('has-value'); }
-  else { input.classList.remove('has-value'); input.value = ''; }
-  updateCount(countId);
-  updateMotoCount();
 }
 
 function updateCount(countId) {
@@ -658,6 +864,13 @@ function clearAll() {
   });
   document.querySelectorAll('.count').forEach(el => {
     el.textContent = '0 items'; el.classList.add('zero');
+  });
+  document.querySelectorAll('.total-cell').forEach(el => {
+    el.textContent = '—'; el.classList.remove('has-total');
+  });
+  ['gt-sp','gt-tools','gt-supplies','gt-grand'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '$0.00';
   });
 }
 
@@ -746,8 +959,8 @@ document.getElementById('preview-modal').addEventListener('click', function(e) {
 
 document.addEventListener('DOMContentLoaded', function() {
   buildSPStack();
-  toolsPreset.forEach(t => addPresetRow('tools-body', t, 'count-tools'));
-  suppliesPreset.forEach(s => addPresetRow('supplies-body', s, 'count-supplies'));
+  toolsPreset.forEach(([label, cost]) => addPresetRow('tools-body', label, 'count-tools', cost));
+  suppliesPreset.forEach(([label, cost]) => addPresetRow('supplies-body', label, 'count-supplies', cost));
 });
 </script>
 </body>
