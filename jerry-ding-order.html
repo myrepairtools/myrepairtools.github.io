@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPR — Jerry Ding Order Form</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap');
+
+  :root {
+    --red:        #DC282E;
+    --light-red:  #F15F5E;
+    --dark:       #2D2D3B;
+    --dark-grey:  #4E4E50;
+    --blue:       #4FB0E3;
+    --grey:       #B9BDCB;
+    --light-grey: #F3F2F2;
+    --white:      #FFFFFF;
+    --border:     #E0E2EA;
+    --text:       #4E4E50;
+    --muted:      #B9BDCB;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--light-grey);
+    color: var(--text);
+    font-family: 'Nunito Sans', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ── HEADER ── */
+  .site-header {
+    background: var(--white);
+    border-bottom: 3px solid var(--red);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo-area { display: flex; align-items: center; gap: 14px; }
+
+  /* SVG CPR icon inline */
+  .cpr-logo-wrap svg {
+    height: 36px;
+    width: auto;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .page-title {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--dark);
+    letter-spacing: -0.2px;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 5px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 12px; font-weight: 800;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    cursor: pointer; border: none;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+
+  .btn-red { background: var(--red); color: var(--white); }
+  .btn-blue { background: var(--blue); color: var(--white); }
+  .btn-outline {
+    background: transparent; color: var(--dark-grey);
+    border: 1.5px solid var(--border);
+    font-weight: 700;
+  }
+  .btn-outline:hover { border-color: var(--grey); }
+  .btn-sm { padding: 6px 12px; font-size: 11px; }
+
+  /* ── TABS ── */
+  .tabs-wrapper { max-width: 860px; margin: 28px auto 0; padding: 0 16px; }
+
+  .tab-nav {
+    display: flex; gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .tab-btn {
+    padding: 11px 22px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 12px; font-weight: 800;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    cursor: pointer; border: none;
+    background: transparent; color: var(--muted);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { color: var(--dark-grey); }
+  .tab-btn.active { color: var(--red); border-bottom-color: var(--red); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── SECTION STACK ── */
+  .section-stack { display: flex; flex-direction: column; gap: 12px; }
+
+  .section {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+
+  .section-header {
+    padding: 13px 18px;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+  }
+  .section-header:hover { background: #fafafa; }
+
+  .section-header-left { display: flex; align-items: center; gap: 10px; }
+
+  .section-header h2 {
+    font-family: 'Nunito', sans-serif;
+    font-size: 12px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--dark-grey);
+  }
+
+  .count {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 700;
+    color: var(--red); background: rgba(220,40,46,0.08);
+    padding: 2px 8px; border-radius: 20px;
+    letter-spacing: 0.3px;
+  }
+  .count.zero { color: var(--muted); background: rgba(185,189,203,0.15); }
+
+  .chevron {
+    color: var(--grey); font-size: 11px;
+    transition: transform 0.2s;
+    font-style: normal;
+  }
+  .section.collapsed > .section-header .chevron { transform: rotate(-90deg); }
+  .section.collapsed > .section-body { display: none; }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; }
+
+  thead th {
+    padding: 8px 18px; text-align: left;
+    font-family: 'Nunito', sans-serif;
+    font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    background: #fafafa;
+  }
+  thead th.qty-th { text-align: right; width: 80px; }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(224,226,234,0.6);
+    transition: background 0.08s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(79,176,227,0.04); }
+
+  tbody td {
+    padding: 8px 18px; font-size: 13px; vertical-align: middle;
+    color: var(--dark-grey);
+  }
+  tbody td.model-cell {
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 13px; font-weight: 600;
+  }
+  tbody td.qty-cell { text-align: right; }
+  .qty-cell-inner { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+  /* ── INPUTS ── */
+  input[type="number"] {
+    width: 60px; background: var(--light-grey);
+    border: 1.5px solid var(--border); border-radius: 5px;
+    color: var(--dark-grey);
+    font-family: 'Nunito', sans-serif; font-weight: 700;
+    font-size: 13px; padding: 5px 8px; text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type="number"]:focus {
+    outline: none; border-color: var(--blue);
+    background: rgba(79,176,227,0.06);
+  }
+  input[type="number"].has-value {
+    border-color: var(--red); background: rgba(220,40,46,0.05);
+    color: var(--red);
+  }
+
+  input[type="text"].inline-edit {
+    background: transparent; border: none;
+    color: var(--dark-grey);
+    font-family: 'Nunito Sans', sans-serif; font-size: 13px; font-weight: 600;
+    padding: 0; width: 100%;
+  }
+  input[type="text"].inline-edit:focus { outline: none; }
+
+  input[type="text"].add-input {
+    flex: 1; background: var(--light-grey);
+    border: 1.5px solid var(--border); border-radius: 5px;
+    color: var(--dark-grey);
+    font-family: 'Nunito Sans', sans-serif; font-size: 12px; font-weight: 600;
+    padding: 6px 10px; transition: border-color 0.15s;
+  }
+  input[type="text"].add-input:focus { outline: none; border-color: var(--blue); }
+
+  /* ── ADD ROW BAR ── */
+  .add-row-bar {
+    padding: 10px 18px; border-top: 1px solid var(--border);
+    background: #fafafa;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .delete-btn {
+    background: transparent; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: 13px; padding: 2px 5px;
+    border-radius: 4px; transition: color 0.15s; line-height: 1;
+  }
+  .delete-btn:hover { color: var(--red); }
+
+  /* ── SUBSECTIONS ── */
+  .subsection-stack { display: flex; flex-direction: column; }
+
+  .subsection { border-bottom: 1px solid var(--border); }
+  .subsection:last-child { border-bottom: none; }
+
+  .subsection-header {
+    padding: 10px 18px 10px 30px;
+    background: #fafafa;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+    transition: background 0.1s;
+  }
+  .subsection-header:hover { background: #f5f5f5; }
+
+  .subsection-header-left { display: flex; align-items: center; gap: 10px; }
+
+  .subsection-header h3 {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--blue);
+  }
+
+  .subsection.collapsed > .subsection-header .chevron { transform: rotate(-90deg); }
+  .subsection.collapsed > .subsection-body { display: none; }
+
+  .subsection-body table thead th { padding-left: 30px; }
+  .subsection-body table tbody td { padding-left: 30px; }
+  .subsection-body .add-row-bar { padding-left: 30px; }
+
+  /* ── SIMPLE TAB SECTIONS ── */
+  .single-section { max-width: 520px; }
+
+  /* ── MODAL ── */
+  .preview-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(45,45,59,0.55); z-index: 100;
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  .preview-modal.open { display: flex; }
+
+  .modal-box {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; width: 100%; max-width: 560px;
+    max-height: 82vh; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 8px 40px rgba(45,45,59,0.18);
+  }
+
+  .modal-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--light-grey);
+  }
+  .modal-header h3 {
+    font-family: 'Nunito', sans-serif;
+    font-size: 14px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--dark-grey);
+  }
+
+  .modal-body { flex: 1; overflow-y: auto; padding: 18px; }
+
+  #preview-text {
+    background: var(--light-grey); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px;
+    font-family: 'Nunito Sans', monospace; font-size: 12.5px; font-weight: 600;
+    line-height: 1.9; white-space: pre-wrap; color: var(--dark-grey);
+    min-height: 180px;
+  }
+
+  .modal-footer {
+    padding: 14px 20px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; justify-content: flex-end;
+    background: var(--light-grey);
+  }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--red); color: var(--white);
+    padding: 11px 22px; border-radius: 5px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.8px;
+    text-transform: uppercase;
+    transition: transform 0.3s ease; z-index: 200;
+    box-shadow: 0 4px 16px rgba(220,40,46,0.3);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── RED ACCENT LINE ── */
+  .section { border-top: 3px solid transparent; }
+  .section:focus-within { border-top-color: var(--red); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="site-header">
+  <div class="logo-area">
+    <div class="cpr-logo-wrap" style="display:flex;flex-direction:column;gap:4px;width:220px;">
+      <svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1152 219" width="100%" height="100%" style="display:block;"> <style> .s0 { fill: #393d41 } .s1 { fill: #eb4140 } .s2 { fill: #fefefe } </style> <g id="C1"> <g id="&lt;Group&gt;"> <g id="&lt;Group&gt;"> <path id="&lt;Path&gt;" class="s0" d="m259.57 116.47c0-18.21 13.89-33.33 33.02-33.33 10.49 0 17.28 3.39 23.15 8.33 0.61 0.62 1.54 1.54 1.54 2.78 0 1.85-1.85 3.7-3.7 3.7-0.93 0-1.86-0.62-2.47-0.93-4.94-4.32-10.8-7.4-18.83-7.4-14.5 0-25.3 11.42-25.3 26.23v0.31c0 14.81 10.8 26.54 25.3 26.54 8.03 0 13.89-2.78 19.44-7.72 0.62-0.62 1.55-0.92 2.47-0.92 1.85 0 3.4 1.54 3.4 3.39 0 1.23-0.62 2.16-1.24 2.47-6.48 5.86-13.57 9.26-24.07 9.26-18.82 0-32.71-14.51-32.71-32.71z"/> <path id="&lt;Path&gt;" class="s0" d="m324.97 144.55v-56.47c0-2.16 1.55-3.71 3.71-3.71h40.42c1.85 0 3.4 1.55 3.4 3.4 0 1.85-1.55 3.39-3.4 3.39h-36.72v21.91h32.4c1.85 0 3.4 1.54 3.4 3.4 0 1.85-1.55 3.39-3.4 3.39h-32.4v22.53h37.03c1.85 0 3.39 1.54 3.39 3.39 0 1.85-1.54 3.4-3.39 3.4h-40.73c-2.16-0.93-3.71-2.47-3.71-4.63z"/> <path id="&lt;Path&gt;" class="s0" d="m381.13 87.46c0-2.16 1.55-3.7 3.71-3.7 2.16 0 3.7 1.54 3.7 3.7v54.01h33.64c1.85 0 3.39 1.54 3.39 3.39 0 1.85-1.54 3.4-3.39 3.4h-37.34c-1.85 0-3.71-1.55-3.71-3.71z"/> <path id="&lt;Path&gt;" class="s0" d="m432.67 87.46c0-2.16 1.54-3.7 3.7-3.7 2.16 0 3.71 1.54 3.71 3.7v54.01h33.63c1.85 0 3.4 1.54 3.4 3.39 0 1.85-1.55 3.4-3.4 3.4h-37.34c-1.85 0-3.7-1.55-3.7-3.71z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m506.11 88.08c0-2.16 1.55-3.71 3.71-3.71h20.67c14.81 0 24.38 7.72 24.38 20.37v0.31c0 13.89-11.73 20.98-25.61 20.98h-15.74v19.44c0 2.16-1.54 3.71-3.7 3.71-2.16 0-3.71-1.55-3.71-3.71 0-0.3 0-57.39 0-57.39zm23.46 31.16c10.8 0 17.89-5.55 17.89-14.19v-0.31c0-9.26-7.09-13.89-17.59-13.89h-16.35v28.09h16.05z"/> <path id="&lt;Path&gt;" class="s0" d="m561.97 87.46c0-2.16 1.54-3.7 3.7-3.7 2.16 0 3.7 1.54 3.7 3.7v25.31h37.65v-25.31c0-2.16 1.54-3.7 3.7-3.7 2.16 0 3.71 1.54 3.71 3.7v57.71c0 2.16-1.55 3.7-3.71 3.7-2.16 0-3.7-1.54-3.7-3.7v-25.61h-37.65v25.61c0 2.16-1.85 3.7-3.7 3.7-1.85 0-3.7-1.54-3.7-3.7z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m623.69 116.47c0-17.9 13.58-33.33 33.33-33.33 19.75 0 33.02 15.12 33.02 33.02v0.31c0 17.59-13.58 33.01-33.33 33.01-19.75 0-32.71-15.42-33.02-33.01zm58.94 0c0-14.82-10.8-26.54-25.61-26.54-14.81 0-25.61 11.72-25.61 26.23v0.31c0 14.5 10.8 26.53 25.61 26.53 14.81-0.3 25.61-12.03 25.61-26.53z"/> <path id="&lt;Path&gt;" class="s0" d="m699.6 87.46c0-1.85 1.55-3.7 3.71-3.7h0.92c1.85 0 2.78 0.93 3.7 2.16l39.5 49.37v-47.83c0-1.85 1.55-3.7 3.71-3.7 2.16 0 3.39 1.54 3.39 3.7v57.71c0 1.85-1.23 3.39-3.39 3.39h-0.31c-1.54 0-2.78-0.92-3.7-2.16l-40.43-50.61v49.69c0 1.85-1.54 3.7-3.7 3.7-2.16 0-3.4-1.54-3.4-3.7z"/> <path id="&lt;Path&gt;" class="s0" d="m766.88 144.55v-56.47c0-2.16 1.85-3.71 3.7-3.71h40.43c1.85 0 3.39 1.55 3.39 3.4 0 1.85-1.54 3.39-3.39 3.39h-36.73v21.91h32.71c1.86 0 3.4 1.54 3.4 3.4 0 1.85-1.54 3.39-3.4 3.39h-32.71v22.53h37.34c1.86 0 3.4 1.54 3.4 3.39 0 1.85-1.54 3.4-3.4 3.4h-41.04c-1.85-0.93-3.39-2.47-3.7-4.63z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m845.26 88.08c0-2.16 1.54-3.71 3.7-3.71h24.38c8.03 0 14.51 2.47 18.52 6.48 3.08 3.09 4.94 7.41 4.94 12.66v0.3c0 10.5-7.41 16.67-17.29 18.52l16.05 20.37c0.62 0.92 1.24 1.54 1.24 2.77 0 1.86-1.86 3.71-3.71 3.71-1.54 0-2.47-0.93-3.39-1.85l-18.21-23.46h-18.82v21.6c0 2.16-1.55 3.71-3.71 3.71-2.16 0-3.7-1.55-3.7-3.71zm27.16 29.01c9.87 0 16.66-4.94 16.66-13.27v-0.31c0-7.71-6.17-12.65-16.66-12.65h-20.06v25.92z"/> <path id="&lt;Path&gt;" class="s0" d="m906.36 144.55v-56.47c0-2.16 1.55-3.71 3.71-3.71h40.42c1.85 0 3.4 1.55 3.4 3.4 0 1.85-1.55 3.39-3.4 3.39h-36.72v21.91h32.71c1.85 0 3.39 1.54 3.39 3.4 0 1.85-1.54 3.39-3.39 3.39h-32.71v22.53h37.03c1.85 0 3.39 1.54 3.39 3.39 0 1.85-1.54 3.4-3.39 3.4h-41.04c-1.85-0.93-3.4-2.47-3.4-4.63z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m962.52 88.08c0-2.16 1.55-3.71 3.71-3.71h20.67c14.81 0 24.38 7.72 24.38 20.37v0.31c0 13.89-11.73 20.98-25.61 20.98h-15.74v19.44c0 2.16-1.54 3.71-3.7 3.71-2.16 0-3.71-1.55-3.71-3.71 0-0.3 0-57.39 0-57.39zm23.46 31.16c10.8 0 17.9-5.55 17.9-14.19v-0.31c0-9.26-7.1-13.89-17.59-13.89h-16.36v28.09h16.05z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m1009.7 143.62l27.19-56.28c1.09-1.86 2.54-2.97 4.71-2.97h0.36c2.18 0 3.99 1.11 4.72 2.97l27.19 56.28c0.36 0.74 0.36 1.11 0.36 1.85 0 1.86-1.81 3.34-3.63 3.34-1.81 0-2.9-1.11-3.62-2.6l-6.89-14.44h-36.62l-6.88 14.82c-0.73 1.48-1.82 2.59-3.63 2.59-1.81 0-3.26-1.48-3.26-3.34-0.36-1.11-0.36-1.48 0-2.22zm47.13-18.51l-15.23-32.59-15.23 32.59z"/> <path id="&lt;Path&gt;" class="s0" d="m1080.1 87.46c0-2.16 1.54-3.7 3.7-3.7 2.16 0 3.71 1.54 3.71 3.7v57.71c0 2.16-1.55 3.7-3.71 3.7-2.16 0-3.7-1.54-3.7-3.7z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m1100.46 88.08c0-2.16 1.55-3.71 3.71-3.71h24.38c8.02 0 14.5 2.47 18.51 6.48 3.09 3.09 4.94 7.41 4.94 12.66v0.3c0 10.5-7.41 16.67-17.28 18.52l16.05 20.37c0.61 0.92 1.23 1.54 1.23 2.77 0 1.86-1.85 3.71-3.7 3.71-1.55 0-2.78-0.93-3.4-1.85l-18.2-23.46h-18.52v21.6c0 2.16-1.54 3.71-3.7 3.71-2.16 0-3.71-1.55-3.71-3.71-0.31-0.3-0.31-57.39-0.31-57.39zm27.16 29c9.88 0 16.67-4.93 16.67-13.27v-0.3c0-7.72-6.18-12.66-16.67-12.66h-20.06v25.93z"/> <path id="&lt;Path&gt;" fill-rule="evenodd" class="s1" d="m111.38 219c-61.59 0-111.38-48.95-111.38-109.5 0-60.55 49.79-109.5 111.38-109.5 61.6 0 111.38 48.95 111.38 109.5 0 60.55-49.78 109.5-111.38 109.5z"/> <path id="&lt;Path&gt;" class="s2" d="m190.32 86.04h-55.04v-54.17h-47.8v54.17h-55.04v46.64h55.04v54.46h47.8v-54.46h55.04z"/> <path id="&lt;Path&gt;" class="s0" d="m78.8 128.62c-2.32 0-4.63-0.29-6.95-1.45-2.03-0.87-4.06-2.03-5.51-3.76-1.44-1.45-2.89-3.48-3.76-5.51-0.87-2.03-1.45-4.63-1.45-6.95 0-2.32 0.58-4.64 1.45-6.95 0.87-2.03 2.03-4.06 3.76-5.51 1.45-1.73 3.48-2.89 5.51-3.76 2.32-0.87 4.63-1.45 7.24-1.45 1.74 0 3.48 0.29 4.64 0.58 1.44 0.29 2.6 0.87 3.76 1.45 1.16 0.58 2.32 1.45 3.19 2.31 0.87 0.87 1.74 1.74 2.6 2.9l-6.95 5.5c-0.87-1.15-2.03-2.31-3.18-2.89-1.16-0.87-2.61-1.16-4.35-1.16-1.16 0-2.32 0.29-3.19 0.58-0.86 0.58-1.73 1.16-2.6 2.03-0.58 0.87-1.16 1.73-1.74 2.89-0.29 1.16-0.58 2.32-0.58 3.48 0 1.16 0.29 2.32 0.58 3.48 0.29 1.15 0.87 2.02 1.74 2.89 0.58 0.87 1.45 1.45 2.6 2.03 0.87 0.58 2.03 0.58 3.19 0.58 0.87 0 1.74 0 2.32-0.29 0.58-0.29 1.45-0.58 2.03-0.87 0.58-0.29 1.15-0.87 1.73-1.16 0.58-0.58 1.16-1.16 1.45-1.74l6.95 4.93c-0.86 1.16-1.73 2.03-2.6 3.19-0.87 0.86-2.03 1.73-3.19 2.31-1.16 0.58-2.61 1.16-4.05 1.74-1.16 0.29-2.9 0.58-4.64 0.58z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m97.93 93.86h14.48c2.03 0 4.06 0.29 5.79 0.87 1.74 0.58 3.19 1.16 4.35 2.32 1.16 0.87 2.32 2.32 2.9 3.77 0.58 1.44 0.87 3.18 0.87 4.92 0 2.03-0.29 3.77-1.16 5.21-0.58 1.45-1.74 2.9-2.9 3.77-1.16 1.16-2.9 1.74-4.64 2.32-1.73 0.58-3.76 0.87-5.79 0.87h-4.63v9.85h-9.56zm13.9 17.09c1.74 0 2.9-0.29 4.06-1.16 0.87-0.87 1.45-1.74 1.45-3.19 0-1.45-0.58-2.61-1.45-3.47-0.87-0.87-2.32-1.16-4.06-1.16h-4.63v8.98z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m130.65 93.86h15.93c2.61 0 4.93 0.29 6.66 0.87q2.61 0.87 4.35 2.61c2.03 2.03 2.9 4.63 2.9 7.82 0 2.61-0.58 4.93-2.03 6.66-1.16 1.74-2.9 2.9-5.22 4.06l8.11 11.88h-10.71l-6.96-10.43h-4.05v10.43h-9.27zm15.35 16.51c1.74 0 2.9-0.29 3.77-1.16 0.87-0.87 1.16-1.74 1.16-2.9 0-1.45-0.58-2.32-1.45-3.18-0.87-0.58-2.03-0.87-3.77-0.87h-6.08v8.11z"/> <path id="&lt;Compound Path&gt;" fill-rule="evenodd" class="s0" d="m163.96 101.1c0-2.03 0.58-3.47 2.03-4.92 1.45-1.45 3.19-2.03 4.93-2.03 2.02 0 3.47 0.58 4.92 2.03 1.45 1.45 2.03 3.18 2.03 4.92 0 2.03-0.58 3.48-2.03 4.93-1.45 1.45-3.19 2.02-4.92 2.02-2.03 0-3.48-0.57-4.93-2.02-1.45-1.16-2.03-2.9-2.03-4.93zm13.04 0c0-1.74-0.58-2.89-1.74-4.05-1.16-1.16-2.61-1.74-4.05-1.74-1.74 0-2.9 0.58-4.06 1.74-1.16 1.16-1.74 2.6-1.74 4.05 0 1.74 0.58 2.9 1.74 4.06 1.16 1.16 2.61 1.74 4.06 1.74 1.73 0 2.89-0.58 4.05-1.74 1.16-0.87 1.74-2.32 1.74-4.06zm-3.77 4.35l-2.31-3.77h-1.16v3.77h-1.16v-8.69h2.32c2.02 0 3.18 0.87 3.18 2.31 0 1.16-0.58 2.03-1.74 2.32l2.32 4.06zm-3.47-7.53v2.89q0 0 0.86 0c0.87 0 1.45 0 1.74-0.29 0.29-0.29 0.29-0.58 0.29-1.16 0-0.86-0.58-1.44-1.74-1.44z"/> </g> </g> </g> </svg>
+      <div style="font-family:'Nunito',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#B9BDCB;padding-left:2px;">Jerry Ding Order Form</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-outline" onclick="clearAll()">Clear All</button>
+    <button class="btn btn-red" onclick="openPreview()">Preview & Copy</button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs-wrapper">
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('sp',this)">Screen Protectors</button>
+    <button class="tab-btn" onclick="switchTab('tools',this)">Tools</button>
+    <button class="tab-btn" onclick="switchTab('supplies',this)">Supplies</button>
+  </div>
+
+  <!-- SCREEN PROTECTORS -->
+  <div class="tab-panel active" id="tab-sp">
+    <div class="section-stack" id="sp-stack"></div>
+  </div>
+
+  <!-- TOOLS -->
+  <div class="tab-panel" id="tab-tools">
+    <div class="section-stack">
+      <div class="section single-section">
+        <div class="section-header" style="cursor:default;">
+          <div class="section-header-left">
+            <h2>Tools</h2>
+            <span class="count zero" id="count-tools">0 items</span>
+          </div>
+        </div>
+        <div class="section-body">
+          <table><thead><tr><th>Item</th><th class="qty-th">Qty</th></tr></thead>
+          <tbody id="tools-body"></tbody></table>
+          <div class="add-row-bar">
+            <input type="text" class="add-input" id="tools-new" placeholder="Add tool..." />
+            <button class="btn btn-outline btn-sm" onclick="addCustomRow('tools-body','tools-new','count-tools')">+ Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUPPLIES -->
+  <div class="tab-panel" id="tab-supplies">
+    <div class="section-stack">
+      <div class="section single-section">
+        <div class="section-header" style="cursor:default;">
+          <div class="section-header-left">
+            <h2>Supplies</h2>
+            <span class="count zero" id="count-supplies">0 items</span>
+          </div>
+        </div>
+        <div class="section-body">
+          <table><thead><tr><th>Item</th><th class="qty-th">Qty</th></tr></thead>
+          <tbody id="supplies-body"></tbody></table>
+          <div class="add-row-bar">
+            <input type="text" class="add-input" id="supplies-new" placeholder="Add supply..." />
+            <button class="btn btn-outline btn-sm" onclick="addCustomRow('supplies-body','supplies-new','count-supplies')">+ Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="preview-modal" id="preview-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Order Summary</h3>
+      <button class="btn btn-outline btn-sm" onclick="closePreview()">✕ Close</button>
+    </div>
+    <div class="modal-body"><div id="preview-text"></div></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closePreview()">Cancel</button>
+      <button class="btn btn-red" onclick="copyText()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+const spConfig = [
+  { id:'galaxy-a', label:'Galaxy A Series', type:'simple', models:[
+    'Galaxy A17','Galaxy A16','Galaxy A15','Galaxy A14','Galaxy A13','Galaxy A12'
+  ]},
+  { id:'pixel', label:'Google Pixel', type:'simple', models:[
+    'Pixel 10 Pro XL','Pixel 10 Pro','Pixel 10',
+    'Pixel 9 Pro XL','Pixel 9 Pro','Pixel 9','Pixel 9a',
+    'Pixel 8 Pro','Pixel 8','Pixel 8a',
+    'Pixel 7 Pro','Pixel 7','Pixel 7a',
+    'Pixel 6 Pro','Pixel 6','Pixel 6a'
+  ]},
+  { id:'motorola', label:'Motorola', type:'nested', subsections:[
+    { id:'moto-stylus', label:'Moto G Stylus', models:[
+      'Moto G Stylus (2020) XT2043','Moto G Stylus (2021) XT2115',
+      'Moto G Stylus (2022) XT2211','Moto G Stylus (2023) XT2317',
+      'Moto G Stylus (2024) XT2415','Moto G Stylus (2025) XT2617'
+    ]},
+    { id:'moto-stylus5g', label:'Moto G Stylus 5G', models:[
+      'Moto G Stylus 5G (2021) XT2131','Moto G Stylus 5G (2022) XT2215',
+      'Moto G Stylus 5G (2023) XT2315','Moto G Stylus 5G (2024) XT2419',
+      'Moto G Stylus 5G (2025) XT2533'
+    ]},
+    { id:'moto-power', label:'Moto G Power', models:[
+      'Moto G Power (2020) XT2041','Moto G Power (2021) XT2117',
+      'Moto G Power (2022) XT2165','Moto G Power 5G (2023) XT2311',
+      'Moto G Power 5G (2024) XT2415'
+    ]},
+    { id:'moto-g5g', label:'Moto G 5G', models:[
+      'Moto G 5G (2021) XT2113','Moto G 5G (2022) XT2213',
+      'Moto G 5G (2023) XT2313','Moto G 5G (2024) XT2417','Moto G 5G (2025) XT2513'
+    ]}
+  ]}
+];
+
+const toolsPreset   = ['Vetus-13 Flat Tweezers'];
+const suppliesPreset = ['Front Film 6.9"','Front Film 6.7"','Front Film 6.3"','Front Film 6.1"','Front Film 5.4"','Front Film 4.7"'];
+
+let rowId = 0;
+
+function buildSPStack() {
+  const stack = document.getElementById('sp-stack');
+  spConfig.forEach(sec => {
+    if (sec.type === 'simple') {
+      const div = buildSimpleSection(sec.id, sec.label, `count-${sec.id}`);
+      stack.appendChild(div);
+      sec.models.forEach(m => addPresetRow(`body-${sec.id}`, m, `count-${sec.id}`));
+      bindEnter(`new-${sec.id}`, `body-${sec.id}`, `count-${sec.id}`);
+    } else if (sec.type === 'nested') {
+      buildNestedSection(sec);
+    }
+  });
+}
+
+function buildSimpleSection(id, label, countId) {
+  const div = document.createElement('div');
+  div.className = 'section';
+  div.id = `sec-${id}`;
+  div.innerHTML = `
+    <div class="section-header" onclick="toggleSection('sec-${id}')">
+      <div class="section-header-left">
+        <h2>${label}</h2>
+        <span class="count zero" id="${countId}">0 items</span>
+      </div>
+      <i class="chevron">▾</i>
+    </div>
+    <div class="section-body">
+      <table><thead><tr><th>Model</th><th class="qty-th">Qty</th></tr></thead>
+      <tbody id="body-${id}"></tbody></table>
+      <div class="add-row-bar">
+        <input type="text" class="add-input" id="new-${id}" placeholder="Add model..." />
+        <button class="btn btn-outline btn-sm" onclick="addCustomRow('body-${id}','new-${id}','${countId}')">+ Add</button>
+      </div>
+    </div>`;
+  return div;
+}
+
+function buildNestedSection(sec) {
+  const stack = document.getElementById('sp-stack');
+  const div = document.createElement('div');
+  div.className = 'section';
+  div.id = `sec-${sec.id}`;
+  div.innerHTML = `
+    <div class="section-header" onclick="toggleSection('sec-${sec.id}')">
+      <div class="section-header-left">
+        <h2>${sec.label}</h2>
+        <span class="count zero" id="count-${sec.id}">0 items</span>
+      </div>
+      <i class="chevron">▾</i>
+    </div>
+    <div class="section-body">
+      <div class="subsection-stack" id="subsections-${sec.id}"></div>
+    </div>`;
+  stack.appendChild(div);
+
+  const subStack = div.querySelector(`#subsections-${sec.id}`);
+  sec.subsections.forEach(sub => {
+    const subDiv = document.createElement('div');
+    subDiv.className = 'subsection';
+    subDiv.id = `subsec-${sub.id}`;
+    subDiv.innerHTML = `
+      <div class="subsection-header" onclick="toggleSubsection('subsec-${sub.id}')">
+        <div class="subsection-header-left">
+          <h3>${sub.label}</h3>
+          <span class="count zero" id="count-${sub.id}">0 items</span>
+        </div>
+        <i class="chevron">▾</i>
+      </div>
+      <div class="subsection-body">
+        <table><thead><tr><th>Model</th><th class="qty-th">Qty</th></tr></thead>
+        <tbody id="body-${sub.id}"></tbody></table>
+        <div class="add-row-bar">
+          <input type="text" class="add-input" id="new-${sub.id}" placeholder="Add model..." />
+          <button class="btn btn-outline btn-sm" onclick="addCustomRow('body-${sub.id}','new-${sub.id}','count-${sub.id}')">+ Add</button>
+        </div>
+      </div>`;
+    subStack.appendChild(subDiv);
+    sub.models.forEach(m => addPresetRow(`body-${sub.id}`, m, `count-${sub.id}`));
+    bindEnter(`new-${sub.id}`, `body-${sub.id}`, `count-${sub.id}`);
+  });
+}
+
+function addPresetRow(tbodyId, label, countId) {
+  const tbody = document.getElementById(tbodyId);
+  const id = `qty-${rowId++}`;
+  const tr = document.createElement('tr');
+  tr.dataset.countId = countId;
+  tr.innerHTML = `
+    <td class="model-cell">${label}</td>
+    <td class="qty-cell">
+      <input type="number" id="${id}" min="0" placeholder="—" oninput="onQtyChange(this,'${countId}')" />
+    </td>`;
+  tbody.appendChild(tr);
+}
+
+function addCustomRow(tbodyId, inputId, countId) {
+  const input = document.getElementById(inputId);
+  const val = input.value.trim();
+  if (!val) return;
+  const tbody = document.getElementById(tbodyId);
+  const id = `qty-${rowId++}`;
+  const tr = document.createElement('tr');
+  tr.dataset.countId = countId;
+  tr.innerHTML = `
+    <td class="model-cell"><input type="text" class="inline-edit" value="${val}" /></td>
+    <td class="qty-cell">
+      <div class="qty-cell-inner">
+        <input type="number" id="${id}" min="0" placeholder="—" oninput="onQtyChange(this,'${countId}')" />
+        <button class="delete-btn" onclick="deleteRow(this,'${countId}')">✕</button>
+      </div>
+    </td>`;
+  tbody.appendChild(tr);
+  input.value = '';
+  input.focus();
+}
+
+function deleteRow(btn, countId) {
+  btn.closest('tr').remove();
+  updateCount(countId);
+  updateMotoCount();
+}
+
+function bindEnter(inputId, tbodyId, countId) {
+  setTimeout(() => {
+    const inp = document.getElementById(inputId);
+    if (inp) inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addCustomRow(tbodyId, inputId, countId);
+    });
+  }, 0);
+}
+
+function onQtyChange(input, countId) {
+  const val = parseInt(input.value);
+  if (val > 0) { input.classList.add('has-value'); }
+  else { input.classList.remove('has-value'); input.value = ''; }
+  updateCount(countId);
+  updateMotoCount();
+}
+
+function updateCount(countId) {
+  const rows = document.querySelectorAll(`tr[data-count-id="${countId}"]`);
+  let count = 0;
+  rows.forEach(row => {
+    const inp = row.querySelector('input[type="number"]');
+    if (inp && parseInt(inp.value) > 0) count++;
+  });
+  const el = document.getElementById(countId);
+  if (el) {
+    el.textContent = `${count} item${count !== 1 ? 's' : ''}`;
+    el.classList.toggle('zero', count === 0);
+  }
+}
+
+function updateMotoCount() {
+  const motoConfig = spConfig.find(s => s.id === 'motorola');
+  if (!motoConfig) return;
+  let total = 0;
+  motoConfig.subsections.forEach(sub => {
+    const rows = document.querySelectorAll(`tr[data-count-id="count-${sub.id}"]`);
+    rows.forEach(row => {
+      const inp = row.querySelector('input[type="number"]');
+      if (inp && parseInt(inp.value) > 0) total++;
+    });
+  });
+  const el = document.getElementById('count-motorola');
+  if (el) {
+    el.textContent = `${total} item${total !== 1 ? 's' : ''}`;
+    el.classList.toggle('zero', total === 0);
+  }
+}
+
+function toggleSection(id) { document.getElementById(id).classList.toggle('collapsed'); }
+function toggleSubsection(id) { document.getElementById(id).classList.toggle('collapsed'); }
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+  btn.classList.add('active');
+}
+
+function clearAll() {
+  document.querySelectorAll('input[type="number"]').forEach(inp => {
+    inp.value = ''; inp.classList.remove('has-value');
+  });
+  document.querySelectorAll('.count').forEach(el => {
+    el.textContent = '0 items'; el.classList.add('zero');
+  });
+}
+
+function getRowLabel(row) {
+  const inp = row.cells[0].querySelector('input[type="text"]');
+  return inp ? inp.value.trim() : row.cells[0].textContent.trim();
+}
+
+function buildPreviewText() {
+  const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  let lines = [`Jerry Ding Order — ${today}`, ''];
+  let grandTotal = 0; let hasAny = false;
+
+  let spBlock = [];
+  spConfig.forEach(sec => {
+    if (sec.type === 'simple') {
+      let secLines = [];
+      document.querySelectorAll(`#body-${sec.id} tr`).forEach(row => {
+        const inp = row.querySelector('input[type="number"]');
+        const qty = parseInt(inp?.value);
+        if (qty > 0) { secLines.push(`  ${getRowLabel(row)}  x${qty}`); grandTotal += qty; }
+      });
+      if (secLines.length) { spBlock.push(`[ ${sec.label} ]`); spBlock = spBlock.concat(secLines); spBlock.push(''); }
+    } else if (sec.type === 'nested') {
+      let motoLines = [];
+      sec.subsections.forEach(sub => {
+        let subLines = [];
+        document.querySelectorAll(`#body-${sub.id} tr`).forEach(row => {
+          const inp = row.querySelector('input[type="number"]');
+          const qty = parseInt(inp?.value);
+          if (qty > 0) { subLines.push(`    ${getRowLabel(row)}  x${qty}`); grandTotal += qty; }
+        });
+        if (subLines.length) { motoLines.push(`  [ ${sub.label} ]`); motoLines = motoLines.concat(subLines); }
+      });
+      if (motoLines.length) { spBlock.push('[ Motorola ]'); spBlock = spBlock.concat(motoLines); spBlock.push(''); }
+    }
+  });
+  if (spBlock.length) { lines.push('── SCREEN PROTECTORS ──'); lines = lines.concat(spBlock); hasAny = true; }
+
+  let toolLines = [];
+  document.querySelectorAll('#tools-body tr').forEach(row => {
+    const inp = row.querySelector('input[type="number"]');
+    const qty = parseInt(inp?.value);
+    if (qty > 0) { toolLines.push(`  ${getRowLabel(row)}  x${qty}`); grandTotal += qty; }
+  });
+  if (toolLines.length) { lines.push('── TOOLS ──'); lines = lines.concat(toolLines); lines.push(''); hasAny = true; }
+
+  let supLines = [];
+  document.querySelectorAll('#supplies-body tr').forEach(row => {
+    const inp = row.querySelector('input[type="number"]');
+    const qty = parseInt(inp?.value);
+    if (qty > 0) { supLines.push(`  ${getRowLabel(row)}  x${qty}`); grandTotal += qty; }
+  });
+  if (supLines.length) { lines.push('── SUPPLIES ──'); lines = lines.concat(supLines); lines.push(''); hasAny = true; }
+
+  if (!hasAny) return 'No quantities entered yet.';
+  lines.push(`Total units: ${grandTotal}`);
+  return lines.join('\n');
+}
+
+function openPreview() {
+  document.getElementById('preview-text').textContent = buildPreviewText();
+  document.getElementById('preview-modal').classList.add('open');
+}
+function closePreview() { document.getElementById('preview-modal').classList.remove('open'); }
+function copyText() {
+  navigator.clipboard.writeText(document.getElementById('preview-text').textContent).then(() => {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  });
+}
+
+document.getElementById('preview-modal').addEventListener('click', function(e) {
+  if (e.target === this) closePreview();
+});
+
+['tools-new','supplies-new'].forEach(id => {
+  const inp = document.getElementById(id);
+  if (!inp) return;
+  const base = id.replace('-new','');
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') addCustomRow(`${base}-body`, id, `count-${base}`);
+  });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  buildSPStack();
+  toolsPreset.forEach(t => addPresetRow('tools-body', t, 'count-tools'));
+  suppliesPreset.forEach(s => addPresetRow('supplies-body', s, 'count-supplies'));
+});
+</script>
+</body>
+</html>
