@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Employee Records — CPR Oregon</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --red:#DC282E; --light-red:#F15F5E; --dark:#2D2D3B; --dark-grey:#4E4E50;
+      --blue:#4FB0E3; --grey:#B9BDCB; --light-grey:#F3F2F2;
+      --white:#FFFFFF; --border:#E0E2EA; --accent:#DC282E;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Nunito Sans',sans-serif;background:var(--light-grey);color:var(--dark);min-height:100vh;}
+
+    header{background:var(--white);border-bottom:3px solid var(--accent);padding:0 24px;display:flex;align-items:center;gap:16px;height:60px;position:sticky;top:0;z-index:10;}
+    .back-btn{font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;color:var(--dark-grey);text-decoration:none;border:1.5px solid var(--border);border-radius:6px;padding:4px 10px;transition:border-color .15s,color .15s;}
+    .back-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .header-logo{display:flex;align-items:center;gap:8px;flex:1;}
+    .header-logo img{height:28px;width:auto;display:block;}
+    .page-badge{background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:20px;}
+    .mobile-menu-btn{display:none;}
+
+    /* Mobile employee picker screen */
+    .mobile-picker{display:none;flex-direction:column;min-height:calc(100vh - 63px);background:var(--light-grey);}
+    .mobile-picker-header{padding:16px;display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1.5px solid var(--border);}
+    .mobile-picker-header h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);}
+    .store-group{margin:12px 12px 0;}
+    .store-group-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);padding:0 4px 6px;}
+    .mobile-emp-card{background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px;transition:border-color .12s,box-shadow .12s;}
+    .mobile-emp-card:hover,.mobile-emp-card:active{border-color:var(--accent);box-shadow:0 2px 10px rgba(220,40,46,.1);}
+    .mobile-emp-chevron{color:var(--grey);font-size:16px;margin-left:auto;flex-shrink:0;}
+
+    .app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 63px);}
+
+    /* Sidebar */
+    .sidebar{background:var(--white);border-right:1.5px solid var(--border);display:flex;flex-direction:column;}
+    .sidebar-header{padding:16px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+    .sidebar-header h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);}
+    .add-employee-btn{background:var(--accent);color:var(--white);border:none;border-radius:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:18px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1;}
+    .add-employee-btn:hover{background:var(--light-red);}
+    .employee-list{flex:1;overflow-y:auto;padding:8px 0;}
+    .employee-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-left:3px solid transparent;transition:background .12s,border-color .12s;}
+    .employee-item:hover{background:var(--light-grey);}
+    .employee-item.active{background:#fef2f2;border-left-color:var(--accent);}
+    .emp-avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .emp-info{flex:1;min-width:0;}
+    .emp-name{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .emp-meta{font-size:11px;color:var(--grey);margin-top:1px;}
+    .emp-delete{display:none;}
+    .emp-archive{display:none;}
+    /* ··· Settings button on employee items */
+    .emp-settings-btn{opacity:0;background:none;border:1.5px solid transparent;border-radius:6px;color:var(--grey);cursor:pointer;font-size:18px;padding:2px 6px;line-height:1;transition:opacity .12s,border-color .12s,color .12s;flex-shrink:0;}
+    .employee-item:hover .emp-settings-btn{opacity:1;}
+    .emp-settings-btn:hover{border-color:var(--border);color:var(--dark);}
+    /* ··· Settings button on mobile cards */
+    .mobile-emp-settings{background:none;border:1.5px solid var(--border);border-radius:6px;color:var(--dark-grey);cursor:pointer;font-size:16px;padding:4px 8px;line-height:1;flex-shrink:0;transition:border-color .12s,color .12s;}
+    .mobile-emp-settings:hover,.mobile-emp-settings:active{border-color:var(--accent);color:var(--accent);}
+    /* Dropdown menu */
+    .emp-menu{position:absolute;background:var(--white);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.12);min-width:160px;z-index:200;overflow:hidden;animation:fadeIn .12s ease;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+    .emp-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:13px;color:var(--dark);transition:background .1s;}
+    .emp-menu-item:hover{background:var(--light-grey);}
+    .emp-menu-item.danger{color:var(--accent);}
+    .emp-menu-item .menu-icon{font-size:14px;width:16px;text-align:center;flex-shrink:0;}
+    .emp-menu-divider{border:none;border-top:1px solid var(--border);margin:3px 0;}
+    .employee-item.archived .emp-name{color:var(--grey);}
+    .employee-item.archived .emp-avatar{background:var(--grey);}
+    .archived-badge{font-size:9px;font-family:'Nunito',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle;}
+    .archive-toggle-btn{width:100%;background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;color:var(--dark-grey);padding:6px 10px;cursor:pointer;transition:border-color .12s,color .12s;}
+    .archive-toggle-btn:hover{border-color:var(--grey);color:var(--dark);}
+    .archive-toggle-btn.showing{border-color:var(--blue);color:var(--blue);}
+    .sidebar-footer{padding:10px 12px;border-top:1.5px solid var(--border);}
+    .mobile-emp-card.archived .emp-avatar{background:var(--grey);}
+    .mobile-emp-card.archived .emp-name{color:var(--grey);}
+    @media(max-width:580px){ .desktop-only{display:none!important;} }
+    .mobile-archive-footer{display:none;padding:16px 20px 24px;text-align:center;}
+    @media(max-width:580px){ .mobile-archive-footer{display:block;} }
+    .mobile-archive-btn{background:none;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;color:var(--dark-grey);padding:8px 20px;cursor:pointer;transition:border-color .12s,color .12s;}
+    .mobile-archive-btn:hover,.mobile-archive-btn:active{border-color:var(--accent);color:var(--accent);}
+
+    /* Main */
+    .main{display:flex;flex-direction:column;overflow:hidden;}
+    .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--grey);padding:40px;text-align:center;}
+    .empty-state .icon{font-size:48px;opacity:.4;}
+    .empty-state h3{font-family:'Nunito',sans-serif;font-weight:800;font-size:18px;color:var(--dark-grey);}
+    .empty-state p{font-size:14px;max-width:280px;line-height:1.5;}
+    .employee-view{display:none;flex-direction:column;height:100%;}
+    .employee-view.visible{display:flex;}
+    .employee-view-header{background:var(--white);border-bottom:1.5px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;}
+    .emp-view-name{font-family:'Nunito',sans-serif;font-weight:900;font-size:20px;color:var(--dark);}
+    .emp-view-role{font-size:13px;color:var(--grey);margin-top:1px;}
+    .new-entry-btn{background:var(--accent);color:var(--white);border:none;border-radius:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s;white-space:nowrap;flex-shrink:0;}
+    .new-entry-btn:hover{background:var(--light-red);}
+
+    .entries-layout{display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden;}
+    .entries-list{overflow-y:auto;padding:0;display:flex;flex-direction:column;}
+    .no-entries{text-align:center;color:var(--grey);font-size:14px;padding:40px 20px;}
+
+    /* Filter bar */
+    .filter-bar{padding:12px 16px;border-bottom:1.5px solid var(--border);background:var(--white);display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;}
+    .filter-chip{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);color:var(--dark-grey);cursor:pointer;transition:all .12s;white-space:nowrap;}
+    .filter-chip:hover{border-color:var(--grey);}
+    .filter-chip.active{background:var(--dark);border-color:var(--dark);color:var(--white);}
+    .filter-chip.active.coaching{background:#856404;border-color:#856404;}
+    .filter-chip.active.performance{background:#b91c1c;border-color:#b91c1c;}
+    .filter-chip.active.attendance{background:#3730a3;border-color:#3730a3;}
+    .filter-chip.active.positive{background:#065f46;border-color:#065f46;}
+    .filter-chip.active.general{background:var(--dark-grey);border-color:var(--dark-grey);}
+    .filter-bar-right{margin-left:auto;flex-shrink:0;}
+    .sort-btn{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;color:var(--dark-grey);background:none;border:1.5px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;transition:border-color .12s,color .12s;white-space:nowrap;}
+    .sort-btn:hover{border-color:var(--grey);color:var(--dark);}
+
+    /* Year groups */
+    .entries-scroll{flex:1;overflow-y:auto;padding:16px;}
+    .year-group{margin-bottom:16px;}
+    .year-header{display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0 8px;user-select:none;}
+    .year-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;color:var(--dark-grey);letter-spacing:.3px;}
+    .year-count{font-size:11px;color:var(--grey);}
+    .year-chevron{font-size:12px;color:var(--grey);transition:transform .18s;margin-left:auto;}
+    .year-chevron.collapsed{transform:rotate(-90deg);}
+    .year-entries{display:flex;flex-direction:column;gap:8px;overflow:hidden;transition:opacity .15s;}
+    .year-entries.collapsed{display:none;}
+
+    .entry-card{background:var(--white);border:1.5px solid var(--border);border-top:3px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .12s;}
+    .entry-card:hover{border-color:var(--blue);border-top-color:var(--blue);box-shadow:0 4px 16px rgba(0,0,0,.07);transform:translateY(-1px);}
+    .entry-card.selected{border-color:var(--accent);border-top-color:var(--accent);box-shadow:0 4px 16px rgba(220,40,46,.1);}
+    .entry-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
+    .entry-subject{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--dark);line-height:1.3;}
+    .entry-date{font-size:11px;color:var(--grey);white-space:nowrap;flex-shrink:0;margin-top:2px;}
+    .entry-preview{font-size:12px;color:var(--dark-grey);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .entry-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;background:var(--light-grey);color:var(--dark-grey);}
+    .entry-tag.coaching{background:#fff3cd;color:#856404;}
+    .entry-tag.performance{background:#fce8e8;color:#b91c1c;}
+    .entry-tag.positive{background:#d1fae5;color:#065f46;}
+    .entry-tag.attendance{background:#e0e7ff;color:#3730a3;}
+
+    /* Detail pane */
+    .detail-pane{background:var(--white);border-left:1.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+    .detail-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--grey);font-size:13px;padding:20px;text-align:center;}
+    .detail-content{display:none;flex-direction:column;height:100%;}
+    .detail-content.visible{display:flex;}
+    .detail-header{padding:16px 18px;border-bottom:1.5px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-shrink:0;}
+    .detail-subject{font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark);line-height:1.3;}
+    .detail-meta{font-size:12px;color:var(--grey);margin-top:4px;}
+    .detail-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+    .detail-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:4px 10px;cursor:pointer;transition:border-color .12s,color .12s;}
+    .detail-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .detail-btn.icon-btn{padding:4px 8px;}
+    .detail-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
+
+    /* Print styles */
+    @media print{
+      header,footer,.sidebar,.filter-bar,.detail-actions,.employee-view-header,.entries-list{display:none!important;}
+      .app{display:block!important;}
+      .main{display:block!important;}
+      .entries-layout{display:block!important;}
+      .detail-pane{border:none!important;display:block!important;height:auto!important;}
+      .detail-content{display:flex!important;height:auto!important;}
+      .detail-body{overflow:visible!important;}
+      .print-header{display:block!important;}
+      body{background:white!important;}
+    }
+    .print-header{display:none;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #333;}
+    .print-header h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:20px;}
+    .print-header p{font-size:13px;color:#666;margin-top:4px;}
+
+    /* Structured sections in detail */
+    .detail-section{}
+    .detail-section-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);margin-bottom:4px;}
+    .detail-section-body{font-size:13px;color:var(--dark);line-height:1.7;}
+    .detail-section-body ul{padding-left:16px;}
+    .detail-section-body li{margin-bottom:2px;}
+    .detail-section-body b{font-weight:700;}
+    .detail-section-body i{font-style:italic;}
+    .detail-section-divider{border:none;border-top:1px solid var(--border);}
+
+    /* Mobile full-screen entry detail */
+    .entry-detail-overlay{display:none;position:fixed;inset:0;background:var(--white);z-index:200;flex-direction:column;overflow:hidden;}
+    .entry-detail-overlay.open{display:flex;}
+    .entry-detail-top{background:var(--white);border-bottom:1.5px solid var(--border);padding:14px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0;}
+    .entry-detail-top-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;}
+    .mobile-back-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:5px 10px;cursor:pointer;transition:border-color .12s;}
+    .mobile-back-btn:hover{border-color:var(--grey);}
+    .entry-detail-scroll{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
+
+    /* Modals */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:100;align-items:flex-end;justify-content:center;}
+    .modal-overlay.open{display:flex;}
+    .modal{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:580px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.15);animation:slideUpModal .22s ease;}
+    @keyframes slideUpModal{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    .modal-header{padding:18px 20px 14px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .modal-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark);}
+    .modal-close{background:none;border:none;font-size:22px;color:var(--grey);cursor:pointer;line-height:1;padding:2px 6px;transition:color .12s;}
+    .modal-close:hover{color:var(--dark);}
+    .modal-body{padding:16px 20px;display:flex;flex-direction:column;gap:0;overflow-y:auto;flex:1;}
+    .modal-footer{padding:14px 20px;border-top:1.5px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;}
+
+    /* Form fields */
+    .field-group{margin-bottom:14px;}
+    label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin-bottom:5px;}
+    input[type="text"],input[type="date"],select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-family:'Nunito Sans',sans-serif;font-size:14px;color:var(--dark);background:var(--white);outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none;}
+    input:focus,select:focus{border-color:var(--accent);}
+
+    /* Section divider in form */
+    .form-section-divider{border:none;border-top:1.5px solid var(--border);margin:6px 0 16px;}
+    .form-section-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:14px;margin-top:4px;}
+
+    /* Mini rich editor */
+    .editor-wrap{border:1.5px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .15s;}
+    .editor-wrap:focus-within{border-color:var(--accent);}
+    .editor-toolbar{display:flex;gap:2px;padding:5px 7px;background:var(--light-grey);border-bottom:1.5px solid var(--border);flex-wrap:wrap;}
+    .toolbar-btn{background:none;border:1.5px solid transparent;border-radius:5px;font-size:13px;font-weight:700;color:var(--dark-grey);width:28px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s,color .12s;font-family:Georgia,serif;}
+    .toolbar-btn:hover{background:var(--white);border-color:var(--border);color:var(--dark);}
+    .toolbar-btn.active{background:var(--white);border-color:var(--accent);color:var(--accent);}
+    .toolbar-sep{width:1px;background:var(--border);margin:3px 2px;}
+    .editor-content{min-height:80px;max-height:180px;overflow-y:auto;padding:9px 12px;font-family:'Nunito Sans',sans-serif;font-size:14px;color:var(--dark);line-height:1.65;outline:none;}
+    .editor-content:empty:before{content:attr(data-placeholder);color:var(--grey);pointer-events:none;}
+    .editor-content ul{padding-left:16px;} .editor-content li{margin-bottom:2px;}
+    .editor-content b,.editor-content strong{font-weight:700;}
+    .editor-content i,.editor-content em{font-style:italic;}
+    .editor-content u{text-decoration:underline;}
+
+    .btn-cancel{background:none;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--dark-grey);padding:9px 18px;cursor:pointer;transition:border-color .12s;}
+    .btn-cancel:hover{border-color:var(--grey);}
+    .btn-save{background:var(--accent);border:none;border-radius:8px;font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;color:var(--white);padding:9px 22px;cursor:pointer;transition:background .15s;}
+    .btn-save:hover{background:var(--light-red);}
+
+    footer{background:var(--white);border-top:1.5px solid var(--border);padding:10px 24px;font-size:11px;color:var(--grey);text-align:center;}
+
+    @media(max-width:860px){.entries-layout{grid-template-columns:1fr;}.detail-pane{display:none;}}
+    @media(max-width:580px){
+      .app{display:block;}.sidebar{display:none;}
+      .mobile-picker{display:flex;}
+      .employee-view-header .emp-mobile-back{display:flex!important;}
+    }
+    .emp-mobile-back{display:none;background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:5px 10px;cursor:pointer;transition:border-color .12s;white-space:nowrap;}
+    .emp-mobile-back:hover{border-color:var(--grey);}
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="back-btn" href="https://myrepairtools.github.io/operations.html">← Back</a>
+  <div class="header-logo"><img src="assets/CPRLogo_NoAssurant_Black.png" alt="CPR Cell Phone Repair"/></div>
+  <div class="page-badge">Employee Records</div>
+</header>
+
+<div class="app">
+  <!-- Desktop sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>Employees</h2>
+      <button class="add-employee-btn" onclick="openAddEmployee()">+</button>
+    </div>
+    <div class="employee-list" id="employeeList"></div>
+    <div class="sidebar-footer">
+      <button class="archive-toggle-btn" id="archiveToggleDesktop" onclick="toggleShowArchived()">Show Archived</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- Mobile: employee picker (shown instead of empty state on small screens) -->
+    <div class="mobile-picker" id="mobilePicker">
+      <div class="mobile-picker-header">
+        <h2>Employees</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="archive-toggle-btn" id="archiveToggleMobile" onclick="toggleShowArchived()">Archived</button>
+          <button class="add-employee-btn" onclick="openAddEmployee()">+</button>
+        </div>
+      </div>
+      <div id="mobilePickerList"></div>
+    </div>
+
+    <div class="empty-state" id="emptyState">
+      <div class="icon">📋</div>
+      <h3>Select an employee</h3>
+      <p>Choose an employee from the sidebar to view their records, or tap + to add one.</p>
+    </div>
+
+    <div class="employee-view" id="employeeView">
+      <div class="employee-view-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="emp-mobile-back" onclick="goBackToMobilePicker()">← All</button>
+          <div>
+            <div class="emp-view-name" id="viewName"></div>
+            <div class="emp-view-role" id="viewRole"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="archive-toggle-btn desktop-only" id="empViewArchiveBtn"></button>
+          <button class="new-entry-btn" onclick="openAddEntry()">+ New Entry</button>
+        </div>
+      </div>
+      <div class="entries-layout">
+        <div class="entries-list" id="entriesList">
+          <div class="filter-bar">
+            <button class="filter-chip active" data-cat="all" onclick="setFilter('all')">All</button>
+            <button class="filter-chip" data-cat="coaching" onclick="setFilter('coaching')">Coaching</button>
+            <button class="filter-chip" data-cat="performance" onclick="setFilter('performance')">Performance</button>
+            <button class="filter-chip" data-cat="attendance" onclick="setFilter('attendance')">Attendance</button>
+            <button class="filter-chip" data-cat="positive" onclick="setFilter('positive')">Positive</button>
+            <button class="filter-chip" data-cat="general" onclick="setFilter('general')">General</button>
+            <div class="filter-bar-right">
+              <button class="sort-btn" id="sortBtn" onclick="toggleSort()">↓ Newest</button>
+            </div>
+          </div>
+          <div class="entries-scroll" id="entriesScroll"></div>
+        </div>
+        <div class="detail-pane">
+          <div class="detail-empty" id="detailEmpty">← Select an entry to view details</div>
+          <div class="detail-content" id="detailContent">
+            <div class="detail-header">
+              <div>
+                <div class="detail-subject" id="detailSubject"></div>
+                <div class="detail-meta" id="detailMeta"></div>
+              </div>
+              <div class="detail-actions">
+                <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
+                <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
+                <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
+              </div>
+            </div>
+            <div class="detail-body" id="detailBody">
+              <div class="print-header" id="printHeader"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer>CPR Oregon — Internal Tools — Employee Records v1.2</footer>
+
+<!-- Mobile full-screen entry detail -->
+<div class="entry-detail-overlay" id="entryDetailOverlay">
+  <div class="entry-detail-top">
+    <div>
+      <div class="detail-subject" id="mobileDetailSubject"></div>
+      <div class="detail-meta" id="mobileDetailMeta"></div>
+    </div>
+    <div class="entry-detail-top-actions">
+      <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
+      <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
+      <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
+      <button class="mobile-back-btn" onclick="closeMobileDetail()">✕ Close</button>
+    </div>
+  </div>
+  <div class="entry-detail-scroll" id="mobileDetailBody"></div>
+</div>
+
+<!-- Add/Edit Employee Modal -->
+<div class="modal-overlay" id="employeeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="employeeModalTitle">Add Employee</div>
+      <button class="modal-close" onclick="closeEmployeeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label>Full Name</label><input type="text" id="empNameInput" placeholder="e.g. Jason Smith"/></div>
+      <div class="field-group"><label>Role / Position</label><input type="text" id="empRoleInput" placeholder="e.g. Repair Technician"/></div>
+      <div class="field-group"><label>Store / Location</label><input type="text" id="empStoreInput" placeholder="e.g. Eugene"/></div>
+      <div class="field-group"><label>Start Date</label><input type="date" id="empStartDateInput"/></div>
+      <div class="field-group"><label>Status</label>
+        <select id="empStatusInput">
+          <option value="active">Active</option>
+          <option value="notice">On Notice</option>
+          <option value="terminated">Terminated</option>
+        </select>
+      </div>
+      <div class="field-group"><label>Notes</label>
+        <div class="editor-wrap">
+          <div class="editor-content" id="empNotesInput" contenteditable="true" data-placeholder="Hire context, referrals, general notes about this employee..." style="min-height:70px;max-height:120px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeEmployeeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveEmployee()">Save Employee</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Entry Modal -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="entryModalTitle">New Coaching Entry</div>
+      <button class="modal-close" onclick="closeEntryModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Header fields -->
+      <div class="field-group"><label>Date</label><input type="date" id="entryDateInput"/></div>
+      <div class="field-group"><label>Subject / Title</label><input type="text" id="entrySubjectInput" placeholder="e.g. Speed & Workflow Discussion"/></div>
+      <div class="field-group"><label>Category</label>
+        <select id="entryCategoryInput">
+          <option value="coaching">Coaching</option>
+          <option value="performance">Performance Issue</option>
+          <option value="attendance">Attendance</option>
+          <option value="positive">Positive Feedback</option>
+          <option value="general">General Note</option>
+        </select>
+      </div>
+
+      <hr class="form-section-divider"/>
+      <div class="form-section-label">Coaching Notes</div>
+
+      <div class="field-group">
+        <label>Issue / What Happened</label>
+        <div class="editor-wrap" id="wrap-issue">
+          <div class="editor-toolbar" id="tb-issue"></div>
+          <div class="editor-content" id="f-issue" contenteditable="true" data-placeholder="Describe what happened or was observed..."></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Root Cause</label>
+        <div class="editor-wrap" id="wrap-cause">
+          <div class="editor-toolbar" id="tb-cause"></div>
+          <div class="editor-content" id="f-cause" contenteditable="true" data-placeholder="Why did this happen? Background context..."></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Coaching Provided</label>
+        <div class="editor-wrap" id="wrap-coaching">
+          <div class="editor-toolbar" id="tb-coaching"></div>
+          <div class="editor-content" id="f-coaching" contenteditable="true" data-placeholder="What guidance, technique, or feedback was given?"></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Employee Response</label>
+        <div class="editor-wrap" id="wrap-response">
+          <div class="editor-toolbar" id="tb-response"></div>
+          <div class="editor-content" id="f-response" contenteditable="true" data-placeholder="How did they react? Did they understand?"></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Action Items</label>
+        <div class="editor-wrap" id="wrap-actions">
+          <div class="editor-toolbar" id="tb-actions"></div>
+          <div class="editor-content" id="f-actions" contenteditable="true" data-placeholder="Next steps, follow-ups, things to monitor..."></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeEntryModal()">Cancel</button>
+      <button class="btn-save" onclick="saveEntry()">Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Config ──
+  const SECTIONS = [
+    { key:'issue',    label:'Issue / What Happened' },
+    { key:'cause',    label:'Root Cause' },
+    { key:'coaching', label:'Coaching Provided' },
+    { key:'response', label:'Employee Response' },
+    { key:'actions',  label:'Action Items' },
+  ];
+
+  // ── Toolbar factory ──
+  function buildToolbar(tbId, editorId) {
+    const tb = document.getElementById(tbId);
+    const btns = [
+      {title:'Bold',   cmd:'bold',      html:'<b>B</b>'},
+      {title:'Italic', cmd:'italic',    html:'<i>I</i>'},
+      {title:'Bullet', cmd:'list',      html:'•', style:'font-size:15px;'},
+      {title:'Clear',  cmd:'clear',     html:'Clr', style:'font-size:11px;width:34px;'},
+    ];
+    btns.forEach((b,i) => {
+      if (i===2) { const sep=document.createElement('div'); sep.className='toolbar-sep'; tb.appendChild(sep); }
+      const btn = document.createElement('button');
+      btn.className='toolbar-btn'; btn.title=b.title; btn.innerHTML=b.html;
+      if(b.style) btn.style.cssText=b.style;
+      btn.addEventListener('mousedown', e => {
+        e.preventDefault();
+        document.getElementById(editorId).focus();
+        if(b.cmd==='bold') document.execCommand('bold',false,null);
+        else if(b.cmd==='italic') document.execCommand('italic',false,null);
+        else if(b.cmd==='list') document.execCommand('insertUnorderedList',false,null);
+        else if(b.cmd==='clear') { document.execCommand('removeFormat',false,null); }
+        updateToolbarStates();
+      });
+      tb.appendChild(btn);
+    });
+  }
+
+  function updateToolbarStates() {
+    document.querySelectorAll('.toolbar-btn[title="Bold"]').forEach(btn => btn.classList.toggle('active', document.queryCommandState('bold')));
+    document.querySelectorAll('.toolbar-btn[title="Italic"]').forEach(btn => btn.classList.toggle('active', document.queryCommandState('italic')));
+  }
+  document.addEventListener('selectionchange', updateToolbarStates);
+
+  // Build all toolbars
+  SECTIONS.forEach(s => buildToolbar('tb-'+s.key, 'f-'+s.key));
+
+  // ── State ──
+  let data = { employees:[] };
+  let activeEmployeeId=null, activeEntryId=null, editingEmployeeId=null, editingEntryId=null;
+  let showArchived=false;
+  let activeFilter='all';
+  let sortNewestFirst=true;
+  let collapsedYears={};
+  const STORAGE_KEY='cpr_employee_records_v1';
+
+  function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); if(r) data=JSON.parse(r); }catch(e){} }
+  function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function initials(n){ return n.trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+  function formatDate(iso){
+    if(!iso) return '';
+    const [y,m,d]=iso.split('-');
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]+' '+parseInt(d)+', '+y;
+  }
+  function isMobile(){ return window.innerWidth<=580; }
+
+  // ── Mobile picker navigation ──
+  function goBackToMobilePicker(){
+    activeEmployeeId=null; activeEntryId=null;
+    renderMobilePicker(); renderMain();
+  }
+
+  // ── Render sections ──
+  function renderSections(entry, container, keepFirst=false) {
+    // Remove everything except the first child if keepFirst
+    if(keepFirst){ while(container.children.length>1) container.removeChild(container.lastChild); }
+    else container.innerHTML='';
+    let hasContent=false;
+    SECTIONS.forEach((s,i) => {
+      const val = entry.sections && entry.sections[s.key];
+      if (!val || val.trim()==='') return;
+      hasContent=true;
+      if(i>0 && hasContent){
+        const hr=document.createElement('hr'); hr.className='detail-section-divider'; container.appendChild(hr);
+      }
+      const sec=document.createElement('div'); sec.className='detail-section';
+      sec.innerHTML=`<div class="detail-section-label">${s.label}</div><div class="detail-section-body">${val}</div>`;
+      container.appendChild(sec);
+    });
+    if(!hasContent) container.innerHTML='<div style="color:var(--grey);font-size:13px;">No notes recorded.</div>';
+  }
+
+  // ── Render ──
+  function render(){ renderSidebar(); renderMobilePicker(); renderMain(); }
+
+  function toggleShowArchived(){
+    showArchived=!showArchived;
+    ['archiveToggleDesktop','archiveToggleMobile'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(!btn) return;
+      btn.textContent=showArchived?'Hide Archived':'Show Archived';
+      btn.classList.toggle('showing',showArchived);
+    });
+    render();
+  }
+
+  function archiveEmployee(id){
+    const emp=data.employees.find(e=>e.id===id);
+    if(!emp) return;
+    emp.archived=true;
+    if(activeEmployeeId===id){ activeEmployeeId=null; activeEntryId=null; }
+    save(); render();
+  }
+
+  function unarchiveEmployee(id){
+    const emp=data.employees.find(e=>e.id===id);
+    if(emp){ emp.archived=false; }
+    save(); render();
+  }
+
+  function renderSidebar(){
+    const list=document.getElementById('employeeList');
+    list.innerHTML='';
+    const visible=data.employees.filter(e=>showArchived?e.archived:!e.archived);
+    if(!visible.length){
+      list.innerHTML=`<div style="padding:16px;font-size:13px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees.<br/>Tap + to add one.'}</div>`;
+      return;
+    }
+    visible.forEach(emp=>{
+      const count=(emp.entries||[]).length;
+      const item=document.createElement('div');
+      item.style.position='relative';
+      const inner=document.createElement('div');
+      inner.className='employee-item'+(activeEmployeeId===emp.id?' active':'')+(emp.archived?' archived':'');
+      inner.innerHTML=`<div class="emp-avatar">${initials(emp.name)}</div>
+        <div class="emp-info">
+          <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
+          <div class="emp-meta">${emp.store?emp.store+' · ':''}${count} entr${count!==1?'ies':'y'}${emp.status&&emp.status!=='active'?' · <b style="color:var(--accent)">'+statusLabel(emp.status)+'</b>':''}</div>
+        </div>
+        <button class="emp-settings-btn" title="Settings">···</button>`;
+      inner.addEventListener('click', e=>{ if(!e.target.classList.contains('emp-settings-btn')) selectEmployee(emp.id); });
+      inner.querySelector('.emp-settings-btn').addEventListener('click', e=>{ e.stopPropagation(); openEmpMenu(emp.id, e.currentTarget, item); });
+      item.appendChild(inner);
+      list.appendChild(item);
+    });
+  }
+
+  function renderMobilePicker(){
+    const container=document.getElementById('mobilePickerList');
+    if(!container) return;
+    container.innerHTML='';
+    const picker=document.getElementById('mobilePicker');
+    const empView=document.getElementById('employeeView');
+    const emptyState=document.getElementById('emptyState');
+    if(isMobile()){
+      if(activeEmployeeId){ picker.style.display='none'; emptyState.style.display='none'; }
+      else { picker.style.display='flex'; emptyState.style.display='none'; empView.classList.remove('visible'); }
+    } else { picker.style.display='none'; }
+
+    const visible=data.employees.filter(e=>showArchived?e.archived:!e.archived);
+    if(!visible.length){
+      container.innerHTML=`<div style="padding:24px;font-size:14px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees. Tap + to add one.'}</div>`;
+      return;
+    }
+    const stores={};
+    visible.forEach(emp=>{ const s=emp.store||'Unassigned'; if(!stores[s]) stores[s]=[]; stores[s].push(emp); });
+    Object.keys(stores).sort().forEach(store=>{
+      const group=document.createElement('div');
+      group.className='store-group';
+      group.innerHTML=`<div class="store-group-label">${store}</div>`;
+      stores[store].forEach(emp=>{
+        const count=(emp.entries||[]).length;
+        const wrap=document.createElement('div');
+        wrap.style.position='relative';
+        const card=document.createElement('div');
+        card.className='mobile-emp-card'+(emp.archived?' archived':'');
+        card.innerHTML=`<div class="emp-avatar">${initials(emp.name)}</div>
+          <div class="emp-info">
+            <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
+            <div class="emp-meta">${[emp.role,count+' entr'+(count!==1?'ies':'y'),emp.status&&emp.status!=='active'?statusLabel(emp.status):null].filter(Boolean).join(' · ')}</div>
+          </div>
+          <button class="mobile-emp-settings" title="Settings">···</button>`;
+        card.querySelector('.mobile-emp-settings').addEventListener('click',e=>{ e.stopPropagation(); openEmpMenu(emp.id, e.currentTarget, wrap); });
+        card.addEventListener('click', e=>{ if(!e.target.classList.contains('mobile-emp-settings')) selectEmployee(emp.id); });
+        wrap.appendChild(card);
+        group.appendChild(wrap);
+      });
+      container.appendChild(group);
+    });
+  }
+
+  function renderMain(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    if(!isMobile()){
+      document.getElementById('emptyState').style.display=emp?'none':'flex';
+    }
+    const view=document.getElementById('employeeView');
+    view.classList.toggle('visible',!!emp);
+    if(!emp) return;
+    document.getElementById('viewName').textContent=emp.name;
+    const roleParts=[emp.role,emp.store].filter(Boolean).join(' — ');
+    const statusPart=emp.status&&emp.status!=='active'?` · ${statusLabel(emp.status)}`:'';
+    const datePart=emp.startDate?` · Started ${formatDate(emp.startDate)}`:'';
+    document.getElementById('viewRole').textContent=roleParts+statusPart+datePart;
+    // Archive button desktop only
+    const archBtn=document.getElementById('empViewArchiveBtn');
+    if(archBtn){
+      archBtn.textContent=emp.archived?'Restore':'Archive';
+      archBtn.onclick=emp.archived?()=>unarchiveEmployee(emp.id):()=>archiveEmployee(emp.id);
+    }
+
+    const scroll=document.getElementById('entriesScroll');
+    scroll.innerHTML='';
+    const currentYear=new Date().getFullYear();
+    let entries=(emp.entries||[]).slice();
+    // Apply filter
+    if(activeFilter!=='all') entries=entries.filter(e=>e.category===activeFilter);
+    // Apply sort
+    entries.sort((a,b)=>sortNewestFirst?(b.date||'').localeCompare(a.date||''):(a.date||'').localeCompare(b.date||''));
+
+    if(!entries.length){
+      scroll.innerHTML=`<div class="no-entries">${activeFilter!=='all'?'No entries in this category.':'No entries yet. Tap "New Entry" to add one.'}</div>`;
+    } else {
+      // Group by year
+      const byYear={};
+      entries.forEach(entry=>{
+        const y=entry.date?entry.date.slice(0,4):'Unknown';
+        if(!byYear[y]) byYear[y]=[];
+        byYear[y].push(entry);
+      });
+      const years=Object.keys(byYear).sort((a,b)=>sortNewestFirst?b-a:a-b);
+      years.forEach(year=>{
+        const isCurrentYear=parseInt(year)===currentYear;
+        // Default: current year expanded, others collapsed (unless user has toggled)
+        if(collapsedYears[year]===undefined) collapsedYears[year]=!isCurrentYear;
+        const collapsed=collapsedYears[year];
+        const group=document.createElement('div');
+        group.className='year-group';
+        const header=document.createElement('div');
+        header.className='year-header';
+        header.innerHTML=`<span class="year-label">${year}</span><span class="year-count">${byYear[year].length} entr${byYear[year].length!==1?'ies':'y'}</span><span class="year-chevron${collapsed?' collapsed':''}">▼</span>`;
+        header.addEventListener('click',()=>{
+          collapsedYears[year]=!collapsedYears[year];
+          renderMain();
+        });
+        group.appendChild(header);
+        const entriesDiv=document.createElement('div');
+        entriesDiv.className='year-entries'+(collapsed?' collapsed':'');
+        byYear[year].forEach(entry=>{
+          const card=document.createElement('div');
+          card.className='entry-card'+(activeEntryId===entry.id?' selected':'');
+          let preview='';
+          SECTIONS.forEach(s=>{ if(!preview && entry.sections && entry.sections[s.key]) preview=entry.sections[s.key].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,110); });
+          card.innerHTML=`<div class="entry-card-top">
+            <div class="entry-subject">${entry.subject}</div>
+            <div class="entry-date">${formatDate(entry.date)}</div></div>
+            <div class="entry-preview">${preview}${preview.length>=110?'…':''}</div>
+            <span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>`;
+          card.addEventListener('click',()=>selectEntry(entry.id));
+          entriesDiv.appendChild(card);
+        });
+        group.appendChild(entriesDiv);
+        scroll.appendChild(group);
+      });
+    }
+    renderDetail();
+  }
+
+  function renderDetail(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
+    document.getElementById('detailEmpty').style.display=entry?'none':'flex';
+    const content=document.getElementById('detailContent');
+    content.classList.toggle('visible',!!entry);
+    if(!entry) return;
+    document.getElementById('detailSubject').textContent=entry.subject;
+    document.getElementById('detailMeta').textContent=formatDate(entry.date)+' · '+entry.category;
+    // Print header (hidden on screen, shown when printing)
+    const ph=document.getElementById('printHeader');
+    if(ph) ph.innerHTML=`<h1>${entry.subject}</h1><p>${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
+    renderSections(entry, document.getElementById('detailBody'), true);
+  }
+
+  function buildEntryHTML(emp, entry){
+    let html=`<div style="font-family:Arial,sans-serif;padding:24px;max-width:700px;">`;
+    html+=`<div style="border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px;">`;
+    html+=`<h1 style="font-size:18px;font-weight:900;margin:0 0 4px;">${entry.subject}</h1>`;
+    html+=`<p style="font-size:12px;color:#666;margin:0;">${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
+    html+=`<p style="font-size:11px;color:#999;margin:4px 0 0;">CPR Cell Phone Repair Oregon — Employee Records</p></div>`;
+    SECTIONS.forEach((s,i)=>{
+      const val=entry.sections&&entry.sections[s.key];
+      if(!val||val.trim()==='') return;
+      if(i>0) html+=`<hr style="border:none;border-top:1px solid #ddd;margin:12px 0;"/>`;
+      html+=`<div style="margin-bottom:12px;">`;
+      html+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#999;margin-bottom:4px;">${s.label}</div>`;
+      html+=`<div style="font-size:13px;line-height:1.7;">${val}</div>`;
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+    return html;
+  }
+
+  function printEntry(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
+    if(!entry) return;
+    // Inject a temporary print-only stylesheet and trigger print
+    const style=document.createElement('style');
+    style.id='print-override';
+    style.textContent=`@media print{*{visibility:hidden;}#printFrame,#printFrame *{visibility:visible;}#printFrame{position:fixed;inset:0;padding:24px;background:white;z-index:9999;}}`;
+    document.head.appendChild(style);
+    const frame=document.createElement('div');
+    frame.id='printFrame';
+    frame.innerHTML=buildEntryHTML(emp,entry);
+    document.body.appendChild(frame);
+    window.print();
+    document.head.removeChild(style);
+    document.body.removeChild(frame);
+  }
+
+  function downloadPDF(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
+    if(!entry) return;
+    // Use print-to-PDF via a hidden iframe
+    const iframe=document.createElement('iframe');
+    iframe.style.cssText='position:fixed;width:0;height:0;border:none;top:-9999px;';
+    document.body.appendChild(iframe);
+    const filename=`${emp.name.replace(/\s+/g,'-')}_${entry.date}_${entry.subject.replace(/[^a-zA-Z0-9]/g,'-').slice(0,30)}.pdf`;
+    iframe.contentDocument.write(`<!DOCTYPE html><html><head><title>${filename}</title><style>body{margin:0;font-family:Arial,sans-serif;}@media print{@page{margin:20mm;}}</style></head><body>${buildEntryHTML(emp,entry)}</body></html>`);
+    iframe.contentDocument.close();
+    setTimeout(()=>{
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(()=>document.body.removeChild(iframe),1000);
+    },400);
+  }
+
+  function setFilter(cat){
+    activeFilter=cat;
+    document.querySelectorAll('.filter-chip').forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.cat===cat);
+      btn.classList.toggle(btn.dataset.cat, btn.dataset.cat===cat && cat!=='all');
+    });
+    renderMain();
+  }
+
+  function toggleSort(){
+    sortNewestFirst=!sortNewestFirst;
+    document.getElementById('sortBtn').textContent=sortNewestFirst?'↓ Newest':'↑ Oldest';
+    renderMain();
+  }
+
+  function selectEmployee(id){
+    activeEmployeeId=id; activeEntryId=null;
+    activeFilter='all'; collapsedYears={};
+    // Reset filter chips
+    document.querySelectorAll('.filter-chip').forEach(btn=>{ btn.classList.toggle('active',btn.dataset.cat==='all'); btn.classList.remove('coaching','performance','attendance','positive','general'); });
+    render();
+  }
+  function selectEntry(id){
+    activeEntryId=id;
+    if(isMobile()) openMobileDetail();
+    else renderMain();
+  }
+
+  // Mobile detail
+  function openMobileDetail(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
+    if(!entry) return;
+    document.getElementById('mobileDetailSubject').textContent=entry.subject;
+    document.getElementById('mobileDetailMeta').textContent=formatDate(entry.date)+' · '+entry.category;
+    renderSections(entry, document.getElementById('mobileDetailBody'));
+    document.getElementById('entryDetailOverlay').classList.add('open');
+  }
+  function closeMobileDetail(){ document.getElementById('entryDetailOverlay').classList.remove('open'); activeEntryId=null; renderMain(); }
+
+  // Employee settings menu
+  let activeMenu=null;
+  function closeMenu(){ if(activeMenu){ activeMenu.remove(); activeMenu=null; } }
+  document.addEventListener('click', closeMenu);
+
+  function statusLabel(s){ return s==='notice'?'On Notice':s==='terminated'?'Terminated':'Active'; }
+
+  function openEmpMenu(empId, anchor, container){
+    closeMenu();
+    const emp=data.employees.find(e=>e.id===empId);
+    if(!emp) return;
+    const menu=document.createElement('div');
+    menu.className='emp-menu';
+    menu.style.cssText='position:absolute;right:8px;top:100%;margin-top:4px;z-index:300;';
+    const items=[
+      {icon:'✏️', label:'Edit Employee', action:()=>{ closeMenu(); openEditEmployee(empId); }},
+      {divider:true},
+      emp.archived
+        ?{icon:'↩️', label:'Restore', action:()=>{ closeMenu(); unarchiveEmployee(empId); }}
+        :{icon:'📦', label:'Archive', action:()=>{ closeMenu(); archiveEmployee(empId); }},
+      {icon:'🗑️', label:'Delete', danger:true, action:()=>{ closeMenu(); deleteEmployee(empId); }},
+    ];
+    items.forEach(item=>{
+      if(item.divider){ const d=document.createElement('hr'); d.className='emp-menu-divider'; menu.appendChild(d); return; }
+      const el=document.createElement('div');
+      el.className='emp-menu-item'+(item.danger?' danger':'');
+      el.innerHTML=`<span class="menu-icon">${item.icon}</span>${item.label}`;
+      el.addEventListener('click', e=>{ e.stopPropagation(); item.action(); });
+      menu.appendChild(el);
+    });
+    menu.addEventListener('click', e=>e.stopPropagation());
+    container.style.position='relative';
+    container.appendChild(menu);
+    activeMenu=menu;
+  }
+
+  // Employee CRUD
+  function openAddEmployee(){
+    editingEmployeeId=null;
+    document.getElementById('employeeModalTitle').textContent='Add Employee';
+    document.getElementById('empNameInput').value='';
+    document.getElementById('empRoleInput').value='';
+    document.getElementById('empStoreInput').value='';
+    document.getElementById('empStartDateInput').value='';
+    document.getElementById('empStatusInput').value='active';
+    document.getElementById('empNotesInput').innerHTML='';
+    document.getElementById('employeeModal').classList.add('open');
+    setTimeout(()=>document.getElementById('empNameInput').focus(),150);
+  }
+  function openEditEmployee(id){
+    editingEmployeeId=id;
+    const emp=data.employees.find(e=>e.id===id);
+    if(!emp) return;
+    document.getElementById('employeeModalTitle').textContent='Edit Employee';
+    document.getElementById('empNameInput').value=emp.name||'';
+    document.getElementById('empRoleInput').value=emp.role||'';
+    document.getElementById('empStoreInput').value=emp.store||'';
+    document.getElementById('empStartDateInput').value=emp.startDate||'';
+    document.getElementById('empStatusInput').value=emp.status||'active';
+    document.getElementById('empNotesInput').innerHTML=emp.notes||'';
+    document.getElementById('employeeModal').classList.add('open');
+    setTimeout(()=>document.getElementById('empNameInput').focus(),150);
+  }
+  function closeEmployeeModal(){ document.getElementById('employeeModal').classList.remove('open'); }
+  function saveEmployee(){
+    const name=document.getElementById('empNameInput').value.trim();
+    if(!name){ alert('Please enter a name.'); return; }
+    const role=document.getElementById('empRoleInput').value.trim();
+    const store=document.getElementById('empStoreInput').value.trim();
+    const startDate=document.getElementById('empStartDateInput').value;
+    const status=document.getElementById('empStatusInput').value;
+    const notes=document.getElementById('empNotesInput').innerHTML.trim();
+    if(editingEmployeeId){
+      const emp=data.employees.find(e=>e.id===editingEmployeeId);
+      if(emp){ emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes; }
+    } else {
+      data.employees.push({id:uid(),name,role,store,startDate,status,notes,entries:[]});
+    }
+    save(); closeEmployeeModal(); render();
+  }
+  function deleteEmployee(id){
+    if(!confirm('Remove this employee and all their coaching entries?')) return;
+    data.employees=data.employees.filter(e=>e.id!==id);
+    if(activeEmployeeId===id){activeEmployeeId=null;activeEntryId=null;}
+    save(); render();
+  }
+
+  // Entry CRUD
+  function openAddEntry(){
+    editingEntryId=null;
+    document.getElementById('entryModalTitle').textContent='New Coaching Entry';
+    document.getElementById('entryDateInput').value=new Date().toISOString().slice(0,10);
+    document.getElementById('entrySubjectInput').value='';
+    document.getElementById('entryCategoryInput').value='coaching';
+    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML='');
+    document.getElementById('entryModal').classList.add('open');
+    setTimeout(()=>document.getElementById('entrySubjectInput').focus(),150);
+  }
+  function editCurrentEntry(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?emp.entries.find(e=>e.id===activeEntryId):null;
+    if(!entry) return;
+    document.getElementById('entryDetailOverlay').classList.remove('open');
+    editingEntryId=entry.id;
+    document.getElementById('entryModalTitle').textContent='Edit Entry';
+    document.getElementById('entryDateInput').value=entry.date;
+    document.getElementById('entrySubjectInput').value=entry.subject;
+    document.getElementById('entryCategoryInput').value=entry.category;
+    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
+    document.getElementById('entryModal').classList.add('open');
+  }
+  function closeEntryModal(){ document.getElementById('entryModal').classList.remove('open'); }
+  function saveEntry(){
+    const date=document.getElementById('entryDateInput').value;
+    const subject=document.getElementById('entrySubjectInput').value.trim();
+    const category=document.getElementById('entryCategoryInput').value;
+    if(!subject){ alert('Please enter a subject.'); return; }
+    const sections={};
+    SECTIONS.forEach(s=>sections[s.key]=document.getElementById('f-'+s.key).innerHTML.trim());
+    const hasContent=SECTIONS.some(s=>sections[s.key] && sections[s.key]!=='');
+    if(!hasContent){ alert('Please fill in at least one coaching section.'); return; }
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    if(!emp) return;
+    if(editingEntryId){
+      const entry=emp.entries.find(e=>e.id===editingEntryId);
+      if(entry){entry.date=date;entry.subject=subject;entry.category=category;entry.sections=sections;}
+    } else {
+      const entry={id:uid(),date,subject,category,sections};
+      emp.entries.push(entry); activeEntryId=entry.id;
+    }
+    save(); closeEntryModal(); renderMain();
+  }
+  function deleteCurrentEntry(){
+    if(!confirm('Delete this entry?')) return;
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    if(!emp) return;
+    emp.entries=emp.entries.filter(e=>e.id!==activeEntryId);
+    activeEntryId=null;
+    document.getElementById('entryDetailOverlay').classList.remove('open');
+    save(); renderMain();
+  }
+
+  // Close modals on overlay click
+  document.getElementById('employeeModal').addEventListener('click',function(e){if(e.target===this)closeEmployeeModal();});
+  document.getElementById('entryModal').addEventListener('click',function(e){if(e.target===this)closeEntryModal();});
+
+  // Seed Jason
+  function seedJasonData(){
+    if(data.employees.length>0) return;
+    const jasonId=uid();
+    data.employees.push({ id:jasonId, name:'Jason', role:'Repair Technician', store:'', entries:[
+      { id:uid(), date:'2026-05-20', subject:'Speed & Workflow Discussion', category:'coaching', sections:{
+        issue:'iPhone 13 battery replacement checked in at 6:00 PM, completed at ~7:30 PM (approx. 1.5 hours). Unacceptable turnaround for this repair type.',
+        cause:'Jason is used to methodical, by-the-book processes from a corporate insurance repair background. Adhesive removal was particularly slow — he hasn\'t adjusted to the pace and flexibility expected in an independent walk-in shop.',
+        coaching:'Advised using a <b>heat mat</b> to keep the phone warm throughout the repair, combined with a <b>heat-resistant glove</b>. Keeping the adhesive warm makes it easier to remove from the frame and significantly speeds up the repair.',
+        response:'Seemed receptive. Likely needs repetition and time to unlearn old habits from corporate environment.',
+        actions:'Continue consistent hands-on coaching. Reinforce the "why" behind each technique. Monitor turnaround times over the next week.'
+      }},
+      { id:uid(), date:'2026-05-20', subject:'RepairQ & POS Workflow Struggles', category:'performance', sections:{
+        issue:'Jason had significant difficulty navigating the point of sale and RepairQ systems during his first shift.',
+        cause:'Despite being technically strong on repairs, he has no prior experience with RepairQ. Corporate insurance repair likely used a different system with different workflows.',
+        coaching:'Walked him through the basic check-in and repair queue process. Did not complete full training yet.',
+        response:'Struggled but willing to learn. Will need dedicated training time.',
+        actions:'<ul><li>Create a RepairQ/POS checklist or quick-reference guide for him.</li><li>Schedule dedicated POS training session before the weekend.</li><li>Do <b>not</b> leave him solo on Friday or Saturday until comfortable.</li></ul>'
+      }}
+    ]});
+    activeEmployeeId=jasonId;
+    save();
+  }
+
+  load(); seedJasonData(); render();
+</script>
+</body>
+</html>
