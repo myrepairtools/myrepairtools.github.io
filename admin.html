@@ -131,28 +131,22 @@
   <div class="lock-box">
     <div class="lock-icon">🔒</div>
     <div class="lock-title">Admin Access</div>
-    <div class="lock-sub">Enter your PIN to continue</div>
-    <div class="pin-dots">
-      <div class="pin-dot" id="d0"></div>
-      <div class="pin-dot" id="d1"></div>
-      <div class="pin-dot" id="d2"></div>
-      <div class="pin-dot" id="d3"></div>
-      <div class="pin-dot" id="d4"></div>
-      <div class="pin-dot" id="d5"></div>
-    </div>
-    <div class="pin-pad">
-      <button class="pin-key" onclick="pressKey('1')">1</button>
-      <button class="pin-key" onclick="pressKey('2')">2</button>
-      <button class="pin-key" onclick="pressKey('3')">3</button>
-      <button class="pin-key" onclick="pressKey('4')">4</button>
-      <button class="pin-key" onclick="pressKey('5')">5</button>
-      <button class="pin-key" onclick="pressKey('6')">6</button>
-      <button class="pin-key" onclick="pressKey('7')">7</button>
-      <button class="pin-key" onclick="pressKey('8')">8</button>
-      <button class="pin-key" onclick="pressKey('9')">9</button>
-      <button class="pin-key del" onclick="deleteKey()">⌫</button>
-      <button class="pin-key zero" onclick="pressKey('0')">0</button>
-    </div>
+    <div class="lock-sub">Enter your password to continue</div>
+    <form onsubmit="submitPassword(); return false;" autocomplete="on">
+      <input type="password" id="passwordInput" name="password"
+        autocomplete="current-password"
+        placeholder="Password"
+        style="width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 14px;font-family:'Nunito Sans',sans-serif;font-size:16px;color:#fff;outline:none;margin-bottom:12px;transition:border-color .15s;"
+        onfocus="this.style.borderColor='rgba(220,40,46,0.8)'"
+        onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
+      />
+      <button type="submit"
+        style="width:100%;background:#DC282E;border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:#fff;cursor:pointer;transition:background .15s;"
+        onmouseover="this.style.background='#F15F5E'"
+        onmouseout="this.style.background='#DC282E'">
+        Unlock
+      </button>
+    </form>
     <div class="lock-error" id="lockError"></div>
   </div>
 </div>
@@ -202,47 +196,23 @@
 
 <script>
   const CORRECT = '541783';
-  let entered = '';
 
-  function pressKey(k) {
-    if (entered.length >= 6) return;
-    entered += k;
-    updateDots();
-    if (entered.length === 6) checkPin();
-  }
-
-  function deleteKey() {
-    entered = entered.slice(0, -1);
-    updateDots();
-    document.getElementById('lockError').textContent = '';
-  }
-
-  function updateDots() {
-    for (let i = 0; i < 6; i++) {
-      const dot = document.getElementById('d' + i);
-      dot.classList.toggle('filled', i < entered.length);
-      dot.classList.remove('error');
-    }
-  }
-
-  function checkPin() {
-    if (entered === CORRECT) {
+  function submitPassword() {
+    const val = document.getElementById('passwordInput').value;
+    if (val === CORRECT) {
       document.getElementById('lockScreen').classList.add('hidden');
       document.getElementById('mainContent').classList.add('visible');
     } else {
-      for (let i = 0; i < 6; i++) {
-        document.getElementById('d' + i).classList.add('error');
-        document.getElementById('d' + i).classList.remove('filled');
-      }
-      document.getElementById('lockError').textContent = 'Incorrect PIN. Try again.';
-      setTimeout(() => { entered = ''; updateDots(); }, 800);
+      const input = document.getElementById('passwordInput');
+      input.style.borderColor = '#ef4444';
+      input.value = '';
+      document.getElementById('lockError').textContent = 'Incorrect password. Try again.';
+      setTimeout(() => { input.style.borderColor = 'rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent = ''; }, 2000);
     }
   }
 
-  // Keyboard support
-  document.addEventListener('keydown', e => {
-    if (e.key >= '0' && e.key <= '9') pressKey(e.key);
-    if (e.key === 'Backspace') deleteKey();
+  window.addEventListener('load', () => {
+    setTimeout(() => document.getElementById('passwordInput').focus(), 100);
   });
 </script>
 </body>
