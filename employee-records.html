@@ -901,7 +901,7 @@
     if(activeTypeFilter!=='all') entries=entries.filter(e=>e.entryType===activeTypeFilter);
     if(activeCatFilter!=='all') entries=entries.filter(e=>e.category===activeCatFilter);
     // Apply sort
-    entries.sort((a,b)=>sortNewestFirst?(b.date||'').localeCompare(a.date||''):(a.date||'').localeCompare(b.date||''));
+    entries.sort((a,b)=>sortNewestFirst?(b.incidentDate||b.date||'').localeCompare(a.incidentDate||a.date||''):(a.incidentDate||a.date||'').localeCompare(b.incidentDate||b.date||''));
 
     if(!entries.length){
       scroll.innerHTML=`<div class="no-entries">${activeTypeFilter!=='all'||activeCatFilter!=='all'?'No entries match the selected filters.':'No entries yet. Tap "New Entry" to add one.'}</div>`;
@@ -909,7 +909,7 @@
       // Group by year
       const byYear={};
       entries.forEach(entry=>{
-        const y=entry.date?entry.date.slice(0,4):'Unknown';
+        const y=(entry.incidentDate||entry.date||'').slice(0,4)||'Unknown';
         if(!byYear[y]) byYear[y]=[];
         byYear[y].push(entry);
       });
