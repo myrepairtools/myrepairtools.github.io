@@ -20,7 +20,29 @@
     .header-logo{display:flex;align-items:center;gap:8px;flex:1;}
     .header-logo img{height:28px;width:auto;display:block;}
     .page-badge{background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:20px;}
-    .mobile-menu-btn{display:none;}
+    /* Lock screen */
+    .lock-screen{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:0;}
+    .lock-screen.hidden{display:none;}
+    .lock-logo{margin-bottom:32px;}
+    .lock-logo img{height:36px;width:auto;display:block;}
+    .lock-box{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:36px 40px;text-align:center;width:100%;max-width:340px;}
+    .lock-icon{font-size:32px;margin-bottom:16px;}
+    .lock-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--white);margin-bottom:6px;}
+    .lock-sub{font-size:12px;color:rgba(255,255,255,0.4);font-weight:600;margin-bottom:28px;}
+    .pin-dots{display:flex;justify-content:center;gap:10px;margin-bottom:28px;}
+    .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);transition:background .15s,border-color .15s;}
+    .pin-dot.filled{background:var(--accent);border-color:var(--accent);}
+    .pin-dot.error{background:#ef4444;border-color:#ef4444;animation:shake .4s ease;}
+    @keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+    .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+    .pin-key{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;font-family:'Nunito',sans-serif;font-size:18px;font-weight:800;color:var(--white);cursor:pointer;transition:background .1s,transform .1s;-webkit-tap-highlight-color:transparent;}
+    .pin-key:hover{background:rgba(255,255,255,0.12);}
+    .pin-key:active{transform:scale(0.94);}
+    .pin-key.del{font-size:14px;color:rgba(255,255,255,0.4);}
+    .pin-key.zero{grid-column:2;}
+    .lock-error{font-size:12px;font-weight:700;color:#ef4444;margin-top:16px;min-height:18px;text-align:center;}
+    .app-wrapper{display:none;}
+    .app-wrapper.visible{display:contents;}
 
     /* Mobile employee picker screen */
     .mobile-picker{display:none;flex-direction:column;min-height:calc(100vh - 63px);background:var(--light-grey);}
@@ -266,6 +288,44 @@
 </head>
 <body>
 
+<!-- LOCK SCREEN -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-logo"><img src="assets/images/CPRLogo_NoAssurant_White.svg" alt="CPR"/></div>
+  <div class="lock-box">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-title">Employee Records</div>
+    <div class="lock-sub">Enter your PIN to continue</div>
+    <form id="pinForm" onsubmit="return false;" style="margin-bottom:28px;">
+      <input type="password" id="pinAutoFill" autocomplete="current-password"
+        style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;"
+        onchange="handleAutoFill(this.value)"/>
+    </form>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+      <div class="pin-dot" id="d4"></div>
+      <div class="pin-dot" id="d5"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pressKey('1')">1</button>
+      <button class="pin-key" onclick="pressKey('2')">2</button>
+      <button class="pin-key" onclick="pressKey('3')">3</button>
+      <button class="pin-key" onclick="pressKey('4')">4</button>
+      <button class="pin-key" onclick="pressKey('5')">5</button>
+      <button class="pin-key" onclick="pressKey('6')">6</button>
+      <button class="pin-key" onclick="pressKey('7')">7</button>
+      <button class="pin-key" onclick="pressKey('8')">8</button>
+      <button class="pin-key" onclick="pressKey('9')">9</button>
+      <button class="pin-key del" onclick="deleteKey()">⌫</button>
+      <button class="pin-key zero" onclick="pressKey('0')">0</button>
+    </div>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
+<div class="app-wrapper" id="appWrapper">
 <header>
   <a class="back-btn" href="https://myrepairtools.github.io/operations.html">← Back</a>
   <div class="header-logo"><img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair"/></div>
@@ -494,7 +554,65 @@
   </div>
 </div>
 
+</div><!-- end app-wrapper -->
+
 <script>
+  // ── PIN Lock ──
+  const CORRECT='541783';
+  let pinEntered='';
+
+  function pressKey(k){
+    if(pinEntered.length>=6) return;
+    pinEntered+=k;
+    updatePinDots();
+    if(pinEntered.length===6) checkPin();
+  }
+  function deleteKey(){
+    pinEntered=pinEntered.slice(0,-1);
+    updatePinDots();
+    document.getElementById('lockError').textContent='';
+  }
+  function updatePinDots(){
+    for(let i=0;i<6;i++){
+      const dot=document.getElementById('d'+i);
+      dot.classList.toggle('filled',i<pinEntered.length);
+      dot.classList.remove('error');
+    }
+  }
+  function checkPin(){
+    if(pinEntered===CORRECT){
+      document.getElementById('lockScreen').classList.add('hidden');
+      document.getElementById('appWrapper').classList.add('visible');
+      initApp();
+    } else {
+      for(let i=0;i<6;i++){
+        document.getElementById('d'+i).classList.add('error');
+        document.getElementById('d'+i).classList.remove('filled');
+      }
+      document.getElementById('lockError').textContent='Incorrect PIN. Try again.';
+      setTimeout(()=>{ pinEntered=''; updatePinDots(); },800);
+    }
+  }
+  function handleAutoFill(val){
+    if(val===CORRECT){
+      document.getElementById('lockScreen').classList.add('hidden');
+      document.getElementById('appWrapper').classList.add('visible');
+      initApp();
+    } else if(val.length>=6){
+      document.getElementById('lockError').textContent='Incorrect PIN. Try again.';
+      document.getElementById('pinAutoFill').value='';
+    }
+  }
+
+  // Focus hidden input on load so Chrome offers Touch ID / saved password
+  window.addEventListener('load',()=>{
+    setTimeout(()=>document.getElementById('pinAutoFill').focus(),100);
+  });
+
+  document.addEventListener('keydown',e=>{
+    if(e.key>='0'&&e.key<='9') pressKey(e.key);
+    if(e.key==='Backspace') deleteKey();
+  });
   // ── Config ──
   const SECTIONS = [
     { key:'issue',    label:'Issue / What Happened' },
@@ -738,22 +856,33 @@
       list.innerHTML=`<div style="padding:16px;font-size:13px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees.<br/>Tap + to add one.'}</div>`;
       return;
     }
-    visible.forEach(emp=>{
-      const count=(emp.entries||[]).length;
-      const item=document.createElement('div');
-      item.style.position='relative';
-      const inner=document.createElement('div');
-      inner.className='employee-item'+(activeEmployeeId===emp.id?' active':'')+(emp.archived?' archived':'');
-      inner.innerHTML=`<div class="emp-avatar">${initials(emp.name)}</div>
-        <div class="emp-info">
-          <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
-          <div class="emp-meta">${emp.store?emp.store+' · ':''}${count} entr${count!==1?'ies':'y'}${emp.status&&emp.status!=='active'?' · <b style="color:var(--accent)">'+statusLabel(emp.status)+'</b>':''}</div>
-        </div>
-        <button class="emp-settings-btn" title="Settings">···</button>`;
-      inner.addEventListener('click', e=>{ if(!e.target.classList.contains('emp-settings-btn')) selectEmployee(emp.id); });
-      inner.querySelector('.emp-settings-btn').addEventListener('click', e=>{ e.stopPropagation(); openEmpMenu(emp.id, e.currentTarget, item); });
-      item.appendChild(inner);
-      list.appendChild(item);
+    // Group by store, sort stores alphabetically, sort employees within each store alphabetically
+    const stores={};
+    visible.forEach(emp=>{ const s=emp.store||'Unassigned'; if(!stores[s]) stores[s]=[]; stores[s].push(emp); });
+    Object.keys(stores).sort().forEach(store=>{
+      // Store label
+      const label=document.createElement('div');
+      label.style.cssText='padding:10px 16px 4px;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);';
+      label.textContent=store;
+      list.appendChild(label);
+      // Sort employees alphabetically within store
+      stores[store].sort((a,b)=>a.name.localeCompare(b.name)).forEach(emp=>{
+        const count=(emp.entries||[]).length;
+        const item=document.createElement('div');
+        item.style.position='relative';
+        const inner=document.createElement('div');
+        inner.className='employee-item'+(activeEmployeeId===emp.id?' active':'')+(emp.archived?' archived':'');
+        inner.innerHTML=`<div class="emp-avatar">${initials(emp.name)}</div>
+          <div class="emp-info">
+            <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
+            <div class="emp-meta">${count} entr${count!==1?'ies':'y'}${emp.status&&emp.status!=='active'?' · <b style="color:var(--accent)">'+statusLabel(emp.status)+'</b>':''}</div>
+          </div>
+          <button class="emp-settings-btn" title="Settings">···</button>`;
+        inner.addEventListener('click', e=>{ if(!e.target.classList.contains('emp-settings-btn')) selectEmployee(emp.id); });
+        inner.querySelector('.emp-settings-btn').addEventListener('click', e=>{ e.stopPropagation(); openEmpMenu(emp.id, e.currentTarget, item); });
+        item.appendChild(inner);
+        list.appendChild(item);
+      });
     });
   }
 
@@ -1305,9 +1434,10 @@
     save();
   }
 
-  initials;formatDate; // keep linter happy
-  loadCache(); render(); // show cached data immediately
-  loadFromSheets();     // then sync from Sheets
+  function initApp(){
+    loadCache(); render();
+    loadFromSheets();
+  }
 </script>
 </body>
 </html>
