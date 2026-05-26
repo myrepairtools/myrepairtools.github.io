@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Employee Records — CPR Oregon</title>
+  <link rel="apple-touch-icon" href="assets/images/CPRLogo_NoAssurant_Black.svg">
+  <meta name="apple-mobile-web-app-title" content="Employee Records">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -31,8 +35,8 @@
     .lock-sub{font-size:12px;color:rgba(255,255,255,0.4);font-weight:600;margin-bottom:28px;}
 
     .lock-error{font-size:12px;font-weight:700;color:#ef4444;margin-top:16px;min-height:18px;text-align:center;}
-    .app-wrapper{display:none;}
-    .app-wrapper.visible{display:contents;}
+    .app-wrapper{display:none;flex-direction:column;min-height:100vh;}
+    .app-wrapper.visible{display:flex;}
 
     /* Mobile employee picker screen */
     .mobile-picker{display:none;flex-direction:column;min-height:calc(100vh - 63px);background:var(--light-grey);}
@@ -236,6 +240,65 @@
     input[type="text"],input[type="date"],select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-family:'Nunito Sans',sans-serif;font-size:14px;color:var(--dark);background:var(--white);outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none;}
     input:focus,select:focus{border-color:var(--accent);}
 
+    /* Tab bar */
+    .emp-tab-bar{display:flex;background:var(--white);border-bottom:1.5px solid var(--border);flex-shrink:0;}
+    .emp-tab{flex:1;max-width:200px;padding:11px 16px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;color:var(--grey);background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;transition:color .12s,border-color .12s;display:flex;align-items:center;gap:6px;justify-content:center;}
+    .emp-tab:hover{color:var(--dark-grey);}
+    .emp-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:800;}
+    .pip-badge{background:var(--accent);color:var(--white);font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px;}
+    .tab-panel{display:flex;flex:1;overflow:hidden;flex-direction:column;}
+
+    /* PIP panel */
+    .pip-panel{display:grid;grid-template-columns:280px 1fr;flex:1;overflow:hidden;height:100%;}
+    .pip-list-col{border-right:1.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--white);}
+    .pip-list-header{padding:12px 16px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .pip-list{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+    .pip-card{background:var(--white);border:1.5px solid var(--border);border-left:4px solid var(--grey);border-radius:8px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s;}
+    .pip-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07);}
+    .pip-card.selected{box-shadow:0 2px 10px rgba(220,40,46,.1);border-color:var(--accent);}
+    .pip-card.status-active{border-left-color:#92400e;}
+    .pip-card.status-under-review{border-left-color:#1e40af;}
+    .pip-card.status-closed-met{border-left-color:#065f46;}
+    .pip-card.status-closed-extended{border-left-color:#3730a3;}
+    .pip-card.status-closed-terminated{border-left-color:#b91c1c;}
+    .pip-card-title{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--dark);}
+    .pip-card-meta{font-size:11px;color:var(--grey);margin-top:3px;}
+    .pip-status-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:6px;}
+    .pip-status-tag.draft{background:var(--light-grey);color:var(--dark-grey);}
+    .pip-status-tag.active{background:#fef3c7;color:#92400e;}
+    .pip-status-tag.under-review{background:#dbeafe;color:#1e40af;}
+    .pip-status-tag.closed-met{background:#d1fae5;color:#065f46;}
+    .pip-status-tag.closed-extended{background:#e0e7ff;color:#3730a3;}
+    .pip-status-tag.closed-terminated{background:#fce8e8;color:#b91c1c;}
+    .pip-detail-col{overflow-y:auto;background:var(--white);}
+    .pip-detail-empty{display:flex;align-items:center;justify-content:center;color:var(--grey);font-size:13px;padding:40px;text-align:center;height:200px;}
+    .pip-doc{max-width:680px;margin:0 auto;padding:28px 32px 60px;}
+    .pip-doc-header{text-align:center;padding-bottom:20px;border-bottom:2px solid var(--dark);margin-bottom:24px;}
+    .pip-doc-company{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--accent);}
+    .pip-doc-subtitle{font-size:12px;color:var(--grey);margin-top:2px;}
+    .pip-doc-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:15px;color:var(--dark);margin-top:8px;text-transform:uppercase;letter-spacing:.8px;}
+    .pip-doc-actions{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+    .pip-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:var(--light-grey);border-radius:8px;padding:14px 16px;margin-bottom:24px;}
+    .pip-info-label{font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:2px;}
+    .pip-info-value{font-size:13px;font-weight:600;color:var(--dark);}
+    .pip-section{margin-bottom:22px;}
+    .pip-section-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark);border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:10px;}
+    .pip-section-body{font-size:13px;color:var(--dark);line-height:1.7;white-space:pre-wrap;}
+    .pip-goals-list{display:flex;flex-direction:column;gap:8px;}
+    .pip-goal-item{background:var(--light-grey);border-radius:6px;padding:10px 12px;border-left:3px solid var(--blue);}
+    .pip-goal-text{font-size:13px;color:var(--dark);font-weight:600;}
+    .pip-goal-deadline{font-size:11px;color:var(--grey);margin-top:3px;}
+    .pip-checkin-item{border-left:3px solid var(--border);padding:8px 12px;margin-bottom:8px;background:var(--light-grey);border-radius:0 6px 6px 0;}
+    .pip-checkin-item.has-notes{border-left-color:#065f46;}
+    .pip-checkin-date{font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);}
+    .pip-checkin-notes{font-size:13px;color:var(--dark);margin-top:4px;line-height:1.6;}
+    .pip-add-checkin-btn{background:none;border:1.5px dashed var(--border);border-radius:6px;padding:8px 14px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--grey);cursor:pointer;width:100%;transition:border-color .12s,color .12s;margin-top:4px;}
+    .pip-add-checkin-btn:hover{border-color:var(--blue);color:var(--blue);}
+    .pip-sig-block{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:36px;padding-top:20px;border-top:1.5px solid var(--border);}
+    .pip-sig-line{border-bottom:1px solid var(--dark);margin-bottom:6px;height:36px;}
+    .pip-sig-label{font-size:11px;color:var(--grey);}
+    .no-pips{text-align:center;color:var(--grey);font-size:13px;padding:40px 20px;}
+
     /* Section divider in form */
     .form-section-divider{border:none;border-top:1.5px solid var(--border);margin:6px 0 16px;}
     .form-section-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:14px;margin-top:4px;}
@@ -293,7 +356,7 @@
         onfocus="this.style.borderColor='rgba(220,40,46,0.8)'"
         onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
       />
-      <button type="submit"
+      <button type="submit" onclick="submitPassword(); return false;"
         style="width:100%;background:var(--accent);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:var(--white);cursor:pointer;transition:background .15s;"
         onmouseover="this.style.background='var(--light-red)'"
         onmouseout="this.style.background='var(--accent)'">
@@ -358,6 +421,14 @@
           <button class="new-entry-btn" onclick="openAddEntry()">+ New Entry</button>
         </div>
       </div>
+      <!-- Tab bar -->
+      <div class="emp-tab-bar">
+        <button class="emp-tab active" id="tabLog" onclick="switchTab('log')">📋 Log</button>
+        <button class="emp-tab" id="tabPips" onclick="switchTab('pips')">📄 PIPs & Reviews <span class="pip-badge" id="pipBadge" style="display:none;"></span></button>
+      </div>
+
+      <!-- LOG TAB -->
+      <div class="tab-panel" id="panelLog">
       <div class="entries-layout">
         <div class="entries-list" id="entriesList">
           <div class="filter-bars">
@@ -405,6 +476,27 @@
           </div>
         </div>
       </div>
+      </div>
+
+      <!-- PIPs TAB -->
+      <div class="tab-panel" id="panelPips" style="display:none;">
+        <div class="pip-panel">
+          <!-- PIP list -->
+          <div class="pip-list-col">
+            <div class="pip-list-header">
+              <span style="font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.5px;">PIPs</span>
+              <button class="new-entry-btn" onclick="openNewPIP()">+ New PIP</button>
+            </div>
+            <div class="pip-list" id="pipList"></div>
+          </div>
+          <!-- PIP detail -->
+          <div class="pip-detail-col">
+            <div class="pip-detail-empty" id="pipDetailEmpty">← Select a PIP to view</div>
+            <div class="pip-detail-content" id="pipDetailContent" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </main>
 </div>
@@ -429,7 +521,99 @@
   <div class="entry-detail-scroll" id="mobileDetailBody"></div>
 </div>
 
-<!-- Add/Edit Employee Modal -->
+<!-- PIP Modal -->
+<div class="modal-overlay" id="pipModal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <div class="modal-title" id="pipModalTitle">New Performance Improvement Plan</div>
+      <button class="modal-close" onclick="closePIPModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label>PIP Title / Subject</label><input type="text" id="pipTitleInput" placeholder="e.g. Performance Improvement Plan — Q2 2026"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="field-group"><label>Start Date</label><input type="date" id="pipStartDateInput"/></div>
+        <div class="field-group"><label>Review Date</label><input type="date" id="pipReviewDateInput"/></div>
+      </div>
+      <div class="field-group"><label>Manager Name</label><input type="text" id="pipManagerInput" placeholder="e.g. Britt Bay"/></div>
+      <hr class="form-section-divider"/>
+      <div class="form-section-label">PIP Content</div>
+      <div class="field-group">
+        <label>Performance Issues</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-issues"></div><div class="editor-content" id="pip-issues" contenteditable="true" data-placeholder="Describe the performance concerns and specific incidents..." style="min-height:80px;max-height:150px;"></div></div>
+      </div>
+      <div class="field-group">
+        <label>Goals & Expectations</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-goals"></div><div class="editor-content" id="pip-goals" contenteditable="true" data-placeholder="List specific, measurable goals with deadlines..." style="min-height:80px;max-height:150px;"></div></div>
+      </div>
+      <div class="field-group">
+        <label>Support Provided</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-support"></div><div class="editor-content" id="pip-support" contenteditable="true" data-placeholder="What training, coaching, or resources will be provided..." style="min-height:60px;max-height:120px;"></div></div>
+      </div>
+      <div class="field-group">
+        <label>Consequences</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-consequences"></div><div class="editor-content" id="pip-consequences" contenteditable="true" data-placeholder="Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment." style="min-height:60px;max-height:100px;"></div></div>
+      </div>
+      <div class="field-group">
+        <label>Check-in Schedule</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-schedule"></div><div class="editor-content" id="pip-schedule" contenteditable="true" data-placeholder="e.g. Weekly check-ins every Monday at 10am through the review date..." style="min-height:50px;max-height:100px;"></div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closePIPModal()">Cancel</button>
+      <button class="btn-save" onclick="savePIP('draft')" style="background:var(--dark-grey);margin-right:auto;">Save as Draft</button>
+      <button class="btn-save" onclick="savePIP('active')">Activate PIP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Check-in Modal -->
+<div class="modal-overlay" id="checkinModal">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <div class="modal-title">Add Check-in Note</div>
+      <button class="modal-close" onclick="closeCheckinModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label>Check-in Date</label><input type="date" id="checkinDateInput"/></div>
+      <div class="field-group">
+        <label>Notes</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-checkin"></div><div class="editor-content" id="checkinNotesInput" contenteditable="true" data-placeholder="What was discussed? Progress made? Concerns?" style="min-height:100px;max-height:200px;"></div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeCheckinModal()">Cancel</button>
+      <button class="btn-save" onclick="saveCheckin()">Save Check-in</button>
+    </div>
+  </div>
+</div>
+
+<!-- Outcome Modal -->
+<div class="modal-overlay" id="outcomeModal">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <div class="modal-title">Record PIP Outcome</div>
+      <button class="modal-close" onclick="closeOutcomeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label>Outcome</label>
+        <select id="outcomeInput">
+          <option value="closed-met">✓ Met Expectations — PIP Closed</option>
+          <option value="closed-extended">↻ Extended — Additional Time Granted</option>
+          <option value="closed-terminated">✕ Terminated — Did Not Meet Expectations</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Outcome Notes</label>
+        <div class="editor-wrap"><div class="editor-toolbar" id="tb-outcome"></div><div class="editor-content" id="outcomeNotesInput" contenteditable="true" data-placeholder="Summarize the outcome and any final notes..." style="min-height:100px;max-height:180px;"></div></div>
+      </div>
+      <div class="field-group"><label>Outcome Date</label><input type="date" id="outcomeDateInput"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeOutcomeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveOutcome()">Save Outcome</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="employeeModal">
   <div class="modal">
     <div class="modal-header">
@@ -542,7 +726,7 @@
   // ── Password Lock ──
 
   function submitPassword(){
-    const val=document.getElementById('passwordInput').value;
+    const val=document.getElementById('passwordInput').value.trim();
     if(val===CORRECT){
       document.getElementById('lockScreen').classList.add('hidden');
       document.getElementById('appWrapper').classList.add('visible');
@@ -551,8 +735,8 @@
       const input=document.getElementById('passwordInput');
       input.style.borderColor='#ef4444';
       input.value='';
-      document.getElementById('lockError').textContent='Incorrect password. Try again.';
-      setTimeout(()=>{ input.style.borderColor='rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent=''; },2000);
+      document.getElementById('lockError').textContent='Incorrect password. Try again. (entered: '+val.length+' chars)';
+      setTimeout(()=>{ input.style.borderColor='rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent=''; },3000);
     }
   }
 
@@ -664,11 +848,9 @@
     return d.toISOString().slice(0,10);
   }
 
-  function unflattenFromSheets(employees, entries){
+  function unflattenFromSheets(employees, entries, pips=[]){
     const empMap={};
-    employees.forEach(emp=>{
-      empMap[emp.id]={...emp, entries:[]};
-    });
+    employees.forEach(emp=>{ empMap[emp.id]={...emp, entries:[], pips:[]}; });
     entries.forEach(row=>{
       const emp=empMap[row.employeeId];
       if(!emp) return;
@@ -683,6 +865,11 @@
         }
       };
       emp.entries.push(entry);
+    });
+    pips.forEach(row=>{
+      const emp=empMap[row.employeeId];
+      if(!emp) return;
+      try{ const pip=row.data?JSON.parse(row.data):{id:row.id,title:row.title,status:row.status}; emp.pips.push(pip); }catch(e){}
     });
     return {employees:Object.values(empMap)};
   }
@@ -700,7 +887,7 @@
     try{
       const result=await apiCall({action:'getAll'});
       if(result.error) throw new Error(result.error);
-      data=unflattenFromSheets(result.employees||[], result.entries||[]);
+      data=unflattenFromSheets(result.employees||[], result.entries||[], result.pips||[]);
       saveCache();
       setSyncStatus('ok','✓ Synced');
     }catch(e){
@@ -713,7 +900,7 @@
   async function saveEmployee(empObj){
     setSyncStatus('syncing','⟳ Saving...');
     try{
-      const {entries,...flat}=empObj;
+      const {entries,pips,...flat}=empObj;
       await apiCall({action:'saveEmployee', data:JSON.stringify(flat)});
       setSyncStatus('ok','✓ Saved');
     }catch(e){ setSyncStatus('error','⚠ Save failed'); }
@@ -749,7 +936,7 @@
 
   // ── Mobile picker navigation ──
   function goBackToMobilePicker(){
-    activeEmployeeId=null; activeEntryId=null;
+    activeEmployeeId=null; activeEntryId=null; activePIPId=null;
     renderMobilePicker(); renderMain();
   }
 
@@ -1172,10 +1359,15 @@
   }
 
   function selectEmployee(id){
-    activeEmployeeId=id; activeEntryId=null;
+    activeEmployeeId=id; activeEntryId=null; activePIPId=null;
     activeTypeFilter='all'; activeCatFilter='all'; collapsedYears={};
+    activeTab='log';
     document.querySelectorAll('.filter-chip[data-type]').forEach(btn=>btn.classList.toggle('active',btn.dataset.type==='all'));
     document.querySelectorAll('.filter-chip[data-cat]').forEach(btn=>btn.classList.toggle('active',btn.dataset.cat==='all'));
+    document.getElementById('tabLog').classList.add('active');
+    document.getElementById('tabPips').classList.remove('active');
+    document.getElementById('panelLog').style.display='flex';
+    document.getElementById('panelPips').style.display='none';
     render();
   }
   function selectEntry(id){
@@ -1361,9 +1553,379 @@
     await deleteEntryFromSheets(entryId);
   }
 
+  // ── Tab switching ──
+  let activeTab='log';
+  let activePIPId=null;
+  let editingPIPId=null;
+  let editingCheckinId=null;
+
+  function switchTab(tab){
+    activeTab=tab;
+    document.getElementById('tabLog').classList.toggle('active',tab==='log');
+    document.getElementById('tabPips').classList.toggle('active',tab==='pips');
+    document.getElementById('panelLog').style.display=tab==='log'?'flex':'none';
+    document.getElementById('panelPips').style.display=tab==='pips'?'flex':'none';
+    if(tab==='pips') renderPIPList();
+  }
+
+  // ── PIP toolbar setup ──
+  const PIP_EDITORS=['pip-issues','pip-goals','pip-support','pip-consequences','pip-schedule','checkinNotesInput','outcomeNotesInput'];
+  PIP_EDITORS.forEach(id=>{
+    const tbId='tb-'+id.replace('Input','').replace('Notes','');
+    if(document.getElementById(tbId)) buildToolbar(tbId,id);
+  });
+
+  // ── PIP Rendering ──
+  function renderPIPList(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const list=document.getElementById('pipList');
+    if(!list) return;
+    list.innerHTML='';
+    const pips=(emp&&emp.pips)||[];
+    if(!pips.length){
+      list.innerHTML='<div class="no-pips">No PIPs yet.<br/>Click + New PIP to create one.</div>';
+      return;
+    }
+    pips.slice().reverse().forEach(pip=>{
+      const card=document.createElement('div');
+      const statusClass='status-'+(pip.status||'draft');
+      card.className='pip-card '+statusClass+(activePIPId===pip.id?' selected':'');
+      card.innerHTML=`<div class="pip-card-title">${pip.title||'Untitled PIP'}</div>
+        <div class="pip-card-meta">Started: ${formatDate(pip.startDate)} · Review: ${formatDate(pip.reviewDate)}</div>
+        <span class="pip-status-tag ${pip.status||'draft'}">${pipStatusLabel(pip.status)}</span>`;
+      card.addEventListener('click',()=>selectPIP(pip.id));
+      list.appendChild(card);
+    });
+    // Update badge
+    const activePIPs=(emp&&emp.pips||[]).filter(p=>p.status==='active'||p.status==='under-review').length;
+    const badge=document.getElementById('pipBadge');
+    if(badge){ badge.style.display=activePIPs>0?'':'none'; badge.textContent=activePIPs; }
+  }
+
+  function pipStatusLabel(s){
+    const labels={'draft':'Draft','active':'Active','under-review':'Under Review','closed-met':'Closed — Met','closed-extended':'Closed — Extended','closed-terminated':'Closed — Terminated'};
+    return labels[s]||s||'Draft';
+  }
+
+  function selectPIP(id){
+    activePIPId=id;
+    renderPIPList();
+    renderPIPDetail();
+  }
+
+  function renderPIPDetail(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===activePIPId):null;
+    const empty=document.getElementById('pipDetailEmpty');
+    const content=document.getElementById('pipDetailContent');
+    if(!pip){ if(empty)empty.style.display='flex'; if(content)content.style.display='none'; return; }
+    if(empty)empty.style.display='none';
+    if(content)content.style.display='block';
+
+    const isActive=pip.status==='active'||pip.status==='under-review'||pip.status==='draft';
+    const isClosed=pip.status&&pip.status.startsWith('closed');
+
+    content.innerHTML=`
+      <div class="pip-doc">
+        <div class="pip-doc-header">
+          <div class="pip-doc-company">CPR Cell Phone Repair</div>
+          <div class="pip-doc-subtitle">Oregon Locations</div>
+          <div class="pip-doc-title">Performance Improvement Plan</div>
+        </div>
+
+        <div class="pip-doc-actions">
+          ${isActive&&pip.status!=='draft'?`<button class="convert-btn" onclick="openCheckinModal()">+ Add Check-in</button>`:''}
+          ${pip.status==='draft'?`<button class="new-entry-btn" onclick="activatePIP('${pip.id}')" style="font-size:12px;padding:6px 12px;">Activate PIP</button>`:''}
+          ${!isClosed?`<button class="new-entry-btn" onclick="openOutcomeModal()" style="font-size:12px;padding:6px 12px;background:var(--dark-grey);">Record Outcome</button>`:''}
+          <button class="detail-btn" onclick="editPIP('${pip.id}')">Edit</button>
+          <button class="detail-btn" onclick="downloadPIP('${pip.id}')">⬇️ Download</button>
+          <button class="detail-btn" onclick="deletePIP('${pip.id}')">Delete</button>
+        </div>
+
+        <div class="pip-info-grid">
+          <div><div class="pip-info-label">Employee</div><div class="pip-info-value">${emp.name}</div></div>
+          <div><div class="pip-info-label">Position</div><div class="pip-info-value">${emp.role||'—'}</div></div>
+          <div><div class="pip-info-label">Location</div><div class="pip-info-value">${emp.store||'—'}</div></div>
+          <div><div class="pip-info-label">Manager</div><div class="pip-info-value">${pip.manager||'—'}</div></div>
+          <div><div class="pip-info-label">Start Date</div><div class="pip-info-value">${formatDate(pip.startDate)}</div></div>
+          <div><div class="pip-info-label">Review Date</div><div class="pip-info-value">${formatDate(pip.reviewDate)}</div></div>
+          <div><div class="pip-info-label">Status</div><div class="pip-info-value"><span class="pip-status-tag ${pip.status||'draft'}">${pipStatusLabel(pip.status)}</span></div></div>
+        </div>
+
+        <div class="pip-section">
+          <div class="pip-section-title">Performance Issues</div>
+          <div class="pip-section-body">${pip.issues||'—'}</div>
+        </div>
+
+        <div class="pip-section">
+          <div class="pip-section-title">Goals & Expectations</div>
+          <div class="pip-section-body">${pip.goals||'—'}</div>
+        </div>
+
+        <div class="pip-section">
+          <div class="pip-section-title">Support Provided</div>
+          <div class="pip-section-body">${pip.support||'—'}</div>
+        </div>
+
+        <div class="pip-section">
+          <div class="pip-section-title">Consequences</div>
+          <div class="pip-section-body">${pip.consequences||'Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment.'}</div>
+        </div>
+
+        <div class="pip-section">
+          <div class="pip-section-title">Check-in Schedule</div>
+          <div class="pip-section-body">${pip.schedule||'—'}</div>
+        </div>
+
+        <div class="pip-section">
+          <div class="pip-section-title">Check-in Log</div>
+          <div class="pip-checkins-list">
+            ${(pip.checkins||[]).length===0?'<div style="color:var(--grey);font-size:13px;">No check-ins recorded yet.</div>':''}
+            ${(pip.checkins||[]).map(c=>`
+              <div class="pip-checkin-item ${c.notes?'has-notes':''}">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div class="pip-checkin-date">${formatDate(c.date)}</div>
+                  <button onclick="deleteCheckin('${pip.id}','${c.id}')" style="background:none;border:none;color:var(--grey);cursor:pointer;font-size:11px;">✕</button>
+                </div>
+                <div class="pip-checkin-notes">${c.notes||'<em style="color:var(--grey)">No notes</em>'}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        ${isClosed?`
+        <div class="pip-section">
+          <div class="pip-section-title">Outcome</div>
+          <div style="margin-bottom:8px;"><span class="pip-status-tag ${pip.status}">${pipStatusLabel(pip.status)}</span> <span style="font-size:12px;color:var(--grey);">${formatDate(pip.outcomeDate)}</span></div>
+          <div class="pip-section-body">${pip.outcomeNotes||'—'}</div>
+        </div>`:''}
+
+        <div class="pip-sig-block">
+          <div>
+            <div class="pip-sig-line"></div>
+            <div class="pip-sig-label">Employee Signature &amp; Date</div>
+          </div>
+          <div>
+            <div class="pip-sig-line"></div>
+            <div class="pip-sig-label">Manager Signature &amp; Date</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ── PIP CRUD ──
+  function openNewPIP(){
+    editingPIPId=null;
+    document.getElementById('pipModalTitle').textContent='New Performance Improvement Plan';
+    document.getElementById('pipTitleInput').value='';
+    document.getElementById('pipStartDateInput').value=new Date().toISOString().slice(0,10);
+    document.getElementById('pipReviewDateInput').value='';
+    document.getElementById('pipManagerInput').value='Britt Bay';
+    PIP_EDITORS.slice(0,5).forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
+    // Default consequences text
+    document.getElementById('pip-consequences').innerHTML='Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment.';
+    document.getElementById('pipModal').classList.add('open');
+    setTimeout(()=>document.getElementById('pipTitleInput').focus(),150);
+  }
+
+  function editPIP(id){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===id):null;
+    if(!pip) return;
+    editingPIPId=id;
+    document.getElementById('pipModalTitle').textContent='Edit PIP';
+    document.getElementById('pipTitleInput').value=pip.title||'';
+    document.getElementById('pipStartDateInput').value=pip.startDate||'';
+    document.getElementById('pipReviewDateInput').value=pip.reviewDate||'';
+    document.getElementById('pipManagerInput').value=pip.manager||'';
+    document.getElementById('pip-issues').innerHTML=pip.issues||'';
+    document.getElementById('pip-goals').innerHTML=pip.goals||'';
+    document.getElementById('pip-support').innerHTML=pip.support||'';
+    document.getElementById('pip-consequences').innerHTML=pip.consequences||'';
+    document.getElementById('pip-schedule').innerHTML=pip.schedule||'';
+    document.getElementById('pipModal').classList.add('open');
+  }
+
+  function closePIPModal(){ document.getElementById('pipModal').classList.remove('open'); }
+
+  async function savePIP(status){
+    const title=document.getElementById('pipTitleInput').value.trim();
+    if(!title){ alert('Please enter a PIP title.'); return; }
+    const pip={
+      id:editingPIPId||uid(),
+      title,
+      startDate:document.getElementById('pipStartDateInput').value,
+      reviewDate:document.getElementById('pipReviewDateInput').value,
+      manager:document.getElementById('pipManagerInput').value.trim(),
+      issues:document.getElementById('pip-issues').innerHTML.trim(),
+      goals:document.getElementById('pip-goals').innerHTML.trim(),
+      support:document.getElementById('pip-support').innerHTML.trim(),
+      consequences:document.getElementById('pip-consequences').innerHTML.trim(),
+      schedule:document.getElementById('pip-schedule').innerHTML.trim(),
+      status:editingPIPId?(data.employees.find(e=>e.id===activeEmployeeId)?.pips?.find(p=>p.id===editingPIPId)?.status||status):status,
+      checkins:editingPIPId?(data.employees.find(e=>e.id===activeEmployeeId)?.pips?.find(p=>p.id===editingPIPId)?.checkins||[]):[],
+    };
+    if(!editingPIPId) pip.status=status;
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    if(!emp) return;
+    if(!emp.pips) emp.pips=[];
+    if(editingPIPId){
+      const idx=emp.pips.findIndex(p=>p.id===editingPIPId);
+      if(idx>=0) emp.pips[idx]=pip;
+    } else {
+      emp.pips.push(pip);
+      activePIPId=pip.id;
+    }
+    save(); closePIPModal(); renderPIPList(); renderPIPDetail();
+    await savePIPToSheets(pip, emp.id);
+  }
+
+  async function activatePIP(id){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===id):null;
+    if(!pip) return;
+    pip.status='active';
+    save(); renderPIPList(); renderPIPDetail();
+    await savePIPToSheets(pip, emp.id);
+  }
+
+  async function deletePIP(id){
+    if(!confirm('Delete this PIP? This cannot be undone.')) return;
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    if(!emp) return;
+    emp.pips=(emp.pips||[]).filter(p=>p.id!==id);
+    if(activePIPId===id) activePIPId=null;
+    save(); renderPIPList(); renderPIPDetail();
+  }
+
+  // ── Check-ins ──
+  function openCheckinModal(){
+    document.getElementById('checkinDateInput').value=new Date().toISOString().slice(0,10);
+    document.getElementById('checkinNotesInput').innerHTML='';
+    document.getElementById('checkinModal').classList.add('open');
+  }
+  function closeCheckinModal(){ document.getElementById('checkinModal').classList.remove('open'); }
+
+  async function saveCheckin(){
+    const date=document.getElementById('checkinDateInput').value;
+    const notes=document.getElementById('checkinNotesInput').innerHTML.trim();
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===activePIPId):null;
+    if(!pip) return;
+    if(!pip.checkins) pip.checkins=[];
+    pip.checkins.push({id:uid(),date,notes});
+    save(); closeCheckinModal(); renderPIPDetail();
+    await savePIPToSheets(pip, emp.id);
+  }
+
+  async function deleteCheckin(pipId, checkinId){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===pipId):null;
+    if(!pip) return;
+    pip.checkins=(pip.checkins||[]).filter(c=>c.id!==checkinId);
+    save(); renderPIPDetail();
+    await savePIPToSheets(pip, emp.id);
+  }
+
+  // ── Outcome ──
+  function openOutcomeModal(){
+    document.getElementById('outcomeInput').value='closed-met';
+    document.getElementById('outcomeNotesInput').innerHTML='';
+    document.getElementById('outcomeDateInput').value=new Date().toISOString().slice(0,10);
+    document.getElementById('outcomeModal').classList.add('open');
+  }
+  function closeOutcomeModal(){ document.getElementById('outcomeModal').classList.remove('open'); }
+
+  async function saveOutcome(){
+    const outcome=document.getElementById('outcomeInput').value;
+    const notes=document.getElementById('outcomeNotesInput').innerHTML.trim();
+    const date=document.getElementById('outcomeDateInput').value;
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===activePIPId):null;
+    if(!pip) return;
+    pip.status=outcome;
+    pip.outcomeNotes=notes;
+    pip.outcomeDate=date;
+    save(); closeOutcomeModal(); renderPIPList(); renderPIPDetail();
+    await savePIPToSheets(pip, emp.id);
+  }
+
+  // ── PIP Sheets sync ──
+  async function savePIPToSheets(pip, employeeId){
+    setSyncStatus('syncing','⟳ Saving...');
+    try{
+      const flat={employeeId, id:pip.id, type:'pip', data:JSON.stringify(pip)};
+      await apiCall({action:'savePIP', data:JSON.stringify(flat)});
+      setSyncStatus('ok','✓ Saved');
+    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
+  }
+
+  // ── PIP PDF Download ──
+  function downloadPIP(pipId){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const pip=emp?(emp.pips||[]).find(p=>p.id===pipId):null;
+    if(!pip) return;
+    const html=buildPIPHTML(emp, pip);
+    const style=document.createElement('style');
+    style.id='print-override';
+    style.textContent=`@media print{*{visibility:hidden;}#printFrame,#printFrame *{visibility:visible;}#printFrame{position:fixed;inset:0;padding:24px;background:white;z-index:9999;overflow:auto;}}`;
+    document.head.appendChild(style);
+    const frame=document.createElement('div');
+    frame.id='printFrame';
+    frame.innerHTML=html;
+    document.body.appendChild(frame);
+    window.print();
+    document.head.removeChild(style);
+    document.body.removeChild(frame);
+  }
+
+  function buildPIPHTML(emp, pip){
+    const checkinRows=(pip.checkins||[]).map(c=>`
+      <div style="border-left:3px solid #ccc;padding:8px 12px;margin-bottom:8px;background:#f9f9f9;">
+        <div style="font-weight:700;font-size:12px;color:#555;">${formatDate(c.date)}</div>
+        <div style="font-size:13px;margin-top:4px;line-height:1.6;">${c.notes||'No notes'}</div>
+      </div>`).join('');
+
+    const outcomeSection=pip.status&&pip.status.startsWith('closed')?`
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #333;padding-bottom:5px;margin-bottom:10px;">Outcome</div>
+        <p style="font-weight:700;">${pipStatusLabel(pip.status)} — ${formatDate(pip.outcomeDate)}</p>
+        <div style="font-size:13px;line-height:1.7;margin-top:6px;">${pip.outcomeNotes||''}</div>
+      </div>`:'';
+
+    return `<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:32px;">
+      <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:24px;">
+        <div style="font-size:20px;font-weight:900;color:#DC282E;font-family:Arial,sans-serif;">CPR Cell Phone Repair</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">Oregon Locations</div>
+        <div style="font-size:14px;font-weight:900;margin-top:8px;text-transform:uppercase;letter-spacing:1px;">Performance Improvement Plan</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:#f5f5f5;border-radius:8px;margin-bottom:24px;">
+        <tr><td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Employee</div><div style="font-size:13px;font-weight:600;">${emp.name}</div></td>
+            <td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Position</div><div style="font-size:13px;font-weight:600;">${emp.role||'—'}</div></td></tr>
+        <tr><td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Location</div><div style="font-size:13px;font-weight:600;">${emp.store||'—'}</div></td>
+            <td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Manager</div><div style="font-size:13px;font-weight:600;">${pip.manager||'—'}</div></td></tr>
+        <tr><td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Start Date</div><div style="font-size:13px;font-weight:600;">${formatDate(pip.startDate)}</div></td>
+            <td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Review Date</div><div style="font-size:13px;font-weight:600;">${formatDate(pip.reviewDate)}</div></td></tr>
+      </table>
+      ${[['Performance Issues',pip.issues],['Goals & Expectations',pip.goals],['Support Provided',pip.support],['Consequences',pip.consequences||'Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment.'],['Check-in Schedule',pip.schedule]].map(([title,body])=>`
+        <div style="margin-bottom:20px;">
+          <div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #333;padding-bottom:5px;margin-bottom:10px;">${title}</div>
+          <div style="font-size:13px;line-height:1.7;">${body||'—'}</div>
+        </div>`).join('')}
+      ${checkinRows?`<div style="margin-bottom:20px;"><div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #333;padding-bottom:5px;margin-bottom:10px;">Check-in Log</div>${checkinRows}</div>`:''}
+      ${outcomeSection}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:48px;padding-top:20px;border-top:1.5px solid #ccc;">
+        <div><div style="border-bottom:1px solid #333;height:40px;margin-bottom:6px;"></div><div style="font-size:11px;color:#999;">Employee Signature &amp; Date</div></div>
+        <div><div style="border-bottom:1px solid #333;height:40px;margin-bottom:6px;"></div><div style="font-size:11px;color:#999;">Manager Signature &amp; Date</div></div>
+      </div>
+    </div>`;
+  }
+
   // Close modals on overlay click
   document.getElementById('employeeModal').addEventListener('click',function(e){if(e.target===this)closeEmployeeModal();});
   document.getElementById('entryModal').addEventListener('click',function(e){if(e.target===this)closeEntryModal();});
+  ['pipModal','checkinModal','outcomeModal'].forEach(id=>{
+    document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
+  });
 
   // Seed Jason
   function seedJasonData(){
