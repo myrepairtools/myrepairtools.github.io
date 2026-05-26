@@ -29,17 +29,7 @@
     .lock-icon{font-size:32px;margin-bottom:16px;}
     .lock-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--white);margin-bottom:6px;}
     .lock-sub{font-size:12px;color:rgba(255,255,255,0.4);font-weight:600;margin-bottom:28px;}
-    .pin-dots{display:flex;justify-content:center;gap:10px;margin-bottom:28px;}
-    .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);transition:background .15s,border-color .15s;}
-    .pin-dot.filled{background:var(--accent);border-color:var(--accent);}
-    .pin-dot.error{background:#ef4444;border-color:#ef4444;animation:shake .4s ease;}
-    @keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
-    .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-    .pin-key{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px;font-family:'Nunito',sans-serif;font-size:18px;font-weight:800;color:var(--white);cursor:pointer;transition:background .1s,transform .1s;-webkit-tap-highlight-color:transparent;}
-    .pin-key:hover{background:rgba(255,255,255,0.12);}
-    .pin-key:active{transform:scale(0.94);}
-    .pin-key.del{font-size:14px;color:rgba(255,255,255,0.4);}
-    .pin-key.zero{grid-column:2;}
+
     .lock-error{font-size:12px;font-weight:700;color:#ef4444;margin-top:16px;min-height:18px;text-align:center;}
     .app-wrapper{display:none;}
     .app-wrapper.visible{display:contents;}
@@ -294,33 +284,22 @@
   <div class="lock-box">
     <div class="lock-icon">🔒</div>
     <div class="lock-title">Employee Records</div>
-    <div class="lock-sub">Enter your PIN to continue</div>
-    <form id="pinForm" onsubmit="return false;" style="margin-bottom:28px;">
-      <input type="password" id="pinAutoFill" autocomplete="current-password"
-        style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;"
-        onchange="handleAutoFill(this.value)"/>
+    <div class="lock-sub">Enter your password to continue</div>
+    <form id="pinForm" onsubmit="submitPassword(); return false;" autocomplete="on">
+      <input type="password" id="passwordInput" name="password"
+        autocomplete="current-password"
+        placeholder="Password"
+        style="width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 14px;font-family:'Nunito Sans',sans-serif;font-size:16px;color:var(--white);outline:none;margin-bottom:12px;transition:border-color .15s;"
+        onfocus="this.style.borderColor='rgba(220,40,46,0.8)'"
+        onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
+      />
+      <button type="submit"
+        style="width:100%;background:var(--accent);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:var(--white);cursor:pointer;transition:background .15s;"
+        onmouseover="this.style.background='var(--light-red)'"
+        onmouseout="this.style.background='var(--accent)'">
+        Unlock
+      </button>
     </form>
-    <div class="pin-dots">
-      <div class="pin-dot" id="d0"></div>
-      <div class="pin-dot" id="d1"></div>
-      <div class="pin-dot" id="d2"></div>
-      <div class="pin-dot" id="d3"></div>
-      <div class="pin-dot" id="d4"></div>
-      <div class="pin-dot" id="d5"></div>
-    </div>
-    <div class="pin-pad">
-      <button class="pin-key" onclick="pressKey('1')">1</button>
-      <button class="pin-key" onclick="pressKey('2')">2</button>
-      <button class="pin-key" onclick="pressKey('3')">3</button>
-      <button class="pin-key" onclick="pressKey('4')">4</button>
-      <button class="pin-key" onclick="pressKey('5')">5</button>
-      <button class="pin-key" onclick="pressKey('6')">6</button>
-      <button class="pin-key" onclick="pressKey('7')">7</button>
-      <button class="pin-key" onclick="pressKey('8')">8</button>
-      <button class="pin-key" onclick="pressKey('9')">9</button>
-      <button class="pin-key del" onclick="deleteKey()">⌫</button>
-      <button class="pin-key zero" onclick="pressKey('0')">0</button>
-    </div>
     <div class="lock-error" id="lockError"></div>
   </div>
 </div>
@@ -557,61 +536,26 @@
 </div><!-- end app-wrapper -->
 
 <script>
-  // ── PIN Lock ──
+  // ── Password Lock ──
   const CORRECT='541783';
-  let pinEntered='';
 
-  function pressKey(k){
-    if(pinEntered.length>=6) return;
-    pinEntered+=k;
-    updatePinDots();
-    if(pinEntered.length===6) checkPin();
-  }
-  function deleteKey(){
-    pinEntered=pinEntered.slice(0,-1);
-    updatePinDots();
-    document.getElementById('lockError').textContent='';
-  }
-  function updatePinDots(){
-    for(let i=0;i<6;i++){
-      const dot=document.getElementById('d'+i);
-      dot.classList.toggle('filled',i<pinEntered.length);
-      dot.classList.remove('error');
-    }
-  }
-  function checkPin(){
-    if(pinEntered===CORRECT){
-      document.getElementById('lockScreen').classList.add('hidden');
-      document.getElementById('appWrapper').classList.add('visible');
-      initApp();
-    } else {
-      for(let i=0;i<6;i++){
-        document.getElementById('d'+i).classList.add('error');
-        document.getElementById('d'+i).classList.remove('filled');
-      }
-      document.getElementById('lockError').textContent='Incorrect PIN. Try again.';
-      setTimeout(()=>{ pinEntered=''; updatePinDots(); },800);
-    }
-  }
-  function handleAutoFill(val){
+  function submitPassword(){
+    const val=document.getElementById('passwordInput').value;
     if(val===CORRECT){
       document.getElementById('lockScreen').classList.add('hidden');
       document.getElementById('appWrapper').classList.add('visible');
       initApp();
-    } else if(val.length>=6){
-      document.getElementById('lockError').textContent='Incorrect PIN. Try again.';
-      document.getElementById('pinAutoFill').value='';
+    } else {
+      const input=document.getElementById('passwordInput');
+      input.style.borderColor='#ef4444';
+      input.value='';
+      document.getElementById('lockError').textContent='Incorrect password. Try again.';
+      setTimeout(()=>{ input.style.borderColor='rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent=''; },2000);
     }
   }
 
-  // Focus hidden input on load so Chrome offers Touch ID / saved password
   window.addEventListener('load',()=>{
-    setTimeout(()=>document.getElementById('pinAutoFill').focus(),100);
-  });
-
-  document.addEventListener('keydown',e=>{
-    if(e.key>='0'&&e.key<='9') pressKey(e.key);
-    if(e.key==='Backspace') deleteKey();
+    setTimeout(()=>document.getElementById('passwordInput').focus(),100);
   });
   // ── Config ──
   const SECTIONS = [
