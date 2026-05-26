@@ -550,6 +550,7 @@
   let sortNewestFirst=true;
   let collapsedYears={};
   let isSyncing=false;
+  let pendingMarkDiscussed=false;
 
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
@@ -599,6 +600,9 @@
       if(!emp) return;
       const entry={
         id:row.id, date:row.date, subject:row.subject, category:row.category,
+        entryType:row.entryType||'observation',
+        incidentDate:row.incidentDate||row.date,
+        discussed:row.discussed==='true'||row.discussed===true,
         sections:{
           issue:row.issue||'', cause:row.cause||'',
           coaching:row.coaching||'', response:row.response||'', actions:row.actions||''
@@ -1017,21 +1021,39 @@
     onEntryTypeChange();
     document.getElementById('entryModal').classList.add('open');
   }
+
+  async function toggleDiscussed(){
     const emp=data.employees.find(e=>e.id===activeEmployeeId);
     const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
     if(!entry) return;
-    entry.discussed=!entry.discussed;
-    save(); renderMain(); renderDetail();
-    // Update mobile overlay toggle button too
-    updateDiscussedButtons(entry.discussed);
-    await saveEntryToSheets(entry, emp.id);
+    // If already discussed, just toggle off
+    if(entry.discussed){
+      entry.discussed=false;
+      save(); renderMain(); renderDetail();
+      updateDiscussedButtons(false);
+      await saveEntryToSheets(entry, emp.id);
+      return;
+    }
+    // If not yet discussed, open in conversation mode to capture details first
+    document.getElementById('entryDetailOverlay').classList.remove('open');
+    editingEntryId=entry.id;
+    document.getElementById('entryModalTitle').textContent='Log Conversation';
+    document.getElementById('entryTypeInput').value='conversation';
+    document.getElementById('entryDateInput').value=entry.date;
+    document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
+    document.getElementById('entrySubjectInput').value=entry.subject;
+    document.getElementById('entryCategoryInput').value=entry.category;
+    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
+    onEntryTypeChange();
+    pendingMarkDiscussed=true;
+    document.getElementById('entryModal').classList.add('open');
   }
 
   function updateDiscussedButtons(discussed){
     ['discussedToggleBtn','mobileDiscussedToggleBtn'].forEach(id=>{
       const btn=document.getElementById(id);
       if(!btn) return;
-      btn.textContent=discussed?'✓ Discussed':'⚑ Mark Discussed';
+      btn.textContent=discussed?'✓ Discussed':'⚑ Discussion Needed';
       btn.className='detail-btn discussed-toggle-btn '+(discussed?'is-discussed':'is-pending');
     });
   }
@@ -1227,6 +1249,7 @@
       entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:false};
       emp.entries.push(entry); activeEntryId=entry.id;
     }
+    if(pendingMarkDiscussed){ entry.discussed=true; pendingMarkDiscussed=false; }
     save(); closeEntryModal(); renderMain();
     await saveEntryToSheets(entry, emp.id);
   }
