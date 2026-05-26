@@ -227,6 +227,10 @@
     .btn-save{background:var(--accent);border:none;border-radius:8px;font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;color:var(--white);padding:9px 22px;cursor:pointer;transition:background .15s;}
     .btn-save:hover{background:var(--light-red);}
 
+    .sync-status{font-family:'Nunito',sans-serif;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;transition:all .3s;}
+    .sync-status.ok{color:#065f46;background:#d1fae5;}
+    .sync-status.syncing{color:#92400e;background:#fef3c7;}
+    .sync-status.error{color:#991b1b;background:#fee2e2;}
     footer{background:var(--white);border-top:1.5px solid var(--border);padding:10px 24px;font-size:11px;color:var(--grey);text-align:center;}
 
     @media(max-width:860px){.entries-layout{grid-template-columns:1fr;}.detail-pane{display:none;}}
@@ -244,6 +248,7 @@
 <header>
   <a class="back-btn" href="https://myrepairtools.github.io/operations.html">← Back</a>
   <div class="header-logo"><img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair"/></div>
+  <span id="syncStatus" class="sync-status syncing">⟳ Loading...</span>
   <div class="page-badge">Employee Records</div>
 </header>
 
@@ -378,7 +383,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeEmployeeModal()">Cancel</button>
-      <button class="btn-save" onclick="saveEmployee()">Save Employee</button>
+      <button class="btn-save" onclick="saveEmployeeData()">Save Employee</button>
     </div>
   </div>
 </div>
@@ -449,7 +454,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeEntryModal()">Cancel</button>
-      <button class="btn-save" onclick="saveEntry()">Save Entry</button>
+      <button class="btn-save" onclick="saveEntryData()">Save Entry</button>
     </div>
   </div>
 </div>
@@ -501,17 +506,126 @@
   SECTIONS.forEach(s => buildToolbar('tb-'+s.key, 'f-'+s.key));
 
   // ── State ──
+  const API_URL='https://script.google.com/macros/s/AKfycbz5B5NEbCaFOUKwCcoZOw0wV6CC63YirCrSka9OFMCvVTe0Enar2IxV_c9LXj2rIzu3/exec';
+  const CACHE_KEY='cpr_employee_records_cache';
   let data = { employees:[] };
   let activeEmployeeId=null, activeEntryId=null, editingEmployeeId=null, editingEntryId=null;
   let showArchived=false;
   let activeFilter='all';
   let sortNewestFirst=true;
   let collapsedYears={};
-  const STORAGE_KEY='cpr_employee_records_v1';
+  let isSyncing=false;
 
-  function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); if(r) data=JSON.parse(r); }catch(e){} }
-  function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+  // ── Cache (local fallback) ──
+  function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch(e){} }
+  function loadCache(){ try{ const r=localStorage.getItem(CACHE_KEY); if(r) data=JSON.parse(r); }catch(e){} }
+
+  // ── Sync status UI ──
+  function setSyncStatus(status, msg){
+    const el=document.getElementById('syncStatus');
+    if(!el) return;
+    el.textContent=msg;
+    el.className='sync-status '+status;
+  }
+
+  // ── Flatten/unflatten data for Sheets ──
+  // Sheets stores employees and entries as flat rows
+  // In-memory we store entries nested under employees
+  function flattenForSheets(){
+    const employees=data.employees.map(emp=>{
+      const {entries,...rest}=emp;
+      return rest;
+    });
+    const entries=[];
+    data.employees.forEach(emp=>{
+      (emp.entries||[]).forEach(entry=>{
+        const flat={employeeId:emp.id};
+        Object.assign(flat, entry);
+        // Flatten sections
+        if(entry.sections){
+          Object.keys(entry.sections).forEach(k=>{ flat[k]=entry.sections[k]||''; });
+          delete flat.sections;
+        }
+        entries.push(flat);
+      });
+    });
+    return {employees, entries};
+  }
+
+  function unflattenFromSheets(employees, entries){
+    const empMap={};
+    employees.forEach(emp=>{
+      empMap[emp.id]={...emp, entries:[]};
+    });
+    entries.forEach(row=>{
+      const emp=empMap[row.employeeId];
+      if(!emp) return;
+      const entry={
+        id:row.id, date:row.date, subject:row.subject, category:row.category,
+        sections:{
+          issue:row.issue||'', cause:row.cause||'',
+          coaching:row.coaching||'', response:row.response||'', actions:row.actions||''
+        }
+      };
+      emp.entries.push(entry);
+    });
+    return {employees:Object.values(empMap)};
+  }
+
+  // ── API calls ──
+  async function apiCall(params){
+    const url=new URL(API_URL);
+    Object.keys(params).forEach(k=>url.searchParams.set(k,params[k]));
+    const res=await fetch(url.toString());
+    return res.json();
+  }
+
+  async function loadFromSheets(){
+    setSyncStatus('syncing','⟳ Syncing...');
+    try{
+      const result=await apiCall({action:'getAll'});
+      if(result.error) throw new Error(result.error);
+      data=unflattenFromSheets(result.employees||[], result.entries||[]);
+      saveCache();
+      setSyncStatus('ok','✓ Synced');
+    }catch(e){
+      setSyncStatus('error','⚠ Offline — using cached data');
+      loadCache();
+    }
+    render();
+  }
+
+  async function saveEmployee(empObj){
+    setSyncStatus('syncing','⟳ Saving...');
+    try{
+      const {entries,...flat}=empObj;
+      await apiCall({action:'saveEmployee', data:JSON.stringify(flat)});
+      setSyncStatus('ok','✓ Saved');
+    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
+  }
+
+  async function saveEntryToSheets(entry, employeeId){
+    setSyncStatus('syncing','⟳ Saving...');
+    try{
+      const flat={employeeId, id:entry.id, date:entry.date, subject:entry.subject, category:entry.category};
+      if(entry.sections) Object.assign(flat, entry.sections);
+      await apiCall({action:'saveEntry', data:JSON.stringify(flat)});
+      setSyncStatus('ok','✓ Saved');
+    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
+  }
+
+  async function deleteEmployeeFromSheets(id){
+    try{ await apiCall({action:'deleteEmployee', id}); }catch(e){}
+  }
+
+  async function deleteEntryFromSheets(id){
+    try{ await apiCall({action:'deleteEntry', id}); }catch(e){}
+  }
+
+  // Local data mutation + sync
+  function save(){ saveCache(); }
   function initials(n){ return n.trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
   function formatDate(iso){
     if(!iso) return '';
@@ -560,18 +674,20 @@
     render();
   }
 
-  function archiveEmployee(id){
+  async function archiveEmployee(id){
     const emp=data.employees.find(e=>e.id===id);
     if(!emp) return;
     emp.archived=true;
     if(activeEmployeeId===id){ activeEmployeeId=null; activeEntryId=null; }
     save(); render();
+    await saveEmployee(emp);
   }
 
-  function unarchiveEmployee(id){
+  async function unarchiveEmployee(id){
     const emp=data.employees.find(e=>e.id===id);
     if(emp){ emp.archived=false; }
     save(); render();
+    await saveEmployee(emp);
   }
 
   function renderSidebar(){
@@ -896,7 +1012,7 @@
     setTimeout(()=>document.getElementById('empNameInput').focus(),150);
   }
   function closeEmployeeModal(){ document.getElementById('employeeModal').classList.remove('open'); }
-  function saveEmployee(){
+  async function saveEmployeeData(){
     const name=document.getElementById('empNameInput').value.trim();
     if(!name){ alert('Please enter a name.'); return; }
     const role=document.getElementById('empRoleInput').value.trim();
@@ -907,16 +1023,21 @@
     if(editingEmployeeId){
       const emp=data.employees.find(e=>e.id===editingEmployeeId);
       if(emp){ emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes; }
+      save(); closeEmployeeModal(); render();
+      await saveEmployee(data.employees.find(e=>e.id===editingEmployeeId));
     } else {
-      data.employees.push({id:uid(),name,role,store,startDate,status,notes,entries:[]});
+      const emp={id:uid(),name,role,store,startDate,status,notes,archived:false,entries:[]};
+      data.employees.push(emp);
+      save(); closeEmployeeModal(); render();
+      await saveEmployee(emp);
     }
-    save(); closeEmployeeModal(); render();
   }
-  function deleteEmployee(id){
+  async function deleteEmployee(id){
     if(!confirm('Remove this employee and all their coaching entries?')) return;
     data.employees=data.employees.filter(e=>e.id!==id);
     if(activeEmployeeId===id){activeEmployeeId=null;activeEntryId=null;}
     save(); render();
+    await deleteEmployeeFromSheets(id);
   }
 
   // Entry CRUD
@@ -944,7 +1065,7 @@
     document.getElementById('entryModal').classList.add('open');
   }
   function closeEntryModal(){ document.getElementById('entryModal').classList.remove('open'); }
-  function saveEntry(){
+  async function saveEntryData(){
     const date=document.getElementById('entryDateInput').value;
     const subject=document.getElementById('entrySubjectInput').value.trim();
     const category=document.getElementById('entryCategoryInput').value;
@@ -955,23 +1076,28 @@
     if(!hasContent){ alert('Please fill in at least one coaching section.'); return; }
     const emp=data.employees.find(e=>e.id===activeEmployeeId);
     if(!emp) return;
+    let entry;
     if(editingEntryId){
-      const entry=emp.entries.find(e=>e.id===editingEntryId);
+      entry=emp.entries.find(e=>e.id===editingEntryId);
       if(entry){entry.date=date;entry.subject=subject;entry.category=category;entry.sections=sections;}
     } else {
-      const entry={id:uid(),date,subject,category,sections};
+      entry={id:uid(),date,subject,category,sections};
       emp.entries.push(entry); activeEntryId=entry.id;
     }
     save(); closeEntryModal(); renderMain();
+    await saveEntryToSheets(entry, emp.id);
   }
-  function deleteCurrentEntry(){
+
+  async function deleteCurrentEntry(){
     if(!confirm('Delete this entry?')) return;
     const emp=data.employees.find(e=>e.id===activeEmployeeId);
     if(!emp) return;
-    emp.entries=emp.entries.filter(e=>e.id!==activeEntryId);
+    const entryId=activeEntryId;
+    emp.entries=emp.entries.filter(e=>e.id!==entryId);
     activeEntryId=null;
     document.getElementById('entryDetailOverlay').classList.remove('open');
     save(); renderMain();
+    await deleteEntryFromSheets(entryId);
   }
 
   // Close modals on overlay click
@@ -1002,7 +1128,9 @@
     save();
   }
 
-  load(); seedJasonData(); render();
+  initials;formatDate; // keep linter happy
+  loadCache(); render(); // show cached data immediately
+  loadFromSheets();     // then sync from Sheets
 </script>
 </body>
 </html>
