@@ -100,8 +100,8 @@
 
     /* Filter bars */
     .filter-bars{background:var(--white);border-bottom:1.5px solid var(--border);flex-shrink:0;}
-    .filter-bar{padding:10px 16px 6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-    .filter-bar+.filter-bar{padding-top:0;padding-bottom:10px;border-top:1px dashed var(--border);}
+    .filter-bar{padding:10px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    .filter-bar+.filter-bar{border-top:1px dashed var(--border);}
     .filter-bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);white-space:nowrap;margin-right:2px;}
     .filter-chip{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);color:var(--dark-grey);cursor:pointer;transition:all .12s;white-space:nowrap;}
     .filter-chip:hover{border-color:var(--grey);}
@@ -157,13 +157,14 @@
     .detail-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--grey);font-size:13px;padding:20px;text-align:center;}
     .detail-content{display:none;flex-direction:column;height:100%;}
     .detail-content.visible{display:flex;}
-    .detail-header{padding:16px 18px;border-bottom:1.5px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-shrink:0;}
-    .detail-subject{font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark);line-height:1.3;}
-    .detail-meta{font-size:12px;color:var(--grey);margin-top:4px;}
+    .detail-header{padding:16px 18px 12px;border-bottom:none;flex-shrink:0;}
+    .detail-subject{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:var(--dark);line-height:1.3;}
+    .detail-meta{font-size:12px;color:var(--grey);line-height:1.6;}
+    .detail-meta span{color:var(--dark-grey);font-weight:600;}
+    .detail-actions-bar{display:flex;gap:6px;padding:0 18px 12px;flex-wrap:wrap;border-bottom:1.5px solid var(--border);flex-shrink:0;}
     .detail-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
-    .detail-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:4px 10px;cursor:pointer;transition:border-color .12s,color .12s;}
+    .detail-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:5px 12px;cursor:pointer;transition:border-color .12s,color .12s;}
     .detail-btn:hover{border-color:var(--accent);color:var(--accent);}
-    .detail-btn.icon-btn{padding:4px 8px;}
     .detail-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
 
     /* Print styles */
@@ -347,17 +348,17 @@
           <div class="detail-empty" id="detailEmpty">← Select an entry to view details</div>
           <div class="detail-content" id="detailContent">
             <div class="detail-header">
-              <div>
+              <div style="flex:1;min-width:0;">
                 <div class="detail-subject" id="detailSubject"></div>
-                <div class="detail-meta" id="detailMeta"></div>
+                <div class="detail-tags" id="detailTags" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
+                <div class="detail-meta" id="detailMeta" style="margin-top:6px;"></div>
               </div>
-              <div class="detail-actions">
-                <button class="convert-btn" id="convertBtn" onclick="convertToConversation()" style="display:none;">↑ Convert to Conversation</button>
-                <button class="detail-btn discussed-toggle-btn" id="discussedToggleBtn" onclick="toggleDiscussed()"></button>
-                <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
-                <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
-                <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
-              </div>
+            </div>
+            <div class="detail-actions-bar" id="detailActionsBar">
+              <button class="convert-btn" id="convertBtn" onclick="convertToConversation()" style="display:none;">💬 Log Discussion</button>
+              <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
+              <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
+              <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
             </div>
             <div class="detail-body" id="detailBody">
               <div class="print-header" id="printHeader"></div>
@@ -379,7 +380,7 @@
       <div class="detail-meta" id="mobileDetailMeta"></div>
     </div>
     <div class="entry-detail-top-actions">
-      <button class="detail-btn discussed-toggle-btn" id="mobileDiscussedToggleBtn" onclick="toggleDiscussed()"></button>
+      <button class="convert-btn" id="mobileConvertBtn" onclick="convertToConversation()" style="display:none;">💬 Log Discussion</button>
       <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
       <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
       <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
@@ -888,14 +889,21 @@
     content.classList.toggle('visible',!!entry);
     if(!entry) return;
     document.getElementById('detailSubject').textContent=entry.subject;
+    // Tags row
+    const tagsDiv=document.getElementById('detailTags');
+    if(tagsDiv){
+      tagsDiv.innerHTML=`<span class="type-tag ${entry.entryType||'observation'}">${entry.entryType||'observation'}</span><span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>${(entry.entryType==='incident')?'<span style="background:#fef3c7;color:#92400e;font-family:\'Nunito\',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;">⚑ Discussion Needed</span>':''}`;
+    }
+    // Meta row
     const datePart=entry.incidentDate&&entry.incidentDate!==entry.date
-      ?`Incident: ${formatDate(entry.incidentDate)} · Logged: ${formatDate(entry.date)}`
-      :formatDate(entry.date);
-    document.getElementById('detailMeta').textContent=datePart+' · '+(entry.entryType||'observation')+' · '+entry.category;
-    // Show/hide convert button
+      ?`Incident: <span>${formatDate(entry.incidentDate)}</span> &nbsp;·&nbsp; Logged: <span>${formatDate(entry.date)}</span>`
+      :`<span>${formatDate(entry.date)}</span>`;
+    document.getElementById('detailMeta').innerHTML=datePart;
+    // Show/hide Log Discussion button — only on Incidents
     const convertBtn=document.getElementById('convertBtn');
     if(convertBtn) convertBtn.style.display=(entry.entryType==='incident')?'':'none';
-    updateDiscussedButtons(entry.discussed);
+    const mobileConvertBtn=document.getElementById('mobileConvertBtn');
+    if(mobileConvertBtn) mobileConvertBtn.style.display=(entry.entryType==='incident')?'':'none';
     // Print header (hidden on screen, shown when printing)
     const ph=document.getElementById('printHeader');
     if(ph) ph.innerHTML=`<h1>${entry.subject}</h1><p>${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
@@ -1246,10 +1254,13 @@
       entry=emp.entries.find(e=>e.id===editingEntryId);
       if(entry){entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.entryType=entryType;entry.sections=sections;}
     } else {
-      entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:false};
+      entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:entryType==='conversation'};
       emp.entries.push(entry); activeEntryId=entry.id;
     }
     if(pendingMarkDiscussed){ entry.discussed=true; pendingMarkDiscussed=false; }
+    // Always sync discussed state with entry type
+    if(entryType==='conversation') entry.discussed=true;
+    else if(entryType==='observation') entry.discussed=false;
     save(); closeEntryModal(); renderMain();
     await saveEntryToSheets(entry, emp.id);
   }
