@@ -653,7 +653,14 @@
     return {employees, entries};
   }
 
-  function unflattenFromSheets(employees, entries){
+  function normalizeDate(val){
+    if(!val) return '';
+    if(typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0,10);
+    // Handle Google Sheets Date object or other formats
+    const d=new Date(val);
+    if(isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0,10);
+  }
     const empMap={};
     employees.forEach(emp=>{
       empMap[emp.id]={...emp, entries:[]};
@@ -662,9 +669,9 @@
       const emp=empMap[row.employeeId];
       if(!emp) return;
       const entry={
-        id:row.id, date:row.date, subject:row.subject, category:row.category,
+        id:row.id, date:normalizeDate(row.date), subject:row.subject, category:row.category,
         entryType:row.entryType||'observation',
-        incidentDate:row.incidentDate||row.date,
+        incidentDate:normalizeDate(row.incidentDate)||normalizeDate(row.date),
         discussed:row.discussed==='true'||row.discussed===true,
         sections:{
           issue:row.issue||'', cause:row.cause||'',
