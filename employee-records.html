@@ -103,7 +103,12 @@
     .filter-chip{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);color:var(--dark-grey);cursor:pointer;transition:all .12s;white-space:nowrap;}
     .filter-chip:hover{border-color:var(--grey);}
     .filter-chip.active{background:var(--dark);border-color:var(--dark);color:var(--white);}
-    .filter-chip.active.coaching{background:#856404;border-color:#856404;}
+    .filter-chip.pending-chip.active{background:#92400e;border-color:#92400e;color:var(--white);}
+    .filter-chip.discussed-chip.active{background:#065f46;border-color:#065f46;color:var(--white);}
+    .entry-pending-flag{display:inline-flex;align-items:center;gap:4px;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;margin-left:4px;background:#fef3c7;color:#92400e;}
+    .entry-discussed-flag{display:inline-flex;align-items:center;gap:4px;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;margin-left:4px;background:#d1fae5;color:#065f46;}
+    .discussed-toggle-btn.is-discussed{border-color:#065f46;color:#065f46;}
+    .discussed-toggle-btn.is-pending{border-color:#92400e;color:#92400e;}
     .filter-chip.active.performance{background:#b91c1c;border-color:#b91c1c;}
     .filter-chip.active.attendance{background:#3730a3;border-color:#3730a3;}
     .filter-chip.active.positive{background:#065f46;border-color:#065f46;}
@@ -186,10 +191,14 @@
     .entry-detail-scroll{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
 
     /* Modals */
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:100;align-items:flex-end;justify-content:center;}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:100;align-items:center;justify-content:center;padding:20px;}
     .modal-overlay.open{display:flex;}
-    .modal{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:580px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.15);animation:slideUpModal .22s ease;}
-    @keyframes slideUpModal{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    .modal{background:var(--white);border-radius:14px;width:100%;max-width:580px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.18);animation:slideUpModal .22s ease;}
+    @keyframes slideUpModal{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    @media(max-width:580px){
+      .modal{border-radius:20px 20px 0 0;align-self:flex-end;}
+      .modal-overlay{align-items:flex-end;padding:0;}
+    }
     .modal-header{padding:18px 20px 14px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
     .modal-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark);}
     .modal-close{background:none;border:none;font-size:22px;color:var(--grey);cursor:pointer;line-height:1;padding:2px 6px;transition:color .12s;}
@@ -302,6 +311,8 @@
         <div class="entries-list" id="entriesList">
           <div class="filter-bar">
             <button class="filter-chip active" data-cat="all" onclick="setFilter('all')">All</button>
+            <button class="filter-chip pending-chip" data-cat="pending" onclick="setFilter('pending')">⚑ Pending</button>
+            <button class="filter-chip discussed-chip" data-cat="discussed" onclick="setFilter('discussed')">✓ Discussed</button>
             <button class="filter-chip" data-cat="coaching" onclick="setFilter('coaching')">Coaching</button>
             <button class="filter-chip" data-cat="performance" onclick="setFilter('performance')">Performance</button>
             <button class="filter-chip" data-cat="attendance" onclick="setFilter('attendance')">Attendance</button>
@@ -322,6 +333,7 @@
                 <div class="detail-meta" id="detailMeta"></div>
               </div>
               <div class="detail-actions">
+                <button class="detail-btn discussed-toggle-btn" id="discussedToggleBtn" onclick="toggleDiscussed()"></button>
                 <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
                 <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
                 <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
@@ -347,6 +359,7 @@
       <div class="detail-meta" id="mobileDetailMeta"></div>
     </div>
     <div class="entry-detail-top-actions">
+      <button class="detail-btn discussed-toggle-btn" id="mobileDiscussedToggleBtn" onclick="toggleDiscussed()"></button>
       <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
       <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
       <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
@@ -397,7 +410,8 @@
     </div>
     <div class="modal-body">
       <!-- Header fields -->
-      <div class="field-group"><label>Date</label><input type="date" id="entryDateInput"/></div>
+      <div class="field-group"><label>Incident Date</label><input type="date" id="entryIncidentDateInput"/></div>
+      <div class="field-group"><label>Log Date</label><input type="date" id="entryDateInput"/></div>
       <div class="field-group"><label>Subject / Title</label><input type="text" id="entrySubjectInput" placeholder="e.g. Speed & Workflow Discussion"/></div>
       <div class="field-group"><label>Category</label>
         <select id="entryCategoryInput">
@@ -609,7 +623,7 @@
   async function saveEntryToSheets(entry, employeeId){
     setSyncStatus('syncing','⟳ Saving...');
     try{
-      const flat={employeeId, id:entry.id, date:entry.date, subject:entry.subject, category:entry.category};
+      const flat={employeeId, id:entry.id, date:entry.date, incidentDate:entry.incidentDate||entry.date, subject:entry.subject, category:entry.category, discussed:entry.discussed?'true':'false'};
       if(entry.sections) Object.assign(flat, entry.sections);
       await apiCall({action:'saveEntry', data:JSON.stringify(flat)});
       setSyncStatus('ok','✓ Saved');
@@ -786,7 +800,9 @@
     const currentYear=new Date().getFullYear();
     let entries=(emp.entries||[]).slice();
     // Apply filter
-    if(activeFilter!=='all') entries=entries.filter(e=>e.category===activeFilter);
+    if(activeFilter==='pending') entries=entries.filter(e=>!e.discussed);
+    else if(activeFilter==='discussed') entries=entries.filter(e=>e.discussed);
+    else if(activeFilter!=='all') entries=entries.filter(e=>e.category===activeFilter);
     // Apply sort
     entries.sort((a,b)=>sortNewestFirst?(b.date||'').localeCompare(a.date||''):(a.date||'').localeCompare(b.date||''));
 
@@ -827,7 +843,12 @@
             <div class="entry-subject">${entry.subject}</div>
             <div class="entry-date">${formatDate(entry.date)}</div></div>
             <div class="entry-preview">${preview}${preview.length>=110?'…':''}</div>
-            <span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>`;
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0;">
+              <span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>
+              ${entry.discussed
+                ?'<span class="entry-discussed-flag">✓ Discussed</span>'
+                :'<span class="entry-pending-flag">⚑ Pending</span>'}
+            </div>`;
           card.addEventListener('click',()=>selectEntry(entry.id));
           entriesDiv.appendChild(card);
         });
@@ -846,7 +867,11 @@
     content.classList.toggle('visible',!!entry);
     if(!entry) return;
     document.getElementById('detailSubject').textContent=entry.subject;
-    document.getElementById('detailMeta').textContent=formatDate(entry.date)+' · '+entry.category;
+    const datePart=entry.incidentDate&&entry.incidentDate!==entry.date
+      ?`Incident: ${formatDate(entry.incidentDate)} · Logged: ${formatDate(entry.date)}`
+      :formatDate(entry.date);
+    document.getElementById('detailMeta').textContent=datePart+' · '+entry.category;
+    updateDiscussedButtons(entry.discussed);
     // Print header (hidden on screen, shown when printing)
     const ph=document.getElementById('printHeader');
     if(ph) ph.innerHTML=`<h1>${entry.subject}</h1><p>${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
@@ -908,11 +933,37 @@
     },400);
   }
 
+  async function toggleDiscussed(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
+    if(!entry) return;
+    entry.discussed=!entry.discussed;
+    save(); renderMain(); renderDetail();
+    // Update mobile overlay toggle button too
+    updateDiscussedButtons(entry.discussed);
+    await saveEntryToSheets(entry, emp.id);
+  }
+
+  function updateDiscussedButtons(discussed){
+    ['discussedToggleBtn','mobileDiscussedToggleBtn'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(!btn) return;
+      btn.textContent=discussed?'✓ Discussed':'⚑ Mark Discussed';
+      btn.className='detail-btn discussed-toggle-btn '+(discussed?'is-discussed':'is-pending');
+    });
+  }
+
   function setFilter(cat){
     activeFilter=cat;
     document.querySelectorAll('.filter-chip').forEach(btn=>{
-      btn.classList.toggle('active', btn.dataset.cat===cat);
-      btn.classList.toggle(btn.dataset.cat, btn.dataset.cat===cat && cat!=='all');
+      const isActive=btn.dataset.cat===cat;
+      btn.classList.toggle('active', isActive);
+      // Remove all color classes first
+      btn.classList.remove('coaching','performance','attendance','positive','general','pending-chip','discussed-chip');
+      // Re-add the type class so active state uses right color
+      if(btn.dataset.cat==='pending') btn.classList.add('pending-chip');
+      if(btn.dataset.cat==='discussed') btn.classList.add('discussed-chip');
+      if(isActive && !['all','pending','discussed'].includes(cat)) btn.classList.add(cat);
     });
     renderMain();
   }
@@ -1044,7 +1095,9 @@
   function openAddEntry(){
     editingEntryId=null;
     document.getElementById('entryModalTitle').textContent='New Coaching Entry';
-    document.getElementById('entryDateInput').value=new Date().toISOString().slice(0,10);
+    const today=new Date().toISOString().slice(0,10);
+    document.getElementById('entryDateInput').value=today;
+    document.getElementById('entryIncidentDateInput').value=today;
     document.getElementById('entrySubjectInput').value='';
     document.getElementById('entryCategoryInput').value='coaching';
     SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML='');
@@ -1059,6 +1112,7 @@
     editingEntryId=entry.id;
     document.getElementById('entryModalTitle').textContent='Edit Entry';
     document.getElementById('entryDateInput').value=entry.date;
+    document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
     document.getElementById('entrySubjectInput').value=entry.subject;
     document.getElementById('entryCategoryInput').value=entry.category;
     SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
@@ -1067,6 +1121,7 @@
   function closeEntryModal(){ document.getElementById('entryModal').classList.remove('open'); }
   async function saveEntryData(){
     const date=document.getElementById('entryDateInput').value;
+    const incidentDate=document.getElementById('entryIncidentDateInput').value;
     const subject=document.getElementById('entrySubjectInput').value.trim();
     const category=document.getElementById('entryCategoryInput').value;
     if(!subject){ alert('Please enter a subject.'); return; }
@@ -1079,9 +1134,9 @@
     let entry;
     if(editingEntryId){
       entry=emp.entries.find(e=>e.id===editingEntryId);
-      if(entry){entry.date=date;entry.subject=subject;entry.category=category;entry.sections=sections;}
+      if(entry){entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.sections=sections;}
     } else {
-      entry={id:uid(),date,subject,category,sections};
+      entry={id:uid(),date,incidentDate,subject,category,sections,discussed:false};
       emp.entries.push(entry); activeEntryId=entry.id;
     }
     save(); closeEntryModal(); renderMain();
