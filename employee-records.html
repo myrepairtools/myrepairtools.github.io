@@ -98,21 +98,24 @@
     .entries-list{overflow-y:auto;padding:0;display:flex;flex-direction:column;}
     .no-entries{text-align:center;color:var(--grey);font-size:14px;padding:40px 20px;}
 
-    /* Filter bar */
-    .filter-bar{padding:12px 16px;border-bottom:1.5px solid var(--border);background:var(--white);display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;}
+    /* Filter bars */
+    .filter-bars{background:var(--white);border-bottom:1.5px solid var(--border);flex-shrink:0;}
+    .filter-bar{padding:10px 16px 6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    .filter-bar+.filter-bar{padding-top:0;padding-bottom:10px;border-top:1px dashed var(--border);}
+    .filter-bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);white-space:nowrap;margin-right:2px;}
     .filter-chip{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);color:var(--dark-grey);cursor:pointer;transition:all .12s;white-space:nowrap;}
     .filter-chip:hover{border-color:var(--grey);}
     .filter-chip.active{background:var(--dark);border-color:var(--dark);color:var(--white);}
-    .filter-chip.pending-chip.active{background:#92400e;border-color:#92400e;color:var(--white);}
-    .filter-chip.discussed-chip.active{background:#065f46;border-color:#065f46;color:var(--white);}
-    .entry-pending-flag{display:inline-flex;align-items:center;gap:4px;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;margin-left:4px;background:#fef3c7;color:#92400e;}
-    .entry-discussed-flag{display:inline-flex;align-items:center;gap:4px;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;margin-left:4px;background:#d1fae5;color:#065f46;}
-    .discussed-toggle-btn.is-discussed{border-color:#065f46;color:#065f46;}
-    .discussed-toggle-btn.is-pending{border-color:#92400e;color:#92400e;}
-    .filter-chip.active.performance{background:#b91c1c;border-color:#b91c1c;}
-    .filter-chip.active.attendance{background:#3730a3;border-color:#3730a3;}
-    .filter-chip.active.positive{background:#065f46;border-color:#065f46;}
-    .filter-chip.active.general{background:var(--dark-grey);border-color:var(--dark-grey);}
+    /* Type chip active colors */
+    .filter-chip.active[data-type="observation"]{background:#1e40af;border-color:#1e40af;}
+    .filter-chip.active[data-type="incident"]{background:#92400e;border-color:#92400e;}
+    .filter-chip.active[data-type="conversation"]{background:#065f46;border-color:#065f46;}
+    /* Category chip active colors */
+    .filter-chip.active[data-cat="performance"]{background:#b91c1c;border-color:#b91c1c;}
+    .filter-chip.active[data-cat="attendance"]{background:#3730a3;border-color:#3730a3;}
+    .filter-chip.active[data-cat="positive"]{background:#065f46;border-color:#065f46;}
+    .filter-chip.active[data-cat="general"]{background:var(--dark-grey);border-color:var(--dark-grey);}
+    .filter-chip.active[data-cat="coaching"]{background:#856404;border-color:#856404;}
     .filter-bar-right{margin-left:auto;flex-shrink:0;}
     .sort-btn{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;color:var(--dark-grey);background:none;border:1.5px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;transition:border-color .12s,color .12s;white-space:nowrap;}
     .sort-btn:hover{border-color:var(--grey);color:var(--dark);}
@@ -140,6 +143,14 @@
     .entry-tag.performance{background:#fce8e8;color:#b91c1c;}
     .entry-tag.positive{background:#d1fae5;color:#065f46;}
     .entry-tag.attendance{background:#e0e7ff;color:#3730a3;}
+    /* Entry type tags */
+    .type-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;margin-right:4px;}
+    .type-tag.observation{background:#dbeafe;color:#1e40af;}
+    .type-tag.incident{background:#fef3c7;color:#92400e;}
+    .type-tag.conversation{background:#d1fae5;color:#065f46;}
+    /* Convert button */
+    .convert-btn{background:#92400e;border:none;border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--white);padding:4px 10px;cursor:pointer;transition:background .12s;}
+    .convert-btn:hover{background:#78350f;}
 
     /* Detail pane */
     .detail-pane{background:var(--white);border-left:1.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
@@ -309,17 +320,25 @@
       </div>
       <div class="entries-layout">
         <div class="entries-list" id="entriesList">
-          <div class="filter-bar">
-            <button class="filter-chip active" data-cat="all" onclick="setFilter('all')">All</button>
-            <button class="filter-chip pending-chip" data-cat="pending" onclick="setFilter('pending')">⚑ Pending</button>
-            <button class="filter-chip discussed-chip" data-cat="discussed" onclick="setFilter('discussed')">✓ Discussed</button>
-            <button class="filter-chip" data-cat="coaching" onclick="setFilter('coaching')">Coaching</button>
-            <button class="filter-chip" data-cat="performance" onclick="setFilter('performance')">Performance</button>
-            <button class="filter-chip" data-cat="attendance" onclick="setFilter('attendance')">Attendance</button>
-            <button class="filter-chip" data-cat="positive" onclick="setFilter('positive')">Positive</button>
-            <button class="filter-chip" data-cat="general" onclick="setFilter('general')">General</button>
-            <div class="filter-bar-right">
-              <button class="sort-btn" id="sortBtn" onclick="toggleSort()">↓ Newest</button>
+          <div class="filter-bars">
+            <div class="filter-bar">
+              <span class="filter-bar-label">Type</span>
+              <button class="filter-chip active" data-type="all" onclick="setTypeFilter('all')">All</button>
+              <button class="filter-chip" data-type="observation" onclick="setTypeFilter('observation')">Observation</button>
+              <button class="filter-chip" data-type="incident" onclick="setTypeFilter('incident')">Incident</button>
+              <button class="filter-chip" data-type="conversation" onclick="setTypeFilter('conversation')">Conversation</button>
+              <div class="filter-bar-right">
+                <button class="sort-btn" id="sortBtn" onclick="toggleSort()">↓ Newest</button>
+              </div>
+            </div>
+            <div class="filter-bar">
+              <span class="filter-bar-label">Category</span>
+              <button class="filter-chip active" data-cat="all" onclick="setCatFilter('all')">All</button>
+              <button class="filter-chip" data-cat="coaching" onclick="setCatFilter('coaching')">Coaching</button>
+              <button class="filter-chip" data-cat="performance" onclick="setCatFilter('performance')">Performance</button>
+              <button class="filter-chip" data-cat="attendance" onclick="setCatFilter('attendance')">Attendance</button>
+              <button class="filter-chip" data-cat="positive" onclick="setCatFilter('positive')">Positive</button>
+              <button class="filter-chip" data-cat="general" onclick="setCatFilter('general')">General</button>
             </div>
           </div>
           <div class="entries-scroll" id="entriesScroll"></div>
@@ -333,6 +352,7 @@
                 <div class="detail-meta" id="detailMeta"></div>
               </div>
               <div class="detail-actions">
+                <button class="convert-btn" id="convertBtn" onclick="convertToConversation()" style="display:none;">↑ Convert to Conversation</button>
                 <button class="detail-btn discussed-toggle-btn" id="discussedToggleBtn" onclick="toggleDiscussed()"></button>
                 <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
                 <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
@@ -409,23 +429,27 @@
       <button class="modal-close" onclick="closeEntryModal()">×</button>
     </div>
     <div class="modal-body">
-      <!-- Header fields -->
+      <div class="field-group"><label>Entry Type</label>
+        <select id="entryTypeInput" onchange="onEntryTypeChange()">
+          <option value="observation">Observation — documenting for records</option>
+          <option value="incident">Incident — needs conversation</option>
+          <option value="conversation">Conversation — discussion already happened</option>
+        </select>
+      </div>
       <div class="field-group"><label>Incident Date</label><input type="date" id="entryIncidentDateInput"/></div>
       <div class="field-group"><label>Log Date</label><input type="date" id="entryDateInput"/></div>
-      <div class="field-group"><label>Subject / Title</label><input type="text" id="entrySubjectInput" placeholder="e.g. Speed & Workflow Discussion"/></div>
+      <div class="field-group"><label>Subject / Title</label><input type="text" id="entrySubjectInput" placeholder="e.g. Missed order deadline"/></div>
       <div class="field-group"><label>Category</label>
         <select id="entryCategoryInput">
-          <option value="coaching">Coaching</option>
           <option value="performance">Performance Issue</option>
+          <option value="coaching">Coaching</option>
           <option value="attendance">Attendance</option>
           <option value="positive">Positive Feedback</option>
           <option value="general">General Note</option>
         </select>
       </div>
-
       <hr class="form-section-divider"/>
-      <div class="form-section-label">Coaching Notes</div>
-
+      <div class="form-section-label" id="entrySectionLabel">Notes</div>
       <div class="field-group">
         <label>Issue / What Happened</label>
         <div class="editor-wrap" id="wrap-issue">
@@ -433,32 +457,28 @@
           <div class="editor-content" id="f-issue" contenteditable="true" data-placeholder="Describe what happened or was observed..."></div>
         </div>
       </div>
-
-      <div class="field-group">
+      <div class="field-group" id="fieldGroupCause">
         <label>Root Cause</label>
         <div class="editor-wrap" id="wrap-cause">
           <div class="editor-toolbar" id="tb-cause"></div>
           <div class="editor-content" id="f-cause" contenteditable="true" data-placeholder="Why did this happen? Background context..."></div>
         </div>
       </div>
-
-      <div class="field-group">
+      <div class="field-group" id="fieldGroupCoaching">
         <label>Coaching Provided</label>
         <div class="editor-wrap" id="wrap-coaching">
           <div class="editor-toolbar" id="tb-coaching"></div>
           <div class="editor-content" id="f-coaching" contenteditable="true" data-placeholder="What guidance, technique, or feedback was given?"></div>
         </div>
       </div>
-
-      <div class="field-group">
+      <div class="field-group" id="fieldGroupResponse">
         <label>Employee Response</label>
         <div class="editor-wrap" id="wrap-response">
           <div class="editor-toolbar" id="tb-response"></div>
           <div class="editor-content" id="f-response" contenteditable="true" data-placeholder="How did they react? Did they understand?"></div>
         </div>
       </div>
-
-      <div class="field-group">
+      <div class="field-group" id="fieldGroupActions">
         <label>Action Items</label>
         <div class="editor-wrap" id="wrap-actions">
           <div class="editor-toolbar" id="tb-actions"></div>
@@ -525,7 +545,8 @@
   let data = { employees:[] };
   let activeEmployeeId=null, activeEntryId=null, editingEmployeeId=null, editingEntryId=null;
   let showArchived=false;
-  let activeFilter='all';
+  let activeTypeFilter='all';
+  let activeCatFilter='all';
   let sortNewestFirst=true;
   let collapsedYears={};
   let isSyncing=false;
@@ -623,7 +644,7 @@
   async function saveEntryToSheets(entry, employeeId){
     setSyncStatus('syncing','⟳ Saving...');
     try{
-      const flat={employeeId, id:entry.id, date:entry.date, incidentDate:entry.incidentDate||entry.date, subject:entry.subject, category:entry.category, discussed:entry.discussed?'true':'false'};
+      const flat={employeeId, id:entry.id, date:entry.date, incidentDate:entry.incidentDate||entry.date, subject:entry.subject, category:entry.category, entryType:entry.entryType||'observation', discussed:entry.discussed?'true':'false'};
       if(entry.sections) Object.assign(flat, entry.sections);
       await apiCall({action:'saveEntry', data:JSON.stringify(flat)});
       setSyncStatus('ok','✓ Saved');
@@ -799,15 +820,13 @@
     scroll.innerHTML='';
     const currentYear=new Date().getFullYear();
     let entries=(emp.entries||[]).slice();
-    // Apply filter
-    if(activeFilter==='pending') entries=entries.filter(e=>!e.discussed);
-    else if(activeFilter==='discussed') entries=entries.filter(e=>e.discussed);
-    else if(activeFilter!=='all') entries=entries.filter(e=>e.category===activeFilter);
+    if(activeTypeFilter!=='all') entries=entries.filter(e=>e.entryType===activeTypeFilter);
+    if(activeCatFilter!=='all') entries=entries.filter(e=>e.category===activeCatFilter);
     // Apply sort
     entries.sort((a,b)=>sortNewestFirst?(b.date||'').localeCompare(a.date||''):(a.date||'').localeCompare(b.date||''));
 
     if(!entries.length){
-      scroll.innerHTML=`<div class="no-entries">${activeFilter!=='all'?'No entries in this category.':'No entries yet. Tap "New Entry" to add one.'}</div>`;
+      scroll.innerHTML=`<div class="no-entries">${activeTypeFilter!=='all'||activeCatFilter!=='all'?'No entries match the selected filters.':'No entries yet. Tap "New Entry" to add one.'}</div>`;
     } else {
       // Group by year
       const byYear={};
@@ -841,13 +860,11 @@
           SECTIONS.forEach(s=>{ if(!preview && entry.sections && entry.sections[s.key]) preview=entry.sections[s.key].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,110); });
           card.innerHTML=`<div class="entry-card-top">
             <div class="entry-subject">${entry.subject}</div>
-            <div class="entry-date">${formatDate(entry.date)}</div></div>
+            <div class="entry-date">${formatDate(entry.incidentDate||entry.date)}</div></div>
             <div class="entry-preview">${preview}${preview.length>=110?'…':''}</div>
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0;">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0;margin-top:6px;">
+              <span class="type-tag ${entry.entryType||'observation'}">${entry.entryType||'observation'}</span>
               <span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>
-              ${entry.discussed
-                ?'<span class="entry-discussed-flag">✓ Discussed</span>'
-                :'<span class="entry-pending-flag">⚑ Pending</span>'}
             </div>`;
           card.addEventListener('click',()=>selectEntry(entry.id));
           entriesDiv.appendChild(card);
@@ -870,7 +887,10 @@
     const datePart=entry.incidentDate&&entry.incidentDate!==entry.date
       ?`Incident: ${formatDate(entry.incidentDate)} · Logged: ${formatDate(entry.date)}`
       :formatDate(entry.date);
-    document.getElementById('detailMeta').textContent=datePart+' · '+entry.category;
+    document.getElementById('detailMeta').textContent=datePart+' · '+(entry.entryType||'observation')+' · '+entry.category;
+    // Show/hide convert button
+    const convertBtn=document.getElementById('convertBtn');
+    if(convertBtn) convertBtn.style.display=(entry.entryType==='incident')?'':'none';
     updateDiscussedButtons(entry.discussed);
     // Print header (hidden on screen, shown when printing)
     const ph=document.getElementById('printHeader');
@@ -933,7 +953,70 @@
     },400);
   }
 
-  async function toggleDiscussed(){
+  // ── Entry type field visibility ──
+  function onEntryTypeChange(){
+    const type=document.getElementById('entryTypeInput').value;
+    const label=document.getElementById('entrySectionLabel');
+    const cause=document.getElementById('fieldGroupCause');
+    const coaching=document.getElementById('fieldGroupCoaching');
+    const response=document.getElementById('fieldGroupResponse');
+    const actions=document.getElementById('fieldGroupActions');
+    if(type==='observation'){
+      label.textContent='What Was Observed';
+      cause.style.display='none';
+      coaching.style.display='none';
+      response.style.display='none';
+      actions.style.display='none';
+    } else if(type==='incident'){
+      label.textContent='Incident Details';
+      cause.style.display='';
+      coaching.style.display='none';
+      response.style.display='none';
+      actions.style.display='none';
+    } else {
+      label.textContent='Conversation Notes';
+      cause.style.display='';
+      coaching.style.display='';
+      response.style.display='';
+      actions.style.display='';
+    }
+  }
+
+  // ── Filters ──
+  function setTypeFilter(type){
+    activeTypeFilter=type;
+    document.querySelectorAll('.filter-bar .filter-chip[data-type]').forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.type===type);
+    });
+    renderMain();
+  }
+
+  function setCatFilter(cat){
+    activeCatFilter=cat;
+    document.querySelectorAll('.filter-bar .filter-chip[data-cat]').forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.cat===cat);
+    });
+    renderMain();
+  }
+
+  // ── Convert incident to conversation ──
+  async function convertToConversation(){
+    const emp=data.employees.find(e=>e.id===activeEmployeeId);
+    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
+    if(!entry) return;
+    // Open in edit mode as conversation type
+    document.getElementById('entryDetailOverlay').classList.remove('open');
+    editingEntryId=entry.id;
+    document.getElementById('entryModalTitle').textContent='Convert to Conversation';
+    document.getElementById('entryTypeInput').value='conversation';
+    document.getElementById('entryDateInput').value=entry.date;
+    document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
+    document.getElementById('entrySubjectInput').value=entry.subject;
+    document.getElementById('entryCategoryInput').value=entry.category;
+    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
+    onEntryTypeChange();
+    document.getElementById('entryModal').classList.add('open');
+  }
     const emp=data.employees.find(e=>e.id===activeEmployeeId);
     const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
     if(!entry) return;
@@ -976,9 +1059,9 @@
 
   function selectEmployee(id){
     activeEmployeeId=id; activeEntryId=null;
-    activeFilter='all'; collapsedYears={};
-    // Reset filter chips
-    document.querySelectorAll('.filter-chip').forEach(btn=>{ btn.classList.toggle('active',btn.dataset.cat==='all'); btn.classList.remove('coaching','performance','attendance','positive','general'); });
+    activeTypeFilter='all'; activeCatFilter='all'; collapsedYears={};
+    document.querySelectorAll('.filter-chip[data-type]').forEach(btn=>btn.classList.toggle('active',btn.dataset.type==='all'));
+    document.querySelectorAll('.filter-chip[data-cat]').forEach(btn=>btn.classList.toggle('active',btn.dataset.cat==='all'));
     render();
   }
   function selectEntry(id){
@@ -1094,13 +1177,15 @@
   // Entry CRUD
   function openAddEntry(){
     editingEntryId=null;
-    document.getElementById('entryModalTitle').textContent='New Coaching Entry';
+    document.getElementById('entryModalTitle').textContent='New Entry';
     const today=new Date().toISOString().slice(0,10);
     document.getElementById('entryDateInput').value=today;
     document.getElementById('entryIncidentDateInput').value=today;
+    document.getElementById('entryTypeInput').value='observation';
     document.getElementById('entrySubjectInput').value='';
-    document.getElementById('entryCategoryInput').value='coaching';
+    document.getElementById('entryCategoryInput').value='performance';
     SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML='');
+    onEntryTypeChange();
     document.getElementById('entryModal').classList.add('open');
     setTimeout(()=>document.getElementById('entrySubjectInput').focus(),150);
   }
@@ -1111,11 +1196,13 @@
     document.getElementById('entryDetailOverlay').classList.remove('open');
     editingEntryId=entry.id;
     document.getElementById('entryModalTitle').textContent='Edit Entry';
+    document.getElementById('entryTypeInput').value=entry.entryType||'observation';
     document.getElementById('entryDateInput').value=entry.date;
     document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
     document.getElementById('entrySubjectInput').value=entry.subject;
     document.getElementById('entryCategoryInput').value=entry.category;
     SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
+    onEntryTypeChange();
     document.getElementById('entryModal').classList.add('open');
   }
   function closeEntryModal(){ document.getElementById('entryModal').classList.remove('open'); }
@@ -1124,19 +1211,20 @@
     const incidentDate=document.getElementById('entryIncidentDateInput').value;
     const subject=document.getElementById('entrySubjectInput').value.trim();
     const category=document.getElementById('entryCategoryInput').value;
+    const entryType=document.getElementById('entryTypeInput').value;
     if(!subject){ alert('Please enter a subject.'); return; }
     const sections={};
     SECTIONS.forEach(s=>sections[s.key]=document.getElementById('f-'+s.key).innerHTML.trim());
     const hasContent=SECTIONS.some(s=>sections[s.key] && sections[s.key]!=='');
-    if(!hasContent){ alert('Please fill in at least one coaching section.'); return; }
+    if(!hasContent){ alert('Please fill in at least one section.'); return; }
     const emp=data.employees.find(e=>e.id===activeEmployeeId);
     if(!emp) return;
     let entry;
     if(editingEntryId){
       entry=emp.entries.find(e=>e.id===editingEntryId);
-      if(entry){entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.sections=sections;}
+      if(entry){entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.entryType=entryType;entry.sections=sections;}
     } else {
-      entry={id:uid(),date,incidentDate,subject,category,sections,discussed:false};
+      entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:false};
       emp.entries.push(entry); activeEntryId=entry.id;
     }
     save(); closeEntryModal(); renderMain();
