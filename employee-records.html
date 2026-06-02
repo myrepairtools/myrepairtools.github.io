@@ -369,7 +369,7 @@
     <div class="login-icon">🔒</div>
     <div class="login-title">Employee Records</div>
     <div class="login-sub">Sign in to continue</div>
-    <form onsubmit="submitLogin(); return false;" autocomplete="on">
+    <form onsubmit="submitLogin(); return false;" autocomplete="on" method="dialog">
       <div class="login-field">
         <input type="text" id="loginUsername" name="username" autocomplete="username" placeholder="Username" autocapitalize="none" autocorrect="off"/>
       </div>
@@ -852,7 +852,15 @@
 
   window.addEventListener('load',()=>{
     setTimeout(()=>document.getElementById('loginUsername').focus(),100);
+    preloadUsers();
   });
+
+  async function preloadUsers(){
+    try{
+      const result=await apiCall({action:'getAll'});
+      if(result&&result.users) loadUsersFromSheets(result.users);
+    }catch(e){ /* offline - use hardcoded defaults */ }
+  }
   // ── Config ──
   const SECTIONS = [
     { key:'issue',    label:'Issue / What Happened' },
@@ -2144,9 +2152,9 @@
 
   // Load users from Sheets data
   function loadUsersFromSheets(users){
-    if(!users||!users.length) return;
-    // Merge with defaults, keeping owner_bbay from defaults
+    if(!users||!users.length) return; // nothing to load, keep defaults
     const sheetUsers=users.filter(u=>u.id!=='owner_bbay');
+    // Always keep DEFAULT_USERS, merge sheet users on top
     appUsers=[...DEFAULT_USERS, ...sheetUsers];
   }
 
