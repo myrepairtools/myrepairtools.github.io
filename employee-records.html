@@ -25,18 +25,39 @@
     .header-logo img{height:28px;width:auto;display:block;}
     .page-badge{background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:20px;}
     /* Lock screen */
-    .lock-screen{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:0;}
-    .lock-screen.hidden{display:none;}
-    .lock-logo{margin-bottom:32px;}
-    .lock-logo img{height:36px;width:auto;display:block;}
-    .lock-box{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:36px 40px;text-align:center;width:100%;max-width:340px;}
-    .lock-icon{font-size:32px;margin-bottom:16px;}
-    .lock-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--white);margin-bottom:6px;}
-    .lock-sub{font-size:12px;color:rgba(255,255,255,0.4);font-weight:600;margin-bottom:28px;}
-
-    .lock-error{font-size:12px;font-weight:700;color:#ef4444;margin-top:16px;min-height:18px;text-align:center;}
+    .login-screen{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;}
+    .login-screen.hidden{display:none;}
+    .login-logo{margin-bottom:32px;}
+    .login-logo img{height:36px;width:auto;display:block;}
+    .login-box{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:36px 40px;width:100%;max-width:340px;}
+    .login-icon{font-size:32px;margin-bottom:12px;text-align:center;}
+    .login-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--white);margin-bottom:6px;text-align:center;}
+    .login-sub{font-size:12px;color:rgba(255,255,255,0.4);font-weight:600;margin-bottom:24px;text-align:center;}
+    .login-field{margin-bottom:12px;}
+    .login-field input{width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 14px;font-family:'Nunito Sans',sans-serif;font-size:15px;color:var(--white);outline:none;transition:border-color .15s;}
+    .login-field input:focus{border-color:rgba(220,40,46,0.8);}
+    .login-field input::placeholder{color:rgba(255,255,255,0.3);}
+    .login-btn{width:100%;background:var(--accent);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:var(--white);cursor:pointer;transition:background .15s;margin-top:4px;}
+    .login-btn:hover{background:var(--light-red);}
+    .login-error{font-size:12px;font-weight:700;color:#ef4444;margin-top:12px;min-height:18px;text-align:center;}
     .app-wrapper{display:none;flex-direction:column;min-height:100vh;}
     .app-wrapper.visible{display:flex;}
+    /* Current user indicator */
+    .user-indicator{display:flex;align-items:center;gap:8px;margin-left:auto;}
+    .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:900;font-size:11px;display:flex;align-items:center;justify-content:center;}
+    .user-name-label{font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;color:var(--dark-grey);}
+    .logout-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;color:var(--grey);padding:3px 8px;cursor:pointer;transition:border-color .12s,color .12s;}
+    .logout-btn:hover{border-color:var(--accent);color:var(--accent);}
+    /* User management */
+    .user-card{background:var(--white);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+    .user-card-info{flex:1;}
+    .user-card-name{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--dark);}
+    .user-card-meta{font-size:12px;color:var(--grey);margin-top:2px;}
+    .user-role-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-left:6px;}
+    .user-role-tag.owner{background:#fce8e8;color:#b91c1c;}
+    .user-role-tag.dm{background:#dbeafe;color:#1e40af;}
+    .user-role-tag.manager{background:#d1fae5;color:#065f46;}
+    .change-log{font-size:11px;color:var(--grey);margin-top:8px;font-style:italic;border-top:1px solid var(--border);padding-top:8px;}
 
     /* Mobile employee picker screen */
     .mobile-picker{display:none;flex-direction:column;min-height:calc(100vh - 63px);background:var(--light-grey);}
@@ -341,29 +362,23 @@
 </head>
 <body>
 
-<!-- LOCK SCREEN -->
-<div class="lock-screen" id="lockScreen">
-  <div class="lock-logo"><img src="assets/images/CPRLogo_NoAssurant_White.svg" alt="CPR"/></div>
-  <div class="lock-box">
-    <div class="lock-icon">🔒</div>
-    <div class="lock-title">Employee Records</div>
-    <div class="lock-sub">Enter your password to continue</div>
-    <form id="pinForm" onsubmit="submitPassword(); return false;" autocomplete="on">
-      <input type="password" id="passwordInput" name="password"
-        autocomplete="current-password"
-        placeholder="Password"
-        style="width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 14px;font-family:'Nunito Sans',sans-serif;font-size:16px;color:var(--white);outline:none;margin-bottom:12px;transition:border-color .15s;"
-        onfocus="this.style.borderColor='rgba(220,40,46,0.8)'"
-        onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
-      />
-      <button type="submit" onclick="submitPassword(); return false;"
-        style="width:100%;background:var(--accent);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:var(--white);cursor:pointer;transition:background .15s;"
-        onmouseover="this.style.background='var(--light-red)'"
-        onmouseout="this.style.background='var(--accent)'">
-        Unlock
-      </button>
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-logo"><img src="assets/images/CPRLogo_NoAssurant_White.svg" alt="CPR"/></div>
+  <div class="login-box">
+    <div class="login-icon">🔒</div>
+    <div class="login-title">Employee Records</div>
+    <div class="login-sub">Sign in to continue</div>
+    <form onsubmit="submitLogin(); return false;" autocomplete="on">
+      <div class="login-field">
+        <input type="text" id="loginUsername" name="username" autocomplete="username" placeholder="Username" autocapitalize="none" autocorrect="off"/>
+      </div>
+      <div class="login-field">
+        <input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="Password"/>
+      </div>
+      <button type="submit" class="login-btn" onclick="submitLogin(); return false;">Sign In</button>
     </form>
-    <div class="lock-error" id="lockError"></div>
+    <div class="login-error" id="loginError"></div>
   </div>
 </div>
 
@@ -372,6 +387,11 @@
   <a class="back-btn" href="admin.html">← Back</a>
   <div class="header-logo"><img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair"/></div>
   <span id="syncStatus" class="sync-status syncing">⟳ Loading...</span>
+  <div class="user-indicator">
+    <div class="user-avatar" id="headerUserAvatar"></div>
+    <span class="user-name-label" id="headerUserName"></span>
+    <button class="logout-btn" onclick="logout()">Sign Out</button>
+  </div>
   <div class="page-badge">Employee Records</div>
 </header>
 
@@ -385,6 +405,7 @@
     <div class="employee-list" id="employeeList"></div>
     <div class="sidebar-footer">
       <button class="archive-toggle-btn" id="archiveToggleDesktop" onclick="toggleShowArchived()">Show Archived</button>
+      <button class="archive-toggle-btn owner-only" id="usersBtn" onclick="showUsersPanel()" style="margin-top:6px;display:none;">👤 Manage Users</button>
     </div>
   </aside>
 
@@ -401,7 +422,19 @@
       <div id="mobilePickerList"></div>
     </div>
 
-    <div class="empty-state" id="emptyState">
+    <!-- Users Panel (owner only) -->
+    <div class="employee-view" id="usersPanel" style="display:none;">
+      <div class="employee-view-header">
+        <div>
+          <div class="emp-view-name">User Management</div>
+          <div class="emp-view-role">Owner access only</div>
+        </div>
+        <button class="new-entry-btn" onclick="openNewUserModal()">+ Add User</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;flex:1;">
+        <div id="usersList"></div>
+      </div>
+    </div>
       <div class="icon">📋</div>
       <h3>Select an employee</h3>
       <p>Choose an employee from the sidebar to view their records, or tap + to add one.</p>
@@ -519,6 +552,37 @@
     </div>
   </div>
   <div class="entry-detail-scroll" id="mobileDetailBody"></div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title" id="userModalTitle">Add User</div>
+      <button class="modal-close" onclick="closeUserModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group"><label>Full Name</label><input type="text" id="userNameInput" placeholder="e.g. Ben Wyborney"/></div>
+      <div class="field-group"><label>Username</label><input type="text" id="userUsernameInput" placeholder="e.g. bwyborney" autocapitalize="none" autocorrect="off"/></div>
+      <div class="field-group"><label>Password</label><input type="text" id="userPasswordInput" placeholder="Set a password"/></div>
+      <div class="field-group"><label>Role</label>
+        <select id="userRoleInput">
+          <option value="manager">Store Manager</option>
+          <option value="dm">District Manager</option>
+          <option value="owner">Owner</option>
+        </select>
+      </div>
+      <div class="field-group"><label>Store / Location</label><input type="text" id="userStoreInput" placeholder="e.g. CPR Eugene"/></div>
+      <div class="field-group" style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="userEnabledInput" checked style="width:auto;"/>
+        <label style="margin:0;text-transform:none;font-size:13px;">Account enabled</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeUserModal()">Cancel</button>
+      <button class="btn-save" onclick="saveUser()">Save User</button>
+    </div>
+  </div>
 </div>
 
 <!-- PIP Modal -->
@@ -720,28 +784,74 @@
 </div><!-- end app-wrapper -->
 
 <script>
-  // ── Password Lock ──
-  const CORRECT='541783';
+  // ── User Auth ──
+  // Default users — hardcoded owner, others stored in Google Sheets
+  const DEFAULT_USERS=[
+    {id:'owner_bbay',username:'bbay',password:'1234',name:'Britt Bay',role:'owner',store:'',enabled:true}
+  ];
+  let appUsers=[...DEFAULT_USERS];
+  let currentUser=null;
 
-  // ── Password Lock ──
-
-  function submitPassword(){
-    const val=document.getElementById('passwordInput').value.trim();
-    if(val===CORRECT){
-      document.getElementById('lockScreen').classList.add('hidden');
+  function submitLogin(){
+    const username=document.getElementById('loginUsername').value.trim().toLowerCase();
+    const password=document.getElementById('loginPassword').value;
+    const user=appUsers.find(u=>u.username.toLowerCase()===username && u.password===password && u.enabled);
+    if(user){
+      currentUser=user;
+      document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('appWrapper').classList.add('visible');
+      // Update header
+      document.getElementById('headerUserAvatar').textContent=initials(user.name);
+      document.getElementById('headerUserName').textContent=user.name;
+      // Show owner-only elements
+      if(user.role==='owner'){
+        document.querySelectorAll('.owner-only').forEach(el=>el.style.display='');
+      }
       initApp();
     } else {
-      const input=document.getElementById('passwordInput');
-      input.style.borderColor='#ef4444';
-      input.value='';
-      document.getElementById('lockError').textContent='Incorrect password. Try again. (entered: '+val.length+' chars)';
-      setTimeout(()=>{ input.style.borderColor='rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent=''; },3000);
+      const err=document.getElementById('loginError');
+      err.textContent='Incorrect username or password.';
+      document.getElementById('loginPassword').value='';
+      setTimeout(()=>err.textContent='',3000);
     }
   }
 
+  function logout(){
+    currentUser=null;
+    activeEmployeeId=null; activeEntryId=null; activePIPId=null;
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('appWrapper').classList.remove('visible');
+    document.getElementById('loginUsername').value='';
+    document.getElementById('loginPassword').value='';
+    document.getElementById('loginError').textContent='';
+  }
+
+  // ── Role-based visibility ──
+  function canSeeEmployee(emp){
+    if(!currentUser) return false;
+    if(currentUser.role==='owner') return true;
+    // Never show owner records to anyone else
+    const empUser=appUsers.find(u=>u.name===emp.name||u.username===emp.username);
+    if(empUser&&empUser.role==='owner') return false;
+    // DM: can't see other DMs
+    if(currentUser.role==='dm'){
+      if(empUser&&empUser.role==='dm') return false;
+      return true;
+    }
+    // Store Manager: can see all staff except own record, DMs, and owner
+    if(currentUser.role==='manager'){
+      if(empUser&&(empUser.role==='dm'||empUser.role==='owner')) return false;
+      if(emp.name===currentUser.name) return false;
+      return true;
+    }
+    return false;
+  }
+
+  function canDelete(){ return currentUser&&currentUser.role==='owner'; }
+  function canEdit(entry){ return currentUser&&(currentUser.role==='owner'||(entry.createdBy!==undefined?entry.createdBy===currentUser.username:true)); }
+
   window.addEventListener('load',()=>{
-    setTimeout(()=>document.getElementById('passwordInput').focus(),100);
+    setTimeout(()=>document.getElementById('loginUsername').focus(),100);
   });
   // ── Config ──
   const SECTIONS = [
@@ -888,6 +998,7 @@
       const result=await apiCall({action:'getAll'});
       if(result.error) throw new Error(result.error);
       data=unflattenFromSheets(result.employees||[], result.entries||[], result.pips||[]);
+      loadUsersFromSheets(result.users||[]);
       saveCache();
       setSyncStatus('ok','✓ Synced');
     }catch(e){
@@ -993,7 +1104,7 @@
   function renderSidebar(){
     const list=document.getElementById('employeeList');
     list.innerHTML='';
-    const visible=data.employees.filter(e=>showArchived?e.archived:!e.archived);
+    const visible=data.employees.filter(e=>(showArchived?e.archived:!e.archived)&&canSeeEmployee(e));
     if(!visible.length){
       list.innerHTML=`<div style="padding:16px;font-size:13px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees.<br/>Tap + to add one.'}</div>`;
       return;
@@ -1040,7 +1151,7 @@
       else { picker.style.display='flex'; emptyState.style.display='none'; empView.classList.remove('visible'); }
     } else { picker.style.display='none'; }
 
-    const visible=data.employees.filter(e=>showArchived?e.archived:!e.archived);
+    const visible=data.employees.filter(e=>(showArchived?e.archived:!e.archived)&&canSeeEmployee(e));
     if(!visible.length){
       container.innerHTML=`<div style="padding:24px;font-size:14px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees. Tap + to add one.'}</div>`;
       return;
@@ -1179,6 +1290,15 @@
     const ph=document.getElementById('printHeader');
     if(ph) ph.innerHTML=`<h1>${entry.subject}</h1><p>${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
     renderSections(entry, document.getElementById('detailBody'), true);
+    // Change log
+    if(entry.changeLog&&entry.changeLog.length){
+      const logDiv=document.createElement('div');
+      logDiv.className='change-log';
+      logDiv.innerHTML=entry.changeLog.map(l=>`${l.action} by ${l.by} · ${l.at}`).join('<br>');
+      document.getElementById('detailBody').appendChild(logDiv);
+    }
+    // Hide delete for non-owners
+    document.querySelectorAll('.detail-btn').forEach(btn=>{ if(btn.textContent==='Delete') btn.style.display=canDelete()?'':'none'; });
   }
 
   function buildEntryHTML(emp, entry){
@@ -1368,6 +1488,7 @@
     document.getElementById('tabPips').classList.remove('active');
     document.getElementById('panelLog').style.display='flex';
     document.getElementById('panelPips').style.display='none';
+    const up=document.getElementById('usersPanel'); if(up) up.style.display='none';
     render();
   }
   function selectEntry(id){
@@ -1528,9 +1649,13 @@
     let entry;
     if(editingEntryId){
       entry=emp.entries.find(e=>e.id===editingEntryId);
-      if(entry){entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.entryType=entryType;entry.sections=sections;}
+      if(entry){
+        entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.entryType=entryType;entry.sections=sections;
+        if(!entry.changeLog) entry.changeLog=[];
+        entry.changeLog.push({by:currentUser?currentUser.name:'',at:new Date().toLocaleString(),action:'Edited'});
+      }
     } else {
-      entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:entryType==='conversation'};
+      entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:entryType==='conversation',createdBy:currentUser?currentUser.username:'',changeLog:[{by:currentUser?currentUser.name:'',at:new Date().toLocaleString(),action:'Created'}]};
       emp.entries.push(entry); activeEntryId=entry.id;
     }
     if(pendingMarkDiscussed){ entry.discussed=true; pendingMarkDiscussed=false; }
@@ -1920,9 +2045,115 @@
     </div>`;
   }
 
+  // ── User Management ──
+  let editingUserId=null;
+
+  function showUsersPanel(){
+    // Hide employee view, show users panel
+    document.getElementById('emptyState').style.display='none';
+    document.getElementById('employeeView').classList.remove('visible');
+    document.getElementById('usersPanel').style.display='flex';
+    activeEmployeeId=null;
+    renderUsersList();
+  }
+
+  function renderUsersList(){
+    const list=document.getElementById('usersList');
+    if(!list) return;
+    list.innerHTML='';
+    appUsers.forEach(user=>{
+      const card=document.createElement('div');
+      card.className='user-card'+(user.enabled?'':' user-disabled');
+      card.innerHTML=`
+        <div class="user-avatar" style="width:36px;height:36px;font-size:13px;">${initials(user.name)}</div>
+        <div class="user-card-info">
+          <div class="user-card-name">${user.name} <span class="user-role-tag ${user.role}">${user.role}</span></div>
+          <div class="user-card-meta">@${user.username}${user.store?' · '+user.store:''}${!user.enabled?' · <span style="color:#ef4444">Disabled</span>':''}</div>
+        </div>
+        <button class="detail-btn" onclick="editUser('${user.id}')">Edit</button>
+        ${user.role!=='owner'?`<button class="detail-btn" onclick="deleteUser('${user.id}')">Delete</button>`:''}`;
+      list.appendChild(card);
+    });
+  }
+
+  function openNewUserModal(){
+    editingUserId=null;
+    document.getElementById('userModalTitle').textContent='Add User';
+    document.getElementById('userNameInput').value='';
+    document.getElementById('userUsernameInput').value='';
+    document.getElementById('userPasswordInput').value='';
+    document.getElementById('userRoleInput').value='manager';
+    document.getElementById('userStoreInput').value='';
+    document.getElementById('userEnabledInput').checked=true;
+    document.getElementById('userModal').classList.add('open');
+    setTimeout(()=>document.getElementById('userNameInput').focus(),150);
+  }
+
+  function editUser(id){
+    const user=appUsers.find(u=>u.id===id);
+    if(!user) return;
+    editingUserId=id;
+    document.getElementById('userModalTitle').textContent='Edit User';
+    document.getElementById('userNameInput').value=user.name;
+    document.getElementById('userUsernameInput').value=user.username;
+    document.getElementById('userPasswordInput').value=user.password;
+    document.getElementById('userRoleInput').value=user.role;
+    document.getElementById('userStoreInput').value=user.store||'';
+    document.getElementById('userEnabledInput').checked=user.enabled;
+    document.getElementById('userModal').classList.add('open');
+  }
+
+  function closeUserModal(){ document.getElementById('userModal').classList.remove('open'); }
+
+  async function saveUser(){
+    const name=document.getElementById('userNameInput').value.trim();
+    const username=document.getElementById('userUsernameInput').value.trim().toLowerCase();
+    const password=document.getElementById('userPasswordInput').value;
+    const role=document.getElementById('userRoleInput').value;
+    const store=document.getElementById('userStoreInput').value.trim();
+    const enabled=document.getElementById('userEnabledInput').checked;
+    if(!name||!username||!password){ alert('Name, username, and password are required.'); return; }
+    if(editingUserId){
+      const idx=appUsers.findIndex(u=>u.id===editingUserId);
+      if(idx>=0) appUsers[idx]={...appUsers[idx],name,username,password,role,store,enabled};
+    } else {
+      appUsers.push({id:uid(),name,username,password,role,store,enabled});
+    }
+    closeUserModal(); renderUsersList();
+    // Save users to Sheets
+    await saveUsersToSheets();
+  }
+
+  async function deleteUser(id){
+    if(!confirm('Delete this user?')) return;
+    appUsers=appUsers.filter(u=>u.id!==id);
+    renderUsersList();
+    await saveUsersToSheets();
+  }
+
+  async function saveUsersToSheets(){
+    try{
+      // Save non-default users to Sheets
+      const usersToSave=appUsers.filter(u=>u.id!=='owner_bbay');
+      for(const u of usersToSave){
+        await apiCall({action:'saveUser', data:JSON.stringify(u)});
+      }
+      setSyncStatus('ok','✓ Saved');
+    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
+  }
+
+  // Load users from Sheets data
+  function loadUsersFromSheets(users){
+    if(!users||!users.length) return;
+    // Merge with defaults, keeping owner_bbay from defaults
+    const sheetUsers=users.filter(u=>u.id!=='owner_bbay');
+    appUsers=[...DEFAULT_USERS, ...sheetUsers];
+  }
+
   // Close modals on overlay click
   document.getElementById('employeeModal').addEventListener('click',function(e){if(e.target===this)closeEmployeeModal();});
   document.getElementById('entryModal').addEventListener('click',function(e){if(e.target===this)closeEntryModal();});
+  document.getElementById('userModal').addEventListener('click',function(e){if(e.target===this)closeUserModal();});
   ['pipModal','checkinModal','outcomeModal'].forEach(id=>{
     document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
   });
