@@ -787,7 +787,7 @@
   // ── User Auth ──
   // Default users — hardcoded owner, others stored in Google Sheets
   const DEFAULT_USERS=[
-    {id:'owner_bbay',username:'bbay',password:'1234',name:'Britt Bay',role:'owner',store:'',enabled:true}
+    {id:'owner_bbay',username:'bbay',password:'8039',name:'Britt Bay',role:'owner',store:'',enabled:true}
   ];
   let appUsers=[...DEFAULT_USERS];
   let currentUser=null;
@@ -996,8 +996,17 @@
   async function apiCall(params){
     const url=new URL(API_URL);
     Object.keys(params).forEach(k=>url.searchParams.set(k,params[k]));
-    const res=await fetch(url.toString());
-    return res.json();
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),15000);
+    try{
+      const res=await fetch(url.toString(), {redirect:'follow', signal:controller.signal});
+      clearTimeout(timeout);
+      const text=await res.text();
+      return JSON.parse(text);
+    }catch(e){
+      clearTimeout(timeout);
+      throw e;
+    }
   }
 
   async function loadFromSheets(){
@@ -1010,7 +1019,7 @@
       saveCache();
       setSyncStatus('ok','✓ Synced');
     }catch(e){
-      setSyncStatus('error','⚠ Offline — using cached data');
+      setSyncStatus('error','⚠ Offline — '+e.message);
       loadCache();
     }
     render();
