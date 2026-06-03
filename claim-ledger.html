@@ -206,6 +206,43 @@
   .btn-bulk.primary:hover { background: #059669; }
   .btn-bulk.spinning { opacity: 0.6; pointer-events: none; }
 
+  /* METRICS BAR — business stats, always reflects visible scope */
+  .metrics-bar {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px;
+    margin-bottom: 12px;
+    display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap;
+    box-shadow: 0 1px 2px rgba(45,45,59,0.04);
+  }
+  .metrics-bar.hidden { display: none; }
+  .metrics-group {
+    display: flex; align-items: center; gap: 4px; padding: 2px 8px;
+    border-right: 1px solid var(--border);
+  }
+  .metrics-group:last-child { border-right: none; }
+  .metrics-group-label {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px; color: var(--grey);
+    padding-right: 8px; border-right: 1px dashed var(--border);
+    margin-right: 4px;
+  }
+  .metric {
+    display: flex; flex-direction: column; gap: 0px;
+    padding: 4px 10px; border-radius: 6px;
+    transition: background 0.12s;
+  }
+  .metric[onclick] { cursor: pointer; }
+  .metric[onclick]:hover { background: rgba(79,176,227,0.08); }
+  .metric.copied { background: rgba(38,194,154,0.18); }
+  .metric-label {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; color: var(--grey);
+  }
+  .metric-val {
+    font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 900;
+    color: var(--dark); line-height: 1.1;
+  }
+
   /* SUMMARY TABLE */
   .table-card {
     background: var(--white); border: 1px solid var(--border);
@@ -627,6 +664,29 @@
     </div>
     <div class="bulk-actions">
       <button class="btn-bulk primary" id="btn-mark-processed" onclick="markSelectedProcessed()">Mark Processed</button>
+    </div>
+  </div>
+
+  <!-- METRICS BAR (business stats — always reflects current visible scope) -->
+  <div class="metrics-bar hidden" id="metrics-bar">
+    <div class="metrics-group">
+      <div class="metrics-group-label">Totals</div>
+      <div class="metric" onclick="copyMetric('sales', this)"><div class="metric-label">Sales</div><div class="metric-val" id="m-sales">$0.00</div></div>
+      <div class="metric" onclick="copyMetric('cogs', this)"><div class="metric-label">COGS</div><div class="metric-val" id="m-cogs">$0.00</div></div>
+      <div class="metric" onclick="copyMetric('gross', this)"><div class="metric-label">Gross</div><div class="metric-val" id="m-gross">$0.00</div></div>
+      <div class="metric" onclick="copyMetric('royalty', this)"><div class="metric-label">Royalty</div><div class="metric-val" id="m-royalty">$0.00</div></div>
+    </div>
+    <div class="metrics-group">
+      <div class="metrics-group-label">Volume</div>
+      <div class="metric"><div class="metric-label">Claims</div><div class="metric-val" id="m-claims">0</div></div>
+      <div class="metric"><div class="metric-label">Parts</div><div class="metric-val" id="m-parts">0</div></div>
+    </div>
+    <div class="metrics-group">
+      <div class="metrics-group-label">Per claim</div>
+      <div class="metric" onclick="copyMetric('avg_price', this)"><div class="metric-label">Avg price</div><div class="metric-val" id="m-avg-price">$0.00</div></div>
+      <div class="metric" onclick="copyMetric('avg_cost', this)"><div class="metric-label">Avg cost</div><div class="metric-val" id="m-avg-cost">$0.00</div></div>
+      <div class="metric" onclick="copyMetric('avg_margin_pct', this)"><div class="metric-label">Avg margin</div><div class="metric-val" id="m-avg-margin">0%</div></div>
+      <div class="metric" onclick="copyMetric('avg_royalty', this)"><div class="metric-label">Avg royalty</div><div class="metric-val" id="m-avg-royalty">$0.00</div></div>
     </div>
   </div>
 
@@ -1194,6 +1254,7 @@ function recomputeAndRender() {
   renderLocationTabs();
   render();
   renderBulkBar();
+  renderMetricsBar();
 }
 
 function groupByBatch(tickets) {
@@ -1341,6 +1402,7 @@ function setFilter(f) {
   selected.clear();
   render();
   renderBulkBar();
+  renderMetricsBar();
 }
 
 function setLocationFilter(loc) {
@@ -1351,6 +1413,7 @@ function setLocationFilter(loc) {
   selected.clear();
   render();
   renderBulkBar();
+  renderMetricsBar();
 }
 
 function visibleBatches() {
@@ -1760,6 +1823,54 @@ function copyText(txt) {
 // Copy a raw numeric amount from a clicked cell (used in main batch rows)
 function copyCell(amount, el) {
   copyText(Number(amount).toFixed(2));
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1200);
+}
+
+// Cache for metrics values keyed by metric name (so copyMetric can format the right way)
+let _metricsCache = {};
+
+function renderMetricsBar() {
+  const bar = document.getElementById('metrics-bar');
+  const vis = visibleBatches();
+  if (!vis.length) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+
+  let sales = 0, cogs = 0, royalty = 0;
+  let claims = 0, parts = 0;
+  for (const b of vis) {
+    sales   += b.total;
+    cogs    += b.cogs;
+    royalty += b.royalty;
+    claims  += b.tickets.length;
+    parts   += (b.consignedCount || 0) + (b.nonConsignedCount || 0);
+  }
+  const gross = sales - cogs;
+  const avgPrice    = claims ? sales / claims : 0;
+  const avgCost     = claims ? cogs / claims : 0;
+  const avgRoyalty  = claims ? royalty / claims : 0;
+  const avgMarginPct = sales > 0 ? (gross / sales) * 100 : 0;
+
+  _metricsCache = { sales, cogs, gross, royalty, avg_price: avgPrice, avg_cost: avgCost, avg_royalty: avgRoyalty, avg_margin_pct: avgMarginPct };
+
+  document.getElementById('m-sales').textContent      = fmt(sales);
+  document.getElementById('m-cogs').textContent       = fmt(cogs);
+  document.getElementById('m-gross').textContent      = fmt(gross);
+  document.getElementById('m-royalty').textContent    = fmt(royalty);
+  document.getElementById('m-claims').textContent     = claims.toLocaleString();
+  document.getElementById('m-parts').textContent      = parts.toLocaleString();
+  document.getElementById('m-avg-price').textContent  = fmt(avgPrice);
+  document.getElementById('m-avg-cost').textContent   = fmt(avgCost);
+  document.getElementById('m-avg-margin').textContent = avgMarginPct.toFixed(1) + '%';
+  document.getElementById('m-avg-royalty').textContent= fmt(avgRoyalty);
+}
+
+function copyMetric(field, el) {
+  const v = _metricsCache[field];
+  if (v == null) return;
+  // Percent metric formats differently; everything else is a dollar number
+  const txt = field === 'avg_margin_pct' ? Number(v).toFixed(1) + '%' : Number(v).toFixed(2);
+  copyText(txt);
   el.classList.add('copied');
   setTimeout(() => el.classList.remove('copied'), 1200);
 }
