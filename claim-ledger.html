@@ -248,6 +248,9 @@
   table.summary tbody td.num.val-tax         { color: var(--tax); }
   table.summary tbody td.num.val-opex        { color: var(--opex); }
   table.summary tbody td.num.val-consignment { color: var(--consignment); }
+  /* Override teal when the value is $0 — looks like a real number, not a non-action */
+  table.summary tbody td.num.val-consignment.zero,
+  table.tickets tbody td.num.reserve-cell.zero { color: var(--dark) !important; font-weight: 700; }
 
   table.summary tbody td.center { text-align: center; }
   .row-checkbox { cursor: pointer; transform: scale(1.2); accent-color: var(--red); }
@@ -279,6 +282,32 @@
   .icon-btn.danger { color: var(--red); }
   .icon-btn.danger:hover { border-color: var(--red); }
   .icon-btn.spinning { opacity: 0.5; pointer-events: none; }
+  .icon-btn.small {
+    padding: 4px 8px; font-size: 9px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .icon-btn.small .expand-chev { font-size: 9px; }
+
+  /* Detail-view toolbar (above tickets table) */
+  .tickets-toolbar {
+    display: flex; gap: 8px; justify-content: flex-end; align-items: center;
+    margin-bottom: 6px; min-height: 22px;
+  }
+
+  /* Tickets table totals row */
+  table.tickets tfoot tr.ticket-totals-row td {
+    border-top: 2px solid var(--border);
+    background: #f9fafb;
+    padding: 8px 10px;
+    font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 11px;
+    color: var(--dark);
+  }
+  table.tickets tfoot tr.ticket-totals-row td.totals-label {
+    color: var(--grey); text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px;
+  }
+  table.tickets tfoot tr.ticket-totals-row td.num.reserve-cell-total {
+    color: var(--consignment);
+  }
 
   .status-pill {
     font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
@@ -477,7 +506,7 @@
   <div class="header-left">
     <a class="back-btn" href="admin.html">← Back</a>
     <div class="logo-wrap">
-      <img src="assets/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
+      <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
     </div>
   </div>
   <span class="page-badge">🔒 Admin</span>
@@ -1147,7 +1176,7 @@ function renderBatchRow(b) {
       <td class="num val-owner copyable" title="Click to copy" onclick="copyCell(${b.owner}, this)">${fmt(b.owner)}</td>
       <td class="num val-tax copyable" title="Click to copy" onclick="copyCell(${b.tax}, this)">${fmt(b.tax)}</td>
       <td class="num val-opex copyable" title="Click to copy" onclick="copyCell(${b.opex}, this)">${fmt(b.opex)}</td>
-      <td class="num val-consignment copyable" title="Click to copy" onclick="copyCell(${b.reserve}, this)">${fmt(b.reserve)}</td>
+      <td class="num val-consignment ${b.reserve < 0.005 ? 'zero' : ''} copyable" title="Click to copy" onclick="copyCell(${b.reserve}, this)">${fmt(b.reserve)}</td>
       <td class="center">${statusHtml}</td>
       <td>
         <div class="row-actions">
@@ -1202,7 +1231,7 @@ function renderDetailRow(b) {
         <td class="num">${fmt(num(t.total))}</td>
         <td class="num">${fmt(num(t.cogs))}</td>
         <td class="num">${fmt(num(t.royalty))}</td>
-        <td class="num" style="color:var(--consignment);font-weight:900;">${fmt(reserve)}</td>
+        <td class="num reserve-cell ${reserve < 0.005 ? 'zero' : ''}" style="${reserve >= 0.005 ? 'color:var(--consignment);' : ''}font-weight:900;">${fmt(reserve)}</td>
         <td ${clickAttr}>${partsCell}</td>
       </tr>
     `;
@@ -1242,6 +1271,13 @@ function renderDetailRow(b) {
     <div class="calc-line"><span style="color:var(--grey);font-size:10px;">⚠ some tickets use COGS fallback (no parts data)</span><span></span></div>
   ` : '';
 
+  // Expand-all-parts state: count tickets in this batch with parts, check if all are open
+  const eligibleTids = b.tickets
+    .map(t => String(t.ticket_id || '').trim())
+    .filter(tid => (partsByTicket.get(tid) || []).length > 0);
+  const eligiblePartsCount = eligibleTids.length;
+  const allPartsOpen = eligiblePartsCount > 0 && eligibleTids.every(tid => expandedTickets.has(tid));
+
   return `
     <tr class="detail-row" data-key-detail="${b.key}">
       <td colspan="11">
@@ -1275,6 +1311,14 @@ function renderDetailRow(b) {
               ${fallbackNote}
             </div>
           </div>
+          <div class="tickets-toolbar">
+            ${eligiblePartsCount > 0 ? `
+              <button class="icon-btn small" onclick="toggleAllPartsInBatch('${b.key}')">
+                <span class="expand-chev ${allPartsOpen ? 'open' : ''}">▸</span>
+                ${allPartsOpen ? 'Collapse all parts' : `Expand all parts (${eligiblePartsCount})`}
+              </button>
+            ` : ''}
+          </div>
           <div class="tickets-wrap">
             <table class="tickets">
               <thead>
@@ -1292,6 +1336,16 @@ function renderDetailRow(b) {
                 </tr>
               </thead>
               <tbody>${ticketsHtml}</tbody>
+              <tfoot>
+                <tr class="ticket-totals-row">
+                  <td colspan="5" class="totals-label">Totals · ${b.tickets.length} ticket${b.tickets.length === 1 ? '' : 's'}</td>
+                  <td class="num">${fmt(b.total)}</td>
+                  <td class="num">${fmt(b.cogs)}</td>
+                  <td class="num">${fmt(b.royalty)}</td>
+                  <td class="num ${b.reserve < 0.005 ? '' : 'reserve-cell-total'}">${fmt(b.reserve)}</td>
+                  <td><span style="font-family:'Nunito';font-weight:800;font-size:11px;"><span style="color:var(--consignment);">${b.consignedCount}</span> / ${b.consignedCount + b.nonConsignedCount}</span></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -1309,6 +1363,22 @@ function toggleExpand(key) {
 function toggleTicketExpand(tid) {
   if (expandedTickets.has(tid)) expandedTickets.delete(tid);
   else expandedTickets.add(tid);
+  render();
+}
+
+function toggleAllPartsInBatch(batchKey) {
+  const batch = batches.find(b => b.key === batchKey);
+  if (!batch) return;
+  const eligibleTids = batch.tickets
+    .map(t => String(t.ticket_id || '').trim())
+    .filter(tid => (partsByTicket.get(tid) || []).length > 0);
+  if (!eligibleTids.length) return;
+  const allOpen = eligibleTids.every(tid => expandedTickets.has(tid));
+  if (allOpen) {
+    eligibleTids.forEach(tid => expandedTickets.delete(tid));
+  } else {
+    eligibleTids.forEach(tid => expandedTickets.add(tid));
+  }
   render();
 }
 
