@@ -339,6 +339,54 @@
     font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--dark);
   }
 
+  /* Nested parts under each ticket */
+  table.tickets tr.ticket-parts-row > td {
+    background: #fafbfc; padding: 0; border-bottom: 1px solid rgba(224,226,234,0.5);
+  }
+  .parts-nest {
+    padding: 6px 10px 8px 30px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .part-line {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Nunito Sans', sans-serif; font-size: 11px;
+    color: var(--dark-grey);
+  }
+  .part-branch {
+    color: var(--border); font-family: 'Nunito', sans-serif;
+    font-weight: 700; width: 16px; flex-shrink: 0;
+  }
+  .part-name {
+    flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .part-cost {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    min-width: 70px; text-align: right;
+  }
+  .part-cost.consigned { color: var(--consignment); }
+  .part-cost.self-owned { color: var(--opex); }
+  .part-badge {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 2px 7px; border-radius: 4px;
+    min-width: 165px; text-align: center;
+  }
+  .part-badge.consigned {
+    background: rgba(38,194,154,0.12); color: var(--consignment);
+  }
+  .part-badge.self-owned {
+    background: rgba(95,98,237,0.10); color: var(--opex);
+  }
+
+  /* Click-to-copy amount cells in main row */
+  td.copyable {
+    cursor: pointer; user-select: none;
+    transition: background 0.12s;
+  }
+  td.copyable:hover { background: rgba(79,176,227,0.08); }
+  td.copyable.copied { background: rgba(38,194,154,0.18); }
+
   /* TOAST */
   .toast {
     position: fixed; bottom: 24px; right: 24px;
@@ -394,7 +442,7 @@
   <div class="header-left">
     <a class="back-btn" href="admin.html">← Back</a>
     <div class="logo-wrap">
-      <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
+      <img src="assets/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
     </div>
   </div>
   <span class="page-badge">🔒 Admin</span>
@@ -810,25 +858,47 @@ function groupByPayout(tickets) {
 // Per-ticket reserve: sum of consigned parts' costs. If the ticket has no
 // parts data at all (legacy May rows, or before Parts pipeline ran), fall
 // back to the ticket-level COGS as the conservative reserve.
-// Also computes per-ticket cogs from parts when available (more accurate).
+// Also returns:
+//   nonConsigned = cost of self-owned parts on this ticket (already-paid inventory)
+//   consignedCount / nonConsignedCount = how many parts in each bucket
 function ticketReserveInfo(t) {
   const tid = String(t.ticket_id || '').trim();
   const parts = partsByTicket.get(tid);
   if (parts && parts.length) {
-    let consignedCost = 0, allPartsCost = 0;
+    let consignedCost = 0, nonConsignedCost = 0, cC = 0, nC = 0;
     for (const p of parts) {
       const c = num(p.part_cost);
-      allPartsCost += c;
-      if (bool(p.consigned)) consignedCost += c;
+      if (bool(p.consigned)) { consignedCost    += c; cC++; }
+      else                    { nonConsignedCost += c; nC++; }
     }
-    return { reserve: consignedCost, partsCogs: allPartsCost, source: 'parts', partsCount: parts.length };
+    return {
+      reserve: consignedCost,
+      nonConsigned: nonConsignedCost,
+      partsCogs: consignedCost + nonConsignedCost,
+      source: 'parts',
+      partsCount: parts.length,
+      consignedCount: cC,
+      nonConsignedCount: nC
+    };
   }
-  // Fallback: no parts data for this ticket → reserve = ticket COGS
-  return { reserve: num(t.cogs), partsCogs: num(t.cogs), source: 'fallback', partsCount: 0 };
+  // Fallback: no parts data — full COGS goes to reserve (conservative).
+  // Non-consigned is 0 because we don't know what's what.
+  return {
+    reserve: num(t.cogs),
+    nonConsigned: 0,
+    partsCogs: num(t.cogs),
+    source: 'fallback',
+    partsCount: 0,
+    consignedCount: 0,
+    nonConsignedCount: 0
+  };
 }
 
 function computePF(batch) {
-  let total = 0, cogs = 0, royalty = 0, reserve = 0, processedCount = 0;
+  let total = 0, cogs = 0, royalty = 0;
+  let reserve = 0, nonConsigned = 0;
+  let consignedCount = 0, nonConsignedCount = 0;
+  let processedCount = 0;
   let anyFallback = false;
   for (const t of batch.tickets) {
     total   += num(t.total);
@@ -836,20 +906,29 @@ function computePF(batch) {
     royalty += num(t.royalty);
     const info = ticketReserveInfo(t);
     t._reserve = info.reserve;
+    t._nonConsigned = info.nonConsigned;
     t._partsCogs = info.partsCogs;
     t._reserveSource = info.source;
     t._partsCount = info.partsCount;
+    t._consignedCount = info.consignedCount;
+    t._nonConsignedCount = info.nonConsignedCount;
     reserve += info.reserve;
+    nonConsigned += info.nonConsigned;
+    consignedCount += info.consignedCount;
+    nonConsignedCount += info.nonConsignedCount;
     if (info.source === 'fallback') anyFallback = true;
     if (bool(t.processed)) processedCount++;
   }
-  const base = total - royalty - reserve;
+  // Base now excludes BOTH royalty (flows through OpEx to franchisor)
+  // AND non-consigned parts cost (flows through OpEx to reimburse inventory).
+  // Reserve is held separately for future consignment bill.
+  const base = total - royalty - reserve - nonConsigned;
   const negative = base < 0;
   const profit = negative ? 0 : base * pcts.profit / 100;
   const owner  = negative ? 0 : base * pcts.owner  / 100;
   const tax    = negative ? 0 : base * pcts.tax    / 100;
   const opexPF = negative ? 0 : base * pcts.opex   / 100;
-  const opex   = negative ? 0 : opexPF + royalty;
+  const opex   = negative ? 0 : opexPF + royalty + nonConsigned;
   const distributed = profit + owner + tax + opex + (negative ? 0 : reserve);
 
   let status = 'pending';
@@ -857,7 +936,8 @@ function computePF(batch) {
   else if (processedCount > 0) status = 'partial';
 
   return {
-    total, cogs, royalty, reserve, base, negative,
+    total, cogs, royalty, reserve, nonConsigned, base, negative,
+    consignedCount, nonConsignedCount,
     profit, owner, tax, opex, opexPF, distributed,
     processedCount, status, anyFallback
   };
@@ -942,12 +1022,12 @@ function renderBatchRow(b) {
           <div class="date-sub">${dowOf(b.payout_date)} · ${b.tickets.length} tickets</div>
         </div>
       </td>
-      <td class="num"><div class="deposits-cell">${fmt(b.total)}</div></td>
-      <td class="num val-profit">${fmt(b.profit)}</td>
-      <td class="num val-owner">${fmt(b.owner)}</td>
-      <td class="num val-tax">${fmt(b.tax)}</td>
-      <td class="num val-opex">${fmt(b.opex)}</td>
-      <td class="num val-consignment">${fmt(b.reserve)}</td>
+      <td class="num copyable" title="Click to copy" onclick="copyCell(${b.total}, this)"><div class="deposits-cell">${fmt(b.total)}</div></td>
+      <td class="num val-profit copyable" title="Click to copy" onclick="copyCell(${b.profit}, this)">${fmt(b.profit)}</td>
+      <td class="num val-owner copyable" title="Click to copy" onclick="copyCell(${b.owner}, this)">${fmt(b.owner)}</td>
+      <td class="num val-tax copyable" title="Click to copy" onclick="copyCell(${b.tax}, this)">${fmt(b.tax)}</td>
+      <td class="num val-opex copyable" title="Click to copy" onclick="copyCell(${b.opex}, this)">${fmt(b.opex)}</td>
+      <td class="num val-consignment copyable" title="Click to copy" onclick="copyCell(${b.reserve}, this)">${fmt(b.reserve)}</td>
       <td class="center">${statusHtml}</td>
       <td>
         <div class="row-actions">
@@ -961,21 +1041,23 @@ function renderBatchRow(b) {
 }
 
 function renderDetailRow(b) {
+  // Build ticket rows + nested parts sub-rows
   const ticketsHtml = b.tickets.map(t => {
     const procIcon = bool(t.processed) ? '✓' : '○';
     const reserve = t._reserve || 0;
-    const partsCount = t._partsCount || 0;
     const fallback = t._reserveSource === 'fallback';
     const tid = String(t.ticket_id || '').trim();
     const parts = partsByTicket.get(tid) || [];
-    const consignedCount = parts.filter(p => bool(p.consigned)).length;
-    const partsCell = fallback
+    const cC = t._consignedCount || 0;
+    const nC = t._nonConsignedCount || 0;
+    const partsLabel = fallback
       ? '<span style="color:var(--grey);font-size:10px;">no parts data</span>'
-      : (partsCount === 0
+      : (parts.length === 0
           ? '—'
-          : `${consignedCount} of ${partsCount} <span style="color:var(--consignment);">✓</span>`);
-    return `
-      <tr>
+          : `${cC}<span style="color:var(--consignment);">✓</span> / ${nC}<span style="color:var(--grey);">×</span>`);
+
+    const ticketRow = `
+      <tr class="ticket-main-row">
         <td>${procIcon}</td>
         <td class="ticket-id">${t.ticket_id || ''}</td>
         <td>${t.ticket_date || ''}</td>
@@ -985,53 +1067,41 @@ function renderDetailRow(b) {
         <td class="num">${fmt(num(t.cogs))}</td>
         <td class="num">${fmt(num(t.royalty))}</td>
         <td class="num" style="color:var(--consignment);font-weight:900;">${fmt(reserve)}</td>
-        <td>${partsCell}</td>
+        <td>${partsLabel}</td>
       </tr>
     `;
+
+    // Nested parts sub-row (only if parts exist)
+    let partsRow = '';
+    if (parts.length) {
+      const partLines = parts.map((p, i) => {
+        const isC = bool(p.consigned);
+        const isLast = i === parts.length - 1;
+        const branch = isLast ? '└─' : '├─';
+        const cost = num(p.part_cost);
+        const badge = isC
+          ? '<span class="part-badge consigned">CONSIGNED → reserve</span>'
+          : '<span class="part-badge self-owned">self-owned → OpEx</span>';
+        return `
+          <div class="part-line">
+            <span class="part-branch">${branch}</span>
+            <span class="part-name">${p.part_name || ''}</span>
+            <span class="part-cost ${isC ? 'consigned' : 'self-owned'}">${fmt(cost)}</span>
+            ${badge}
+          </div>
+        `;
+      }).join('');
+      partsRow = `
+        <tr class="ticket-parts-row">
+          <td colspan="10">
+            <div class="parts-nest">${partLines}</div>
+          </td>
+        </tr>
+      `;
+    }
+    return ticketRow + partsRow;
   }).join('');
 
-  // Parts breakdown table (flat list of every part in the batch)
-  const allParts = b.tickets.flatMap(t => {
-    const tid = String(t.ticket_id || '').trim();
-    return (partsByTicket.get(tid) || []).map(p => ({ ...p, _ticket_id: tid }));
-  });
-  const partsBreakdownHtml = allParts.length ? `
-    <div style="margin-top:16px;">
-      <div class="calc-title" style="margin-bottom:6px;">Parts Breakdown (${allParts.length} parts across ${b.tickets.length} tickets)</div>
-      <div class="tickets-wrap">
-        <table class="tickets">
-          <thead>
-            <tr>
-              <th>Ticket #</th>
-              <th>Part</th>
-              <th class="num">Cost</th>
-              <th>Consigned</th>
-              <th class="num">→ Reserve</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${allParts.map(p => {
-              const isC = bool(p.consigned);
-              const cost = num(p.part_cost);
-              return `<tr>
-                <td class="ticket-id">${p._ticket_id}</td>
-                <td>${p.part_name || ''}</td>
-                <td class="num">${fmt(cost)}</td>
-                <td>${isC ? '<span style="color:var(--consignment);font-weight:800;">✓ Yes</span>' : '<span style="color:var(--grey);">No</span>'}</td>
-                <td class="num" style="${isC ? 'color:var(--consignment);font-weight:900;' : 'color:var(--border);'}">${isC ? fmt(cost) : '—'}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  ` : '';
-
-  // Reserve savings vs full-COGS approach
-  const savings = b.cogs - b.reserve;
-  const savingsHtml = (savings > 0.01 && !b.anyFallback) ? `
-    <div class="calc-line"><span style="color:var(--grey)">Saved vs full COGS</span><span style="color:var(--green);font-weight:900;">${fmt(savings)}</span></div>
-  ` : '';
   const fallbackNote = b.anyFallback ? `
     <div class="calc-line"><span style="color:var(--grey);font-size:10px;">⚠ some tickets use COGS fallback (no parts data)</span><span></span></div>
   ` : '';
@@ -1045,7 +1115,8 @@ function renderDetailRow(b) {
               <div class="calc-title">Allocation Math</div>
               <div class="calc-line"><span>Deposits</span><span>${fmt(b.total)}</span></div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot royalty"></span>Royalty</span><span>−${fmt(b.royalty)}</span></div>
-              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Reserve (consigned parts)</span><span>−${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Reserve (consigned)</span><span>−${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot opex"></span>Self-owned parts</span><span>−${fmt(b.nonConsigned)}</span></div>
               <div class="calc-line total"><span>Allocation Base</span><span style="${b.negative ? 'color:var(--red);' : ''}">${fmt(b.base)}</span></div>
             </div>
             <div class="calc-box">
@@ -1055,16 +1126,17 @@ function renderDetailRow(b) {
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot tax"></span>Tax</span><span>${fmt(b.tax)}</span></div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot opex"></span>OpEx PF</span><span>${fmt(b.opexPF)}</span></div>
               <div class="calc-line divider"><span style="color:var(--grey)">+ Royalty into OpEx</span><span>${fmt(b.royalty)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">+ Self-owned parts into OpEx</span><span>${fmt(b.nonConsigned)}</span></div>
               <div class="calc-line total"><span>OpEx Transfer</span><span>${fmt(b.opex)}</span></div>
             </div>
             <div class="calc-box">
-              <div class="calc-title">Reserve Transfer</div>
-              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Consignment Reserve</span><span>${fmt(b.reserve)}</span></div>
-              <div class="calc-line"><span style="color:var(--grey)">Total COGS</span><span>${fmt(b.cogs)}</span></div>
-              ${savingsHtml}
+              <div class="calc-title">Parts Cost Breakdown</div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Consigned (→ Reserve)</span><span>${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">Consigned parts count</span><span>${b.consignedCount}</span></div>
+              <div class="calc-line divider"><span class="calc-label-row"><span class="calc-dot opex"></span>Self-owned (→ OpEx)</span><span>${fmt(b.nonConsigned)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">Self-owned parts count</span><span>${b.nonConsignedCount}</span></div>
+              <div class="calc-line total"><span>Total Parts COGS</span><span>${fmt(b.reserve + b.nonConsigned)}</span></div>
               ${fallbackNote}
-              <div class="calc-line"><span style="color:var(--grey)">% of deposits</span><span>${fmtPct(b.total > 0 ? b.reserve / b.total * 100 : 0)}</span></div>
-              <div class="calc-line"><span style="color:var(--grey)">Tickets / Processed</span><span>${b.processedCount} / ${b.tickets.length}</span></div>
             </div>
           </div>
           <div class="tickets-wrap">
@@ -1086,7 +1158,6 @@ function renderDetailRow(b) {
               <tbody>${ticketsHtml}</tbody>
             </table>
           </div>
-          ${partsBreakdownHtml}
         </div>
       </td>
     </tr>
@@ -1164,6 +1235,13 @@ function copyBulk(field, el) {
 
 function copyText(txt) {
   navigator.clipboard.writeText(txt).then(() => toast('Copied: ' + txt, 'success'));
+}
+
+// Copy a raw numeric amount from a clicked cell (used in main batch rows)
+function copyCell(amount, el) {
+  copyText(Number(amount).toFixed(2));
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1200);
 }
 
 // ============================================================================
