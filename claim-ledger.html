@@ -394,7 +394,7 @@
   <div class="header-left">
     <a class="back-btn" href="admin.html">← Back</a>
     <div class="logo-wrap">
-      <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
+      <img src="assets/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
     </div>
   </div>
   <span class="page-badge">🔒 Admin</span>
@@ -418,8 +418,12 @@
     <div class="config-title">Setup</div>
     <div class="config-sub">Paste the Google Sheet CSV publish URL and the Apps Script Web App URL. Stored locally in your browser only.</div>
     <div class="config-field">
-      <div class="config-label">Sheet CSV URL <span class="config-help">(Google Sheets → File → Share → Publish to web → CSV)</span></div>
-      <input type="text" class="config-input" id="cfg-sheet" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" />
+      <div class="config-label">Repairs CSV URL <span class="config-help">(Repairs tab → File → Share → Publish to web → CSV)</span></div>
+      <input type="text" class="config-input" id="cfg-sheet" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?gid=0&output=csv" />
+    </div>
+    <div class="config-field">
+      <div class="config-label">Parts CSV URL <span class="config-help">(Parts tab → File → Share → Publish to web → CSV. Optional — leave blank to use ticket-level COGS as reserve)</span></div>
+      <input type="text" class="config-input" id="cfg-parts" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&output=csv" />
     </div>
     <div class="config-field">
       <div class="config-label">Apps Script Web App URL <span class="config-help">(Apps Script editor → Deploy → New deployment → Web app)</span></div>
@@ -514,18 +518,25 @@
 // prototype (admin-only tool, low-value target, recoverable). Production
 // rebuild on myrepairops.com should use real auth.
 const DEFAULT_SHEET  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRzmx_BpzfLT21RyX6mZjmC8BhyjDBen3HZwzJZdZV02nbNyA8Rmwr4JKVLAItYJOERXj15Ks-bmTf3/pub?gid=0&single=true&output=csv';
+const DEFAULT_PARTS  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRzmx_BpzfLT21RyX6mZjmC8BhyjDBen3HZwzJZdZV02nbNyA8Rmwr4JKVLAItYJOERXj15Ks-bmTf3/pub?gid=176423532&single=true&output=csv';
 const DEFAULT_SCRIPT = 'https://script.google.com/macros/s/AKfycbzXoKzwOx7N77izEBBg28Oq_04Jrv8JluK3q8E7hPtezXR6qFJ1eayEL3wQdd6s4wlSRA/exec';
 const DEFAULT_SECRET = 'cpr-claim-ledger-2026-x7k';
 
 // ============================================================================
 // CONFIG (Setup card values; persisted in localStorage; falls back to defaults)
 // ============================================================================
-const CFG_KEYS = { sheet: 'cl_sheet_url', script: 'cl_script_url', secret: 'cl_secret' };
+const CFG_KEYS = {
+  sheet:  'cl_sheet_url',
+  parts:  'cl_parts_sheet_url',
+  script: 'cl_script_url',
+  secret: 'cl_secret'
+};
 const PCT_KEY = 'cl_pcts';
 const DEFAULT_PCTS = { profit: 20, owner: 10, tax: 10, opex: 60 };
 
 const cfg = {
   sheet:  localStorage.getItem(CFG_KEYS.sheet)  || DEFAULT_SHEET,
+  parts:  localStorage.getItem(CFG_KEYS.parts)  || DEFAULT_PARTS,
   script: localStorage.getItem(CFG_KEYS.script) || DEFAULT_SCRIPT,
   secret: localStorage.getItem(CFG_KEYS.secret) || DEFAULT_SECRET
 };
@@ -536,7 +547,9 @@ let pcts = (() => {
 })();
 
 // State
-let rawTickets = [];          // raw rows from sheet
+let rawTickets = [];          // raw ticket rows from Repairs tab
+let rawParts = [];            // raw part rows from Parts tab
+let partsByTicket = new Map(); // ticket_id (string) → array of part rows
 let batches = [];             // grouped by payout_date
 let selected = new Set();     // set of payout_date strings
 let currentFilter = 'pending';
@@ -581,6 +594,7 @@ function toggleConfig() {
   const card = document.getElementById('config-card');
   if (card.classList.contains('hidden')) {
     document.getElementById('cfg-sheet').value = cfg.sheet;
+    document.getElementById('cfg-parts').value = cfg.parts;
     document.getElementById('cfg-script').value = cfg.script;
     document.getElementById('cfg-secret').value = cfg.secret;
   }
@@ -588,9 +602,11 @@ function toggleConfig() {
 }
 function saveConfig() {
   cfg.sheet  = document.getElementById('cfg-sheet').value.trim();
+  cfg.parts  = document.getElementById('cfg-parts').value.trim();
   cfg.script = document.getElementById('cfg-script').value.trim();
   cfg.secret = document.getElementById('cfg-secret').value.trim();
   localStorage.setItem(CFG_KEYS.sheet, cfg.sheet);
+  localStorage.setItem(CFG_KEYS.parts, cfg.parts);
   localStorage.setItem(CFG_KEYS.script, cfg.script);
   localStorage.setItem(CFG_KEYS.secret, cfg.secret);
   document.getElementById('cfg-status').textContent = 'Saved.';
@@ -635,12 +651,18 @@ const HEADER_ALIASES = {
   'ticket device claim model':                'device',
   // Description (color/variant)
   'device description':                       'description',
-  // Money
+  // Money (Repairs tab)
   'ticket item all net repair sale total':    'total',
   'ticket item all net cogs total':           'cogs',
   'royalty due':                              'royalty',
   // Program / warranty provider
-  'service program name':                     'program'
+  'service program name':                     'program',
+  // Parts tab — part-level fields
+  'name':                                     'part_name',
+  'is consigned':                             'consigned',
+  'consigned (yes / no)':                     'consigned',
+  'part cost':                                'part_cost',
+  'all net cogs total':                       'part_cost'   // fallback if measure not renamed
 };
 function normalizeHeader(h) {
   const cleaned = String(h).trim().toLowerCase();
@@ -715,25 +737,49 @@ async function loadData() {
     statusEl.textContent = 'Not configured — click ⚙ Setup';
     statusEl.classList.add('error');
     document.getElementById('btn-refresh').classList.remove('spinning');
-    renderEmpty('Configure your Sheet CSV URL in Setup to get started.');
+    renderEmpty('Configure your Repairs CSV URL in Setup to get started.');
     return;
   }
 
+  const cacheBust = u => u + (u.includes('?') ? '&' : '?') + 't=' + Date.now();
+  const hasParts = cfg.parts && cfg.parts.startsWith('http');
+
   try {
-    // Cache-bust to avoid stale CSV
-    const url = cfg.sheet + (cfg.sheet.includes('?') ? '&' : '?') + 't=' + Date.now();
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const text = await resp.text();
-    const rows = parseCSV(text);
-    rawTickets = rowsToObjects(rows);
-    statusEl.textContent = `${rawTickets.length} tickets · updated ${new Date().toLocaleTimeString()}`;
+    // Fetch repairs (required) and parts (optional) in parallel.
+    // Parts failure doesn't block the dashboard — falls back to ticket-level COGS as reserve.
+    const fetches = [fetch(cacheBust(cfg.sheet))];
+    if (hasParts) fetches.push(fetch(cacheBust(cfg.parts)).catch(err => ({ ok: false, _err: err })));
+    const [repairsResp, partsResp] = await Promise.all(fetches);
+
+    if (!repairsResp.ok) throw new Error('Repairs fetch HTTP ' + repairsResp.status);
+    rawTickets = rowsToObjects(parseCSV(await repairsResp.text()));
+
+    // Parts (optional)
+    rawParts = [];
+    partsByTicket = new Map();
+    let partsNote = '';
+    if (hasParts) {
+      if (partsResp && partsResp.ok) {
+        rawParts = rowsToObjects(parseCSV(await partsResp.text()));
+        for (const p of rawParts) {
+          const tid = String(p.ticket_id || '').trim();
+          if (!tid) continue;
+          if (!partsByTicket.has(tid)) partsByTicket.set(tid, []);
+          partsByTicket.get(tid).push(p);
+        }
+        partsNote = `, ${rawParts.length} parts`;
+      } else {
+        partsNote = ', parts unavailable';
+      }
+    }
+
+    statusEl.textContent = `${rawTickets.length} tickets${partsNote} · updated ${new Date().toLocaleTimeString()}`;
     recomputeAndRender();
   } catch (err) {
     console.error(err);
     statusEl.textContent = 'Error: ' + err.message;
     statusEl.classList.add('error');
-    renderEmpty('Could not load sheet. Check the URL and that it\'s published to web.');
+    renderEmpty('Could not load Repairs CSV. Check the URL and that it\'s published to web.');
   } finally {
     document.getElementById('btn-refresh').classList.remove('spinning');
   }
@@ -761,15 +807,42 @@ function groupByPayout(tickets) {
   return Array.from(map.values()).sort((a, b) => (a.payout_date < b.payout_date ? 1 : -1));
 }
 
+// Per-ticket reserve: sum of consigned parts' costs. If the ticket has no
+// parts data at all (legacy May rows, or before Parts pipeline ran), fall
+// back to the ticket-level COGS as the conservative reserve.
+// Also computes per-ticket cogs from parts when available (more accurate).
+function ticketReserveInfo(t) {
+  const tid = String(t.ticket_id || '').trim();
+  const parts = partsByTicket.get(tid);
+  if (parts && parts.length) {
+    let consignedCost = 0, allPartsCost = 0;
+    for (const p of parts) {
+      const c = num(p.part_cost);
+      allPartsCost += c;
+      if (bool(p.consigned)) consignedCost += c;
+    }
+    return { reserve: consignedCost, partsCogs: allPartsCost, source: 'parts', partsCount: parts.length };
+  }
+  // Fallback: no parts data for this ticket → reserve = ticket COGS
+  return { reserve: num(t.cogs), partsCogs: num(t.cogs), source: 'fallback', partsCount: 0 };
+}
+
 function computePF(batch) {
-  let total = 0, cogs = 0, royalty = 0, processedCount = 0;
+  let total = 0, cogs = 0, royalty = 0, reserve = 0, processedCount = 0;
+  let anyFallback = false;
   for (const t of batch.tickets) {
     total   += num(t.total);
     cogs    += num(t.cogs);
     royalty += num(t.royalty);
+    const info = ticketReserveInfo(t);
+    t._reserve = info.reserve;
+    t._partsCogs = info.partsCogs;
+    t._reserveSource = info.source;
+    t._partsCount = info.partsCount;
+    reserve += info.reserve;
+    if (info.source === 'fallback') anyFallback = true;
     if (bool(t.processed)) processedCount++;
   }
-  const reserve = cogs;
   const base = total - royalty - reserve;
   const negative = base < 0;
   const profit = negative ? 0 : base * pcts.profit / 100;
@@ -786,7 +859,7 @@ function computePF(batch) {
   return {
     total, cogs, royalty, reserve, base, negative,
     profit, owner, tax, opex, opexPF, distributed,
-    processedCount, status
+    processedCount, status, anyFallback
   };
 }
 
@@ -890,6 +963,17 @@ function renderBatchRow(b) {
 function renderDetailRow(b) {
   const ticketsHtml = b.tickets.map(t => {
     const procIcon = bool(t.processed) ? '✓' : '○';
+    const reserve = t._reserve || 0;
+    const partsCount = t._partsCount || 0;
+    const fallback = t._reserveSource === 'fallback';
+    const tid = String(t.ticket_id || '').trim();
+    const parts = partsByTicket.get(tid) || [];
+    const consignedCount = parts.filter(p => bool(p.consigned)).length;
+    const partsCell = fallback
+      ? '<span style="color:var(--grey);font-size:10px;">no parts data</span>'
+      : (partsCount === 0
+          ? '—'
+          : `${consignedCount} of ${partsCount} <span style="color:var(--consignment);">✓</span>`);
     return `
       <tr>
         <td>${procIcon}</td>
@@ -900,9 +984,57 @@ function renderDetailRow(b) {
         <td class="num">${fmt(num(t.total))}</td>
         <td class="num">${fmt(num(t.cogs))}</td>
         <td class="num">${fmt(num(t.royalty))}</td>
+        <td class="num" style="color:var(--consignment);font-weight:900;">${fmt(reserve)}</td>
+        <td>${partsCell}</td>
       </tr>
     `;
   }).join('');
+
+  // Parts breakdown table (flat list of every part in the batch)
+  const allParts = b.tickets.flatMap(t => {
+    const tid = String(t.ticket_id || '').trim();
+    return (partsByTicket.get(tid) || []).map(p => ({ ...p, _ticket_id: tid }));
+  });
+  const partsBreakdownHtml = allParts.length ? `
+    <div style="margin-top:16px;">
+      <div class="calc-title" style="margin-bottom:6px;">Parts Breakdown (${allParts.length} parts across ${b.tickets.length} tickets)</div>
+      <div class="tickets-wrap">
+        <table class="tickets">
+          <thead>
+            <tr>
+              <th>Ticket #</th>
+              <th>Part</th>
+              <th class="num">Cost</th>
+              <th>Consigned</th>
+              <th class="num">→ Reserve</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allParts.map(p => {
+              const isC = bool(p.consigned);
+              const cost = num(p.part_cost);
+              return `<tr>
+                <td class="ticket-id">${p._ticket_id}</td>
+                <td>${p.part_name || ''}</td>
+                <td class="num">${fmt(cost)}</td>
+                <td>${isC ? '<span style="color:var(--consignment);font-weight:800;">✓ Yes</span>' : '<span style="color:var(--grey);">No</span>'}</td>
+                <td class="num" style="${isC ? 'color:var(--consignment);font-weight:900;' : 'color:var(--border);'}">${isC ? fmt(cost) : '—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : '';
+
+  // Reserve savings vs full-COGS approach
+  const savings = b.cogs - b.reserve;
+  const savingsHtml = (savings > 0.01 && !b.anyFallback) ? `
+    <div class="calc-line"><span style="color:var(--grey)">Saved vs full COGS</span><span style="color:var(--green);font-weight:900;">${fmt(savings)}</span></div>
+  ` : '';
+  const fallbackNote = b.anyFallback ? `
+    <div class="calc-line"><span style="color:var(--grey);font-size:10px;">⚠ some tickets use COGS fallback (no parts data)</span><span></span></div>
+  ` : '';
 
   return `
     <tr class="detail-row" data-key-detail="${b.payout_date}">
@@ -913,7 +1045,7 @@ function renderDetailRow(b) {
               <div class="calc-title">Allocation Math</div>
               <div class="calc-line"><span>Deposits</span><span>${fmt(b.total)}</span></div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot royalty"></span>Royalty</span><span>−${fmt(b.royalty)}</span></div>
-              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Reserve (COGS)</span><span>−${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Reserve (consigned parts)</span><span>−${fmt(b.reserve)}</span></div>
               <div class="calc-line total"><span>Allocation Base</span><span style="${b.negative ? 'color:var(--red);' : ''}">${fmt(b.base)}</span></div>
             </div>
             <div class="calc-box">
@@ -928,9 +1060,11 @@ function renderDetailRow(b) {
             <div class="calc-box">
               <div class="calc-title">Reserve Transfer</div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Consignment Reserve</span><span>${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">Total COGS</span><span>${fmt(b.cogs)}</span></div>
+              ${savingsHtml}
+              ${fallbackNote}
               <div class="calc-line"><span style="color:var(--grey)">% of deposits</span><span>${fmtPct(b.total > 0 ? b.reserve / b.total * 100 : 0)}</span></div>
-              <div class="calc-line"><span style="color:var(--grey)">Tickets in batch</span><span>${b.tickets.length}</span></div>
-              <div class="calc-line"><span style="color:var(--grey)">Processed</span><span>${b.processedCount} / ${b.tickets.length}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">Tickets / Processed</span><span>${b.processedCount} / ${b.tickets.length}</span></div>
             </div>
           </div>
           <div class="tickets-wrap">
@@ -945,11 +1079,14 @@ function renderDetailRow(b) {
                   <th class="num">Total</th>
                   <th class="num">COGS</th>
                   <th class="num">Royalty</th>
+                  <th class="num">Reserve</th>
+                  <th>Parts</th>
                 </tr>
               </thead>
               <tbody>${ticketsHtml}</tbody>
             </table>
           </div>
+          ${partsBreakdownHtml}
         </div>
       </td>
     </tr>
