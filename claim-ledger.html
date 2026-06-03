@@ -130,6 +130,24 @@
   .filter-tab:not(.active) .filter-count {
     background: var(--light-grey); color: var(--grey);
   }
+  /* Location filter tabs — subdued blue accent to distinguish from status tabs */
+  .location-tabs .filter-tab.active { background: var(--blue); color: var(--white); }
+  .location-cell {
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    color: var(--dark); text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  /* Bulk-bar location label / mixed-locations warning */
+  .bulk-loc {
+    margin-left: 8px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.18); font-family: 'Nunito', sans-serif;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+  }
+  .bulk-loc-warn {
+    margin-left: 8px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,196,0,0.22); color: #ffcc33;
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    letter-spacing: 0.4px;
+  }
 
   .data-status {
     font-family: 'Nunito Sans', sans-serif; font-size: 12px; font-weight: 600;
@@ -521,6 +539,9 @@
       <button class="filter-tab" data-filter="completed" onclick="setFilter('completed')">Completed <span class="filter-count" id="count-completed">0</span></button>
       <button class="filter-tab" data-filter="all" onclick="setFilter('all')">All <span class="filter-count" id="count-all">0</span></button>
     </div>
+    <div class="filter-tabs location-tabs" id="location-tabs">
+      <!-- populated dynamically based on data -->
+    </div>
     <div class="data-status" id="data-status">Not loaded</div>
   </div>
 
@@ -546,6 +567,7 @@
         <tr>
           <th class="center" style="width:36px;"><input type="checkbox" class="row-checkbox" id="select-all" onchange="toggleAll(this)" /></th>
           <th style="width:130px;">Payout Date</th>
+          <th style="width:110px;">Location</th>
           <th class="num">Deposits</th>
           <th class="num val-profit">Profit</th>
           <th class="num val-owner">Owner</th>
@@ -557,7 +579,7 @@
         </tr>
       </thead>
       <tbody id="summary-body">
-        <tr><td colspan="10" class="empty-state"><strong>Loading…</strong>Configure Setup if this is your first time.</td></tr>
+        <tr><td colspan="11" class="empty-state"><strong>Loading…</strong>Configure Setup if this is your first time.</td></tr>
       </tbody>
     </table>
   </div>
@@ -615,11 +637,28 @@ let pcts = (() => {
 let rawTickets = [];          // raw ticket rows from Repairs tab
 let rawParts = [];            // raw part rows from Parts tab
 let partsByTicket = new Map(); // ticket_id (string) → array of part rows
-let batches = [];             // grouped by payout_date
-let selected = new Set();     // set of payout_date strings
+let batches = [];             // grouped by (location, payout_date)
+let allLocations = [];        // unique list of locations discovered from data
+let selected = new Set();     // set of batch keys
 let currentFilter = 'pending';
+let currentLocationFilter = 'all';
 let expandedBatches = new Set();
 let expandedTickets = new Set(); // ticket IDs whose parts sub-row is open
+
+// Normalize a Looker location string to a short display name.
+// "CPR Clackamas OR" → "Clackamas"; idempotent for already-short names.
+function shortLocation(loc) {
+  if (!loc) return '(unknown)';
+  return String(loc)
+    .replace(/^CPR\s+/i, '')
+    .replace(/\s+OR$/i, '')
+    .trim() || '(unknown)';
+}
+
+// Compound key for a batch: location + payout_date.
+function batchKey(location, payout_date) {
+  return `${location}|${payout_date}`;
+}
 
 // ============================================================================
 // FORMATTING / UTIL
@@ -723,6 +762,8 @@ const HEADER_ALIASES = {
   'royalty due':                              'royalty',
   // Program / warranty provider
   'service program name':                     'program',
+  // Processed date (tolerant aliases — accept either "Processed Date" or "processed_date")
+  'processed date':                           'processed_date',
   // Parts tab — part-level fields
   'name':                                     'part_name',
   'is consigned':                             'consigned',
@@ -855,22 +896,42 @@ async function loadData() {
 // GROUPING + PF MATH
 // ============================================================================
 function recomputeAndRender() {
-  batches = groupByPayout(rawTickets);
+  // Normalize location on every ticket (short form) and collect unique set
+  const locSet = new Set();
+  for (const t of rawTickets) {
+    t.location_short = shortLocation(t.location);
+    locSet.add(t.location_short);
+  }
+  allLocations = Array.from(locSet).sort();
+  batches = groupByBatch(rawTickets);
   batches.forEach(b => Object.assign(b, computePF(b)));
+  // Compute batch-level processed_date (max across processed tickets)
+  batches.forEach(b => {
+    const dates = b.tickets
+      .filter(t => bool(t.processed) && t.processed_date)
+      .map(t => String(t.processed_date));
+    b.processed_date = dates.length ? dates.sort().pop() : '';
+  });
   updateFilterCounts();
+  renderLocationTabs();
   render();
   renderBulkBar();
 }
 
-function groupByPayout(tickets) {
+function groupByBatch(tickets) {
   const map = new Map();
   for (const t of tickets) {
-    const key = t.payout_date || '(unknown)';
-    if (!map.has(key)) map.set(key, { payout_date: key, tickets: [] });
+    const loc = t.location_short || '(unknown)';
+    const date = t.payout_date || '(unknown)';
+    const key = batchKey(loc, date);
+    if (!map.has(key)) map.set(key, { key, location: loc, payout_date: date, tickets: [] });
     map.get(key).tickets.push(t);
   }
-  // Newest first
-  return Array.from(map.values()).sort((a, b) => (a.payout_date < b.payout_date ? 1 : -1));
+  // Sort: newest date first, then location alphabetical
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.payout_date !== b.payout_date) return a.payout_date < b.payout_date ? 1 : -1;
+    return a.location < b.location ? -1 : 1;
+  });
 }
 
 // Per-ticket reserve: sum of consigned parts' costs. If the ticket has no
@@ -967,7 +1028,7 @@ function computePF(batch) {
 function setFilter(f) {
   currentFilter = f;
   document.querySelectorAll('.filter-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.filter === f);
+    if (tab.dataset.filter) tab.classList.toggle('active', tab.dataset.filter === f);
   });
   // Clear selection on filter change to avoid hidden selected rows
   selected.clear();
@@ -975,19 +1036,58 @@ function setFilter(f) {
   renderBulkBar();
 }
 
+function setLocationFilter(loc) {
+  currentLocationFilter = loc;
+  document.querySelectorAll('.loc-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.location === loc);
+  });
+  selected.clear();
+  render();
+  renderBulkBar();
+}
+
 function visibleBatches() {
-  if (currentFilter === 'all') return batches;
-  if (currentFilter === 'pending') return batches.filter(b => b.status !== 'completed');
-  return batches.filter(b => b.status === 'completed');
+  let list = batches;
+  if (currentLocationFilter !== 'all') {
+    list = list.filter(b => b.location === currentLocationFilter);
+  }
+  if (currentFilter === 'all') return list;
+  if (currentFilter === 'pending') return list.filter(b => b.status !== 'completed');
+  return list.filter(b => b.status === 'completed');
+}
+
+function locationScopedBatches() {
+  // Status-filter-agnostic but location-filter-aware. Used for status counts.
+  if (currentLocationFilter === 'all') return batches;
+  return batches.filter(b => b.location === currentLocationFilter);
 }
 
 function updateFilterCounts() {
-  const all = batches.length;
-  const pending = batches.filter(b => b.status !== 'completed').length;
-  const completed = batches.filter(b => b.status === 'completed').length;
-  document.getElementById('count-all').textContent = all;
-  document.getElementById('count-pending').textContent = pending;
-  document.getElementById('count-completed').textContent = completed;
+  const scoped = locationScopedBatches();
+  document.getElementById('count-all').textContent = scoped.length;
+  document.getElementById('count-pending').textContent = scoped.filter(b => b.status !== 'completed').length;
+  document.getElementById('count-completed').textContent = scoped.filter(b => b.status === 'completed').length;
+}
+
+function renderLocationTabs() {
+  const container = document.getElementById('location-tabs');
+  if (!container) return;
+  // Only render tabs if we have more than one location (otherwise pointless UI)
+  if (allLocations.length <= 1) {
+    container.innerHTML = '';
+    currentLocationFilter = 'all';
+    return;
+  }
+  // If current filter is for a location that no longer exists in data, reset
+  if (currentLocationFilter !== 'all' && !allLocations.includes(currentLocationFilter)) {
+    currentLocationFilter = 'all';
+  }
+  const tabs = [`<button class="filter-tab loc-tab ${currentLocationFilter === 'all' ? 'active' : ''}" data-location="all" onclick="setLocationFilter('all')">All Locations</button>`]
+    .concat(allLocations.map(loc => {
+      const count = batches.filter(b => b.location === loc).length;
+      return `<button class="filter-tab loc-tab ${currentLocationFilter === loc ? 'active' : ''}" data-location="${loc}" onclick="setLocationFilter('${loc}')">${loc} <span class="filter-count">${count}</span></button>`;
+    }));
+  container.innerHTML = tabs.join('');
 }
 
 // ============================================================================
@@ -995,7 +1095,7 @@ function updateFilterCounts() {
 // ============================================================================
 function renderEmpty(msg) {
   document.getElementById('summary-body').innerHTML =
-    `<tr><td colspan="10" class="empty-state"><strong>No data</strong>${msg}</td></tr>`;
+    `<tr><td colspan="11" class="empty-state"><strong>No data</strong>${msg}</td></tr>`;
 }
 
 function render() {
@@ -1006,7 +1106,7 @@ function render() {
     const msg = currentFilter === 'pending' ? 'Nothing pending. Nice.' :
                 currentFilter === 'completed' ? 'No completed batches yet.' :
                 'No batches loaded.';
-    body.innerHTML = `<tr><td colspan="10" class="empty-state"><strong>—</strong>${msg}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="empty-state"><strong>—</strong>${msg}</td></tr>`;
     document.getElementById('select-all').checked = false;
     return;
   }
@@ -1017,29 +1117,31 @@ function render() {
 }
 
 function renderBatchRow(b) {
-  const isSelected = selected.has(b.payout_date);
-  const isExpanded = expandedBatches.has(b.payout_date);
+  const isSelected = selected.has(b.key);
+  const isExpanded = expandedBatches.has(b.key);
   const isProcessed = b.status === 'completed';
 
+  const completedLabel = b.processed_date ? `Completed ${fmtDate(b.processed_date)}` : 'Completed';
   const statusHtml = b.negative
     ? '<span class="status-pill negative">Net Negative</span>'
-    : b.status === 'completed' ? '<span class="status-pill completed">Completed</span>'
+    : b.status === 'completed' ? `<span class="status-pill completed">${completedLabel}</span>`
     : b.status === 'partial'   ? `<span class="status-pill partial">${b.processedCount}/${b.tickets.length}</span>`
     : '<span class="status-pill pending">Pending</span>';
 
   const markBtn = isProcessed
-    ? `<button class="icon-btn danger" onclick="markBatchProcessed('${b.payout_date}', false, this)">Reopen</button>`
-    : `<button class="icon-btn primary" onclick="markBatchProcessed('${b.payout_date}', true, this)">Mark Done</button>`;
+    ? `<button class="icon-btn danger" onclick="markBatchProcessed('${b.key}', false, this)">Reopen</button>`
+    : `<button class="icon-btn primary" onclick="markBatchProcessed('${b.key}', true, this)">Mark Done</button>`;
 
   return `
-    <tr class="batch-row ${isSelected ? 'selected' : ''} ${isProcessed ? 'processed' : ''}" data-key="${b.payout_date}">
-      <td class="center"><input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${b.payout_date}', this.checked)" /></td>
+    <tr class="batch-row ${isSelected ? 'selected' : ''} ${isProcessed ? 'processed' : ''}" data-key="${b.key}">
+      <td class="center"><input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${b.key}', this.checked)" /></td>
       <td>
         <div class="date-cell">
           <div class="date-main">${fmtDate(b.payout_date)}</div>
           <div class="date-sub">${dowOf(b.payout_date)} · ${b.tickets.length} tickets</div>
         </div>
       </td>
+      <td><div class="location-cell">${b.location}</div></td>
       <td class="num copyable" title="Click to copy" onclick="copyCell(${b.total}, this)"><div class="deposits-cell">${fmt(b.total)}</div></td>
       <td class="num val-profit copyable" title="Click to copy" onclick="copyCell(${b.profit}, this)">${fmt(b.profit)}</td>
       <td class="num val-owner copyable" title="Click to copy" onclick="copyCell(${b.owner}, this)">${fmt(b.owner)}</td>
@@ -1049,7 +1151,7 @@ function renderBatchRow(b) {
       <td class="center">${statusHtml}</td>
       <td>
         <div class="row-actions">
-          <button class="icon-btn" onclick="toggleExpand('${b.payout_date}')">${isExpanded ? '− Details' : '+ Details'}</button>
+          <button class="icon-btn" onclick="toggleExpand('${b.key}')">${isExpanded ? '− Details' : '+ Details'}</button>
           ${markBtn}
         </div>
       </td>
@@ -1061,7 +1163,12 @@ function renderBatchRow(b) {
 function renderDetailRow(b) {
   // Build ticket rows + nested parts sub-rows
   const ticketsHtml = b.tickets.map(t => {
-    const procIcon = bool(t.processed) ? '✓' : '○';
+    const isProc = bool(t.processed);
+    const procIcon = isProc
+      ? (t.processed_date
+          ? `<span title="Processed ${t.processed_date}" style="color:var(--green);">✓</span>`
+          : '<span style="color:var(--green);">✓</span>')
+      : '○';
     const reserve = t._reserve || 0;
     const fallback = t._reserveSource === 'fallback';
     const tid = String(t.ticket_id || '').trim();
@@ -1136,8 +1243,8 @@ function renderDetailRow(b) {
   ` : '';
 
   return `
-    <tr class="detail-row" data-key-detail="${b.payout_date}">
-      <td colspan="10">
+    <tr class="detail-row" data-key-detail="${b.key}">
+      <td colspan="11">
         <div class="detail-wrap">
           <div class="detail-section">
             <div class="calc-box">
@@ -1220,9 +1327,9 @@ function toggleSelect(key, checked) {
 function toggleAll(masterCheckbox) {
   const vis = visibleBatches();
   if (masterCheckbox.checked) {
-    vis.forEach(b => selected.add(b.payout_date));
+    vis.forEach(b => selected.add(b.key));
   } else {
-    vis.forEach(b => selected.delete(b.payout_date));
+    vis.forEach(b => selected.delete(b.key));
   }
   render();
   renderBulkBar();
@@ -1232,7 +1339,7 @@ function syncSelectAll() {
   const vis = visibleBatches();
   const masterCheckbox = document.getElementById('select-all');
   if (!vis.length) { masterCheckbox.checked = false; return; }
-  masterCheckbox.checked = vis.every(b => selected.has(b.payout_date));
+  masterCheckbox.checked = vis.every(b => selected.has(b.key));
 }
 
 // ============================================================================
@@ -1243,7 +1350,7 @@ function renderBulkBar() {
   if (!selected.size) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
 
-  const sel = batches.filter(b => selected.has(b.payout_date));
+  const sel = batches.filter(b => selected.has(b.key));
   const totals = sel.reduce((acc, b) => ({
     profit: acc.profit + b.profit,
     owner:  acc.owner  + b.owner,
@@ -1252,7 +1359,13 @@ function renderBulkBar() {
     reserve:acc.reserve+ b.reserve
   }), { profit: 0, owner: 0, tax: 0, opex: 0, reserve: 0 });
 
-  document.getElementById('bulk-count').textContent = `${sel.length} selected`;
+  const locSet = new Set(sel.map(b => b.location));
+  const mixed = locSet.size > 1;
+  const locLabel = mixed
+    ? `<span class="bulk-loc-warn">⚠ ${locSet.size} locations — different bank accounts</span>`
+    : (locSet.size === 1 ? `<span class="bulk-loc">${[...locSet][0]}</span>` : '');
+
+  document.getElementById('bulk-count').innerHTML = `${sel.length} selected ${locLabel}`;
   document.getElementById('bulk-profit').textContent  = fmt(totals.profit);
   document.getElementById('bulk-owner').textContent   = fmt(totals.owner);
   document.getElementById('bulk-tax').textContent     = fmt(totals.tax);
@@ -1261,7 +1374,7 @@ function renderBulkBar() {
 }
 
 function copyBulk(field, el) {
-  const sel = batches.filter(b => selected.has(b.payout_date));
+  const sel = batches.filter(b => selected.has(b.key));
   const total = sel.reduce((s, b) => s + (b[field] || 0), 0);
   copyText(total.toFixed(2));
   el.classList.add('copied');
@@ -1282,15 +1395,15 @@ function copyCell(amount, el) {
 // ============================================================================
 // MARK PROCESSED (Apps Script writeback)
 // ============================================================================
-async function markBatchProcessed(payoutDate, value, btn) {
-  const batch = batches.find(b => b.payout_date === payoutDate);
+async function markBatchProcessed(batchKey, value, btn) {
+  const batch = batches.find(b => b.key === batchKey);
   if (!batch) return;
   const ticketIds = batch.tickets.map(t => t.ticket_id);
   await markTickets(ticketIds, value, btn);
 }
 
 async function markSelectedProcessed() {
-  const sel = batches.filter(b => selected.has(b.payout_date));
+  const sel = batches.filter(b => selected.has(b.key));
   if (!sel.length) return;
   const ticketIds = sel.flatMap(b => b.tickets.map(t => t.ticket_id));
   await markTickets(ticketIds, true, document.getElementById('btn-mark-processed'));
@@ -1319,12 +1432,17 @@ async function markTickets(ticketIds, value, btn) {
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Update failed');
     toast(`Updated ${data.updated || ticketIds.length} ticket${data.updated === 1 ? '' : 's'}`, 'success');
-    // Optimistic UI update — flip the processed flag locally so rows
-    // move tabs immediately, rather than waiting for the published
-    // CSV cache to refresh (which lags 30s–several minutes).
+    // Optimistic UI update — flip the processed flag locally and stamp
+    // processed_date so rows move tabs immediately, rather than waiting
+    // for the published CSV cache to refresh (which lags 30s–several
+    // minutes).
     const idSet = new Set(ticketIds.map(String));
+    const todayIso = new Date().toISOString().slice(0, 10);
     for (const t of rawTickets) {
-      if (idSet.has(String(t.ticket_id))) t.processed = value;
+      if (idSet.has(String(t.ticket_id))) {
+        t.processed = value;
+        t.processed_date = value ? todayIso : '';
+      }
     }
     selected.clear();
     recomputeAndRender();
