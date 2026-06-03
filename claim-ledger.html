@@ -490,6 +490,12 @@
   .pcts-row-tabs .filter-tabs { padding: 2px; }
   .pcts-row-tabs .filter-tab { padding: 5px 10px; font-size: 10px; }
   .pcts-row-tabs .filter-tab.loc-tab.active { background: var(--blue); color: var(--white); }
+  .sync-status {
+    margin-left: auto;
+    font-family: 'Nunito Sans', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--grey);
+    min-width: 110px; text-align: right;
+  }
   .pcts-title {
     font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
     text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
@@ -577,12 +583,17 @@
       <div class="pcts-title">Settings for:</div>
       <div class="filter-tabs" id="pcts-loc-tabs"><!-- populated dynamically --></div>
       <button class="icon-btn small" id="pcts-reset" onclick="resetLocationSettings()">Reset to Default</button>
+      <span class="sync-status" id="sync-status"></span>
     </div>
     <div class="pcts-row">
       <div class="pct-group"><span class="pct-group-label" style="color:var(--profit)">Profit</span><input type="number" class="pct-mini" id="pct-profit" value="20" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
       <div class="pct-group"><span class="pct-group-label" style="color:var(--owner)">Owner</span><input type="number" class="pct-mini" id="pct-owner" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
       <div class="pct-group"><span class="pct-group-label" style="color:var(--tax)">Tax</span><input type="number" class="pct-mini" id="pct-tax" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
       <div class="pct-group"><span class="pct-group-label" style="color:var(--opex)">OpEx</span><input type="number" class="pct-mini" id="pct-opex" value="60" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <label class="reserve-toggle">
+        <input type="checkbox" id="pct-deduct-parts" onchange="onPctsChange()" />
+        <span>Deduct parts from base</span>
+      </label>
       <label class="reserve-toggle">
         <input type="checkbox" id="pct-reserve" onchange="onPctsChange()" />
         <span>Reserve consigned parts</span>
@@ -704,15 +715,94 @@ let locationSettings = (() => {
 // means we're editing the global default (the `pcts` object + always-reserve).
 let editingLocation = '__default';
 
+// ============================================================================
+// SETTINGS CLOUD SYNC
+// ============================================================================
+// Settings (default PF % + per-location overrides) sync via Apps Script's
+// PropertiesService so the same Britt-on-laptop-A and Britt-on-laptop-B see
+// the same config. localStorage acts as the immediate cache; cloud is
+// authoritative on page load (overwrites local cache if newer).
+
+async function loadSettingsFromCloud() {
+  if (!cfg.script) return null;
+  try {
+    const url = cfg.script + '?action=get_settings';
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.ok && data.settings ? data.settings : null;
+  } catch (err) {
+    console.warn('Could not load cloud settings:', err);
+    return null;
+  }
+}
+
+async function saveSettingsToCloud() {
+  if (!cfg.script || !cfg.secret) return false;
+  try {
+    const resp = await fetch(cfg.script + '?action=save_settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        secret: cfg.secret,
+        settings: { default_pcts: pcts, locations: locationSettings }
+      })
+    });
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    return !!(data && data.ok);
+  } catch (err) {
+    console.warn('Could not save cloud settings:', err);
+    return false;
+  }
+}
+
+function applyCloudSettings(s) {
+  if (!s) return false;
+  let changed = false;
+  if (s.default_pcts) {
+    pcts = { ...DEFAULT_PCTS, ...s.default_pcts };
+    localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
+    changed = true;
+  }
+  if (s.locations && typeof s.locations === 'object') {
+    locationSettings = s.locations;
+    localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
+    changed = true;
+  }
+  return changed;
+}
+
+// Debounced cloud save — so rapid input changes only fire one network request
+let _cloudSaveTimer = null;
+function queueCloudSave() {
+  clearTimeout(_cloudSaveTimer);
+  setSyncStatus('saving');
+  _cloudSaveTimer = setTimeout(async () => {
+    const ok = await saveSettingsToCloud();
+    setSyncStatus(ok ? 'synced' : 'local');
+  }, 600);
+}
+
+function setSyncStatus(state) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (state === 'saving') el.textContent = '⟳ Saving…';
+  else if (state === 'synced') el.textContent = '✓ Synced';
+  else if (state === 'local') el.textContent = '⚠ Saved locally only';
+  else el.textContent = '';
+}
+
 // Get the effective settings for a given location: explicit override, or
-// fall back to the global default (`pcts` + reserve=true).
+// fall back to the global default (`pcts` + reserve=true + deductParts=true).
 function getLocationSettings(loc) {
   const explicit = locationSettings[loc];
   if (explicit) return {
     pcts: { ...DEFAULT_PCTS, ...pcts, ...explicit.pcts },
-    reserve: explicit.reserve !== false  // default true unless explicitly false
+    reserve: explicit.reserve !== false,           // default true unless explicitly false
+    deductParts: explicit.deductParts !== false    // default true unless explicitly false
   };
-  return { pcts: { ...pcts }, reserve: true };
+  return { pcts: { ...pcts }, reserve: true, deductParts: true };
 }
 
 // State
@@ -832,24 +922,34 @@ function setEditingLocation(loc) {
 
 // Pull current settings for the editingLocation into the form inputs.
 function loadPctsForEditing() {
-  let p, reserve;
+  let p, reserve, deductParts;
   if (editingLocation === '__default') {
     p = { ...pcts };
-    reserve = true; // default behavior, no explicit toggle
+    reserve = true;
+    deductParts = true;
   } else {
     const cfg = getLocationSettings(editingLocation);
     p = cfg.pcts;
     reserve = cfg.reserve;
+    deductParts = cfg.deductParts;
   }
   document.getElementById('pct-profit').value = p.profit;
   document.getElementById('pct-owner').value  = p.owner;
   document.getElementById('pct-tax').value    = p.tax;
   document.getElementById('pct-opex').value   = p.opex;
+
+  const deductEl = document.getElementById('pct-deduct-parts');
   const reserveEl = document.getElementById('pct-reserve');
-  reserveEl.checked = reserve;
-  // Reserve toggle only meaningful for specific locations, not the global default
-  reserveEl.disabled = editingLocation === '__default';
-  reserveEl.parentElement.style.opacity = editingLocation === '__default' ? '0.4' : '1';
+  deductEl.checked = deductParts;
+  reserveEl.checked = reserve && deductParts;
+
+  // Toggles only meaningful for specific locations, not the global default
+  const isDefault = editingLocation === '__default';
+  deductEl.disabled = isDefault;
+  deductEl.parentElement.style.opacity = isDefault ? '0.4' : '1';
+  // Reserve disabled if either: editing default, OR deductParts is off
+  reserveEl.disabled = isDefault || !deductParts;
+  reserveEl.parentElement.style.opacity = (isDefault || !deductParts) ? '0.4' : '1';
   updatePctsStatus();
 }
 
@@ -860,17 +960,25 @@ function onPctsChange() {
     tax:    parseFloat(document.getElementById('pct-tax').value)    || 0,
     opex:   parseFloat(document.getElementById('pct-opex').value)   || 0
   };
-  const reserve = document.getElementById('pct-reserve').checked;
+  const deductEl = document.getElementById('pct-deduct-parts');
+  const reserveEl = document.getElementById('pct-reserve');
+  const deductParts = deductEl.checked;
+  // Reserve requires deductParts — force reserve off if deductParts is off
+  if (!deductParts) reserveEl.checked = false;
+  reserveEl.disabled = !deductParts || editingLocation === '__default';
+  reserveEl.parentElement.style.opacity = (!deductParts || editingLocation === '__default') ? '0.4' : '1';
+  const reserve = reserveEl.checked;
 
   if (editingLocation === '__default') {
     pcts = newPcts;
     localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
   } else {
-    locationSettings[editingLocation] = { pcts: newPcts, reserve };
+    locationSettings[editingLocation] = { pcts: newPcts, reserve, deductParts };
     localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
     renderPctsLocTabs(); // update the dot indicator
   }
   updatePctsStatus();
+  queueCloudSave();
   recomputeAndRender();
 }
 
@@ -884,6 +992,7 @@ function resetLocationSettings() {
   }
   loadPctsForEditing();
   renderPctsLocTabs();
+  queueCloudSave();
   recomputeAndRender();
 }
 
@@ -1146,6 +1255,7 @@ function computePF(batch) {
   const locCfg = getLocationSettings(batch.location);
   const locPcts = locCfg.pcts;
   const useReserve = locCfg.reserve;
+  const deductParts = locCfg.deductParts;
 
   let total = 0, cogs = 0, royalty = 0;
   let rawConsigned = 0, rawNonConsigned = 0;
@@ -1157,10 +1267,20 @@ function computePF(batch) {
     cogs    += num(t.cogs);
     royalty += num(t.royalty);
     const info = ticketReserveInfo(t);
-    // For display per-ticket: if location doesn't reserve, show 0 reserve
-    // and treat all consigned cost as flowing through OpEx.
-    t._reserve = useReserve ? info.reserve : 0;
-    t._nonConsigned = useReserve ? info.nonConsigned : (info.reserve + info.nonConsigned);
+    // Per-ticket display values respect the toggles:
+    // - deductParts OFF → nothing comes off the ticket, parts handled outside
+    // - reserve OFF (but deduct ON) → all parts flow through OpEx
+    // - both ON → consigned reserves, non-consigned to OpEx
+    if (!deductParts) {
+      t._reserve = 0;
+      t._nonConsigned = 0;
+    } else if (!useReserve) {
+      t._reserve = 0;
+      t._nonConsigned = info.reserve + info.nonConsigned;
+    } else {
+      t._reserve = info.reserve;
+      t._nonConsigned = info.nonConsigned;
+    }
     t._partsCogs = info.partsCogs;
     t._reserveSource = info.source;
     t._partsCount = info.partsCount;
@@ -1174,9 +1294,18 @@ function computePF(batch) {
     if (bool(t.processed)) processedCount++;
   }
 
-  // If location doesn't reserve: all parts cost flows through OpEx as reimbursement
-  const reserve = useReserve ? rawConsigned : 0;
-  const nonConsigned = useReserve ? rawNonConsigned : (rawConsigned + rawNonConsigned);
+  // Batch-level deductions follow the toggle logic
+  let reserve, nonConsigned;
+  if (!deductParts) {
+    reserve = 0;
+    nonConsigned = 0;
+  } else if (!useReserve) {
+    reserve = 0;
+    nonConsigned = rawConsigned + rawNonConsigned;
+  } else {
+    reserve = rawConsigned;
+    nonConsigned = rawNonConsigned;
+  }
 
   const base = total - royalty - reserve - nonConsigned;
   const negative = base < 0;
@@ -1711,7 +1840,17 @@ if (!cfg.sheet) {
   toggleConfig();
   document.getElementById('data-status').textContent = 'First-time setup needed';
 } else {
-  loadData();
+  // Try to load settings from cloud first; if found, apply them. Then load data.
+  // Settings fetch is fire-and-forget — if it fails, we use localStorage defaults.
+  (async () => {
+    const cloud = await loadSettingsFromCloud();
+    if (cloud) {
+      applyCloudSettings(cloud);
+      initPctsUI();
+      setSyncStatus('synced');
+    }
+    loadData();
+  })();
 }
 </script>
 </body>
