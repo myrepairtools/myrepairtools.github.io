@@ -479,10 +479,17 @@
   .pcts-card {
     background: var(--white); border: 1px solid var(--border);
     border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    display: flex; flex-direction: column; gap: 10px;
     box-shadow: 0 1px 3px rgba(45,45,59,0.06);
   }
   .pcts-card.hidden { display: none; }
+  .pcts-row {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .pcts-row-tabs { gap: 10px; }
+  .pcts-row-tabs .filter-tabs { padding: 2px; }
+  .pcts-row-tabs .filter-tab { padding: 5px 10px; font-size: 10px; }
+  .pcts-row-tabs .filter-tab.loc-tab.active { background: var(--blue); color: var(--white); }
   .pcts-title {
     font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
     text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
@@ -503,6 +510,14 @@
   .pct-mini::-webkit-outer-spin-button { -webkit-appearance: none; }
   .pct-mini:focus { outline: none; border-color: var(--blue); }
   .pct-mini-sym { font-size: 11px; font-weight: 700; color: var(--grey); }
+  .reserve-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--dark-grey);
+    padding-left: 8px; border-left: 1px solid var(--border);
+  }
+  .reserve-toggle input { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -558,12 +573,22 @@
 
   <!-- PERCENTAGES CARD -->
   <div class="pcts-card hidden" id="pcts-card">
-    <div class="pcts-title">Profit First %</div>
-    <div class="pct-group"><span class="pct-group-label" style="color:var(--profit)">Profit</span><input type="number" class="pct-mini" id="pct-profit" value="20" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-    <div class="pct-group"><span class="pct-group-label" style="color:var(--owner)">Owner</span><input type="number" class="pct-mini" id="pct-owner" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-    <div class="pct-group"><span class="pct-group-label" style="color:var(--tax)">Tax</span><input type="number" class="pct-mini" id="pct-tax" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-    <div class="pct-group"><span class="pct-group-label" style="color:var(--opex)">OpEx</span><input type="number" class="pct-mini" id="pct-opex" value="60" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-    <span class="config-help" id="pcts-status"></span>
+    <div class="pcts-row pcts-row-tabs">
+      <div class="pcts-title">Settings for:</div>
+      <div class="filter-tabs" id="pcts-loc-tabs"><!-- populated dynamically --></div>
+      <button class="icon-btn small" id="pcts-reset" onclick="resetLocationSettings()">Reset to Default</button>
+    </div>
+    <div class="pcts-row">
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--profit)">Profit</span><input type="number" class="pct-mini" id="pct-profit" value="20" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--owner)">Owner</span><input type="number" class="pct-mini" id="pct-owner" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--tax)">Tax</span><input type="number" class="pct-mini" id="pct-tax" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--opex)">OpEx</span><input type="number" class="pct-mini" id="pct-opex" value="60" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <label class="reserve-toggle">
+        <input type="checkbox" id="pct-reserve" onchange="onPctsChange()" />
+        <span>Reserve consigned parts</span>
+      </label>
+      <span class="config-help" id="pcts-status"></span>
+    </div>
   </div>
 
   <!-- FILTER + STATUS ROW -->
@@ -667,6 +692,29 @@ let pcts = (() => {
   catch { return { ...DEFAULT_PCTS }; }
 })();
 
+// Per-location settings: { "Salem": {pcts: {...}, reserve: false}, ... }
+// Locations not present here fall back to global `pcts` + reserve=true (default behavior).
+const LOC_SETTINGS_KEY = 'cl_location_settings';
+let locationSettings = (() => {
+  try { return JSON.parse(localStorage.getItem(LOC_SETTINGS_KEY) || '{}'); }
+  catch { return {}; }
+})();
+
+// Which location is currently being edited in the settings card. '__default'
+// means we're editing the global default (the `pcts` object + always-reserve).
+let editingLocation = '__default';
+
+// Get the effective settings for a given location: explicit override, or
+// fall back to the global default (`pcts` + reserve=true).
+function getLocationSettings(loc) {
+  const explicit = locationSettings[loc];
+  if (explicit) return {
+    pcts: { ...DEFAULT_PCTS, ...pcts, ...explicit.pcts },
+    reserve: explicit.reserve !== false  // default true unless explicitly false
+  };
+  return { pcts: { ...pcts }, reserve: true };
+}
+
 // State
 let rawTickets = [];          // raw ticket rows from Repairs tab
 let rawParts = [];            // raw part rows from Parts tab
@@ -756,18 +804,97 @@ function saveConfig() {
 function togglePcts() {
   const card = document.getElementById('pcts-card');
   card.classList.toggle('hidden');
+  if (!card.classList.contains('hidden')) {
+    renderPctsLocTabs();
+    loadPctsForEditing();
+  }
 }
+
+// Render location selector tabs inside the settings card. Default option first,
+// then one tab per known location.
+function renderPctsLocTabs() {
+  const container = document.getElementById('pcts-loc-tabs');
+  if (!container) return;
+  const locs = ['__default'].concat(allLocations);
+  container.innerHTML = locs.map(loc => {
+    const label = loc === '__default' ? 'Default' : loc;
+    const overridden = loc !== '__default' && locationSettings[loc];
+    const dot = overridden ? '<span style="color:var(--blue);">•</span> ' : '';
+    return `<button class="filter-tab loc-tab ${editingLocation === loc ? 'active' : ''}" onclick="setEditingLocation('${loc}')">${dot}${label}</button>`;
+  }).join('');
+}
+
+function setEditingLocation(loc) {
+  editingLocation = loc;
+  renderPctsLocTabs();
+  loadPctsForEditing();
+}
+
+// Pull current settings for the editingLocation into the form inputs.
+function loadPctsForEditing() {
+  let p, reserve;
+  if (editingLocation === '__default') {
+    p = { ...pcts };
+    reserve = true; // default behavior, no explicit toggle
+  } else {
+    const cfg = getLocationSettings(editingLocation);
+    p = cfg.pcts;
+    reserve = cfg.reserve;
+  }
+  document.getElementById('pct-profit').value = p.profit;
+  document.getElementById('pct-owner').value  = p.owner;
+  document.getElementById('pct-tax').value    = p.tax;
+  document.getElementById('pct-opex').value   = p.opex;
+  const reserveEl = document.getElementById('pct-reserve');
+  reserveEl.checked = reserve;
+  // Reserve toggle only meaningful for specific locations, not the global default
+  reserveEl.disabled = editingLocation === '__default';
+  reserveEl.parentElement.style.opacity = editingLocation === '__default' ? '0.4' : '1';
+  updatePctsStatus();
+}
+
 function onPctsChange() {
-  pcts.profit = parseFloat(document.getElementById('pct-profit').value) || 0;
-  pcts.owner  = parseFloat(document.getElementById('pct-owner').value)  || 0;
-  pcts.tax    = parseFloat(document.getElementById('pct-tax').value)    || 0;
-  pcts.opex   = parseFloat(document.getElementById('pct-opex').value)   || 0;
-  localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
-  const total = pcts.profit + pcts.owner + pcts.tax + pcts.opex;
+  const newPcts = {
+    profit: parseFloat(document.getElementById('pct-profit').value) || 0,
+    owner:  parseFloat(document.getElementById('pct-owner').value)  || 0,
+    tax:    parseFloat(document.getElementById('pct-tax').value)    || 0,
+    opex:   parseFloat(document.getElementById('pct-opex').value)   || 0
+  };
+  const reserve = document.getElementById('pct-reserve').checked;
+
+  if (editingLocation === '__default') {
+    pcts = newPcts;
+    localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
+  } else {
+    locationSettings[editingLocation] = { pcts: newPcts, reserve };
+    localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
+    renderPctsLocTabs(); // update the dot indicator
+  }
+  updatePctsStatus();
+  recomputeAndRender();
+}
+
+function resetLocationSettings() {
+  if (editingLocation === '__default') {
+    pcts = { ...DEFAULT_PCTS };
+    localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
+  } else {
+    delete locationSettings[editingLocation];
+    localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
+  }
+  loadPctsForEditing();
+  renderPctsLocTabs();
+  recomputeAndRender();
+}
+
+function updatePctsStatus() {
+  const total = (parseFloat(document.getElementById('pct-profit').value) || 0)
+              + (parseFloat(document.getElementById('pct-owner').value)  || 0)
+              + (parseFloat(document.getElementById('pct-tax').value)    || 0)
+              + (parseFloat(document.getElementById('pct-opex').value)   || 0);
   const statusEl = document.getElementById('pcts-status');
   if (Math.abs(total - 100) < 0.01) statusEl.textContent = '✓ 100%';
   else statusEl.textContent = `⚠ ${total.toFixed(1)}%`;
-  recomputeAndRender();
 }
 
 // ============================================================================
@@ -1016,8 +1143,12 @@ function ticketReserveInfo(t) {
 }
 
 function computePF(batch) {
+  const locCfg = getLocationSettings(batch.location);
+  const locPcts = locCfg.pcts;
+  const useReserve = locCfg.reserve;
+
   let total = 0, cogs = 0, royalty = 0;
-  let reserve = 0, nonConsigned = 0;
+  let rawConsigned = 0, rawNonConsigned = 0;
   let consignedCount = 0, nonConsignedCount = 0;
   let processedCount = 0;
   let anyFallback = false;
@@ -1026,29 +1157,33 @@ function computePF(batch) {
     cogs    += num(t.cogs);
     royalty += num(t.royalty);
     const info = ticketReserveInfo(t);
-    t._reserve = info.reserve;
-    t._nonConsigned = info.nonConsigned;
+    // For display per-ticket: if location doesn't reserve, show 0 reserve
+    // and treat all consigned cost as flowing through OpEx.
+    t._reserve = useReserve ? info.reserve : 0;
+    t._nonConsigned = useReserve ? info.nonConsigned : (info.reserve + info.nonConsigned);
     t._partsCogs = info.partsCogs;
     t._reserveSource = info.source;
     t._partsCount = info.partsCount;
     t._consignedCount = info.consignedCount;
     t._nonConsignedCount = info.nonConsignedCount;
-    reserve += info.reserve;
-    nonConsigned += info.nonConsigned;
+    rawConsigned += info.reserve;
+    rawNonConsigned += info.nonConsigned;
     consignedCount += info.consignedCount;
     nonConsignedCount += info.nonConsignedCount;
     if (info.source === 'fallback') anyFallback = true;
     if (bool(t.processed)) processedCount++;
   }
-  // Base now excludes BOTH royalty (flows through OpEx to franchisor)
-  // AND non-consigned parts cost (flows through OpEx to reimburse inventory).
-  // Reserve is held separately for future consignment bill.
+
+  // If location doesn't reserve: all parts cost flows through OpEx as reimbursement
+  const reserve = useReserve ? rawConsigned : 0;
+  const nonConsigned = useReserve ? rawNonConsigned : (rawConsigned + rawNonConsigned);
+
   const base = total - royalty - reserve - nonConsigned;
   const negative = base < 0;
-  const profit = negative ? 0 : base * pcts.profit / 100;
-  const owner  = negative ? 0 : base * pcts.owner  / 100;
-  const tax    = negative ? 0 : base * pcts.tax    / 100;
-  const opexPF = negative ? 0 : base * pcts.opex   / 100;
+  const profit = negative ? 0 : base * locPcts.profit / 100;
+  const owner  = negative ? 0 : base * locPcts.owner  / 100;
+  const tax    = negative ? 0 : base * locPcts.tax    / 100;
+  const opexPF = negative ? 0 : base * locPcts.opex   / 100;
   const opex   = negative ? 0 : opexPF + royalty + nonConsigned;
   const distributed = profit + owner + tax + opex + (negative ? 0 : reserve);
 
@@ -1060,7 +1195,8 @@ function computePF(batch) {
     total, cogs, royalty, reserve, nonConsigned, base, negative,
     consignedCount, nonConsignedCount,
     profit, owner, tax, opex, opexPF, distributed,
-    processedCount, status, anyFallback
+    processedCount, status, anyFallback,
+    locPcts, useReserve
   };
 }
 
@@ -1306,7 +1442,7 @@ function renderDetailRow(b) {
               <div class="calc-line total"><span>Allocation Base</span><span style="${b.negative ? 'color:var(--red);' : ''}">${fmt(b.base)}</span></div>
             </div>
             <div class="calc-box">
-              <div class="calc-title">Profit First (${pcts.profit}/${pcts.owner}/${pcts.tax}/${pcts.opex})</div>
+              <div class="calc-title">Profit First (${b.locPcts.profit}/${b.locPcts.owner}/${b.locPcts.tax}/${b.locPcts.opex})${b.useReserve ? '' : ' · no reserve'}</div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot profit"></span>Profit</span><span>${fmt(b.profit)}</span></div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot owner"></span>Owner</span><span>${fmt(b.owner)}</span></div>
               <div class="calc-line"><span class="calc-label-row"><span class="calc-dot tax"></span>Tax</span><span>${fmt(b.tax)}</span></div>
@@ -1565,12 +1701,9 @@ async function markTickets(ticketIds, value, btn) {
 // INIT
 // ============================================================================
 function initPctsUI() {
-  document.getElementById('pct-profit').value = pcts.profit;
-  document.getElementById('pct-owner').value  = pcts.owner;
-  document.getElementById('pct-tax').value    = pcts.tax;
-  document.getElementById('pct-opex').value   = pcts.opex;
-  const total = pcts.profit + pcts.owner + pcts.tax + pcts.opex;
-  document.getElementById('pcts-status').textContent = Math.abs(total - 100) < 0.01 ? '✓ 100%' : `⚠ ${total.toFixed(1)}%`;
+  // Default to editing the global Default; tabs + form load when card opens
+  editingLocation = '__default';
+  loadPctsForEditing();
 }
 
 initPctsUI();
