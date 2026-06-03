@@ -208,40 +208,46 @@
 
   /* METRICS BAR — business stats, always reflects visible scope */
   .metrics-bar {
-    background: var(--white); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px 18px;
-    margin-bottom: 12px;
-    display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap;
-    box-shadow: 0 1px 2px rgba(45,45,59,0.04);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
   }
   .metrics-bar.hidden { display: none; }
-  .metrics-group {
-    display: flex; align-items: center; gap: 6px; padding: 2px 10px;
-    border-right: 1px solid var(--border);
+  .metric-tile {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: all 0.12s;
+    box-shadow: 0 1px 2px rgba(45,45,59,0.04);
+    min-width: 0;
   }
-  .metrics-group:last-child { border-right: none; }
-  .metrics-group-label {
-    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
-    text-transform: uppercase; letter-spacing: 0.6px; color: var(--grey);
-    padding-right: 10px; border-right: 1px dashed var(--border);
-    margin-right: 6px;
+  .metric-tile[onclick] { cursor: pointer; }
+  .metric-tile[onclick]:hover {
+    border-color: var(--blue);
+    box-shadow: 0 2px 6px rgba(79,176,227,0.15);
   }
-  .metric {
-    display: flex; flex-direction: column; gap: 2px;
-    padding: 5px 12px; border-radius: 6px;
-    transition: background 0.12s;
+  .metric-tile.copied {
+    background: rgba(38,194,154,0.10);
+    border-color: var(--green);
   }
-  .metric[onclick] { cursor: pointer; }
-  .metric[onclick]:hover { background: rgba(79,176,227,0.08); }
-  .metric.copied { background: rgba(38,194,154,0.18); }
   .metric-label {
-    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.4px; color: var(--grey);
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.7px; color: var(--grey);
   }
   .metric-val {
-    font-family: 'Nunito', sans-serif; font-size: 18px; font-weight: 900;
+    font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 900;
     color: var(--dark); line-height: 1.1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  /* Accent colors per category */
+  .metric-tile.sales .metric-val   { color: var(--dark); }
+  .metric-tile.cogs .metric-val    { color: var(--grey); }
+  .metric-tile.gross .metric-val   { color: var(--green); }
+  .metric-tile.royalty .metric-val { color: var(--royalty); }
+  .metric-tile.volume .metric-val  { color: var(--blue); }
 
   /* SUMMARY TABLE */
   .table-card {
@@ -669,24 +675,45 @@
 
   <!-- METRICS BAR (business stats — always reflects current visible scope) -->
   <div class="metrics-bar hidden" id="metrics-bar">
-    <div class="metrics-group">
-      <div class="metrics-group-label">Totals</div>
-      <div class="metric" onclick="copyMetric('sales', this)"><div class="metric-label">Sales</div><div class="metric-val" id="m-sales">$0.00</div></div>
-      <div class="metric" onclick="copyMetric('cogs', this)"><div class="metric-label">COGS</div><div class="metric-val" id="m-cogs">$0.00</div></div>
-      <div class="metric" onclick="copyMetric('gross', this)"><div class="metric-label">Gross</div><div class="metric-val" id="m-gross">$0.00</div></div>
-      <div class="metric" onclick="copyMetric('royalty', this)"><div class="metric-label">Royalty</div><div class="metric-val" id="m-royalty">$0.00</div></div>
+    <div class="metric-tile sales" onclick="copyMetric('sales', this)">
+      <div class="metric-label">Sales</div>
+      <div class="metric-val" id="m-sales">$0.00</div>
     </div>
-    <div class="metrics-group">
-      <div class="metrics-group-label">Volume</div>
-      <div class="metric"><div class="metric-label">Claims</div><div class="metric-val" id="m-claims">0</div></div>
-      <div class="metric"><div class="metric-label">Parts</div><div class="metric-val" id="m-parts">0</div></div>
+    <div class="metric-tile cogs" onclick="copyMetric('cogs', this)">
+      <div class="metric-label">COGS</div>
+      <div class="metric-val" id="m-cogs">$0.00</div>
     </div>
-    <div class="metrics-group">
-      <div class="metrics-group-label">Per claim</div>
-      <div class="metric" onclick="copyMetric('avg_price', this)"><div class="metric-label">Avg price</div><div class="metric-val" id="m-avg-price">$0.00</div></div>
-      <div class="metric" onclick="copyMetric('avg_cost', this)"><div class="metric-label">Avg cost</div><div class="metric-val" id="m-avg-cost">$0.00</div></div>
-      <div class="metric" onclick="copyMetric('avg_margin_pct', this)"><div class="metric-label">Avg margin</div><div class="metric-val" id="m-avg-margin">0%</div></div>
-      <div class="metric" onclick="copyMetric('avg_royalty', this)"><div class="metric-label">Avg royalty</div><div class="metric-val" id="m-avg-royalty">$0.00</div></div>
+    <div class="metric-tile gross" onclick="copyMetric('gross', this)">
+      <div class="metric-label">Gross Profit</div>
+      <div class="metric-val" id="m-gross">$0.00</div>
+    </div>
+    <div class="metric-tile royalty" onclick="copyMetric('royalty', this)">
+      <div class="metric-label">Royalty</div>
+      <div class="metric-val" id="m-royalty">$0.00</div>
+    </div>
+    <div class="metric-tile volume">
+      <div class="metric-label">Claims</div>
+      <div class="metric-val" id="m-claims">0</div>
+    </div>
+    <div class="metric-tile volume">
+      <div class="metric-label">Parts</div>
+      <div class="metric-val" id="m-parts">0</div>
+    </div>
+    <div class="metric-tile" onclick="copyMetric('avg_price', this)">
+      <div class="metric-label">Avg Price</div>
+      <div class="metric-val" id="m-avg-price">$0.00</div>
+    </div>
+    <div class="metric-tile" onclick="copyMetric('avg_cost', this)">
+      <div class="metric-label">Avg Cost</div>
+      <div class="metric-val" id="m-avg-cost">$0.00</div>
+    </div>
+    <div class="metric-tile" onclick="copyMetric('avg_margin_pct', this)">
+      <div class="metric-label">Avg Margin</div>
+      <div class="metric-val" id="m-avg-margin">0%</div>
+    </div>
+    <div class="metric-tile" onclick="copyMetric('avg_royalty', this)">
+      <div class="metric-label">Avg Royalty</div>
+      <div class="metric-val" id="m-avg-royalty">$0.00</div>
     </div>
   </div>
 
