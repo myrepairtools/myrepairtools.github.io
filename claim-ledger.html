@@ -500,16 +500,34 @@
 
 <script>
 // ============================================================================
-// CONFIG (persisted in localStorage)
+// HARDCODED DEFAULTS — prototype redundancy
+// ============================================================================
+// These are the fallback values used when Setup is empty (new browser, cleared
+// cache, fresh device, demoing to someone new). Anything entered via the Setup
+// card is saved to localStorage and takes precedence over these defaults.
+//
+// If forking this for another store (Salem, Eugene, etc.), update these three
+// constants to point at that store's sheet + script.
+//
+// ⚠ SECRET BELOW IS PUBLIC once pushed to GitHub Pages. Anyone with the source
+// URL can use it to toggle `processed` flags on the sheet. Acceptable for this
+// prototype (admin-only tool, low-value target, recoverable). Production
+// rebuild on myrepairops.com should use real auth.
+const DEFAULT_SHEET  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRzmx_BpzfLT21RyX6mZjmC8BhyjDBen3HZwzJZdZV02nbNyA8Rmwr4JKVLAItYJOERXj15Ks-bmTf3/pub?gid=0&single=true&output=csv';
+const DEFAULT_SCRIPT = 'https://script.google.com/macros/s/AKfycbzXoKzwOx7N77izEBBg28Oq_04Jrv8JluK3q8E7hPtezXR6qFJ1eayEL3wQdd6s4wlSRA/exec';
+const DEFAULT_SECRET = 'cpr-claim-ledger-2026-x7k';
+
+// ============================================================================
+// CONFIG (Setup card values; persisted in localStorage; falls back to defaults)
 // ============================================================================
 const CFG_KEYS = { sheet: 'cl_sheet_url', script: 'cl_script_url', secret: 'cl_secret' };
 const PCT_KEY = 'cl_pcts';
 const DEFAULT_PCTS = { profit: 20, owner: 10, tax: 10, opex: 60 };
 
 const cfg = {
-  sheet: localStorage.getItem(CFG_KEYS.sheet) || '',
-  script: localStorage.getItem(CFG_KEYS.script) || '',
-  secret: localStorage.getItem(CFG_KEYS.secret) || ''
+  sheet:  localStorage.getItem(CFG_KEYS.sheet)  || DEFAULT_SHEET,
+  script: localStorage.getItem(CFG_KEYS.script) || DEFAULT_SCRIPT,
+  secret: localStorage.getItem(CFG_KEYS.secret) || DEFAULT_SECRET
 };
 
 let pcts = (() => {
@@ -1051,8 +1069,15 @@ async function markTickets(ticketIds, value, btn) {
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Update failed');
     toast(`Updated ${data.updated || ticketIds.length} ticket${data.updated === 1 ? '' : 's'}`, 'success');
-    // Refresh data to reflect new state
-    await loadData();
+    // Optimistic UI update — flip the processed flag locally so rows
+    // move tabs immediately, rather than waiting for the published
+    // CSV cache to refresh (which lags 30s–several minutes).
+    const idSet = new Set(ticketIds.map(String));
+    for (const t of rawTickets) {
+      if (idSet.has(String(t.ticket_id))) t.processed = value;
+    }
+    selected.clear();
+    recomputeAndRender();
   } catch (err) {
     console.error(err);
     toast('Update failed: ' + err.message, 'error');
