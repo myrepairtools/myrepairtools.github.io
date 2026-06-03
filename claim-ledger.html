@@ -387,6 +387,23 @@
   td.copyable:hover { background: rgba(79,176,227,0.08); }
   td.copyable.copied { background: rgba(38,194,154,0.18); }
 
+  /* Parts column expand toggle on each ticket row */
+  td.parts-toggle {
+    cursor: pointer; user-select: none;
+    transition: background 0.12s;
+  }
+  td.parts-toggle:hover { background: rgba(38,194,154,0.08); }
+  .parts-summary {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: 'Nunito', sans-serif; font-size: 11px;
+  }
+  .expand-chev {
+    display: inline-block; margin-left: 4px;
+    font-size: 9px; color: var(--grey);
+    transition: transform 0.15s ease;
+  }
+  .expand-chev.open { transform: rotate(90deg); }
+
   /* TOAST */
   .toast {
     position: fixed; bottom: 24px; right: 24px;
@@ -442,7 +459,7 @@
   <div class="header-left">
     <a class="back-btn" href="admin.html">← Back</a>
     <div class="logo-wrap">
-      <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
+      <img src="assets/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" />
     </div>
   </div>
   <span class="page-badge">🔒 Admin</span>
@@ -602,6 +619,7 @@ let batches = [];             // grouped by payout_date
 let selected = new Set();     // set of payout_date strings
 let currentFilter = 'pending';
 let expandedBatches = new Set();
+let expandedTickets = new Set(); // ticket IDs whose parts sub-row is open
 
 // ============================================================================
 // FORMATTING / UTIL
@@ -1049,12 +1067,23 @@ function renderDetailRow(b) {
     const tid = String(t.ticket_id || '').trim();
     const parts = partsByTicket.get(tid) || [];
     const cC = t._consignedCount || 0;
-    const nC = t._nonConsignedCount || 0;
-    const partsLabel = fallback
-      ? '<span style="color:var(--grey);font-size:10px;">no parts data</span>'
-      : (parts.length === 0
-          ? '—'
-          : `${cC}<span style="color:var(--consignment);">✓</span> / ${nC}<span style="color:var(--grey);">×</span>`);
+    const isOpen = expandedTickets.has(tid);
+
+    let partsCell;
+    let clickAttr = '';
+    if (fallback) {
+      partsCell = '<span style="color:var(--grey);font-size:10px;">no parts data</span>';
+    } else if (parts.length === 0) {
+      partsCell = '—';
+    } else {
+      partsCell = `<span class="parts-summary">
+        <span style="color:var(--consignment);font-weight:800;">${cC}</span>
+        <span style="color:var(--grey);">/</span>
+        <span style="color:var(--dark);font-weight:800;">${parts.length}</span>
+        <span class="expand-chev ${isOpen ? 'open' : ''}">▸</span>
+      </span>`;
+      clickAttr = `class="parts-toggle" onclick="toggleTicketExpand('${tid}')"`;
+    }
 
     const ticketRow = `
       <tr class="ticket-main-row">
@@ -1067,13 +1096,13 @@ function renderDetailRow(b) {
         <td class="num">${fmt(num(t.cogs))}</td>
         <td class="num">${fmt(num(t.royalty))}</td>
         <td class="num" style="color:var(--consignment);font-weight:900;">${fmt(reserve)}</td>
-        <td>${partsLabel}</td>
+        <td ${clickAttr}>${partsCell}</td>
       </tr>
     `;
 
-    // Nested parts sub-row (only if parts exist)
+    // Nested parts sub-row — only if parts exist AND ticket is expanded
     let partsRow = '';
-    if (parts.length) {
+    if (parts.length && isOpen) {
       const partLines = parts.map((p, i) => {
         const isC = bool(p.consigned);
         const isLast = i === parts.length - 1;
@@ -1167,6 +1196,12 @@ function renderDetailRow(b) {
 function toggleExpand(key) {
   if (expandedBatches.has(key)) expandedBatches.delete(key);
   else expandedBatches.add(key);
+  render();
+}
+
+function toggleTicketExpand(tid) {
+  if (expandedTickets.has(tid)) expandedTickets.delete(tid);
+  else expandedTickets.add(tid);
   render();
 }
 
