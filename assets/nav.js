@@ -162,7 +162,6 @@
       <div class="cpr-nav-inner">
         <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
           <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" onerror="this.style.display='none'" />
-          <span class="cpr-nav-title">CELL PHONE REPAIR</span>
           <span class="cpr-nav-section-badge">${section.icon} ${escapeHtml(section.label)}</span>
         </a>
         <nav class="cpr-nav-tools">${toolLinks}</nav>
