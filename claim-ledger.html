@@ -169,6 +169,11 @@
     background: var(--red); padding: 4px 10px; border-radius: 5px;
     white-space: nowrap;
   }
+  /* When showing all-visible totals (nothing selected), use neutral pill */
+  .bulk-count.all-visible {
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.95);
+  }
   .bulk-totals {
     display: flex; gap: 14px; flex: 1; flex-wrap: wrap;
   }
@@ -925,10 +930,18 @@ async function loadData() {
 // GROUPING + PF MATH
 // ============================================================================
 function recomputeAndRender() {
-  // Normalize location on every ticket (short form) and collect unique set
+  // Normalize location on every ticket (short form) and collect unique set.
+  // Falls back to looking up the ticket's parts (Parts CSV has Location) if
+  // the Repairs row doesn't carry a Location column.
   const locSet = new Set();
   for (const t of rawTickets) {
-    t.location_short = shortLocation(t.location);
+    let loc = t.location;
+    if (!loc) {
+      const tid = String(t.ticket_id || '').trim();
+      const parts = partsByTicket.get(tid);
+      if (parts && parts.length && parts[0].location) loc = parts[0].location;
+    }
+    t.location_short = shortLocation(loc);
     locSet.add(t.location_short);
   }
   allLocations = Array.from(locSet).sort();
@@ -1231,6 +1244,7 @@ function renderDetailRow(b) {
         <td class="num">${fmt(num(t.total))}</td>
         <td class="num">${fmt(num(t.cogs))}</td>
         <td class="num">${fmt(num(t.royalty))}</td>
+        <td class="num">${fmt(num(t.total) - num(t.royalty))}</td>
         <td class="num reserve-cell ${reserve < 0.005 ? 'zero' : ''}" style="${reserve >= 0.005 ? 'color:var(--consignment);' : ''}font-weight:900;">${fmt(reserve)}</td>
         <td ${clickAttr}>${partsCell}</td>
       </tr>
@@ -1258,7 +1272,7 @@ function renderDetailRow(b) {
       }).join('');
       partsRow = `
         <tr class="ticket-parts-row">
-          <td colspan="10">
+          <td colspan="11">
             <div class="parts-nest">${partLines}</div>
           </td>
         </tr>
@@ -1331,6 +1345,7 @@ function renderDetailRow(b) {
                   <th class="num">Total</th>
                   <th class="num">COGS</th>
                   <th class="num">Royalty</th>
+                  <th class="num" title="Total minus Royalty — net kept after franchise royalty">Profit</th>
                   <th class="num">Reserve</th>
                   <th>Parts</th>
                 </tr>
@@ -1342,6 +1357,7 @@ function renderDetailRow(b) {
                   <td class="num">${fmt(b.total)}</td>
                   <td class="num">${fmt(b.cogs)}</td>
                   <td class="num">${fmt(b.royalty)}</td>
+                  <td class="num">${fmt(b.total - b.royalty)}</td>
                   <td class="num ${b.reserve < 0.005 ? '' : 'reserve-cell-total'}">${fmt(b.reserve)}</td>
                   <td><span style="font-family:'Nunito';font-weight:800;font-size:11px;"><span style="color:var(--consignment);">${b.consignedCount}</span> / ${b.consignedCount + b.nonConsignedCount}</span></td>
                 </tr>
@@ -1417,11 +1433,15 @@ function syncSelectAll() {
 // ============================================================================
 function renderBulkBar() {
   const bar = document.getElementById('bulk-bar');
-  if (!selected.size) { bar.classList.add('hidden'); return; }
+  const vis = visibleBatches();
+
+  // Hide entirely if there's nothing visible at all
+  if (!vis.length) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
 
-  const sel = batches.filter(b => selected.has(b.key));
-  const totals = sel.reduce((acc, b) => ({
+  const usingSelected = selected.size > 0;
+  const scope = usingSelected ? batches.filter(b => selected.has(b.key)) : vis;
+  const totals = scope.reduce((acc, b) => ({
     profit: acc.profit + b.profit,
     owner:  acc.owner  + b.owner,
     tax:    acc.tax    + b.tax,
@@ -1429,23 +1449,40 @@ function renderBulkBar() {
     reserve:acc.reserve+ b.reserve
   }), { profit: 0, owner: 0, tax: 0, opex: 0, reserve: 0 });
 
-  const locSet = new Set(sel.map(b => b.location));
-  const mixed = locSet.size > 1;
-  const locLabel = mixed
-    ? `<span class="bulk-loc-warn">⚠ ${locSet.size} locations — different bank accounts</span>`
-    : (locSet.size === 1 ? `<span class="bulk-loc">${[...locSet][0]}</span>` : '');
+  // Label + scope-aware location indicator (only meaningful for selection)
+  let label;
+  if (usingSelected) {
+    const locSet = new Set(scope.map(b => b.location));
+    const locTag = locSet.size > 1
+      ? `<span class="bulk-loc-warn">⚠ ${locSet.size} locations — different bank accounts</span>`
+      : (locSet.size === 1 ? `<span class="bulk-loc">${[...locSet][0]}</span>` : '');
+    label = `${scope.length} selected ${locTag}`;
+  } else {
+    const filterDesc = currentFilter === 'pending' ? 'pending' : currentFilter === 'completed' ? 'completed' : 'all';
+    const locDesc = currentLocationFilter !== 'all' ? ` · ${currentLocationFilter}` : '';
+    label = `<span class="bulk-allvis">All ${filterDesc}${locDesc} · ${scope.length} batch${scope.length === 1 ? '' : 'es'}</span>`;
+  }
 
-  document.getElementById('bulk-count').innerHTML = `${sel.length} selected ${locLabel}`;
+  document.getElementById('bulk-count').innerHTML = label;
+  document.getElementById('bulk-count').classList.toggle('all-visible', !usingSelected);
   document.getElementById('bulk-profit').textContent  = fmt(totals.profit);
   document.getElementById('bulk-owner').textContent   = fmt(totals.owner);
   document.getElementById('bulk-tax').textContent     = fmt(totals.tax);
   document.getElementById('bulk-opex').textContent    = fmt(totals.opex);
   document.getElementById('bulk-reserve').textContent = fmt(totals.reserve);
+
+  // Mark Processed only makes sense for an explicit selection — too dangerous
+  // to fire across all-visible. Hide the button when nothing is selected.
+  const btn = document.getElementById('btn-mark-processed');
+  if (btn) btn.style.display = usingSelected ? '' : 'none';
 }
 
 function copyBulk(field, el) {
-  const sel = batches.filter(b => selected.has(b.key));
-  const total = sel.reduce((s, b) => s + (b[field] || 0), 0);
+  // Same scope rule as the display — selection if any, otherwise all-visible
+  const scope = selected.size > 0
+    ? batches.filter(b => selected.has(b.key))
+    : visibleBatches();
+  const total = scope.reduce((s, b) => s + (b[field] || 0), 0);
   copyText(total.toFixed(2));
   el.classList.add('copied');
   setTimeout(() => el.classList.remove('copied'), 1200);
