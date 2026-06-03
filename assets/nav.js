@@ -15,6 +15,12 @@
 (function () {
   'use strict';
 
+  // Skip nav entirely when this page is loaded inside an iframe
+  // (e.g., embedded in RepairQ via the RQ Mods extension). The hosting
+  // app provides its own chrome, so injecting our nav would just take
+  // up space and look odd.
+  if (window.self !== window.top) return;
+
   // ──────────────────────────────────────────────────────────────────────────
   // CONFIG — tools per section
   // ──────────────────────────────────────────────────────────────────────────
