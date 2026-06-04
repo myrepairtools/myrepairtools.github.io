@@ -72,22 +72,33 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtable .copysum{cursor:pointer}
 .sumtable .copysum:hover{color:var(--blue);text-decoration:underline}
 .sumtable .substore{font-size:.74rem;color:#5b3fb0;font-weight:600;margin-top:3px;font-family:'Nunito Sans',sans-serif;white-space:normal}
-.cardhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
-.cname{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.05rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ctotal{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem;color:var(--green);white-space:nowrap}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.tile{background:var(--light-grey);border-radius:10px;padding:11px 10px;text-align:center}
-.tile .tval{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.12rem}
-.tile .tlbl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.64rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);margin-top:3px}
-.tile.muted-tile .tval{color:var(--grey)}
-.manualline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.manualline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:0}
 .manualline label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
 .manualline input{width:120px}
-.detbtn{background:none;border:none;color:var(--blue);font-family:'Nunito',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;padding:0;margin-top:14px}
+.table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
+table.ctable{width:100%;border-collapse:collapse}
+table.ctable thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
+table.ctable thead th.num{text-align:right}
+table.ctable tbody tr.erow{border-bottom:1px solid rgba(224,226,234,.6);transition:background .12s}
+table.ctable tbody tr.erow:hover{background:rgba(79,176,227,.045)}
+table.ctable tbody td{padding:9px 12px;vertical-align:middle}
+table.ctable td.num{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark-grey);white-space:nowrap}
+table.ctable td.num.acc{color:var(--blue)}
+table.ctable td.num.dev{color:var(--red)}
+table.ctable td.num.tot{color:var(--green);font-size:.98rem;font-weight:900}
+table.ctable td.num.z{color:var(--grey)}
+.ecell{display:flex;flex-direction:column;gap:3px}
+.enm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark)}
+.ebadges{display:flex;gap:5px;flex-wrap:wrap}
+tr.exrow.hide{display:none}
+tr.exrow>td{padding:0;background:#fafbfc;border-bottom:1px solid var(--border)}
+tr.exrow .dwrap{padding:14px 16px;display:flex;flex-direction:column;gap:0}
+tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
+.icon-btn{padding:5px 11px;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;background:var(--light-grey);color:var(--dark-grey);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;transition:all .12s;white-space:nowrap}
+.icon-btn:hover{border-color:var(--blue);color:var(--blue)}
 .detail{border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
 .drow{display:flex;justify-content:space-between;font-size:.84rem;color:var(--dark-grey);padding:3px 0;gap:10px}
 .drow .v{font-weight:700}.drow .hit{color:var(--green)}.drow .miss{color:var(--grey)}.drow .assumed{color:var(--blue)}
-@media(max-width:560px){.tiles{grid-template-columns:1fr}}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:18px}
@@ -435,28 +446,35 @@ function paintCommissions(){
   if(!REP){$('#commOut').innerHTML='';return;}
   if(!REP.emp) buildEmp();
   if(!REP.names.length){$('#commOut').innerHTML='<div class="rcard"><p class="muted">No data in this range.</p></div>';return;}
-  var html='';
-  REP.emp.forEach(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
-    var multi=e.multi?'<span class="badge multi">'+e.stores.map(function(s){return shortStore(s);}).join(' + ')+'</span>':(REP.all&&e.home?'<span class="badge multi">'+shortStore(e.home)+'</span>':'');
-    var badges=multi; if(!e.active) badges+='<span class="badge lead">Lead · services only</span>'; if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
+  var rows=REP.emp.map(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
+    var badges='';
+    if(e.multi) badges+='<span class="badge multi">'+e.stores.map(function(s){return shortStore(s);}).join(' + ')+'</span>';
+    else if(REP.all&&e.home) badges+='<span class="badge multi">'+shortStore(e.home)+'</span>';
+    if(!e.active) badges+='<span class="badge lead">Lead · services only</span>';
+    if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
+    var z=e.active?'':' z';
     var net=(t.DeviceUnits||0)-(t.DeviceReturns||0);
-    html+='<div class="rcard"><div class="cardhead"><div class="cname">'+e.name+' '+badges+'</div><div class="ctotal" id="tot'+e.i+'"></div></div>'+
-      '<div class="tiles">'+
-        '<div class="tile'+(e.active?'':' muted-tile')+'"><div class="tval" id="acc'+e.i+'"></div><div class="tlbl">Accessory</div></div>'+
-        '<div class="tile'+(e.active?'':' muted-tile')+'"><div class="tval" id="dev'+e.i+'"></div><div class="tlbl">Device</div></div>'+
-        '<div class="tile"><div class="tval" id="svc'+e.i+'"></div><div class="tlbl">Services</div></div>'+
-      '</div>';
-    if(e.active) html+='<div class="manualline"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-i="'+e.i+'" value="'+(m.accDevice===''?'':m.accDevice)+'"><span class="muted">of '+net+' net device'+(net===1?'':'s')+((t.DeviceReturns||0)>0?' ('+t.DeviceUnits+'−'+t.DeviceReturns+')':'')+'</span></div>';
-    if(e.multi) html+='<div id="chg'+e.i+'"></div>';
-    html+='<button class="detbtn" data-det="'+e.i+'">Details ▾</button><div class="detail hide" id="det'+e.i+'"></div></div>';
-  });
-  $('#commOut').innerHTML=html;
+    var manual=e.active?'<div class="manualline"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-i="'+e.i+'" value="'+(m.accDevice===''?'':m.accDevice)+'"><span class="muted">of '+net+' net device'+(net===1?'':'s')+((t.DeviceReturns||0)>0?' ('+t.DeviceUnits+'−'+t.DeviceReturns+')':'')+'</span></div>':'';
+    var chg=e.multi?'<div id="chg'+e.i+'"></div>':'';
+    return '<tr class="erow" data-i="'+e.i+'">'+
+        '<td><div class="ecell"><span class="enm">'+e.name+'</span>'+(badges?'<span class="ebadges">'+badges+'</span>':'')+'</div></td>'+
+        '<td class="num acc'+z+'" id="acc'+e.i+'"></td>'+
+        '<td class="num dev'+z+'" id="dev'+e.i+'"></td>'+
+        '<td class="num" id="svc'+e.i+'"></td>'+
+        '<td class="num tot" id="tot'+e.i+'"></td>'+
+        '<td class="num"><button class="icon-btn" data-det="'+e.i+'">+ Details</button></td>'+
+      '</tr>'+
+      '<tr class="exrow hide" id="exrow'+e.i+'"><td colspan="6"><div class="dwrap">'+manual+'<div class="detail" id="det'+e.i+'"></div>'+chg+'</div></td></tr>';
+  }).join('');
+  $('#commOut').innerHTML='<div class="table-card"><table class="ctable"><thead><tr>'+
+    '<th>Employee</th><th class="num">Accessory</th><th class="num">Device</th><th class="num">Services</th><th class="num">Total</th><th></th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
   $all('#commOut .manualline input[data-i]').forEach(function(inp){
     inp.addEventListener('input',function(){var e=REP.emp[Number(inp.dataset.i)];REP.manual[e.name]={accDevice:inp.value===''?'':Number(inp.value)};refreshTotals();});
     inp.addEventListener('change',function(){var e=REP.emp[Number(inp.dataset.i)];saveManualOne(e.name);});});
-  $all('#commOut .detbtn[data-det]').forEach(function(btn){
-    btn.addEventListener('click',function(){var d=document.getElementById('det'+btn.dataset.det);
-      if(d.classList.contains('hide')){d.classList.remove('hide');btn.textContent='Hide details ▴';}else{d.classList.add('hide');btn.textContent='Details ▾';}});});
+  $all('#commOut .icon-btn[data-det]').forEach(function(btn){
+    btn.addEventListener('click',function(){var d=document.getElementById('exrow'+btn.dataset.det);
+      var hidden=d.classList.toggle('hide');btn.textContent=hidden?'+ Details':'− Details';});});
 }
 function saveManualOne(name){var m=REP.manual[name]||{accDevice:''};
   apiPost({action:'saveManual',periodKey:REP.periodKey,store:REP.store,rows:[{Employee:name,AccDeviceUnits:m.accDevice}]}).then(function(res){
