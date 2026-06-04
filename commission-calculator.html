@@ -73,6 +73,13 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .charge .crow span:first-child{font-weight:600}
 .charge .crow span:last-child{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
 .charge .crow.only{padding:0}.charge .crow.only span:last-child{font-size:1rem}
+.rgrp{font-family:'Nunito',sans-serif;font-weight:900;font-size:.8rem;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);margin:16px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px}
+.rgrp:first-child{margin-top:0}
+.rule-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:5px 0}
+.rule-row label{font-size:.9rem;color:var(--dark-grey)}
+.rule-row .rin{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.rule-row input{width:84px;text-align:right}
+.rule-row .rin span{font-family:'Nunito',sans-serif;font-weight:700;color:var(--dark-grey)}
 .cfg-row{display:grid;grid-template-columns:1fr 1.4fr 120px 70px 36px;gap:8px;align-items:center;margin-bottom:6px}
 .cfg-row.head{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;color:var(--dark-grey)}
 .rate-row{display:grid;grid-template-columns:1fr 140px;gap:10px;align-items:center;margin-bottom:8px;max-width:420px}
@@ -136,6 +143,12 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
       <div id="rateList"></div>
       <div style="margin-top:10px"><button class="btn" id="saveRates">Save payouts</button></div>
     </div>
+    <div class="card"><h2>Commission rules</h2>
+      <p class="hint" style="margin-top:0;margin-bottom:12px">Per store. A person who works multiple stores is scored on their <b>home store\u2019s</b> rules. Set the min-attach gate to 0% to turn it off.</p>
+      <div class="field" style="max-width:280px;margin-bottom:14px"><label>Store</label><select id="rulesStore"></select></div>
+      <div id="rulesForm"></div>
+      <div style="margin-top:14px"><button class="btn" id="saveTierRules">Save rules</button></div>
+    </div>
     <div class="card"><h2>Stores</h2><div id="storeList"></div>
       <div class="row" style="margin-top:8px"><input type="text" id="newStore" placeholder="Add a store…"><button class="btn alt" id="addStore">Add</button></div>
     </div>
@@ -154,28 +167,33 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 // Web app URL is baked in so the tool works on any computer with no per-browser setup.
 var API_URL='https://script.google.com/macros/s/AKfycbxdttWdvszxq-uF4fL9h1ys-Lz1-aWVm3_ZJtfBW43vHgItv8V-sXiwl9NhLEDQClk8/exec';
 var API_TOKEN='cf0768497c724de253311352396ed5cb55ae3194d60c36f6';
-var STATE={api:API_URL,stores:[],config:[],rates:{cleaning:10,express:10,malware:10}};
+var STATE={api:API_URL,stores:[],config:[],rates:{cleaning:10,express:10,malware:10},
+  rules:{}, ruleDefaults:{accyGate:0,accyAttach1:0.25,accyPct1:0.10,accyGoalPct:0.05,accyAttach2:0.50,accyPct2:0.05,
+    dev1Count:5,dev1Pct:0.05,devAttachPct:0.05,dev2Min:20,dev2Max:24,dev2Pct:0.05,dev3Count:25,dev3Pct:0.10}};
+function rulesFor(store){var d=STATE.ruleDefaults||{},o=(STATE.rules&&STATE.rules[store])||{},r={};for(var k in d)r[k]=(o[k]!=null?o[k]:d[k]);return r;}
 var REP=null;
 
 // ---------- engine ----------
 function computeCommission(t, cfg){
   var rates=cfg.rates||STATE.rates;
+  var R=cfg.rules||STATE.ruleDefaults;
   var attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
   var netAccy=t.NetAccySales||0, accyGP=t.AccyGP||0;
-  var t25=attach>=0.25?0.10:0, goal=netAccy>=cfg.accessoryGoal?0.05:0, t50=attach>=0.50?0.05:0;
-  var accyComm=(t25+goal+t50)*accyGP;
-  var dev5=t.DeviceUnits>=5?0.05:0;
+  var gated=(R.accyGate>0 && attach<R.accyGate);                       // hard minimum-attach gate
+  var t25=attach>=R.accyAttach1?R.accyPct1:0, goal=netAccy>=cfg.accessoryGoal?R.accyGoalPct:0, t50=attach>=R.accyAttach2?R.accyPct2:0;
+  var accyComm=gated?0:(t25+goal+t50)*accyGP;
+  var dev5=t.DeviceUnits>=R.dev1Count?R.dev1Pct:0;
   // Acc/Device attach: blank manual value = ASSUMED MET; a number = actual
   var entered=!(cfg.accDeviceUnits===''||cfg.accDeviceUnits===null||cfg.accDeviceUnits===undefined);
   var attachMet=entered?(t.DeviceUnits>0&&(Number(cfg.accDeviceUnits)/t.DeviceUnits)>=1):true;
-  var devAttach=attachMet?0.05:0;
-  var dev2024=(t.DeviceUnits>=20&&t.DeviceUnits<=24&&devAttach===0.05)?0.05:0;
-  var dev25=(t.DeviceUnits>=25&&dev5===0.05)?0.10:0;
+  var devAttach=attachMet?R.devAttachPct:0;
+  var dev2024=(t.DeviceUnits>=R.dev2Min&&t.DeviceUnits<=R.dev2Max&&devAttach>0)?R.dev2Pct:0;
+  var dev25=(t.DeviceUnits>=R.dev3Count&&dev5>0)?R.dev3Pct:0;
   var devComm=(dev5+devAttach+dev2024+dev25)*(t.DeviceGP||0);
   var clean=(t.Cleanings||0)*rates.cleaning, exp=(t.ExpressRepairs||0)*rates.express, mal=(t.Malware||0)*rates.malware;
   var repairComm=clean+exp+mal;
   var exempt=(cfg.active===false);
-  return {attach:attach,netAccy:netAccy,accyGP:accyGP,assumed:!entered,
+  return {attach:attach,netAccy:netAccy,accyGP:accyGP,assumed:!entered,gated:gated,rules:R,
     tiers:{t25:t25,goal:goal,t50:t50,dev5:dev5,devAttach:devAttach,dev2024:dev2024,dev25:dev25},
     accyComm:exempt?0:accyComm,devComm:exempt?0:devComm,clean:clean,exp:exp,mal:mal,repairComm:repairComm,exempt:exempt,
     total:(exempt?0:accyComm)+(exempt?0:devComm)+repairComm};
@@ -230,7 +248,7 @@ function runReport(){
 function calc(e){var m=REP.manual[e.name]||{accDevice:''},t=e.t;
   return computeCommission({AccyUnits:t.AccyUnits,Tickets:t.Tickets,NetAccySales:t.NetAccySales,AccyGP:t.AccyGP,
     DeviceUnits:t.DeviceUnits,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
-    {accessoryGoal:e.goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:e.active});}
+    {accessoryGoal:e.goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:e.active,rules:rulesFor(REP.store)});}
 function setText(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
 // Split a person's commission across the stores they worked: accessory+device by GP share, services charged exactly.
 function chargeSplit(e,c){
@@ -251,25 +269,27 @@ function chargeHTML(e,c){
     return '<div class="crow"><span>'+p.store+'</span><span>'+money(p.amt)+'</span></div>';}).join('')+'</div>';
 }
 function drow(l,v,cls){return '<div class="drow"><span>'+l+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>';}
-function detailHTML(e,c){var t=e.t;
+function detailHTML(e,c){var t=e.t,R=c.rules;
   function tt(v){return v>0?'+'+pct(v):'—';} function tc(v){return v>0?'hit':'miss';}
   if(!e.active) return drow('Attach', t.AccyUnits+' accy ÷ '+t.Tickets+' tickets = '+pct(c.attach))+
       drow('Net accessory $', money(t.NetAccySales))+drow('Devices sold', t.DeviceUnits+' (GP '+money(t.DeviceGP)+')')+
       drow('Accessory & device commission','exempt — lead','miss')+
       drow('Services','Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware,'');
-  var da=c.tiers.devAttach>0?(c.assumed?'+5.0% (assumed)':'+5.0%'):'—', dac=c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss';
+  var da=c.tiers.devAttach>0?(c.assumed?'+'+pct(R.devAttachPct)+' (assumed)':'+'+pct(R.devAttachPct)):'—', dac=c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss';
   var hd='<div class="drow" style="font-weight:800;color:var(--dark)"><span>%S%</span><span></span></div>';
+  var gateRow = R.accyGate>0 ? drow('Min-attach gate ('+pct(R.accyGate)+')', c.gated?'below — accessory $0':'cleared', c.gated?'miss':'hit') : '';
   return hd.replace('%S%','Accessory')+
     drow('Attach rate', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+
+    gateRow+
     drow('Net accessory $ (goal '+money(e.goal)+')', money(c.netAccy))+drow('Accessory GP', money(c.accyGP))+
-    drow('25% attach gate (+10%)', tt(c.tiers.t25), tc(c.tiers.t25))+
-    drow('Accy goal met (+5%)', tt(c.tiers.goal), tc(c.tiers.goal))+
-    drow('50%+ attach (+5%)', tt(c.tiers.t50), tc(c.tiers.t50))+
+    drow(pct(R.accyAttach1)+' attach gate (+'+pct(R.accyPct1)+')', tt(c.tiers.t25), tc(c.tiers.t25))+
+    drow('Accy goal met (+'+pct(R.accyGoalPct)+')', tt(c.tiers.goal), tc(c.tiers.goal))+
+    drow(pct(R.accyAttach2)+'+ attach (+'+pct(R.accyPct2)+')', tt(c.tiers.t50), tc(c.tiers.t50))+
     hd.replace('%S%','Device')+drow('Device GP', money(t.DeviceGP))+
-    drow('5+ devices (+5%)', tt(c.tiers.dev5), tc(c.tiers.dev5))+
-    drow('100% accy attach (+5%)', da, dac)+
-    drow('20–24 devices (+5%)', tt(c.tiers.dev2024), tc(c.tiers.dev2024))+
-    drow('25+ devices (+10%)', tt(c.tiers.dev25), tc(c.tiers.dev25))+
+    drow(R.dev1Count+'+ devices (+'+pct(R.dev1Pct)+')', tt(c.tiers.dev5), tc(c.tiers.dev5))+
+    drow('100% accy attach (+'+pct(R.devAttachPct)+')', da, dac)+
+    drow(R.dev2Min+'–'+R.dev2Max+' devices (+'+pct(R.dev2Pct)+')', tt(c.tiers.dev2024), tc(c.tiers.dev2024))+
+    drow(R.dev3Count+'+ devices (+'+pct(R.dev3Pct)+')', tt(c.tiers.dev25), tc(c.tiers.dev25))+
     hd.replace('%S%','Services')+
     drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm));
 }
@@ -363,20 +383,52 @@ function saveRates(){var rows=[['cleaning','Device Cleaning'],['express','Expres
   apiPost({action:'saveRates',rates:rows}).then(function(res){if(res.ok)toast('Payouts saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
 function saveConfig(){apiPost({action:'saveConfig',stores:STATE.stores,config:STATE.config}).then(function(res){if(res.ok){toast('Roster saved');refreshSelects();}else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
 
+// per-store commission rules editor
+var RULE_FIELDS=[
+  {grp:'Accessory'},
+  {k:'accyGate',  l:'Min attach to earn ANY accessory $ (0 = off)', pct:true},
+  {k:'accyAttach1',l:'Tier 1 — attach at least', pct:true},{k:'accyPct1',l:'…bonus on accessory GP', pct:true},
+  {k:'accyGoalPct',l:'Accessory goal met — bonus', pct:true},
+  {k:'accyAttach2',l:'Tier 2 — attach at least', pct:true},{k:'accyPct2',l:'…bonus on accessory GP', pct:true},
+  {grp:'Device'},
+  {k:'dev1Count',l:'Tier 1 — devices at least'},{k:'dev1Pct',l:'…bonus on device GP', pct:true},
+  {k:'devAttachPct',l:'100% device-attach — bonus', pct:true},
+  {k:'dev2Min',l:'Tier 2 — devices from'},{k:'dev2Max',l:'…up to'},{k:'dev2Pct',l:'…bonus on device GP', pct:true},
+  {k:'dev3Count',l:'Tier 3 — devices at least'},{k:'dev3Pct',l:'…bonus on device GP', pct:true}
+];
+function fillRulesStore(){var sel=$('#rulesStore');if(!sel)return;var cur=sel.value;
+  sel.innerHTML=STATE.stores.map(function(s){return '<option'+(s===cur?' selected':'')+'>'+s+'</option>';}).join('');
+  if(!sel.value&&STATE.stores.length)sel.value=STATE.stores[0];}
+function renderRulesForm(){var sel=$('#rulesStore');if(!sel)return;var store=sel.value||STATE.stores[0];if(!store){$('#rulesForm').innerHTML='<p class="muted">Add a store first.</p>';return;}
+  if(!STATE.rules[store])STATE.rules[store]=rulesFor(store);          // seed full set so every field saves
+  var R=STATE.rules[store];
+  $('#rulesForm').innerHTML=RULE_FIELDS.map(function(f){
+    if(f.grp)return '<div class="rgrp">'+f.grp+'</div>';
+    var val=f.pct?(R[f.k]*100):R[f.k];
+    return '<div class="rule-row"><label>'+f.l+'</label><div class="rin"><input type="number" step="'+(f.pct?'0.5':'1')+'" data-k="'+f.k+'" data-pct="'+(f.pct?1:0)+'" value="'+(val!=null?val:0)+'">'+(f.pct?'<span>%</span>':'')+'</div></div>';
+  }).join('');
+  $all('#rulesForm input[data-k]').forEach(function(inp){inp.onchange=function(){
+    var v=Number(inp.value)||0; STATE.rules[store][inp.dataset.k]=inp.dataset.pct==='1'?v/100:v;};});}
+function saveTierRules(){apiPost({action:'saveTierRules',rules:STATE.rules}).then(function(res){if(res.ok)toast('Commission rules saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
+
 // ---------- bootstrap ----------
 function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stores:STATE.stores;
   if(res.config){STATE.config=res.config;STATE.config.forEach(function(c){c.Active=!(c.Active===false||String(c.Active).toUpperCase()==='FALSE');});}
-  if(res.rates)STATE.rates=res.rates;refreshSelects();renderStoreList();renderCfgList();renderRates();}
+  if(res.rates)STATE.rates=res.rates;
+  if(res.ruleDefaults)STATE.ruleDefaults=res.ruleDefaults;
+  if(res.rules)STATE.rules=res.rules;
+  refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();}
 function refreshSelects(){['#repStore','#tipsStore'].forEach(function(s){fillStoreSelect($(s));});renderTipsTable();}
 function init(){
   STATE.stores=['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR'];
   STATE.config=[{Store:'CPR Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'CPR Salem Northeast',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'CPR Clackamas OR',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
-  refreshSelects();renderStoreList();renderCfgList();renderRates();
+  refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();
   api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
   $('#repQuick').onchange=applyQuick;$('#runReport').onclick=runReport;
   $('#tipsStore').onchange=renderTipsTable;$('#tipsTable').addEventListener('input',recalcTips);$('#tipsPool').addEventListener('input',recalcTips);$('#loadTips').onclick=loadTips;$('#saveTips').onclick=saveTips;
   $('#testConn').onclick=testConnection;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
-  $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();}};
+  $('#saveTierRules').onclick=saveTierRules; $('#rulesStore').onchange=renderRulesForm;
+  $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();fillRulesStore();renderRulesForm();}};
   $('#addEmp').onclick=function(){STATE.config.push({Store:STATE.stores[0]||'',Employee:'',AccessoryGoal:2400,Active:true});renderCfgList();};
 }
 init();
