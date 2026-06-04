@@ -67,6 +67,12 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .hide{display:none}.muted{color:var(--dark-grey);font-size:.85rem}.hint{font-size:.78rem;color:var(--dark-grey);margin-top:4px}
 .badge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:999px;vertical-align:middle}
 .badge.lead{background:#EAF6FD;color:#1b6fa3}.badge.warn{background:#FFF4E5;color:#8a5a00}.badge.multi{background:#EFEAFB;color:#5b3fb0}
+.charge{margin-top:14px;background:#F6F4FB;border:1px solid #E6E0F4;border-radius:10px;padding:12px 14px}
+.charge .clbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;color:#5b3fb0;margin-bottom:6px}
+.charge .crow{display:flex;justify-content:space-between;font-size:.92rem;padding:3px 0}
+.charge .crow span:first-child{font-weight:600}
+.charge .crow span:last-child{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.charge .crow.only{padding:0}.charge .crow.only span:last-child{font-size:1rem}
 .cfg-row{display:grid;grid-template-columns:1fr 1.4fr 120px 70px 36px;gap:8px;align-items:center;margin-bottom:6px}
 .cfg-row.head{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;color:var(--dark-grey)}
 .rate-row{display:grid;grid-template-columns:1fr 140px;gap:10px;align-items:center;margin-bottom:8px;max-width:420px}
@@ -216,8 +222,8 @@ function runReport(){
     (rep.rows||[]).forEach(function(r){ if(!totals[r.Employee]){totals[r.Employee]={};SUMCOLS.forEach(function(c){totals[r.Employee][c]=0;});}
       SUMCOLS.forEach(function(c){totals[r.Employee][c]+=Number(r[c])||0;}); });
     var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]={accDevice:(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits)};});
-    var rstores={}; (rep.rows||[]).forEach(function(r){ rstores[r.Employee]=r.Stores||[]; });
-    REP={store:store,start:start,end:end,periodKey:periodKey,totals:totals,names:Object.keys(totals),manual:manual,stores:rstores};
+    var rstores={},bystore={}; (rep.rows||[]).forEach(function(r){ rstores[r.Employee]=r.Stores||[]; bystore[r.Employee]=r.byStore||{}; });
+    REP={store:store,start:start,end:end,periodKey:periodKey,totals:totals,names:Object.keys(totals).sort(function(a,b){return a<b?1:(a>b?-1:0);}),manual:manual,stores:rstores,byStore:bystore};
     paintReport();
   }).catch(function(err){toast(String(err),true);});
 }
@@ -226,6 +232,24 @@ function calc(e){var m=REP.manual[e.name]||{accDevice:''},t=e.t;
     DeviceUnits:t.DeviceUnits,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
     {accessoryGoal:e.goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:e.active});}
 function setText(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
+// Split a person's commission across the stores they worked: accessory+device by GP share, services charged exactly.
+function chargeSplit(e,c){
+  var bs=(REP.byStore&&REP.byStore[e.name])||{}, stores=Object.keys(bs);
+  if(!stores.length) stores=[e.name && REP.store];   // fallback
+  var rates=STATE.rates, adComm=c.accyComm+c.devComm, totalGP=0;
+  stores.forEach(function(s){var b=bs[s]||{};totalGP+=(+b.AccyGP||0)+(+b.DeviceGP||0);});
+  return stores.map(function(s){var b=bs[s]||{};
+    var gpShare=totalGP>0?((+b.AccyGP||0)+(+b.DeviceGP||0))/totalGP:1/stores.length;
+    var svc=(+b.Cleanings||0)*rates.cleaning+(+b.Express||0)*rates.express+(+b.Malware||0)*rates.malware;
+    return {store:s, amt:adComm*gpShare+svc};
+  }).sort(function(a,b){return b.amt-a.amt;});
+}
+function chargeHTML(e,c){
+  var parts=chargeSplit(e,c);
+  if(parts.length<=1) return '<div class="charge"><div class="clbl">Charge to '+(parts[0]?parts[0].store:REP.store)+'</div><div class="crow only"><span></span><span>'+money(parts[0]?parts[0].amt:c.total)+'</span></div></div>';
+  return '<div class="charge"><div class="clbl">Charge to store</div>'+parts.map(function(p){
+    return '<div class="crow"><span>'+p.store+'</span><span>'+money(p.amt)+'</span></div>';}).join('')+'</div>';
+}
 function drow(l,v,cls){return '<div class="drow"><span>'+l+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>';}
 function detailHTML(e,c){var t=e.t;
   function tt(v){return v>0?'+'+pct(v):'—';} function tc(v){return v>0?'hit':'miss';}
@@ -253,6 +277,7 @@ function refreshTotals(){var grand=0;
   REP.emp.forEach(function(e){var c=calc(e);grand+=c.total;
     setText('tot'+e.i,money(c.total));setText('sum'+e.i,money(c.total));
     setText('acc'+e.i,money(c.accyComm));setText('dev'+e.i,money(c.devComm));setText('svc'+e.i,money(c.repairComm));
+    var ch=document.getElementById('chg'+e.i); if(ch) ch.innerHTML=chargeHTML(e,c);
     var d=document.getElementById('det'+e.i); if(d) d.innerHTML=detailHTML(e,c);});
   setText('grand',money(grand));}
 function paintReport(){
@@ -280,6 +305,7 @@ function paintReport(){
         '<div class="tile"><div class="tval" id="svc'+e.i+'"></div><div class="tlbl">Services</div></div>'+
       '</div>';
     if(e.active) html+='<div class="manualline"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-i="'+e.i+'" value="'+(m.accDevice===''?'':m.accDevice)+'"><span class="muted">of '+t.DeviceUnits+' sold</span></div>';
+    html+='<div id="chg'+e.i+'"></div>';
     html+='<button class="detbtn" data-det="'+e.i+'">Details ▾</button><div class="detail hide" id="det'+e.i+'"></div></div>';
   });
   box.innerHTML=html;
