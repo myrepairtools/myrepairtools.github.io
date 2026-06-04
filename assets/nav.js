@@ -33,8 +33,7 @@
       tools: [
         { label: 'Profit First',     url: 'profit-first.html' },
         { label: 'Claim Ledger',     url: 'claim-ledger.html' },
-        { label: 'Employee Records', url: 'employee-records.html' },
-        { label: 'Commissions',      url: 'commission-calculator.html' }
+        { label: 'Employee Records', url: 'employee-records.html' }
       ]
     },
     operations: {
@@ -77,7 +76,7 @@
     .cpr-nav {
       position: sticky; top: 0; z-index: 100;
       background: #FFFFFF;
-      border-bottom: 4px solid ${section.color};
+      border-bottom: 2px solid ${section.color};
       font-family: 'Nunito', sans-serif;
       box-shadow: 0 1px 4px rgba(45,45,59,0.06);
     }
@@ -95,17 +94,6 @@
       flex-shrink: 0;
     }
     .cpr-nav-brand img { height: 36px; width: auto; display: block; }
-    .cpr-nav-title {
-      font-weight: 900; font-size: 14px; letter-spacing: 0.4px;
-      color: #2D2D3B;
-    }
-    .cpr-nav-section-badge {
-      background: ${section.color}; color: #FFFFFF;
-      font-weight: 800; font-size: 11px; letter-spacing: 0.5px;
-      text-transform: uppercase;
-      padding: 4px 10px; border-radius: 6px;
-      display: inline-flex; align-items: center; gap: 4px;
-    }
     .cpr-nav-tools {
       display: flex; align-items: center; gap: 4px;
       flex: 1; flex-wrap: wrap;
@@ -123,26 +111,35 @@
     .cpr-nav-tools a.active {
       background: ${section.color}; color: #FFFFFF;
     }
-    .cpr-nav-switch {
-      text-decoration: none;
-      font-weight: 800; font-size: 12px;
-      padding: 8px 14px; border-radius: 6px;
-      border: 1.5px solid ${otherSection.color};
-      color: ${otherSection.color};
-      background: #FFFFFF;
-      transition: all 0.15s;
-      letter-spacing: 0.3px;
+    /* Section toggle (pill) — replaces the old single switcher button */
+    .cpr-nav-toggle {
+      display: inline-flex; align-items: center;
+      background: #F3F2F2;
+      border-radius: 999px;
+      padding: 3px;
       flex-shrink: 0;
-      display: inline-flex; align-items: center; gap: 6px;
     }
-    .cpr-nav-switch:hover {
-      background: ${otherSection.color}; color: #FFFFFF;
+    .cpr-toggle-segment {
+      text-decoration: none;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800; font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 999px;
+      color: #4E4E50;
+      transition: all 0.15s;
     }
+    .cpr-toggle-segment:hover { color: #2D2D3B; }
+    .cpr-toggle-segment.active {
+      background: ${section.color}; color: #FFFFFF;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .cpr-toggle-segment.active:hover { color: #FFFFFF; }
     @media (max-width: 800px) {
       .cpr-nav-inner { padding: 10px 14px; gap: 10px; flex-wrap: wrap; }
-      .cpr-nav-title { display: none; }
       .cpr-nav-tools a { font-size: 12px; padding: 6px 10px; }
-      .cpr-nav-switch { font-size: 11px; padding: 6px 10px; }
+      .cpr-toggle-segment { font-size: 10px; padding: 5px 10px; }
     }
   `;
   const styleEl = document.createElement('style');
@@ -163,18 +160,24 @@
     return `<a href="${escapeHtml(t.url)}"${isActive}>${escapeHtml(t.label)}</a>`;
   }).join('');
 
+  // Pill toggle: one segment per section. The current section's segment is
+  // marked active (filled in section color); others remain neutral and link
+  // to that section's landing page.
+  const toggleSegments = Object.keys(SECTIONS).map(key => {
+    const s = SECTIONS[key];
+    const active = key === sectionKey ? ' active' : '';
+    return `<a class="cpr-toggle-segment${active}" href="${escapeHtml(s.landing)}">${escapeHtml(s.label)}</a>`;
+  }).join('');
+
   const navHtml = `
     <header class="cpr-nav">
       <div class="cpr-nav-strip"></div>
       <div class="cpr-nav-inner">
         <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
           <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" onerror="this.style.display='none'" />
-          <span class="cpr-nav-section-badge">${section.icon} ${escapeHtml(section.label)}</span>
         </a>
         <nav class="cpr-nav-tools">${toolLinks}</nav>
-        <a class="cpr-nav-switch" href="${escapeHtml(otherSection.landing)}">
-          ${otherSection.icon} ${escapeHtml(otherSection.label)} →
-        </a>
+        <div class="cpr-nav-toggle">${toggleSegments}</div>
       </div>
     </header>
   `;
