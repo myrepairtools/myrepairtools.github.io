@@ -132,6 +132,7 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 <script>
 // Web app URL is baked in so the tool works on any computer with no per-browser setup.
 var API_URL='https://script.google.com/macros/s/AKfycbxdttWdvszxq-uF4fL9h1ys-Lz1-aWVm3_ZJtfBW43vHgItv8V-sXiwl9NhLEDQClk8/exec';
+var API_TOKEN='cf0768497c724de253311352396ed5cb55ae3194d60c36f6';
 var STATE={api:API_URL,stores:[],config:[],rates:{cleaning:10,express:10,malware:10}};
 var REP=null;
 
@@ -161,10 +162,11 @@ function computeCommission(t, cfg){
 
 // ---------- API ----------
 function api(action,params){ if(!STATE.api) return Promise.reject('No API URL configured.');
-  var url=STATE.api+'?action='+encodeURIComponent(action);
+  var url=STATE.api+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);
   for(var k in (params||{})) url+='&'+k+'='+encodeURIComponent(params[k]);
   return fetch(url).then(function(r){return r.json();}); }
 function apiPost(body){ if(!STATE.api) return Promise.reject('No API URL configured.');
+  body.token=API_TOKEN;
   return fetch(STATE.api,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.json();}); }
 
 // ---------- helpers ----------
