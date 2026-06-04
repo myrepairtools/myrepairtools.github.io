@@ -64,7 +64,6 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
   <h1>Commission Calculator</h1>
   <p class="sub">Daily reports flow in from RepairQ automatically. Pick a date range to calculate commissions; tips are handled per pay period.</p>
 
-  <div id="setupBanner" class="banner setup hide"><b>One-time setup needed.</b> Paste your Apps Script Web App URL in <b>Settings</b> to connect the database.</div>
 
   <div class="tabs">
     <div class="tab active" data-tab="report">Report</div>
@@ -107,9 +106,8 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
   <!-- SETTINGS -->
   <section id="tab-settings" class="hide">
     <div class="card"><h2>Database connection</h2>
-      <div class="field" style="max-width:640px"><label>Apps Script Web App URL</label><input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/AKfy.../exec"></div>
-      <p class="hint">Also use this URL as your Looker / RepairQ webhook target.</p>
-      <div style="margin-top:12px"><button class="btn" id="saveSettings">Save & test connection</button></div>
+      <p class="muted">Connected to the Sales Database web app (configured in the page — works on any computer, nothing stored locally).</p>
+      <div style="margin-top:12px"><button class="btn" id="testConn">Test connection</button></div>
       <p id="connStatus" class="muted" style="margin-top:10px"></p>
     </div>
     <div class="card"><h2>Service payouts</h2>
@@ -132,8 +130,9 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 <div id="toast" class="toast"></div>
 
 <script>
-var LS={get:function(k){try{return localStorage.getItem(k);}catch(e){return null;}},set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
-var STATE={api:LS.get('cpr_comm_api')||'',stores:[],config:[],rates:{cleaning:10,express:10,malware:10}};
+// Web app URL is baked in so the tool works on any computer with no per-browser setup.
+var API_URL='https://script.google.com/macros/s/AKfycbxdttWdvszxq-uF4fL9h1ys-Lz1-aWVm3_ZJtfBW43vHgItv8V-sXiwl9NhLEDQClk8/exec';
+var STATE={api:API_URL,stores:[],config:[],rates:{cleaning:10,express:10,malware:10}};
 var REP=null;
 
 // ---------- engine ----------
@@ -297,8 +296,8 @@ function renderCfgList(){$('#cfgList').innerHTML=STATE.config.map(function(c,i){
   return '<div class="cfg-row"><select data-i="'+i+'" data-f="Store">'+opts+'</select><input data-i="'+i+'" data-f="Employee" value="'+(c.Employee||'')+'"><input type="number" data-i="'+i+'" data-f="AccessoryGoal" value="'+(c.AccessoryGoal||0)+'"><input type="checkbox" data-i="'+i+'" data-f="Active" '+(c.Active!==false?'checked':'')+'><div class="x" data-del="'+i+'">×</div></div>';}).join('');
   $all('#cfgList [data-f]').forEach(function(el){el.onchange=function(){var c=STATE.config[Number(el.dataset.i)],f=el.dataset.f;c[f]=f==='Active'?el.checked:(f==='AccessoryGoal'?Number(el.value):el.value);};});
   $all('#cfgList [data-del]').forEach(function(x){x.onclick=function(){STATE.config.splice(Number(x.dataset.del),1);renderCfgList();};});}
-function saveSettings(){STATE.api=$('#apiUrl').value.trim();LS.set('cpr_comm_api',STATE.api);$('#connStatus').textContent='Testing…';
-  api('bootstrap').then(function(res){if(res.ok){$('#connStatus').textContent='✓ Connected. '+res.stores.length+' stores, '+res.config.length+' employees.';applyBootstrap(res);$('#setupBanner').classList.add('hide');toast('Connected');}else $('#connStatus').textContent='✗ '+(res.error||'Error');}).catch(function(err){$('#connStatus').textContent='✗ '+err;});}
+function testConnection(){$('#connStatus').textContent='Testing…';
+  api('bootstrap').then(function(res){if(res.ok){$('#connStatus').textContent='✓ Connected. '+res.stores.length+' stores, '+res.config.length+' employees.';applyBootstrap(res);}else $('#connStatus').textContent='✗ '+(res.error||'Error');}).catch(function(err){$('#connStatus').textContent='✗ '+err;});}
 function saveRates(){var rows=[['cleaning','Device Cleaning'],['express','Express Repair'],['malware','Malware/Virus Removal']].map(function(d){return {Key:d[0],Label:d[1],Amount:STATE.rates[d[0]]||0};});
   apiPost({action:'saveRates',rates:rows}).then(function(res){if(res.ok)toast('Payouts saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
 function saveConfig(){apiPost({action:'saveConfig',stores:STATE.stores,config:STATE.config}).then(function(res){if(res.ok){toast('Roster saved');refreshSelects();}else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
@@ -309,14 +308,13 @@ function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stor
   if(res.rates)STATE.rates=res.rates;refreshSelects();renderStoreList();renderCfgList();renderRates();}
 function refreshSelects(){['#repStore','#tipsStore'].forEach(function(s){fillStoreSelect($(s));});renderTipsTable();}
 function init(){
-  $('#apiUrl').value=STATE.api;
   STATE.stores=['Eugene','Salem','Clackamas'];
   STATE.config=[{Store:'Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'Salem',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'Salem',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'Salem',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'Clackamas',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
   refreshSelects();renderStoreList();renderCfgList();renderRates();
-  if(!STATE.api) $('#setupBanner').classList.remove('hide'); else api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
+  api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
   $('#repQuick').onchange=applyQuick;$('#runReport').onclick=runReport;
   $('#tipsStore').onchange=renderTipsTable;$('#tipsTable').addEventListener('input',recalcTips);$('#tipsPool').addEventListener('input',recalcTips);$('#loadTips').onclick=loadTips;$('#saveTips').onclick=saveTips;
-  $('#saveSettings').onclick=saveSettings;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
+  $('#testConn').onclick=testConnection;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
   $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();}};
   $('#addEmp').onclick=function(){STATE.config.push({Store:STATE.stores[0]||'',Employee:'',AccessoryGoal:2400,Active:true});renderCfgList();};
 }
