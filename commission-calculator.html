@@ -35,16 +35,31 @@ th:first-child,td:first-child{text-align:left}
 thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);background:var(--light-grey)}
 tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .emp-name{font-family:'Nunito',sans-serif;font-weight:800}
-.metric{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--border);font-size:.88rem;gap:10px}
-.metric span:last-child{font-weight:700;white-space:nowrap}
-.payout{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--green)}
-.emp-block{border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
-.emp-block h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.tier{font-size:.82rem;color:var(--dark-grey);display:flex;justify-content:space-between;padding:3px 0}
-.tier .hit{color:var(--green);font-weight:700}.tier .miss{color:var(--grey)}.tier .assumed{color:var(--blue);font-weight:700}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:680px){.grid2{grid-template-columns:1fr}}
-.manual-in{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 12px;padding:10px;background:var(--light-grey);border-radius:9px;align-items:flex-end}
-.manual-in .field input{width:150px}
+.rcard{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 1px 2px rgba(45,45,59,.04)}
+.sumhead{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.sumtitle{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem}
+.sumtotal{margin-left:auto;text-align:right}
+.sumtotal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.9rem;color:var(--green);line-height:1}
+.sumtable{width:100%;border-collapse:collapse;margin-top:16px}
+.sumtable td{padding:8px 0;border-bottom:1px solid var(--border);font-size:.92rem}
+.sumtable td:first-child{font-family:'Nunito',sans-serif;font-weight:700}
+.sumtable td:last-child{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.cardhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.cname{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.15rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctotal{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--green);white-space:nowrap}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{background:var(--light-grey);border-radius:12px;padding:13px 10px;text-align:center}
+.tile .tval{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.2rem}
+.tile .tlbl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);margin-top:3px}
+.tile.muted-tile .tval{color:var(--grey)}
+.manualline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.manualline label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
+.manualline input{width:120px}
+.detbtn{background:none;border:none;color:var(--blue);font-family:'Nunito',sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;padding:0;margin-top:14px}
+.detail{border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
+.drow{display:flex;justify-content:space-between;font-size:.84rem;color:var(--dark-grey);padding:3px 0;gap:10px}
+.drow .v{font-weight:700}.drow .hit{color:var(--green)}.drow .miss{color:var(--grey)}.drow .assumed{color:var(--blue)}
+@media(max-width:560px){.tiles{grid-template-columns:1fr}}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:18px}
@@ -205,57 +220,72 @@ function runReport(){
     paintReport();
   }).catch(function(err){toast(String(err),true);});
 }
+function calc(e){var m=REP.manual[e.name]||{accDevice:''},t=e.t;
+  return computeCommission({AccyUnits:t.AccyUnits,Tickets:t.Tickets,NetAccySales:t.NetAccySales,AccyGP:t.AccyGP,
+    DeviceUnits:t.DeviceUnits,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
+    {accessoryGoal:e.goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:e.active});}
+function setText(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
+function drow(l,v,cls){return '<div class="drow"><span>'+l+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>';}
+function detailHTML(e,c){var t=e.t;
+  function tt(v){return v>0?'+'+pct(v):'—';} function tc(v){return v>0?'hit':'miss';}
+  if(!e.active) return drow('Attach', t.AccyUnits+' accy ÷ '+t.Tickets+' tickets = '+pct(c.attach))+
+      drow('Net accessory $', money(t.NetAccySales))+drow('Devices sold', t.DeviceUnits+' (GP '+money(t.DeviceGP)+')')+
+      drow('Accessory & device commission','exempt — lead','miss')+
+      drow('Services','Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware,'');
+  var da=c.tiers.devAttach>0?(c.assumed?'+5.0% (assumed)':'+5.0%'):'—', dac=c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss';
+  var hd='<div class="drow" style="font-weight:800;color:var(--dark)"><span>%S%</span><span></span></div>';
+  return hd.replace('%S%','Accessory')+
+    drow('Attach rate', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+
+    drow('Net accessory $ (goal '+money(e.goal)+')', money(c.netAccy))+drow('Accessory GP', money(c.accyGP))+
+    drow('25% attach gate (+10%)', tt(c.tiers.t25), tc(c.tiers.t25))+
+    drow('Accy goal met (+5%)', tt(c.tiers.goal), tc(c.tiers.goal))+
+    drow('50%+ attach (+5%)', tt(c.tiers.t50), tc(c.tiers.t50))+
+    hd.replace('%S%','Device')+drow('Device GP', money(t.DeviceGP))+
+    drow('5+ devices (+5%)', tt(c.tiers.dev5), tc(c.tiers.dev5))+
+    drow('100% accy attach (+5%)', da, dac)+
+    drow('20–24 devices (+5%)', tt(c.tiers.dev2024), tc(c.tiers.dev2024))+
+    drow('25+ devices (+10%)', tt(c.tiers.dev25), tc(c.tiers.dev25))+
+    hd.replace('%S%','Services')+
+    drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm));
+}
+function refreshTotals(){var grand=0;
+  REP.emp.forEach(function(e){var c=calc(e);grand+=c.total;
+    setText('tot'+e.i,money(c.total));setText('sum'+e.i,money(c.total));
+    setText('acc'+e.i,money(c.accyComm));setText('dev'+e.i,money(c.devComm));setText('svc'+e.i,money(c.repairComm));
+    var d=document.getElementById('det'+e.i); if(d) d.innerHTML=detailHTML(e,c);});
+  setText('grand',money(grand));}
 function paintReport(){
   if(!REP) return;
-  if(!REP.names.length){$('#reportOut').innerHTML='<div class="card"><p class="muted">No data in this range.</p></div>';return;}
-  var grand=0,unrostered=[];
-  var html='<div class="card"><div class="row"><h2 style="margin:0">'+REP.store+' · '+REP.start+' → '+REP.end+'</h2><button class="btn alt" id="saveManual" style="margin-left:auto">Save manual values</button></div></div>';
-  REP.names.forEach(function(name){
-    var t=REP.totals[name], cfgRow=STATE.config.filter(function(c){return c.Store===REP.store&&c.Employee===name;})[0];
-    var rostered=!!cfgRow, active=rostered?(cfgRow.Active!==false):true, goal=cfgRow?Number(cfgRow.AccessoryGoal)||0:0;
-    if(!rostered) unrostered.push(name);
-    var m=REP.manual[name]||{accDevice:''};
-    var c=computeCommission({AccyUnits:t.AccyUnits,Tickets:t.Tickets,NetAccySales:t.NetAccySales,AccyGP:t.AccyGP,
-      DeviceUnits:t.DeviceUnits,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
-      {accessoryGoal:goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:active});
-    grand+=c.total;
-    function tier(l,v){return '<div class="tier"><span>'+l+'</span><span class="'+(v>0?'hit':'miss')+'">'+(v>0?'+'+pct(v):'—')+'</span></div>';}
-    var devAttachRow='<div class="tier"><span>100% accy attach (+5%)</span><span class="'+(c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss')+'">'+(c.tiers.devAttach>0?(c.assumed?'+5.0% (assumed)':'+5.0%'):'—')+'</span></div>';
-    var badges=''; if(!active) badges+=' <span class="badge lead">Lead · services only</span>'; if(!rostered) badges+=' <span class="badge warn">⚠ not in roster</span>';
-    html+='<div class="emp-block"><h3><span>'+name+badges+'</span><span class="payout">'+money(c.total)+'</span></h3>';
-    if(active){
-      html+='<div class="manual-in"><div class="field"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-emp="'+name+'" value="'+(m.accDevice===''?'':m.accDevice)+'"></div>'+
-        '<div class="field"><label>Devices sold</label><input type="number" value="'+t.DeviceUnits+'" disabled></div></div>'+
-      '<div class="grid2"><div>'+
-        '<div class="metric"><span>Attach ('+t.AccyUnits+' accy ÷ '+t.Tickets+' tickets)</span><span>'+pct(c.attach)+'</span></div>'+
-        '<div class="metric"><span>Net accessory $ (goal '+money(goal)+')</span><span>'+money(c.netAccy)+'</span></div>'+
-        '<div class="metric"><span>Accessory GP</span><span>'+money(c.accyGP)+'</span></div>'+
-        tier('25% attach gate (+10%)',c.tiers.t25)+tier('Accy goal met (+5%)',c.tiers.goal)+tier('50%+ attach (+5%)',c.tiers.t50)+
-        '<div class="metric"><span><b>Accessory commission</b></span><span><b>'+money(c.accyComm)+'</b></span></div>'+
-      '</div><div>'+
-        tier('5+ devices (+5%)',c.tiers.dev5)+devAttachRow+tier('20–24 devices (+5%)',c.tiers.dev2024)+tier('25+ devices (+10%)',c.tiers.dev25)+
-        '<div class="metric"><span><b>Device commission</b> (GP '+money(t.DeviceGP)+')</span><span><b>'+money(c.devComm)+'</b></span></div>'+
-        '<div class="metric"><span>Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware+'</span><span>'+money(c.repairComm)+'</span></div>'+
-      '</div></div>';
-    } else {
-      html+='<div class="grid2"><div>'+
-        '<div class="metric"><span>Attach ('+t.AccyUnits+' accy ÷ '+t.Tickets+' tickets)</span><span>'+pct(c.attach)+'</span></div>'+
-        '<div class="metric"><span>Net accessory $</span><span>'+money(t.NetAccySales)+'</span></div>'+
-        '<div class="metric"><span>Devices sold (GP '+money(t.DeviceGP)+')</span><span>'+t.DeviceUnits+'</span></div>'+
-        '<div class="tier"><span>Accessory & device commission</span><span class="miss">exempt</span></div>'+
-      '</div><div>'+
-        '<div class="metric"><span>Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware+'</span><span>'+money(c.repairComm)+'</span></div>'+
-        '<div class="metric"><span><b>Services payout</b></span><span><b>'+money(c.repairComm)+'</b></span></div>'+
-      '</div></div>';
-    }
-    html+='</div>';
+  var box=$('#reportOut');
+  if(!REP.names.length){box.innerHTML='<div class="rcard"><p class="muted">No data in this range. Check the dates, and that the Store column reads "Eugene" (not "CPR Eugene").</p></div>';return;}
+  REP.emp=REP.names.map(function(name,i){var cf=STATE.config.filter(function(c){return c.Store===REP.store&&c.Employee===name;})[0];
+    return {i:i,name:name,t:REP.totals[name],rostered:!!cf,active:cf?cf.Active!==false:true,goal:cf?Number(cf.AccessoryGoal)||0:0};});
+  var unrostered=REP.emp.filter(function(e){return !e.rostered;}).map(function(e){return e.name;});
+  var sumRows=REP.emp.map(function(e){return '<tr><td>'+e.name+(e.active?'':' <span class="badge lead">lead</span>')+(e.rostered?'':' <span class="badge warn">new</span>')+'</td><td id="sum'+e.i+'"></td></tr>';}).join('');
+  var html='';
+  if(unrostered.length) html+='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings.</div>';
+  html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+REP.store+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees</div></div>'+
+    '<div class="sumtotal"><div class="muted">Store total</div><div class="big" id="grand"></div></div>'+
+    '<button class="btn alt" id="saveManual">Save manual values</button></div>'+
+    '<table class="sumtable">'+sumRows+'</table></div>';
+  REP.emp.forEach(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
+    var badges=''; if(!e.active) badges+='<span class="badge lead">Lead · services only</span>'; if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
+    html+='<div class="rcard"><div class="cardhead"><div class="cname">'+e.name+' '+badges+'</div><div class="ctotal" id="tot'+e.i+'"></div></div>'+
+      '<div class="tiles">'+
+        '<div class="tile'+(e.active?'':' muted-tile')+'"><div class="tval" id="acc'+e.i+'"></div><div class="tlbl">Accessory</div></div>'+
+        '<div class="tile'+(e.active?'':' muted-tile')+'"><div class="tval" id="dev'+e.i+'"></div><div class="tlbl">Device</div></div>'+
+        '<div class="tile"><div class="tval" id="svc'+e.i+'"></div><div class="tlbl">Services</div></div>'+
+      '</div>';
+    if(e.active) html+='<div class="manualline"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-i="'+e.i+'" value="'+(m.accDevice===''?'':m.accDevice)+'"><span class="muted">of '+t.DeviceUnits+' sold</span></div>';
+    html+='<button class="detbtn" data-det="'+e.i+'">Details ▾</button><div class="detail hide" id="det'+e.i+'"></div></div>';
   });
-  if(unrostered.length) html='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings to set their goal and active status.</div>'+html;
-  html+='<div class="card"><div class="metric" style="border:none"><span style="font-size:1.05rem;font-family:Nunito;font-weight:900">Store total commission</span><span class="payout">'+money(grand)+'</span></div></div>';
-  $('#reportOut').innerHTML=html;
-  $all('#reportOut .manual-in input[data-emp]').forEach(function(inp){ if(inp.disabled) return;
-    inp.addEventListener('input',function(){ REP.manual[inp.dataset.emp]={accDevice:inp.value===''?'':Number(inp.value)}; paintReport(); });
-  });
+  box.innerHTML=html;
+  refreshTotals();
+  $all('#reportOut .manualline input[data-i]').forEach(function(inp){
+    inp.addEventListener('input',function(){var e=REP.emp[Number(inp.dataset.i)];REP.manual[e.name]={accDevice:inp.value===''?'':Number(inp.value)};refreshTotals();});});
+  $all('#reportOut .detbtn[data-det]').forEach(function(btn){
+    btn.addEventListener('click',function(){var d=document.getElementById('det'+btn.dataset.det);
+      if(d.classList.contains('hide')){d.classList.remove('hide');btn.textContent='Hide details ▴';}else{d.classList.add('hide');btn.textContent='Details ▾';}});});
   if($('#saveManual')) $('#saveManual').onclick=saveManual;
 }
 function saveManual(){
