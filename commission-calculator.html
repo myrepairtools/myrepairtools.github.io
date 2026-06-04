@@ -66,7 +66,7 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .banner.setup{margin-bottom:18px}
 .hide{display:none}.muted{color:var(--dark-grey);font-size:.85rem}.hint{font-size:.78rem;color:var(--dark-grey);margin-top:4px}
 .badge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:999px;vertical-align:middle}
-.badge.lead{background:#EAF6FD;color:#1b6fa3}.badge.warn{background:#FFF4E5;color:#8a5a00}
+.badge.lead{background:#EAF6FD;color:#1b6fa3}.badge.warn{background:#FFF4E5;color:#8a5a00}.badge.multi{background:#EFEAFB;color:#5b3fb0}
 .cfg-row{display:grid;grid-template-columns:1fr 1.4fr 120px 70px 36px;gap:8px;align-items:center;margin-bottom:6px}
 .cfg-row.head{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;color:var(--dark-grey)}
 .rate-row{display:grid;grid-template-columns:1fr 140px;gap:10px;align-items:center;margin-bottom:8px;max-width:420px}
@@ -216,7 +216,8 @@ function runReport(){
     (rep.rows||[]).forEach(function(r){ if(!totals[r.Employee]){totals[r.Employee]={};SUMCOLS.forEach(function(c){totals[r.Employee][c]=0;});}
       SUMCOLS.forEach(function(c){totals[r.Employee][c]+=Number(r[c])||0;}); });
     var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]={accDevice:(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits)};});
-    REP={store:store,start:start,end:end,periodKey:periodKey,totals:totals,names:Object.keys(totals),manual:manual};
+    var rstores={}; (rep.rows||[]).forEach(function(r){ rstores[r.Employee]=r.Stores||[]; });
+    REP={store:store,start:start,end:end,periodKey:periodKey,totals:totals,names:Object.keys(totals),manual:manual,stores:rstores};
     paintReport();
   }).catch(function(err){toast(String(err),true);});
 }
@@ -269,7 +270,9 @@ function paintReport(){
     '<button class="btn alt" id="saveManual">Save manual values</button></div>'+
     '<table class="sumtable">'+sumRows+'</table></div>';
   REP.emp.forEach(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
-    var badges=''; if(!e.active) badges+='<span class="badge lead">Lead · services only</span>'; if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
+    var sw=(REP.stores&&REP.stores[e.name])||[];
+    var multi=sw.length>1?'<span class="badge multi">'+sw.map(function(s){return s.replace(/^CPR\s*/,'');}).join(' + ')+'</span>':'';
+    var badges=multi; if(!e.active) badges+='<span class="badge lead">Lead · services only</span>'; if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
     html+='<div class="rcard"><div class="cardhead"><div class="cname">'+e.name+' '+badges+'</div><div class="ctotal" id="tot'+e.i+'"></div></div>'+
       '<div class="tiles">'+
         '<div class="tile'+(e.active?'':' muted-tile')+'"><div class="tval" id="acc'+e.i+'"></div><div class="tlbl">Accessory</div></div>'+
