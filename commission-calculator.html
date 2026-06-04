@@ -56,6 +56,11 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtable .copysum{cursor:pointer}
 .sumtable .copysum:hover{color:var(--blue);text-decoration:underline}
 .sumtable .substore{font-size:.76rem;color:#5b3fb0;font-weight:600;margin-top:3px;font-family:'Nunito Sans',sans-serif;white-space:normal}
+.storeseg{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.storeseg:empty{display:none}
+.segbtn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:9px 18px;border:1.5px solid var(--border);background:var(--white);color:var(--dark-grey);border-radius:10px;cursor:pointer;transition:all .12s}
+.segbtn:hover{border-color:var(--accent)}
+.segbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .cardhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
 .cname{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.15rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ctotal{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--green);white-space:nowrap}
@@ -115,16 +120,17 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
   <section id="tab-report">
     <div class="card">
       <div class="row">
-        <div class="field"><label>Store</label><select id="repStore"></select></div>
         <div class="field"><label>From</label><input type="date" id="repStart"></div>
         <div class="field"><label>To</label><input type="date" id="repEnd"></div>
         <div class="field"><label>Quick range</label><select id="repQuick"><option value="">—</option><option value="mtd">Month to date</option><option value="lastmonth">Last month</option></select></div>
         <button class="btn" id="runReport" style="margin-left:auto">Run report</button>
       </div>
-      <p class="hint">Everything is automated. The only manual field is <b>accessories sold on device tickets</b> — left blank, the 100% device-attach tier is <b>assumed met</b>. Enter the real number to override, then Save.</p>
+      <p class="hint">Loads every store at once — switch between them with the buttons below. The only manual field is <b>accessories sold on device tickets</b> (blank = 100% device-attach assumed met); it auto-saves as you type.</p>
     </div>
+    <div id="storeSwitch" class="storeseg"></div>
     <div id="reportOut"></div>
   </section>
+
 
   <!-- TIPS -->
   <section id="tab-tips" class="hide">
@@ -140,7 +146,10 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
     </div>
     <div class="card"><h2>Hours & split</h2><div class="tbl-wrap"><table id="tipsTable">
       <thead><tr><th>Employee</th><th>PP1 Hours</th><th>PP2 Hours</th><th>Total Hrs</th><th>Tips Earned</th></tr></thead><tbody></tbody>
-    </table></div></div>
+    </table></div>
+      <div class="row" style="margin-top:12px"><div class="field"><label>Add someone who worked this store</label><select id="tipsAddSel"></select></div><button class="btn alt" id="tipsAdd">+ Add to pool</button></div>
+      <p class="hint" style="margin-top:6px">Use this for staff based at another store who picked up shifts here — e.g. add them to give their share for hours worked.</p>
+    </div>
   </section>
 
   <!-- SETTINGS -->
@@ -252,32 +261,55 @@ function applyQuick(){var v=$('#repQuick').value,now=new Date(),y=now.getFullYea
   if(v==='mtd'){$('#repStart').value=iso(new Date(y,m,1));$('#repEnd').value=todayStr();}
   else if(v==='lastmonth'){$('#repStart').value=iso(new Date(y,m-1,1));$('#repEnd').value=iso(new Date(y,m,0));}}
 var SUMCOLS=['AccyUnits','NetAccySales','AccyGP','Tickets','DeviceUnits','DeviceReturns','DeviceRev','DeviceGP','Cleanings','ExpressRepairs','Malware'];
+var REPALL=null;
 function runReport(){
-  var store=$('#repStore').value,start=$('#repStart').value,end=$('#repEnd').value;
+  var start=$('#repStart').value,end=$('#repEnd').value;
   if(!start||!end){toast('Pick a date range',true);return;}
-  var periodKey=store+'|'+start+'|'+end;
-  Promise.all([api('report',{store:store,start:start,end:end}),api('manual',{store:store,periodKey:periodKey})])
-  .then(function(res){
+  var periodKey=start+'|'+end; $('#runReport').disabled=true;
+  Promise.all([api('report',{store:'ALL',start:start,end:end}),api('manual',{periodKey:periodKey})])
+  .then(function(res){$('#runReport').disabled=false;
     var rep=res[0],man=res[1]; if(!rep.ok){toast(rep.error||'Report failed',true);return;}
-    var emps=empsFor(store).map(function(c){return c.Employee;});
-    var totals={}; emps.forEach(function(e){totals[e]={};SUMCOLS.forEach(function(c){totals[e][c]=0;});});
-    (rep.rows||[]).forEach(function(r){ if(!totals[r.Employee]){totals[r.Employee]={};SUMCOLS.forEach(function(c){totals[r.Employee][c]=0;});}
-      SUMCOLS.forEach(function(c){totals[r.Employee][c]+=Number(r[c])||0;}); });
+    var dataByEmp={}; (rep.rows||[]).forEach(function(r){dataByEmp[r.Employee]=r;});
+    var emps={};
+    // seed every rostered employee (so they show under their home store even with zero sales)
+    STATE.config.forEach(function(c){ if(!c.Employee||emps[c.Employee])return; var t={};SUMCOLS.forEach(function(k){t[k]=0;});
+      emps[c.Employee]={t:t,home:c.Store,stores:[],byStore:{},rostered:true,active:c.Active!==false,goal:Number(c.AccessoryGoal)||0}; });
+    // overlay actual data
+    Object.keys(dataByEmp).forEach(function(name){var r=dataByEmp[name],cf=STATE.config.filter(function(c){return c.Employee===name;})[0];
+      var t={};SUMCOLS.forEach(function(k){t[k]=Number(r[k])||0;});
+      emps[name]={t:t,home:(cf?cf.Store:(r.HomeStore||'')),stores:r.Stores||[],byStore:r.byStore||{},rostered:!!cf,active:cf?cf.Active!==false:true,goal:cf?Number(cf.AccessoryGoal)||0:0}; });
     var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]={accDevice:(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits)};});
-    var rstores={},bystore={}; (rep.rows||[]).forEach(function(r){ rstores[r.Employee]=r.Stores||[]; bystore[r.Employee]=r.byStore||{}; });
-    REP={store:store,start:start,end:end,periodKey:periodKey,totals:totals,names:Object.keys(totals).sort(function(a,b){return a<b?1:(a>b?-1:0);}),manual:manual,stores:rstores,byStore:bystore};
-    paintReport();
-  }).catch(function(err){toast(String(err),true);});
+    var present={}; Object.keys(emps).forEach(function(n){if(emps[n].home)present[emps[n].home]=true;});
+    var homeStores=STATE.stores.filter(function(s){return present[s];});
+    Object.keys(present).forEach(function(s){if(homeStores.indexOf(s)<0)homeStores.push(s);});
+    REPALL={start:start,end:end,periodKey:periodKey,emps:emps,manual:manual,homeStores:homeStores};
+    var keep=(REP&&homeStores.indexOf(REP.store)>=0)?REP.store:homeStores[0];
+    selectStore(keep||'');
+  }).catch(function(err){$('#runReport').disabled=false;toast(String(err),true);});
+}
+function selectStore(store){
+  if(!REPALL)return;
+  var names=Object.keys(REPALL.emps).filter(function(n){return REPALL.emps[n].home===store;});
+  var totals={},stores={},byStore={};
+  names.forEach(function(n){var e=REPALL.emps[n];totals[n]=e.t;stores[n]=e.stores;byStore[n]=e.byStore;});
+  REP={store:store,start:REPALL.start,end:REPALL.end,periodKey:REPALL.periodKey,totals:totals,
+    names:names.sort(function(a,b){return a<b?1:(a>b?-1:0);}),manual:REPALL.manual,stores:stores,byStore:byStore};
+  renderStoreSwitcher();
+  paintReport();
+}
+function renderStoreSwitcher(){
+  if(!REPALL){$('#storeSwitch').innerHTML='';return;}
+  $('#storeSwitch').innerHTML=REPALL.homeStores.map(function(s){
+    return '<button class="segbtn'+(s===REP.store?' on':'')+'" data-store="'+s+'">'+s+'</button>';}).join('');
+  $all('#storeSwitch .segbtn').forEach(function(b){b.onclick=function(){selectStore(b.dataset.store);};});
 }
 function calc(e){var m=REP.manual[e.name]||{accDevice:''},t=e.t;
   return computeCommission({AccyUnits:t.AccyUnits,Tickets:t.Tickets,NetAccySales:t.NetAccySales,AccyGP:t.AccyGP,
-    DeviceUnits:t.DeviceUnits,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
+    DeviceUnits:t.DeviceUnits,DeviceReturns:t.DeviceReturns,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
     {accessoryGoal:e.goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:e.active,rules:rulesFor(REP.store)});}
 function setText(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
 // Split a person's commission across the stores they worked: accessory+device by GP share, services charged exactly.
-function chargeSplit(e,c){
-  var bs=(REP.byStore&&REP.byStore[e.name])||{}, stores=Object.keys(bs);
-  if(!stores.length) stores=[e.name && REP.store];   // fallback
+function splitCharge(bs,c){ bs=bs||{}; var stores=Object.keys(bs); if(!stores.length) return [];
   var rates=STATE.rates, adComm=c.accyComm+c.devComm, totalGP=0;
   stores.forEach(function(s){var b=bs[s]||{};totalGP+=(+b.AccyGP||0)+(+b.DeviceGP||0);});
   return stores.map(function(s){var b=bs[s]||{};
@@ -286,6 +318,7 @@ function chargeSplit(e,c){
     return {store:s, amt:adComm*gpShare+svc};
   }).sort(function(a,b){return b.amt-a.amt;});
 }
+function chargeSplit(e,c){var parts=splitCharge((REP.byStore&&REP.byStore[e.name])||{}, c); return parts.length?parts:[{store:REP.store,amt:c.total}];}
 function chargeHTML(e,c){
   var parts=chargeSplit(e,c);
   if(parts.length<=1) return '<div class="charge"><div class="clbl">Charge to '+(parts[0]?parts[0].store:REP.store)+'</div><div class="crow only"><span></span><span>'+money(parts[0]?parts[0].amt:c.total)+'</span></div></div>';
@@ -346,9 +379,9 @@ function paintReport(){
     return '<tr><td>'+e.name+bdg+'</td><td class="sumcell">'+amt+sub+'</td></tr>';}).join('');
   var html='';
   if(unrostered.length) html+='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings.</div>';
-  html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+REP.store+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees</div></div>'+
+  html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+REP.store+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees · manual values auto-save</div></div>'+
     '<div class="sumtotal"><div class="muted">Store total</div><div class="big" id="grand"></div></div>'+
-    '<button class="btn alt" id="saveManual">Save manual values</button></div>'+
+    '<button class="btn alt" id="dlPayroll">⬇ Payroll summary (all stores)</button></div>'+
     '<table class="sumtable">'+sumRows+'</table></div>';
   REP.emp.forEach(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
     var multi=e.multi?'<span class="badge multi">'+e.stores.map(function(s){return s.replace(/^CPR\s*/,'');}).join(' + ')+'</span>':'';
@@ -368,24 +401,75 @@ function paintReport(){
   refreshTotals();
   $all('#reportOut .copysum').forEach(function(td){td.addEventListener('click',function(){var amt=td.dataset.amt||'';copyText(amt).then(function(){toast('Copied $'+amt);});});});
   $all('#reportOut .manualline input[data-i]').forEach(function(inp){
-    inp.addEventListener('input',function(){var e=REP.emp[Number(inp.dataset.i)];REP.manual[e.name]={accDevice:inp.value===''?'':Number(inp.value)};refreshTotals();});});
+    inp.addEventListener('input',function(){var e=REP.emp[Number(inp.dataset.i)];REP.manual[e.name]={accDevice:inp.value===''?'':Number(inp.value)};refreshTotals();});
+    inp.addEventListener('change',function(){var e=REP.emp[Number(inp.dataset.i)];saveManualOne(e.name);});});
   $all('#reportOut .detbtn[data-det]').forEach(function(btn){
     btn.addEventListener('click',function(){var d=document.getElementById('det'+btn.dataset.det);
       if(d.classList.contains('hide')){d.classList.remove('hide');btn.textContent='Hide details ▴';}else{d.classList.add('hide');btn.textContent='Details ▾';}});});
-  if($('#saveManual')) $('#saveManual').onclick=saveManual;
+  if($('#dlPayroll')) $('#dlPayroll').onclick=downloadPayroll;
 }
-function saveManual(){
-  var rows=REP.names.map(function(n){var m=REP.manual[n]||{accDevice:''};return {Employee:n,AccDeviceUnits:m.accDevice};});
-  apiPost({action:'saveManual',periodKey:REP.periodKey,store:REP.store,rows:rows}).then(function(res){
-    if(res.ok) toast('Manual values saved'); else toast(res.error||'Save failed',true);
+function saveManualOne(name){var m=REP.manual[name]||{accDevice:''};
+  apiPost({action:'saveManual',periodKey:REP.periodKey,store:REP.store,rows:[{Employee:name,AccDeviceUnits:m.accDevice}]}).then(function(res){
+    if(res.ok) toast('Saved'); else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});
+}
+// Printable payroll summary across ALL stores, opened in a new window for Save-as-PDF.
+function downloadPayroll(){
+  var start=$('#repStart').value,end=$('#repEnd').value;
+  if(!start||!end){toast('Pick a date range first',true);return;}
+  var pk=start+'|'+end; toast('Building payroll summary…');
+  Promise.all([api('report',{store:'ALL',start:start,end:end}),api('manual',{periodKey:pk})]).then(function(res){
+    var rep=res[0],man=res[1]; if(!rep.ok){toast('Failed to load',true);return;}
+    var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]=(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits);});
+    var byHome={}, storeCharge={};
+    (rep.rows||[]).forEach(function(r){
+      var cf=STATE.config.filter(function(c){return c.Employee===r.Employee;})[0];
+      var active=cf?cf.Active!==false:true, goal=cf?Number(cf.AccessoryGoal)||0:0, home=r.HomeStore||'(unrostered)';
+      var c=computeCommission({AccyUnits:r.AccyUnits,Tickets:r.Tickets,NetAccySales:r.NetAccySales,AccyGP:r.AccyGP,DeviceUnits:r.DeviceUnits,DeviceReturns:r.DeviceReturns,DeviceGP:r.DeviceGP,Cleanings:r.Cleanings,ExpressRepairs:r.ExpressRepairs,Malware:r.Malware},
+        {accessoryGoal:goal,accDeviceUnits:(manual[r.Employee]!=null?manual[r.Employee]:''),rates:STATE.rates,active:active,rules:rulesFor(home)});
+      var parts=splitCharge(r.byStore||{},c); if(!parts.length)parts=[{store:home,amt:c.total}];
+      parts.forEach(function(p){storeCharge[p.store]=(storeCharge[p.store]||0)+p.amt;});
+      (byHome[home]=byHome[home]||[]).push({emp:r.Employee,active:active,c:c,parts:parts,multi:(r.Stores||[]).length>1});
+    });
+    var w=window.open('','_blank'); if(!w){toast('Allow pop-ups to download the summary',true);return;}
+    w.document.write(buildPayrollDoc(start,end,byHome,storeCharge)); w.document.close();
+    setTimeout(function(){try{w.focus();w.print();}catch(_){}},500);
   }).catch(function(err){toast(String(err),true);});
+}
+function buildPayrollDoc(start,end,byHome,storeCharge){
+  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');};
+  var css='<style>body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px}h1{font-size:20px;margin:0 0 2px;color:#DC282E}h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #DC282E;padding-bottom:3px}.sub{color:#555;font-size:12px;margin-bottom:6px}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f2f2}td.r,th.r{text-align:right}tr.sub td{font-weight:bold;background:#faf7f7}.split{color:#5b3fb0;font-size:11px}.charge{max-width:380px}.grand{font-size:14px;font-weight:bold;margin-top:10px}@media print{body{margin:12mm}}</style>';
+  var grand=0, body='';
+  Object.keys(byHome).sort().forEach(function(home){
+    var emps=byHome[home].slice().sort(function(a,b){return a.emp<b.emp?-1:1;}), sub=0;
+    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Total</th></tr></thead><tbody>';
+    emps.forEach(function(x){ sub+=x.c.total; grand+=x.c.total;
+      body+='<tr><td>'+esc(x.emp)+(x.active?'':' (lead)')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r"><b>'+money(x.c.total)+'</b></td></tr>';
+      if(x.multi) body+='<tr><td colspan="5" class="split">charged to: '+x.parts.map(function(p){return esc(p.store)+' '+money(p.amt);}).join(' · ')+'</td></tr>';
+    });
+    body+='<tr class="sub"><td>Subtotal</td><td class="r" colspan="3"></td><td class="r">'+money(sub)+'</td></tr></tbody></table>';
+  });
+  var ct='<h2>Commission cost charged to each store</h2><table class="charge"><tbody>';
+  Object.keys(storeCharge).sort().forEach(function(s){ct+='<tr><td>'+esc(s)+'</td><td class="r">'+money(storeCharge[s])+'</td></tr>';});
+  ct+='</tbody></table>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>CPR Payroll '+start+' to '+end+'</title>'+css+'</head><body>'+
+    '<h1>CPR Commission — Payroll Summary</h1><div class="sub">Pay period: '+start+' to '+end+' &nbsp;·&nbsp; generated '+new Date().toLocaleString()+'</div>'+
+    body+ct+'<div class="grand">Total commission, all stores: '+money(grand)+'</div></body></html>';
 }
 
 // ---------- TIPS ----------
+function tipRowHTML(name,removable){return '<tr><td class="emp-name">'+name+(removable?' <span class="x tipx" title="Remove">×</span>':'')+'</td><td><input type="number" step="0.01" data-emp="'+name+'" data-col="PP1Hours"></td><td><input type="number" step="0.01" data-emp="'+name+'" data-col="PP2Hours"></td><td class="thrs">0</td><td class="ttip">$0.00</td></tr>';}
+function tipsHasEmp(name){return Array.prototype.some.call($('#tipsTable tbody').querySelectorAll('input[data-col="PP1Hours"]'),function(i){return i.dataset.emp===name;});}
+function addTipRow(name,removable){if(!name||tipsHasEmp(name))return;var tb=$('#tipsTable tbody');
+  if(tb.querySelector('td[colspan]'))tb.innerHTML='';
+  tb.insertAdjacentHTML('beforeend',tipRowHTML(name,removable!==false));
+  var tr=tb.lastElementChild, x=tr.querySelector('.tipx'); if(x)x.onclick=function(){tr.remove();recalcTips();};
+  recalcTips();}
+function fillTipsAddSel(){var sel=$('#tipsAddSel');if(!sel)return;
+  var names=[];STATE.config.forEach(function(c){if(c.Employee&&names.indexOf(c.Employee)<0)names.push(c.Employee);});names.sort();
+  sel.innerHTML=names.map(function(n){return '<option>'+n+'</option>';}).join('');}
 function renderTipsTable(){var emps=empsFor($('#tipsStore').value);
-  $('#tipsTable tbody').innerHTML=emps.map(function(e){
-    return '<tr><td class="emp-name">'+e.Employee+'</td><td><input type="number" step="0.01" data-emp="'+e.Employee+'" data-col="PP1Hours"></td><td><input type="number" step="0.01" data-emp="'+e.Employee+'" data-col="PP2Hours"></td><td class="thrs">0</td><td class="ttip">$0.00</td></tr>';
-  }).join('')||'<tr><td colspan="5" class="muted">No employees for this store.</td></tr>';}
+  $('#tipsTable tbody').innerHTML=emps.map(function(e){return tipRowHTML(e.Employee,false);}).join('')||'<tr><td colspan="5" class="muted">No employees for this store.</td></tr>';
+  fillTipsAddSel();}
 function recalcTips(){var pool=Number($('#tipsPool').value)||0,rows=[],total=0;
   $all('#tipsTable tbody tr').forEach(function(tr){var ins=tr.querySelectorAll('input');if(!ins.length)return;
     var h=(Number(ins[0].value)||0)+(Number(ins[1].value)||0);tr.querySelector('.thrs').textContent=h.toFixed(2);total+=h;rows.push({tr:tr,h:h});});
@@ -394,6 +478,7 @@ function loadTips(){var store=$('#tipsStore').value,period=$('#tipsPeriod').valu
   if(!period){toast('Enter a pay period label',true);return;}
   api('tips',{store:store,period:period}).then(function(res){if(!res.ok){toast(res.error||'Load failed',true);return;}
     var byEmp={};(res.rows||[]).forEach(function(r){byEmp[r.Employee]=r;if(r.Pool)$('#tipsPool').value=r.Pool;});
+    Object.keys(byEmp).forEach(function(n){if(!tipsHasEmp(n))addTipRow(n,true);});   // restore added staff
     $all('#tipsTable input').forEach(function(inp){var r=byEmp[inp.dataset.emp];inp.value=r?r[inp.dataset.col]:'';});
     recalcTips();toast('Loaded '+period);}).catch(function(err){toast(String(err),true);});}
 function saveTips(){var store=$('#tipsStore').value,period=$('#tipsPeriod').value,pool=Number($('#tipsPool').value)||0;
@@ -455,7 +540,7 @@ function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stor
   if(res.ruleDefaults)STATE.ruleDefaults=res.ruleDefaults;
   if(res.rules)STATE.rules=res.rules;
   refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();}
-function refreshSelects(){['#repStore','#tipsStore'].forEach(function(s){fillStoreSelect($(s));});renderTipsTable();}
+function refreshSelects(){fillStoreSelect($('#tipsStore'));renderTipsTable();}
 function init(){
   STATE.stores=['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR'];
   STATE.config=[{Store:'CPR Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'CPR Salem Northeast',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'CPR Clackamas OR',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
@@ -463,6 +548,7 @@ function init(){
   api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
   $('#repQuick').onchange=applyQuick;$('#runReport').onclick=runReport;
   $('#tipsStore').onchange=renderTipsTable;$('#tipsTable').addEventListener('input',recalcTips);$('#tipsPool').addEventListener('input',recalcTips);$('#loadTips').onclick=loadTips;$('#saveTips').onclick=saveTips;
+  $('#tipsAdd').onclick=function(){addTipRow($('#tipsAddSel').value,true);};
   $('#testConn').onclick=testConnection;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
   $('#saveTierRules').onclick=saveTierRules; $('#rulesStore').onchange=renderRulesForm;
   $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();fillRulesStore();renderRulesForm();}};
