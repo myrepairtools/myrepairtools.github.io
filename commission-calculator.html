@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Commission Calculator — CPR Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--light-red:#F15F5E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;
+  --grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans',sans-serif;background:var(--light-grey);color:var(--dark);line-height:1.5}
+main{max-width:1080px;margin:0 auto;padding:24px 18px 80px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;margin-bottom:4px}
+.sub{color:var(--dark-grey);margin-bottom:20px;font-size:.95rem}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:9px 16px;border-radius:10px;background:var(--white);border:1px solid var(--border);cursor:pointer;color:var(--dark-grey)}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.card{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.card h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:14px}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+input,select{font-family:'Nunito Sans',sans-serif;font-size:.92rem;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--dark)}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+input[type=number]{width:120px;text-align:right}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;background:var(--accent);color:#fff}
+.btn:hover{filter:brightness(.95)}
+.btn.alt{background:var(--white);color:var(--dark);border:1px solid var(--border)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);background:var(--light-grey)}
+tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
+.emp-name{font-family:'Nunito',sans-serif;font-weight:800}
+.metric{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--border);font-size:.88rem;gap:10px}
+.metric span:last-child{font-weight:700;white-space:nowrap}
+.payout{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--green)}
+.emp-block{border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+.emp-block h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.tier{font-size:.82rem;color:var(--dark-grey);display:flex;justify-content:space-between;padding:3px 0}
+.tier .hit{color:var(--green);font-weight:700}.tier .miss{color:var(--grey)}.tier .assumed{color:var(--blue);font-weight:700}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:680px){.grid2{grid-template-columns:1fr}}
+.manual-in{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 12px;padding:10px;background:var(--light-grey);border-radius:9px;align-items:flex-end}
+.manual-in .field input{width:150px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:18px}
+.banner.setup{margin-bottom:18px}
+.hide{display:none}.muted{color:var(--dark-grey);font-size:.85rem}.hint{font-size:.78rem;color:var(--dark-grey);margin-top:4px}
+.badge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:999px;vertical-align:middle}
+.badge.lead{background:#EAF6FD;color:#1b6fa3}.badge.warn{background:#FFF4E5;color:#8a5a00}
+.cfg-row{display:grid;grid-template-columns:1fr 1.4fr 120px 70px 36px;gap:8px;align-items:center;margin-bottom:6px}
+.cfg-row.head{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;color:var(--dark-grey)}
+.rate-row{display:grid;grid-template-columns:1fr 140px;gap:10px;align-items:center;margin-bottom:8px;max-width:420px}
+.x{cursor:pointer;color:var(--red);font-weight:900;text-align:center}
+</style>
+</head>
+<body>
+<script src="assets/nav.js" data-section="admin"></script>
+<main>
+  <h1>Commission Calculator</h1>
+  <p class="sub">Daily reports flow in from RepairQ automatically. Pick a date range to calculate commissions; tips are handled per pay period.</p>
+
+  <div id="setupBanner" class="banner setup hide"><b>One-time setup needed.</b> Paste your Apps Script Web App URL in <b>Settings</b> to connect the database.</div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="report">Report</div>
+    <div class="tab" data-tab="tips">Tips</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- REPORT -->
+  <section id="tab-report">
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>Store</label><select id="repStore"></select></div>
+        <div class="field"><label>From</label><input type="date" id="repStart"></div>
+        <div class="field"><label>To</label><input type="date" id="repEnd"></div>
+        <div class="field"><label>Quick range</label><select id="repQuick"><option value="">—</option><option value="mtd">Month to date</option><option value="lastmonth">Last month</option></select></div>
+        <button class="btn" id="runReport" style="margin-left:auto">Run report</button>
+      </div>
+      <p class="hint">Everything is automated. The only manual field is <b>accessories sold on device tickets</b> — left blank, the 100% device-attach tier is <b>assumed met</b>. Enter the real number to override, then Save.</p>
+    </div>
+    <div id="reportOut"></div>
+  </section>
+
+  <!-- TIPS -->
+  <section id="tab-tips" class="hide">
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>Store</label><select id="tipsStore"></select></div>
+        <div class="field"><label>Pay period label</label><input type="text" id="tipsPeriod" placeholder="e.g. 2026-04"></div>
+        <div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" step="0.01"></div>
+        <button class="btn alt" id="loadTips">Load</button>
+        <button class="btn" id="saveTips" style="margin-left:auto">Save tips →</button>
+      </div>
+      <p class="hint">Each person's share = (their hours ÷ total hours) × pool.</p>
+    </div>
+    <div class="card"><h2>Hours & split</h2><div class="tbl-wrap"><table id="tipsTable">
+      <thead><tr><th>Employee</th><th>PP1 Hours</th><th>PP2 Hours</th><th>Total Hrs</th><th>Tips Earned</th></tr></thead><tbody></tbody>
+    </table></div></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hide">
+    <div class="card"><h2>Database connection</h2>
+      <div class="field" style="max-width:640px"><label>Apps Script Web App URL</label><input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/AKfy.../exec"></div>
+      <p class="hint">Also use this URL as your Looker / RepairQ webhook target.</p>
+      <div style="margin-top:12px"><button class="btn" id="saveSettings">Save & test connection</button></div>
+      <p id="connStatus" class="muted" style="margin-top:10px"></p>
+    </div>
+    <div class="card"><h2>Service payouts</h2>
+      <p class="hint" style="margin-top:0;margin-bottom:12px">Flat $ per service. Change here and every report recalculates.</p>
+      <div id="rateList"></div>
+      <div style="margin-top:10px"><button class="btn" id="saveRates">Save payouts</button></div>
+    </div>
+    <div class="card"><h2>Stores</h2><div id="storeList"></div>
+      <div class="row" style="margin-top:8px"><input type="text" id="newStore" placeholder="Add a store…"><button class="btn alt" id="addStore">Add</button></div>
+    </div>
+    <div class="card"><h2>Roster & accessory goals</h2>
+      <div class="cfg-row head"><div>Store</div><div>Employee</div><div>Accy Goal $</div><div>Active</div><div></div></div>
+      <div id="cfgList"></div>
+      <p class="hint">Untick <b>Active</b> for leads/managers — they still earn service payouts but no accessory/device %.</p>
+      <div style="margin-top:10px"><button class="btn alt" id="addEmp">+ Add employee</button></div>
+      <div style="margin-top:14px"><button class="btn" id="saveConfig">Save roster & stores</button></div>
+    </div>
+  </section>
+</main>
+<div id="toast" class="toast"></div>
+
+<script>
+var LS={get:function(k){try{return localStorage.getItem(k);}catch(e){return null;}},set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
+var STATE={api:LS.get('cpr_comm_api')||'',stores:[],config:[],rates:{cleaning:10,express:10,malware:10}};
+var REP=null;
+
+// ---------- engine ----------
+function computeCommission(t, cfg){
+  var rates=cfg.rates||STATE.rates;
+  var attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
+  var netAccy=t.NetAccySales||0, accyGP=t.AccyGP||0;
+  var t25=attach>=0.25?0.10:0, goal=netAccy>=cfg.accessoryGoal?0.05:0, t50=attach>=0.50?0.05:0;
+  var accyComm=(t25+goal+t50)*accyGP;
+  var dev5=t.DeviceUnits>=5?0.05:0;
+  // Acc/Device attach: blank manual value = ASSUMED MET; a number = actual
+  var entered=!(cfg.accDeviceUnits===''||cfg.accDeviceUnits===null||cfg.accDeviceUnits===undefined);
+  var attachMet=entered?(t.DeviceUnits>0&&(Number(cfg.accDeviceUnits)/t.DeviceUnits)>=1):true;
+  var devAttach=attachMet?0.05:0;
+  var dev2024=(t.DeviceUnits>=20&&t.DeviceUnits<=24&&devAttach===0.05)?0.05:0;
+  var dev25=(t.DeviceUnits>=25&&dev5===0.05)?0.10:0;
+  var devComm=(dev5+devAttach+dev2024+dev25)*(t.DeviceGP||0);
+  var clean=(t.Cleanings||0)*rates.cleaning, exp=(t.ExpressRepairs||0)*rates.express, mal=(t.Malware||0)*rates.malware;
+  var repairComm=clean+exp+mal;
+  var exempt=(cfg.active===false);
+  return {attach:attach,netAccy:netAccy,accyGP:accyGP,assumed:!entered,
+    tiers:{t25:t25,goal:goal,t50:t50,dev5:dev5,devAttach:devAttach,dev2024:dev2024,dev25:dev25},
+    accyComm:exempt?0:accyComm,devComm:exempt?0:devComm,clean:clean,exp:exp,mal:mal,repairComm:repairComm,exempt:exempt,
+    total:(exempt?0:accyComm)+(exempt?0:devComm)+repairComm};
+}
+
+// ---------- API ----------
+function api(action,params){ if(!STATE.api) return Promise.reject('No API URL configured.');
+  var url=STATE.api+'?action='+encodeURIComponent(action);
+  for(var k in (params||{})) url+='&'+k+'='+encodeURIComponent(params[k]);
+  return fetch(url).then(function(r){return r.json();}); }
+function apiPost(body){ if(!STATE.api) return Promise.reject('No API URL configured.');
+  return fetch(STATE.api,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.json();}); }
+
+// ---------- helpers ----------
+function $(s){return document.querySelector(s);} function $all(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
+function money(n){return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function pct(n){return (Number(n)*100).toFixed(1)+'%';}
+function toast(m,e){var t=$('#toast');t.textContent=m;t.className='toast show'+(e?' err':'');setTimeout(function(){t.className='toast'+(e?' err':'');},2600);}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function empsFor(store){return STATE.config.filter(function(c){return c.Store===store;});}
+function fillStoreSelect(sel){sel.innerHTML=STATE.stores.map(function(s){return '<option>'+s+'</option>';}).join('');}
+
+$all('.tab').forEach(function(tab){tab.addEventListener('click',function(){
+  $all('.tab').forEach(function(t){t.classList.remove('active');});tab.classList.add('active');
+  ['report','tips','settings'].forEach(function(n){$('#tab-'+n).classList.toggle('hide',n!==tab.dataset.tab);});
+});});
+
+// ---------- REPORT ----------
+function applyQuick(){var v=$('#repQuick').value,now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  function iso(d){return d.toISOString().slice(0,10);}
+  if(v==='mtd'){$('#repStart').value=iso(new Date(y,m,1));$('#repEnd').value=todayStr();}
+  else if(v==='lastmonth'){$('#repStart').value=iso(new Date(y,m-1,1));$('#repEnd').value=iso(new Date(y,m,0));}}
+var SUMCOLS=['AccyUnits','NetAccySales','AccyGP','Tickets','DeviceUnits','DeviceRev','DeviceGP','Cleanings','ExpressRepairs','Malware'];
+function runReport(){
+  var store=$('#repStore').value,start=$('#repStart').value,end=$('#repEnd').value;
+  if(!start||!end){toast('Pick a date range',true);return;}
+  var periodKey=store+'|'+start+'|'+end;
+  Promise.all([api('report',{store:store,start:start,end:end}),api('manual',{store:store,periodKey:periodKey})])
+  .then(function(res){
+    var rep=res[0],man=res[1]; if(!rep.ok){toast(rep.error||'Report failed',true);return;}
+    var emps=empsFor(store).map(function(c){return c.Employee;});
+    var totals={}; emps.forEach(function(e){totals[e]={};SUMCOLS.forEach(function(c){totals[e][c]=0;});});
+    (rep.rows||[]).forEach(function(r){ if(!totals[r.Employee]){totals[r.Employee]={};SUMCOLS.forEach(function(c){totals[r.Employee][c]=0;});}
+      SUMCOLS.forEach(function(c){totals[r.Employee][c]+=Number(r[c])||0;}); });
+    var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]={accDevice:(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits)};});
+    REP={store:store,start:start,end:end,periodKey:periodKey,totals:totals,names:Object.keys(totals),manual:manual};
+    paintReport();
+  }).catch(function(err){toast(String(err),true);});
+}
+function paintReport(){
+  if(!REP) return;
+  if(!REP.names.length){$('#reportOut').innerHTML='<div class="card"><p class="muted">No data in this range.</p></div>';return;}
+  var grand=0,unrostered=[];
+  var html='<div class="card"><div class="row"><h2 style="margin:0">'+REP.store+' · '+REP.start+' → '+REP.end+'</h2><button class="btn alt" id="saveManual" style="margin-left:auto">Save manual values</button></div></div>';
+  REP.names.forEach(function(name){
+    var t=REP.totals[name], cfgRow=STATE.config.filter(function(c){return c.Store===REP.store&&c.Employee===name;})[0];
+    var rostered=!!cfgRow, active=rostered?(cfgRow.Active!==false):true, goal=cfgRow?Number(cfgRow.AccessoryGoal)||0:0;
+    if(!rostered) unrostered.push(name);
+    var m=REP.manual[name]||{accDevice:''};
+    var c=computeCommission({AccyUnits:t.AccyUnits,Tickets:t.Tickets,NetAccySales:t.NetAccySales,AccyGP:t.AccyGP,
+      DeviceUnits:t.DeviceUnits,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
+      {accessoryGoal:goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:active});
+    grand+=c.total;
+    function tier(l,v){return '<div class="tier"><span>'+l+'</span><span class="'+(v>0?'hit':'miss')+'">'+(v>0?'+'+pct(v):'—')+'</span></div>';}
+    var devAttachRow='<div class="tier"><span>100% accy attach (+5%)</span><span class="'+(c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss')+'">'+(c.tiers.devAttach>0?(c.assumed?'+5.0% (assumed)':'+5.0%'):'—')+'</span></div>';
+    var badges=''; if(!active) badges+=' <span class="badge lead">Lead · services only</span>'; if(!rostered) badges+=' <span class="badge warn">⚠ not in roster</span>';
+    html+='<div class="emp-block"><h3><span>'+name+badges+'</span><span class="payout">'+money(c.total)+'</span></h3>';
+    if(active){
+      html+='<div class="manual-in"><div class="field"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-emp="'+name+'" value="'+(m.accDevice===''?'':m.accDevice)+'"></div>'+
+        '<div class="field"><label>Devices sold</label><input type="number" value="'+t.DeviceUnits+'" disabled></div></div>'+
+      '<div class="grid2"><div>'+
+        '<div class="metric"><span>Attach ('+t.AccyUnits+' accy ÷ '+t.Tickets+' tickets)</span><span>'+pct(c.attach)+'</span></div>'+
+        '<div class="metric"><span>Net accessory $ (goal '+money(goal)+')</span><span>'+money(c.netAccy)+'</span></div>'+
+        '<div class="metric"><span>Accessory GP</span><span>'+money(c.accyGP)+'</span></div>'+
+        tier('25% attach gate (+10%)',c.tiers.t25)+tier('Accy goal met (+5%)',c.tiers.goal)+tier('50%+ attach (+5%)',c.tiers.t50)+
+        '<div class="metric"><span><b>Accessory commission</b></span><span><b>'+money(c.accyComm)+'</b></span></div>'+
+      '</div><div>'+
+        tier('5+ devices (+5%)',c.tiers.dev5)+devAttachRow+tier('20–24 devices (+5%)',c.tiers.dev2024)+tier('25+ devices (+10%)',c.tiers.dev25)+
+        '<div class="metric"><span><b>Device commission</b> (GP '+money(t.DeviceGP)+')</span><span><b>'+money(c.devComm)+'</b></span></div>'+
+        '<div class="metric"><span>Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware+'</span><span>'+money(c.repairComm)+'</span></div>'+
+      '</div></div>';
+    } else {
+      html+='<div class="grid2"><div>'+
+        '<div class="metric"><span>Attach ('+t.AccyUnits+' accy ÷ '+t.Tickets+' tickets)</span><span>'+pct(c.attach)+'</span></div>'+
+        '<div class="metric"><span>Net accessory $</span><span>'+money(t.NetAccySales)+'</span></div>'+
+        '<div class="metric"><span>Devices sold (GP '+money(t.DeviceGP)+')</span><span>'+t.DeviceUnits+'</span></div>'+
+        '<div class="tier"><span>Accessory & device commission</span><span class="miss">exempt</span></div>'+
+      '</div><div>'+
+        '<div class="metric"><span>Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware+'</span><span>'+money(c.repairComm)+'</span></div>'+
+        '<div class="metric"><span><b>Services payout</b></span><span><b>'+money(c.repairComm)+'</b></span></div>'+
+      '</div></div>';
+    }
+    html+='</div>';
+  });
+  if(unrostered.length) html='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings to set their goal and active status.</div>'+html;
+  html+='<div class="card"><div class="metric" style="border:none"><span style="font-size:1.05rem;font-family:Nunito;font-weight:900">Store total commission</span><span class="payout">'+money(grand)+'</span></div></div>';
+  $('#reportOut').innerHTML=html;
+  $all('#reportOut .manual-in input[data-emp]').forEach(function(inp){ if(inp.disabled) return;
+    inp.addEventListener('input',function(){ REP.manual[inp.dataset.emp]={accDevice:inp.value===''?'':Number(inp.value)}; paintReport(); });
+  });
+  if($('#saveManual')) $('#saveManual').onclick=saveManual;
+}
+function saveManual(){
+  var rows=REP.names.map(function(n){var m=REP.manual[n]||{accDevice:''};return {Employee:n,AccDeviceUnits:m.accDevice};});
+  apiPost({action:'saveManual',periodKey:REP.periodKey,store:REP.store,rows:rows}).then(function(res){
+    if(res.ok) toast('Manual values saved'); else toast(res.error||'Save failed',true);
+  }).catch(function(err){toast(String(err),true);});
+}
+
+// ---------- TIPS ----------
+function renderTipsTable(){var emps=empsFor($('#tipsStore').value);
+  $('#tipsTable tbody').innerHTML=emps.map(function(e){
+    return '<tr><td class="emp-name">'+e.Employee+'</td><td><input type="number" step="0.01" data-emp="'+e.Employee+'" data-col="PP1Hours"></td><td><input type="number" step="0.01" data-emp="'+e.Employee+'" data-col="PP2Hours"></td><td class="thrs">0</td><td class="ttip">$0.00</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="muted">No employees for this store.</td></tr>';}
+function recalcTips(){var pool=Number($('#tipsPool').value)||0,rows=[],total=0;
+  $all('#tipsTable tbody tr').forEach(function(tr){var ins=tr.querySelectorAll('input');if(!ins.length)return;
+    var h=(Number(ins[0].value)||0)+(Number(ins[1].value)||0);tr.querySelector('.thrs').textContent=h.toFixed(2);total+=h;rows.push({tr:tr,h:h});});
+  rows.forEach(function(r){r.tr.querySelector('.ttip').textContent=money(total>0?(r.h/total)*pool:0);});}
+function loadTips(){var store=$('#tipsStore').value,period=$('#tipsPeriod').value;
+  if(!period){toast('Enter a pay period label',true);return;}
+  api('tips',{store:store,period:period}).then(function(res){if(!res.ok){toast(res.error||'Load failed',true);return;}
+    var byEmp={};(res.rows||[]).forEach(function(r){byEmp[r.Employee]=r;if(r.Pool)$('#tipsPool').value=r.Pool;});
+    $all('#tipsTable input').forEach(function(inp){var r=byEmp[inp.dataset.emp];inp.value=r?r[inp.dataset.col]:'';});
+    recalcTips();toast('Loaded '+period);}).catch(function(err){toast(String(err),true);});}
+function saveTips(){var store=$('#tipsStore').value,period=$('#tipsPeriod').value,pool=Number($('#tipsPool').value)||0;
+  if(!period){toast('Enter a pay period label',true);return;}
+  var byEmp={};$all('#tipsTable input').forEach(function(inp){var e=inp.dataset.emp;byEmp[e]=byEmp[e]||{Employee:e};byEmp[e][inp.dataset.col]=Number(inp.value)||0;});
+  var rows=Object.keys(byEmp).map(function(k){return byEmp[k];});$('#saveTips').disabled=true;
+  apiPost({action:'saveTips',store:store,period:period,pool:pool,rows:rows}).then(function(res){$('#saveTips').disabled=false;
+    if(res.ok)toast('Tips saved for '+period);else toast(res.error||'Save failed',true);}).catch(function(err){$('#saveTips').disabled=false;toast(String(err),true);});}
+
+// ---------- SETTINGS ----------
+function renderRates(){var defs=[['cleaning','Device Cleaning'],['express','Express Repair'],['malware','Malware/Virus Removal']];
+  $('#rateList').innerHTML=defs.map(function(d){return '<div class="rate-row"><label style="font-family:Nunito;font-weight:700">'+d[1]+'</label><input type="number" step="0.01" data-rate="'+d[0]+'" value="'+(STATE.rates[d[0]]!=null?STATE.rates[d[0]]:0)+'"></div>';}).join('');
+  $all('#rateList input[data-rate]').forEach(function(inp){inp.onchange=function(){STATE.rates[inp.dataset.rate]=Number(inp.value)||0;};});}
+function renderStoreList(){$('#storeList').innerHTML=STATE.stores.map(function(s,i){return '<div class="cfg-row" style="grid-template-columns:1fr 36px"><div>'+s+'</div><div class="x" data-i="'+i+'">×</div></div>';}).join('');
+  $all('#storeList .x').forEach(function(x){x.onclick=function(){STATE.stores.splice(Number(x.dataset.i),1);renderStoreList();};});}
+function renderCfgList(){$('#cfgList').innerHTML=STATE.config.map(function(c,i){
+  var opts=STATE.stores.map(function(s){return '<option'+(s===c.Store?' selected':'')+'>'+s+'</option>';}).join('');
+  return '<div class="cfg-row"><select data-i="'+i+'" data-f="Store">'+opts+'</select><input data-i="'+i+'" data-f="Employee" value="'+(c.Employee||'')+'"><input type="number" data-i="'+i+'" data-f="AccessoryGoal" value="'+(c.AccessoryGoal||0)+'"><input type="checkbox" data-i="'+i+'" data-f="Active" '+(c.Active!==false?'checked':'')+'><div class="x" data-del="'+i+'">×</div></div>';}).join('');
+  $all('#cfgList [data-f]').forEach(function(el){el.onchange=function(){var c=STATE.config[Number(el.dataset.i)],f=el.dataset.f;c[f]=f==='Active'?el.checked:(f==='AccessoryGoal'?Number(el.value):el.value);};});
+  $all('#cfgList [data-del]').forEach(function(x){x.onclick=function(){STATE.config.splice(Number(x.dataset.del),1);renderCfgList();};});}
+function saveSettings(){STATE.api=$('#apiUrl').value.trim();LS.set('cpr_comm_api',STATE.api);$('#connStatus').textContent='Testing…';
+  api('bootstrap').then(function(res){if(res.ok){$('#connStatus').textContent='✓ Connected. '+res.stores.length+' stores, '+res.config.length+' employees.';applyBootstrap(res);$('#setupBanner').classList.add('hide');toast('Connected');}else $('#connStatus').textContent='✗ '+(res.error||'Error');}).catch(function(err){$('#connStatus').textContent='✗ '+err;});}
+function saveRates(){var rows=[['cleaning','Device Cleaning'],['express','Express Repair'],['malware','Malware/Virus Removal']].map(function(d){return {Key:d[0],Label:d[1],Amount:STATE.rates[d[0]]||0};});
+  apiPost({action:'saveRates',rates:rows}).then(function(res){if(res.ok)toast('Payouts saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
+function saveConfig(){apiPost({action:'saveConfig',stores:STATE.stores,config:STATE.config}).then(function(res){if(res.ok){toast('Roster saved');refreshSelects();}else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
+
+// ---------- bootstrap ----------
+function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stores:STATE.stores;
+  if(res.config){STATE.config=res.config;STATE.config.forEach(function(c){c.Active=!(c.Active===false||String(c.Active).toUpperCase()==='FALSE');});}
+  if(res.rates)STATE.rates=res.rates;refreshSelects();renderStoreList();renderCfgList();renderRates();}
+function refreshSelects(){['#repStore','#tipsStore'].forEach(function(s){fillStoreSelect($(s));});renderTipsTable();}
+function init(){
+  $('#apiUrl').value=STATE.api;
+  STATE.stores=['Eugene','Salem','Clackamas'];
+  STATE.config=[{Store:'Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'Salem',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'Salem',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'Salem',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'Clackamas',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
+  refreshSelects();renderStoreList();renderCfgList();renderRates();
+  if(!STATE.api) $('#setupBanner').classList.remove('hide'); else api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
+  $('#repQuick').onchange=applyQuick;$('#runReport').onclick=runReport;
+  $('#tipsStore').onchange=renderTipsTable;$('#tipsTable').addEventListener('input',recalcTips);$('#tipsPool').addEventListener('input',recalcTips);$('#loadTips').onclick=loadTips;$('#saveTips').onclick=saveTips;
+  $('#saveSettings').onclick=saveSettings;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
+  $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();}};
+  $('#addEmp').onclick=function(){STATE.config.push({Store:STATE.stores[0]||'',Employee:'',AccessoryGoal:2400,Active:true});renderCfgList();};
+}
+init();
+</script>
+</body>
+</html>
