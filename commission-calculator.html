@@ -257,7 +257,7 @@ function refreshTotals(){var grand=0;
 function paintReport(){
   if(!REP) return;
   var box=$('#reportOut');
-  if(!REP.names.length){box.innerHTML='<div class="rcard"><p class="muted">No data in this range. Check the dates, and that the Store column reads "Eugene" (not "CPR Eugene").</p></div>';return;}
+  if(!REP.names.length){box.innerHTML='<div class="rcard"><p class="muted">No data in this range. Check the dates, and that the Store name matches RepairQ exactly (e.g., "CPR Eugene").</p></div>';return;}
   REP.emp=REP.names.map(function(name,i){var cf=STATE.config.filter(function(c){return c.Store===REP.store&&c.Employee===name;})[0];
     return {i:i,name:name,t:REP.totals[name],rostered:!!cf,active:cf?cf.Active!==false:true,goal:cf?Number(cf.AccessoryGoal)||0:0};});
   var unrostered=REP.emp.filter(function(e){return !e.rostered;}).map(function(e){return e.name;});
@@ -340,8 +340,8 @@ function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stor
   if(res.rates)STATE.rates=res.rates;refreshSelects();renderStoreList();renderCfgList();renderRates();}
 function refreshSelects(){['#repStore','#tipsStore'].forEach(function(s){fillStoreSelect($(s));});renderTipsTable();}
 function init(){
-  STATE.stores=['Eugene','Salem','Clackamas'];
-  STATE.config=[{Store:'Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'Salem',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'Salem',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'Salem',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'Clackamas',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
+  STATE.stores=['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR'];
+  STATE.config=[{Store:'CPR Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'CPR Salem Northeast',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'CPR Clackamas OR',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
   refreshSelects();renderStoreList();renderCfgList();renderRates();
   api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
   $('#repQuick').onchange=applyQuick;$('#runReport').onclick=runReport;
