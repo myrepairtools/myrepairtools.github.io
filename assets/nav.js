@@ -33,7 +33,8 @@
       tools: [
         { label: 'Profit First',     url: 'profit-first.html' },
         { label: 'Claim Ledger',     url: 'claim-ledger.html' },
-        { label: 'Employee Records', url: 'employee-records.html' }
+        { label: 'Employee Records', url: 'employee-records.html' },
+        { label: 'Commissions',      url: 'commission-calculator.html' }
       ]
     },
     operations: {
