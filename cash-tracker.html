@@ -207,8 +207,7 @@ function computeBalances(uptoEntries){
 }
 function applyEntry(bal,e){
   var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
-  if(op==='Close'){ if(bal[loc]!=null) bal[loc]+=num(e.Payments); return; }
-  if(op==='Open'){ return; }
+  if(op==='Open'||op==='Close'){ if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null) bal[loc]=num(e.Counted); return; }
   if(loc!=null&&bal[loc]!=null) bal[loc]-=amt;
   if(to!=null&&bal[to]!=null) bal[to]+=amt;
 }
@@ -234,6 +233,7 @@ function loadData(){
   if(!STATE.store) return;
   api('entries',{store:STATE.store,period:STATE.period}).then(function(r){
     STATE.entries=(r&&r.rows)||[];
+    STATE.entries.sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));});
     renderDashboard(); renderAudit();
   }).catch(function(e){toast(String(e),true);});
 }
@@ -286,7 +286,7 @@ function renderDashboard(){
     balCard('Total Cash',total,null,'total');
   var rows=STATE.entries.slice().reverse();
   var html='<div class="card"><h2>'+shortStore(STATE.store)+' — current cash</h2><div class="bal-grid">'+cards+'</div>'+
-    '<p class="hint">Balances are <b>expected</b> figures derived from every entry this month. Period Over/Short so far: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span></p></div>'+
+    '<p class="hint">Till balances follow the last counted drawer; safes accumulate deposits &amp; withdrawals. Period Over/Short so far: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span></p></div>'+
     '<div class="card"><div class="table-head"><h2>Activity</h2><button class="btn" id="btnNewEntry">+ New Entry</button></div>'+entriesTable(rows)+'</div>';
   $('#dashOut').innerHTML=html;
   $('#btnNewEntry').onclick=openEntryModal;
