@@ -185,7 +185,7 @@
       <div class="cpr-nav-strip"></div>
       <div class="cpr-nav-inner">
         <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
-          <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" onerror="this.style.display='none'" />
+          <img src="assets/images/CPR%20Icon.PNG" alt="CPR" onerror="this.style.display='none'" />
         </a>
         <nav class="cpr-nav-tools">${toolLinks}</nav>
         <div class="cpr-nav-toggle">${toggleSegments}</div>
