@@ -66,7 +66,9 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtitle{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.2rem}
 .sumtotal{margin-left:auto;text-align:right}
 .sumtotal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1}
-.sumtable{width:100%;border-collapse:collapse;margin-top:12px}
+.sumtable{width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed}
+.sumtable col.s-emp{width:42%}
+.sumtable col.s-tips{width:140px}
 .sumtable thead th{padding:8px 0;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);border-bottom:1px solid var(--border)}
 .sumtable thead th.num{text-align:right}
 .sumtable tfoot td{padding:9px 0;border-top:2px solid var(--border);font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
@@ -85,7 +87,10 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .manualline label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
 .manualline input{width:120px}
 .table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
-table.ctable{width:100%;border-collapse:collapse}
+table.ctable{width:100%;border-collapse:collapse;table-layout:fixed}
+table.ctable col.c-emp{width:26%}
+table.ctable col.c-num{width:10%}
+table.ctable col.c-act{width:104px}
 table.ctable thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
 table.ctable thead th.num{text-align:right}
 table.ctable tbody tr.erow{border-bottom:1px solid rgba(224,226,234,.6);transition:background .12s}
@@ -203,7 +208,7 @@ tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
   <!-- TIPS CONTROLS (tips tab only) -->
   <div class="ctrlbar hide" id="tipsControls">
     <span class="ctrllbl">Pay period</span>
-    <input type="text" id="tipsPeriod" placeholder="e.g. 2026-06" style="width:130px">
+    <input type="text" id="tipsPeriod" placeholder="e.g. 2026-06" style="width:130px" list="tipPeriods" autocomplete="off"><datalist id="tipPeriods"></datalist>
     <button class="btn sm alt" id="loadTips" title="Pull previously saved hours for this period from the database">↻ Reload saved</button>
     <span class="muted" style="font-size:.74rem">Staff load automatically per store — switch stores with the tabs below.</span>
   </div>
@@ -472,7 +477,7 @@ function paintSummary(){
     '<div class="sumtotal"><div class="muted">'+(REP.all?'Company commissions':'Store commissions')+'</div><div class="big copysum" id="grand" title="Click to copy"></div>'+
     '<div class="muted" style="margin-top:6px">Tips</div>'+tipsHeadVal+'</div>'+
     '<button class="btn alt" id="dlPayroll">⬇ Payroll summary (all stores)</button></div>'+
-    '<table class="sumtable"><thead><tr><th>Employee</th><th class="num">Commissions</th><th class="num">Tips</th></tr></thead><tbody>'+sumRows+'</tbody>'+foot+'</table></div>';
+    '<table class="sumtable"><colgroup><col class="s-emp"><col><col class="s-tips"></colgroup><thead><tr><th>Employee</th><th class="num">Commissions</th><th class="num">Tips</th></tr></thead><tbody>'+sumRows+'</tbody>'+foot+'</table></div>';
   $('#summaryOut').innerHTML=html;
   $all('#summaryOut .copysum').forEach(function(td){td.addEventListener('click',function(){var amt=td.dataset.amt||'';copyText(amt).then(function(){toast('Copied $'+amt);});});});
   if($('#dlPayroll')) $('#dlPayroll').onclick=downloadPayroll;
@@ -498,7 +503,7 @@ function paintCommissions(){
       '</tr>'+
       '<tr class="exrow hide" id="exrow'+e.i+'"><td colspan="6"><div class="dwrap">'+manual+'<div class="detail" id="det'+e.i+'"></div>'+chg+'</div></td></tr>';
   }).join('');
-  $('#commOut').innerHTML='<div class="table-card"><table class="ctable"><thead><tr>'+
+  $('#commOut').innerHTML='<div class="table-card"><table class="ctable"><colgroup><col class="c-emp"><col class="c-num"><col class="c-num"><col class="c-num"><col><col class="c-act"></colgroup><thead><tr>'+
     '<th>Employee</th><th class="num">Accessory</th><th class="num">Device</th><th class="num">Services</th><th class="num">Total</th><th></th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table></div>';
   $all('#commOut .manualline input[data-i]').forEach(function(inp){
@@ -577,6 +582,7 @@ function loadTipsAll(){var period=$('#tipsPeriod').value;
   $('#loadTips').disabled=true;
   api('tips',{store:'ALL',period:period}).then(function(res){$('#loadTips').disabled=false;
     if(!res.ok){toast(res.error||'Load failed',true);return;}
+    if(res.periods){var dl=$('#tipPeriods');if(dl)dl.innerHTML=res.periods.sort().reverse().map(function(p){return '<option value="'+p+'">';}).join('');}
     var byStore={}; STATE.stores.forEach(function(s){byStore[s]={pool:0,hours:{}};});
     (res.rows||[]).forEach(function(r){var s=r.Store;if(!byStore[s])byStore[s]={pool:0,hours:{}};
       if(r.Pool)byStore[s].pool=Number(r.Pool)||0;
