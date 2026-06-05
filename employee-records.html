@@ -340,32 +340,6 @@
 </head>
 <body>
 
-<!-- LOCK SCREEN -->
-<div class="lock-screen" id="lockScreen">
-  <div class="lock-logo"><img src="assets/images/CPRLogo_NoAssurant_White.svg" alt="CPR"/></div>
-  <div class="lock-box">
-    <div class="lock-icon">🔒</div>
-    <div class="lock-title">Employee Records</div>
-    <div class="lock-sub">Enter your password to continue</div>
-    <form id="pinForm" onsubmit="submitPassword(); return false;" autocomplete="on">
-      <input type="password" id="passwordInput" name="password"
-        autocomplete="current-password"
-        placeholder="Password"
-        style="width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 14px;font-family:'Nunito Sans',sans-serif;font-size:16px;color:var(--white);outline:none;margin-bottom:12px;transition:border-color .15s;"
-        onfocus="this.style.borderColor='rgba(220,40,46,0.8)'"
-        onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
-      />
-      <button type="submit" onclick="submitPassword(); return false;"
-        style="width:100%;background:var(--accent);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:var(--white);cursor:pointer;transition:background .15s;"
-        onmouseover="this.style.background='var(--light-red)'"
-        onmouseout="this.style.background='var(--accent)'">
-        Unlock
-      </button>
-    </form>
-    <div class="lock-error" id="lockError"></div>
-  </div>
-</div>
-
 <div class="app-wrapper" id="appWrapper">
 
 <div class="app">
@@ -714,28 +688,10 @@
 </div><!-- end app-wrapper -->
 
 <script>
-  // ── Password Lock ──
-  const CORRECT='541783';
-
-  // ── Password Lock ──
-
-  function submitPassword(){
-    const val=document.getElementById('passwordInput').value.trim();
-    if(val===CORRECT){
-      document.getElementById('lockScreen').classList.add('hidden');
-      document.getElementById('appWrapper').classList.add('visible');
-      initApp();
-    } else {
-      const input=document.getElementById('passwordInput');
-      input.style.borderColor='#ef4444';
-      input.value='';
-      document.getElementById('lockError').textContent='Incorrect password. Try again. (entered: '+val.length+' chars)';
-      setTimeout(()=>{ input.style.borderColor='rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent=''; },3000);
-    }
-  }
-
-  window.addEventListener('load',()=>{
-    setTimeout(()=>document.getElementById('passwordInput').focus(),100);
+  // ── Admin gate unlock ──
+  document.addEventListener('cpr-unlocked', function(){
+    document.getElementById('appWrapper').classList.add('visible');
+    initApp();
   });
   // ── Config ──
   const SECTIONS = [
@@ -1951,5 +1907,6 @@
   }
 </script>
 <script src="assets/nav.js" data-section="admin"></script>
+<script src="assets/admin-gate.js"></script>
 </body>
 </html>
