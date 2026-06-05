@@ -66,6 +66,14 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtotal{margin-left:auto;text-align:right}
 .sumtotal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1}
 .sumtable{width:100%;border-collapse:collapse;margin-top:12px}
+.sumtable thead th{padding:8px 0;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);border-bottom:1px solid var(--border)}
+.sumtable thead th.num{text-align:right}
+.sumtable tfoot td{padding:9px 0;border-top:2px solid var(--border);font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
+.sumtable tfoot td:first-child{text-transform:uppercase;letter-spacing:.5px;font-size:.7rem;color:var(--grey)}
+.sumtable tfoot td.num{text-align:right}
+.sumtotal .big.tips{color:var(--blue);font-size:1.2rem;cursor:pointer}
+.sumtotal .big.tips:hover{text-decoration:underline}
+.sumtotal .big.copysum{cursor:pointer}.sumtotal .big.copysum:hover{text-decoration:underline}
 .sumtable td{padding:7px 0;border-bottom:1px solid var(--border);font-size:.9rem}
 .sumtable td:first-child{font-family:'Nunito',sans-serif;font-weight:700}
 .sumtable td:last-child{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
@@ -87,18 +95,23 @@ table.ctable td.num.acc{color:var(--blue)}
 table.ctable td.num.dev{color:var(--red)}
 table.ctable td.num.tot{color:var(--green);font-size:.98rem;font-weight:900}
 table.ctable td.num.z{color:var(--grey)}
-.ecell{display:flex;flex-direction:column;gap:3px}
+.ecell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .enm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark)}
 .ebadges{display:flex;gap:5px;flex-wrap:wrap}
+.csplit{font-size:.72rem;color:#5b3fb0;font-weight:600;margin-top:3px;font-family:'Nunito Sans',sans-serif;white-space:normal;text-align:right}
 tr.exrow.hide{display:none}
 tr.exrow>td{padding:0;background:#fafbfc;border-bottom:1px solid var(--border)}
 tr.exrow .dwrap{padding:14px 16px;display:flex;flex-direction:column;gap:0}
 tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
 .icon-btn{padding:5px 11px;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;background:var(--light-grey);color:var(--dark-grey);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;transition:all .12s;white-space:nowrap}
 .icon-btn:hover{border-color:var(--blue);color:var(--blue)}
-.detail{border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
-.drow{display:flex;justify-content:space-between;font-size:.84rem;color:var(--dark-grey);padding:3px 0;gap:10px}
-.drow .v{font-weight:700}.drow .hit{color:var(--green)}.drow .miss{color:var(--grey)}.drow .assumed{color:var(--blue)}
+.detail{column-count:2;column-gap:44px;border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
+.dgroup{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin-bottom:13px}
+.dgh{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark);font-size:.8rem;margin-bottom:3px;border-bottom:1px solid var(--border);padding-bottom:3px}
+.drow{display:flex;justify-content:space-between;font-size:.82rem;color:var(--dark-grey);padding:2px 0;gap:18px}
+.drow span:first-child{flex:1;min-width:0}
+.drow .v{font-weight:700;white-space:nowrap}.drow .hit{color:var(--green)}.drow .miss{color:var(--grey)}.drow .assumed{color:var(--blue)}
+@media(max-width:640px){.detail{column-count:1}}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:18px}
@@ -288,6 +301,7 @@ $all('#mainTabs .filter-tab').forEach(function(tab){tab.addEventListener('click'
   $('#tab-tips').classList.toggle('hide',ACTIVE_TAB!=='tips');
   $('#repControls').classList.toggle('hide',ACTIVE_TAB==='tips');
   $('#tipsControls').classList.toggle('hide',ACTIVE_TAB!=='tips');
+  if(ACTIVE_TAB==='summary'&&REP){paintSummary();refreshTotals();}
   renderLocationTabs();
 });});
 function bindSettingsBtn(){$('#btnSettings').addEventListener('click',function(){
@@ -384,60 +398,76 @@ function chargeHTML(e,c){
 function drow(l,v,cls){return '<div class="drow"><span>'+l+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>';}
 function detailHTML(e,c){var t=e.t,R=c.rules;
   function tt(v){return v>0?'+'+pct(v):'—';} function tc(v){return v>0?'hit':'miss';}
-  if(!e.active) return drow('Attach', t.AccyUnits+' accy ÷ '+t.Tickets+' tickets = '+pct(c.attach))+
+  function grp(title,rows){return '<div class="dgroup"><div class="dgh">'+title+'</div>'+rows+'</div>';}
+  if(!e.active) return grp('Accessory & device',
+      drow('Attach', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+
       drow('Net accessory $', money(t.NetAccySales))+drow('Devices sold', t.DeviceUnits+' (GP '+money(t.DeviceGP)+')')+
-      drow('Accessory & device commission','exempt — lead','miss')+
-      drow('Services','Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware,'');
+      drow('Commission','exempt — lead','miss'))+
+    grp('Services', drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm)));
   var da=c.tiers.devAttach>0?(c.assumed?'+'+pct(R.devAttachPct)+' (assumed)':'+'+pct(R.devAttachPct)):'—', dac=c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss';
-  var hd='<div class="drow" style="font-weight:800;color:var(--dark)"><span>%S%</span><span></span></div>';
   var gateRow = R.accyGate>0 ? drow('Min-attach gate ('+pct(R.accyGate)+')', c.gated?'below — accessory $0':'cleared', c.gated?'miss':'hit') : '';
-  return hd.replace('%S%','Accessory')+
-    drow('Attach rate', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+
-    gateRow+
-    drow('Net accessory $ (goal '+money(e.goal)+')', money(c.netAccy))+drow('Accessory GP', money(c.accyGP))+
-    drow(pct(R.accyAttach1)+' attach gate (+'+pct(R.accyPct1)+')', tt(c.tiers.t25), tc(c.tiers.t25))+
-    drow('Accy goal met (+'+pct(R.accyGoalPct)+')', tt(c.tiers.goal), tc(c.tiers.goal))+
-    drow(pct(R.accyAttach2)+'+ attach (+'+pct(R.accyPct2)+')', tt(c.tiers.t50), tc(c.tiers.t50))+
-    hd.replace('%S%','Device')+
-    drow('Devices', t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' returned = '+c.netDev+' net':''))+
-    drow('Device net sales', money(t.DeviceRev))+drow('Device GP', money(t.DeviceGP))+
-    drow(R.dev1Count+'+ devices (+'+pct(R.dev1Pct)+')', tt(c.tiers.dev5), tc(c.tiers.dev5))+
-    drow('100% accy attach (+'+pct(R.devAttachPct)+')', da, dac)+
-    drow(R.dev2Min+'–'+R.dev2Max+' devices (+'+pct(R.dev2Pct)+')', tt(c.tiers.dev2024), tc(c.tiers.dev2024))+
-    drow(R.dev3Count+'+ devices (+'+pct(R.dev3Pct)+')', tt(c.tiers.dev25), tc(c.tiers.dev25))+
-    hd.replace('%S%','Services')+
-    drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm));
+  return grp('Accessory',
+      drow('Attach rate', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+gateRow+
+      drow('Net accessory $ (goal '+money(e.goal)+')', money(c.netAccy))+drow('Accessory GP', money(c.accyGP))+
+      drow(pct(R.accyAttach1)+' attach gate (+'+pct(R.accyPct1)+')', tt(c.tiers.t25), tc(c.tiers.t25))+
+      drow('Accy goal met (+'+pct(R.accyGoalPct)+')', tt(c.tiers.goal), tc(c.tiers.goal))+
+      drow(pct(R.accyAttach2)+'+ attach (+'+pct(R.accyPct2)+')', tt(c.tiers.t50), tc(c.tiers.t50)))+
+    grp('Device',
+      drow('Devices', t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' returned = '+c.netDev+' net':''))+
+      drow('Device net sales', money(t.DeviceRev))+drow('Device GP', money(t.DeviceGP))+
+      drow(R.dev1Count+'+ devices (+'+pct(R.dev1Pct)+')', tt(c.tiers.dev5), tc(c.tiers.dev5))+
+      drow('100% accy attach (+'+pct(R.devAttachPct)+')', da, dac)+
+      drow(R.dev2Min+'–'+R.dev2Max+' devices (+'+pct(R.dev2Pct)+')', tt(c.tiers.dev2024), tc(c.tiers.dev2024))+
+      drow(R.dev3Count+'+ devices (+'+pct(R.dev3Pct)+')', tt(c.tiers.dev25), tc(c.tiers.dev25)))+
+    grp('Services',
+      drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm)));
 }
 function refreshTotals(){var grand=0;
   REP.emp.forEach(function(e){var c=calc(e);grand+=c.total;
     var s=document.getElementById('sum'+e.i); if(s){s.textContent=money(c.total);s.dataset.amt=c.total.toFixed(2);}
     setText('tot'+e.i,money(c.total));
     setText('acc'+e.i,money(c.accyComm));setText('dev'+e.i,money(c.devComm));setText('svc'+e.i,money(c.repairComm));
-    if(e.multi){var sub=document.getElementById('substore'+e.i); if(sub) sub.innerHTML=summaryChargeHTML(chargeSplit(e,c));}
+    if(e.multi){var split=summaryChargeHTML(chargeSplit(e,c));
+      var sub=document.getElementById('substore'+e.i); if(sub) sub.innerHTML=split;
+      var cs=document.getElementById('csplit'+e.i); if(cs) cs.innerHTML=split;}
     var ch=document.getElementById('chg'+e.i); if(ch) ch.innerHTML=chargeHTML(e,c);
     var d=document.getElementById('det'+e.i); if(d) d.innerHTML=detailHTML(e,c);});
-  setText('grand',money(grand));}
+  var g=money(grand),ga=grand.toFixed(2);
+  var gh=document.getElementById('grand'); if(gh){gh.textContent=g;gh.dataset.amt=ga;}
+  var gf=document.getElementById('grandFoot'); if(gf){gf.textContent=g;gf.dataset.amt=ga;}}
 function summaryChargeHTML(parts){return parts.map(function(p){return p.store.replace(/^CPR\s*/,'')+' <b>'+money(p.amt)+'</b>';}).join(' · ');}
 function copyText(txt){ if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(txt);
   return new Promise(function(res){var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);res();}); }
+// Total tip share per employee across all stores in the loaded pay period.
+function tipsByEmp(){var out={}; if(!TIPALL) return out;
+  Object.keys(TIPALL.byStore).forEach(function(s){var d=TIPALL.byStore[s],pool=Number(d.pool)||0,total=0,hrs={};
+    Object.keys(d.hours||{}).forEach(function(e){var h=(Number(d.hours[e].PP1Hours)||0)+(Number(d.hours[e].PP2Hours)||0);hrs[e]=h;total+=h;});
+    if(total>0&&pool>0)Object.keys(hrs).forEach(function(e){out[e]=(out[e]||0)+(hrs[e]/total)*pool;});});
+  return out;}
 function paintSummary(){
   if(!REP){$('#summaryOut').innerHTML='';return;}
   if(!REP.emp) buildEmp();
   $('#dataStatus').textContent=REP.names.length?(REP.emp.length+' employees · '+REP.start+' → '+REP.end):'No data';
   if(!REP.names.length){$('#summaryOut').innerHTML='<div class="rcard"><p class="muted">No data in this range. Check the dates, and that the Store name matches RepairQ exactly (e.g., "CPR Eugene").</p></div>';return;}
+  var tips=tipsByEmp(), haveTips=!!TIPALL, tipsTotal=0;
   var unrostered=REP.emp.filter(function(e){return !e.rostered;}).map(function(e){return e.name;});
   var sumRows=REP.emp.map(function(e){
     var bdg=(e.active?'':' <span class="badge lead">lead</span>')+(e.rostered?'':' <span class="badge warn">new</span>')+(REP.all&&e.home?' <span class="badge multi">'+shortStore(e.home)+'</span>':'');
     var amt='<span class="copysum" id="sum'+e.i+'" data-i="'+e.i+'" title="Click to copy"></span>';
     var sub=e.multi?'<div class="substore" id="substore'+e.i+'"></div>':'';
-    return '<tr><td>'+e.name+bdg+'</td><td class="sumcell">'+amt+sub+'</td></tr>';}).join('');
+    var tv=tips[e.name]||0; tipsTotal+=tv;
+    var tipCell=haveTips?'<span class="copysum" data-amt="'+tv.toFixed(2)+'" title="Click to copy">'+money(tv)+'</span>':'<span class="muted">—</span>';
+    return '<tr><td>'+e.name+bdg+'</td><td class="sumcell">'+amt+sub+'</td><td>'+tipCell+'</td></tr>';}).join('');
   var html='';
   if(unrostered.length) html+='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings.</div>';
   var title=REP.all?'All locations':REP.store;
-  html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+title+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees · manual values auto-save</div></div>'+
-    '<div class="sumtotal"><div class="muted">'+(REP.all?'Company total':'Store total')+'</div><div class="big" id="grand"></div></div>'+
+  var tipsHeadVal=haveTips?'<span class="big tips copysum" id="grandTips" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'<span class="big tips" style="cursor:default">—</span>';
+  var foot='<tfoot><tr><td>Total</td><td class="num"><span class="copysum" id="grandFoot" title="Click to copy"></span></td><td class="num">'+(haveTips?'<span class="copysum" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'—')+'</td></tr></tfoot>';
+  html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+title+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees'+(haveTips?' · tips: '+TIPALL.period:' · load a period in Tips for tip totals')+'</div></div>'+
+    '<div class="sumtotal"><div class="muted">'+(REP.all?'Company commissions':'Store commissions')+'</div><div class="big copysum" id="grand" title="Click to copy"></div>'+
+    '<div class="muted" style="margin-top:6px">Tips</div>'+tipsHeadVal+'</div>'+
     '<button class="btn alt" id="dlPayroll">⬇ Payroll summary (all stores)</button></div>'+
-    '<table class="sumtable">'+sumRows+'</table></div>';
+    '<table class="sumtable"><thead><tr><th>Employee</th><th class="num">Commissions</th><th class="num">Tips</th></tr></thead><tbody>'+sumRows+'</tbody>'+foot+'</table></div>';
   $('#summaryOut').innerHTML=html;
   $all('#summaryOut .copysum').forEach(function(td){td.addEventListener('click',function(){var amt=td.dataset.amt||'';copyText(amt).then(function(){toast('Copied $'+amt);});});});
   if($('#dlPayroll')) $('#dlPayroll').onclick=downloadPayroll;
@@ -461,7 +491,7 @@ function paintCommissions(){
         '<td class="num acc'+z+'" id="acc'+e.i+'"></td>'+
         '<td class="num dev'+z+'" id="dev'+e.i+'"></td>'+
         '<td class="num" id="svc'+e.i+'"></td>'+
-        '<td class="num tot" id="tot'+e.i+'"></td>'+
+        '<td class="num tot"><div id="tot'+e.i+'"></div>'+(e.multi?'<div class="csplit" id="csplit'+e.i+'"></div>':'')+'</td>'+
         '<td class="num"><button class="icon-btn" data-det="'+e.i+'">+ Details</button></td>'+
       '</tr>'+
       '<tr class="exrow hide" id="exrow'+e.i+'"><td colspan="6"><div class="dwrap">'+manual+'<div class="detail" id="det'+e.i+'"></div>'+chg+'</div></td></tr>';
