@@ -17,7 +17,7 @@
 
   // ── Standalone CPR Auth service (its own sheet + deployment) ──
   // Paste the auth web-app /exec URL here after you deploy auth-Code.gs:
-  var AUTH_URL  = 'PASTE_AUTH_WEBAPP_EXEC_URL_HERE';
+  var AUTH_URL  = 'https://script.google.com/macros/s/AKfycbwdMg4UB4W8tsRqAK9a5qJZpkcw6-8fVy926WRZwsyf3-KYHNRN0R7q4GtA7PjpXkNYRQ/exec';
   var API_TOKEN = '1b22aae72481896270d294fd8ef8e6319b55002edcd8e90b5348407b0f0caad5';
   var WEBAPP_URL = AUTH_URL;
   var IDLE_MS = 30 * 60 * 1000;            // 30-minute idle relock
