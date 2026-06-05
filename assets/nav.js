@@ -31,10 +31,10 @@
       color: '#DC282E',        // CPR red
       landing: 'admin.html',
       tools: [
+        { label: 'Cash Admin',            url: 'cash-admin.html' },
         { label: 'Claim Ledger',          url: 'claim-ledger.html' },
         { label: 'Commission Calculator', url: 'commission-calculator.html' },
         { label: 'Employee Records',      url: 'employee-records.html' },
-        { label: 'Cash Admin',            url: 'cash-admin.html' },
         { label: 'Profit First',          url: 'profit-first.html' }
       ]
     },
