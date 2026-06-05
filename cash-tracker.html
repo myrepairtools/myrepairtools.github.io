@@ -57,6 +57,9 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .entry-total .etl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
 .entry-total .etv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green)}
 .preview{background:#EFEAFB;border:1px solid #E6E0F4;border-radius:10px;padding:12px 14px;margin-top:12px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;color:#5b3fb0}
+.rqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;background:#FFFBEC;border:1px solid #F1E4B8;border-radius:10px;padding:12px}
+.rqgrid label{font-size:.62rem;margin-bottom:3px}
+.rqgrid input{padding:7px 8px;font-weight:800;font-family:'Nunito',sans-serif}
 .os{font-family:'Nunito',sans-serif;font-weight:900}
 .os.ok{color:var(--green)}.os.bad{color:var(--red)}
 /* tables */
@@ -167,6 +170,7 @@ var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll
 function money(n){var x=Number(n)||0;return (x<0?'-$':'$')+Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2200);}
 function num(v){return (v===''||v==null)?0:Number(v)||0;}
+function fmtDate(v){return String(v||'').slice(0,10);}
 
 var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'},{k:'Q25',v:0.25,l:'25¢'},{k:'D10',v:0.10,l:'10¢'},{k:'N5',v:0.05,l:'5¢'},{k:'P1',v:0.01,l:'1¢'}];
 var TILLS=['VCT1','VCT2','VCT3'];
@@ -304,7 +308,7 @@ function entriesTable(rows){
       var dir=e.ToLocation?(shortStore(e.Location)+' → '+shortStore(e.ToLocation)):shortStore(e.Location);
       var os=e.Operation==='Close'?'<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>':'—';
       var amt=e.Operation==='Close'?money(e.Payments)+' sales':money(e.Amount);
-      return '<tr><td>'+(e.Date||'')+'</td><td>'+(e.Employee||'')+'</td><td><span class="op-pill">'+e.Operation+'</span></td><td>'+dir+'</td><td class="num">'+amt+'</td><td class="num">'+os+'</td><td class="num"><span class="xbtn" data-id="'+e.Id+'" title="Delete">×</span></td></tr>';
+      return '<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td><td><span class="op-pill">'+e.Operation+'</span></td><td>'+dir+'</td><td class="num">'+amt+'</td><td class="num">'+os+'</td><td class="num"><span class="xbtn" data-id="'+e.Id+'" title="Delete">×</span></td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 
@@ -315,8 +319,13 @@ function renderEntryForm(){
   var dyn='';
   if(cfg.kind==='count'){
     dyn='<div class="row"><div class="field"><label>Till</label><select id="enTill">'+TILLS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div>';
-    if(cfg.payments) dyn+='<div class="field"><label>Cash sales this shift</label><input type="number" step="0.01" id="enPayments" placeholder="0.00"></div>';
-    dyn+='</div>';
+    if(cfg.payments){
+      dyn+='<div class="field"><label>Opening balance</label><input type="number" step="0.01" id="enOpening" placeholder="0.00"></div></div>';
+      dyn+='<p class="hint" style="margin:12px 0 6px">From the RepairQ VCT closure form:</p>'+
+        '<div class="rqgrid">'+
+        rqField('enPayments','Payments')+rqField('enReturns','Returns')+rqField('enPayouts','Payouts')+
+        rqField('enTin','Transfer In (+)')+rqField('enTout','Transfer Out (−)')+'</div>';
+    } else { dyn+='</div>'; }
   } else if(cfg.from==='till'&&cfg.to.indexOf('Safe')>=0){
     dyn='<div class="row"><div class="field"><label>From till</label><select id="enTill">'+TILLS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div><div class="field"><label>To</label><input value="'+cfg.to+'" disabled></div></div>';
   } else if(cfg.from.indexOf('Safe')>=0&&cfg.to==='till'){
@@ -332,10 +341,17 @@ function renderEntryForm(){
   $('#enDenoms').innerHTML='<label>'+(cfg.coins?'Denomination count':'Bills moved')+'</label><div class="denoms">'+
     dens.map(function(d){return '<div class="den"><div class="dl">'+d.l+'</div><input type="number" min="0" step="1" data-k="'+d.k+'" data-v="'+d.v+'" placeholder="0"><div class="ds" data-sub="'+d.k+'"></div></div>';}).join('')+'</div>';
   $all('#enDenoms input').forEach(function(i){i.oninput=recalcEntry;});
-  var pp=$('#enPayments'); if(pp)pp.oninput=recalcEntry;
-  var tl=$('#enTill'); if(tl)tl.onchange=recalcEntry;
+  $all('#enDynamic input').forEach(function(i){i.oninput=recalcEntry;});
+  var tl=$('#enTill'); if(tl)tl.onchange=function(){prefillOpening();recalcEntry();};
+  prefillOpening();
   recalcEntry();
 }
+function rqField(id,label){return '<div><label>'+label+'</label><input type="number" step="0.01" id="'+id+'" placeholder="0.00"></div>';}
+function prefillOpening(){var ob=$('#enOpening');if(ob&&ob.value===''){var t=$('#enTill')?$('#enTill').value:'VCT1';ob.value=(computeBalances()[t]||0).toFixed(2);}}
+function rqVals(){return {opening:$('#enOpening')?num($('#enOpening').value):0,payments:$('#enPayments')?num($('#enPayments').value):0,
+  returns:$('#enReturns')?num($('#enReturns').value):0,payouts:$('#enPayouts')?num($('#enPayouts').value):0,
+  tin:$('#enTin')?num($('#enTin').value):0,tout:$('#enTout')?num($('#enTout').value):0};}
+function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
 function entryDenomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return t;}
 function recalcEntry(){
   var op=$('#enOperation').value,cfg=OPS[op]||{};
@@ -343,11 +359,8 @@ function recalcEntry(){
   $('#enTotal').textContent=money(total);
   var pv='';
   if(op==='Close'){
-    var till=$('#enTill')?$('#enTill').value:'VCT1';
-    var payments=$('#enPayments')?num($('#enPayments').value):0;
-    var bal=computeBalances(); var expected=bal[till]+payments;
-    var os=total-expected;
-    pv='Expected drawer: <b>'+money(expected)+'</b> ('+money(bal[till])+' float + '+money(payments)+' sales) · Counted: <b>'+money(total)+'</b> · Over/Short: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
+    var v=rqVals(); var expected=rqExpected(v); var os=total-expected;
+    pv='Expected drawer: <b>'+money(expected)+'</b> &nbsp;·&nbsp; Counted: <b>'+money(total)+'</b> &nbsp;·&nbsp; Over/Short: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
   } else if(op==='Open'){
     var till2=$('#enTill')?$('#enTill').value:'VCT1';var b2=computeBalances();
     var diff=total-b2[till2];
@@ -376,8 +389,9 @@ $('#enSubmit').onclick=function(){
   var payload={store:STATE.store,date:date,employee:emp,operation:op,denoms:denoms,notes:$('#enNotes').value};
   if(cfg.kind==='count'){
     var till=$('#enTill').value; payload.location=till; payload.amount=total; payload.counted=total;
-    if(op==='Close'){var payments=num($('#enPayments').value);var bal=computeBalances();var expected=bal[till]+payments;
-      payload.payments=payments;payload.openingBalance=bal[till];payload.expected=expected;payload.overShort=total-expected;}
+    if(op==='Close'){var v=rqVals();var expected=rqExpected(v);
+      payload.openingBalance=v.opening;payload.payments=v.payments;payload.returns=v.returns;payload.payouts=v.payouts;
+      payload.transferIn=v.tin;payload.transferOut=v.tout;payload.expected=expected;payload.overShort=total-expected;}
   } else {
     var ep=moveEndpoints(); payload.location=ep.from; payload.toLocation=ep.to; payload.amount=total;
     if(total<=0){toast('Enter the bills moved',true);return;}
