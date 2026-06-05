@@ -105,12 +105,21 @@
       padding: 8px 14px; border-radius: 6px;
       transition: all 0.15s;
       letter-spacing: 0.2px;
+      position: relative;
     }
     .cpr-nav-tools a:hover {
       background: #F3F2F2; color: #2D2D3B;
     }
     .cpr-nav-tools a.active {
-      background: ${section.color}; color: #FFFFFF;
+      color: #2D2D3B; font-weight: 800;
+      background: transparent;
+    }
+    .cpr-nav-tools a.active::after {
+      content: '';
+      position: absolute;
+      left: 14px; right: 14px; bottom: 2px;
+      height: 2px; border-radius: 1px;
+      background: #4FB0E3;
     }
     /* Section toggle (pill) — replaces the old single switcher button */
     .cpr-nav-toggle {
