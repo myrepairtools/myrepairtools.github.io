@@ -125,33 +125,7 @@
 </head>
 <body>
 
-<!-- LOCK SCREEN -->
-<div class="lock-screen" id="lockScreen">
-  <div style="margin-bottom:32px;"><img src="assets/images/CPRLogo_NoAssurant_White.svg" style="height:36px;width:auto;display:block;"></div>
-  <div class="lock-box">
-    <div class="lock-icon">🔒</div>
-    <div class="lock-title">Admin Access</div>
-    <div class="lock-sub">Enter your password to continue</div>
-    <form onsubmit="submitPassword(); return false;" autocomplete="on">
-      <input type="password" id="passwordInput" name="password"
-        autocomplete="current-password"
-        placeholder="Password"
-        style="width:100%;background:rgba(255,255,255,0.08);border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:12px 14px;font-family:'Nunito Sans',sans-serif;font-size:16px;color:#fff;outline:none;margin-bottom:12px;transition:border-color .15s;"
-        onfocus="this.style.borderColor='rgba(220,40,46,0.8)'"
-        onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
-      />
-      <button type="submit"
-        style="width:100%;background:#DC282E;border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;color:#fff;cursor:pointer;transition:background .15s;"
-        onmouseover="this.style.background='#F15F5E'"
-        onmouseout="this.style.background='#DC282E'">
-        Unlock
-      </button>
-    </form>
-    <div class="lock-error" id="lockError"></div>
-  </div>
-</div>
-
-<!-- MAIN CONTENT -->
+<!-- MAIN CONTENT (revealed by admin-gate.js) -->
 <div class="main-content" id="mainContent">
   <main>
     <div class="page-title">Admin Tools</div>
@@ -195,32 +169,85 @@
       </a>
 
     </div>
+
+    <!-- OWNER-ONLY: Access / Admins manager -->
+    <div id="adminsCard" style="display:none;margin-top:32px;background:#fff;border:1px solid var(--border);border-top:3px solid var(--red);border-radius:10px;padding:24px;box-shadow:0 1px 4px rgba(45,45,59,.06)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark)">Access &amp; Admins</div>
+        <button id="gateLock" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);background:#fff;border:1.5px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer">Lock now</button>
+      </div>
+      <div style="font-size:12px;color:var(--grey);font-weight:600;margin-bottom:16px">Owner-only. Add people, set their passcode, choose a role, and switch access on or off. Codes are stored on the server, never shown here — leave the code blank to keep someone's current one.</div>
+      <div id="adminsTable"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">
+        <div style="flex:1;min-width:140px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Name</label><input id="naName" placeholder="Full name" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"></div>
+        <div style="flex:1;min-width:120px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Passcode</label><input id="naCode" placeholder="Set a code" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"></div>
+        <div style="min-width:120px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Role</label><select id="naRole" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"><option value="admin">Admin</option><option value="owner">Owner</option></select></div>
+        <button id="naAdd" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:#fff;color:var(--dark);border:1.5px solid var(--border);border-radius:9px;padding:9px 16px;cursor:pointer">Add</button>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:16px"><button id="naSave" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:var(--red);color:#fff;border:none;border-radius:9px;padding:10px 20px;cursor:pointer">Save admins</button><span id="naStatus" style="font-size:12px;font-weight:700;color:var(--grey)"></span></div>
+    </div>
+
   </main>
 
   <footer>CPR Cell Phone Repair — Oregon · Admin Portal · Confidential</footer>
 </div>
 
 <script>
-  const CORRECT = '541783';
+  var ADMINS = [];
 
-  function submitPassword() {
-    const val = document.getElementById('passwordInput').value;
-    if (val === CORRECT) {
-      document.getElementById('lockScreen').classList.add('hidden');
-      document.getElementById('mainContent').classList.add('visible');
-    } else {
-      const input = document.getElementById('passwordInput');
-      input.style.borderColor = '#ef4444';
-      input.value = '';
-      document.getElementById('lockError').textContent = 'Incorrect password. Try again.';
-      setTimeout(() => { input.style.borderColor = 'rgba(255,255,255,0.15)'; document.getElementById('lockError').textContent = ''; }, 2000);
-    }
-  }
-
-  window.addEventListener('load', () => {
-    setTimeout(() => document.getElementById('passwordInput').focus(), 100);
+  document.addEventListener('cpr-unlocked', function(e){
+    document.getElementById('mainContent').classList.add('visible');
+    var role = (e.detail && e.detail.role) || '';
+    if (role === 'owner'){ document.getElementById('adminsCard').style.display='block'; loadAdmins(); }
+    else { document.getElementById('adminsCard').style.display='none'; }
   });
+
+  function loadAdmins(){
+    CPRGate.listAdmins().then(function(r){
+      if(!r||!r.ok){ document.getElementById('naStatus').textContent = (r&&r.error)||'Could not load'; return; }
+      ADMINS = r.rows.map(function(a){ return {Name:a.Name, Role:a.Role, Active:a.Active, Passcode:'', _existing:true}; });
+      renderAdmins();
+    }).catch(function(err){ document.getElementById('naStatus').textContent='Could not load ('+err+')'; });
+  }
+  function renderAdmins(){
+    var rows = ADMINS.map(function(a,i){
+      return '<tr style="border-bottom:1px solid #eee">'+
+        '<td style="padding:8px 10px;font-weight:700">'+a.Name+'</td>'+
+        '<td style="padding:8px 10px"><select data-i="'+i+'" data-f="role" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="admin"'+(a.Role==='admin'?' selected':'')+'>Admin</option><option value="owner"'+(a.Role==='owner'?' selected':'')+'>Owner</option></select></td>'+
+        '<td style="padding:8px 10px;text-align:center"><input type="checkbox" data-i="'+i+'" data-f="active" '+(a.Active!==false?'checked':'')+'></td>'+
+        '<td style="padding:8px 10px"><input data-i="'+i+'" data-f="code" placeholder="'+(a._existing?'(unchanged)':'set code')+'" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;width:120px"></td>'+
+        '<td style="padding:8px 10px;text-align:right"><span data-del="'+i+'" style="cursor:pointer;color:var(--grey);font-weight:900;font-size:18px">&times;</span></td>'+
+      '</tr>';
+    }).join('');
+    document.getElementById('adminsTable').innerHTML =
+      '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:14px">'+
+      '<thead><tr style="background:#fafafa"><th style="padding:8px 10px;text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--grey)">Name</th><th style="padding:8px 10px;text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--grey)">Role</th><th style="padding:8px 10px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--grey)">Active</th><th style="padding:8px 10px;text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--grey)">New code</th><th></th></tr></thead>'+
+      '<tbody>'+rows+'</tbody></table></div>';
+    Array.prototype.forEach.call(document.querySelectorAll('#adminsTable [data-f]'), function(el){
+      el.onchange = function(){ var a=ADMINS[+el.dataset.i]; if(el.dataset.f==='role')a.Role=el.value; else if(el.dataset.f==='active')a.Active=el.checked; else if(el.dataset.f==='code')a.Passcode=el.value; };
+      if(el.dataset.f==='code') el.oninput=function(){ ADMINS[+el.dataset.i].Passcode=el.value; };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#adminsTable [data-del]'), function(x){
+      x.onclick=function(){ if(!confirm('Remove '+ADMINS[+x.dataset.del].Name+'?'))return; ADMINS.splice(+x.dataset.del,1); renderAdmins(); };
+    });
+  }
+  document.getElementById('naAdd').onclick=function(){
+    var n=document.getElementById('naName').value.trim(), c=document.getElementById('naCode').value.trim(), role=document.getElementById('naRole').value;
+    if(!n){alert('Enter a name');return;} if(!c){alert('Set a passcode for the new admin');return;}
+    ADMINS.push({Name:n,Role:role,Active:true,Passcode:c,_existing:false});
+    document.getElementById('naName').value='';document.getElementById('naCode').value='';
+    renderAdmins();
+  };
+  document.getElementById('naSave').onclick=function(){
+    document.getElementById('naStatus').textContent='Saving…';
+    CPRGate.saveAdmins(ADMINS.map(function(a){return {Name:a.Name,Role:a.Role,Active:a.Active,Passcode:a.Passcode||''};})).then(function(r){
+      if(r&&r.ok){ document.getElementById('naStatus').textContent='Saved ✓'; loadAdmins(); setTimeout(function(){document.getElementById('naStatus').textContent='';},2000); }
+      else document.getElementById('naStatus').textContent=(r&&r.error)||'Save failed';
+    }).catch(function(e){document.getElementById('naStatus').textContent=String(e);});
+  };
+  document.getElementById('gateLock').onclick=function(){ if(window.CPRGate)CPRGate.lock(); };
 </script>
 <script src="assets/nav.js" data-section="admin"></script>
+<script src="assets/admin-gate.js"></script>
 </body>
 </html>
