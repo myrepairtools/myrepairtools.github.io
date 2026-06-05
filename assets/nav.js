@@ -43,7 +43,7 @@
       color: '#4FB0E3',        // CPR blue
       landing: 'operations.html',
       tools: [
-        { label: 'Price Calc & Guide', url: 'price-calc-and-guide.html' },
+        { label: 'Price Calculator', url: 'price-calc-and-guide.html' },
         { label: 'Price Guide',        url: 'price-guide.html' },
         { label: 'Jerry Ding Order',   url: 'jerry-ding-order.html' },
         { label: 'PO Converter',       url: 'po-converter.html' },
