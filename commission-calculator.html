@@ -31,6 +31,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 .ctrlbar input,.ctrlbar select{padding:7px 10px;font-size:.84rem;border-radius:8px}
 .ctrlbar input[type=date]{width:auto}
 .todash{color:var(--grey);font-weight:800;font-family:'Nunito',sans-serif}
+.ctrllbl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
 .btn.sm{padding:7px 16px;font-size:.82rem;border-radius:8px}
 .card{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
 .card h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:14px}
@@ -76,10 +77,10 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtotal .big.copysum{cursor:pointer}.sumtotal .big.copysum:hover{text-decoration:underline}
 .sumtable td{padding:7px 0;border-bottom:1px solid var(--border);font-size:.9rem}
 .sumtable td:first-child{font-family:'Nunito',sans-serif;font-weight:700}
-.sumtable td:last-child{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.sumtable td.sumcell,.sumtable td:last-child{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
 .sumtable .copysum{cursor:pointer}
 .sumtable .copysum:hover{color:var(--blue);text-decoration:underline}
-.sumtable .substore{font-size:.74rem;color:#5b3fb0;font-weight:600;margin-top:3px;font-family:'Nunito Sans',sans-serif;white-space:normal}
+.sumtable .substore{display:inline;font-size:.74rem;color:#5b3fb0;font-weight:600;margin-right:10px;font-family:'Nunito Sans',sans-serif;white-space:nowrap}
 .manualline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:0}
 .manualline label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
 .manualline input{width:120px}
@@ -201,8 +202,10 @@ tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
 
   <!-- TIPS CONTROLS (tips tab only) -->
   <div class="ctrlbar hide" id="tipsControls">
-    <input type="text" id="tipsPeriod" placeholder="Pay period — e.g. 2026-04" style="width:200px">
-    <button class="btn sm" id="loadTips">Load</button>
+    <span class="ctrllbl">Pay period</span>
+    <input type="text" id="tipsPeriod" placeholder="e.g. 2026-06" style="width:130px">
+    <button class="btn sm alt" id="loadTips" title="Pull previously saved hours for this period from the database">↻ Reload saved</button>
+    <span class="muted" style="font-size:.74rem">Staff load automatically per store — switch stores with the tabs below.</span>
   </div>
 
   <!-- FILTER ROW: main pills + location tabs -->
@@ -302,6 +305,7 @@ $all('#mainTabs .filter-tab').forEach(function(tab){tab.addEventListener('click'
   $('#repControls').classList.toggle('hide',ACTIVE_TAB==='tips');
   $('#tipsControls').classList.toggle('hide',ACTIVE_TAB!=='tips');
   if(ACTIVE_TAB==='summary'&&REP){paintSummary();refreshTotals();}
+  if(ACTIVE_TAB==='tips'&&!TIPALL){loadTipsAll();}
   renderLocationTabs();
 });});
 function bindSettingsBtn(){$('#btnSettings').addEventListener('click',function(){
@@ -361,7 +365,8 @@ function renderLocationTabs(){
   if(ACTIVE_TAB==='tips'){
     if(!TIPALL){box.innerHTML='';return;}
     box.innerHTML=TIPALL.stores.map(function(s){
-      return '<button class="filter-tab loc-tab'+(s===TIPALL.store?' active':'')+'" data-loc="'+s+'">'+shortStore(s)+'</button>';}).join('');
+      var cnt=Object.keys((TIPALL.byStore[s]||{hours:{}}).hours||{}).length;
+      return '<button class="filter-tab loc-tab'+(s===TIPALL.store?' active':'')+'" data-loc="'+s+'">'+shortStore(s)+' <span class="filter-count">'+cnt+'</span></button>';}).join('');
     $all('#locationTabs .loc-tab').forEach(function(b){b.onclick=function(){selectTipStore(b.dataset.loc);};});
     return;
   }
@@ -452,12 +457,12 @@ function paintSummary(){
   var tips=tipsByEmp(), haveTips=!!TIPALL, tipsTotal=0;
   var unrostered=REP.emp.filter(function(e){return !e.rostered;}).map(function(e){return e.name;});
   var sumRows=REP.emp.map(function(e){
-    var bdg=(e.active?'':' <span class="badge lead">lead</span>')+(e.rostered?'':' <span class="badge warn">new</span>')+(REP.all&&e.home?' <span class="badge multi">'+shortStore(e.home)+'</span>':'');
+    var bdg=(e.rostered?'':' <span class="badge warn">⚠ not in roster</span>');
     var amt='<span class="copysum" id="sum'+e.i+'" data-i="'+e.i+'" title="Click to copy"></span>';
-    var sub=e.multi?'<div class="substore" id="substore'+e.i+'"></div>':'';
+    var sub=e.multi?'<span class="substore" id="substore'+e.i+'"></span>':'';
     var tv=tips[e.name]||0; tipsTotal+=tv;
     var tipCell=haveTips?'<span class="copysum" data-amt="'+tv.toFixed(2)+'" title="Click to copy">'+money(tv)+'</span>':'<span class="muted">—</span>';
-    return '<tr><td>'+e.name+bdg+'</td><td class="sumcell">'+amt+sub+'</td><td>'+tipCell+'</td></tr>';}).join('');
+    return '<tr><td>'+e.name+bdg+'</td><td class="sumcell">'+sub+amt+'</td><td>'+tipCell+'</td></tr>';}).join('');
   var html='';
   if(unrostered.length) html+='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings.</div>';
   var title=REP.all?'All locations':REP.store;
@@ -478,9 +483,6 @@ function paintCommissions(){
   if(!REP.names.length){$('#commOut').innerHTML='<div class="rcard"><p class="muted">No data in this range.</p></div>';return;}
   var rows=REP.emp.map(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
     var badges='';
-    if(e.multi) badges+='<span class="badge multi">'+e.stores.map(function(s){return shortStore(s);}).join(' + ')+'</span>';
-    else if(REP.all&&e.home) badges+='<span class="badge multi">'+shortStore(e.home)+'</span>';
-    if(!e.active) badges+='<span class="badge lead">Lead · services only</span>';
     if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
     var z=e.active?'':' z';
     var net=(t.DeviceUnits||0)-(t.DeviceReturns||0);
@@ -569,8 +571,9 @@ function recalcTips(){var pool=Number($('#tipsPool').value)||0,rows=[],total=0;
 function captureTips(){if(!TIPALL||!TIPALL.store)return;var d=TIPALL.byStore[TIPALL.store];if(!d)return;
   d.pool=Number($('#tipsPool').value)||0;
   $all('#tipsTable input').forEach(function(inp){var e=inp.dataset.emp;d.hours[e]=d.hours[e]||{};d.hours[e][inp.dataset.col]=inp.value===''?'':Number(inp.value);});}
+function defaultPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
 function loadTipsAll(){var period=$('#tipsPeriod').value;
-  if(!period){toast('Enter a pay period label',true);return;}
+  if(!period){period=defaultPeriod();$('#tipsPeriod').value=period;}
   $('#loadTips').disabled=true;
   api('tips',{store:'ALL',period:period}).then(function(res){$('#loadTips').disabled=false;
     if(!res.ok){toast(res.error||'Load failed',true);return;}
@@ -678,6 +681,8 @@ function init(){
   bindSettingsBtn();
   $('#tipsTable').addEventListener('input',function(){recalcTips();captureTips();});
   $('#tipsPool').addEventListener('input',function(){recalcTips();captureTips();});
+  if(!$('#tipsPeriod').value) $('#tipsPeriod').value=defaultPeriod();
+  $('#tipsPeriod').addEventListener('change',function(){loadTipsAll();});
   $('#loadTips').onclick=loadTipsAll;$('#saveTips').onclick=saveTips;
   $('#tipsAdd').onclick=function(){addTipRow($('#tipsAddSel').value);};
   $('#testConn').onclick=testConnection;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
