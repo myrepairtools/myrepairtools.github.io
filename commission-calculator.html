@@ -94,7 +94,8 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .manualline input{width:120px}
 .table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
 table.ctable{width:100%;border-collapse:collapse;table-layout:fixed}
-table.ctable col.c-emp{width:26%}
+table.ctable col.c-emp{width:20%}
+table.ctable col.c-flag{width:150px}
 table.ctable col.c-num{width:10%}
 table.ctable col.c-act{width:104px}
 table.ctable thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -516,17 +517,18 @@ function paintCommissions(){
     var manual=e.active?'<div class="manualline"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-i="'+e.i+'" value="'+(m.accDevice===''?'':m.accDevice)+'"><span class="muted">of '+net+' net device'+(net===1?'':'s')+((t.DeviceReturns||0)>0?' ('+t.DeviceUnits+'−'+t.DeviceReturns+')':'')+'</span></div>':'';
     var chg=e.multi?'<div id="chg'+e.i+'"></div>':'';
     return '<tr class="erow" data-i="'+e.i+'">'+
-        '<td><div class="ecell"><span class="enm">'+e.name+'</span>'+(badges?'<span class="ebadges">'+badges+'</span>':'')+'</div></td>'+
+        '<td class="c-name"><span class="enm">'+e.name+'</span></td>'+
+        '<td class="c-flag">'+badges+'</td>'+
         '<td class="num acc'+z+'" id="acc'+e.i+'"></td>'+
         '<td class="num dev'+z+'" id="dev'+e.i+'"></td>'+
         '<td class="num" id="svc'+e.i+'"></td>'+
         '<td class="num tot">'+(e.multi?'<span class="csplit" id="csplit'+e.i+'"></span>':'')+'<span id="tot'+e.i+'"></span></td>'+
         '<td class="num"><button class="icon-btn" data-det="'+e.i+'">+ Details</button></td>'+
       '</tr>'+
-      '<tr class="exrow hide" id="exrow'+e.i+'"><td colspan="6"><div class="dwrap">'+manual+'<div class="detail" id="det'+e.i+'"></div>'+chg+'</div></td></tr>';
+      '<tr class="exrow hide" id="exrow'+e.i+'"><td colspan="7"><div class="dwrap">'+manual+'<div class="detail" id="det'+e.i+'"></div>'+chg+'</div></td></tr>';
   }).join('');
-  $('#commOut').innerHTML='<div class="table-card"><table class="ctable"><colgroup><col class="c-emp"><col class="c-num"><col class="c-num"><col class="c-num"><col><col class="c-act"></colgroup><thead><tr>'+
-    '<th>Employee</th><th class="num">Accessory</th><th class="num">Device</th><th class="num">Services</th><th class="num">Total</th><th></th>'+
+  $('#commOut').innerHTML='<div class="table-card"><table class="ctable"><colgroup><col class="c-emp"><col class="c-flag"><col class="c-num"><col class="c-num"><col class="c-num"><col><col class="c-act"></colgroup><thead><tr>'+
+    '<th>Employee</th><th></th><th class="num">Accessory</th><th class="num">Device</th><th class="num">Services</th><th class="num">Total</th><th></th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table></div>';
   $all('#commOut .manualline input[data-i]').forEach(function(inp){
     inp.addEventListener('input',function(){var e=REP.emp[Number(inp.dataset.i)];REP.manual[e.name]={accDevice:inp.value===''?'':Number(inp.value)};refreshTotals();});
