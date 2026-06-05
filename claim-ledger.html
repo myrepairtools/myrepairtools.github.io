@@ -16,6 +16,9 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--light-grey); font-family: 'Nunito Sans', sans-serif; min-height: 100vh; padding: 0 0 60px; }
 
+  #appWrapper { display: none; }
+  #appWrapper.visible { display: block; }
+
   .site-bg { background: var(--bg); min-height: 100vh; }
 
   .container { max-width: 1280px; margin: 28px auto; padding: 0 20px; }
@@ -563,6 +566,9 @@
 </head>
 <body>
 
+<div id="appWrapper">
+<script src="assets/nav.js" data-section="admin"></script>
+
 <div class="container">
   <div class="page-title-row">
     <div>
@@ -731,6 +737,8 @@
 <div class="toast" id="toast"></div>
 
 <footer>CPR Cell Phone Repair — Oregon · Admin · Claim Ledger</footer>
+
+</div><!-- end appWrapper -->
 
 <script>
 // ============================================================================
@@ -1959,24 +1967,30 @@ function initPctsUI() {
   loadPctsForEditing();
 }
 
-initPctsUI();
-if (!cfg.sheet) {
-  toggleConfig();
-  document.getElementById('data-status').textContent = 'First-time setup needed';
-} else {
-  // Try to load settings from cloud first; if found, apply them. Then load data.
-  // Settings fetch is fire-and-forget — if it fails, we use localStorage defaults.
-  (async () => {
-    const cloud = await loadSettingsFromCloud();
-    if (cloud) {
-      applyCloudSettings(cloud);
-      initPctsUI();
-      setSyncStatus('synced');
-    }
-    loadData();
-  })();
+function initApp() {
+  initPctsUI();
+  if (!cfg.sheet) {
+    toggleConfig();
+    document.getElementById('data-status').textContent = 'First-time setup needed';
+  } else {
+    (async () => {
+      const cloud = await loadSettingsFromCloud();
+      if (cloud) {
+        applyCloudSettings(cloud);
+        initPctsUI();
+        setSyncStatus('synced');
+      }
+      loadData();
+    })();
+  }
 }
+
+// Reveal + load once the admin gate unlocks
+document.addEventListener('cpr-unlocked', function () {
+  document.getElementById('appWrapper').classList.add('visible');
+  initApp();
+});
 </script>
-<script src="assets/nav.js" data-section="admin"></script>
+<script src="assets/admin-gate.js"></script>
 </body>
 </html>
