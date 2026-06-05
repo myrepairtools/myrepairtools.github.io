@@ -67,8 +67,10 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtotal{margin-left:auto;text-align:right}
 .sumtotal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1}
 .sumtable{width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed}
-.sumtable col.s-emp{width:42%}
-.sumtable col.s-tips{width:140px}
+.sumtable col.s-emp{width:180px}
+.sumtable col.s-flag{width:150px}
+.sumtable col.s-comm{width:130px}
+.sumtable col.s-tips{width:120px}
 .sumtable thead th{padding:8px 0;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);border-bottom:1px solid var(--border)}
 .sumtable thead th.num{text-align:right}
 .sumtable tfoot td{padding:9px 0;border-top:2px solid var(--border);font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
@@ -78,11 +80,14 @@ tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
 .sumtotal .big.tips:hover{text-decoration:underline}
 .sumtotal .big.copysum{cursor:pointer}.sumtotal .big.copysum:hover{text-decoration:underline}
 .sumtable td{padding:7px 0;border-bottom:1px solid var(--border);font-size:.9rem}
-.sumtable td:first-child{font-family:'Nunito',sans-serif;font-weight:700}
-.sumtable td.sumcell,.sumtable td:last-child{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.sumtable td.s-name{font-family:'Nunito',sans-serif;font-weight:700}
+.sumtable td.sumcell,.sumtable td.s-tipcell{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.sumtable td.sumcell{padding-right:16px}
 .sumtable .copysum{cursor:pointer}
 .sumtable .copysum:hover{color:var(--blue);text-decoration:underline}
-.sumtable .substore{display:inline;font-size:.74rem;color:#5b3fb0;font-weight:600;margin-right:10px;font-family:'Nunito Sans',sans-serif;white-space:nowrap}
+.sumtable td.s-split{text-align:right;font-size:.74rem;color:#5b3fb0;font-weight:600;font-family:'Nunito Sans',sans-serif;white-space:nowrap;padding-right:16px}
+.sumtable th:first-child,.sumtable td:first-child{padding-left:14px}
+.sumtable th:last-child,.sumtable td:last-child{padding-right:14px}
 .manualline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:0}
 .manualline label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
 .manualline input{width:120px}
@@ -462,22 +467,22 @@ function paintSummary(){
   var tips=tipsByEmp(), haveTips=!!TIPALL, tipsTotal=0;
   var unrostered=REP.emp.filter(function(e){return !e.rostered;}).map(function(e){return e.name;});
   var sumRows=REP.emp.map(function(e){
-    var bdg=(e.rostered?'':' <span class="badge warn">⚠ not in roster</span>');
+    var bdg=(e.rostered?'':'<span class="badge warn">⚠ not in roster</span>');
     var amt='<span class="copysum" id="sum'+e.i+'" data-i="'+e.i+'" title="Click to copy"></span>';
-    var sub=e.multi?'<span class="substore" id="substore'+e.i+'"></span>':'';
+    var sub=e.multi?'<span id="substore'+e.i+'"></span>':'';
     var tv=tips[e.name]||0; tipsTotal+=tv;
     var tipCell=haveTips?'<span class="copysum" data-amt="'+tv.toFixed(2)+'" title="Click to copy">'+money(tv)+'</span>':'<span class="muted">—</span>';
-    return '<tr><td>'+e.name+bdg+'</td><td class="sumcell">'+sub+amt+'</td><td>'+tipCell+'</td></tr>';}).join('');
+    return '<tr><td class="s-name">'+e.name+'</td><td class="s-flag">'+bdg+'</td><td class="s-split">'+sub+'</td><td class="sumcell">'+amt+'</td><td class="s-tipcell">'+tipCell+'</td></tr>';}).join('');
   var html='';
   if(unrostered.length) html+='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings.</div>';
   var title=REP.all?'All locations':REP.store;
   var tipsHeadVal=haveTips?'<span class="big tips copysum" id="grandTips" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'<span class="big tips" style="cursor:default">—</span>';
-  var foot='<tfoot><tr><td>Total</td><td class="num"><span class="copysum" id="grandFoot" title="Click to copy"></span></td><td class="num">'+(haveTips?'<span class="copysum" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'—')+'</td></tr></tfoot>';
+  var foot='<tfoot><tr><td>Total</td><td></td><td></td><td class="num"><span class="copysum" id="grandFoot" title="Click to copy"></span></td><td class="num">'+(haveTips?'<span class="copysum" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'—')+'</td></tr></tfoot>';
   html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+title+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees'+(haveTips?' · tips: '+TIPALL.period:' · load a period in Tips for tip totals')+'</div></div>'+
     '<div class="sumtotal"><div class="muted">'+(REP.all?'Company commissions':'Store commissions')+'</div><div class="big copysum" id="grand" title="Click to copy"></div>'+
     '<div class="muted" style="margin-top:6px">Tips</div>'+tipsHeadVal+'</div>'+
     '<button class="btn alt" id="dlPayroll">⬇ Payroll summary (all stores)</button></div>'+
-    '<table class="sumtable"><colgroup><col class="s-emp"><col><col class="s-tips"></colgroup><thead><tr><th>Employee</th><th class="num">Commissions</th><th class="num">Tips</th></tr></thead><tbody>'+sumRows+'</tbody>'+foot+'</table></div>';
+    '<table class="sumtable"><colgroup><col class="s-emp"><col class="s-flag"><col><col class="s-comm"><col class="s-tips"></colgroup><thead><tr><th>Employee</th><th></th><th class="num">Store split</th><th class="num">Commissions</th><th class="num">Tips</th></tr></thead><tbody>'+sumRows+'</tbody>'+foot+'</table></div>';
   $('#summaryOut').innerHTML=html;
   $all('#summaryOut .copysum').forEach(function(td){td.addEventListener('click',function(){var amt=td.dataset.amt||'';copyText(amt).then(function(){toast('Copied $'+amt);});});});
   if($('#dlPayroll')) $('#dlPayroll').onclick=downloadPayroll;
