@@ -128,9 +128,19 @@
 <!-- MAIN CONTENT (revealed by admin-gate.js) -->
 <div class="main-content" id="mainContent">
   <main>
-    <div class="page-title">Admin Tools</div>
-    <div class="page-sub">Owner-level tools — payroll, financials, and administrative calculators</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:32px">
+      <div>
+        <div class="page-title">Admin Tools</div>
+        <div class="page-sub" style="margin-bottom:0">Owner-level tools — payroll, financials, and administrative calculators</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="accessBtn" type="button" style="display:none;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);background:#fff;border:1.5px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer">⚙ Access</button>
+        <button id="gateLock" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);background:#fff;border:1.5px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer">⎋ Lock</button>
+      </div>
+    </div>
 
+    <!-- TOOLS VIEW -->
+    <div id="toolsView">
     <div class="tool-grid">
 
       <a class="tool-card" href="employee-records.html">
@@ -169,22 +179,25 @@
       </a>
 
     </div>
+    </div>
 
-    <!-- OWNER-ONLY: Access / Admins manager -->
-    <div id="adminsCard" style="display:none;margin-top:32px;background:#fff;border:1px solid var(--border);border-top:3px solid var(--red);border-radius:10px;padding:24px;box-shadow:0 1px 4px rgba(45,45,59,.06)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
-        <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark)">Access &amp; Admins</div>
-        <button id="gateLock" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);background:#fff;border:1.5px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer">Lock now</button>
+    <!-- ACCESS VIEW (Owner-only, toggled by ⚙ Access) -->
+    <div id="accessView" style="display:none">
+      <div style="background:#fff;border:1px solid var(--border);border-top:3px solid var(--red);border-radius:10px;padding:24px;box-shadow:0 1px 4px rgba(45,45,59,.06)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark)">Access &amp; Admins</div>
+          <button id="backToTools" type="button" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);background:#fff;border:1.5px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer">← Tools</button>
+        </div>
+        <div style="font-size:12px;color:var(--grey);font-weight:600;margin-bottom:16px">Add people, set their passcode, choose a role, and switch access on or off. Codes are stored on the server, never shown here — leave the code blank to keep someone's current one.</div>
+        <div id="adminsTable"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">
+          <div style="flex:1;min-width:140px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Name</label><input id="naName" placeholder="Full name" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"></div>
+          <div style="flex:1;min-width:120px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Passcode</label><input id="naCode" placeholder="Set a code" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"></div>
+          <div style="min-width:120px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Role</label><select id="naRole" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"><option value="admin">Admin</option><option value="owner">Owner</option></select></div>
+          <button id="naAdd" type="button" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:#fff;color:var(--dark);border:1.5px solid var(--border);border-radius:9px;padding:9px 16px;cursor:pointer">Add</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:16px"><button id="naSave" type="button" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:var(--red);color:#fff;border:none;border-radius:9px;padding:10px 20px;cursor:pointer">Save admins</button><span id="naStatus" style="font-size:12px;font-weight:700;color:var(--grey)"></span></div>
       </div>
-      <div style="font-size:12px;color:var(--grey);font-weight:600;margin-bottom:16px">Owner-only. Add people, set their passcode, choose a role, and switch access on or off. Codes are stored on the server, never shown here — leave the code blank to keep someone's current one.</div>
-      <div id="adminsTable"></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">
-        <div style="flex:1;min-width:140px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Name</label><input id="naName" placeholder="Full name" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"></div>
-        <div style="flex:1;min-width:120px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Passcode</label><input id="naCode" placeholder="Set a code" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"></div>
-        <div style="min-width:120px"><label style="display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Role</label><select id="naRole" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"><option value="admin">Admin</option><option value="owner">Owner</option></select></div>
-        <button id="naAdd" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:#fff;color:var(--dark);border:1.5px solid var(--border);border-radius:9px;padding:9px 16px;cursor:pointer">Add</button>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:16px"><button id="naSave" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:var(--red);color:#fff;border:none;border-radius:9px;padding:10px 20px;cursor:pointer">Save admins</button><span id="naStatus" style="font-size:12px;font-weight:700;color:var(--grey)"></span></div>
     </div>
 
   </main>
@@ -193,15 +206,30 @@
 </div>
 
 <script>
-  var ADMINS = [];
+  var ADMINS = [], isOwner = false;
 
   document.addEventListener('cpr-unlocked', function(e){
     document.getElementById('mainContent').classList.add('visible');
-    var role = (e.detail && e.detail.role) || '';
-    if (role === 'owner'){ document.getElementById('adminsCard').style.display='block'; loadAdmins(); }
-    else { document.getElementById('adminsCard').style.display='none'; }
+    isOwner = ((e.detail && e.detail.role) || '') === 'owner';
+    document.getElementById('accessBtn').style.display = isOwner ? 'inline-flex' : 'none';
   });
+  document.getElementById('gateLock').onclick = function(){ if(window.CPRGate) CPRGate.lock(); };
 
+  // ── View toggle ──
+  function showAccess(){
+    if(!isOwner) return;
+    document.getElementById('toolsView').style.display='none';
+    document.getElementById('accessView').style.display='block';
+    loadAdmins();
+  }
+  function showTools(){
+    document.getElementById('accessView').style.display='none';
+    document.getElementById('toolsView').style.display='block';
+  }
+  document.getElementById('accessBtn').onclick = showAccess;
+  document.getElementById('backToTools').onclick = showTools;
+
+  // ── Admins manager ──
   function loadAdmins(){
     CPRGate.listAdmins().then(function(r){
       if(!r||!r.ok){ document.getElementById('naStatus').textContent = (r&&r.error)||'Could not load'; return; }
@@ -245,7 +273,6 @@
       else document.getElementById('naStatus').textContent=(r&&r.error)||'Save failed';
     }).catch(function(e){document.getElementById('naStatus').textContent=String(e);});
   };
-  document.getElementById('gateLock').onclick=function(){ if(window.CPRGate)CPRGate.lock(); };
 </script>
 <script src="assets/nav.js" data-section="admin"></script>
 <script src="assets/admin-gate.js"></script>
