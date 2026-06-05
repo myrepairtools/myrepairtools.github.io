@@ -1,491 +1,210 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cash Tracker — CPR</title>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
-main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
-h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
-.sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
-.page-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-.toolbar{display:flex;align-items:center;gap:8px;flex:none}
-.toolbar-btn{padding:8px 14px;font-family:'Nunito',sans-serif;font-size:.69rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;background:var(--white);color:var(--dark-grey);border:1.5px solid var(--border);border-radius:7px;cursor:pointer;transition:all .15s;white-space:nowrap}
-.toolbar-btn:hover{border-color:var(--blue);color:var(--blue)}
-.toolbar-btn.on{background:var(--dark);color:#fff;border-color:var(--dark)}
-.filter-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
-.filter-tabs{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px}
-.filter-tab{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer;transition:all .18s;white-space:nowrap}
-.filter-tab.active{background:var(--dark);color:#fff}
-.filter-tab:not(.active):hover{color:var(--dark-grey)}
-.location-tabs .filter-tab.active{background:var(--blue);color:#fff}
-.data-status{font-family:'Nunito Sans',sans-serif;font-size:.74rem;font-weight:600;color:var(--grey);margin-left:auto}
-.card{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
-.card h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;margin-bottom:12px}
-.muted{color:var(--dark-grey);font-size:.85rem}
-.hint{font-size:.78rem;color:var(--dark-grey);margin-top:6px}
-.hide{display:none}
-label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
-input,select{font-family:'Nunito Sans',sans-serif;font-size:.92rem;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);width:100%}
-input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-.field{flex:1;min-width:160px}
-.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;padding:11px 22px;border:none;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer;transition:filter .15s}
-.btn:hover{filter:brightness(1.07)}
-.btn:disabled{opacity:.5;cursor:default}
-.btn.alt{background:var(--white);color:var(--dark);border:1.5px solid var(--border)}
-.btn.blue{background:var(--blue)}
-.btn.sm{padding:7px 14px;font-size:.8rem;border-radius:8px}
-/* balance cards */
-.bal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-.bal{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:15px 16px;border-left:4px solid var(--blue)}
-.bal.safe{border-left-color:#8b5cf6}.bal.total{border-left-color:var(--green);background:#f3fbf6}
-.bal .bl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
-.bal .bv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--dark);margin-top:4px}
-.bal .bsub{font-size:.72rem;color:var(--grey);font-weight:600;margin-top:3px}
-/* denomination grid */
-.denoms{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:8px;margin-top:4px}
-.den{background:var(--light-grey);border-radius:9px;padding:8px;text-align:center}
-.den .dl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey)}
-.den input{width:100%;text-align:center;margin-top:4px;padding:6px 4px;font-weight:800;font-family:'Nunito',sans-serif}
-.den .ds{font-size:.66rem;color:var(--grey);font-weight:700;margin-top:3px;min-height:.8em}
-.entry-total{display:flex;align-items:baseline;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
-.entry-total .etl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
-.entry-total .etv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green)}
-.preview{background:#EFEAFB;border:1px solid #E6E0F4;border-radius:10px;padding:12px 14px;margin-top:12px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;color:#5b3fb0}
-.os{font-family:'Nunito',sans-serif;font-weight:900}
-.os.ok{color:var(--green)}.os.bad{color:var(--red)}
-/* tables */
-.table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
-table{width:100%;border-collapse:collapse}
-thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
-thead th.num{text-align:right}
-tbody td{padding:9px 12px;border-bottom:1px solid rgba(224,226,234,.6);font-size:.86rem;vertical-align:middle}
-tbody td.num{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
-tbody tr:hover{background:rgba(79,176,227,.04)}
-.op-pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;padding:3px 8px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey);white-space:nowrap}
-.xbtn{cursor:pointer;color:var(--grey);font-weight:900;font-size:1.1rem}
-.xbtn:hover{color:var(--red)}
-.banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:16px}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
-.toast.show{opacity:1}.toast.err{background:var(--red)}
-.settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
-.settings-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem}
-.table-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.table-head h2{margin:0}
-.modal-bg{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:flex-start;justify-content:center;padding:38px 16px;z-index:60;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.modal-bg.hide{display:none}
-.modal{background:var(--white);border-radius:14px;border-top:4px solid var(--accent);width:100%;max-width:640px;padding:22px 22px 24px;box-shadow:0 22px 60px rgba(45,45,59,.32)}
-.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.modal-head h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem}
-.modal-close{font-size:1.6rem;color:var(--grey);cursor:pointer;font-weight:900;line-height:1;padding:0 4px}
-.modal-close:hover{color:var(--red)}
-</style>
-</head>
-<body>
-<script src="assets/nav.js" data-section="operations"></script>
-<main>
-  <div class="page-title-row">
-    <div><h1>Cash Tracker</h1><p class="sub">Tills, safes, transfers &amp; daily audit — every dollar accounted for.</p></div>
-    <div class="toolbar"><button class="toolbar-btn" id="btnSettings">⚙ Settings</button></div>
-  </div>
+/* ===========================================================================
+ * CPR myrepairtools.github.io — Shared Navigation
+ * ---------------------------------------------------------------------------
+ * Drop into any tool page with:
+ *   <script src="assets/nav.js" data-section="admin"></script>
+ * or
+ *   <script src="assets/nav.js" data-section="operations"></script>
+ *
+ * Per-page: the script injects a top nav into <body>. Each page should
+ * REMOVE its existing <header> element so they don't double up.
+ *
+ * To add a new tool or rename one, edit the SECTIONS config block below
+ * and the change propagates to every page.
+ * ========================================================================= */
+(function () {
+  'use strict';
 
-  <!-- SETTINGS PAGE -->
-  <section id="tab-settings" class="hide">
-    <div class="settings-head"><div><div class="settings-title">Settings</div><p class="sub">Connection, staff, and starting balances.</p></div><button class="toolbar-btn" id="settingsBack">← Back</button></div>
-    <div class="card"><h2>Database connection</h2>
-      <p class="muted" id="connNote">Configured in the page file.</p>
-      <div style="margin-top:12px"><button class="btn sm" id="testConn">Test connection</button></div>
-      <p id="connStatus" class="muted" style="margin-top:10px"></p>
-    </div>
-    <div class="card"><h2>Starting balances &amp; float targets</h2>
-      <p class="hint" style="margin-top:0;margin-bottom:12px">The opening balance for each location at the start of tracking, and the float each till should hold.</p>
-      <div id="setupList"></div>
-      <div style="margin-top:12px"><button class="btn sm" id="saveSetup">Save balances</button></div>
-    </div>
-    <div class="card"><h2>Staff</h2>
-      <div id="staffList"></div>
-      <div class="row" style="margin-top:8px"><div class="field"><select id="staffStore"></select></div><div class="field"><input type="text" id="newStaff" placeholder="Add staff name…"></div><button class="btn alt sm" id="addStaff">Add</button></div>
-      <div style="margin-top:12px"><button class="btn sm" id="saveStaff">Save staff</button></div>
-    </div>
-  </section>
+  // Skip nav entirely when this page is loaded inside an iframe
+  // (e.g., embedded in RepairQ via the RQ Mods extension). The hosting
+  // app provides its own chrome, so injecting our nav would just take
+  // up space and look odd.
+  if (window.self !== window.top) return;
 
-  <!-- FILTER ROW -->
-  <div class="filter-row" id="filterRow">
-    <div class="filter-tabs" id="mainTabs">
-      <button class="filter-tab active" data-tab="dashboard">Dashboard</button>
-      <button class="filter-tab" data-tab="audit">Audit</button>
-    </div>
-    <div class="filter-tabs location-tabs" id="storeTabs"></div>
-    <div class="data-status"><input type="month" id="period" style="width:auto;padding:6px 9px;font-size:.82rem"></div>
-  </div>
+  // ──────────────────────────────────────────────────────────────────────────
+  // CONFIG — tools per section
+  // ──────────────────────────────────────────────────────────────────────────
+  const SECTIONS = {
+    admin: {
+      label: 'Admin',
+      icon: '🔒',
+      color: '#DC282E',        // CPR red
+      landing: 'admin.html',
+      tools: [
+        { label: 'Profit First',         url: 'profit-first.html' },
+        { label: 'Claim Ledger',         url: 'claim-ledger.html' },
+        { label: 'Commission Calculator', url: 'commission-calculator.html' },
+        { label: 'Employee Records',     url: 'employee-records.html' }
+      ]
+    },
+    operations: {
+      label: 'Operations',
+      icon: '🔧',
+      color: '#4FB0E3',        // CPR blue
+      landing: 'operations.html',
+      tools: [
+        { label: 'Price Calc & Guide', url: 'price-calc-and-guide.html' },
+        { label: 'Price Guide',        url: 'price-guide.html' },
+        { label: 'Jerry Ding Order',   url: 'jerry-ding-order.html' },
+        { label: 'PO Converter',       url: 'po-converter.html' },
+        { label: 'Cash Tracker',       url: 'cash-tracker.html' }
+      ]
+    }
+  };
 
-  <div class="banner hide" id="setupBanner"></div>
+  // ──────────────────────────────────────────────────────────────────────────
+  // Resolve section from this script tag's data-section attribute
+  // ──────────────────────────────────────────────────────────────────────────
+  const scriptEl = document.currentScript ||
+    (function () {
+      const scripts = document.getElementsByTagName('script');
+      for (let i = scripts.length - 1; i >= 0; i--) {
+        if (/nav\.js(\?|$)/.test(scripts[i].src)) return scripts[i];
+      }
+      return null;
+    })();
+  const sectionKey = (scriptEl && scriptEl.dataset.section) || 'operations';
+  const section = SECTIONS[sectionKey] || SECTIONS.operations;
+  const otherKey = sectionKey === 'admin' ? 'operations' : 'admin';
+  const otherSection = SECTIONS[otherKey];
 
-  <!-- DASHBOARD -->
-  <section id="tab-dashboard">
-    <div id="dashOut"></div>
-  </section>
+  // Identify the current page (used to mark the active tool link)
+  const currentFile = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
 
-  <!-- AUDIT -->
-  <section id="tab-audit" class="hide">
-    <div id="auditOut"></div>
-  </section>
+  // ──────────────────────────────────────────────────────────────────────────
+  // STYLES (injected once)
+  // ──────────────────────────────────────────────────────────────────────────
+  const css = `
+    .cpr-nav {
+      position: sticky; top: 0; z-index: 100;
+      background: #FFFFFF;
+      border-bottom: 2px solid ${section.color};
+      font-family: 'Nunito', sans-serif;
+      box-shadow: 0 1px 4px rgba(45,45,59,0.06);
+    }
+    .cpr-nav-strip {
+      height: 6px; background: #0F0F12;
+    }
+    .cpr-nav-inner {
+      max-width: 1400px; margin: 0 auto;
+      padding: 12px 24px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .cpr-nav-brand {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; color: #2D2D3B;
+      flex-shrink: 0;
+    }
+    .cpr-nav-brand img { height: 36px; width: auto; display: block; }
+    .cpr-nav-tools {
+      display: flex; align-items: center; gap: 4px;
+      flex: 1; flex-wrap: wrap;
+    }
+    .cpr-nav-tools a {
+      text-decoration: none; color: #4E4E50;
+      font-weight: 700; font-size: 13px;
+      padding: 8px 14px; border-radius: 6px;
+      transition: all 0.15s;
+      letter-spacing: 0.2px;
+      position: relative;
+    }
+    .cpr-nav-tools a:hover {
+      background: #F3F2F2; color: #2D2D3B;
+    }
+    .cpr-nav-tools a.active {
+      color: #2D2D3B; font-weight: 800;
+      background: transparent;
+    }
+    .cpr-nav-tools a.active::after {
+      content: '';
+      position: absolute;
+      left: 14px; right: 14px; bottom: 2px;
+      height: 2px; border-radius: 1px;
+      background: #4FB0E3;
+    }
+    /* Section toggle (pill) — replaces the old single switcher button */
+    .cpr-nav-toggle {
+      display: inline-flex; align-items: center;
+      background: #F3F2F2;
+      border-radius: 999px;
+      padding: 3px;
+      flex-shrink: 0;
+    }
+    .cpr-toggle-segment {
+      text-decoration: none;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800; font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 999px;
+      color: #4E4E50;
+      transition: all 0.15s;
+    }
+    .cpr-toggle-segment:hover { color: #2D2D3B; }
+    .cpr-toggle-segment.active {
+      background: ${section.color}; color: #FFFFFF;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .cpr-toggle-segment.active:hover { color: #FFFFFF; }
+    @media (max-width: 800px) {
+      .cpr-nav-inner { padding: 10px 14px; gap: 10px; flex-wrap: wrap; }
+      .cpr-nav-tools a { font-size: 12px; padding: 6px 10px; }
+      .cpr-toggle-segment { font-size: 10px; padding: 5px 10px; }
+    }
+  `;
+  const styleEl = document.createElement('style');
+  styleEl.textContent = css;
+  document.head.appendChild(styleEl);
 
-  <!-- NEW ENTRY MODAL -->
-  <div class="modal-bg hide" id="entryModal">
-    <div class="modal">
-      <div class="modal-head"><h2 id="enTitle">New entry</h2><span class="modal-close" id="enClose">×</span></div>
-      <div class="row">
-        <div class="field"><label>Employee</label><select id="enEmployee"></select></div>
-        <div class="field"><label>Operation</label><select id="enOperation"></select></div>
-        <div class="field"><label>Date</label><input type="date" id="enDate"></div>
-      </div>
-      <div id="enDynamic" style="margin-top:14px"></div>
-      <div id="enDenoms" style="margin-top:14px"></div>
-      <div class="entry-total"><span class="etl" id="enTotalLbl">Counted total</span><span class="etv" id="enTotal">$0.00</span></div>
-      <div id="enPreview"></div>
-      <div class="row" style="margin-top:16px"><div class="field"><label>Notes (optional)</label><input type="text" id="enNotes" placeholder="Anything worth recording…"></div></div>
-      <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end"><button class="btn alt" id="enCancel">Cancel</button><button class="btn" id="enSubmit">Save entry</button></div>
-    </div>
-  </div>
-</main>
-<div class="toast" id="toast"></div>
-
-<script>
-/* ============ CONFIG — paste your deployed Web App URL + token ============ */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyEatKeCwZeeOpG3tvQwz-rYzlDSkU1tvU_OB2MzqLMt4InPpvHUln6Iu16d3ZRwj9L/exec';
-var API_TOKEN  = '1c098481a85026995fb5f0c943ce949d6961f5eafb4d71a580025cc2144c6769';
-/* ========================================================================= */
-
-var $=function(s){return document.querySelector(s);};
-var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
-function money(n){var x=Number(n)||0;return (x<0?'-$':'$')+Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2200);}
-function num(v){return (v===''||v==null)?0:Number(v)||0;}
-
-var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'},{k:'Q25',v:0.25,l:'25¢'},{k:'D10',v:0.10,l:'10¢'},{k:'N5',v:0.05,l:'5¢'},{k:'P1',v:0.01,l:'1¢'}];
-var TILLS=['VCT1','VCT2','VCT3'];
-var OPS={
-  'Open':                  {kind:'count',till:true,coins:true, lbl:'Counted total', desc:'Count the drawer at open — it should match the last close.'},
-  'Close':                 {kind:'count',till:true,coins:true, payments:true, lbl:'Counted total', desc:'Count the drawer, then enter cash sales for the shift. Over/Short is calculated for you.'},
-  'Large Safe Deposit':    {kind:'move',from:'till',to:'Large Safe',coins:false, lbl:'Bills deposited', desc:'Bills moved from a till into the large safe.'},
-  'Large Safe Withdrawal': {kind:'move',from:'Large Safe',to:'till',coins:false, lbl:'Bills withdrawn', desc:'Bills taken from the large safe into a till.'},
-  'Small Safe Deposit':    {kind:'move',from:'till',to:'Small Safe',coins:false, lbl:'Bills deposited', desc:'Bills moved from a till into the small safe.'},
-  'Small Safe Withdrawal': {kind:'move',from:'Small Safe',to:'till',coins:false, lbl:'Bills withdrawn', desc:'Bills taken from the small safe into a till.'},
-  'VCT Transfer':          {kind:'move',from:'till',to:'till2',coins:true, lbl:'Cash transferred', desc:'Cash moved from one till to another.'},
-  'Safe Transfer':         {kind:'move',from:'safe',to:'safe2',coins:false, lbl:'Cash transferred', desc:'Cash moved between the large and small safe.'}
-};
-var ALL_LOCS=['VCT1','VCT2','VCT3','Small Safe','Large Safe'];
-
-var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[]};
-var ACTIVE_TAB='dashboard';
-
-function api(action,params){
-  if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
-  var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);
-  for(var k in (params||{})) url+='&'+k+'='+encodeURIComponent(params[k]);
-  return fetch(url).then(function(r){return r.json();});
-}
-function apiPost(body){
-  if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
-  body.token=API_TOKEN;
-  return fetch(WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json();});
-}
-
-/* ---------- balance math ---------- */
-function startBal(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.StartingBalance):0;}
-function floatTarget(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.FloatTarget):0;}
-function computeBalances(uptoEntries){
-  var bal={}; ALL_LOCS.forEach(function(l){bal[l]=startBal(STATE.store,l);});
-  (uptoEntries||STATE.entries).forEach(function(e){applyEntry(bal,e);});
-  return bal;
-}
-function applyEntry(bal,e){
-  var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
-  if(op==='Open'||op==='Close'){ if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null) bal[loc]=num(e.Counted); return; }
-  if(loc!=null&&bal[loc]!=null) bal[loc]-=amt;
-  if(to!=null&&bal[to]!=null) bal[to]+=amt;
-}
-function periodOverShort(){var s=0;STATE.entries.forEach(function(e){if(e.Operation==='Close')s+=num(e.OverShort);});return s;}
-
-/* ---------- bootstrap ---------- */
-function boot(){
-  var d=new Date(); $('#period').value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
-  $('#enDate').value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
-  api('bootstrap').then(function(r){
-    if(!r||!r.ok){showSetupBanner();return;}
-    STATE.stores=r.stores||[]; STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
-    STATE.store=STATE.stores[0]||null; STATE.period=$('#period').value;
-    renderStoreTabs(); fillStaffSelect(); fillOps(); buildSetupList(); buildStaffList(); fillStaffStore();
-    loadData();
-  }).catch(function(){showSetupBanner();});
-}
-function showSetupBanner(){
-  var b=$('#setupBanner');b.classList.remove('hide');
-  b.innerHTML='<b>Not connected yet.</b> Create the "Cash Tracker DB" sheet, run <code>setup()</code> in Apps Script, deploy as a Web App, then paste the URL + token at the top of this file.';
-}
-function loadData(){
-  if(!STATE.store) return;
-  api('entries',{store:STATE.store,period:STATE.period}).then(function(r){
-    STATE.entries=(r&&r.rows)||[];
-    STATE.entries.sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));});
-    renderDashboard(); renderAudit();
-  }).catch(function(e){toast(String(e),true);});
-}
-
-/* ---------- store tabs / selects ---------- */
-function shortStore(s){return s.replace(/^CPR\s*/,'');}
-function renderStoreTabs(){
-  $('#storeTabs').innerHTML=STATE.stores.map(function(s){
-    return '<button class="filter-tab'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+shortStore(s)+'</button>';}).join('');
-  $all('#storeTabs .filter-tab').forEach(function(b){b.onclick=function(){STATE.store=b.dataset.s;renderStoreTabs();fillStaffSelect();loadData();};});
-}
-function staffFor(store){return STATE.staff.filter(function(s){return s.Store===store&&s.Active!==false;}).map(function(s){return s.Name;});}
-function fillStaffSelect(){var sel=$('#enEmployee');sel.innerHTML=staffFor(STATE.store).map(function(n){return '<option>'+n+'</option>';}).join('');}
-function fillOps(){$('#enOperation').innerHTML=Object.keys(OPS).map(function(o){return '<option>'+o+'</option>';}).join('');renderEntryForm();}
-
-/* ---------- tabs ---------- */
-$all('#mainTabs .filter-tab').forEach(function(tab){tab.addEventListener('click',function(){
-  ACTIVE_TAB=tab.dataset.tab;
-  $all('#mainTabs .filter-tab').forEach(function(t){t.classList.toggle('active',t===tab);});
-  ['dashboard','audit'].forEach(function(n){$('#tab-'+n).classList.toggle('hide',n!==ACTIVE_TAB);});
-});});
-function showSettings(open){
-  $('#tab-settings').classList.toggle('hide',!open);
-  $('#btnSettings').classList.toggle('on',open);
-  $('#filterRow').classList.toggle('hide',open);
-  ['dashboard','audit'].forEach(function(n){$('#tab-'+n).classList.toggle('hide',open||ACTIVE_TAB!==n);});
-  if(open)window.scrollTo(0,0);
-}
-$('#btnSettings').onclick=function(){showSettings($('#tab-settings').classList.contains('hide'));};
-$('#settingsBack').onclick=function(){showSettings(false);};
-$('#period').onchange=function(){STATE.period=$('#period').value;loadData();};
-
-function openEntryModal(){
-  if(!$('#enDate').value){var d=new Date();$('#enDate').value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-  fillStaffSelect(); renderEntryForm();
-  $('#entryModal').classList.remove('hide');
-}
-function closeEntryModal(){$('#entryModal').classList.add('hide');}
-$('#enClose').onclick=closeEntryModal;
-$('#enCancel').onclick=closeEntryModal;
-$('#entryModal').addEventListener('click',function(e){if(e.target===$('#entryModal'))closeEntryModal();});
-
-/* ---------- DASHBOARD ---------- */
-function renderDashboard(){
-  var bal=computeBalances();
-  var total=ALL_LOCS.reduce(function(a,l){return a+bal[l];},0);
-  var os=periodOverShort();
-  var cards=TILLS.map(function(l){return balCard(l,bal[l],floatTarget(STATE.store,l),'');}).join('')+
-    balCard('Small Safe',bal['Small Safe'],null,'safe')+balCard('Large Safe',bal['Large Safe'],null,'safe')+
-    balCard('Total Cash',total,null,'total');
-  var rows=STATE.entries.slice().reverse();
-  var html='<div class="card"><h2>'+shortStore(STATE.store)+' — current cash</h2><div class="bal-grid">'+cards+'</div>'+
-    '<p class="hint">Till balances follow the last counted drawer; safes accumulate deposits &amp; withdrawals. Period Over/Short so far: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span></p></div>'+
-    '<div class="card"><div class="table-head"><h2>Activity</h2><button class="btn" id="btnNewEntry">+ New Entry</button></div>'+entriesTable(rows)+'</div>';
-  $('#dashOut').innerHTML=html;
-  $('#btnNewEntry').onclick=openEntryModal;
-  $all('#dashOut .xbtn').forEach(function(x){x.onclick=function(){if(!confirm('Delete this entry?'))return;
-    apiPost({action:'deleteEntry',id:x.dataset.id}).then(function(){toast('Deleted');loadData();});};});
-}
-function balCard(loc,val,float,cls){
-  return '<div class="bal '+(cls||'')+'"><div class="bl">'+loc+'</div><div class="bv">'+money(val)+'</div>'+
-    (float!=null?'<div class="bsub">float target '+money(float)+'</div>':'')+'</div>';
-}
-function entriesTable(rows){
-  if(!rows.length)return '<p class="muted">No entries yet. Tap <b>+ New Entry</b> to log an operation.</p>';
-  return '<div class="table-card"><table><thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th>Location</th><th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>'+
-    rows.map(function(e){
-      var dir=e.ToLocation?(shortStore(e.Location)+' → '+shortStore(e.ToLocation)):shortStore(e.Location);
-      var os=e.Operation==='Close'?'<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>':'—';
-      var amt=e.Operation==='Close'?money(e.Payments)+' sales':money(e.Amount);
-      return '<tr><td>'+(e.Date||'')+'</td><td>'+(e.Employee||'')+'</td><td><span class="op-pill">'+e.Operation+'</span></td><td>'+dir+'</td><td class="num">'+amt+'</td><td class="num">'+os+'</td><td class="num"><span class="xbtn" data-id="'+e.Id+'" title="Delete">×</span></td></tr>';
-    }).join('')+'</tbody></table></div>';
-}
-
-/* ---------- NEW ENTRY ---------- */
-$('#enOperation').onchange=renderEntryForm;
-function renderEntryForm(){
-  var op=$('#enOperation').value,cfg=OPS[op]||{};
-  var dyn='';
-  if(cfg.kind==='count'){
-    dyn='<div class="row"><div class="field"><label>Till</label><select id="enTill">'+TILLS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div>';
-    if(cfg.payments) dyn+='<div class="field"><label>Cash sales this shift</label><input type="number" step="0.01" id="enPayments" placeholder="0.00"></div>';
-    dyn+='</div>';
-  } else if(cfg.from==='till'&&cfg.to.indexOf('Safe')>=0){
-    dyn='<div class="row"><div class="field"><label>From till</label><select id="enTill">'+TILLS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div><div class="field"><label>To</label><input value="'+cfg.to+'" disabled></div></div>';
-  } else if(cfg.from.indexOf('Safe')>=0&&cfg.to==='till'){
-    dyn='<div class="row"><div class="field"><label>From</label><input value="'+cfg.from+'" disabled></div><div class="field"><label>To till</label><select id="enTill">'+TILLS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div></div>';
-  } else if(op==='VCT Transfer'){
-    dyn='<div class="row"><div class="field"><label>From till</label><select id="enTill">'+TILLS.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select></div><div class="field"><label>To till</label><select id="enTill2">'+TILLS.map(function(t){return '<option'+(t==='VCT2'?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>';
-  } else if(op==='Safe Transfer'){
-    dyn='<div class="row"><div class="field"><label>Direction</label><select id="enDir"><option value="Large Safe|Small Safe">Large Safe → Small Safe</option><option value="Small Safe|Large Safe">Small Safe → Large Safe</option></select></div></div>';
+  // ──────────────────────────────────────────────────────────────────────────
+  // NAV HTML
+  // ──────────────────────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
   }
-  $('#enDynamic').innerHTML=(cfg.desc?'<p class="hint" style="margin-top:0">'+cfg.desc+'</p>':'')+dyn;
-  $('#enTotalLbl').textContent=cfg.lbl||'Counted total';
-  var dens=DENOMS.filter(function(d){return cfg.coins||d.v>=1;});
-  $('#enDenoms').innerHTML='<label>'+(cfg.coins?'Denomination count':'Bills moved')+'</label><div class="denoms">'+
-    dens.map(function(d){return '<div class="den"><div class="dl">'+d.l+'</div><input type="number" min="0" step="1" data-k="'+d.k+'" data-v="'+d.v+'" placeholder="0"><div class="ds" data-sub="'+d.k+'"></div></div>';}).join('')+'</div>';
-  $all('#enDenoms input').forEach(function(i){i.oninput=recalcEntry;});
-  var pp=$('#enPayments'); if(pp)pp.oninput=recalcEntry;
-  var tl=$('#enTill'); if(tl)tl.onchange=recalcEntry;
-  recalcEntry();
-}
-function entryDenomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return t;}
-function recalcEntry(){
-  var op=$('#enOperation').value,cfg=OPS[op]||{};
-  var total=entryDenomTotal();
-  $('#enTotal').textContent=money(total);
-  var pv='';
-  if(op==='Close'){
-    var till=$('#enTill')?$('#enTill').value:'VCT1';
-    var payments=$('#enPayments')?num($('#enPayments').value):0;
-    var bal=computeBalances(); var expected=bal[till]+payments;
-    var os=total-expected;
-    pv='Expected drawer: <b>'+money(expected)+'</b> ('+money(bal[till])+' float + '+money(payments)+' sales) · Counted: <b>'+money(total)+'</b> · Over/Short: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
-  } else if(op==='Open'){
-    var till2=$('#enTill')?$('#enTill').value:'VCT1';var b2=computeBalances();
-    var diff=total-b2[till2];
-    pv='Expected in drawer: <b>'+money(b2[till2])+'</b> · Counted: <b>'+money(total)+'</b> · Difference: <span class="os '+(Math.abs(diff)<0.005?'ok':'bad')+'">'+money(diff)+'</span>';
-  } else if(cfg.kind==='move'){
-    var ep=moveEndpoints();
-    pv=shortStore(ep.from)+' <b>'+money(ep.fromBal-total)+'</b> ← was '+money(ep.fromBal)+' &nbsp;·&nbsp; '+shortStore(ep.to)+' <b>'+money(ep.toBal+total)+'</b> ← was '+money(ep.toBal);
-  }
-  $('#enPreview').innerHTML=pv?'<div class="preview">'+pv+'</div>':'';
-}
-function moveEndpoints(){
-  var op=$('#enOperation').value,cfg=OPS[op],bal=computeBalances(),from,to;
-  if(cfg.from==='till'){from=$('#enTill')?$('#enTill').value:'VCT1';to=cfg.to;}
-  else if(cfg.to==='till'){from=cfg.from;to=$('#enTill')?$('#enTill').value:'VCT1';}
-  else if(op==='VCT Transfer'){from=$('#enTill')?$('#enTill').value:'VCT1';to=$('#enTill2')?$('#enTill2').value:'VCT2';}
-  else if(op==='Safe Transfer'){var d=($('#enDir')?$('#enDir').value:'Large Safe|Small Safe').split('|');from=d[0];to=d[1];}
-  return {from:from,to:to,fromBal:bal[from]||0,toBal:bal[to]||0};
-}
-function collectDenoms(){var o={};$all('#enDenoms input').forEach(function(i){o[i.dataset.k]=num(i.value);});return o;}
-$('#enSubmit').onclick=function(){
-  var op=$('#enOperation').value,cfg=OPS[op]||{};
-  var emp=$('#enEmployee').value,date=$('#enDate').value;
-  if(!emp){toast('Pick an employee',true);return;}
-  if(!date){toast('Pick a date',true);return;}
-  var denoms=collectDenoms(),total=entryDenomTotal();
-  var payload={store:STATE.store,date:date,employee:emp,operation:op,denoms:denoms,notes:$('#enNotes').value};
-  if(cfg.kind==='count'){
-    var till=$('#enTill').value; payload.location=till; payload.amount=total; payload.counted=total;
-    if(op==='Close'){var payments=num($('#enPayments').value);var bal=computeBalances();var expected=bal[till]+payments;
-      payload.payments=payments;payload.openingBalance=bal[till];payload.expected=expected;payload.overShort=total-expected;}
-  } else {
-    var ep=moveEndpoints(); payload.location=ep.from; payload.toLocation=ep.to; payload.amount=total;
-    if(total<=0){toast('Enter the bills moved',true);return;}
-  }
-  $('#enSubmit').disabled=true;
-  apiPost(Object.assign({action:'addEntry'},payload)).then(function(r){$('#enSubmit').disabled=false;
-    if(!r.ok){toast(r.error||'Save failed',true);return;}
-    toast('Entry saved'); $all('#enDenoms input').forEach(function(i){i.value='';}); var pp=$('#enPayments');if(pp)pp.value=''; $('#enNotes').value='';
-    closeEntryModal(); loadData();
-  }).catch(function(e){$('#enSubmit').disabled=false;toast(String(e),true);});
-};
-function renderRecent(){}
 
-/* ---------- AUDIT ---------- */
-function renderAudit(){
-  var bal=computeBalances();
-  var rows=ALL_LOCS.map(function(l){
-    return '<tr><td>'+l+'</td><td class="num" data-tracked="'+l+'">'+money(bal[l])+'</td><td><input type="number" step="0.01" data-count="'+l+'" placeholder="count"></td><td class="num" data-os="'+l+'">—</td></tr>';
+  const toolLinks = section.tools.map(t => {
+    const isActive = t.url.toLowerCase() === currentFile ? ' class="active"' : '';
+    return `<a href="${escapeHtml(t.url)}"${isActive}>${escapeHtml(t.label)}</a>`;
   }).join('');
-  var html='<div class="card"><h2>Daily audit — '+shortStore(STATE.store)+'</h2>'+
-    '<div class="row"><div class="field"><label>Auditor</label><select id="auAuditor">'+staffFor(STATE.store).map(function(n){return '<option>'+n+'</option>';}).join('')+'</select></div>'+
-    '<div class="field"><label>Date</label><input type="date" id="auDate" value="'+$('#enDate').value+'"></div></div>'+
-    '<div class="table-card" style="margin-top:14px"><table><thead><tr><th>Location</th><th class="num">Tracked (expected)</th><th>Counted now</th><th class="num">Over/Short</th></tr></thead><tbody>'+rows+
-    '<tr style="font-weight:900"><td>TOTAL</td><td class="num" id="auTrackedTotal"></td><td class="num" id="auCountedTotal"></td><td class="num" id="auOSTotal">—</td></tr>'+
-    '</tbody></table></div>'+
-    '<div class="row" style="margin-top:14px"><div class="field"><label>Notes</label><input type="text" id="auNotes" placeholder="Explain any over/short…"></div></div>'+
-    '<div style="margin-top:14px"><button class="btn" id="auSave">Save audit</button></div></div>'+
-    '<div class="card"><h2>Cash sales reconciliation</h2>'+
-    '<p class="hint" style="margin-top:0">Starting cash + cash sales should equal counted ending cash.</p>'+
-    '<div class="row" style="margin-top:10px"><div class="field"><label>Starting cash (all locations)</label><input type="number" step="0.01" id="recStart" value="'+ALL_LOCS.reduce(function(a,l){return a+startBal(STATE.store,l);},0).toFixed(2)+'"></div>'+
-    '<div class="field"><label>Cash sales this period</label><input type="number" step="0.01" id="recSales" placeholder="0.00"></div></div>'+
-    '<div class="preview" id="recOut" style="display:none"></div></div>'+
-    auditHistory();
-  $('#auditOut').innerHTML=html;
-  var trackedTotal=ALL_LOCS.reduce(function(a,l){return a+bal[l];},0);
-  $('#auTrackedTotal').textContent=money(trackedTotal);
-  $all('#auditOut input[data-count]').forEach(function(i){i.oninput=recalcAudit;});
-  $('#recSales').oninput=$('#recStart').oninput=recalcRecon;
-  $('#auSave').onclick=saveAudit;
-  recalcAudit();
-}
-function recalcAudit(){
-  var bal=computeBalances(),ct=0,os=0;
-  ALL_LOCS.forEach(function(l){
-    var cin=$('#auditOut input[data-count="'+l+'"]');var counted=cin&&cin.value!==''?num(cin.value):null;
-    var cell=$('#auditOut [data-os="'+l+'"]');
-    if(counted==null){cell.textContent='—';return;}
-    var d=counted-bal[l];ct+=counted;os+=d;
-    cell.innerHTML='<span class="os '+(Math.abs(d)<0.005?'ok':'bad')+'">'+money(d)+'</span>';
-  });
-  $('#auCountedTotal').textContent=money(ct);
-  $('#auOSTotal').innerHTML='<span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
-}
-function recalcRecon(){
-  var start=num($('#recStart').value),sales=num($('#recSales').value),bal=computeBalances();
-  var counted=ALL_LOCS.reduce(function(a,l){var c=$('#auditOut input[data-count="'+l+'"]');return a+(c&&c.value!==''?num(c.value):bal[l]);},0);
-  var expected=start+sales,diff=counted-expected;
-  $('#recOut').style.display='block';
-  $('#recOut').innerHTML='Starting <b>'+money(start)+'</b> + sales <b>'+money(sales)+'</b> = <b>'+money(expected)+'</b> &nbsp;·&nbsp; counted <b>'+money(counted)+'</b> &nbsp;·&nbsp; <span class="os '+(Math.abs(diff)<0.005?'ok':'bad')+'">'+money(diff)+'</span>';
-}
-function saveAudit(){
-  var bal=computeBalances(),rows=[];
-  ALL_LOCS.forEach(function(l){var c=$('#auditOut input[data-count="'+l+'"]');if(c&&c.value!==''){var counted=num(c.value);rows.push({Location:l,Tracked:bal[l],Counted:counted,OverShort:counted-bal[l]});}});
-  if(!rows.length){toast('Enter at least one count',true);return;}
-  $('#auSave').disabled=true;
-  apiPost({action:'saveAudit',store:STATE.store,period:STATE.period,date:$('#auDate').value,auditor:$('#auAuditor').value,notes:$('#auNotes').value,rows:rows}).then(function(r){
-    $('#auSave').disabled=false; if(r.ok){toast('Audit saved');loadAuditHistory();}else toast(r.error||'Save failed',true);
-  }).catch(function(e){$('#auSave').disabled=false;toast(String(e),true);});
-}
-var AUDITS=[];
-function auditHistory(){
-  return '<div class="card"><h2>Past audits</h2><div id="auHist">'+(AUDITS.length?renderAuditHist():'<p class="muted">No audits saved yet.</p>')+'</div></div>';
-}
-function renderAuditHist(){
-  var byDate={};AUDITS.forEach(function(a){var k=a.Date+'|'+a.Auditor;(byDate[k]=byDate[k]||[]).push(a);});
-  return '<div class="table-card"><table><thead><tr><th>Date</th><th>Auditor</th><th class="num">Counted</th><th class="num">Over/Short</th><th>Notes</th></tr></thead><tbody>'+
-    Object.keys(byDate).sort().reverse().map(function(k){var g=byDate[k];var ct=g.reduce(function(a,x){return a+num(x.Counted);},0);var os=g.reduce(function(a,x){return a+num(x.OverShort);},0);var n=g.map(function(x){return x.Notes;}).filter(Boolean)[0]||'';
-      return '<tr><td>'+g[0].Date+'</td><td>'+g[0].Auditor+'</td><td class="num">'+money(ct)+'</td><td class="num"><span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span></td><td>'+n+'</td></tr>';
-    }).join('')+'</tbody></table></div>';
-}
-function loadAuditHistory(){api('audits',{store:STATE.store,period:STATE.period}).then(function(r){AUDITS=(r&&r.rows)||[];var h=$('#auHist');if(h)h.innerHTML=AUDITS.length?renderAuditHist():'<p class="muted">No audits saved yet.</p>';});}
 
-/* ---------- SETTINGS ---------- */
-function buildSetupList(){
-  var html='<div class="table-card"><table><thead><tr><th>Store</th><th>Location</th><th>Starting $</th><th>Float $</th></tr></thead><tbody>'+
-    STATE.stores.map(function(s){return ALL_LOCS.map(function(l){var r=STATE.setup.filter(function(x){return x.Store===s&&x.Location===l;})[0]||{};
-      return '<tr><td>'+shortStore(s)+'</td><td>'+l+'</td><td><input type="number" step="0.01" data-s="'+s+'" data-l="'+l+'" data-f="start" value="'+num(r.StartingBalance)+'" style="width:110px"></td><td><input type="number" step="0.01" data-s="'+s+'" data-l="'+l+'" data-f="float" value="'+num(r.FloatTarget)+'" style="width:110px"></td></tr>';
-    }).join('');}).join('')+'</tbody></table></div>';
-  $('#setupList').innerHTML=html;
-}
-$('#saveSetup').onclick=function(){
-  var rows=[];STATE.stores.forEach(function(s){ALL_LOCS.forEach(function(l){
-    var st=$('#setupList input[data-s="'+s+'"][data-l="'+l+'"][data-f="start"]');var fl=$('#setupList input[data-s="'+s+'"][data-l="'+l+'"][data-f="float"]');
-    rows.push({Store:s,Location:l,StartingBalance:num(st.value),FloatTarget:num(fl.value)});});});
-  apiPost({action:'saveSetup',rows:rows}).then(function(r){if(r.ok){STATE.setup=rows;toast('Balances saved');loadData();}else toast(r.error||'Failed',true);});
-};
-function fillStaffStore(){$('#staffStore').innerHTML=STATE.stores.map(function(s){return '<option>'+s+'</option>';}).join('');}
-function buildStaffList(){
-  $('#staffList').innerHTML='<div class="table-card"><table><thead><tr><th>Store</th><th>Name</th><th>Active</th><th></th></tr></thead><tbody>'+
-    STATE.staff.map(function(s,i){return '<tr><td>'+shortStore(s.Store)+'</td><td>'+s.Name+'</td><td><input type="checkbox" data-i="'+i+'" '+(s.Active!==false?'checked':'')+'></td><td class="num"><span class="xbtn" data-del="'+i+'">×</span></td></tr>';}).join('')+'</tbody></table></div>';
-  $all('#staffList input[data-i]').forEach(function(c){c.onchange=function(){STATE.staff[Number(c.dataset.i)].Active=c.checked;};});
-  $all('#staffList [data-del]').forEach(function(x){x.onclick=function(){STATE.staff.splice(Number(x.dataset.del),1);buildStaffList();};});
-}
-$('#addStaff').onclick=function(){var n=$('#newStaff').value.trim();if(!n)return;STATE.staff.push({Store:$('#staffStore').value,Name:n,Active:true});$('#newStaff').value='';buildStaffList();};
-$('#saveStaff').onclick=function(){apiPost({action:'saveStaff',rows:STATE.staff}).then(function(r){if(r.ok){toast('Staff saved');fillStaffSelect();}else toast(r.error||'Failed',true);});};
-$('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';api('ping').then(function(r){$('#connStatus').textContent=r&&r.ok?'✓ Connected.':'✗ '+(r&&r.error||'No response');}).catch(function(e){$('#connStatus').textContent='✗ '+e;});};
+  // Pill toggle: one segment per section. The current section's segment is
+  // marked active (filled in section color); others remain neutral and link
+  // to that section's landing page.
+  const toggleSegments = Object.keys(SECTIONS).map(key => {
+    const s = SECTIONS[key];
+    const active = key === sectionKey ? ' active' : '';
+    return `<a class="cpr-toggle-segment${active}" href="${escapeHtml(s.landing)}">${escapeHtml(s.label)}</a>`;
+  }).join('');
 
-boot();
-</script>
-</body>
-</html>
+  const navHtml = `
+    <header class="cpr-nav">
+      <div class="cpr-nav-strip"></div>
+      <div class="cpr-nav-inner">
+        <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
+          <img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" onerror="this.style.display='none'" />
+        </a>
+        <nav class="cpr-nav-tools">${toolLinks}</nav>
+        <div class="cpr-nav-toggle">${toggleSegments}</div>
+      </div>
+    </header>
+  `;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Inject at the top of <body>
+  // ──────────────────────────────────────────────────────────────────────────
+  function injectNav() {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = navHtml.trim();
+    document.body.insertBefore(wrap.firstChild, document.body.firstChild);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectNav);
+  } else {
+    injectNav();
+  }
+})();
