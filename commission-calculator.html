@@ -10,6 +10,8 @@
   --grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito Sans',sans-serif;background:var(--light-grey);color:var(--dark);line-height:1.5}
+#appWrapper{display:none}
+#appWrapper.visible{display:block}
 main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
@@ -158,6 +160,8 @@ tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
 </style>
 </head>
 <body>
+<script src="assets/site-gate.js"></script>
+<div id="appWrapper">
 <script src="assets/nav.js" data-section="admin"></script>
 <main>
   <div class="page-title-row">
@@ -257,6 +261,7 @@ tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
     </div>
   </section>
 </main>
+</div><!-- end appWrapper -->
 <div id="toast" class="toast"></div>
 
 <script>
@@ -726,7 +731,13 @@ function init(){
   $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();fillRulesStore();renderRulesForm();}};
   $('#addEmp').onclick=function(){STATE.config.push({Store:STATE.stores[0]||'',Employee:'',AccessoryGoal:2400,Active:true});renderCfgList();};
 }
-init();
+
+// Reveal + initialize once the admin gate unlocks
+document.addEventListener('cpr-unlocked', function(){
+  document.getElementById('appWrapper').classList.add('visible');
+  init();
+});
 </script>
+<script src="assets/admin-gate.js"></script>
 </body>
 </html>
