@@ -80,7 +80,6 @@ tbody tr:hover{background:rgba(79,176,227,.04)}
 </style>
 </head>
 <body>
-<script src="assets/site-gate.js"></script>
 <script src="assets/nav.js" data-section="operations"></script>
 <main>
   <div class="page-title-row">
@@ -297,12 +296,20 @@ function renderForm(){
     if(op==='Close'){
       dyn+='<div class="field"><label>Opening balance</label><input type="number" step="0.01" id="enOpening" placeholder="0.00"></div></div>';
       dyn+='<p class="hint" style="margin:12px 0 6px">Enter the cash figures from the RepairQ VCT closure form:</p><div class="rqgrid">'+
-        rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTin','Transfer In (+)')+rqf('enTout','Transfer Out (-)')+'</div>';
+        rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTout','Transfer Out (-)')+'</div>'+
+        '<p class="hint" id="enTinNote" style="margin:8px 0 0"></p>';
     } else { dyn+='</div>'; }
   } else {
-    var locs=transferLocs();
-    dyn='<div class="row"><div class="field"><label>From</label><select id="enFrom">'+locs.map(function(l){return '<option'+(l===activeVct?' selected':'')+'>'+l+'</option>';}).join('')+'</select></div>'+
-      '<div class="field"><label>To</label><select id="enTo">'+locs.map(function(l){return '<option>'+l+'</option>';}).join('')+'<option value="'+EXPENSE+'">Cash Expenses (pay out)</option></select></div></div>';
+    var tills=tillsFor(STATE.store);
+    dyn='<div class="row">'+
+      '<div class="field"><label>Transfer type</label><select id="enXtype">'+
+        '<option value="dep-large">Deposit to Large Safe (out of till)</option>'+
+        '<option value="wd-large">Withdraw from Large Safe (into till)</option>'+
+        '<option value="dep-small">Deposit to Small Safe (out of till)</option>'+
+        '<option value="wd-small">Withdraw from Small Safe (into till)</option>'+
+        '<option value="expense">Cash Expense — pay out</option>'+
+      '</select></div>'+
+      '<div class="field"><label>Till</label><select id="enXtill">'+tills.map(function(t){return '<option'+(t===activeVct?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>';
   }
   $('#enDynamic').innerHTML=dyn;
   var coins=(op==='Open'||op==='Close');
@@ -316,9 +323,26 @@ function renderForm(){
   prefillOpening(); recalc();
 }
 function rqf(id,label){return '<div><label>'+label+'</label><input type="number" step="0.01" id="'+id+'" placeholder="0.00"></div>';}
+// Derive from/to for a guided transfer, relative to the chosen till.
+function xfDeriv(){
+  var type=$('#enXtype')?$('#enXtype').value:'dep-large';
+  var till=$('#enXtill')?$('#enXtill').value:STATE.vct;
+  if(type==='wd-large') return {from:'Large Safe',to:till};
+  if(type==='dep-small') return {from:till,to:'Small Safe'};
+  if(type==='wd-small') return {from:'Small Safe',to:till};
+  if(type==='expense') return {from:till,to:EXPENSE};
+  return {from:till,to:'Large Safe'}; // dep-large
+}
+// Sum of transfers logged INTO this till today (safe -> till withdrawals).
+function autoTinFor(till){
+  var today=todayISO();
+  return Math.round(STATE.entries.filter(function(e){
+    return e.Operation==='Transfer' && e.ToLocation===till && String(e.Date)===today;
+  }).reduce(function(s,e){return s+num(e.Amount);},0)*100)/100;
+}
 function prefillOpening(){var ob=$('#enOpening');if(ob&&ob.value===''){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
 function denomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return Math.round(t*100)/100;}
-function rqVals(){return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:num(($('#enTin')||{}).value),tout:num(($('#enTout')||{}).value)};}
+function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:autoTinFor(till),tout:num(($('#enTout')||{}).value)};}
 function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
 function isTill(l){return /^VCT\d+$/i.test(String(l));}
 
@@ -328,11 +352,12 @@ function recalc(){
   if(op==='Close'){
     var v=rqVals(),exp=rqExpected(v),os=total-exp;
     pv='Expected drawer: <b>'+money(exp)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Over/Short: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
+    var tn=$('#enTinNote'); if(tn) tn.textContent = v.tin>0 ? ('Includes '+money(v.tin)+' transferred into this till today (auto-detected from logged transfers).') : '';
   } else if(op==='Open'){
     var till=$('#enVct')?$('#enVct').value:STATE.vct,b=computeBalances(),diff=total-(b[till]||0);
     pv='Expected in drawer: <b>'+money(b[till]||0)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Difference: <span class="os '+(Math.abs(diff)<0.005?'ok':'bad')+'">'+money(diff)+'</span>';
   } else {
-    var from=$('#enFrom').value,to=$('#enTo').value,b2=computeBalances();
+    var d=xfDeriv(),from=d.from,to=d.to,b2=computeBalances();
     if(to===EXPENSE){ pv='<b>'+money(total)+'</b> paid out of '+from+' (cash leaves the store)'; rm='Also record this payout in RepairQ so the till reconciles.'; $('#enNotesLbl').textContent='Reason / payee (required)'; }
     else { $('#enNotesLbl').textContent='Notes (optional)';
       var parts=[]; if(isTill(from)) parts.push(from+': '+money((b2[from]||0)-total)); else parts.push('from '+from);
@@ -353,7 +378,7 @@ $('#enSubmit').onclick=function(){
     var till=$('#enVct').value; payload.location=till; payload.amount=total; payload.counted=total;
   } else if(op==='Close'){
     var t2=$('#enVct').value, v=rqVals();
-    var anyBlank=['enOpening','enPayments','enReturns','enPayouts','enTin','enTout'].some(function(id){return !$('#'+id)||$('#'+id).value==='';});
+    var anyBlank=['enOpening','enPayments','enReturns','enPayouts','enTout'].some(function(id){return !$('#'+id)||$('#'+id).value==='';});
     if(anyBlank){toast('Fill in every RepairQ closing field (use 0 if none)',true);return;}
     if(total<=0){toast('Enter the drawer count',true);return;}
     var exp=rqExpected(v);
@@ -361,7 +386,7 @@ $('#enSubmit').onclick=function(){
     payload.openingBalance=v.opening; payload.payments=v.payments; payload.returns=v.returns; payload.payouts=v.payouts;
     payload.transferIn=v.tin; payload.transferOut=v.tout; payload.expected=exp; payload.overShort=total-exp;
   } else {
-    var from=$('#enFrom').value,to=$('#enTo').value;
+    var d=xfDeriv(),from=d.from,to=d.to;
     if(from===to){toast('From and To must differ',true);return;}
     if(total<=0){toast('Enter the bills moved',true);return;}
     if(to===EXPENSE&&!$('#enNotes').value.trim()){toast('Add a reason for the cash expense',true);return;}
