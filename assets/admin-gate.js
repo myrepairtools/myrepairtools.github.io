@@ -116,7 +116,6 @@
     saveEmployee: function(emp){ return ownerPost('saveEmployee', { data: JSON.stringify(emp) }); },
     deleteEmployee: function(id){ return ownerPost('deleteEmployee', { id:id }); }
   };
-  };
 
   // ---- init ----
   function init(){
