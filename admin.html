@@ -122,7 +122,10 @@
       <div class="emp-card">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
           <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark)">Employees</div>
-          <button id="backToTools" type="button" class="hbtn">&larr; Tools</button>
+          <div style="display:flex;gap:8px">
+            <button id="archToggle" type="button" class="hbtn">Show archived</button>
+            <button id="backToTools" type="button" class="hbtn">&larr; Tools</button>
+          </div>
         </div>
         <div id="empIntro" style="font-size:12px;color:var(--grey);font-weight:600;margin-bottom:16px"></div>
         <div id="empTableWrap"></div>
@@ -143,6 +146,7 @@
   var VIEWER = { role:'', name:'', id:'' };
   var ROWS = [];      // working copy of roster rows visible to this viewer
   var DELETED = [];   // ids removed in this session, applied on Save
+  var showArchived = false;
 
   document.addEventListener('cpr-unlocked', function(e){
     document.getElementById('mainContent').classList.add('visible');
@@ -169,6 +173,12 @@
   }
   document.getElementById('employeesBtn').onclick = showEmployees;
   document.getElementById('backToTools').onclick = showTools;
+  document.getElementById('archToggle').onclick = function(){
+    showArchived = !showArchived;
+    this.textContent = showArchived ? 'Hide archived' : 'Show archived';
+    this.classList.toggle('btn-ghost', showArchived);
+    render();
+  };
 
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function status(msg,kind){ var el=document.getElementById('empStatus'); el.textContent=msg||''; el.style.color = kind==='ok'?'#065f46':kind==='err'?'#991b1b':'var(--grey)'; }
@@ -206,7 +216,7 @@
   function renderOwner(){
     // group by role: owner, admin, employee
     var order={owner:0,admin:1,employee:2};
-    var sorted=ROWS.slice().sort(function(a,b){
+    var sorted=ROWS.filter(function(a){ return showArchived || !a.archived; }).sort(function(a,b){
       var ra=order[a.role]==null?3:order[a.role], rb=order[b.role]==null?3:order[b.role];
       if(ra!==rb) return ra-rb; return a.name.localeCompare(b.name);
     });
@@ -240,7 +250,7 @@
   function renderAdmin(){
     // admins see employee-role only; group by store
     var stores={};
-    ROWS.forEach(function(a){ var s=a.store||'Unassigned'; (stores[s]=stores[s]||[]).push(a); });
+    ROWS.forEach(function(a){ if(!showArchived && a.archived) return; var s=a.store||'Unassigned'; (stores[s]=stores[s]||[]).push(a); });
     var html='<div style="border:1px solid var(--border);border-radius:10px;overflow:auto"><table class="emp-table">'+
       '<thead><tr><th>Name</th><th>Store</th><th>Title</th><th>Status</th><th></th></tr></thead><tbody>';
     Object.keys(stores).sort().forEach(function(s){
@@ -261,7 +271,8 @@
       });
     });
     html+='</tbody></table></div>';
-    document.getElementById('empTableWrap').innerHTML = ROWS.length?html:'<div style="padding:18px;color:var(--grey);font-size:13px">No employees yet. Add one below.</div>';
+    var anyVisible = Object.keys(stores).length > 0;
+    document.getElementById('empTableWrap').innerHTML = anyVisible?html:'<div style="padding:18px;color:var(--grey);font-size:13px">'+(ROWS.length?'No active employees. Use “Show archived” to see archived staff.':'No employees yet. Add one below.')+'</div>';
     wireRowEvents();
   }
 
