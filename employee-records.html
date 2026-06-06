@@ -843,8 +843,15 @@
 
   // ── API calls ── (POST so the passcode travels in the body, never the URL)
   async function apiCall(params){
-    const body=Object.assign({ code:(window.CPRGate?CPRGate.ownerCode():'') }, params);
-    const res=await fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) });
+    // Send the passcode (and action) in the query string — an Apps Script POST
+    // body can be dropped across the /exec redirect, but query params always
+    // arrive. The full params (including any large `data`) still go in the body.
+    const code=((window.CPRGate?CPRGate.ownerCode():'')||'');
+    const url=new URL(API_URL);
+    url.searchParams.set('code', code);
+    if(params.action) url.searchParams.set('action', params.action);
+    if(params.id!=null) url.searchParams.set('id', params.id);
+    const res=await fetch(url.toString(), { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(params) });
     return res.json();
   }
 
