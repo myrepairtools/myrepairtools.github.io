@@ -79,11 +79,13 @@ tbody td input{padding:6px 8px;font-size:.85rem}
 .au-os.ok{color:var(--green)}.au-os.bad{color:var(--red)}
 td input.au-count{width:110px}
 /* entries log */
-table.elog{table-layout:fixed}
-table.elog col.c-date{width:88px}table.elog col.c-emp{width:78px}table.elog col.c-op{width:118px}
-table.elog col.c-bal{width:96px}table.elog col.c-den{width:50px}table.elog col.c-amt{width:92px}
-table.elog col.c-os{width:84px}table.elog col.c-exp{width:34px}
+table.elog{table-layout:fixed;width:100%}
+table.elog col.c-date{width:84px}table.elog col.c-emp{width:74px}table.elog col.c-op{width:158px}
+table.elog col.c-bal{width:94px}table.elog col.c-den{width:44px}table.elog col.c-amt{width:90px}
+table.elog col.c-os{width:80px}table.elog col.c-exp{width:32px}
 table.elog th,table.elog td{padding-left:8px;padding-right:8px}
+table.elog td.opcell{overflow:hidden;white-space:nowrap}
+.op-pill.cp-vct{background:#E7EEF6;color:#3a5a78}
 table.elog td.bal{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;border-left:3px solid var(--blue);padding-left:14px}
 table.elog th.bal-h{border-left:3px solid var(--blue);padding-left:14px}
 table.elog td.den,table.elog th.den-h{text-align:center}
@@ -679,16 +681,27 @@ function renderLog(){
     '<thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th class="num bal-h">'+(isSafe?'Balance':'Till Balance')+'</th>'+denHead+'<th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>';
   rows.forEach(function(e){
     var isClose=(e.Operation==='Close');
+    var isTransfer=(e.Operation==='Transfer');
     var r=run[e.Id]||{};
-    var dirPill=(e.Operation==='Transfer'&&r.dir)?('<span class="dir '+r.dir+'">'+r.dir+'</span>'):'';
+    // For transfers, show the OTHER side (source/destination) relative to this view + direction.
+    var cp='', dir='', opCell;
+    if(isTransfer){
+      if(e.Location===loc){ cp=e.ToLocation; dir='out'; }
+      else { cp=e.Location; dir='in'; }
+      var cpLabel=(cp===EXPENSE)?'Cash Expense':cp;
+      var cpCls=(cp==='Large Safe')?'op-largedep':(cp==='Small Safe')?'op-smalldep':(cp===EXPENSE)?'exp':'cp-vct';
+      opCell='<span class="op-pill '+cpCls+'">'+cpLabel+'</span><span class="dir '+dir+'">'+dir+'</span>';
+    } else {
+      opCell='<span class="op-pill '+opPillClass(e)+'">'+e.Operation+'</span>';
+    }
     var balCell=(r.bal!=null)?money(r.bal):'<span class="muted">—</span>';
     var amt=money(num(e.Amount));
-    if(e.Operation==='Transfer'&&r.dir==='out') amt='-'+amt;
+    if(isTransfer&&dir==='out') amt='-'+amt;
     var os=isClose?('<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>'):'—';
     var expBtn=isClose?('<span class="exp-btn" data-exp="'+e.Id+'">+</span>'):'';
     var denCells=LOG_DENOMS.map(function(d){var c=num(e[d.k]);return '<td class="den'+(c>0?'':' z')+'">'+(c>0?c:'·')+'</td>';}).join('');
     html+='<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td>'+
-      '<td><span class="op-pill '+opPillClass(e)+'">'+opLabelFor(e)+'</span>'+dirPill+'</td>'+
+      '<td class="opcell">'+opCell+'</td>'+
       '<td class="bal">'+balCell+'</td>'+
       denCells+
       '<td class="num">'+amt+'</td>'+
