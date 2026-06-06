@@ -755,9 +755,19 @@
 
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
-  // ── Cache (local fallback) ──
-  function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch(e){} }
-  function loadCache(){ try{ const r=localStorage.getItem(CACHE_KEY); if(r) data=JSON.parse(r); }catch(e){} }
+  // ── Cache (local fallback) — scoped to the logged-in person so one user
+  //    never sees another's cached records. Tagged with name|role.
+  function currentOwnerTag(){ try{ var u=window.CPRGate&&CPRGate.user(); return u?(String(u.name)+'|'+String(u.role)):''; }catch(e){ return ''; } }
+  function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(Object.assign({},data,{_owner:currentOwnerTag()}))); }catch(e){} }
+  function loadCache(){
+    try{
+      const r=localStorage.getItem(CACHE_KEY); if(!r){ data={employees:[]}; return; }
+      const parsed=JSON.parse(r);
+      // Only adopt the cache if it belongs to the current viewer; otherwise show nothing.
+      if((parsed._owner||'')!==currentOwnerTag()){ data={employees:[]}; return; }
+      data=parsed;
+    }catch(e){ data={employees:[]}; }
+  }
 
   // ── Sync status UI ──
   function setSyncStatus(status, msg){
