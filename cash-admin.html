@@ -69,16 +69,6 @@ tbody td input{padding:6px 8px;font-size:.85rem}
 </head>
 <body>
 
-<!-- LOCK -->
-<div class="lock" id="lock">
-  <div style="margin-bottom:26px"><img src="assets/images/CPR%20Icon.PNG" style="height:40px" onerror="this.style.display='none'"></div>
-  <div class="lock-box">
-    <div class="ic">🔒</div><h2>Cash Admin</h2><p>Enter the admin password</p>
-    <form onsubmit="tryUnlock();return false;"><input type="password" id="pw" autocomplete="current-password" placeholder="Password"><button type="submit">Unlock</button></form>
-    <div class="lock-err" id="lockErr"></div>
-  </div>
-</div>
-
 <div class="app" id="app">
 <script src="assets/nav.js" data-section="admin"></script>
 <main>
@@ -135,9 +125,10 @@ tbody td input{padding:6px 8px;font-size:.85rem}
 <div class="toast" id="toast"></div>
 
 <script>
-var ADMIN_PW='541783';
-function tryUnlock(){var v=document.getElementById('pw').value;if(v===ADMIN_PW){document.getElementById('lock').classList.add('hide');document.getElementById('app').classList.add('show');boot();}else{document.getElementById('lockErr').textContent='Incorrect password.';document.getElementById('pw').value='';setTimeout(function(){document.getElementById('lockErr').textContent='';},2000);}}
-window.addEventListener('load',function(){setTimeout(function(){var p=document.getElementById('pw');if(p)p.focus();},80);});
+document.addEventListener('cpr-unlocked', function(){
+  document.getElementById('app').classList.add('show');
+  boot();
+});
 
 /* ===== CONFIG ===== */
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyEatKeCwZeeOpG3tvQwz-rYzlDSkU1tvU_OB2MzqLMt4InPpvHUln6Iu16d3ZRwj9L/exec';
@@ -286,5 +277,6 @@ $('#saveAll').onclick=function(){
 };
 $('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';api('ping').then(function(r){$('#connStatus').textContent=r&&r.ok?'✓ Connected':'✗ '+(r&&r.error||'No response');}).catch(function(e){$('#connStatus').textContent='✗ '+e;});};
 </script>
+<script src="assets/admin-gate.js"></script>
 </body>
 </html>
