@@ -82,8 +82,10 @@ td input.au-count{width:110px}
 table.elog{table-layout:fixed;width:100%}
 table.elog col.c-date{width:84px}table.elog col.c-emp{width:74px}table.elog col.c-op{width:158px}
 table.elog col.c-bal{width:94px}table.elog col.c-den{width:44px}table.elog col.c-amt{width:90px}
-table.elog col.c-os{width:80px}table.elog col.c-exp{width:32px}
+table.elog col.c-os{width:80px}table.elog col.c-exp{width:58px}
 table.elog th,table.elog td{padding-left:8px;padding-right:8px}
+table.elog td.actcell{text-align:right;white-space:nowrap}
+table.elog td.actcell .exp-btn{margin-right:8px}
 table.elog td.opcell{overflow:hidden;white-space:nowrap}
 .op-pill.cp-vct{background:#E7EEF6;color:#3a5a78}
 table.elog td.bal{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;border-left:3px solid var(--blue);padding-left:14px}
@@ -706,7 +708,7 @@ function renderLog(){
       denCells+
       '<td class="num">'+amt+'</td>'+
       '<td class="num">'+os+'</td>'+
-      '<td class="num">'+expBtn+'</td></tr>';
+      '<td class="actcell">'+expBtn+'<span class="xbtn" data-del="'+e.Id+'" title="Delete entry">&times;</span></td></tr>';
     if(isClose){
       html+='<tr class="detrow hide" id="det-'+e.Id+'"><td colspan="'+ncol+'">'+reconHTML(e)+'</td></tr>';
     }
@@ -716,6 +718,12 @@ function renderLog(){
   $all('#logBody .exp-btn').forEach(function(b){b.onclick=function(){
     var d=document.getElementById('det-'+b.dataset.exp);
     var hidden=d.classList.toggle('hide'); b.textContent=hidden?'+':'−';
+  };});
+  $all('#logBody .xbtn').forEach(function(x){x.onclick=function(){
+    if(!confirm('Delete this entry permanently? This cannot be undone.')) return;
+    apiPost({action:'deleteEntry',id:x.dataset.del}).then(function(r){
+      if(r&&r.ok){toast('Entry deleted');loadData();} else {toast((r&&r.error)||'Delete failed',true);}
+    }).catch(function(e){toast(String(e),true);});
   };});
 }
 
