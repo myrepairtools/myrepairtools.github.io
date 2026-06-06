@@ -11,14 +11,15 @@
  *
  * To add a new tool or rename one, edit the SECTIONS config block below
  * and the change propagates to every page.
+ *
+ * Mobile: below 760px the tool links + section toggle collapse behind a
+ * hamburger button with large tap targets.
  * ========================================================================= */
 (function () {
   'use strict';
 
   // Skip nav entirely when this page is loaded inside an iframe
-  // (e.g., embedded in RepairQ via the RQ Mods extension). The hosting
-  // app provides its own chrome, so injecting our nav would just take
-  // up space and look odd.
+  // (e.g., embedded in RepairQ via the RQ Mods extension).
   if (window.self !== window.top) return;
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -66,8 +67,6 @@
     })();
   const sectionKey = (scriptEl && scriptEl.dataset.section) || 'operations';
   const section = SECTIONS[sectionKey] || SECTIONS.operations;
-  const otherKey = sectionKey === 'admin' ? 'operations' : 'admin';
-  const otherSection = SECTIONS[otherKey];
 
   // Identify the current page (used to mark the active tool link)
   const currentFile = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
@@ -83,9 +82,7 @@
       font-family: 'Nunito', sans-serif;
       box-shadow: 0 1px 4px rgba(45,45,59,0.06);
     }
-    .cpr-nav-strip {
-      height: 6px; background: #0F0F12;
-    }
+    .cpr-nav-strip { height: 6px; background: #0F0F12; }
     .cpr-nav-inner {
       max-width: 1400px; margin: 0 auto;
       padding: 12px 24px;
@@ -97,6 +94,12 @@
       flex-shrink: 0;
     }
     .cpr-nav-brand img { height: 36px; width: auto; display: block; }
+
+    /* menu wrapper (tools + toggle) */
+    .cpr-nav-menu {
+      display: flex; align-items: center; gap: 20px;
+      flex: 1;
+    }
     .cpr-nav-tools {
       display: flex; align-items: center; gap: 4px;
       flex: 1; flex-wrap: wrap;
@@ -109,13 +112,8 @@
       letter-spacing: 0.2px;
       position: relative;
     }
-    .cpr-nav-tools a:hover {
-      background: #F3F2F2; color: #2D2D3B;
-    }
-    .cpr-nav-tools a.active {
-      color: #2D2D3B; font-weight: 800;
-      background: transparent;
-    }
+    .cpr-nav-tools a:hover { background: #F3F2F2; color: #2D2D3B; }
+    .cpr-nav-tools a.active { color: #2D2D3B; font-weight: 800; background: transparent; }
     .cpr-nav-tools a.active::after {
       content: '';
       position: absolute;
@@ -123,7 +121,8 @@
       height: 2px; border-radius: 1px;
       background: #4FB0E3;
     }
-    /* Section toggle (pill) — replaces the old single switcher button */
+
+    /* Section toggle (pill) */
     .cpr-nav-toggle {
       display: inline-flex; align-items: center;
       background: #F3F2F2;
@@ -141,6 +140,7 @@
       border-radius: 999px;
       color: #4E4E50;
       transition: all 0.15s;
+      white-space: nowrap;
     }
     .cpr-toggle-segment:hover { color: #2D2D3B; }
     .cpr-toggle-segment.active {
@@ -148,10 +148,55 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.15);
     }
     .cpr-toggle-segment.active:hover { color: #FFFFFF; }
-    @media (max-width: 800px) {
-      .cpr-nav-inner { padding: 10px 14px; gap: 10px; flex-wrap: wrap; }
-      .cpr-nav-tools a { font-size: 12px; padding: 6px 10px; }
-      .cpr-toggle-segment { font-size: 10px; padding: 5px 10px; }
+
+    /* Hamburger — hidden on desktop */
+    .cpr-nav-burger {
+      display: none;
+      margin-left: auto;
+      background: #F3F2F2; border: none; border-radius: 8px;
+      width: 42px; height: 42px;
+      cursor: pointer; flex-shrink: 0;
+      align-items: center; justify-content: center;
+      color: #2D2D3B;
+    }
+    .cpr-nav-burger:hover { background: #E7E6E6; }
+    .cpr-nav-burger svg { width: 22px; height: 22px; display: block; }
+
+    /* ── Mobile ── */
+    @media (max-width: 760px) {
+      .cpr-nav-inner { padding: 10px 16px; gap: 12px; flex-wrap: wrap; }
+      .cpr-nav-brand img { height: 30px; }
+      .cpr-nav-burger { display: inline-flex; }
+
+      .cpr-nav-menu {
+        display: none;
+        flex-basis: 100%; width: 100%;
+        flex-direction: column; align-items: stretch;
+        gap: 10px;
+        padding-top: 8px;
+      }
+      .cpr-nav-menu.open { display: flex; }
+
+      .cpr-nav-tools {
+        flex-direction: column; align-items: stretch;
+        gap: 2px; flex: none;
+      }
+      .cpr-nav-tools a {
+        font-size: 16px; font-weight: 700;
+        padding: 13px 14px; border-radius: 8px;
+      }
+      .cpr-nav-tools a.active { background: #F3F2F2; }
+      .cpr-nav-tools a.active::after { display: none; }
+
+      .cpr-nav-toggle {
+        align-self: stretch;
+        justify-content: center;
+        padding: 4px;
+      }
+      .cpr-toggle-segment {
+        flex: 1; text-align: center;
+        font-size: 13px; padding: 10px 14px;
+      }
     }
   `;
   const styleEl = document.createElement('style');
@@ -172,14 +217,13 @@
     return `<a href="${escapeHtml(t.url)}"${isActive}>${escapeHtml(t.label)}</a>`;
   }).join('');
 
-  // Pill toggle: one segment per section. The current section's segment is
-  // marked active (filled in section color); others remain neutral and link
-  // to that section's landing page.
   const toggleSegments = Object.keys(SECTIONS).map(key => {
     const s = SECTIONS[key];
     const active = key === sectionKey ? ' active' : '';
     return `<a class="cpr-toggle-segment${active}" href="${escapeHtml(s.landing)}">${escapeHtml(s.label)}</a>`;
   }).join('');
+
+  const burgerSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
 
   const navHtml = `
     <header class="cpr-nav">
@@ -188,19 +232,37 @@
         <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
           <img src="assets/images/CPR%20Icon.PNG" alt="CPR" onerror="this.style.display='none'" />
         </a>
-        <nav class="cpr-nav-tools">${toolLinks}</nav>
-        <div class="cpr-nav-toggle">${toggleSegments}</div>
+        <button class="cpr-nav-burger" id="cprNavBurger" aria-label="Menu" aria-expanded="false">${burgerSvg}</button>
+        <div class="cpr-nav-menu" id="cprNavMenu">
+          <nav class="cpr-nav-tools">${toolLinks}</nav>
+          <div class="cpr-nav-toggle">${toggleSegments}</div>
+        </div>
       </div>
     </header>
   `;
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Inject at the top of <body>
+  // Inject + wire up the hamburger
   // ──────────────────────────────────────────────────────────────────────────
   function injectNav() {
     const wrap = document.createElement('div');
     wrap.innerHTML = navHtml.trim();
     document.body.insertBefore(wrap.firstChild, document.body.firstChild);
+
+    const burger = document.getElementById('cprNavBurger');
+    const menu = document.getElementById('cprNavMenu');
+    if (burger && menu) {
+      burger.addEventListener('click', function () {
+        const open = menu.classList.toggle('open');
+        burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      window.addEventListener('resize', function () {
+        if (window.innerWidth > 760) {
+          menu.classList.remove('open');
+          burger.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
   }
 
   if (document.readyState === 'loading') {
