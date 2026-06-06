@@ -58,6 +58,11 @@ tbody td.num{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;wh
 tbody td input{padding:6px 8px;font-size:.85rem}
 .op-pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;padding:3px 8px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey);white-space:nowrap}
 .op-pill.exp{background:#FFE9E9;color:var(--red)}
+.op-pill.op-open{background:#E7F0FB;color:#1b6fa3}
+.op-pill.op-close{background:#EAEAF2;color:#4b4b6b}
+.op-pill.op-transfer{background:#FFF1DC;color:#8a5a00}
+.op-pill.op-largedep{background:#F3ECFB;color:#5b3fb0}
+.op-pill.op-smalldep{background:#E1F5EE;color:#0f6e56}
 .os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}
 .xbtn{cursor:pointer;color:var(--grey);font-weight:900;font-size:1.1rem}.xbtn:hover{color:var(--red)}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:16px}
@@ -75,11 +80,15 @@ tbody td input{padding:6px 8px;font-size:.85rem}
 td input.au-count{width:110px}
 /* entries log */
 table.elog{table-layout:fixed}
-table.elog col.c-date{width:96px}table.elog col.c-emp{width:90px}table.elog col.c-op{width:120px}
-table.elog col.c-bal{width:104px}table.elog col.c-bills{width:auto}table.elog col.c-amt{width:104px}
-table.elog col.c-os{width:96px}table.elog col.c-exp{width:40px}
-table.elog td.bills{font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.8rem;color:var(--dark-grey);white-space:normal}
-table.elog td.bal{text-align:right;font-family:'Nunito',sans-serif;font-weight:800}
+table.elog col.c-date{width:88px}table.elog col.c-emp{width:78px}table.elog col.c-op{width:118px}
+table.elog col.c-bal{width:96px}table.elog col.c-den{width:50px}table.elog col.c-amt{width:92px}
+table.elog col.c-os{width:84px}table.elog col.c-exp{width:34px}
+table.elog th,table.elog td{padding-left:8px;padding-right:8px}
+table.elog td.bal{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;border-left:3px solid var(--blue);padding-left:14px}
+table.elog th.bal-h{border-left:3px solid var(--blue);padding-left:14px}
+table.elog td.den,table.elog th.den-h{text-align:center}
+table.elog td.den{font-family:'Nunito',sans-serif;font-weight:700;color:var(--dark-grey)}
+table.elog td.den.z{color:var(--grey)}
 .dir{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:4px;margin-left:5px}
 .dir.in{background:#d1fae5;color:#065f46}.dir.out{background:#FFE9E9;color:var(--red)}
 .exp-btn{cursor:pointer;color:var(--blue);font-weight:800;font-size:.95rem;user-select:none;text-align:center}
@@ -129,11 +138,11 @@ tr.detrow.hide{display:none}
 
       <div class="row" style="margin-bottom:6px">
         <div class="field" style="max-width:240px">
-          <label>RepairQ net sales (Financial Summary)</label>
+          <label>RepairQ net sales<br><span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">(Financial Summary)</span></label>
           <input type="number" step="0.01" id="auRQ" placeholder="0.00">
         </div>
         <div class="field" style="max-width:240px">
-          <label>Petty cash out (auto from tracker)</label>
+          <label>Petty cash out<br><span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">(auto from tracker)</span></label>
           <input type="number" step="0.01" id="auPetty" placeholder="0.00">
         </div>
       </div>
@@ -168,21 +177,46 @@ tr.detrow.hide{display:none}
 
     <!-- DAILY ENVELOPE BILL COUNTS (Large Safe) -->
     <div class="card" style="border-top-color:#b45309">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-        <h2 style="margin:0">Large Safe — daily envelope counts</h2>
+      <div class="count-head" id="largeHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
+        <h2 style="margin:0"><span class="exp-btn" id="largeChev" style="color:#b45309">−</span> Large Safe — daily envelope counts</h2>
         <span class="muted">Total counted: <b id="envTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
       </div>
-      <p class="hint">Count each day's envelope and enter the bills. The total flows into the Large Safe counted figure above. One row per day in the audit range.</p>
-      <div style="overflow-x:auto">
-        <table class="elog" id="envTable" style="min-width:680px">
-          <thead><tr>
-            <th style="width:96px">Date</th>
-            <th class="num" style="width:100px">Day total</th>
-            <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
-            <th class="num">$10</th><th class="num">$5</th><th class="num">$2</th><th class="num">$1</th>
-          </tr></thead>
-          <tbody id="envBody"></tbody>
-        </table>
+      <div id="largeCollapsed" class="hide" style="margin-top:8px"></div>
+      <div id="largeBody">
+        <p class="hint">Count each day's envelope and enter the bills. The total flows into the Large Safe counted figure above. One row per day in the audit range.</p>
+        <div style="overflow-x:auto">
+          <table class="elog" id="envTable" style="min-width:620px">
+            <thead><tr>
+              <th style="width:96px">Date</th>
+              <th class="num" style="width:100px">Day total</th>
+              <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
+              <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
+            </tr></thead>
+            <tbody id="envBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SMALL SAFE COUNT (one row) -->
+    <div class="card" style="border-top-color:var(--purple)">
+      <div class="count-head" id="smallHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
+        <h2 style="margin:0"><span class="exp-btn" id="smallChev" style="color:var(--purple)">−</span> Small Safe — bill count</h2>
+        <span class="muted">Total counted: <b id="smallTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
+      </div>
+      <div id="smallCollapsed" class="hide" style="margin-top:8px"></div>
+      <div id="smallBody">
+        <p class="hint">Count the small safe and enter the bills. Flows into the Small Safe counted figure above.</p>
+        <div style="overflow-x:auto">
+          <table class="elog" style="min-width:560px">
+            <thead><tr>
+              <th class="num" style="width:120px">Total</th>
+              <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
+              <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
+            </tr></thead>
+            <tbody id="smallBodyRow"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -263,11 +297,24 @@ function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'
 
 var EXPENSE='Cash Expenses';
 var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C2',v:2,l:'$2'},{k:'C1',v:1,l:'$1'}];
-function billString(e){
-  // Compact denomination breakdown, e.g. "2×$100 · 3×$20"
-  var parts=[];
-  DENOMS.forEach(function(d){var c=num(e[d.k]);if(c>0)parts.push(c+'×'+d.l);});
-  return parts.length?parts.join(' · '):'<span class="muted">—</span>';
+var LOG_DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'}];
+function opPillClass(e){
+  if(e.ToLocation===EXPENSE) return 'exp';
+  var op=String(e.Operation||'').toLowerCase();
+  if(op==='open') return 'op-open';
+  if(op==='close') return 'op-close';
+  if(op==='transfer'){
+    if(e.ToLocation==='Large Safe') return 'op-largedep';
+    if(e.ToLocation==='Small Safe') return 'op-smalldep';
+    return 'op-transfer';
+  }
+  return '';
+}
+function opLabelFor(e){
+  if(e.ToLocation===EXPENSE) return 'Cash Expense';
+  if(e.Operation==='Transfer' && e.ToLocation==='Large Safe') return 'Large Safe Deposit';
+  if(e.Operation==='Transfer' && e.ToLocation==='Small Safe') return 'Small Safe Deposit';
+  return e.Operation;
 }
 var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false,logLoc:null};
 var booted=false;
@@ -332,11 +379,14 @@ function renderAudit(){
   var d=AUDIT.data; if(!d)return;
   $('#auditBody').innerHTML=d.locations.map(function(l,i){
     var isLarge=(l.location==='Large Safe');
-    var countCell=isLarge
-      ? '<input type="number" step="0.01" class="au-count" data-i="'+i+'" id="auLargeCount" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" readonly title="From the daily envelope counts below" style="background:var(--light-grey)">'
-      : '<input type="number" step="0.01" class="au-count" data-i="'+i+'" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" placeholder="count">';
+    var isSmall=(l.location==='Small Safe');
+    var countCell;
+    if(isLarge) countCell='<input type="number" step="0.01" class="au-count" data-i="'+i+'" id="auLargeCount" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" readonly title="From the daily envelope counts below" style="background:var(--light-grey)">';
+    else if(isSmall) countCell='<input type="number" step="0.01" class="au-count" data-i="'+i+'" id="auSmallCount" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" readonly title="From the Small Safe bill count below" style="background:var(--light-grey)">';
+    else countCell='<input type="number" step="0.01" class="au-count" data-i="'+i+'" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" placeholder="count">';
+    var tag=isLarge?' <span class="muted" style="font-weight:600">(from envelopes)</span>':(isSmall?' <span class="muted" style="font-weight:600">(from bill count)</span>':'');
     return '<tr>'+
-      '<td>'+l.location+(isLarge?' <span class="muted" style="font-weight:600">(from envelopes)</span>':'')+'</td>'+
+      '<td>'+l.location+tag+'</td>'+
       '<td class="num">'+money(l.opening)+'</td>'+
       '<td class="num">'+money(l.tracked)+'</td>'+
       '<td class="num">'+countCell+'</td>'+
@@ -352,7 +402,7 @@ function renderAudit(){
 function largeSafeIndex(){ var d=AUDIT.data; for(var i=0;i<d.locations.length;i++) if(d.locations[i].location==='Large Safe') return i; return -1; }
 
 /* ----- daily envelope bill-count grid ----- */
-var ENV_DENOMS=[{k:'C100',v:100},{k:'C50',v:50},{k:'C20',v:20},{k:'C10',v:10},{k:'C5',v:5},{k:'C2',v:2},{k:'C1',v:1}];
+var ENV_DENOMS=[{k:'C100',v:100},{k:'C50',v:50},{k:'C20',v:20},{k:'C10',v:10},{k:'C5',v:5},{k:'C1',v:1}];
 function auditDays(){
   // Returns array of YYYY-MM-DD for the active range (whole month or custom).
   var mode=$('#auRangeMode').value, days=[];
@@ -375,32 +425,65 @@ function buildEnvGrid(){
   $('#envBody').innerHTML=days.map(function(day){
     var s=saved[day]||{};
     var cells=ENV_DENOMS.map(function(dn){
-      return '<td class="num"><input type="number" min="0" step="1" class="env-in" data-day="'+day+'" data-k="'+dn.k+'" data-v="'+dn.v+'" value="'+(s[dn.k]?s[dn.k]:'')+'" placeholder="0" style="width:62px;text-align:right"></td>';
+      return '<td class="num"><input type="number" min="0" step="1" class="env-in" data-day="'+day+'" data-k="'+dn.k+'" data-v="'+dn.v+'" value="'+(s[dn.k]?s[dn.k]:'')+'" placeholder="0" style="width:58px;text-align:right"></td>';
     }).join('');
     return '<tr><td>'+day.slice(5)+'</td><td class="num bal" id="envday-'+day+'">$0.00</td>'+cells+'</tr>';
   }).join('');
   $all('#envBody .env-in').forEach(function(inp){inp.oninput=recalcEnv;});
+  buildSmallRow();
   recalcEnv();
 }
+function buildSmallRow(){
+  var d=AUDIT.data; if(!d)return;
+  // Small safe saved row is stored as an AuditDays row with day='__SMALL__'
+  var s={}; (d.days||[]).forEach(function(r){ if(r.day==='__SMALL__'||r.location==='Small Safe') s=r; });
+  var cells=ENV_DENOMS.map(function(dn){
+    return '<td class="num"><input type="number" min="0" step="1" class="small-in" data-k="'+dn.k+'" data-v="'+dn.v+'" value="'+(s[dn.k]?s[dn.k]:'')+'" placeholder="0" style="width:58px;text-align:right"></td>';
+  }).join('');
+  $('#smallBodyRow').innerHTML='<tr><td class="num bal" id="smallRowTotal">$0.00</td>'+cells+'</tr>';
+  $all('#smallBodyRow .small-in').forEach(function(inp){inp.oninput=recalcEnv;});
+}
+function denomTotals(selector){
+  // sum each denomination across inputs, return {C100:n,...} and grand $
+  var counts={}, grand=0; ENV_DENOMS.forEach(function(dn){counts[dn.k]=0;});
+  $all(selector).forEach(function(inp){counts[inp.dataset.k]+=num(inp.value);});
+  ENV_DENOMS.forEach(function(dn){grand+=counts[dn.k]*dn.v;});
+  return {counts:counts, grand:Math.round(grand*100)/100};
+}
+function collapsedSummary(t){
+  // "5×$100 · 8×$20 …" from a denomTotals result
+  var parts=[]; ENV_DENOMS.forEach(function(dn){var c=t.counts[dn.k];if(c>0)parts.push(c+'×$'+dn.v);});
+  return '<div class="muted" style="font-weight:600">'+(parts.length?parts.join(' · '):'No bills counted')+'</div>';
+}
 function recalcEnv(){
-  var byDay={}, grand=0;
+  // Large safe daily grid
+  var byDay={};
   $all('#envBody .env-in').forEach(function(inp){
     var day=inp.dataset.day, v=Number(inp.dataset.v), c=num(inp.value);
     byDay[day]=(byDay[day]||0)+c*v;
   });
   Object.keys(byDay).forEach(function(day){
-    var el=document.getElementById('envday-'+day); if(el) el.textContent=money(byDay[day]); grand+=byDay[day];
+    var el=document.getElementById('envday-'+day); if(el) el.textContent=money(byDay[day]);
   });
-  grand=Math.round(grand*100)/100;
-  $('#envTotal').textContent=money(grand);
+  var lg=denomTotals('#envBody .env-in');
+  $('#envTotal').textContent=money(lg.grand);
+  $('#largeCollapsed').innerHTML=collapsedSummary(lg);
   var li=largeSafeIndex();
-  if(li>=0){ var inp=document.getElementById('auLargeCount'); if(inp){ inp.value=grand?grand.toFixed(2):''; } }
+  if(li>=0){ var inp=document.getElementById('auLargeCount'); if(inp){ inp.value=lg.grand?lg.grand.toFixed(2):''; } }
+
+  // Small safe single row
+  var sm=denomTotals('#smallBodyRow .small-in');
+  var srt=document.getElementById('smallRowTotal'); if(srt) srt.textContent=money(sm.grand);
+  $('#smallTotal').textContent=money(sm.grand);
+  $('#smallCollapsed').innerHTML=collapsedSummary(sm);
+  var smInp=document.getElementById('auSmallCount'); if(smInp){ smInp.value=sm.grand?sm.grand.toFixed(2):''; }
+
   recalcAudit();
 }
 function collectEnvDays(){
   var byDay={};
   $all('#envBody .env-in').forEach(function(inp){
-    var day=inp.dataset.day; byDay[day]=byDay[day]||{day:day,location:'Large Safe',C100:0,C50:0,C20:0,C10:0,C5:0,C2:0,C1:0,total:0};
+    var day=inp.dataset.day; byDay[day]=byDay[day]||{day:day,location:'Large Safe',C100:0,C50:0,C20:0,C10:0,C5:0,C1:0,total:0};
     byDay[day][inp.dataset.k]=num(inp.value);
   });
   var out=[];
@@ -408,6 +491,11 @@ function collectEnvDays(){
     var r=byDay[day],t=0; ENV_DENOMS.forEach(function(dn){t+=r[dn.k]*dn.v;}); r.total=Math.round(t*100)/100;
     if(r.total>0) out.push(r);   // only persist days that have a count
   });
+  // Small safe single row, stored with day '__SMALL__'
+  var sm={day:'__SMALL__',location:'Small Safe',C100:0,C50:0,C20:0,C10:0,C5:0,C1:0,total:0};
+  $all('#smallBodyRow .small-in').forEach(function(inp){sm[inp.dataset.k]=num(inp.value);});
+  var st=0; ENV_DENOMS.forEach(function(dn){st+=sm[dn.k]*dn.v;}); sm.total=Math.round(st*100)/100;
+  if(sm.total>0) out.push(sm);
   return out;
 }
 function auditCounts(){
@@ -472,6 +560,16 @@ $('#auRangeMode').onchange=function(){
 $('#auApplyRange').onclick=function(){
   if(!$('#auFrom').value||!$('#auTo').value){toast('Pick both dates',true);return;}
   buildEnvGrid();
+};
+$('#largeHead').onclick=function(){
+  var hidden=$('#largeBody').classList.toggle('hide');
+  $('#largeCollapsed').classList.toggle('hide',!hidden);
+  $('#largeChev').textContent=hidden?'+':'−';
+};
+$('#smallHead').onclick=function(){
+  var hidden=$('#smallBody').classList.toggle('hide');
+  $('#smallCollapsed').classList.toggle('hide',!hidden);
+  $('#smallChev').textContent=hidden?'+':'−';
 };
 
 /* tabs + store pills */
@@ -573,32 +671,34 @@ function renderLog(){
     .sort(function(a,b){return String(b.Date).localeCompare(String(a.Date))||String(b.Id).localeCompare(String(a.Id));});
   if(!rows.length){$('#logBody').innerHTML='<p class="muted">No '+(loc||'')+' entries this month.</p>';return;}
   var isSafe=(loc==='Small Safe'||loc==='Large Safe');
-  var html='<div class="table-card"><table class="elog"><colgroup>'+
-    '<col class="c-date"><col class="c-emp"><col class="c-op"><col class="c-bal"><col class="c-bills"><col class="c-amt"><col class="c-os"><col class="c-exp"></colgroup>'+
-    '<thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th class="num">'+(isSafe?'Balance':'Till Balance')+'</th><th>Bills</th><th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>';
+  var denCols=LOG_DENOMS.map(function(){return '<col class="c-den">';}).join('');
+  var denHead=LOG_DENOMS.map(function(d){return '<th class="den-h">'+d.l+'</th>';}).join('');
+  var ncol=8+LOG_DENOMS.length;
+  var html='<div class="table-card"><div style="overflow-x:auto"><table class="elog"><colgroup>'+
+    '<col class="c-date"><col class="c-emp"><col class="c-op"><col class="c-bal">'+denCols+'<col class="c-amt"><col class="c-os"><col class="c-exp"></colgroup>'+
+    '<thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th class="num bal-h">'+(isSafe?'Balance':'Till Balance')+'</th>'+denHead+'<th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>';
   rows.forEach(function(e){
     var isClose=(e.Operation==='Close');
-    var isExp=(e.ToLocation===EXPENSE);
     var r=run[e.Id]||{};
-    var opLabel=isExp?'Cash Expense':e.Operation;
     var dirPill=(e.Operation==='Transfer'&&r.dir)?('<span class="dir '+r.dir+'">'+r.dir+'</span>'):'';
     var balCell=(r.bal!=null)?money(r.bal):'<span class="muted">—</span>';
     var amt=money(num(e.Amount));
     if(e.Operation==='Transfer'&&r.dir==='out') amt='-'+amt;
     var os=isClose?('<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>'):'—';
     var expBtn=isClose?('<span class="exp-btn" data-exp="'+e.Id+'">+</span>'):'';
+    var denCells=LOG_DENOMS.map(function(d){var c=num(e[d.k]);return '<td class="den'+(c>0?'':' z')+'">'+(c>0?c:'·')+'</td>';}).join('');
     html+='<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td>'+
-      '<td><span class="op-pill'+(isExp?' exp':'')+'">'+opLabel+'</span>'+dirPill+'</td>'+
+      '<td><span class="op-pill '+opPillClass(e)+'">'+opLabelFor(e)+'</span>'+dirPill+'</td>'+
       '<td class="bal">'+balCell+'</td>'+
-      '<td class="bills">'+billString(e)+'</td>'+
+      denCells+
       '<td class="num">'+amt+'</td>'+
       '<td class="num">'+os+'</td>'+
       '<td class="num">'+expBtn+'</td></tr>';
     if(isClose){
-      html+='<tr class="detrow hide" id="det-'+e.Id+'"><td colspan="8">'+reconHTML(e)+'</td></tr>';
+      html+='<tr class="detrow hide" id="det-'+e.Id+'"><td colspan="'+ncol+'">'+reconHTML(e)+'</td></tr>';
     }
   });
-  html+='</tbody></table></div>';
+  html+='</tbody></table></div></div>';
   $('#logBody').innerHTML=html;
   $all('#logBody .exp-btn').forEach(function(b){b.onclick=function(){
     var d=document.getElementById('det-'+b.dataset.exp);
