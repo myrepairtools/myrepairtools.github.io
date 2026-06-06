@@ -800,27 +800,29 @@
     return d.toISOString().slice(0,10);
   }
 
-  function unflattenFromSheets(employees, entries, pips=[]){
+  function buildData(rosterRows, entries, pips){
     const empMap={};
-    employees.forEach(emp=>{ empMap[emp.id]={...emp, entries:[], pips:[]}; });
+    rosterRows.forEach(r=>{
+      empMap[r.id]={
+        id:r.id, name:r.name||'', role:r.title||'', store:r.store||'',
+        status:r.status||'active', notes:r.notes||'',
+        archived:!!r.archived, startDate:r.startDate||'',
+        accessRole:r.role||'employee',
+        entries:[], pips:[]
+      };
+    });
     entries.forEach(row=>{
-      const emp=empMap[row.employeeId];
-      if(!emp) return;
-      const entry={
+      const emp=empMap[row.employeeId]; if(!emp) return;
+      emp.entries.push({
         id:row.id, date:normalizeDate(row.date), subject:row.subject, category:row.category,
         entryType:row.entryType||'observation',
         incidentDate:normalizeDate(row.incidentDate)||normalizeDate(row.date),
         discussed:row.discussed==='true'||row.discussed===true,
-        sections:{
-          issue:row.issue||'', cause:row.cause||'',
-          coaching:row.coaching||'', response:row.response||'', actions:row.actions||''
-        }
-      };
-      emp.entries.push(entry);
+        sections:{ issue:row.issue||'', cause:row.cause||'', coaching:row.coaching||'', response:row.response||'', actions:row.actions||'' }
+      });
     });
     pips.forEach(row=>{
-      const emp=empMap[row.employeeId];
-      if(!emp) return;
+      const emp=empMap[row.employeeId]; if(!emp) return;
       try{ const pip=row.data?JSON.parse(row.data):{id:row.id,title:row.title,status:row.status}; emp.pips.push(pip); }catch(e){}
     });
     return {employees:Object.values(empMap)};
@@ -837,25 +839,36 @@
   async function loadFromSheets(){
     setSyncStatus('syncing','⟳ Syncing...');
     try{
+      // Roster (authoritative, hierarchy-filtered) from CPR Auth; entries/PIPs from the records backend.
+      const roster=await CPRGate.listEmployees();
+      if(!roster||!roster.ok) throw new Error((roster&&roster.error)||'Roster unavailable');
       const result=await apiCall({action:'getAll'});
       if(result.error) throw new Error(result.error);
-      data=unflattenFromSheets(result.employees||[], result.entries||[], result.pips||[]);
+      data=buildData(roster.rows||[], result.entries||[], result.pips||[]);
       saveCache();
       setSyncStatus('ok','✓ Synced');
     }catch(e){
-      setSyncStatus('error','⚠ Offline — using cached data');
+      setSyncStatus('error','⚠ '+(e.message||'Offline')+' — using cached data');
       loadCache();
     }
     render();
   }
-
   async function saveEmployee(empObj){
     setSyncStatus('syncing','⟳ Saving...');
     try{
-      const {entries,pips,...flat}=empObj;
-      await apiCall({action:'saveEmployee', data:JSON.stringify(flat)});
+      // Write profile to the CPR Auth roster (single source of truth).
+      // The page's job-title field is emp.role -> roster "title".
+      const payload={
+        id:empObj.id, name:empObj.name, store:empObj.store||'',
+        title:empObj.role||'', status:empObj.status||'active',
+        notes:empObj.notes||'', startDate:empObj.startDate||'',
+        archived:!!empObj.archived
+      };
+      const r=await CPRGate.saveEmployee(payload);
+      if(!r||!r.ok) throw new Error((r&&r.error)||'Save failed');
+      if(r.row && !empObj.id) empObj.id=r.row.id;
       setSyncStatus('ok','✓ Saved');
-    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
+    }catch(e){ setSyncStatus('error','⚠ '+(e.message||'Save failed')); }
   }
 
   async function saveEntryToSheets(entry, employeeId){
@@ -869,7 +882,7 @@
   }
 
   async function deleteEmployeeFromSheets(id){
-    try{ await apiCall({action:'deleteEmployee', id}); }catch(e){}
+    try{ await CPRGate.deleteEmployee(id); }catch(e){}
   }
 
   async function deleteEntryFromSheets(id){
@@ -1414,11 +1427,11 @@
     const notes=document.getElementById('empNotesInput').innerHTML.trim();
     if(editingEmployeeId){
       const emp=data.employees.find(e=>e.id===editingEmployeeId);
-      if(emp){ emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes; }
+      if(emp){ emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes; if(status==='terminated') emp.archived=true; }
       save(); closeEmployeeModal(); render();
       await saveEmployee(data.employees.find(e=>e.id===editingEmployeeId));
     } else {
-      const emp={id:uid(),name,role,store,startDate,status,notes,archived:false,entries:[]};
+      const emp={id:uid(),name,role,store,startDate,status,notes,archived:status==='terminated',entries:[],pips:[]};
       data.employees.push(emp);
       save(); closeEmployeeModal(); render();
       await saveEmployee(emp);
