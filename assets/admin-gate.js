@@ -111,7 +111,13 @@
     ownerCode: function(){ var s = getS(); return valid(s) ? s.code : null; },
     lock: function(){ clearS(); showOverlay(); },
     listAdmins: function(){ return ownerPost('listAdmins'); },
-    saveAdmins: function(rows){ return ownerPost('saveAdmins', { rows:rows }); }
+    saveAdmins: function(rows){ return ownerPost('saveAdmins', { rows:rows }); },
+    saveAdmins: function(rows){ return ownerPost('saveAdmins', { rows:rows }); },
+    // Roster (any logged-in user; the server filters/permits by role)
+    listEmployees: function(){ return ownerPost('listEmployees'); },
+    saveEmployee: function(emp){ return ownerPost('saveEmployee', { data: JSON.stringify(emp) }); },
+    deleteEmployee: function(id){ return ownerPost('deleteEmployee', { id:id }); }
+  };
   };
 
   // ---- init ----
