@@ -65,11 +65,17 @@ tbody td input{padding:6px 8px;font-size:.85rem}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .save-row{display:flex;gap:10px;align-items:center;margin-top:8px}
 .dirty{color:var(--red);font-weight:800;font-size:.78rem}
+.aurow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:.9rem;color:var(--dark-grey)}
+.aurow span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark);white-space:nowrap}
+.aurow.tot{border-top:1px solid var(--border);margin-top:4px;padding-top:9px;font-weight:800;color:var(--dark)}
+.aurow.grand{border-top:2px solid var(--border);margin-top:10px;padding-top:13px;font-size:1rem}
+.aurow.grand span:last-child{font-size:1.7rem;font-weight:900}
+.au-os{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.au-os.ok{color:var(--green)}.au-os.bad{color:var(--red)}
+td input.au-count{width:110px}
 </style>
 </head>
 <body>
-
-<script src="assets/site-gate.js"></script>
 
 <div class="app" id="app">
 <script src="assets/nav.js" data-section="admin"></script>
@@ -80,6 +86,7 @@ tbody td input{padding:6px 8px;font-size:.85rem}
   <div class="bar">
     <div class="tabs" id="tabs">
       <button class="tab active" data-t="balances">Balances</button>
+      <button class="tab" data-t="audit">Audit</button>
       <button class="tab" data-t="settings">Settings</button>
     </div>
     <div class="store-pills" id="storePills"></div>
@@ -91,6 +98,61 @@ tbody td input{padding:6px 8px;font-size:.85rem}
   <section id="tab-balances">
     <div class="card"><h2 id="balTitle">Balances</h2><div class="bal-grid" id="cards"></div></div>
     <div class="card"><h2>Activity log</h2><div id="logBody"></div></div>
+  </section>
+
+  <!-- AUDIT -->
+  <section id="tab-audit" class="hide">
+    <div class="card" style="border-top-color:var(--green)">
+      <h2 id="auditTitle">Monthly reconciliation</h2>
+      <p class="hint">Opening + RepairQ net sales − petty cash should equal the counted ending cash. Enter the month's figures, then close the month to lock it and carry balances forward.</p>
+
+      <div class="row" style="margin-bottom:6px">
+        <div class="field" style="max-width:240px">
+          <label>RepairQ net sales (Financial Summary)</label>
+          <input type="number" step="0.01" id="auRQ" placeholder="0.00">
+        </div>
+        <div class="field" style="max-width:240px">
+          <label>Petty cash out (auto from tracker)</label>
+          <input type="number" step="0.01" id="auPetty" placeholder="0.00">
+        </div>
+      </div>
+      <p class="hint" id="auPettyNote" style="margin-top:0"></p>
+    </div>
+
+    <div class="table-card" style="margin-bottom:14px">
+      <table>
+        <thead><tr>
+          <th>Location</th>
+          <th class="num">Opening</th>
+          <th class="num">Tracked ending</th>
+          <th class="num">Counted</th>
+          <th class="num">Over / Short</th>
+        </tr></thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+    </div>
+
+    <!-- headline -->
+    <div class="card" id="auHeadline" style="border-top-color:var(--green)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <h2 style="margin:0" id="auHeadTitle">Reconciliation</h2>
+        <span class="op-pill" id="auStatus">—</span>
+      </div>
+      <div style="margin-top:12px">
+        <div class="aurow"><span>Opening cash (all tills + safes)</span><span id="auOpen">$0.00</span></div>
+        <div class="aurow"><span>+ RepairQ net sales</span><span id="auRQline">$0.00</span></div>
+        <div class="aurow"><span>− Petty cash out</span><span id="auPettyLine">$0.00</span></div>
+        <div class="aurow tot"><span>= Expected ending cash</span><span id="auExpected">$0.00</span></div>
+        <div class="aurow"><span>Actual counted ending cash</span><span id="auCounted">$0.00</span></div>
+      </div>
+      <div class="aurow grand"><span>Over / Short</span><span id="auOverShort">$0.00</span></div>
+    </div>
+
+    <div class="save-row">
+      <button class="btn" id="auClose">Close month &amp; carry forward</button>
+      <span class="muted" id="auSaved"></span>
+    </div>
+    <p class="hint" id="auClosedNote" style="margin-top:10px"></p>
   </section>
 
   <!-- SETTINGS -->
@@ -183,18 +245,111 @@ function loadData(){
   api('entries',{store:STATE.store,period:STATE.period}).then(function(r){STATE.entries=(r&&r.rows)||[];renderCards();renderLog();}).catch(function(e){toast(String(e),true);});
 }
 
+/* ===== AUDIT ===== */
+var AUDIT={data:null};
+function loadAudit(){
+  if(!STATE.store||!STATE.period)return;
+  $('#auditTitle').textContent=shortStore(STATE.store)+' — '+STATE.period+' reconciliation';
+  $('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">Loading…</td></tr>';
+  api('auditData',{store:STATE.store,period:STATE.period}).then(function(r){
+    if(!r||!r.ok){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+((r&&r.error)||'Could not load')+'</td></tr>';return;}
+    AUDIT.data=r;
+    $('#auRQ').value=(r.repairQSales===''||r.repairQSales==null)?'':r.repairQSales;
+    $('#auPetty').value=(r.pettyCash==null?0:r.pettyCash);
+    $('#auPettyNote').textContent='Auto-summed from "Cash Expenses" transfers logged in the tracker this month. Adjust if needed.';
+    renderAudit();
+    if(r.closed){
+      $('#auClosedNote').textContent='✓ This month is closed. Re-closing will overwrite the saved figures and carry-forward.';
+      $('#auClose').textContent='Re-close month';
+    } else {
+      $('#auClosedNote').textContent='';
+      $('#auClose').textContent='Close month & carry forward';
+    }
+  }).catch(function(e){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+String(e)+'</td></tr>';});
+}
+function renderAudit(){
+  var d=AUDIT.data; if(!d)return;
+  $('#auditBody').innerHTML=d.locations.map(function(l,i){
+    return '<tr>'+
+      '<td>'+l.location+'</td>'+
+      '<td class="num">'+money(l.opening)+'</td>'+
+      '<td class="num">'+money(l.tracked)+'</td>'+
+      '<td class="num"><input type="number" step="0.01" class="au-count" data-i="'+i+'" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" placeholder="count"></td>'+
+      '<td class="num"><span class="au-os" id="auOS'+i+'">—</span></td>'+
+    '</tr>';
+  }).join('');
+  $all('#auditBody .au-count').forEach(function(inp){inp.oninput=recalcAudit;});
+  $('#auRQ').oninput=recalcAudit;
+  $('#auPetty').oninput=recalcAudit;
+  recalcAudit();
+}
+function auditCounts(){
+  var d=AUDIT.data, out=[];
+  d.locations.forEach(function(l,i){
+    var inp=document.querySelector('.au-count[data-i="'+i+'"]');
+    var counted=inp&&inp.value!==''?Number(inp.value):null;
+    out.push({location:l.location,opening:l.opening,tracked:l.tracked,counted:counted});
+  });
+  return out;
+}
+function recalcAudit(){
+  var d=AUDIT.data; if(!d)return;
+  var counts=auditCounts();
+  var rq=num($('#auRQ').value), petty=num($('#auPetty').value);
+  var openingTotal=0, countedTotal=0, anyCount=false;
+  counts.forEach(function(c,i){
+    openingTotal+=c.opening;
+    var os=document.getElementById('auOS'+i);
+    if(c.counted==null){ if(os){os.textContent='—';os.className='au-os';} return; }
+    anyCount=true; countedTotal+=c.counted;
+    var locOS=c.counted-c.tracked;
+    if(os){os.textContent=money(locOS);os.className='au-os '+(Math.abs(locOS)<0.005?'ok':'bad');}
+  });
+  var expected=openingTotal+rq-petty;
+  var overShort=anyCount?(countedTotal-expected):0;
+  $('#auOpen').textContent=money(openingTotal);
+  $('#auRQline').textContent=money(rq);
+  $('#auPettyLine').textContent=money(petty);
+  $('#auExpected').textContent=money(expected);
+  $('#auCounted').textContent=anyCount?money(countedTotal):'—';
+  $('#auOverShort').textContent=anyCount?money(overShort):'—';
+  $('#auOverShort').style.color=!anyCount?'var(--grey)':(Math.abs(overShort)<0.005?'var(--green)':'var(--red)');
+  var st=$('#auStatus');
+  if(!anyCount){st.textContent='Enter counts';st.className='op-pill';}
+  else if(Math.abs(overShort)<0.005){st.textContent='Even';st.className='op-pill';st.style.background='#d1fae5';st.style.color='#065f46';}
+  else if(overShort>0){st.textContent='Over';st.className='op-pill';st.style.background='#dbeafe';st.style.color='#1e40af';}
+  else{st.textContent='Short';st.className='op-pill exp';}
+}
+$('#auClose').onclick=function(){
+  var d=AUDIT.data; if(!d){return;}
+  var counts=auditCounts();
+  var missing=counts.filter(function(c){return c.counted==null;});
+  if(missing.length){toast('Enter a counted balance for every location first',true);return;}
+  var rq=num($('#auRQ').value), petty=num($('#auPetty').value);
+  var rows=counts.map(function(c){return {Location:c.location,Tracked:c.tracked,Counted:c.counted,OverShort:(c.counted-c.tracked)};});
+  $('#auClose').disabled=true; $('#auSaved').textContent='Saving…';
+  apiPost({action:'closeMonth',store:STATE.store,period:STATE.period,repairQSales:rq,pettyCash:petty,auditor:(CPRGate&&CPRGate.user&&CPRGate.user()?CPRGate.user().name:''),rows:rows})
+    .then(function(r){$('#auClose').disabled=false;
+      if(r&&r.ok){toast('Month closed — balances carried forward');$('#auSaved').textContent='Saved '+new Date().toLocaleTimeString();loadAudit();}
+      else{toast((r&&r.error)||'Save failed',true);$('#auSaved').textContent='';}
+    }).catch(function(e){$('#auClose').disabled=false;$('#auSaved').textContent='';toast(String(e),true);});
+};
+
 /* tabs + store pills */
 $all('#tabs .tab').forEach(function(t){t.onclick=function(){
   $all('#tabs .tab').forEach(function(x){x.classList.toggle('active',x===t);});
   $('#tab-balances').classList.toggle('hide',t.dataset.t!=='balances');
+  $('#tab-audit').classList.toggle('hide',t.dataset.t!=='audit');
   $('#tab-settings').classList.toggle('hide',t.dataset.t!=='settings');
-  $all('.balonly').forEach(function(e){e.style.visibility=t.dataset.t==='balances'?'visible':'hidden';});
+  var showPeriod=(t.dataset.t==='balances'||t.dataset.t==='audit');
+  $all('.balonly').forEach(function(e){e.style.visibility=showPeriod?'visible':'hidden';});
+  if(t.dataset.t==='audit') loadAudit();
 };});
 function renderStorePills(){
   $('#storePills').innerHTML=STATE.stores.map(function(s){return '<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+shortStore(s)+'</button>';}).join('');
-  $all('#storePills .sp').forEach(function(b){b.onclick=function(){STATE.store=b.dataset.s;renderStorePills();renderSettings();loadData();};});
+  $all('#storePills .sp').forEach(function(b){b.onclick=function(){STATE.store=b.dataset.s;renderStorePills();renderSettings();loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};});
 }
-$('#period').onchange=function(){STATE.period=$('#period').value;loadData();};
+$('#period').onchange=function(){STATE.period=$('#period').value;loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};
 
 /* ===== BALANCES ===== */
 function renderCards(){
