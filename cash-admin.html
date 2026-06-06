@@ -63,7 +63,7 @@ tbody td input{padding:6px 8px;font-size:.85rem}
 .op-pill.op-transfer{background:#FFF1DC;color:#8a5a00}
 .op-pill.op-largedep{background:#F3ECFB;color:#5b3fb0}
 .op-pill.op-smalldep{background:#E1F5EE;color:#0f6e56}
-.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}
+.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}.os.over{color:#d97706}
 .xbtn{cursor:pointer;color:var(--grey);font-weight:900;font-size:1.1rem}.xbtn:hover{color:var(--red)}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:16px}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:1100}
@@ -103,7 +103,7 @@ tr.detrow.hide{display:none}
 .recon .rl span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
 .recon .rl.tot{border-top:1px solid var(--border);margin-top:3px;padding-top:5px}
 .recon .rl.tot span:last-child{color:var(--dark)}
-.recon .rl .bad{color:var(--red)}.recon .rl .ok{color:var(--green)}
+.recon .rl .bad{color:var(--red)}.recon .rl .ok{color:var(--green)}.recon .rl .over{color:#d97706}
 </style>
 </head>
 <body>
@@ -179,6 +179,28 @@ tr.detrow.hide{display:none}
       </table>
     </div>
 
+    <!-- SMALL SAFE COUNT (one row) -->
+    <div class="card" style="border-top-color:var(--purple)">
+      <div class="count-head" id="smallHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
+        <h2 style="margin:0"><span class="exp-btn" id="smallChev" style="color:var(--purple)">−</span> Small Safe — bill count</h2>
+        <span class="muted">Total counted: <b id="smallTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
+      </div>
+      <div id="smallCollapsed" class="hide" style="margin-top:8px"></div>
+      <div id="smallBody">
+        <p class="hint">Count the small safe and enter the bills. Flows into the Small Safe counted figure above.</p>
+        <div style="overflow-x:auto">
+          <table class="elog" style="min-width:560px">
+            <thead><tr>
+              <th class="num" style="width:120px">Total</th>
+              <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
+              <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
+            </tr></thead>
+            <tbody id="smallBodyRow"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- DAILY ENVELOPE BILL COUNTS (Large Safe) -->
     <div class="card" style="border-top-color:#b45309">
       <div class="count-head" id="largeHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
@@ -197,28 +219,6 @@ tr.detrow.hide{display:none}
               <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
             </tr></thead>
             <tbody id="envBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- SMALL SAFE COUNT (one row) -->
-    <div class="card" style="border-top-color:var(--purple)">
-      <div class="count-head" id="smallHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
-        <h2 style="margin:0"><span class="exp-btn" id="smallChev" style="color:var(--purple)">−</span> Small Safe — bill count</h2>
-        <span class="muted">Total counted: <b id="smallTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
-      </div>
-      <div id="smallCollapsed" class="hide" style="margin-top:8px"></div>
-      <div id="smallBody">
-        <p class="hint">Count the small safe and enter the bills. Flows into the Small Safe counted figure above.</p>
-        <div style="overflow-x:auto">
-          <table class="elog" style="min-width:560px">
-            <thead><tr>
-              <th class="num" style="width:120px">Total</th>
-              <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
-              <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
-            </tr></thead>
-            <tbody id="smallBodyRow"></tbody>
           </table>
         </div>
       </div>
@@ -643,6 +643,8 @@ function runningBalances(loc){
   });
   return out;
 }
+// Over/Short color: within $1 either way = green; short $1+ = red; over $1+ = orange.
+function osClass(v){ v=num(v); if(Math.abs(v)<1) return 'ok'; return v<0 ? 'bad' : 'over'; }
 function reconHTML(e){
   var opening=num(e.OpeningBalance),pay=num(e.Payments),ret=num(e.Returns),pyo=num(e.Payouts),
       tin=num(e.TransferIn),tout=num(e.TransferOut),exp=num(e.Expected),cnt=num(e.Counted),os=num(e.OverShort);
@@ -662,7 +664,7 @@ function reconHTML(e){
     '<div>'+
       line('Counted drawer',money(cnt))+
       line('Expected',money(exp))+
-      line('Over / Short',money(os),(Math.abs(os)<0.005?'ok':'bad')+' tot')+
+      line('Over / Short',money(os),osClass(os)+' tot')+
       (e.Notes?('<div class="rl"><span>Note</span><span class="muted">'+e.Notes+'</span></div>'):'')+
     '</div>'+
   '</div>';
@@ -699,7 +701,7 @@ function renderLog(){
     var balCell=(r.bal!=null)?money(r.bal):'<span class="muted">—</span>';
     var amt=money(num(e.Amount));
     if(isTransfer&&dir==='out') amt='-'+amt;
-    var os=isClose?('<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>'):'—';
+    var os=isClose?('<span class="os '+osClass(e.OverShort)+'">'+money(e.OverShort)+'</span>'):'—';
     var expBtn=isClose?('<span class="exp-btn" data-exp="'+e.Id+'">+</span>'):'';
     var denCells=LOG_DENOMS.map(function(d){var c=num(e[d.k]);return '<td class="den'+(c>0?'':' z')+'">'+(c>0?c:'·')+'</td>';}).join('');
     html+='<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td>'+
