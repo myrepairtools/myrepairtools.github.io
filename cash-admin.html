@@ -97,7 +97,10 @@ td input.au-count{width:110px}
   <!-- BALANCES -->
   <section id="tab-balances">
     <div class="card"><h2 id="balTitle">Balances</h2><div class="bal-grid" id="cards"></div></div>
-    <div class="card"><h2>Activity log</h2><div id="logBody"></div></div>
+    <div class="card"><h2>Activity log</h2>
+      <div class="store-pills" id="logLocPills" style="margin-bottom:14px"></div>
+      <div id="logBody"></div>
+    </div>
   </section>
 
   <!-- AUDIT -->
@@ -208,7 +211,7 @@ function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2400);}
 
 var EXPENSE='Cash Expenses';
-var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false};
+var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false,logLoc:null};
 var booted=false;
 
 function api(action,params){var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);for(var k in (params||{}))url+='&'+k+'='+encodeURIComponent(params[k]);return fetch(url).then(function(r){return r.json();});}
@@ -347,7 +350,7 @@ $all('#tabs .tab').forEach(function(t){t.onclick=function(){
 };});
 function renderStorePills(){
   $('#storePills').innerHTML=STATE.stores.map(function(s){return '<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+shortStore(s)+'</button>';}).join('');
-  $all('#storePills .sp').forEach(function(b){b.onclick=function(){STATE.store=b.dataset.s;renderStorePills();renderSettings();loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};});
+  $all('#storePills .sp').forEach(function(b){b.onclick=function(){STATE.store=b.dataset.s;STATE.logLoc=null;renderStorePills();renderSettings();loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};});
 }
 $('#period').onchange=function(){STATE.period=$('#period').value;loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};
 
@@ -363,9 +366,34 @@ function renderCards(){
   $('#balTitle').textContent=shortStore(STATE.store)+' — balances';
 }
 function card(l,v,cls,sub){return '<div class="bal '+(cls||'')+'"><div class="bl">'+l+'</div><div class="bv">'+money(v)+'</div>'+(sub?'<div class="bsub">'+sub+'</div>':'')+'</div>';}
+function logLocations(){
+  // The locations a store actually has, in a sensible order. No "All".
+  var locs=locsFor(STATE.store).slice();
+  var order=function(l){ var m=/^VCT(\d+)$/i.exec(l); if(m) return Number(m[1]); if(l==='Small Safe') return 90; if(l==='Large Safe') return 91; return 80; };
+  locs.sort(function(a,b){return order(a)-order(b);});
+  return locs;
+}
+function renderLogPills(){
+  var locs=logLocations();
+  if(STATE.logLoc==null || locs.indexOf(STATE.logLoc)<0) STATE.logLoc=locs[0]||null;
+  $('#logLocPills').innerHTML=locs.map(function(l){
+    return '<button class="sp'+(l===STATE.logLoc?' active':'')+'" data-l="'+l+'">'+l+'</button>';
+  }).join('');
+  $all('#logLocPills .sp').forEach(function(b){b.onclick=function(){STATE.logLoc=b.dataset.l;renderLogPills();renderLog();};});
+}
+function entryTouchesLoc(e,loc){
+  // An entry belongs to a location's log if it happened at that location,
+  // or it's a transfer whose other side is that location.
+  if(e.Location===loc) return true;
+  if(e.Operation==='Transfer' && e.ToLocation===loc) return true;
+  return false;
+}
 function renderLog(){
-  var rows=STATE.entries.slice().sort(function(a,b){return String(b.Date).localeCompare(String(a.Date))||String(b.Id).localeCompare(String(a.Id));});
-  if(!rows.length){$('#logBody').innerHTML='<p class="muted">No entries for this month.</p>';return;}
+  renderLogPills();
+  var loc=STATE.logLoc;
+  var rows=STATE.entries.filter(function(e){return entryTouchesLoc(e,loc);})
+    .sort(function(a,b){return String(b.Date).localeCompare(String(a.Date))||String(b.Id).localeCompare(String(a.Id));});
+  if(!rows.length){$('#logBody').innerHTML='<p class="muted">No '+(loc||'')+' entries this month.</p>';return;}
   $('#logBody').innerHTML='<div class="table-card"><table><thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th>Detail</th><th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>'+
     rows.map(function(e){
       var isExp=e.ToLocation===EXPENSE;
