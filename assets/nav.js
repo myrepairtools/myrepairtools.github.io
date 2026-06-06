@@ -93,7 +93,9 @@
       text-decoration: none; color: #2D2D3B;
       flex-shrink: 0;
     }
-    .cpr-nav-brand img { height: 36px; width: auto; display: block; }
+    .cpr-nav-brand img { width: auto; display: block; }
+    .cpr-nav-brand .cpr-brand-icon { height: 36px; }
+    .cpr-nav-brand .cpr-brand-logo { display: none; height: 30px; }
 
     /* menu wrapper (tools + toggle) */
     .cpr-nav-menu {
@@ -165,7 +167,8 @@
     /* ── Mobile ── */
     @media (max-width: 760px) {
       .cpr-nav-inner { padding: 10px 16px; gap: 12px; flex-wrap: wrap; }
-      .cpr-nav-brand img { height: 30px; }
+      .cpr-nav-brand .cpr-brand-icon { display: none; }
+      .cpr-nav-brand .cpr-brand-logo { display: block; height: 28px; }
       .cpr-nav-burger { display: inline-flex; }
 
       .cpr-nav-menu {
@@ -230,7 +233,8 @@
       <div class="cpr-nav-strip"></div>
       <div class="cpr-nav-inner">
         <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
-          <img src="assets/images/CPR%20Icon.PNG" alt="CPR" onerror="this.style.display='none'" />
+          <img class="cpr-brand-icon" src="assets/images/CPR%20Icon.PNG" alt="CPR" onerror="this.style.display='none'" />
+          <img class="cpr-brand-logo" src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" onerror="this.style.display='none'" />
         </a>
         <button class="cpr-nav-burger" id="cprNavBurger" aria-label="Menu" aria-expanded="false">${burgerSvg}</button>
         <div class="cpr-nav-menu" id="cprNavMenu">
