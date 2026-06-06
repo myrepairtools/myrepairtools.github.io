@@ -54,7 +54,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .rqgrid label{font-size:.62rem;margin-bottom:3px}
 .rqgrid input{padding:7px 8px;font-weight:800;font-family:'Nunito',sans-serif}
 .remind{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:9px 12px;border-radius:9px;font-size:.82rem;font-weight:700;margin-top:10px}
-.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}
+.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}.os.over{color:#d97706}
 .table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
 table{width:100%;border-collapse:collapse}
 thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -92,7 +92,7 @@ tr.detrow.hide{display:none}
 .recon .rl span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
 .recon .rl.tot{border-top:1px solid var(--border);margin-top:3px;padding-top:5px}
 .recon .rl.tot span:last-child{color:var(--dark)}
-.recon .rl .bad{color:var(--red)}.recon .rl .ok{color:var(--green)}
+.recon .rl .bad{color:var(--red)}.recon .rl .ok{color:var(--green)}.recon .rl .over{color:#d97706}
 .table-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .table-head h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;margin:0}
 .sumline{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey);margin-bottom:10px}
@@ -296,6 +296,8 @@ function runningBalances(loc){
   });
   return out;
 }
+// Over/Short color: within $1 either way = green; short $1+ = red; over $1+ = orange.
+function osClass(v){ v=num(v); if(Math.abs(v)<1) return 'ok'; return v<0 ? 'bad' : 'over'; }
 function reconHTML(e){
   var opening=num(e.OpeningBalance),pay=num(e.Payments),ret=num(e.Returns),pyo=num(e.Payouts),
       tin=num(e.TransferIn),tout=num(e.TransferOut),exp=num(e.Expected),cnt=num(e.Counted),os=num(e.OverShort);
@@ -309,7 +311,7 @@ function reconHTML(e){
       line('Expected drawer',money(exp),'tot')+
     '</div><div>'+
       line('Counted drawer',money(cnt))+line('Expected',money(exp))+
-      line('Over / Short',money(os),(Math.abs(os)<0.005?'ok':'bad')+' tot')+
+      line('Over / Short',money(os),osClass(os)+' tot')+
       (e.Notes?('<div class="rl"><span>Note</span><span class="muted">'+e.Notes+'</span></div>'):'')+
     '</div></div>';
 }
@@ -339,7 +341,7 @@ function renderLog(){
     }
     var balCell=(r.bal!=null)?money(r.bal):'<span class="muted">—</span>';
     var amt=money(num(e.Amount)); if(isTransfer&&dir==='out') amt='-'+amt;
-    var os=isClose?('<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>'):'—';
+    var os=isClose?('<span class="os '+osClass(e.OverShort)+'">'+money(e.OverShort)+'</span>'):'—';
     var expBtn=isClose?('<span class="exp-btn" data-exp="'+e.Id+'">+</span>'):'';
     var denCells=LOG_DENOMS.map(function(d){var c=num(e[d.k]);return '<td class="den'+(c>0?'':' z')+'">'+(c>0?c:'·')+'</td>';}).join('');
     html+='<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td>'+
@@ -438,7 +440,7 @@ function recalc(){
   var pv='',rm='';
   if(op==='Close'){
     var v=rqVals(),exp=rqExpected(v),os=total-exp;
-    pv='Expected drawer: <b>'+money(exp)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Over/Short: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
+    pv='Expected drawer: <b>'+money(exp)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Over/Short: <span class="os '+osClass(os)+'">'+money(os)+'</span>';
     var tn=$('#enTinNote'); if(tn) tn.textContent = v.tin>0 ? ('Includes '+money(v.tin)+' transferred into this till today (auto-detected from logged transfers).') : '';
   } else if(op==='Open'){
     var till=$('#enVct')?$('#enVct').value:STATE.vct,b=computeBalances(),diff=total-(b[till]||0);
