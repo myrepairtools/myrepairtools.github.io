@@ -800,6 +800,9 @@
     return d.toISOString().slice(0,10);
   }
 
+  // Build the in-memory model: employee PROFILES come from the CPR Auth roster
+  // (already hierarchy-filtered server-side); entries + PIPs come from the records backend.
+  // Roster "title" maps to the page's job-title field (emp.role).
   function buildData(rosterRows, entries, pips){
     const empMap={};
     rosterRows.forEach(r=>{
@@ -853,6 +856,7 @@
     }
     render();
   }
+
   async function saveEmployee(empObj){
     setSyncStatus('syncing','⟳ Saving...');
     try{
@@ -1427,7 +1431,10 @@
     const notes=document.getElementById('empNotesInput').innerHTML.trim();
     if(editingEmployeeId){
       const emp=data.employees.find(e=>e.id===editingEmployeeId);
-      if(emp){ emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes; if(status==='terminated') emp.archived=true; }
+      if(emp){
+        emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes;
+        if(status==='terminated') emp.archived=true;   // terminate -> auto-archive
+      }
       save(); closeEmployeeModal(); render();
       await saveEmployee(data.employees.find(e=>e.id===editingEmployeeId));
     } else {
@@ -1891,30 +1898,6 @@
   ['pipModal','checkinModal','outcomeModal'].forEach(id=>{
     document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
   });
-
-  // Seed Jason
-  function seedJasonData(){
-    if(data.employees.length>0) return;
-    const jasonId=uid();
-    data.employees.push({ id:jasonId, name:'Jason', role:'Repair Technician', store:'', entries:[
-      { id:uid(), date:'2026-05-20', subject:'Speed & Workflow Discussion', category:'coaching', sections:{
-        issue:'iPhone 13 battery replacement checked in at 6:00 PM, completed at ~7:30 PM (approx. 1.5 hours). Unacceptable turnaround for this repair type.',
-        cause:'Jason is used to methodical, by-the-book processes from a corporate insurance repair background. Adhesive removal was particularly slow — he hasn\'t adjusted to the pace and flexibility expected in an independent walk-in shop.',
-        coaching:'Advised using a <b>heat mat</b> to keep the phone warm throughout the repair, combined with a <b>heat-resistant glove</b>. Keeping the adhesive warm makes it easier to remove from the frame and significantly speeds up the repair.',
-        response:'Seemed receptive. Likely needs repetition and time to unlearn old habits from corporate environment.',
-        actions:'Continue consistent hands-on coaching. Reinforce the "why" behind each technique. Monitor turnaround times over the next week.'
-      }},
-      { id:uid(), date:'2026-05-20', subject:'RepairQ & POS Workflow Struggles', category:'performance', sections:{
-        issue:'Jason had significant difficulty navigating the point of sale and RepairQ systems during his first shift.',
-        cause:'Despite being technically strong on repairs, he has no prior experience with RepairQ. Corporate insurance repair likely used a different system with different workflows.',
-        coaching:'Walked him through the basic check-in and repair queue process. Did not complete full training yet.',
-        response:'Struggled but willing to learn. Will need dedicated training time.',
-        actions:'<ul><li>Create a RepairQ/POS checklist or quick-reference guide for him.</li><li>Schedule dedicated POS training session before the weekend.</li><li>Do <b>not</b> leave him solo on Friday or Saturday until comfortable.</li></ul>'
-      }}
-    ]});
-    activeEmployeeId=jasonId;
-    save();
-  }
 
   function initApp(){
     loadCache(); render();
