@@ -3,125 +3,287 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cash Tracker — CPR</title>
+<title>Cash Admin — CPR</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;--purple:#8b5cf6;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
 main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
-.page-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.today{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:7px;padding:8px 14px;white-space:nowrap}
-.bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-.bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);margin-right:2px}
-.pills{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap}
-.pill{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer;transition:all .18s;white-space:nowrap}
-.pill:not(.active):hover{color:var(--dark-grey)}
-.store-pills .pill.active{background:var(--blue);color:#fff}
-.reg-pills .pill.active{background:var(--dark);color:#fff}
+/* lock */
+.lock{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+.lock.hide{display:none}
+.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
+.lock-box .ic{font-size:30px;margin-bottom:14px}
+.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
+.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
+.lock-box input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px}
+.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
+.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
+.app{display:none}.app.show{display:block}
+.bar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.tabs{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px}
+.tab{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer}
+.tab.active{background:var(--dark);color:#fff}
+.store-pills{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap}
+.sp{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer}
+.sp.active{background:var(--blue);color:#fff}
+.spacer{margin-left:auto}
 .card{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
-.muted{color:var(--dark-grey);font-size:.85rem}
-.hint{font-size:.78rem;color:var(--dark-grey);margin-top:6px}
+.card h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;margin-bottom:12px}
+.muted{color:var(--dark-grey);font-size:.85rem}.hint{font-size:.78rem;color:var(--dark-grey);margin:0 0 12px}
 .hide{display:none}
 label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
 input,select{font-family:'Nunito Sans',sans-serif;font-size:.92rem;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);width:100%}
 input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-.field{flex:1;min-width:150px}
-.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;padding:11px 22px;border:none;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer;transition:filter .15s}
-.btn:hover{filter:brightness(1.07)}
-.btn:disabled{opacity:.5;cursor:default}
-.btn.alt{background:var(--white);color:var(--dark);border:1.5px solid var(--border)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.field{flex:1;min-width:140px}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:10px 18px;border:none;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer;transition:filter .15s}
+.btn:hover{filter:brightness(1.07)}.btn.alt{background:var(--white);color:var(--dark);border:1.5px solid var(--border)}
+.btn.sm{padding:7px 13px;font-size:.8rem}
 .bal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-.bal{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:15px 16px;border-left:4px solid var(--blue);transition:transform .12s}
-.bal.active{border-left-width:6px;box-shadow:0 4px 16px rgba(79,176,227,.22);transform:translateY(-2px)}
+.bal{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:15px 16px;border-left:4px solid var(--blue)}
+.bal.safe{border-left-color:var(--purple)}.bal.large{border-left-color:#b45309}.bal.total{border-left-color:var(--green);background:#f3fbf6}
 .bal .bl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
-.bal .bv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--dark);margin-top:4px}
+.bal .bv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;margin-top:4px}
 .bal .bsub{font-size:.72rem;color:var(--grey);font-weight:600;margin-top:3px}
-.bal .badge{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);margin-top:6px}
-.denoms{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:8px;margin-top:4px}
-.den{background:var(--light-grey);border-radius:9px;padding:8px;text-align:center}
-.den .dl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey)}
-.den input{width:100%;text-align:center;margin-top:4px;padding:6px 4px;font-weight:800;font-family:'Nunito',sans-serif}
-.den .ds{font-size:.66rem;color:var(--grey);font-weight:700;margin-top:3px;min-height:.8em}
-.entry-total{display:flex;align-items:baseline;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
-.entry-total .etl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
-.entry-total .etv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green)}
-.preview{background:#EFEAFB;border:1px solid #E6E0F4;border-radius:10px;padding:12px 14px;margin-top:12px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;color:#5b3fb0}
-.rqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;background:#FFFBEC;border:1px solid #F1E4B8;border-radius:10px;padding:12px}
-.rqgrid label{font-size:.62rem;margin-bottom:3px}
-.rqgrid input{padding:7px 8px;font-weight:800;font-family:'Nunito',sans-serif}
-.remind{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:9px 12px;border-radius:9px;font-size:.82rem;font-weight:700;margin-top:10px}
-.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}
-.table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
+.table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden}
 table{width:100%;border-collapse:collapse}
 thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
 thead th.num{text-align:right}
-tbody td{padding:9px 12px;border-bottom:1px solid rgba(224,226,234,.6);font-size:.86rem;vertical-align:middle}
+tbody td{padding:8px 12px;border-bottom:1px solid rgba(224,226,234,.6);font-size:.86rem;vertical-align:middle}
 tbody td.num{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
-tbody tr:hover{background:rgba(79,176,227,.04)}
+tbody td input{padding:6px 8px;font-size:.85rem}
 .op-pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;padding:3px 8px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey);white-space:nowrap}
 .op-pill.exp{background:#FFE9E9;color:var(--red)}
+.op-pill.op-open{background:#E7F0FB;color:#1b6fa3}
+.op-pill.op-close{background:#EAEAF2;color:#4b4b6b}
+.op-pill.op-transfer{background:#FFF1DC;color:#8a5a00}
+.op-pill.op-largedep{background:#F3ECFB;color:#5b3fb0}
+.op-pill.op-smalldep{background:#E1F5EE;color:#0f6e56}
+.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}
 .xbtn{cursor:pointer;color:var(--grey);font-weight:900;font-size:1.1rem}.xbtn:hover{color:var(--red)}
-.table-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.table-head h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;margin:0}
-.sumline{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey);margin-bottom:10px}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:16px}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:1100}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
-.modal-bg{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:flex-start;justify-content:center;padding:38px 16px;z-index:60;overflow-y:auto}
-.modal-bg.hide{display:none}
-.modal{background:var(--white);border-radius:14px;border-top:4px solid var(--accent);width:100%;max-width:640px;padding:22px 22px 24px;box-shadow:0 22px 60px rgba(45,45,59,.32)}
-.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.modal-head h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem}
-.modal-close{font-size:1.6rem;color:var(--grey);cursor:pointer;font-weight:900;line-height:1;padding:0 4px}.modal-close:hover{color:var(--red)}
+.save-row{display:flex;gap:10px;align-items:center;margin-top:8px}
+.dirty{color:var(--red);font-weight:800;font-size:.78rem}
+.aurow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:.9rem;color:var(--dark-grey)}
+.aurow span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark);white-space:nowrap}
+.aurow.tot{border-top:1px solid var(--border);margin-top:4px;padding-top:9px;font-weight:800;color:var(--dark)}
+.aurow.grand{border-top:2px solid var(--border);margin-top:10px;padding-top:13px;font-size:1rem}
+.aurow.grand span:last-child{font-size:1.7rem;font-weight:900}
+.au-os{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.au-os.ok{color:var(--green)}.au-os.bad{color:var(--red)}
+td input.au-count{width:110px}
+/* entries log */
+table.elog{table-layout:fixed;width:100%}
+table.elog col.c-date{width:84px}table.elog col.c-emp{width:74px}table.elog col.c-op{width:158px}
+table.elog col.c-bal{width:94px}table.elog col.c-den{width:44px}table.elog col.c-amt{width:90px}
+table.elog col.c-os{width:80px}table.elog col.c-exp{width:32px}
+table.elog th,table.elog td{padding-left:8px;padding-right:8px}
+table.elog td.opcell{overflow:hidden;white-space:nowrap}
+.op-pill.cp-vct{background:#E7EEF6;color:#3a5a78}
+table.elog td.bal{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;border-left:3px solid var(--blue);padding-left:14px}
+table.elog th.bal-h{border-left:3px solid var(--blue);padding-left:14px}
+table.elog td.den,table.elog th.den-h{text-align:center}
+table.elog td.den{font-family:'Nunito',sans-serif;font-weight:700;color:var(--dark-grey)}
+table.elog td.den.z{color:var(--grey)}
+.dir{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:4px;margin-left:5px}
+.dir.in{background:#d1fae5;color:#065f46}.dir.out{background:#FFE9E9;color:var(--red)}
+.exp-btn{cursor:pointer;color:var(--blue);font-weight:800;font-size:.95rem;user-select:none;text-align:center}
+tr.detrow>td{background:#fafbfc;padding:0;border-bottom:1px solid var(--border)}
+tr.detrow.hide{display:none}
+.recon{padding:12px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;box-sizing:border-box}
+.recon .rl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--dark-grey);padding:2px 0}
+.recon .rl span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
+.recon .rl.tot{border-top:1px solid var(--border);margin-top:3px;padding-top:5px}
+.recon .rl.tot span:last-child{color:var(--dark)}
+.recon .rl .bad{color:var(--red)}.recon .rl .ok{color:var(--green)}
 </style>
 </head>
 <body>
-<script src="assets/nav.js" data-section="operations"></script>
-<main>
-  <div class="page-title-row">
-    <div><h1>Cash Tracker</h1><p class="sub">Opens, closes &amp; transfers — logged by register.</p></div>
-    <div class="today" id="todayLbl"></div>
-  </div>
 
+<div class="app" id="app">
+<script src="assets/nav.js" data-section="admin"></script>
+<main>
+  <h1>Cash Admin</h1><p class="sub">Balances, audit &amp; configuration across all stores.</p>
   <div class="banner hide" id="setupBanner"></div>
 
-  <div class="bar"><span class="bar-label">Store</span><div class="pills store-pills" id="storePills"></div></div>
-  <div class="bar"><span class="bar-label">Register</span><div class="pills reg-pills" id="regPills"></div></div>
-
-  <div class="card"><h2 style="font-family:'Nunito';font-weight:800;font-size:1rem;margin-bottom:12px">Till balances</h2>
-    <div class="bal-grid" id="cards"></div>
-  </div>
-
-  <div class="card">
-    <div class="table-head"><h2 id="logTitle">Activity</h2><button class="btn" id="btnNewEntry">+ New Entry</button></div>
-    <div id="logBody"></div>
-  </div>
-</main>
-
-<!-- NEW ENTRY MODAL -->
-<div class="modal-bg hide" id="entryModal">
-  <div class="modal">
-    <div class="modal-head"><h2>New entry</h2><span class="modal-close" id="enClose">×</span></div>
-    <div class="row">
-      <div class="field"><label>Operation</label><select id="enOp"><option>Open</option><option>Close</option><option>Transfer</option></select></div>
-      <div class="field"><label>Employee</label><select id="enEmp"></select></div>
+  <div class="bar">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-t="balances">Balances</button>
+      <button class="tab" data-t="audit">Audit</button>
+      <button class="tab" data-t="settings">Settings</button>
     </div>
-    <div id="enDynamic" style="margin-top:14px"></div>
-    <div id="enDenoms" style="margin-top:14px"></div>
-    <div class="entry-total"><span class="etl" id="enTotalLbl">Counted total</span><span class="etv" id="enTotal">$0.00</span></div>
-    <div id="enPreview"></div>
-    <div class="row" style="margin-top:14px"><div class="field"><label id="enNotesLbl">Notes (optional)</label><input type="text" id="enNotes" placeholder="Anything worth recording…"></div></div>
-    <div id="enRemind"></div>
-    <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end"><button class="btn alt" id="enCancel">Cancel</button><button class="btn" id="enSubmit">Save entry</button></div>
+    <div class="store-pills" id="storePills"></div>
+    <div class="spacer"></div>
+    <input type="month" id="period" style="width:auto" class="balonly">
   </div>
+
+  <!-- BALANCES -->
+  <section id="tab-balances">
+    <div class="card"><h2 id="balTitle">Balances</h2><div class="bal-grid" id="cards"></div></div>
+    <div class="card"><h2>Activity log</h2>
+      <div class="store-pills" id="logLocPills" style="margin-bottom:14px"></div>
+      <div id="logBody"></div>
+    </div>
+  </section>
+
+  <!-- AUDIT -->
+  <section id="tab-audit" class="hide">
+    <div class="card" style="border-top-color:var(--green)">
+      <h2 id="auditTitle">Monthly reconciliation</h2>
+      <p class="hint">Opening + RepairQ net sales − petty cash should equal the counted ending cash. Enter the month's figures, then close the month to lock it and carry balances forward.</p>
+
+      <div class="row" style="margin-bottom:6px">
+        <div class="field" style="max-width:240px">
+          <label>RepairQ net sales<br><span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">(Financial Summary)</span></label>
+          <input type="number" step="0.01" id="auRQ" placeholder="0.00">
+        </div>
+        <div class="field" style="max-width:240px">
+          <label>Petty cash out<br><span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">(auto from tracker)</span></label>
+          <input type="number" step="0.01" id="auPetty" placeholder="0.00">
+        </div>
+      </div>
+      <p class="hint" id="auPettyNote" style="margin-top:0"></p>
+
+      <div class="row" style="margin-top:6px;align-items:flex-end">
+        <div class="field" style="max-width:200px">
+          <label>Audit range</label>
+          <select id="auRangeMode">
+            <option value="month">Whole month</option>
+            <option value="custom">Custom dates</option>
+          </select>
+        </div>
+        <div class="field hide" id="auRangeFrom" style="max-width:170px"><label>From</label><input type="date" id="auFrom"></div>
+        <div class="field hide" id="auRangeTo" style="max-width:170px"><label>To</label><input type="date" id="auTo"></div>
+        <button class="btn alt sm hide" id="auApplyRange">Apply range</button>
+      </div>
+    </div>
+
+    <div class="table-card" style="margin-bottom:14px">
+      <table>
+        <thead><tr>
+          <th>Location</th>
+          <th class="num">Opening</th>
+          <th class="num">Tracked ending</th>
+          <th class="num">Counted</th>
+          <th class="num">Over / Short</th>
+        </tr></thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+    </div>
+
+    <!-- DAILY ENVELOPE BILL COUNTS (Large Safe) -->
+    <div class="card" style="border-top-color:#b45309">
+      <div class="count-head" id="largeHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
+        <h2 style="margin:0"><span class="exp-btn" id="largeChev" style="color:#b45309">−</span> Large Safe — daily envelope counts</h2>
+        <span class="muted">Total counted: <b id="envTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
+      </div>
+      <div id="largeCollapsed" class="hide" style="margin-top:8px"></div>
+      <div id="largeBody">
+        <p class="hint">Count each day's envelope and enter the bills. The total flows into the Large Safe counted figure above. One row per day in the audit range.</p>
+        <div style="overflow-x:auto">
+          <table class="elog" id="envTable" style="min-width:620px">
+            <thead><tr>
+              <th style="width:96px">Date</th>
+              <th class="num" style="width:100px">Day total</th>
+              <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
+              <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
+            </tr></thead>
+            <tbody id="envBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SMALL SAFE COUNT (one row) -->
+    <div class="card" style="border-top-color:var(--purple)">
+      <div class="count-head" id="smallHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
+        <h2 style="margin:0"><span class="exp-btn" id="smallChev" style="color:var(--purple)">−</span> Small Safe — bill count</h2>
+        <span class="muted">Total counted: <b id="smallTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
+      </div>
+      <div id="smallCollapsed" class="hide" style="margin-top:8px"></div>
+      <div id="smallBody">
+        <p class="hint">Count the small safe and enter the bills. Flows into the Small Safe counted figure above.</p>
+        <div style="overflow-x:auto">
+          <table class="elog" style="min-width:560px">
+            <thead><tr>
+              <th class="num" style="width:120px">Total</th>
+              <th class="num">$100</th><th class="num">$50</th><th class="num">$20</th>
+              <th class="num">$10</th><th class="num">$5</th><th class="num">$1</th>
+            </tr></thead>
+            <tbody id="smallBodyRow"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- headline -->
+    <div class="card" id="auHeadline" style="border-top-color:var(--green)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <h2 style="margin:0" id="auHeadTitle">Reconciliation</h2>
+        <span class="op-pill" id="auStatus">—</span>
+      </div>
+      <div style="margin-top:12px">
+        <div class="aurow"><span>Opening cash (all tills + safes)</span><span id="auOpen">$0.00</span></div>
+        <div class="aurow"><span>+ RepairQ net sales</span><span id="auRQline">$0.00</span></div>
+        <div class="aurow"><span>− Petty cash out</span><span id="auPettyLine">$0.00</span></div>
+        <div class="aurow tot"><span>= Expected ending cash</span><span id="auExpected">$0.00</span></div>
+        <div class="aurow"><span>Actual counted ending cash</span><span id="auCounted">$0.00</span></div>
+      </div>
+      <div class="aurow grand"><span>Over / Short</span><span id="auOverShort">$0.00</span></div>
+    </div>
+
+    <div class="save-row">
+      <button class="btn" id="auClose">Close month &amp; carry forward</button>
+      <span class="muted" id="auSaved"></span>
+    </div>
+    <p class="hint" id="auClosedNote" style="margin-top:10px"></p>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hide">
+    <div class="card"><h2>Locations, balances &amp; floats — <span id="setStore"></span></h2>
+      <p class="hint">Add or remove a register here to set how many VCTs a store has. Starting balance is where each location begins the month; float is the till's target.</p>
+      <div id="locTable"></div>
+      <div class="row" style="margin-top:12px">
+        <div class="field"><label>Add location</label><input id="newLocName" placeholder="e.g. VCT3"></div>
+        <div class="field"><label>Starting $</label><input type="number" step="0.01" id="newLocStart" placeholder="0"></div>
+        <div class="field"><label>Float $</label><input type="number" step="0.01" id="newLocFloat" placeholder="0"></div>
+        <button class="btn alt sm" id="addLoc">Add location</button>
+      </div>
+    </div>
+
+    <div class="card"><h2>Staff — <span id="setStore2"></span></h2>
+      <div id="staffTable"></div>
+      <div class="row" style="margin-top:12px"><div class="field"><label>Add staff</label><input id="newStaff" placeholder="Name"></div><button class="btn alt sm" id="addStaff">Add</button></div>
+    </div>
+
+    <div class="card"><h2>Stores</h2>
+      <p class="hint">Add a new store (e.g. a future Beaverton location). It starts with VCT1, VCT2, a Small Safe and a Large Safe — adjust above.</p>
+      <div id="storeList"></div>
+      <div class="row" style="margin-top:12px"><div class="field"><label>Add store</label><input id="newStore" placeholder="e.g. CPR Beaverton"></div><button class="btn alt sm" id="addStore">Add store</button></div>
+    </div>
+
+    <div class="card"><h2>Save &amp; connection</h2>
+      <div class="save-row"><button class="btn" id="saveAll">Save settings</button><span id="dirty" class="dirty"></span></div>
+      <div class="save-row" style="margin-top:14px"><button class="btn alt sm" id="testConn">Test connection</button><span class="muted" id="connStatus"></span></div>
+    </div>
+  </section>
+</main>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
+document.addEventListener('cpr-unlocked', function(){
+  document.getElementById('app').classList.add('show');
+  boot();
+});
+
 /* ===== CONFIG ===== */
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyEatKeCwZeeOpG3tvQwz-rYzlDSkU1tvU_OB2MzqLMt4InPpvHUln6Iu16d3ZRwj9L/exec';
 var API_TOKEN  = '1c098481a85026995fb5f0c943ce949d6961f5eafb4d71a580025cc2144c6769';
@@ -132,274 +294,488 @@ var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll
 function money(n){var x=Number(n)||0;return (x<0?'-$':'$')+Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function num(v){return (v===''||v==null)?0:Number(v)||0;}
 function fmtDate(v){return String(v||'').slice(0,10);}
-function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2400);}
-function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
-
-var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'},{k:'Q25',v:0.25,l:'25¢'},{k:'D10',v:0.10,l:'10¢'},{k:'N5',v:0.05,l:'5¢'},{k:'P1',v:0.01,l:'1¢'}];
-var EXPENSE='Cash Expenses';
-
-var STATE={store:null,vct:null,stores:[],staff:[],setup:[],entries:[]};
-
-function api(action,params){
-  if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
-  var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);
-  for(var k in (params||{})) url+='&'+k+'='+encodeURIComponent(params[k]);
-  return fetch(url).then(function(r){return r.json();});
-}
-function apiPost(body){
-  if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
-  body.token=API_TOKEN;
-  return fetch(WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json();});
-}
-
-function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
-function todayISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
 function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2400);}
 
-/* tills/locations are data-driven from the Setup tab */
-function tillsFor(store){
-  var t=STATE.setup.filter(function(s){return s.Store===store&&/^VCT\d+$/i.test(String(s.Location));}).map(function(s){return s.Location;});
-  t.sort();
-  return t.length?t:['VCT1','VCT2','VCT3'];
+var EXPENSE='Cash Expenses';
+var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C2',v:2,l:'$2'},{k:'C1',v:1,l:'$1'}];
+var LOG_DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'}];
+function opPillClass(e){
+  if(e.ToLocation===EXPENSE) return 'exp';
+  var op=String(e.Operation||'').toLowerCase();
+  if(op==='open') return 'op-open';
+  if(op==='close') return 'op-close';
+  if(op==='transfer'){
+    if(e.ToLocation==='Large Safe') return 'op-largedep';
+    if(e.ToLocation==='Small Safe') return 'op-smalldep';
+    return 'op-transfer';
+  }
+  return '';
 }
-function safesFor(store){
-  var s=STATE.setup.filter(function(r){return r.Store===store&&/safe/i.test(String(r.Location));}).map(function(r){return r.Location;});
-  return s.length?s:['Small Safe','Large Safe'];
+function opLabelFor(e){
+  if(e.ToLocation===EXPENSE) return 'Cash Expense';
+  if(e.Operation==='Transfer' && e.ToLocation==='Large Safe') return 'Large Safe Deposit';
+  if(e.Operation==='Transfer' && e.ToLocation==='Small Safe') return 'Small Safe Deposit';
+  return e.Operation;
 }
+var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false,logLoc:null};
+var booted=false;
+
+function api(action,params){var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);for(var k in (params||{}))url+='&'+k+'='+encodeURIComponent(params[k]);return fetch(url).then(function(r){return r.json();});}
+function apiPost(body){body.token=API_TOKEN;return fetch(WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json();});}
+function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
+
+function tillsFor(store){var t=STATE.setup.filter(function(s){return s.Store===store&&/^VCT\d+$/i.test(String(s.Location));}).map(function(s){return s.Location;});t.sort();return t;}
+function locsFor(store){return STATE.setup.filter(function(s){return s.Store===store;}).map(function(s){return s.Location;});}
 function startBal(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.StartingBalance):0;}
 function floatTarget(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.FloatTarget):0;}
-function staffFor(store){return STATE.staff.filter(function(s){return s.Store===store&&s.Active!==false;}).map(function(s){return s.Name;});}
 
-/* counted-anchored balances (tills follow last count; safes accumulate) */
 function computeBalances(){
-  var bal={}; tillsFor(STATE.store).concat(safesFor(STATE.store)).forEach(function(l){bal[l]=startBal(STATE.store,l);});
-  STATE.entries.slice().sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));}).forEach(function(e){applyEntry(bal,e);});
+  var bal={}; locsFor(STATE.store).forEach(function(l){bal[l]=startBal(STATE.store,l);});
+  STATE.entries.slice().sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));}).forEach(function(e){
+    var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
+    if(op==='Open'||op==='Close'){if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null)bal[loc]=num(e.Counted);return;}
+    if(loc!=null&&bal[loc]!=null)bal[loc]-=amt; if(to!=null&&bal[to]!=null)bal[to]+=amt;
+  });
   return bal;
 }
-function applyEntry(bal,e){
-  var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
-  if(op==='Open'||op==='Close'){ if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null) bal[loc]=num(e.Counted); return; }
-  if(loc!=null&&bal[loc]!=null) bal[loc]-=amt;     // Transfer: debit source
-  if(to!=null&&bal[to]!=null)  bal[to]+=amt;       // credit destination (Cash Expenses untracked -> leaves)
-}
 
-/* ===== bootstrap ===== */
 function boot(){
-  $('#todayLbl').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  if(booted)return; booted=true;
+  $('#period').value=thisPeriod(); STATE.period=thisPeriod();
   api('bootstrap').then(function(r){
-    if(!r||!r.ok){showSetupBanner();return;}
+    if(!r||!r.ok){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';return;}
     STATE.stores=r.stores||[]; STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
-    var savedStore=pref('ct_store');
-    STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
-    pickInitialVct();
-    renderStorePills(); renderRegPills(); fillEmp();
-    loadData();
-  }).catch(function(){showSetupBanner();});
-}
-function showSetupBanner(){var b=$('#setupBanner');b.classList.remove('hide');b.innerHTML='<b>Not connected.</b> The cash tracker cannot reach its database right now.';}
-function pickInitialVct(){
-  var tl=tillsFor(STATE.store), saved=pref('ct_vct_'+STATE.store);
-  STATE.vct=(saved&&(tl.indexOf(saved)>=0||saved==='Small Safe'||saved===EXPENSE))?saved:(tl[0]||'VCT1');
+    STATE.store=STATE.stores[0]||null;
+    renderStorePills(); renderSettings(); loadData();
+  }).catch(function(){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';});
 }
 function loadData(){
-  if(!STATE.store) return;
-  api('entries',{store:STATE.store,period:thisPeriod()}).then(function(r){
-    STATE.entries=(r&&r.rows)||[];
-    renderCards(); renderLog();
-  }).catch(function(e){toast(String(e),true);});
+  if(!STATE.store)return;
+  api('entries',{store:STATE.store,period:STATE.period}).then(function(r){STATE.entries=(r&&r.rows)||[];renderCards();renderLog();}).catch(function(e){toast(String(e),true);});
 }
 
-/* ===== store / register switchers ===== */
-function renderStorePills(){
-  $('#storePills').innerHTML=STATE.stores.map(function(s){
-    return '<button class="pill'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+shortStore(s)+'</button>';}).join('');
-  $all('#storePills .pill').forEach(function(b){b.onclick=function(){
-    if(b.dataset.s===STATE.store) return;
-    if(!confirm('Switch to '+shortStore(b.dataset.s)+'? Entries you log will be recorded under '+shortStore(b.dataset.s)+'.')) return;
-    STATE.store=b.dataset.s; pref('ct_store',STATE.store); pickInitialVct();
-    renderStorePills(); renderRegPills(); fillEmp(); loadData();
-  };});
+/* ===== AUDIT ===== */
+var AUDIT={data:null};
+function loadAudit(){
+  if(!STATE.store||!STATE.period)return;
+  $('#auditTitle').textContent=shortStore(STATE.store)+' — '+STATE.period+' reconciliation';
+  $('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">Loading…</td></tr>';
+  api('auditData',{store:STATE.store,period:STATE.period}).then(function(r){
+    if(!r||!r.ok){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+((r&&r.error)||'Could not load')+'</td></tr>';return;}
+    AUDIT.data=r;
+    $('#auRQ').value=(r.repairQSales===''||r.repairQSales==null)?'':r.repairQSales;
+    $('#auPetty').value=(r.pettyCash==null?0:r.pettyCash);
+    $('#auPettyNote').textContent='Auto-summed from "Cash Expenses" transfers logged in the tracker this month. Adjust if needed.';
+    renderAudit();
+    if(r.closed){
+      $('#auClosedNote').textContent='✓ This month is closed. Re-closing will overwrite the saved figures and carry-forward.';
+      $('#auClose').textContent='Re-close month';
+    } else {
+      $('#auClosedNote').textContent='';
+      $('#auClose').textContent='Close month & carry forward';
+    }
+  }).catch(function(e){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+String(e)+'</td></tr>';});
 }
-function renderRegPills(){
-  var items=tillsFor(STATE.store).concat(['Small Safe',EXPENSE]);
-  $('#regPills').innerHTML=items.map(function(l){
-    var lbl=l===EXPENSE?'Cash Expenses':l;
-    return '<button class="pill'+(l===STATE.vct?' active':'')+'" data-v="'+l+'">'+lbl+'</button>';}).join('');
-  $all('#regPills .pill').forEach(function(b){b.onclick=function(){
-    STATE.vct=b.dataset.v; pref('ct_vct_'+STATE.store,STATE.vct);
-    renderRegPills(); renderCards(); renderLog();
-  };});
-}
-function fillEmp(){$('#enEmp').innerHTML=staffFor(STATE.store).map(function(n){return '<option>'+n+'</option>';}).join('');}
-
-/* ===== cards (tills only; active highlighted) ===== */
-function renderCards(){
-  var bal=computeBalances(), tl=tillsFor(STATE.store);
-  $('#cards').innerHTML=tl.map(function(l){
-    var active=l===STATE.vct?' active':'';
-    return '<div class="bal'+active+'"><div class="bl">'+l+'</div><div class="bv">'+money(bal[l])+'</div>'+
-      '<div class="bsub">float target '+money(floatTarget(STATE.store,l))+'</div>'+(active?'<div class="badge">this register</div>':'')+'</div>';
+function renderAudit(){
+  var d=AUDIT.data; if(!d)return;
+  $('#auditBody').innerHTML=d.locations.map(function(l,i){
+    var isLarge=(l.location==='Large Safe');
+    var isSmall=(l.location==='Small Safe');
+    var countCell;
+    if(isLarge) countCell='<input type="number" step="0.01" class="au-count" data-i="'+i+'" id="auLargeCount" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" readonly title="From the daily envelope counts below" style="background:var(--light-grey)">';
+    else if(isSmall) countCell='<input type="number" step="0.01" class="au-count" data-i="'+i+'" id="auSmallCount" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" readonly title="From the Small Safe bill count below" style="background:var(--light-grey)">';
+    else countCell='<input type="number" step="0.01" class="au-count" data-i="'+i+'" value="'+(l.counted===''||l.counted==null?'':l.counted)+'" placeholder="count">';
+    var tag=isLarge?' <span class="muted" style="font-weight:600">(from envelopes)</span>':(isSmall?' <span class="muted" style="font-weight:600">(from bill count)</span>':'');
+    return '<tr>'+
+      '<td>'+l.location+tag+'</td>'+
+      '<td class="num">'+money(l.opening)+'</td>'+
+      '<td class="num">'+money(l.tracked)+'</td>'+
+      '<td class="num">'+countCell+'</td>'+
+      '<td class="num"><span class="au-os" id="auOS'+i+'">—</span></td>'+
+    '</tr>';
   }).join('');
+  $all('#auditBody .au-count:not([readonly])').forEach(function(inp){inp.oninput=recalcAudit;});
+  $('#auRQ').oninput=recalcAudit;
+  $('#auPetty').oninput=recalcAudit;
+  buildEnvGrid();
+  recalcAudit();
 }
+function largeSafeIndex(){ var d=AUDIT.data; for(var i=0;i<d.locations.length;i++) if(d.locations[i].location==='Large Safe') return i; return -1; }
 
-/* ===== log (scoped to selected register / small safe / cash expenses) ===== */
-function scopedEntries(){
-  var v=STATE.vct;
-  return STATE.entries.filter(function(e){
-    if(v===EXPENSE) return e.ToLocation===EXPENSE;
-    return e.Location===v||e.ToLocation===v;
-  }).sort(function(a,b){return String(b.Date).localeCompare(String(a.Date))||String(b.Id).localeCompare(String(a.Id));});
-}
-function renderLog(){
-  var rows=scopedEntries();
-  if(STATE.vct===EXPENSE){ $('#logTitle').textContent='Cash Expenses — '+shortStore(STATE.store)+' (this month)'; renderExpenseLog(rows); return; }
-  var scopeName=(STATE.vct==='Small Safe')?'Small Safe':STATE.vct;
-  $('#logTitle').textContent=scopeName+' activity — this month';
-  if(!rows.length){ $('#logBody').innerHTML='<p class="muted">No entries yet this month. Tap <b>+ New Entry</b>.</p>'; return; }
-  $('#logBody').innerHTML='<div class="table-card"><table><thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th>Detail</th><th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>'+
-    rows.map(function(e){
-      var isExp=e.ToLocation===EXPENSE;
-      var detail=e.Operation==='Transfer'?(shortLoc(e.Location)+' to '+shortLoc(e.ToLocation)):shortLoc(e.Location);
-      var os=e.Operation==='Close'?'<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>':'—';
-      var amt=e.Operation==='Close'?money(e.Payments)+' sales':money(e.Amount);
-      return '<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td><td><span class="op-pill'+(isExp?' exp':'')+'">'+(isExp?'Cash Expense':e.Operation)+'</span></td><td>'+detail+(e.Notes?' &middot; <span class="muted">'+e.Notes+'</span>':'')+'</td><td class="num">'+amt+'</td><td class="num">'+os+'</td><td class="num"><span class="xbtn" data-id="'+e.Id+'" title="Delete">&times;</span></td></tr>';
-    }).join('')+'</tbody></table></div>';
-  wireDelete();
-}
-function renderExpenseLog(rows){
-  var total=rows.reduce(function(a,e){return a+num(e.Amount);},0);
-  $('#logBody').innerHTML='<div class="sumline">Total cash expenses this month: <span style="color:var(--red)">'+money(total)+'</span> &middot; '+rows.length+' payout'+(rows.length===1?'':'s')+'</div>'+
-    (rows.length?'<div class="table-card"><table><thead><tr><th>Date</th><th>From</th><th>Employee</th><th class="num">Amount</th><th>Reason</th><th></th></tr></thead><tbody>'+
-    rows.map(function(e){return '<tr><td>'+fmtDate(e.Date)+'</td><td>'+shortLoc(e.Location)+'</td><td>'+(e.Employee||'')+'</td><td class="num">'+money(e.Amount)+'</td><td>'+(e.Notes||'<span class="muted">&mdash;</span>')+'</td><td class="num"><span class="xbtn" data-id="'+e.Id+'" title="Delete">&times;</span></td></tr>';}).join('')+
-    '</tbody></table></div>':'<p class="muted">No cash expenses logged this month.</p>');
-  wireDelete();
-}
-function shortLoc(l){return l===EXPENSE?'Cash Expenses':String(l||'');}
-function wireDelete(){$all('#logBody .xbtn').forEach(function(x){x.onclick=function(){if(!confirm('Delete this entry?'))return;apiPost({action:'deleteEntry',id:x.dataset.id}).then(function(){toast('Deleted');loadData();});};});}
-
-/* ===== new entry modal ===== */
-function openModal(){ $('#enOp').value='Open'; fillEmp(); renderForm(); $('#entryModal').classList.remove('hide'); }
-function closeModal(){$('#entryModal').classList.add('hide');}
-$('#btnNewEntry').onclick=openModal; $('#enClose').onclick=closeModal; $('#enCancel').onclick=closeModal;
-$('#entryModal').addEventListener('click',function(e){if(e.target===$('#entryModal'))closeModal();});
-$('#enOp').onchange=renderForm;
-
-function vctOptions(sel){return tillsFor(STATE.store).map(function(t){return '<option'+(t===sel?' selected':'')+'>'+t+'</option>';}).join('');}
-function transferLocs(){return tillsFor(STATE.store).concat(safesFor(STATE.store));}
-
-function renderForm(){
-  var op=$('#enOp').value;
-  var activeVct=(tillsFor(STATE.store).indexOf(STATE.vct)>=0)?STATE.vct:tillsFor(STATE.store)[0];
-  var dyn='';
-  if(op==='Open'||op==='Close'){
-    dyn='<div class="row"><div class="field"><label>Register</label><select id="enVct">'+vctOptions(activeVct)+'</select></div>';
-    if(op==='Close'){
-      dyn+='<div class="field"><label>Opening balance</label><input type="number" step="0.01" id="enOpening" placeholder="0.00"></div></div>';
-      dyn+='<p class="hint" style="margin:12px 0 6px">Enter the cash figures from the RepairQ VCT closure form:</p><div class="rqgrid">'+
-        rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTout','Transfer Out (-)')+'</div>'+
-        '<p class="hint" id="enTinNote" style="margin:8px 0 0"></p>';
-    } else { dyn+='</div>'; }
+/* ----- daily envelope bill-count grid ----- */
+var ENV_DENOMS=[{k:'C100',v:100},{k:'C50',v:50},{k:'C20',v:20},{k:'C10',v:10},{k:'C5',v:5},{k:'C1',v:1}];
+function auditDays(){
+  // Returns array of YYYY-MM-DD for the active range (whole month or custom).
+  var mode=$('#auRangeMode').value, days=[];
+  function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  if(mode==='custom' && $('#auFrom').value && $('#auTo').value){
+    var a=new Date($('#auFrom').value+'T00:00:00'), b=new Date($('#auTo').value+'T00:00:00');
+    if(b<a){var t=a;a=b;b=t;}
+    for(var d=new Date(a); d<=b; d.setDate(d.getDate()+1)) days.push(iso(new Date(d)));
   } else {
-    var tills=tillsFor(STATE.store);
-    dyn='<div class="row">'+
-      '<div class="field"><label>Transfer type</label><select id="enXtype">'+
-        '<option value="dep-large">Deposit to Large Safe (out of till)</option>'+
-        '<option value="wd-large">Withdraw from Large Safe (into till)</option>'+
-        '<option value="dep-small">Deposit to Small Safe (out of till)</option>'+
-        '<option value="wd-small">Withdraw from Small Safe (into till)</option>'+
-        '<option value="expense">Cash Expense — pay out</option>'+
-      '</select></div>'+
-      '<div class="field"><label>Till</label><select id="enXtill">'+tills.map(function(t){return '<option'+(t===activeVct?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>';
+    var parts=STATE.period.split('-'), y=+parts[0], m=+parts[1];
+    var last=new Date(y,m,0).getDate();
+    for(var i=1;i<=last;i++) days.push(y+'-'+('0'+m).slice(-2)+'-'+('0'+i).slice(-2));
   }
-  $('#enDynamic').innerHTML=dyn;
-  var coins=(op==='Open'||op==='Close');
-  $('#enTotalLbl').textContent=op==='Transfer'?'Amount moved':'Counted total';
-  var dens=DENOMS.filter(function(d){return coins||d.v>=1;});
-  $('#enDenoms').innerHTML='<label>'+(coins?'Denomination count':'Bills moved')+'</label><div class="denoms">'+
-    dens.map(function(d){return '<div class="den"><div class="dl">'+d.l+'</div><input type="number" min="0" step="1" data-k="'+d.k+'" data-v="'+d.v+'" placeholder="0"><div class="ds" data-sub="'+d.k+'"></div></div>';}).join('')+'</div>';
-  $all('#enDenoms input').forEach(function(i){i.oninput=recalc;});
-  $all('#enDynamic input,#enDynamic select').forEach(function(i){i.oninput=recalc;i.onchange=recalc;});
-  var vsel=$('#enVct'); if(vsel)vsel.onchange=function(){prefillOpening();recalc();};
-  prefillOpening(); recalc();
+  return days;
 }
-function rqf(id,label){return '<div><label>'+label+'</label><input type="number" step="0.01" id="'+id+'" placeholder="0.00"></div>';}
-// Derive from/to for a guided transfer, relative to the chosen till.
-function xfDeriv(){
-  var type=$('#enXtype')?$('#enXtype').value:'dep-large';
-  var till=$('#enXtill')?$('#enXtill').value:STATE.vct;
-  if(type==='wd-large') return {from:'Large Safe',to:till};
-  if(type==='dep-small') return {from:till,to:'Small Safe'};
-  if(type==='wd-small') return {from:'Small Safe',to:till};
-  if(type==='expense') return {from:till,to:EXPENSE};
-  return {from:till,to:'Large Safe'}; // dep-large
+function buildEnvGrid(){
+  var d=AUDIT.data; if(!d)return;
+  var saved={}; (d.days||[]).forEach(function(r){saved[r.day]=r;});
+  var days=auditDays();
+  $('#envBody').innerHTML=days.map(function(day){
+    var s=saved[day]||{};
+    var cells=ENV_DENOMS.map(function(dn){
+      return '<td class="num"><input type="number" min="0" step="1" class="env-in" data-day="'+day+'" data-k="'+dn.k+'" data-v="'+dn.v+'" value="'+(s[dn.k]?s[dn.k]:'')+'" placeholder="0" style="width:58px;text-align:right"></td>';
+    }).join('');
+    return '<tr><td>'+day.slice(5)+'</td><td class="num bal" id="envday-'+day+'">$0.00</td>'+cells+'</tr>';
+  }).join('');
+  $all('#envBody .env-in').forEach(function(inp){inp.oninput=recalcEnv;});
+  buildSmallRow();
+  recalcEnv();
 }
-// Sum of transfers logged INTO this till today (safe -> till withdrawals).
-function autoTinFor(till){
-  var today=todayISO();
-  return Math.round(STATE.entries.filter(function(e){
-    return e.Operation==='Transfer' && e.ToLocation===till && String(e.Date)===today;
-  }).reduce(function(s,e){return s+num(e.Amount);},0)*100)/100;
+function buildSmallRow(){
+  var d=AUDIT.data; if(!d)return;
+  // Small safe saved row is stored as an AuditDays row with day='__SMALL__'
+  var s={}; (d.days||[]).forEach(function(r){ if(r.day==='__SMALL__'||r.location==='Small Safe') s=r; });
+  var cells=ENV_DENOMS.map(function(dn){
+    return '<td class="num"><input type="number" min="0" step="1" class="small-in" data-k="'+dn.k+'" data-v="'+dn.v+'" value="'+(s[dn.k]?s[dn.k]:'')+'" placeholder="0" style="width:58px;text-align:right"></td>';
+  }).join('');
+  $('#smallBodyRow').innerHTML='<tr><td class="num bal" id="smallRowTotal">$0.00</td>'+cells+'</tr>';
+  $all('#smallBodyRow .small-in').forEach(function(inp){inp.oninput=recalcEnv;});
 }
-function prefillOpening(){var ob=$('#enOpening');if(ob&&ob.value===''){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
-function denomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return Math.round(t*100)/100;}
-function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:autoTinFor(till),tout:num(($('#enTout')||{}).value)};}
-function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
-function isTill(l){return /^VCT\d+$/i.test(String(l));}
+function denomTotals(selector){
+  // sum each denomination across inputs, return {C100:n,...} and grand $
+  var counts={}, grand=0; ENV_DENOMS.forEach(function(dn){counts[dn.k]=0;});
+  $all(selector).forEach(function(inp){counts[inp.dataset.k]+=num(inp.value);});
+  ENV_DENOMS.forEach(function(dn){grand+=counts[dn.k]*dn.v;});
+  return {counts:counts, grand:Math.round(grand*100)/100};
+}
+function collapsedSummary(t){
+  // "5×$100 · 8×$20 …" from a denomTotals result
+  var parts=[]; ENV_DENOMS.forEach(function(dn){var c=t.counts[dn.k];if(c>0)parts.push(c+'×$'+dn.v);});
+  return '<div class="muted" style="font-weight:600">'+(parts.length?parts.join(' · '):'No bills counted')+'</div>';
+}
+function recalcEnv(){
+  // Large safe daily grid
+  var byDay={};
+  $all('#envBody .env-in').forEach(function(inp){
+    var day=inp.dataset.day, v=Number(inp.dataset.v), c=num(inp.value);
+    byDay[day]=(byDay[day]||0)+c*v;
+  });
+  Object.keys(byDay).forEach(function(day){
+    var el=document.getElementById('envday-'+day); if(el) el.textContent=money(byDay[day]);
+  });
+  var lg=denomTotals('#envBody .env-in');
+  $('#envTotal').textContent=money(lg.grand);
+  $('#largeCollapsed').innerHTML=collapsedSummary(lg);
+  var li=largeSafeIndex();
+  if(li>=0){ var inp=document.getElementById('auLargeCount'); if(inp){ inp.value=lg.grand?lg.grand.toFixed(2):''; } }
 
-function recalc(){
-  var op=$('#enOp').value, total=denomTotal(); $('#enTotal').textContent=money(total);
-  var pv='',rm='';
-  if(op==='Close'){
-    var v=rqVals(),exp=rqExpected(v),os=total-exp;
-    pv='Expected drawer: <b>'+money(exp)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Over/Short: <span class="os '+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span>';
-    var tn=$('#enTinNote'); if(tn) tn.textContent = v.tin>0 ? ('Includes '+money(v.tin)+' transferred into this till today (auto-detected from logged transfers).') : '';
-  } else if(op==='Open'){
-    var till=$('#enVct')?$('#enVct').value:STATE.vct,b=computeBalances(),diff=total-(b[till]||0);
-    pv='Expected in drawer: <b>'+money(b[till]||0)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Difference: <span class="os '+(Math.abs(diff)<0.005?'ok':'bad')+'">'+money(diff)+'</span>';
-  } else {
-    var d=xfDeriv(),from=d.from,to=d.to,b2=computeBalances();
-    if(to===EXPENSE){ pv='<b>'+money(total)+'</b> paid out of '+from+' (cash leaves the store)'; rm='Also record this payout in RepairQ so the till reconciles.'; $('#enNotesLbl').textContent='Reason / payee (required)'; }
-    else { $('#enNotesLbl').textContent='Notes (optional)';
-      var parts=[]; if(isTill(from)) parts.push(from+': '+money((b2[from]||0)-total)); else parts.push('from '+from);
-      if(isTill(to)) parts.push(to+': '+money((b2[to]||0)+total)); else parts.push('to '+to);
-      pv=money(total)+' &nbsp; '+parts.join(' &nbsp;&middot;&nbsp; '); }
-  }
-  $('#enPreview').innerHTML=pv?'<div class="preview">'+pv+'</div>':'';
-  $('#enRemind').innerHTML=rm?'<div class="remind">'+rm+'</div>':'';
-}
-function collectDenoms(){var o={};$all('#enDenoms input').forEach(function(i){o[i.dataset.k]=num(i.value);});return o;}
+  // Small safe single row
+  var sm=denomTotals('#smallBodyRow .small-in');
+  var srt=document.getElementById('smallRowTotal'); if(srt) srt.textContent=money(sm.grand);
+  $('#smallTotal').textContent=money(sm.grand);
+  $('#smallCollapsed').innerHTML=collapsedSummary(sm);
+  var smInp=document.getElementById('auSmallCount'); if(smInp){ smInp.value=sm.grand?sm.grand.toFixed(2):''; }
 
-$('#enSubmit').onclick=function(){
-  var op=$('#enOp').value, emp=$('#enEmp').value, total=denomTotal();
-  if(!emp){toast('Pick an employee',true);return;}
-  var payload={store:STATE.store,date:todayISO(),employee:emp,operation:op,denoms:collectDenoms(),notes:$('#enNotes').value};
-  if(op==='Open'){
-    if(total<=0){toast('Enter the drawer count',true);return;}
-    var till=$('#enVct').value; payload.location=till; payload.amount=total; payload.counted=total;
-  } else if(op==='Close'){
-    var t2=$('#enVct').value, v=rqVals();
-    var anyBlank=['enOpening','enPayments','enReturns','enPayouts','enTout'].some(function(id){return !$('#'+id)||$('#'+id).value==='';});
-    if(anyBlank){toast('Fill in every RepairQ closing field (use 0 if none)',true);return;}
-    if(total<=0){toast('Enter the drawer count',true);return;}
-    var exp=rqExpected(v);
-    payload.location=t2; payload.amount=total; payload.counted=total;
-    payload.openingBalance=v.opening; payload.payments=v.payments; payload.returns=v.returns; payload.payouts=v.payouts;
-    payload.transferIn=v.tin; payload.transferOut=v.tout; payload.expected=exp; payload.overShort=total-exp;
-  } else {
-    var d=xfDeriv(),from=d.from,to=d.to;
-    if(from===to){toast('From and To must differ',true);return;}
-    if(total<=0){toast('Enter the bills moved',true);return;}
-    if(to===EXPENSE&&!$('#enNotes').value.trim()){toast('Add a reason for the cash expense',true);return;}
-    payload.location=from; payload.toLocation=to; payload.amount=total;
-  }
-  $('#enSubmit').disabled=true;
-  apiPost(Object.assign({action:'addEntry'},payload)).then(function(r){$('#enSubmit').disabled=false;
-    if(!r.ok){toast(r.error||'Save failed',true);return;}
-    toast('Entry saved'); closeModal(); loadData();
-  }).catch(function(e){$('#enSubmit').disabled=false;toast(String(e),true);});
+  recalcAudit();
+}
+function collectEnvDays(){
+  var byDay={};
+  $all('#envBody .env-in').forEach(function(inp){
+    var day=inp.dataset.day; byDay[day]=byDay[day]||{day:day,location:'Large Safe',C100:0,C50:0,C20:0,C10:0,C5:0,C1:0,total:0};
+    byDay[day][inp.dataset.k]=num(inp.value);
+  });
+  var out=[];
+  Object.keys(byDay).forEach(function(day){
+    var r=byDay[day],t=0; ENV_DENOMS.forEach(function(dn){t+=r[dn.k]*dn.v;}); r.total=Math.round(t*100)/100;
+    if(r.total>0) out.push(r);   // only persist days that have a count
+  });
+  // Small safe single row, stored with day '__SMALL__'
+  var sm={day:'__SMALL__',location:'Small Safe',C100:0,C50:0,C20:0,C10:0,C5:0,C1:0,total:0};
+  $all('#smallBodyRow .small-in').forEach(function(inp){sm[inp.dataset.k]=num(inp.value);});
+  var st=0; ENV_DENOMS.forEach(function(dn){st+=sm[dn.k]*dn.v;}); sm.total=Math.round(st*100)/100;
+  if(sm.total>0) out.push(sm);
+  return out;
+}
+function auditCounts(){
+  var d=AUDIT.data, out=[];
+  d.locations.forEach(function(l,i){
+    var inp=document.querySelector('.au-count[data-i="'+i+'"]');
+    var counted=inp&&inp.value!==''?Number(inp.value):null;
+    out.push({location:l.location,opening:l.opening,tracked:l.tracked,counted:counted});
+  });
+  return out;
+}
+function recalcAudit(){
+  var d=AUDIT.data; if(!d)return;
+  var counts=auditCounts();
+  var rq=num($('#auRQ').value), petty=num($('#auPetty').value);
+  var openingTotal=0, countedTotal=0, anyCount=false;
+  counts.forEach(function(c,i){
+    openingTotal+=c.opening;
+    var os=document.getElementById('auOS'+i);
+    if(c.counted==null){ if(os){os.textContent='—';os.className='au-os';} return; }
+    anyCount=true; countedTotal+=c.counted;
+    var locOS=c.counted-c.tracked;
+    if(os){os.textContent=money(locOS);os.className='au-os '+(Math.abs(locOS)<0.005?'ok':'bad');}
+  });
+  var expected=openingTotal+rq-petty;
+  var overShort=anyCount?(countedTotal-expected):0;
+  $('#auOpen').textContent=money(openingTotal);
+  $('#auRQline').textContent=money(rq);
+  $('#auPettyLine').textContent=money(petty);
+  $('#auExpected').textContent=money(expected);
+  $('#auCounted').textContent=anyCount?money(countedTotal):'—';
+  $('#auOverShort').textContent=anyCount?money(overShort):'—';
+  $('#auOverShort').style.color=!anyCount?'var(--grey)':(Math.abs(overShort)<0.005?'var(--green)':'var(--red)');
+  var st=$('#auStatus');
+  if(!anyCount){st.textContent='Enter counts';st.className='op-pill';}
+  else if(Math.abs(overShort)<0.005){st.textContent='Even';st.className='op-pill';st.style.background='#d1fae5';st.style.color='#065f46';}
+  else if(overShort>0){st.textContent='Over';st.className='op-pill';st.style.background='#dbeafe';st.style.color='#1e40af';}
+  else{st.textContent='Short';st.className='op-pill exp';}
+}
+$('#auClose').onclick=function(){
+  var d=AUDIT.data; if(!d){return;}
+  var counts=auditCounts();
+  var missing=counts.filter(function(c){return c.counted==null;});
+  if(missing.length){toast('Enter a counted balance for every location first',true);return;}
+  var rq=num($('#auRQ').value), petty=num($('#auPetty').value);
+  var rows=counts.map(function(c){return {Location:c.location,Tracked:c.tracked,Counted:c.counted,OverShort:(c.counted-c.tracked)};});
+  var days=collectEnvDays();
+  $('#auClose').disabled=true; $('#auSaved').textContent='Saving…';
+  apiPost({action:'closeMonth',store:STATE.store,period:STATE.period,repairQSales:rq,pettyCash:petty,auditor:(CPRGate&&CPRGate.user&&CPRGate.user()?CPRGate.user().name:''),rows:rows,days:days})
+    .then(function(r){$('#auClose').disabled=false;
+      if(r&&r.ok){toast('Month closed — balances carried forward');$('#auSaved').textContent='Saved '+new Date().toLocaleTimeString();loadAudit();}
+      else{toast((r&&r.error)||'Save failed',true);$('#auSaved').textContent='';}
+    }).catch(function(e){$('#auClose').disabled=false;$('#auSaved').textContent='';toast(String(e),true);});
+};
+$('#auRangeMode').onchange=function(){
+  var custom=this.value==='custom';
+  $('#auRangeFrom').classList.toggle('hide',!custom);
+  $('#auRangeTo').classList.toggle('hide',!custom);
+  $('#auApplyRange').classList.toggle('hide',!custom);
+  if(!custom) buildEnvGrid();
+};
+$('#auApplyRange').onclick=function(){
+  if(!$('#auFrom').value||!$('#auTo').value){toast('Pick both dates',true);return;}
+  buildEnvGrid();
+};
+$('#largeHead').onclick=function(){
+  var hidden=$('#largeBody').classList.toggle('hide');
+  $('#largeCollapsed').classList.toggle('hide',!hidden);
+  $('#largeChev').textContent=hidden?'+':'−';
+};
+$('#smallHead').onclick=function(){
+  var hidden=$('#smallBody').classList.toggle('hide');
+  $('#smallCollapsed').classList.toggle('hide',!hidden);
+  $('#smallChev').textContent=hidden?'+':'−';
 };
 
-boot();
+/* tabs + store pills */
+$all('#tabs .tab').forEach(function(t){t.onclick=function(){
+  $all('#tabs .tab').forEach(function(x){x.classList.toggle('active',x===t);});
+  $('#tab-balances').classList.toggle('hide',t.dataset.t!=='balances');
+  $('#tab-audit').classList.toggle('hide',t.dataset.t!=='audit');
+  $('#tab-settings').classList.toggle('hide',t.dataset.t!=='settings');
+  var showPeriod=(t.dataset.t==='balances'||t.dataset.t==='audit');
+  $all('.balonly').forEach(function(e){e.style.visibility=showPeriod?'visible':'hidden';});
+  if(t.dataset.t==='audit') loadAudit();
+};});
+function renderStorePills(){
+  $('#storePills').innerHTML=STATE.stores.map(function(s){return '<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+shortStore(s)+'</button>';}).join('');
+  $all('#storePills .sp').forEach(function(b){b.onclick=function(){STATE.store=b.dataset.s;STATE.logLoc=null;renderStorePills();renderSettings();loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};});
+}
+$('#period').onchange=function(){STATE.period=$('#period').value;loadData();if(!$('#tab-audit').classList.contains('hide'))loadAudit();};
+
+/* ===== BALANCES ===== */
+function renderCards(){
+  var bal=computeBalances();
+  var tl=tillsFor(STATE.store), total=0; locsFor(STATE.store).forEach(function(l){total+=bal[l];});
+  var html=tl.map(function(l){return card(l,bal[l],'','float '+money(floatTarget(STATE.store,l)));}).join('');
+  if(bal['Small Safe']!=null) html+=card('Small Safe',bal['Small Safe'],'safe','');
+  if(bal['Large Safe']!=null) html+=card('Large Safe',bal['Large Safe'],'large','');
+  html+=card('Total Cash',total,'total','');
+  $('#cards').innerHTML=html;
+  $('#balTitle').textContent=shortStore(STATE.store)+' — balances';
+}
+function card(l,v,cls,sub){return '<div class="bal '+(cls||'')+'"><div class="bl">'+l+'</div><div class="bv">'+money(v)+'</div>'+(sub?'<div class="bsub">'+sub+'</div>':'')+'</div>';}
+function logLocations(){
+  // The locations a store actually has, in a sensible order. No "All".
+  var locs=locsFor(STATE.store).slice();
+  var order=function(l){ var m=/^VCT(\d+)$/i.exec(l); if(m) return Number(m[1]); if(l==='Small Safe') return 90; if(l==='Large Safe') return 91; return 80; };
+  locs.sort(function(a,b){return order(a)-order(b);});
+  return locs;
+}
+function renderLogPills(){
+  var locs=logLocations();
+  if(STATE.logLoc==null || locs.indexOf(STATE.logLoc)<0) STATE.logLoc=locs[0]||null;
+  $('#logLocPills').innerHTML=locs.map(function(l){
+    return '<button class="sp'+(l===STATE.logLoc?' active':'')+'" data-l="'+l+'">'+l+'</button>';
+  }).join('');
+  $all('#logLocPills .sp').forEach(function(b){b.onclick=function(){STATE.logLoc=b.dataset.l;renderLogPills();renderLog();};});
+}
+function entryTouchesLoc(e,loc){
+  if(e.Location===loc) return true;
+  if(e.Operation==='Transfer' && e.ToLocation===loc) return true;
+  return false;
+}
+// Running balance for one location across the month, chronologically.
+function runningBalances(loc){
+  var bal=startBal(STATE.store,loc);
+  var chron=STATE.entries.slice().sort(function(a,b){
+    return String(a.Date).localeCompare(String(b.Date))||String(a.Id).localeCompare(String(b.Id));
+  });
+  var out={}; // entry Id -> {bal, delta, dir}
+  chron.forEach(function(e){
+    var op=e.Operation, amt=num(e.Amount), delta=0, dir='';
+    if(op==='Open'||op==='Close'){
+      if(e.Location===loc){ if(e.Counted!==''&&e.Counted!=null) bal=num(e.Counted); out[e.Id]={bal:bal,delta:null,dir:''}; }
+      return;
+    }
+    // Transfer
+    if(e.Location===loc){ bal-=amt; delta=-amt; dir='out'; out[e.Id]={bal:bal,delta:delta,dir:dir}; }
+    else if(e.ToLocation===loc){ bal+=amt; delta=amt; dir='in'; out[e.Id]={bal:bal,delta:delta,dir:dir}; }
+  });
+  return out;
+}
+function reconHTML(e){
+  var opening=num(e.OpeningBalance),pay=num(e.Payments),ret=num(e.Returns),pyo=num(e.Payouts),
+      tin=num(e.TransferIn),tout=num(e.TransferOut),exp=num(e.Expected),cnt=num(e.Counted),os=num(e.OverShort);
+  var hasRecon=(e.OpeningBalance!==''&&e.OpeningBalance!=null);
+  if(!hasRecon) return '<div class="recon"><div class="rl"><span class="muted">No reconciliation detail recorded for this close.</span></div></div>';
+  function line(l,v,cls){return '<div class="rl"><span>'+l+'</span><span class="'+(cls||'')+'">'+v+'</span></div>';}
+  return '<div class="recon">'+
+    '<div>'+
+      line('Opening balance',money(opening))+
+      line('+ Payments (sales)',money(pay))+
+      line('− Returns',money(ret))+
+      line('− Payouts',money(pyo))+
+      line('+ Transfers in',money(tin))+
+      line('− Transfers out',money(tout))+
+      line('Expected drawer',money(exp),'tot')+
+    '</div>'+
+    '<div>'+
+      line('Counted drawer',money(cnt))+
+      line('Expected',money(exp))+
+      line('Over / Short',money(os),(Math.abs(os)<0.005?'ok':'bad')+' tot')+
+      (e.Notes?('<div class="rl"><span>Note</span><span class="muted">'+e.Notes+'</span></div>'):'')+
+    '</div>'+
+  '</div>';
+}
+function renderLog(){
+  renderLogPills();
+  var loc=STATE.logLoc;
+  var run=runningBalances(loc);
+  var rows=STATE.entries.filter(function(e){return entryTouchesLoc(e,loc);})
+    .sort(function(a,b){return String(b.Date).localeCompare(String(a.Date))||String(b.Id).localeCompare(String(a.Id));});
+  if(!rows.length){$('#logBody').innerHTML='<p class="muted">No '+(loc||'')+' entries this month.</p>';return;}
+  var isSafe=(loc==='Small Safe'||loc==='Large Safe');
+  var denCols=LOG_DENOMS.map(function(){return '<col class="c-den">';}).join('');
+  var denHead=LOG_DENOMS.map(function(d){return '<th class="den-h">'+d.l+'</th>';}).join('');
+  var ncol=8+LOG_DENOMS.length;
+  var html='<div class="table-card"><div style="overflow-x:auto"><table class="elog"><colgroup>'+
+    '<col class="c-date"><col class="c-emp"><col class="c-op"><col class="c-bal">'+denCols+'<col class="c-amt"><col class="c-os"><col class="c-exp"></colgroup>'+
+    '<thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th class="num bal-h">'+(isSafe?'Balance':'Till Balance')+'</th>'+denHead+'<th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(e){
+    var isClose=(e.Operation==='Close');
+    var isTransfer=(e.Operation==='Transfer');
+    var r=run[e.Id]||{};
+    // For transfers, show the OTHER side (source/destination) relative to this view + direction.
+    var cp='', dir='', opCell;
+    if(isTransfer){
+      if(e.Location===loc){ cp=e.ToLocation; dir='out'; }
+      else { cp=e.Location; dir='in'; }
+      var cpLabel=(cp===EXPENSE)?'Cash Expense':cp;
+      var cpCls=(cp==='Large Safe')?'op-largedep':(cp==='Small Safe')?'op-smalldep':(cp===EXPENSE)?'exp':'cp-vct';
+      opCell='<span class="op-pill '+cpCls+'">'+cpLabel+'</span><span class="dir '+dir+'">'+dir+'</span>';
+    } else {
+      opCell='<span class="op-pill '+opPillClass(e)+'">'+e.Operation+'</span>';
+    }
+    var balCell=(r.bal!=null)?money(r.bal):'<span class="muted">—</span>';
+    var amt=money(num(e.Amount));
+    if(isTransfer&&dir==='out') amt='-'+amt;
+    var os=isClose?('<span class="os '+(Math.abs(num(e.OverShort))<0.005?'ok':'bad')+'">'+money(e.OverShort)+'</span>'):'—';
+    var expBtn=isClose?('<span class="exp-btn" data-exp="'+e.Id+'">+</span>'):'';
+    var denCells=LOG_DENOMS.map(function(d){var c=num(e[d.k]);return '<td class="den'+(c>0?'':' z')+'">'+(c>0?c:'·')+'</td>';}).join('');
+    html+='<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td>'+
+      '<td class="opcell">'+opCell+'</td>'+
+      '<td class="bal">'+balCell+'</td>'+
+      denCells+
+      '<td class="num">'+amt+'</td>'+
+      '<td class="num">'+os+'</td>'+
+      '<td class="num">'+expBtn+'</td></tr>';
+    if(isClose){
+      html+='<tr class="detrow hide" id="det-'+e.Id+'"><td colspan="'+ncol+'">'+reconHTML(e)+'</td></tr>';
+    }
+  });
+  html+='</tbody></table></div></div>';
+  $('#logBody').innerHTML=html;
+  $all('#logBody .exp-btn').forEach(function(b){b.onclick=function(){
+    var d=document.getElementById('det-'+b.dataset.exp);
+    var hidden=d.classList.toggle('hide'); b.textContent=hidden?'+':'−';
+  };});
+}
+
+/* ===== SETTINGS ===== */
+function markDirty(){STATE.dirty=true;$('#dirty').textContent='Unsaved changes';}
+function renderSettings(){
+  $('#setStore').textContent=shortStore(STATE.store); $('#setStore2').textContent=shortStore(STATE.store);
+  // locations table
+  var locs=STATE.setup.filter(function(s){return s.Store===STATE.store;});
+  $('#locTable').innerHTML='<div class="table-card"><table><thead><tr><th>Location</th><th class="num">Starting $</th><th class="num">Float $</th><th></th></tr></thead><tbody>'+
+    locs.map(function(r,i){return '<tr><td>'+r.Location+'</td>'+
+      '<td class="num"><input type="number" step="0.01" data-loc="'+r.Location+'" data-f="start" value="'+num(r.StartingBalance)+'" style="width:110px"></td>'+
+      '<td class="num"><input type="number" step="0.01" data-loc="'+r.Location+'" data-f="float" value="'+num(r.FloatTarget)+'" style="width:110px"></td>'+
+      '<td class="num"><span class="xbtn" data-delloc="'+r.Location+'">&times;</span></td></tr>';}).join('')+
+    '</tbody></table></div>';
+  $all('#locTable input').forEach(function(i){i.onchange=function(){
+    var row=STATE.setup.filter(function(s){return s.Store===STATE.store&&s.Location===i.dataset.loc;})[0];
+    if(row){if(i.dataset.f==='start')row.StartingBalance=num(i.value);else row.FloatTarget=num(i.value);markDirty();}
+  };});
+  $all('#locTable [data-delloc]').forEach(function(x){x.onclick=function(){
+    if(!confirm('Remove '+x.dataset.delloc+' from '+shortStore(STATE.store)+'?'))return;
+    STATE.setup=STATE.setup.filter(function(s){return !(s.Store===STATE.store&&s.Location===x.dataset.delloc);});
+    markDirty();renderSettings();
+  };});
+  // staff table
+  var staff=STATE.staff.filter(function(s){return s.Store===STATE.store;});
+  $('#staffTable').innerHTML='<div class="table-card"><table><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead><tbody>'+
+    (staff.length?staff.map(function(s){return '<tr><td>'+s.Name+'</td><td><input type="checkbox" data-staff="'+s.Name+'" '+(s.Active!==false?'checked':'')+'></td><td class="num"><span class="xbtn" data-delstaff="'+s.Name+'">&times;</span></td></tr>';}).join(''):'<tr><td colspan="3" class="muted">No staff yet.</td></tr>')+
+    '</tbody></table></div>';
+  $all('#staffTable [data-staff]').forEach(function(c){c.onchange=function(){var s=STATE.staff.filter(function(x){return x.Store===STATE.store&&x.Name===c.dataset.staff;})[0];if(s){s.Active=c.checked;markDirty();}};});
+  $all('#staffTable [data-delstaff]').forEach(function(x){x.onclick=function(){STATE.staff=STATE.staff.filter(function(s){return !(s.Store===STATE.store&&s.Name===x.dataset.delstaff);});markDirty();renderSettings();};});
+  // stores list
+  $('#storeList').innerHTML='<div class="table-card"><table><thead><tr><th>Store</th><th class="num">Registers</th></tr></thead><tbody>'+
+    STATE.stores.map(function(s){return '<tr><td>'+s+(s===STATE.store?' <span class="op-pill">selected</span>':'')+'</td><td class="num">'+tillsFor(s).length+'</td></tr>';}).join('')+'</tbody></table></div>';
+}
+$('#addLoc').onclick=function(){
+  var n=$('#newLocName').value.trim(); if(!n){toast('Enter a location name',true);return;}
+  if(STATE.setup.some(function(s){return s.Store===STATE.store&&s.Location.toLowerCase()===n.toLowerCase();})){toast('That location already exists',true);return;}
+  STATE.setup.push({Store:STATE.store,Location:n,StartingBalance:num($('#newLocStart').value),FloatTarget:num($('#newLocFloat').value)});
+  $('#newLocName').value='';$('#newLocStart').value='';$('#newLocFloat').value='';markDirty();renderSettings();
+};
+$('#addStaff').onclick=function(){var n=$('#newStaff').value.trim();if(!n)return;STATE.staff.push({Store:STATE.store,Name:n,Active:true});$('#newStaff').value='';markDirty();renderSettings();};
+$('#addStore').onclick=function(){
+  var n=$('#newStore').value.trim(); if(!n){toast('Enter a store name',true);return;}
+  if(STATE.stores.indexOf(n)>=0){toast('Store already exists',true);return;}
+  STATE.stores.push(n);
+  [['VCT1',200],['VCT2',200],['Small Safe',0],['Large Safe',0]].forEach(function(p){STATE.setup.push({Store:n,Location:p[0],StartingBalance:p[1],FloatTarget:p[1]});});
+  $('#newStore').value=''; STATE.store=n; markDirty(); renderStorePills(); renderSettings(); loadData();
+};
+$('#saveAll').onclick=function(){
+  $('#saveAll').disabled=true;
+  var setupRows=STATE.setup.map(function(s){return {Store:s.Store,Location:s.Location,StartingBalance:num(s.StartingBalance),FloatTarget:num(s.FloatTarget)};});
+  var staffRows=STATE.staff.map(function(s){return {Store:s.Store,Name:s.Name,Active:s.Active!==false};});
+  apiPost({action:'saveSetup',rows:setupRows}).then(function(){return apiPost({action:'saveStaff',rows:staffRows});}).then(function(r){
+    $('#saveAll').disabled=false; STATE.dirty=false; $('#dirty').textContent='Saved ✓'; setTimeout(function(){$('#dirty').textContent='';},2000);
+    toast('Settings saved');
+  }).catch(function(e){$('#saveAll').disabled=false;toast(String(e),true);});
+};
+$('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';api('ping').then(function(r){$('#connStatus').textContent=r&&r.ok?'✓ Connected':'✗ '+(r&&r.error||'No response');}).catch(function(e){$('#connStatus').textContent='✗ '+e;});};
 </script>
+<script src="assets/admin-gate.js"></script>
 </body>
 </html>
