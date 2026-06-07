@@ -912,6 +912,8 @@
   // Local data mutation + sync
   function save(){ saveCache(); }
   function initials(n){ return n.trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+  var STORE_COLORS={ 'CPR Eugene':'#23A62F', 'CPR Salem Northeast':'#DE262E', 'CPR Clackamas OR':'#4FB0E3' };
+  function storeColor(store){ var n=window.CPRLocations?CPRLocations.normalize(store):store; return STORE_COLORS[n]||'#B9BDCB'; }
   function formatDate(iso){
     if(!iso) return '';
     const [y,m,d]=iso.split('-');
@@ -999,7 +1001,7 @@
         item.style.position='relative';
         const inner=document.createElement('div');
         inner.className='employee-item'+(activeEmployeeId===emp.id?' active':'')+(emp.archived?' archived':'');
-        inner.innerHTML=`<div class="emp-avatar">${initials(emp.name)}</div>
+        inner.innerHTML=`<div class="emp-avatar" style="background:${emp.archived?'var(--grey)':storeColor(emp.store)}">${initials(emp.name)}</div>
           <div class="emp-info">
             <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
             <div class="emp-meta">${count} entr${count!==1?'ies':'y'}${emp.status&&emp.status!=='active'?' · <b style="color:var(--accent)">'+statusLabel(emp.status)+'</b>':''}</div>
@@ -1042,7 +1044,7 @@
         wrap.style.position='relative';
         const card=document.createElement('div');
         card.className='mobile-emp-card'+(emp.archived?' archived':'');
-        card.innerHTML=`<div class="emp-avatar">${initials(emp.name)}</div>
+        card.innerHTML=`<div class="emp-avatar" style="background:${emp.archived?'var(--grey)':storeColor(emp.store)}">${initials(emp.name)}</div>
           <div class="emp-info">
             <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
             <div class="emp-meta">${[emp.role,count+' entr'+(count!==1?'ies':'y'),emp.status&&emp.status!=='active'?statusLabel(emp.status):null].filter(Boolean).join(' · ')}</div>
