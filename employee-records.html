@@ -593,7 +593,7 @@
     <div class="modal-body">
       <div class="field-group"><label>Full Name</label><input type="text" id="empNameInput" placeholder="e.g. Jason Smith"/></div>
       <div class="field-group"><label>Role / Position</label><input type="text" id="empRoleInput" placeholder="e.g. Repair Technician"/></div>
-      <div class="field-group"><label>Store / Location</label><input type="text" id="empStoreInput" placeholder="e.g. Eugene"/></div>
+      <div class="field-group"><label>Store / Location</label><select id="empStoreInput"></select></div>
       <div class="field-group"><label>Start Date</label><input type="date" id="empStartDateInput"/></div>
       <div class="field-group"><label>Status</label>
         <select id="empStatusInput">
@@ -689,6 +689,7 @@
 
 </div><!-- end app-wrapper -->
 
+<script src="assets/locations.js"></script>
 <script>
   // ── Admin gate unlock ──
   document.addEventListener('cpr-unlocked', function(){
@@ -986,7 +987,7 @@
     // Group by store, sort stores alphabetically, sort employees within each store alphabetically
     const stores={};
     visible.forEach(emp=>{ const s=emp.store||'Unassigned'; if(!stores[s]) stores[s]=[]; stores[s].push(emp); });
-    Object.keys(stores).sort().forEach(store=>{
+    (window.CPRLocations?CPRLocations.sort(Object.keys(stores)):Object.keys(stores).sort()).forEach(store=>{
       // Store label
       const label=document.createElement('div');
       label.style.cssText='padding:10px 16px 4px;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);';
@@ -1032,7 +1033,7 @@
     }
     const stores={};
     visible.forEach(emp=>{ const s=emp.store||'Unassigned'; if(!stores[s]) stores[s]=[]; stores[s].push(emp); });
-    Object.keys(stores).sort().forEach(store=>{
+    (window.CPRLocations?CPRLocations.sort(Object.keys(stores)):Object.keys(stores).sort()).forEach(store=>{
       const group=document.createElement('div');
       group.className='store-group';
       group.innerHTML=`<div class="store-group-label">${store}</div>`;
@@ -1409,6 +1410,22 @@
     activeMenu=menu;
   }
 
+  // Populate the store dropdown from the shared locations list. Preserves any
+  // legacy free-text value already saved on a record so nothing is lost on edit.
+  function fillStoreSelect(val){
+    const sel=document.getElementById('empStoreInput'); if(!sel) return;
+    val=val||'';
+    let html='<option value="">— Unassigned —</option>';
+    if(window.CPRLocations){
+      html+=CPRLocations.options(val);
+      if(val && !CPRLocations.find(val)) html+='<option value="'+val+'">'+val+'</option>';
+    } else if(val){
+      html+='<option value="'+val+'">'+val+'</option>';
+    }
+    sel.innerHTML=html;
+    sel.value=(window.CPRLocations?CPRLocations.normalize(val):val);
+  }
+
   // Employee CRUD
   function openAddEmployee(){
     editingEmployeeId=null;
@@ -1416,6 +1433,7 @@
     document.getElementById('empNameInput').value='';
     document.getElementById('empRoleInput').value='';
     document.getElementById('empStoreInput').value='';
+    fillStoreSelect('');
     document.getElementById('empStartDateInput').value='';
     document.getElementById('empStatusInput').value='active';
     document.getElementById('empNotesInput').innerHTML='';
@@ -1430,6 +1448,7 @@
     document.getElementById('empNameInput').value=emp.name||'';
     document.getElementById('empRoleInput').value=emp.role||'';
     document.getElementById('empStoreInput').value=emp.store||'';
+    fillStoreSelect(emp.store||'');
     document.getElementById('empStartDateInput').value=emp.startDate||'';
     document.getElementById('empStatusInput').value=emp.status||'active';
     document.getElementById('empNotesInput').innerHTML=emp.notes||'';
