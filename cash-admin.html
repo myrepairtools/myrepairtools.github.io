@@ -263,9 +263,8 @@ tr.detrow.hide{display:none}
       </div>
     </div>
 
-    <div class="card"><h2>Staff — <span id="setStore2"></span></h2>
-      <div id="staffTable"></div>
-      <div class="row" style="margin-top:12px"><div class="field"><label>Add staff</label><input id="newStaff" placeholder="Name"></div><button class="btn alt sm" id="addStaff">Add</button></div>
+    <div class="card"><h2>Staff</h2>
+      <p class="hint">Staff is managed in <b>Admin &rarr; Employees</b> (the CPR Auth roster). This page reads that roster automatically &mdash; add, edit, or archive people there.</p>
     </div>
 
     <div class="card"><h2>Stores</h2>
@@ -735,7 +734,7 @@ function renderLog(){
 /* ===== SETTINGS ===== */
 function markDirty(){STATE.dirty=true;$('#dirty').textContent='Unsaved changes';}
 function renderSettings(){
-  $('#setStore').textContent=shortStore(STATE.store); $('#setStore2').textContent=shortStore(STATE.store);
+  $('#setStore').textContent=shortStore(STATE.store);
   // locations table
   var locs=STATE.setup.filter(function(s){return s.Store===STATE.store;});
   $('#locTable').innerHTML='<div class="table-card"><table><thead><tr><th>Location</th><th class="num">Starting $</th><th class="num">Float $</th><th></th></tr></thead><tbody>'+
@@ -753,13 +752,7 @@ function renderSettings(){
     STATE.setup=STATE.setup.filter(function(s){return !(s.Store===STATE.store&&s.Location===x.dataset.delloc);});
     markDirty();renderSettings();
   };});
-  // staff table
-  var staff=STATE.staff.filter(function(s){return s.Store===STATE.store;});
-  $('#staffTable').innerHTML='<div class="table-card"><table><thead><tr><th>Name</th><th>Active</th><th></th></tr></thead><tbody>'+
-    (staff.length?staff.map(function(s){return '<tr><td>'+s.Name+'</td><td><input type="checkbox" data-staff="'+s.Name+'" '+(s.Active!==false?'checked':'')+'></td><td class="num"><span class="xbtn" data-delstaff="'+s.Name+'">&times;</span></td></tr>';}).join(''):'<tr><td colspan="3" class="muted">No staff yet.</td></tr>')+
-    '</tbody></table></div>';
-  $all('#staffTable [data-staff]').forEach(function(c){c.onchange=function(){var s=STATE.staff.filter(function(x){return x.Store===STATE.store&&x.Name===c.dataset.staff;})[0];if(s){s.Active=c.checked;markDirty();}};});
-  $all('#staffTable [data-delstaff]').forEach(function(x){x.onclick=function(){STATE.staff=STATE.staff.filter(function(s){return !(s.Store===STATE.store&&s.Name===x.dataset.delstaff);});markDirty();renderSettings();};});
+  // staff is managed in Admin → Employees (CPR Auth roster); no staff editor here
   // stores list
   $('#storeList').innerHTML='<div class="table-card"><table><thead><tr><th>Store</th><th class="num">Registers</th></tr></thead><tbody>'+
     STATE.stores.map(function(s){return '<tr><td>'+s+(s===STATE.store?' <span class="op-pill">selected</span>':'')+'</td><td class="num">'+tillsFor(s).length+'</td></tr>';}).join('')+'</tbody></table></div>';
@@ -770,7 +763,6 @@ $('#addLoc').onclick=function(){
   STATE.setup.push({Store:STATE.store,Location:n,StartingBalance:num($('#newLocStart').value),FloatTarget:num($('#newLocFloat').value)});
   $('#newLocName').value='';$('#newLocStart').value='';$('#newLocFloat').value='';markDirty();renderSettings();
 };
-$('#addStaff').onclick=function(){var n=$('#newStaff').value.trim();if(!n)return;STATE.staff.push({Store:STATE.store,Name:n,Active:true});$('#newStaff').value='';markDirty();renderSettings();};
 $('#addStore').onclick=function(){
   var n=$('#newStore').value.trim(); if(!n){toast('Enter a store name',true);return;}
   if(STATE.stores.indexOf(n)>=0){toast('Store already exists',true);return;}
@@ -781,8 +773,7 @@ $('#addStore').onclick=function(){
 $('#saveAll').onclick=function(){
   $('#saveAll').disabled=true;
   var setupRows=STATE.setup.map(function(s){return {Store:s.Store,Location:s.Location,StartingBalance:num(s.StartingBalance),FloatTarget:num(s.FloatTarget)};});
-  var staffRows=STATE.staff.map(function(s){return {Store:s.Store,Name:s.Name,Active:s.Active!==false};});
-  apiPost({action:'saveSetup',rows:setupRows}).then(function(){return apiPost({action:'saveStaff',rows:staffRows});}).then(function(r){
+  apiPost({action:'saveSetup',rows:setupRows}).then(function(r){
     $('#saveAll').disabled=false; STATE.dirty=false; $('#dirty').textContent='Saved ✓'; setTimeout(function(){$('#dirty').textContent='';},2000);
     toast('Settings saved');
   }).catch(function(e){$('#saveAll').disabled=false;toast(String(e),true);});
