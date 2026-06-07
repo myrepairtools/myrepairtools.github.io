@@ -379,6 +379,7 @@ $('#entryModal').addEventListener('click',function(e){if(e.target===$('#entryMod
 $('#enOp').onchange=renderForm;
 
 function vctOptions(sel){return tillsFor(STATE.store).map(function(t){return '<option'+(t===sel?' selected':'')+'>'+t+'</option>';}).join('');}
+function xferOptions(sel){return tillsFor(STATE.store).concat(['Large Safe','Small Safe',EXPENSE]).map(function(l){return '<option value="'+l+'"'+(l===sel?' selected':'')+'>'+(l===EXPENSE?'Cash Expenses':l)+'</option>';}).join('');}
 function transferLocs(){return tillsFor(STATE.store).concat(safesFor(STATE.store));}
 
 function renderForm(){
@@ -393,16 +394,9 @@ function renderForm(){
         rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTin','Transfer In (+)')+rqf('enTout','Transfer Out (-)')+'</div>';
     } else { dyn+='</div>'; }
   } else {
-    var tills=tillsFor(STATE.store);
     dyn='<div class="row">'+
-      '<div class="field"><label>Transfer type</label><select id="enXtype">'+
-        '<option value="dep-large">Deposit to Large Safe (out of till)</option>'+
-        '<option value="wd-large">Withdraw from Large Safe (into till)</option>'+
-        '<option value="dep-small">Deposit to Small Safe (out of till)</option>'+
-        '<option value="wd-small">Withdraw from Small Safe (into till)</option>'+
-        '<option value="expense">Cash Expense — pay out</option>'+
-      '</select></div>'+
-      '<div class="field"><label>Till</label><select id="enXtill">'+tills.map(function(t){return '<option'+(t===activeVct?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>';
+      '<div class="field"><label>From</label><select id="enXfrom">'+xferOptions(activeVct)+'</select></div>'+
+      '<div class="field"><label>To</label><select id="enXto">'+xferOptions('Large Safe')+'</select></div></div>';
   }
   $('#enDynamic').innerHTML=dyn;
   var coins=(op==='Open'||op==='Close');
@@ -412,19 +406,17 @@ function renderForm(){
     dens.map(function(d){return '<div class="den"><div class="dl">'+d.l+'</div><input type="number" min="0" step="1" data-k="'+d.k+'" data-v="'+d.v+'" placeholder="0"><div class="ds" data-sub="'+d.k+'"></div></div>';}).join('')+'</div>';
   $all('#enDenoms input').forEach(function(i){i.oninput=recalc;});
   $all('#enDynamic input,#enDynamic select').forEach(function(i){i.oninput=recalc;i.onchange=recalc;});
+  var empSel=$('#enEmp'); if(empSel) empSel.onchange=recalc;
+  var ntField=$('#enNotes'); if(ntField) ntField.oninput=recalc;
   var vsel=$('#enVct'); if(vsel)vsel.onchange=function(){prefillOpening();recalc();};
   prefillOpening(); recalc();
 }
 function rqf(id,label){return '<div><label>'+label+'</label><input type="number" step="0.01" id="'+id+'" placeholder="0.00"></div>';}
 // Derive from/to for a guided transfer, relative to the chosen till.
 function xfDeriv(){
-  var type=$('#enXtype')?$('#enXtype').value:'dep-large';
-  var till=$('#enXtill')?$('#enXtill').value:STATE.vct;
-  if(type==='wd-large') return {from:'Large Safe',to:till};
-  if(type==='dep-small') return {from:till,to:'Small Safe'};
-  if(type==='wd-small') return {from:'Small Safe',to:till};
-  if(type==='expense') return {from:till,to:EXPENSE};
-  return {from:till,to:'Large Safe'}; // dep-large
+  var from=$('#enXfrom')?$('#enXfrom').value:STATE.vct;
+  var to=$('#enXto')?$('#enXto').value:'Large Safe';
+  return {from:from,to:to};
 }
 // Sum of transfers logged INTO this till today (safe -> till withdrawals).
 function autoTinFor(till){
@@ -458,6 +450,19 @@ function recalc(){
   }
   $('#enPreview').innerHTML=pv?'<div class="preview">'+pv+'</div>':'';
   $('#enRemind').innerHTML=rm?'<div class="remind">'+rm+'</div>':'';
+  var sb=$('#enSubmit'); if(sb) sb.disabled=!entryValid(op,total);
+}
+function entryValid(op,total){
+  if(!$('#enEmp')||!$('#enEmp').value) return false;
+  if(op==='Open') return total>0;
+  if(op==='Close'){
+    if(total<=0) return false;
+    return ['enOpening','enPayments','enReturns','enPayouts','enTin','enTout'].every(function(id){var el=$('#'+id);return el&&el.value!=='';});
+  }
+  if(total<=0) return false;
+  var d=xfDeriv(); if(d.from===d.to) return false;
+  if(d.to===EXPENSE && !$('#enNotes').value.trim()) return false;
+  return true;
 }
 function collectDenoms(){var o={};$all('#enDenoms input').forEach(function(i){o[i.dataset.k]=num(i.value);});return o;}
 
