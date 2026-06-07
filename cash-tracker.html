@@ -385,7 +385,7 @@ function renderForm(){
   if(op==='Open'||op==='Close'){
     dyn='<div class="row"><div class="field"><label>Register</label><select id="enVct">'+vctOptions(activeVct)+'</select></div>';
     if(op==='Close'){
-      dyn+='<div class="field"><label>Opening balance</label><input type="number" step="0.01" id="enOpening" placeholder="0.00"></div></div>';
+      dyn+='<div class="field"><label>Opening balance <span style="font-weight:400;color:#888;font-size:.85em">(from the open — locked)</span></label><input type="number" step="0.01" id="enOpening" placeholder="0.00" readonly tabindex="-1" style="background:#eceef3;color:#555;cursor:not-allowed"></div></div>';
       dyn+='<p class="hint" style="margin:12px 0 6px">Enter the cash figures from the RepairQ VCT closure form:</p><div class="rqgrid">'+
         rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTout','Transfer Out (-)')+'</div>'+
         '<p class="hint" id="enTinNote" style="margin:8px 0 0"></p>';
@@ -431,7 +431,7 @@ function autoTinFor(till){
     return e.Operation==='Transfer' && e.ToLocation===till && String(e.Date)===today;
   }).reduce(function(s,e){return s+num(e.Amount);},0)*100)/100;
 }
-function prefillOpening(){var ob=$('#enOpening');if(ob&&ob.value===''){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
+function prefillOpening(){var ob=$('#enOpening');if(ob){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
 function denomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return Math.round(t*100)/100;}
 function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:autoTinFor(till),tout:num(($('#enTout')||{}).value)};}
 function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
