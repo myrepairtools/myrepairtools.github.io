@@ -111,6 +111,7 @@ tr.detrow.hide{display:none}
 </head>
 <body>
 <script src="assets/nav.js" data-section="operations"></script>
+<script src="assets/locations.js"></script>
 <main>
   <div class="page-title-row">
     <div><h1>Cash Tracker</h1><p class="sub">Opens, closes &amp; transfers — logged by register.</p></div>
@@ -187,7 +188,7 @@ function apiPost(body){
 
 function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
 function todayISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
+function shortStore(s){return (window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,''));}
 
 /* tills/locations are data-driven from the Setup tab */
 function tillsFor(store){
@@ -221,7 +222,7 @@ function boot(){
   $('#todayLbl').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
   api('bootstrap').then(function(r){
     if(!r||!r.ok){showSetupBanner();return;}
-    STATE.stores=r.stores||[]; STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
+    STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
     var savedStore=pref('ct_store');
     STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
     pickInitialVct();
