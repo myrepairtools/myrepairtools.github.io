@@ -112,6 +112,7 @@ tr.detrow.hide{display:none}
 
 <div class="app" id="app">
 <script src="assets/nav.js" data-section="admin"></script>
+<script src="assets/locations.js"></script>
 <main>
   <h1>Cash Admin</h1><p class="sub">Balances, audit &amp; configuration across all stores.</p>
   <div class="banner hide" id="setupBanner"></div>
@@ -298,7 +299,7 @@ var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll
 function money(n){var x=Number(n)||0;return (x<0?'-$':'$')+Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function num(v){return (v===''||v==null)?0:Number(v)||0;}
 function fmtDate(v){return String(v||'').slice(0,10);}
-function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
+function shortStore(s){return (window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,''));}
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2400);}
 
 var EXPENSE='Cash Expenses';
@@ -349,7 +350,7 @@ function boot(){
   $('#period').value=thisPeriod(); STATE.period=thisPeriod();
   api('bootstrap').then(function(r){
     if(!r||!r.ok){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';return;}
-    STATE.stores=r.stores||[]; STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
+    STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
     STATE.store=STATE.stores[0]||null;
     renderStorePills(); renderSettings(); loadData();
   }).catch(function(){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';});
