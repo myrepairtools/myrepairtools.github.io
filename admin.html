@@ -54,6 +54,45 @@
   .btn-primary{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:var(--red);color:#fff;border:none;border-radius:9px;padding:10px 20px;cursor:pointer}
   .btn-primary:hover{background:var(--light-red)}
   .btn-ghost{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;background:#fff;color:var(--dark);border:1.5px solid var(--border);border-radius:9px;padding:9px 16px;cursor:pointer}
+  /* view-only rows + 3-dot menu */
+  .kebab{position:relative;display:inline-block}
+  .kebab-btn{cursor:pointer;background:none;border:1.5px solid transparent;border-radius:6px;padding:0 9px;font-size:20px;line-height:1.4;color:var(--grey);font-weight:800}
+  .kebab-btn:hover{border-color:var(--border);color:var(--dark)}
+  .kebab-menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:0 8px 28px rgba(45,45,59,.18);min-width:160px;z-index:30;overflow:hidden;display:none}
+  .kebab-menu.open{display:block}
+  .kebab-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:10px 14px;font-size:13px;font-family:'Nunito Sans',sans-serif;color:var(--dark);cursor:pointer}
+  .kebab-menu button:hover{background:var(--light-grey)}
+  .kebab-menu button.danger{color:var(--red)}
+  .store-tags{display:flex;gap:5px;flex-wrap:wrap}
+  .store-tag{display:inline-block;font-size:11px;font-weight:700;background:var(--light-grey);border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--dark-grey)}
+  .store-tag.primary{background:#eef6fc;border-color:#cde7f6;color:#1e6ea3}
+  .muted-dash{color:var(--grey)}
+  .status-pill{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:10px}
+  .status-active{background:#dcfce7;color:#065f46}
+  .status-notice{background:#fef9c3;color:#854d0e}
+  .status-terminated{background:#fee2e2;color:#991b1b}
+  .status-archived{background:#e5e7eb;color:#4b5563}
+  .login-yes{font-size:11px;font-weight:800;color:#065f46}
+  .login-no{font-size:11px;font-weight:800;color:var(--grey)}
+
+  /* Add/Edit modal (matches Cash Tracker) */
+  .modal-bg{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 24px;z-index:80;overflow-y:auto}
+  .modal-bg.hide{display:none}
+  .modal{background:#fff;border-radius:14px;border-top:4px solid var(--red);width:100%;max-width:560px;max-height:calc(100vh - 96px);overflow-y:auto;padding:22px 22px 24px;box-shadow:0 22px 60px rgba(45,45,59,.32)}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .modal-head h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;color:var(--dark)}
+  .modal-close{font-size:1.6rem;color:var(--grey);cursor:pointer;font-weight:900;line-height:1;padding:0 4px;background:none;border:none}
+  .modal-close:hover{color:var(--red)}
+  .mrow{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .mfield{flex:1;min-width:150px}
+  .mfield label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
+  .mfield input,.mfield select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Nunito Sans',sans-serif;background:#fff}
+  .altbox{display:flex;gap:16px;flex-wrap:wrap;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px}
+  .altbox label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--dark);margin:0;cursor:pointer}
+  .altbox input{width:auto}
+  .chk-inline{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--dark);margin-top:4px;cursor:pointer}
+  .chk-inline input{width:auto}
+  .modal-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
   @media(max-width:640px){.emp-hide-sm{display:none}}
 </style>
 </head>
@@ -117,23 +156,20 @@
     </div>
     </div>
 
-    <!-- EMPLOYEES VIEW (role-aware roster manager) -->
+    <!-- EMPLOYEES VIEW (roster manager) -->
     <div id="employeesView" style="display:none">
       <div class="emp-card">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
           <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark)">Employees</div>
           <div style="display:flex;gap:8px">
+            <button id="addEmpBtn" type="button" class="btn-primary" style="padding:8px 16px;font-size:13px">+ Add Employee</button>
             <button id="archToggle" type="button" class="hbtn">Show archived</button>
             <button id="backToTools" type="button" class="hbtn">&larr; Tools</button>
           </div>
         </div>
         <div id="empIntro" style="font-size:12px;color:var(--grey);font-weight:600;margin-bottom:16px"></div>
         <div id="empTableWrap"></div>
-        <div class="add-row" id="addRow"></div>
-        <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
-          <button id="empSave" type="button" class="btn-primary">Save changes</button>
-          <span id="empStatus" style="font-size:12px;font-weight:700;color:var(--grey)"></span>
-        </div>
+        <span id="empStatus" style="display:inline-block;margin-top:12px;font-size:12px;font-weight:700;color:var(--grey)"></span>
       </div>
     </div>
 
@@ -142,23 +178,59 @@
   <footer>CPR Cell Phone Repair — Oregon · Admin Portal · Confidential</footer>
 </div>
 
+<!-- Add / Edit employee modal -->
+<div class="modal-bg hide" id="empModal">
+  <div class="modal">
+    <div class="modal-head"><h2 id="empModalTitle">Add Employee</h2><button class="modal-close" id="empModalClose">&times;</button></div>
+    <div class="mrow">
+      <div class="mfield"><label>Full name</label><input id="mName" placeholder="e.g. Jordan Lee"></div>
+      <div class="mfield"><label>Title</label><input id="mTitle" placeholder="e.g. Repair Technician"></div>
+    </div>
+    <div class="mrow">
+      <div class="mfield"><label>Primary store</label><select id="mStore"></select></div>
+      <div class="mfield" id="mRoleWrap"><label>Role</label><select id="mRole">
+        <option value="employee">Employee</option><option value="admin">Admin</option><option value="owner">Owner</option>
+      </select></div>
+    </div>
+    <div class="mrow"><div class="mfield" style="flex:1 1 100%">
+      <label>Also works at</label><div class="altbox" id="mAlt"></div>
+    </div></div>
+    <div class="mrow">
+      <div class="mfield"><label>Status</label><select id="mStatus">
+        <option value="active">Active</option><option value="notice">On Notice</option><option value="terminated">Terminated</option>
+      </select></div>
+      <div class="mfield" id="mCodeWrap"><label>Passcode <span id="mCodeHint" style="font-weight:400;color:#999;text-transform:none;letter-spacing:0;font-size:.85em"></span></label><input id="mCode" placeholder="optional"></div>
+    </div>
+    <label class="chk-inline"><input type="checkbox" id="mActive" checked> Active — can log in and appears in staff lists</label>
+    <div id="mModalMsg" style="font-size:12px;font-weight:700;color:var(--red);margin-top:10px;min-height:14px"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" id="mCancel" type="button">Cancel</button>
+      <button class="btn-primary" id="mSave" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/locations.js"></script>
 <script>
   var VIEWER = { role:'', name:'', id:'' };
-  var ROWS = [];      // working copy of roster rows visible to this viewer
-  var DELETED = [];   // ids removed in this session, applied on Save
+  var ROWS = [];            // roster rows visible to this viewer
   var showArchived = false;
+  var editingId = null;     // null = adding; otherwise the id being edited
 
   document.addEventListener('cpr-unlocked', function(e){
     document.getElementById('mainContent').classList.add('visible');
     VIEWER.role = ((e.detail && e.detail.role) || '').toLowerCase();
     VIEWER.name = (e.detail && e.detail.name) || '';
-    // Owner AND admin can manage people (admins see employees only)
     document.getElementById('employeesBtn').style.display =
       (VIEWER.role === 'owner' || VIEWER.role === 'admin') ? 'inline-flex' : 'none';
   });
   document.getElementById('gateLock').onclick = function(){ if(window.CPRGate) CPRGate.lock(); };
 
   function isOwner(){ return VIEWER.role === 'owner'; }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function status(msg,kind){ var el=document.getElementById('empStatus'); el.textContent=msg||''; el.style.color = kind==='ok'?'#065f46':kind==='err'?'#991b1b':'var(--grey)'; }
+  function disp(s){ return (window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s+/i,'').replace(/\s+OR$/i,'')); }
+  function altList(str){ return String(str||'').split(',').map(function(x){return x.trim();}).filter(Boolean); }
 
   // ── View toggle ──
   function showEmployees(){
@@ -173,15 +245,13 @@
   }
   document.getElementById('employeesBtn').onclick = showEmployees;
   document.getElementById('backToTools').onclick = showTools;
+  document.getElementById('addEmpBtn').onclick = function(){ openModal(null); };
   document.getElementById('archToggle').onclick = function(){
     showArchived = !showArchived;
     this.textContent = showArchived ? 'Hide archived' : 'Show archived';
     this.classList.toggle('btn-ghost', showArchived);
     render();
   };
-
-  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function status(msg,kind){ var el=document.getElementById('empStatus'); el.textContent=msg||''; el.style.color = kind==='ok'?'#065f46':kind==='err'?'#991b1b':'var(--grey)'; }
 
   // ── Load ──
   function loadEmployees(){
@@ -190,189 +260,241 @@
       if(!r||!r.ok){ status((r&&r.error)||'Could not load','err'); return; }
       if(r.viewer && r.viewer.role){ VIEWER.role=String(r.viewer.role).toLowerCase(); VIEWER.id=r.viewer.id; }
       ROWS = (r.rows||[]).map(function(p){
-        return { id:p.id, name:p.name||'', store:p.store||'', title:p.title||'',
+        return { id:p.id, name:p.name||'', store:p.store||'', altStores:p.altStores||'', title:p.title||'',
                  role:(p.role||'employee'), active:p.active!==false, hasCode:!!p.hasCode,
-                 status:p.status||'active', archived:!!p.archived, newCode:'', _dirty:false };
+                 status:p.status||'active', archived:!!p.archived };
       });
       document.getElementById('empIntro').textContent = isOwner()
-        ? 'Everyone in the roster. Set store, title, and role; hand out or revoke passcodes (blank code = unchanged). Owner-only.'
-        : 'Your store employees. Add or edit people and update their details. Admin and owner accounts are managed by the owner.';
+        ? 'Everyone in the roster. Add, edit, or archive people; hand out or revoke passcodes. Owner-only.'
+        : 'Your store employees. Add or edit people; admin and owner accounts are managed by the owner.';
       render();
       status('');
     }).catch(function(err){ status('Could not load ('+err+')','err'); });
   }
 
   // ── Render ──
-  function render(){
-    isOwner() ? renderOwner() : renderAdmin();
-    renderAddRow();
+  function visibleRows(){ return ROWS.filter(function(a){ return showArchived ? a.archived : !a.archived; }); }
+
+  function storeCell(a){
+    if(a.role==='owner') return '<span class="store-tag primary">All stores</span>';
+    var tags=[];
+    if(a.store) tags.push('<span class="store-tag primary">'+esc(disp(a.store))+'</span>');
+    altList(a.altStores).forEach(function(s){ tags.push('<span class="store-tag">'+esc(disp(s))+'</span>'); });
+    if(!tags.length) return '<span class="muted-dash">—</span>';
+    return '<div class="store-tags">'+tags.join('')+'</div>';
+  }
+  function statusPill(a){
+    if(a.archived) return '<span class="status-pill status-archived">Archived</span>';
+    var s=(a.status||'active').toLowerCase();
+    var cls = s==='terminated'?'status-terminated':s==='notice'?'status-notice':'status-active';
+    var lbl = s==='notice'?'On Notice':s.charAt(0).toUpperCase()+s.slice(1);
+    return '<span class="status-pill '+cls+'">'+lbl+'</span>';
+  }
+  function roleBadge(role){ var r=(role||'employee').toLowerCase(); return '<span class="role-badge role-'+r+'">'+r+'</span>'; }
+
+  function kebab(a){
+    var items='<button data-act="edit" data-id="'+esc(a.id)+'">Edit</button>';
+    if(a.archived) items+='<button data-act="restore" data-id="'+esc(a.id)+'">Restore</button>';
+    else items+='<button class="danger" data-act="archive" data-id="'+esc(a.id)+'">Archive</button>';
+    if(isOwner() && a.hasCode) items+='<button class="danger" data-act="revoke" data-id="'+esc(a.id)+'">Revoke login</button>';
+    return '<div class="kebab"><button class="kebab-btn" data-menu="'+esc(a.id)+'">&#8942;</button>'+
+           '<div class="kebab-menu" id="menu-'+esc(a.id)+'">'+items+'</div></div>';
   }
 
-  function roleBadge(role){
-    var r=(role||'employee').toLowerCase();
-    return '<span class="role-badge role-'+r+'">'+r+'</span>';
-  }
+  function render(){ isOwner() ? renderOwner() : renderAdmin(); }
 
   function renderOwner(){
-    // group by role: owner, admin, employee
     var order={owner:0,admin:1,employee:2};
-    var sorted=ROWS.filter(function(a){ return showArchived || !a.archived; }).sort(function(a,b){
+    var rows=visibleRows().sort(function(a,b){
       var ra=order[a.role]==null?3:order[a.role], rb=order[b.role]==null?3:order[b.role];
       if(ra!==rb) return ra-rb; return a.name.localeCompare(b.name);
     });
-    var head='<thead><tr>'+
-      '<th>Name</th><th class="emp-hide-sm">Store</th><th class="emp-hide-sm">Title</th>'+
-      '<th>Role</th><th>Active</th><th>Passcode</th><th></th></tr></thead>';
-    var body=sorted.map(function(a){
-      var i=ROWS.indexOf(a);
+    if(!rows.length){ emptyState(); return; }
+    var head='<thead><tr><th>Name</th><th class="emp-hide-sm">Store(s)</th><th class="emp-hide-sm">Title</th>'+
+      '<th>Role</th><th>Login</th><th>Status</th><th></th></tr></thead>';
+    var body=rows.map(function(a){
       return '<tr>'+
-        '<td><input data-i="'+i+'" data-f="name" value="'+esc(a.name)+'"></td>'+
-        '<td class="emp-hide-sm"><input data-i="'+i+'" data-f="store" value="'+esc(a.store)+'"></td>'+
-        '<td class="emp-hide-sm"><input data-i="'+i+'" data-f="title" value="'+esc(a.title)+'"></td>'+
-        '<td><select data-i="'+i+'" data-f="role">'+
-          '<option value="employee"'+(a.role==='employee'?' selected':'')+'>Employee</option>'+
-          '<option value="admin"'+(a.role==='admin'?' selected':'')+'>Admin</option>'+
-          '<option value="owner"'+(a.role==='owner'?' selected':'')+'>Owner</option>'+
-        '</select></td>'+
-        '<td style="text-align:center"><input type="checkbox" data-i="'+i+'" data-f="active" '+(a.active?'checked':'')+'></td>'+
-        '<td><div class="codecell">'+
-          '<input data-i="'+i+'" data-f="newCode" placeholder="'+(a.hasCode?'(unchanged)':'set code')+'" style="width:108px">'+
-          (a.hasCode?'<button class="icon-btn danger" data-revoke="'+i+'" title="Revoke login">Revoke</button>':'<span class="codestate no">no code</span>')+
-        '</div></td>'+
-        '<td style="text-align:right"><button class="icon-btn danger" data-del="'+i+'" title="Delete">&times;</button></td>'+
+        '<td><b>'+esc(a.name)+'</b></td>'+
+        '<td class="emp-hide-sm">'+storeCell(a)+'</td>'+
+        '<td class="emp-hide-sm">'+(a.title?esc(a.title):'<span class="muted-dash">—</span>')+'</td>'+
+        '<td>'+roleBadge(a.role)+'</td>'+
+        '<td>'+(a.hasCode?'<span class="login-yes">Yes</span>':'<span class="login-no">—</span>')+'</td>'+
+        '<td>'+statusPill(a)+'</td>'+
+        '<td style="text-align:right">'+kebab(a)+'</td>'+
       '</tr>';
     }).join('');
     document.getElementById('empTableWrap').innerHTML =
-      '<div style="border:1px solid var(--border);border-radius:10px;overflow:auto"><table class="emp-table">'+head+'<tbody>'+body+'</tbody></table></div>';
-    wireRowEvents();
+      '<div style="border:1px solid var(--border);border-radius:10px;overflow:visible"><table class="emp-table">'+head+'<tbody>'+body+'</tbody></table></div>';
+    wireRows();
   }
 
   function renderAdmin(){
-    // admins see employee-role only; group by store
+    var rows=visibleRows();
     var stores={};
-    ROWS.forEach(function(a){ if(!showArchived && a.archived) return; var s=a.store||'Unassigned'; (stores[s]=stores[s]||[]).push(a); });
-    var html='<div style="border:1px solid var(--border);border-radius:10px;overflow:auto"><table class="emp-table">'+
-      '<thead><tr><th>Name</th><th>Store</th><th>Title</th><th>Status</th><th></th></tr></thead><tbody>';
-    Object.keys(stores).sort().forEach(function(s){
-      html+='<tr><td colspan="5" class="grp-label">'+esc(s)+'</td></tr>';
+    rows.forEach(function(a){ var s=a.store||'Unassigned'; (stores[s]=stores[s]||[]).push(a); });
+    var keys=Object.keys(stores);
+    keys = window.CPRLocations ? CPRLocations.sort(keys) : keys.sort();
+    if(!rows.length){ emptyState(); return; }
+    var html='<div style="border:1px solid var(--border);border-radius:10px;overflow:visible"><table class="emp-table">'+
+      '<thead><tr><th>Name</th><th class="emp-hide-sm">Store(s)</th><th class="emp-hide-sm">Title</th><th>Status</th><th></th></tr></thead><tbody>';
+    keys.forEach(function(s){
+      html+='<tr><td colspan="5" class="grp-label">'+esc(disp(s))+'</td></tr>';
       stores[s].sort(function(a,b){return a.name.localeCompare(b.name);}).forEach(function(a){
-        var i=ROWS.indexOf(a);
         html+='<tr>'+
-          '<td><input data-i="'+i+'" data-f="name" value="'+esc(a.name)+'"></td>'+
-          '<td><input data-i="'+i+'" data-f="store" value="'+esc(a.store)+'"></td>'+
-          '<td><input data-i="'+i+'" data-f="title" value="'+esc(a.title)+'"></td>'+
-          '<td><select data-i="'+i+'" data-f="status">'+
-            '<option value="active"'+(a.status==='active'?' selected':'')+'>Active</option>'+
-            '<option value="notice"'+(a.status==='notice'?' selected':'')+'>On Notice</option>'+
-            '<option value="terminated"'+(a.status==='terminated'?' selected':'')+'>Terminated</option>'+
-          '</select></td>'+
-          '<td style="text-align:right"><button class="icon-btn danger" data-del="'+i+'" title="Delete">&times;</button></td>'+
+          '<td><b>'+esc(a.name)+'</b></td>'+
+          '<td class="emp-hide-sm">'+storeCell(a)+'</td>'+
+          '<td class="emp-hide-sm">'+(a.title?esc(a.title):'<span class="muted-dash">—</span>')+'</td>'+
+          '<td>'+statusPill(a)+'</td>'+
+          '<td style="text-align:right">'+kebab(a)+'</td>'+
         '</tr>';
       });
     });
     html+='</tbody></table></div>';
-    var anyVisible = Object.keys(stores).length > 0;
-    document.getElementById('empTableWrap').innerHTML = anyVisible?html:'<div style="padding:18px;color:var(--grey);font-size:13px">'+(ROWS.length?'No active employees. Use “Show archived” to see archived staff.':'No employees yet. Add one below.')+'</div>';
-    wireRowEvents();
+    document.getElementById('empTableWrap').innerHTML = html;
+    wireRows();
   }
 
-  function wireRowEvents(){
-    Array.prototype.forEach.call(document.querySelectorAll('#empTableWrap [data-f]'), function(el){
-      var handler=function(){
-        var a=ROWS[+el.dataset.i]; var f=el.dataset.f;
-        if(f==='active') a.active=el.checked;
-        else a[f]=el.value;
-        a._dirty=true;
-      };
-      el.addEventListener('change',handler);
-      if(el.tagName==='INPUT'&&el.type!=='checkbox') el.addEventListener('input',handler);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll('#empTableWrap [data-del]'), function(x){
-      x.onclick=function(){
-        var a=ROWS[+x.dataset.del];
-        if(!confirm('Remove '+(a.name||'this person')+'? This deletes their roster entry.'))return;
-        if(a.id) DELETED.push(a.id);
-        ROWS.splice(+x.dataset.del,1);
-        render();
+  function emptyState(){
+    var msg = showArchived ? 'No archived employees.' : 'No active employees yet. Use “+ Add Employee” to add one.';
+    document.getElementById('empTableWrap').innerHTML = '<div style="padding:18px;color:var(--grey);font-size:13px">'+msg+'</div>';
+  }
+
+  function rowById(id){ for(var i=0;i<ROWS.length;i++) if(String(ROWS[i].id)===String(id)) return ROWS[i]; return null; }
+
+  function wireRows(){
+    Array.prototype.forEach.call(document.querySelectorAll('#empTableWrap [data-menu]'), function(btn){
+      btn.onclick=function(ev){
+        ev.stopPropagation();
+        var id=btn.dataset.menu, m=document.getElementById('menu-'+id), wasOpen=m.classList.contains('open');
+        closeMenus();
+        if(!wasOpen) m.classList.add('open');
       };
     });
-    Array.prototype.forEach.call(document.querySelectorAll('#empTableWrap [data-revoke]'), function(x){
-      x.onclick=function(){
-        var a=ROWS[+x.dataset.revoke];
-        if(!confirm('Revoke '+(a.name||'this person')+"'s login? They won't be able to sign in until given a new code."))return;
-        status('Revoking…');
-        CPRGate.saveEmployee({ id:a.id, clearPasscode:true }).then(function(r){
-          if(r&&r.ok){ a.hasCode=false; a.newCode=''; render(); status('Login revoked ✓','ok'); }
-          else status((r&&r.error)||'Revoke failed','err');
-        }).catch(function(e){ status(String(e),'err'); });
+    Array.prototype.forEach.call(document.querySelectorAll('#empTableWrap [data-act]'), function(b){
+      b.onclick=function(ev){
+        ev.stopPropagation(); closeMenus();
+        var a=rowById(b.dataset.id); if(!a) return;
+        var act=b.dataset.act;
+        if(act==='edit') openModal(a.id);
+        else if(act==='archive') archiveRow(a, true);
+        else if(act==='restore') archiveRow(a, false);
+        else if(act==='revoke') revokeRow(a);
       };
     });
   }
+  function closeMenus(){ Array.prototype.forEach.call(document.querySelectorAll('.kebab-menu.open'), function(m){ m.classList.remove('open'); }); }
+  document.addEventListener('click', closeMenus);
 
-  // ── Add row ──
-  function renderAddRow(){
-    var el=document.getElementById('addRow');
-    if(isOwner()){
-      el.innerHTML=
-        '<div class="fg"><label>Name</label><input id="adName" placeholder="Full name"></div>'+
-        '<div class="fg"><label>Store</label><input id="adStore" placeholder="e.g. Eugene"></div>'+
-        '<div class="fg"><label>Title</label><input id="adTitle" placeholder="e.g. Repair Technician"></div>'+
-        '<div class="fg" style="min-width:110px"><label>Role</label><select id="adRole">'+
-          '<option value="employee">Employee</option><option value="admin">Admin</option><option value="owner">Owner</option></select></div>'+
-        '<div class="fg" style="min-width:110px"><label>Passcode</label><input id="adCode" placeholder="optional"></div>'+
-        '<button id="adAdd" type="button" class="btn-ghost">Add</button>';
-    } else {
-      el.innerHTML=
-        '<div class="fg"><label>Name</label><input id="adName" placeholder="Full name"></div>'+
-        '<div class="fg"><label>Store</label><input id="adStore" placeholder="e.g. Eugene"></div>'+
-        '<div class="fg"><label>Title</label><input id="adTitle" placeholder="e.g. Repair Technician"></div>'+
-        '<button id="adAdd" type="button" class="btn-ghost">Add</button>';
-    }
-    document.getElementById('adAdd').onclick=addPerson;
-  }
-
-  function addPerson(){
-    var name=(document.getElementById('adName').value||'').trim();
-    if(!name){ alert('Enter a name'); return; }
-    var row={ id:'', name:name, store:(document.getElementById('adStore').value||'').trim(),
-              title:(document.getElementById('adTitle').value||'').trim(),
-              role:'employee', active:true, hasCode:false, status:'active', archived:false, newCode:'', _dirty:true };
-    if(isOwner()){
-      row.role=document.getElementById('adRole').value;
-      row.newCode=(document.getElementById('adCode').value||'').trim();
-      if((row.role==='admin'||row.role==='owner') && !row.newCode){ alert('Set a passcode for an admin or owner.'); return; }
-    }
-    ROWS.push(row);
-    render();
-    status('Added — click "Save changes" to commit.');
-  }
-
-  // ── Save (bulk upsert visible rows + apply deletes) ──
-  function empToPayload(a){
-    var p={ id:a.id||undefined, name:a.name, store:a.store, title:a.title, active:a.active };
-    if(isOwner()){
-      p.role=a.role;
-      if(a.newCode && a.newCode.trim()!=='') p.passcode=a.newCode.trim();
-    } else {
-      p.role='employee';
-      p.status=a.status;
-    }
-    return p;
-  }
-
-  document.getElementById('empSave').onclick=function(){
-    status('Saving…');
-    var ops=[];
-    DELETED.forEach(function(id){ ops.push(CPRGate.deleteEmployee(id)); });
-    ROWS.forEach(function(a){ ops.push(CPRGate.saveEmployee(empToPayload(a))); });
-    Promise.all(ops).then(function(results){
-      var bad=results.filter(function(r){ return !(r&&r.ok); });
-      DELETED=[];
-      if(bad.length){ status((bad[0]&&bad[0].error)||(bad.length+' change(s) failed'),'err'); }
-      else status('Saved ✓','ok');
-      loadEmployees();
+  // ── Archive / Restore / Revoke (immediate save) ──
+  function archiveRow(a, makeArchived){
+    var verb = makeArchived ? 'Archive' : 'Restore';
+    if(!confirm(verb+' '+(a.name||'this person')+'?'+(makeArchived?' They’ll be hidden from active lists but their records are kept.':''))) return;
+    status((makeArchived?'Archiving…':'Restoring…'));
+    var payload = makeArchived ? { id:a.id, archived:true, active:false } : { id:a.id, archived:false, active:true, status:'active' };
+    CPRGate.saveEmployee(payload).then(function(r){
+      if(r&&r.ok){ status(verb+'d ✓','ok'); loadEmployees(); }
+      else status((r&&r.error)||(verb+' failed'),'err');
     }).catch(function(e){ status(String(e),'err'); });
-  };
+  }
+  function revokeRow(a){
+    if(!confirm("Revoke "+(a.name||'this person')+"'s login? They won't be able to sign in until given a new code.")) return;
+    status('Revoking…');
+    CPRGate.saveEmployee({ id:a.id, clearPasscode:true }).then(function(r){
+      if(r&&r.ok){ status('Login revoked ✓','ok'); loadEmployees(); }
+      else status((r&&r.error)||'Revoke failed','err');
+    }).catch(function(e){ status(String(e),'err'); });
+  }
+
+  // ── Modal (Add + Edit) ──
+  var modal = document.getElementById('empModal');
+  function mmsg(t){ document.getElementById('mModalMsg').textContent = t||''; }
+
+  function buildStoreControls(primary, alts){
+    // primary dropdown
+    var sel=document.getElementById('mStore');
+    var opts='<option value="">— Unassigned —</option>';
+    opts += window.CPRLocations ? CPRLocations.options(primary) : '';
+    sel.innerHTML=opts;
+    sel.value = window.CPRLocations ? CPRLocations.normalize(primary) : (primary||'');
+    // alt checkboxes (one per store)
+    var box=document.getElementById('mAlt');
+    var altSet={}; alts.forEach(function(s){ var c=window.CPRLocations?CPRLocations.normalize(s):s; altSet[c]=true; });
+    var stores = window.CPRLocations ? CPRLocations.list() : [];
+    box.innerHTML = stores.map(function(s){
+      return '<label><input type="checkbox" value="'+esc(s.name)+'" '+(altSet[s.name]?'checked':'')+'> '+esc(s.display)+'</label>';
+    }).join('') || '<span class="muted-dash" style="font-size:12px">locations.js not loaded</span>';
+  }
+
+  function openModal(id){
+    editingId = id;
+    var a = id ? rowById(id) : null;
+    document.getElementById('empModalTitle').textContent = a ? 'Edit Employee' : 'Add Employee';
+    document.getElementById('mName').value  = a ? a.name  : '';
+    document.getElementById('mTitle').value = a ? a.title : '';
+    document.getElementById('mStatus').value = a ? (a.status||'active') : 'active';
+    document.getElementById('mActive').checked = a ? a.active : true;
+    buildStoreControls(a?a.store:'', a?altList(a.altStores):[]);
+
+    // role: owner can set; admin is locked to employee
+    var roleWrap=document.getElementById('mRoleWrap'), roleSel=document.getElementById('mRole');
+    if(isOwner()){ roleWrap.style.display=''; roleSel.disabled=false; roleSel.value = a ? a.role : 'employee'; }
+    else { roleWrap.style.display='none'; roleSel.value='employee'; }
+
+    // passcode: owner-only
+    var codeWrap=document.getElementById('mCodeWrap'), codeInput=document.getElementById('mCode'), hint=document.getElementById('mCodeHint');
+    if(isOwner()){
+      codeWrap.style.display=''; codeInput.value='';
+      hint.textContent = (a && a.hasCode) ? '(leave blank = unchanged)' : '(set a login code)';
+    } else { codeWrap.style.display='none'; codeInput.value=''; hint.textContent=''; }
+
+    mmsg('');
+    modal.classList.remove('hide');
+    setTimeout(function(){ document.getElementById('mName').focus(); }, 60);
+  }
+  function closeModal(){ modal.classList.add('hide'); editingId=null; }
+  document.getElementById('empModalClose').onclick=closeModal;
+  document.getElementById('mCancel').onclick=closeModal;
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeModal(); });
+
+  function saveModal(){
+    var name=(document.getElementById('mName').value||'').trim();
+    if(!name){ mmsg('Enter a name.'); return; }
+    var primary=document.getElementById('mStore').value;
+    var alts=[];
+    Array.prototype.forEach.call(document.querySelectorAll('#mAlt input:checked'), function(c){
+      if(c.value && c.value!==primary) alts.push(c.value);   // never list primary as an alt
+    });
+    var role = isOwner() ? document.getElementById('mRole').value : 'employee';
+    var code = (document.getElementById('mCode').value||'').trim();
+    var existing = editingId ? rowById(editingId) : null;
+
+    if(isOwner() && (role==='admin'||role==='owner') && !code && !(existing && existing.hasCode)){
+      mmsg('Set a passcode for an admin or owner.'); return;
+    }
+
+    var payload = {
+      id: editingId || undefined,
+      name: name,
+      title: (document.getElementById('mTitle').value||'').trim(),
+      store: primary,
+      altStores: alts.join(', '),
+      status: document.getElementById('mStatus').value,
+      active: document.getElementById('mActive').checked
+    };
+    if(isOwner()){
+      payload.role = role;
+      if(code) payload.passcode = code;
+    }
+
+    document.getElementById('mSave').disabled=true;
+    mmsg('');
+    CPRGate.saveEmployee(payload).then(function(r){
+      document.getElementById('mSave').disabled=false;
+      if(r&&r.ok){ closeModal(); status('Saved ✓','ok'); loadEmployees(); }
+      else mmsg((r&&r.error)||'Save failed');
+    }).catch(function(e){ document.getElementById('mSave').disabled=false; mmsg(String(e)); });
+  }
+  document.getElementById('mSave').onclick=saveModal;
 </script>
 <script src="assets/nav.js" data-section="admin"></script>
 <script src="assets/admin-gate.js"></script>
