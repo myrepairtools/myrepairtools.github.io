@@ -179,7 +179,10 @@ function api(action,params){
 function apiPost(body){
   if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
   body.token=API_TOKEN;
-  return fetch(WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json();});
+  // Pack the whole payload into the query string: an Apps Script POST body can be
+  // dropped across the /exec redirect, but query params always arrive.
+  var url=WEBAPP_URL+'?action='+encodeURIComponent(body.action||'')+'&token='+encodeURIComponent(API_TOKEN)+'&payload='+encodeURIComponent(JSON.stringify(body));
+  return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:'{}'}).then(function(r){return r.json();});
 }
 
 function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
@@ -387,8 +390,7 @@ function renderForm(){
     if(op==='Close'){
       dyn+='<div class="field"><label>Opening balance <span style="font-weight:400;color:#888;font-size:.85em">(from the open — locked)</span></label><input type="number" step="0.01" id="enOpening" placeholder="0.00" readonly tabindex="-1" style="background:#eceef3;color:#555;cursor:not-allowed"></div></div>';
       dyn+='<p class="hint" style="margin:12px 0 6px">Enter the cash figures from the RepairQ VCT closure form:</p><div class="rqgrid">'+
-        rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTout','Transfer Out (-)')+'</div>'+
-        '<p class="hint" id="enTinNote" style="margin:8px 0 0"></p>';
+        rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTin','Transfer In (+)')+rqf('enTout','Transfer Out (-)')+'</div>';
     } else { dyn+='</div>'; }
   } else {
     var tills=tillsFor(STATE.store);
@@ -433,7 +435,7 @@ function autoTinFor(till){
 }
 function prefillOpening(){var ob=$('#enOpening');if(ob){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
 function denomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return Math.round(t*100)/100;}
-function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:autoTinFor(till),tout:num(($('#enTout')||{}).value)};}
+function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:num(($('#enTin')||{}).value),tout:num(($('#enTout')||{}).value)};}
 function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
 function isTill(l){return /^VCT\d+$/i.test(String(l));}
 
@@ -443,7 +445,6 @@ function recalc(){
   if(op==='Close'){
     var v=rqVals(),exp=rqExpected(v),os=total-exp;
     pv='Expected drawer: <b>'+money(exp)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Over/Short: <span class="os '+osClass(os)+'">'+money(os)+'</span>';
-    var tn=$('#enTinNote'); if(tn) tn.textContent = v.tin>0 ? ('Includes '+money(v.tin)+' transferred into this till today (auto-detected from logged transfers).') : '';
   } else if(op==='Open'){
     var till=$('#enVct')?$('#enVct').value:STATE.vct,b=computeBalances(),diff=total-(b[till]||0);
     pv='Expected in drawer: <b>'+money(b[till]||0)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Difference: <span class="os '+(Math.abs(diff)<0.005?'ok':'bad')+'">'+money(diff)+'</span>';
@@ -469,7 +470,7 @@ $('#enSubmit').onclick=function(){
     var till=$('#enVct').value; payload.location=till; payload.amount=total; payload.counted=total;
   } else if(op==='Close'){
     var t2=$('#enVct').value, v=rqVals();
-    var anyBlank=['enOpening','enPayments','enReturns','enPayouts','enTout'].some(function(id){return !$('#'+id)||$('#'+id).value==='';});
+    var anyBlank=['enOpening','enPayments','enReturns','enPayouts','enTin','enTout'].some(function(id){return !$('#'+id)||$('#'+id).value==='';});
     if(anyBlank){toast('Fill in every RepairQ closing field (use 0 if none)',true);return;}
     if(total<=0){toast('Enter the drawer count',true);return;}
     var exp=rqExpected(v);
