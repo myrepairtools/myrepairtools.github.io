@@ -163,6 +163,7 @@ tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
 <script src="assets/site-gate.js"></script>
 <div id="appWrapper">
 <script src="assets/nav.js" data-section="admin"></script>
+<script src="assets/locations.js"></script>
 <main>
   <div class="page-title-row">
     <div>
@@ -344,7 +345,7 @@ function showSettings(open){
 function bindSettingsBtn(){$('#btnSettings').addEventListener('click',function(){
   showSettings($('#tab-settings').classList.contains('hide'));});
   var b=$('#settingsBack'); if(b) b.onclick=function(){showSettings(false);};}
-function shortStore(s){return s.replace(/^CPR\s*/,'');}
+function shortStore(s){return (window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,''));}
 
 // ---------- REPORT ----------
 function applyQuick(){var v=$('#repQuick').value,now=new Date(),y=now.getFullYear(),m=now.getMonth();
@@ -706,7 +707,7 @@ function renderRulesForm(){var sel=$('#rulesStore');if(!sel)return;var store=sel
 function saveTierRules(){apiPost({action:'saveTierRules',rules:STATE.rules}).then(function(res){if(res.ok)toast('Commission rules saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
 
 // ---------- bootstrap ----------
-function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stores:STATE.stores;
+function applyBootstrap(res){STATE.stores=(window.CPRLocations?CPRLocations.sort(res.stores&&res.stores.length?res.stores:STATE.stores):(res.stores&&res.stores.length?res.stores:STATE.stores));
   if(res.config){STATE.config=res.config;STATE.config.forEach(function(c){c.Active=!(c.Active===false||String(c.Active).toUpperCase()==='FALSE');});}
   if(res.rates)STATE.rates=res.rates;
   if(res.ruleDefaults)STATE.ruleDefaults=res.ruleDefaults;
@@ -714,7 +715,7 @@ function applyBootstrap(res){STATE.stores=res.stores&&res.stores.length?res.stor
   refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();}
 function refreshSelects(){fillTipsAddSel();}
 function init(){
-  STATE.stores=['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR'];
+  STATE.stores=(window.CPRLocations?CPRLocations.names():['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR']);
   STATE.config=[{Store:'CPR Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'CPR Salem Northeast',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'CPR Clackamas OR',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
   refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();
   api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
