@@ -424,7 +424,7 @@ async function submitReport(){
     cost:document.getElementById('fCost').value.replace(/[^0-9.\-]/g,''),
     how:document.getElementById('fHow').value.trim()
   };
-  var btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='Submitting&hellip;';
+  var btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='Submitting\u2026';
   try{
     var r=await api('addReport',payload);
     if(r&&r.ok){ pref('dmg_store',store); toast('Report submitted'); closeModal(); clearForm(); await reloadList(); }
@@ -439,27 +439,26 @@ async function reloadList(){ var l=await api('list'); STATE.entries=(l&&l.ok&&l.
 var ADMIN_CODE=null;
 function openPass(){ document.getElementById('passInput').value=''; document.getElementById('passErr').style.display='none'; document.getElementById('pass').classList.remove('hide'); }
 function closePass(){ document.getElementById('pass').classList.add('hide'); }
+var EDIT_MFRS=[], EDIT_PARTS=[];
 async function tryPass(){
   var code=document.getElementById('passInput').value.trim(); if(!code) return;
-  var btn=document.getElementById('passBtn'); btn.disabled=true; btn.textContent='Checking&hellip;';
+  var btn=document.getElementById('passBtn'); btn.disabled=true; btn.textContent='Checking\u2026';
   try{
-    var v=await api('verifyAdmin',{code:code});
-    if(v&&v.ok&&v.admin){ ADMIN_CODE=code; closePass(); await openSettings(); }
+    // settingsGet verifies admin server-side and returns the settings in one trip —
+    // no separate verifyAdmin call, so the passcode is only checked against CPR Auth once.
+    var s=await api('settingsGet',{code:code});
+    if(s&&s.ok){ ADMIN_CODE=code; applySettings(s); closePass(); document.getElementById('settings').classList.remove('hide'); }
     else { document.getElementById('passErr').style.display='block'; }
   }catch(e){ document.getElementById('passErr').style.display='block'; }
   btn.disabled=false; btn.textContent='Unlock settings';
 }
-var EDIT_MFRS=[], EDIT_PARTS=[];
-async function openSettings(){
-  var s=await api('settingsGet',{code:ADMIN_CODE});
-  if(!s||!s.ok){ toast('Could not load settings'); return; }
+function applySettings(s){
   EDIT_MFRS=s.manufacturers||[]; EDIT_PARTS=s.parts||[];
   document.getElementById('sMode').value=s.notifyMode||'email';
   document.getElementById('sEmail').value=s.teamsEmail||'';
   document.getElementById('sWebhook').value=s.webhookUrl||'';
   document.getElementById('sWebhookFmt').value=s.webhookFormat||'adaptive';
   syncModeFields(); renderEdit();
-  document.getElementById('settings').classList.remove('hide');
 }
 function closeSettings(){ document.getElementById('settings').classList.add('hide'); }
 function syncModeFields(){ var m=document.getElementById('sMode').value; document.getElementById('emailField').className='field'+(m==='email'?'':' hide'); document.getElementById('webhookField').className='field'+(m==='webhook'?'':' hide'); }
@@ -471,7 +470,7 @@ function renderEdit(){
 document.getElementById('mfrAdd').addEventListener('keydown',function(e){ if(e.key==='Enter'&&this.value.trim()){ EDIT_MFRS.push(this.value.trim()); this.value=''; renderEdit(); } });
 document.getElementById('partAdd').addEventListener('keydown',function(e){ if(e.key==='Enter'&&this.value.trim()){ EDIT_PARTS.push(this.value.trim()); this.value=''; renderEdit(); } });
 async function saveSettings(){
-  var btn=document.getElementById('saveSettingsBtn'); btn.disabled=true; btn.textContent='Saving&hellip;';
+  var btn=document.getElementById('saveSettingsBtn'); btn.disabled=true; btn.textContent='Saving\u2026';
   try{
     var r=await api('settingsSave',{ code:ADMIN_CODE, manufacturers:EDIT_MFRS, parts:EDIT_PARTS,
       notifyMode:document.getElementById('sMode').value, teamsEmail:document.getElementById('sEmail').value.trim(),
