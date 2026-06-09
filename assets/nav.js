@@ -1,277 +1,312 @@
 /* ===========================================================================
- * CPR myrepairtools.github.io — Shared Navigation
+ * CPR myrepairtools.github.io — Shared Side Navigation
  * ---------------------------------------------------------------------------
- * Drop into any tool page with:
- *   <script src="assets/nav.js" data-section="admin"></script>
- * or
- *   <script src="assets/nav.js" data-section="operations"></script>
+ * Drop into any tool page with:  <script src="assets/nav.js"></script>
+ * (the data-section attribute from the old top nav is no longer needed.)
  *
- * Per-page: the script injects a top nav into <body>. Each page should
- * REMOVE its existing <header> element so they don't double up.
+ * Desktop/tablet (>=860px): a pinned left rail. Operations tools are always
+ * visible. Admin & Owner tools are hidden until someone unlocks with a
+ * passcode; the passcode is verified by the nav-auth proxy, which returns a
+ * role (admin / owner). Admin sees admin-level tools; owner sees everything.
+ * The unlock rides across pages/tabs (localStorage) and auto-relocks after
+ * IDLE minutes of inactivity. A manual Lock button is always available.
  *
- * To add a new tool or rename one, edit the SECTIONS config block below
- * and the change propagates to every page.
+ * Mobile (<860px): a top bar + hamburger that opens the same list as a drawer
+ * (unchanged behavior from the old nav).
  *
- * Mobile: below 760px the tool links + section toggle collapse behind a
- * hamburger button with large tap targets.
+ * IMPORTANT: revealing a link is NOT granting access. Every sensitive tool
+ * still re-checks the passcode against CPR Auth in its own backend. The nav
+ * reveal is convenience + tidiness only.
+ *
+ * Pages should NOT include their own <header> — the rail replaces it. Inside
+ * an iframe (RepairQ embed) the nav is skipped entirely.
  * ========================================================================= */
 (function () {
   'use strict';
 
-  // Skip nav entirely when this page is loaded inside an iframe
-  // (e.g., embedded in RepairQ via the RQ Mods extension).
-  if (window.self !== window.top) return;
+  if (window.self !== window.top) return;   // skip inside iframes
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // CONFIG — tools per section
-  // ──────────────────────────────────────────────────────────────────────────
-  const SECTIONS = {
-    admin: {
-      label: 'Admin',
-      icon: '🔒',
-      color: '#DC282E',        // CPR red
-      landing: 'admin.html',
-      tools: [
-        { label: 'Cash Admin',            url: 'cash-admin.html' },
-        { label: 'Claim Ledger',          url: 'claim-ledger.html' },
-        { label: 'Commission Calculator', url: 'commission-calculator.html' },
-        { label: 'Employee Records',      url: 'employee-records.html' },
-        { label: 'Profit First',          url: 'profit-first.html' }
-      ]
-    },
-    operations: {
-      label: 'Operations',
-      icon: '🔧',
-      color: '#4FB0E3',        // CPR blue
-      landing: 'operations.html',
-      tools: [
-        { label: 'Cash Tracker',       url: 'cash-tracker.html' },
-        { label: 'Price Calculator',   url: 'price-calc-and-guide.html' },
-        { label: 'Price Guide',        url: 'price-guide.html' },
-        { label: 'Jerry Ding Order',   url: 'jerry-ding-order.html' },
-        { label: 'PO Converter',       url: 'po-converter.html' }
-      ]
-    }
+  // ──────────────────────────────────────────────────────────────────────
+  // CONFIG
+  // ──────────────────────────────────────────────────────────────────────
+  var NAV_AUTH = {
+    // ↓↓↓ paste the /exec URL from deploying nav-auth.gs here ↓↓↓
+    url: 'https://script.google.com/macros/s/AKfycbz-QLDZVZZPeHzs1ScSkx9cs59bbi2NS6k8f_rf7avFWW07Mx8wlS96XrC1yE8z2fCj/exec',
+    token: 'a3f1c8e90b2d4f6a8c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d',
+    idleMinutes: 15
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Resolve section from this script tag's data-section attribute
-  // ──────────────────────────────────────────────────────────────────────────
-  const scriptEl = document.currentScript ||
-    (function () {
-      const scripts = document.getElementsByTagName('script');
-      for (let i = scripts.length - 1; i >= 0; i--) {
-        if (/nav\.js(\?|$)/.test(scripts[i].src)) return scripts[i];
-      }
-      return null;
-    })();
-  const sectionKey = (scriptEl && scriptEl.dataset.section) || 'operations';
-  const section = SECTIONS[sectionKey] || SECTIONS.operations;
+  var HOME = 'index.html';
 
-  // Identify the current page (used to mark the active tool link)
-  const currentFile = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var OPERATIONS = [
+    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵' },
+    { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮' },
+    { label:'Price Guide',         url:'price-guide.html',         icon:'📱' },
+    { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋' },
+    { label:'PO Converter',        url:'po-converter.html',        icon:'📦' },
+    { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧' }
+  ];
+  // minRole: 'admin' = managers + owner; 'owner' = owner only.
+  var PRIVILEGED = [
+    { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin' },
+    { label:'Employee Records', url:'employee-records.html',      icon:'📁', minRole:'admin' },
+    { label:'Claim Ledger',     url:'claim-ledger.html',          icon:'📊', minRole:'owner' },
+    { label:'Commission',       url:'commission-calculator.html', icon:'🧾', minRole:'owner' },
+    { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner' },
+    { label:'Staff Management', url:'admin.html',                 icon:'👥', minRole:'owner' }
+  ];
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // STYLES (injected once)
-  // ──────────────────────────────────────────────────────────────────────────
-  const css = `
-    .cpr-nav {
-      position: sticky; top: 0; z-index: 100;
-      background: #FFFFFF;
-      border-bottom: 2px solid ${section.color};
-      font-family: 'Nunito', sans-serif;
-      box-shadow: 0 1px 4px rgba(45,45,59,0.06);
-    }
-    .cpr-nav-strip { height: 6px; background: #0F0F12; }
-    .cpr-nav-inner {
-      max-width: 1400px; margin: 0 auto;
-      padding: 12px 24px;
-      display: flex; align-items: center; gap: 20px;
-    }
-    .cpr-nav-brand {
-      display: flex; align-items: center; gap: 12px;
-      text-decoration: none; color: #2D2D3B;
-      flex-shrink: 0;
-    }
-    .cpr-nav-brand img { width: auto; display: block; }
-    .cpr-nav-brand .cpr-brand-icon { height: 36px; }
-    .cpr-nav-brand .cpr-brand-logo { display: none; height: 30px; }
+  var RANK = { none:0, employee:1, admin:2, owner:3 };
+  var AUTH_KEY = 'cprNavAuth';
+  var IDLE_MS = NAV_AUTH.idleMinutes * 60 * 1000;
 
-    /* menu wrapper (tools + toggle) */
-    .cpr-nav-menu {
-      display: flex; align-items: center; gap: 20px;
-      flex: 1;
-    }
-    .cpr-nav-tools {
-      display: flex; align-items: center; gap: 4px;
-      flex: 1; flex-wrap: wrap;
-    }
-    .cpr-nav-tools a {
-      text-decoration: none; color: #4E4E50;
-      font-weight: 700; font-size: 13px;
-      padding: 8px 14px; border-radius: 6px;
-      transition: all 0.15s;
-      letter-spacing: 0.2px;
-      position: relative;
-    }
-    .cpr-nav-tools a:hover { background: #F3F2F2; color: #2D2D3B; }
-    .cpr-nav-tools a.active { color: #2D2D3B; font-weight: 800; background: transparent; }
-    .cpr-nav-tools a.active::after {
-      content: '';
-      position: absolute;
-      left: 14px; right: 14px; bottom: 2px;
-      height: 2px; border-radius: 1px;
-      background: #4FB0E3;
-    }
+  var currentFile = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var ON_HOME = (currentFile === '' || currentFile === 'index.html' ||
+                 currentFile === 'operations.html' || currentFile === 'admin.html');
 
-    /* Section toggle (pill) */
-    .cpr-nav-toggle {
-      display: inline-flex; align-items: center;
-      background: #F3F2F2;
-      border-radius: 999px;
-      padding: 3px;
-      flex-shrink: 0;
-    }
-    .cpr-toggle-segment {
-      text-decoration: none;
-      font-family: 'Nunito', sans-serif;
-      font-weight: 800; font-size: 11px;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      padding: 6px 14px;
-      border-radius: 999px;
-      color: #4E4E50;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
-    .cpr-toggle-segment:hover { color: #2D2D3B; }
-    .cpr-toggle-segment.active {
-      background: ${section.color}; color: #FFFFFF;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-    }
-    .cpr-toggle-segment.active:hover { color: #FFFFFF; }
+  // ──────────────────────────────────────────────────────────────────────
+  // AUTH STATE (localStorage; rides across pages/tabs; idle-relocks)
+  // ──────────────────────────────────────────────────────────────────────
+  function readAuth(){
+    try {
+      var raw = localStorage.getItem(AUTH_KEY); if (!raw) return null;
+      var a = JSON.parse(raw);
+      if (!a || !a.role) return null;
+      if (Date.now() - (a.last || 0) > IDLE_MS) { localStorage.removeItem(AUTH_KEY); return null; }
+      return a;
+    } catch(_) { return null; }
+  }
+  function writeAuth(role, name){ try { localStorage.setItem(AUTH_KEY, JSON.stringify({ role:role, name:name||'', last:Date.now() })); } catch(_){} }
+  function touchAuth(){ var a = readAuth(); if (a) writeAuth(a.role, a.name); }
+  function clearAuth(){ try { localStorage.removeItem(AUTH_KEY); } catch(_){} }
+  function currentRole(){ var a = readAuth(); return a ? a.role : null; }
+  function rank(){ return RANK[currentRole()] || 0; }
 
-    /* Hamburger — hidden on desktop */
-    .cpr-nav-burger {
-      display: none;
-      margin-left: auto;
-      background: #F3F2F2; border: none; border-radius: 8px;
-      width: 42px; height: 42px;
-      cursor: pointer; flex-shrink: 0;
-      align-items: center; justify-content: center;
-      color: #2D2D3B;
-    }
-    .cpr-nav-burger:hover { background: #E7E6E6; }
-    .cpr-nav-burger svg { width: 22px; height: 22px; display: block; }
-
-    /* ── Mobile ── */
-    @media (max-width: 760px) {
-      .cpr-nav-inner { padding: 10px 16px; gap: 12px; flex-wrap: wrap; }
-      .cpr-nav-brand .cpr-brand-icon { display: none; }
-      .cpr-nav-brand .cpr-brand-logo { display: block; height: 28px; }
-      .cpr-nav-burger { display: inline-flex; }
-
-      .cpr-nav-menu {
-        display: none;
-        flex-basis: 100%; width: 100%;
-        flex-direction: column; align-items: stretch;
-        gap: 10px;
-        padding-top: 8px;
-      }
-      .cpr-nav-menu.open { display: flex; }
-
-      .cpr-nav-tools {
-        flex-direction: column; align-items: stretch;
-        gap: 2px; flex: none;
-      }
-      .cpr-nav-tools a {
-        font-size: 16px; font-weight: 700;
-        padding: 13px 14px; border-radius: 8px;
-      }
-      .cpr-nav-tools a.active { background: #F3F2F2; }
-      .cpr-nav-tools a.active::after { display: none; }
-
-      .cpr-nav-toggle {
-        align-self: stretch;
-        justify-content: center;
-        padding: 4px;
-      }
-      .cpr-toggle-segment {
-        flex: 1; text-align: center;
-        font-size: 13px; padding: 10px 14px;
-      }
-    }
-  `;
-  const styleEl = document.createElement('style');
-  styleEl.textContent = css;
-  document.head.appendChild(styleEl);
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // NAV HTML
-  // ──────────────────────────────────────────────────────────────────────────
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[c]);
+  function broadcastRole(){
+    window.CPRNavRole = currentRole();
+    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:window.CPRNavRole } })); } catch(_){}
   }
 
-  const toolLinks = section.tools.map(t => {
-    const isActive = t.url.toLowerCase() === currentFile ? ' class="active"' : '';
-    return `<a href="${escapeHtml(t.url)}"${isActive}>${escapeHtml(t.label)}</a>`;
-  }).join('');
+  // ──────────────────────────────────────────────────────────────────────
+  // STYLES
+  // ──────────────────────────────────────────────────────────────────────
+  var css = `
+  :root{ --cpr-nav-w:248px; }
+  .cpr-rail,.cpr-rail *{ box-sizing:border-box; }
+  .cpr-rail{ position:fixed; top:0; left:0; bottom:0; width:var(--cpr-nav-w);
+    background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000;
+    display:flex; flex-direction:column; overflow-y:auto;
+    font-family:'Nunito','Nunito Sans',sans-serif; }
+  .cpr-rail a{ text-decoration:none; }
+  .cpr-brand{ display:flex; align-items:center; gap:10px; padding:16px 16px 12px; }
+  .cpr-mark{ width:36px; height:36px; border-radius:9px; background:#DC282E; flex:none;
+    display:flex; align-items:center; justify-content:center; }
+  .cpr-mark svg{ width:20px; height:20px; }
+  .cpr-wm{ font-family:'Nunito',sans-serif; font-weight:900; font-size:1rem; color:#2D2D3B; letter-spacing:-.3px; line-height:1; }
+  .cpr-wm small{ display:block; font-weight:700; font-size:.58rem; letter-spacing:.5px; color:#B9BDCB; text-transform:uppercase; margin-top:3px; }
 
-  const toggleSegments = Object.keys(SECTIONS).map(key => {
-    const s = SECTIONS[key];
-    const active = key === sectionKey ? ' active' : '';
-    return `<a class="cpr-toggle-segment${active}" href="${escapeHtml(s.landing)}">${escapeHtml(s.label)}</a>`;
-  }).join('');
+  .cpr-grp{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; text-transform:uppercase;
+    letter-spacing:.9px; color:#B9BDCB; padding:14px 18px 6px; }
+  .cpr-link{ display:flex; align-items:center; gap:11px; padding:9px 18px;
+    font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem; color:#4E4E50;
+    border-left:3px solid transparent; cursor:pointer; }
+  .cpr-link .ic{ width:21px; text-align:center; font-size:1rem; flex:none; }
+  .cpr-link:hover{ background:#F3F2F2; color:#2D2D3B; }
+  .cpr-link.active{ background:#EAF6FD; border-left-color:#4FB0E3; color:#2D2D3B; font-weight:800; }
+  .cpr-link .tag{ margin-left:auto; font-family:'Nunito',sans-serif; font-weight:800; font-size:.5rem;
+    letter-spacing:.4px; text-transform:uppercase; color:#B9BDCB; border:1px solid #E0E2EA; border-radius:5px; padding:1px 5px; }
+  .cpr-link .tag.owner{ color:#DC282E; border-color:#F6C9CA; background:#FFF1F1; }
 
-  const burgerSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
+  .cpr-div{ height:1px; background:#E0E2EA; margin:10px 16px; }
 
-  const navHtml = `
-    <header class="cpr-nav">
-      <div class="cpr-nav-strip"></div>
-      <div class="cpr-nav-inner">
-        <a class="cpr-nav-brand" href="${escapeHtml(section.landing)}">
-          <img class="cpr-brand-icon" src="assets/images/CPR%20Icon.PNG" alt="CPR" onerror="this.style.display='none'" />
-          <img class="cpr-brand-logo" src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" onerror="this.style.display='none'" />
-        </a>
-        <button class="cpr-nav-burger" id="cprNavBurger" aria-label="Menu" aria-expanded="false">${burgerSvg}</button>
-        <div class="cpr-nav-menu" id="cprNavMenu">
-          <nav class="cpr-nav-tools">${toolLinks}</nav>
-          <div class="cpr-nav-toggle">${toggleSegments}</div>
-        </div>
-      </div>
-    </header>
+  .cpr-lock{ margin:6px 14px 14px; background:#F3F2F2; border:1px solid #E0E2EA; border-radius:12px; padding:13px; }
+  .cpr-lock .hd{ display:flex; align-items:center; gap:9px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.84rem; color:#2D2D3B; }
+  .cpr-lock .hd .pad{ width:28px; height:28px; border-radius:8px; background:#fff; border:1px solid #E0E2EA; display:flex; align-items:center; justify-content:center; font-size:.9rem; }
+  .cpr-lock p{ font-size:.72rem; color:#4E4E50; margin:8px 0 10px; line-height:1.4; }
+  .cpr-btn{ font-family:'Nunito',sans-serif; font-weight:800; border:none; border-radius:9px; cursor:pointer; font-size:.82rem; padding:9px 12px; width:100%; }
+  .cpr-btn.red{ background:#DC282E; color:#fff; }
+  .cpr-passwrap{ display:none; margin-top:9px; }
+  .cpr-passwrap.show{ display:block; }
+  .cpr-passwrap input{ width:100%; font-family:'Nunito Sans',sans-serif; font-size:.9rem; padding:9px; border:1.5px solid #E0E2EA; border-radius:9px; }
+  .cpr-passwrap input:focus{ outline:none; border-color:#4FB0E3; box-shadow:0 0 0 3px rgba(79,176,227,.15); }
+  .cpr-err{ display:none; color:#DC282E; font-size:.72rem; font-weight:700; margin-top:7px; }
+  .cpr-err.show{ display:block; }
+
+  .cpr-unlocked-hd{ display:flex; align-items:center; gap:7px; padding:0 18px 6px; }
+  .cpr-pill{ display:inline-flex; align-items:center; gap:6px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.64rem; color:#23A62F; }
+  .cpr-pill .dot{ width:7px; height:7px; border-radius:50%; background:#23A62F; }
+  .cpr-lockbtn{ margin-left:auto; font-family:'Nunito',sans-serif; font-weight:800; font-size:.62rem; color:#4E4E50; background:none; border:none; cursor:pointer; text-transform:uppercase; letter-spacing:.5px; }
+  .cpr-lockbtn:hover{ color:#DC282E; }
+
+  .cpr-spacer{ flex:1; }
+  .cpr-gear{ display:flex; align-items:center; gap:10px; padding:11px 18px; margin:6px 0; cursor:pointer;
+    font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem; color:#4E4E50; border-top:1px solid #E0E2EA; }
+  .cpr-gear:hover{ background:#F3F2F2; color:#2D2D3B; }
+  .cpr-foot{ padding:10px 18px 16px; font-size:.58rem; color:#B9BDCB; }
+
+  /* push page content right on desktop to clear the rail */
+  @media(min-width:860px){ body{ margin-left:var(--cpr-nav-w) !important; } }
+
+  /* mobile top bar + drawer */
+  .cpr-top{ display:none; position:sticky; top:0; background:#fff; border-bottom:1.5px solid #E0E2EA;
+    padding:11px 14px; align-items:center; gap:11px; z-index:1001; }
+  .cpr-burger{ font-size:1.4rem; background:none; border:none; cursor:pointer; color:#2D2D3B; line-height:1; padding:4px; }
+  .cpr-scrim{ display:none; position:fixed; inset:0; background:rgba(45,45,59,.45); z-index:999; }
+  .cpr-scrim.show{ display:block; }
+  @media(max-width:859px){
+    .cpr-rail{ transform:translateX(-100%); transition:transform .22s ease; width:280px; }
+    .cpr-rail.open{ transform:translateX(0); }
+    .cpr-top{ display:flex; }
+  }
   `;
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Inject + wire up the hamburger
-  // ──────────────────────────────────────────────────────────────────────────
-  function injectNav() {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = navHtml.trim();
-    document.body.insertBefore(wrap.firstChild, document.body.firstChild);
+  // ──────────────────────────────────────────────────────────────────────
+  // HTML BUILD
+  // ──────────────────────────────────────────────────────────────────────
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+  var MARK = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg>';
 
-    const burger = document.getElementById('cprNavBurger');
-    const menu = document.getElementById('cprNavMenu');
-    if (burger && menu) {
-      burger.addEventListener('click', function () {
-        const open = menu.classList.toggle('open');
-        burger.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-      window.addEventListener('resize', function () {
-        if (window.innerWidth > 760) {
-          menu.classList.remove('open');
-          burger.setAttribute('aria-expanded', 'false');
-        }
-      });
+  function linkHtml(t, tag){
+    var active = (t.url.toLowerCase() === currentFile) ? ' active' : '';
+    var tagHtml = tag ? (' <span class="tag '+(tag==='Owner'?'owner':'')+'">'+tag+'</span>') : '';
+    return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+t.icon+'</span> '+esc(t.label)+tagHtml+'</a>';
+  }
+
+  function privilegedHtml(){
+    var r = rank();
+    if (r < RANK.admin){
+      // locked card
+      return ''
+        + '<div class="cpr-grp">Admin &amp; Owner</div>'
+        + '<div class="cpr-lock">'
+        +   '<div class="hd"><span class="pad">🔒</span> Locked tools</div>'
+        +   '<p>Owner &amp; manager tools are hidden. Enter your passcode to unlock them on this device.</p>'
+        +   '<button class="cpr-btn red" data-act="show-pass">Unlock</button>'
+        +   '<div class="cpr-passwrap" data-pass>'
+        +     '<input type="password" inputmode="numeric" placeholder="Passcode" data-passinput>'
+        +     '<div style="height:8px"></div>'
+        +     '<button class="cpr-btn red" data-act="do-unlock">Unlock settings</button>'
+        +     '<div class="cpr-err" data-err>That passcode doesn\'t have admin access.</div>'
+        +   '</div>'
+        + '</div>';
     }
+    // unlocked
+    var name = (readAuth() && readAuth().name) || '';
+    var roleLabel = (currentRole()==='owner') ? 'Owner' : 'Admin';
+    var links = PRIVILEGED.filter(function(t){ return r >= RANK[t.minRole]; })
+      .map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
+    var gear = (currentRole()==='owner')
+      ? '<div class="cpr-gear" data-act="settings"><span>⚙️</span> Settings</div>' : '';
+    return ''
+      + '<div class="cpr-grp" style="padding-bottom:6px">Admin &amp; Owner</div>'
+      + '<div class="cpr-unlocked-hd"><span class="cpr-pill"><span class="dot"></span> '+esc(roleLabel)+(name?(' · '+esc(name)):'')+'</span>'
+      +   '<button class="cpr-lockbtn" data-act="lock">Lock</button></div>'
+      + links
+      + '<div class="cpr-spacer"></div>'
+      + gear;
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectNav);
-  } else {
-    injectNav();
+  function railInner(){
+    var ops = OPERATIONS.map(function(t){ return linkHtml(t); }).join('');
+    var homeActive = ON_HOME ? ' active' : '';
+    return ''
+      + '<a class="cpr-brand" href="'+esc(HOME)+'"><span class="cpr-mark">'+MARK+'</span>'
+      +   '<span class="cpr-wm">CPR Tools<small>Oregon</small></span></a>'
+      + '<a class="cpr-link'+homeActive+'" href="'+esc(HOME)+'"><span class="ic">🏠</span> Home</a>'
+      + '<div class="cpr-grp">Operations</div>'
+      + ops
+      + '<div class="cpr-div"></div>'
+      + '<div data-priv>' + privilegedHtml() + '</div>'
+      + '<div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // RENDER + WIRE
+  // ──────────────────────────────────────────────────────────────────────
+  var rail, scrim;
+  function renderPriv(){
+    var holder = rail && rail.querySelector('[data-priv]');
+    if (holder){ holder.innerHTML = privilegedHtml(); wirePriv(); }
+    broadcastRole();
+  }
+
+  function wirePriv(){
+    if (!rail) return;
+    rail.querySelectorAll('[data-act]').forEach(function(el){
+      var act = el.getAttribute('data-act');
+      el.onclick = function(e){
+        if (act === 'show-pass'){ var w = rail.querySelector('[data-pass]'); if (w){ w.classList.add('show'); var i = w.querySelector('[data-passinput]'); if (i) i.focus(); } }
+        else if (act === 'do-unlock'){ doUnlock(); }
+        else if (act === 'lock'){ clearAuth(); renderPriv(); }
+        else if (act === 'settings'){ e.preventDefault(); alert('Global settings will live here. Tool-specific settings stay inside each tool (look for the gear in that tool\'s header).'); }
+      };
+    });
+    var input = rail.querySelector('[data-passinput]');
+    if (input) input.onkeydown = function(e){ if (e.key === 'Enter') doUnlock(); };
+  }
+
+  function doUnlock(){
+    var input = rail.querySelector('[data-passinput]');
+    var err = rail.querySelector('[data-err]');
+    var btn = rail.querySelector('[data-act="do-unlock"]');
+    var code = input ? input.value.trim() : '';
+    if (!code) return;
+    if (err) err.classList.remove('show');
+    if (!NAV_AUTH.url || NAV_AUTH.url.indexOf('PASTE_') === 0){
+      if (err){ err.textContent = 'Admin unlock isn\'t set up yet.'; err.classList.add('show'); }
+      return;
+    }
+    if (btn){ btn.disabled = true; btn.textContent = 'Checking…'; }
+    var u = NAV_AUTH.url + '?action=verify&code=' + encodeURIComponent(code) + '&token=' + encodeURIComponent(NAV_AUTH.token);
+    fetch(u).then(function(r){ return r.json(); }).then(function(d){
+      if (d && d.ok && (d.role === 'admin' || d.role === 'owner')){
+        writeAuth(d.role, d.name); renderPriv();
+      } else {
+        if (err){ err.textContent = 'That passcode doesn\'t have admin access.'; err.classList.add('show'); }
+        if (btn){ btn.disabled = false; btn.textContent = 'Unlock settings'; }
+      }
+    }).catch(function(){
+      if (err){ err.textContent = 'Could not reach the server. Try again.'; err.classList.add('show'); }
+      if (btn){ btn.disabled = false; btn.textContent = 'Unlock settings'; }
+    });
+  }
+
+  function injectNav(){
+    var styleEl = document.createElement('style'); styleEl.textContent = css; document.head.appendChild(styleEl);
+
+    // mobile top bar
+    var top = document.createElement('div'); top.className = 'cpr-top';
+    top.innerHTML = '<button class="cpr-burger" aria-label="Menu">☰</button>'
+      + '<span class="cpr-mark" style="width:30px;height:30px;border-radius:7px"><svg viewBox="0 0 24 24" style="width:17px;height:17px"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>'
+      + '<span class="cpr-wm" style="font-size:.95rem">CPR Tools</span>';
+    document.body.insertBefore(top, document.body.firstChild);
+
+    scrim = document.createElement('div'); scrim.className = 'cpr-scrim';
+    document.body.insertBefore(scrim, document.body.firstChild);
+
+    rail = document.createElement('nav'); rail.className = 'cpr-rail'; rail.innerHTML = railInner();
+    document.body.insertBefore(rail, document.body.firstChild);
+
+    // wire operations/home links don't need handlers (plain <a>); wire privileged + mobile
+    wirePriv();
+    var burger = top.querySelector('.cpr-burger');
+    function toggle(){ rail.classList.toggle('open'); scrim.classList.toggle('show'); }
+    burger.onclick = toggle; scrim.onclick = toggle;
+    window.addEventListener('resize', function(){ if (window.innerWidth >= 860){ rail.classList.remove('open'); scrim.classList.remove('show'); } });
+
+    // idle relock + activity tracking
+    ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){
+      window.addEventListener(ev, throttle(touchAuth, 5000), { passive:true });
+    });
+    setInterval(function(){ if (currentRole() && !readAuth()){ renderPriv(); } }, 30000);
+    // cross-tab: lock in one tab relocks others
+    window.addEventListener('storage', function(e){ if (e.key === AUTH_KEY) renderPriv(); });
+
+    broadcastRole();
+  }
+
+  function throttle(fn, ms){ var last = 0; return function(){ var now = Date.now(); if (now - last > ms){ last = now; fn(); } }; }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectNav);
+  else injectNav();
 })();
