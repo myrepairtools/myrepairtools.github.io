@@ -53,7 +53,7 @@
     { label:'Claim Ledger',     url:'claim-ledger.html',          icon:'📊', minRole:'owner' },
     { label:'Commission',       url:'commission-calculator.html', icon:'🧾', minRole:'owner' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner' },
-    { label:'Staff Management', url:'admin.html',                 icon:'👥', minRole:'owner' }
+    { label:'Staff Management', url:'staff-management.html',                 icon:'👥', minRole:'owner' }
   ];
 
   var RANK = { none:0, employee:1, admin:2, owner:3 };
