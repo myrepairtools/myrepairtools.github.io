@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPR Oregon — Admin</title>
+<title>CPR Oregon — Staff Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -105,56 +105,15 @@
   <main>
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:32px">
       <div>
-        <div class="page-title">Admin Tools</div>
-        <div class="page-sub" style="margin-bottom:0">Owner-level tools — payroll, financials, and administrative calculators</div>
+        <div class="page-title">Staff Management</div>
+        <div class="page-sub" style="margin-bottom:0">Add, edit, and archive staff; manage passcodes</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="employeesBtn" type="button" class="hbtn" style="display:none">&#128101; Employees</button>
         <button id="gateLock" class="hbtn">&#9099; Lock</button>
       </div>
     </div>
 
-    <!-- TOOLS VIEW -->
-    <div id="toolsView">
-    <div class="tool-grid">
-
-      <a class="tool-card" href="employee-records.html">
-        <div class="tool-icon">&#128100;</div>
-        <div class="tool-name">Employee Records</div>
-        <div class="tool-desc">Coaching logs, performance notes, attendance, and employee profile management across all locations.</div>
-        <div class="tool-link">Open Tool &rarr;</div>
-      </a>
-
-      <a class="tool-card" href="profit-first.html">
-        <div class="tool-icon">&#128176;</div>
-        <div class="tool-name">Profit First Calculator</div>
-        <div class="tool-desc">Distribute your income account balance across Profit, Owner's Comp, Tax, and OpEx accounts.</div>
-        <div class="tool-link">Open Tool &rarr;</div>
-      </a>
-
-      <a class="tool-card" href="commission-calculator.html">
-        <div class="tool-icon">&#129518;</div>
-        <div class="tool-name">Commission Calculator</div>
-        <div class="tool-desc">Calculate per-employee payroll from accessory, device, and service sales — combined across all stores.</div>
-        <div class="tool-link">Open Tool &rarr;</div>
-      </a>
-
-      <a class="tool-card" href="claim-ledger.html">
-        <div class="tool-icon">&#129534;</div>
-        <div class="tool-name">Claim Ledger</div>
-        <div class="tool-desc">Track and reconcile claims — status, payouts, and history in one place.</div>
-        <div class="tool-link">Open Tool &rarr;</div>
-      </a>
-
-      <a class="tool-card" href="https://myrepairtools.github.io/accounting-tools/wage_exemption_form.html">
-        <div class="tool-icon">&#128203;</div>
-        <div class="tool-name">Wage Exemption Calculator</div>
-        <div class="tool-desc">Oregon wage garnishment exemption calculator. Auto-computes disposable wages and amounts subject to garnishment.</div>
-        <div class="tool-link">Open Tool &rarr;</div>
-      </a>
-
-    </div>
-    </div>
+    <!-- TOOLS VIEW removed — the side nav + home now handle navigation. -->
 
     <!-- EMPLOYEES VIEW (roster manager) -->
     <div id="employeesView" style="display:none">
@@ -164,7 +123,6 @@
           <div style="display:flex;gap:8px">
             <button id="addEmpBtn" type="button" class="btn-primary" style="padding:8px 16px;font-size:13px">+ Add Employee</button>
             <button id="archToggle" type="button" class="hbtn">Show archived</button>
-            <button id="backToTools" type="button" class="hbtn">&larr; Tools</button>
           </div>
         </div>
         <div id="empIntro" style="font-size:12px;color:var(--grey);font-weight:600;margin-bottom:16px"></div>
@@ -173,9 +131,15 @@
       </div>
     </div>
 
+    <!-- Shown to anyone who unlocks but isn't a manager/owner -->
+    <div id="noAccess" class="emp-card" style="display:none">
+      <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark);margin-bottom:6px">No access</div>
+      <div style="font-size:13px;color:var(--grey);font-weight:600">Staff Management is limited to managers and owners.</div>
+    </div>
+
   </main>
 
-  <footer>CPR Cell Phone Repair — Oregon · Admin Portal · Confidential</footer>
+  <footer>CPR Cell Phone Repair — Oregon · Staff Management · Confidential</footer>
 </div>
 
 <!-- Add / Edit employee modal -->
@@ -221,8 +185,12 @@
     document.getElementById('mainContent').classList.add('visible');
     VIEWER.role = ((e.detail && e.detail.role) || '').toLowerCase();
     VIEWER.name = (e.detail && e.detail.name) || '';
-    document.getElementById('employeesBtn').style.display =
-      (VIEWER.role === 'owner' || VIEWER.role === 'admin') ? 'inline-flex' : 'none';
+    if (VIEWER.role === 'owner' || VIEWER.role === 'admin') {
+      showEmployees();
+    } else {
+      document.getElementById('employeesView').style.display = 'none';
+      document.getElementById('noAccess').style.display = 'block';
+    }
   });
   document.getElementById('gateLock').onclick = function(){ if(window.CPRGate) CPRGate.lock(); };
 
@@ -232,19 +200,12 @@
   function disp(s){ return (window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s+/i,'').replace(/\s+OR$/i,'')); }
   function altList(str){ return String(str||'').split(',').map(function(x){return x.trim();}).filter(Boolean); }
 
-  // ── View toggle ──
+  // ── Roster view ──
   function showEmployees(){
     if(VIEWER.role!=='owner' && VIEWER.role!=='admin') return;
-    document.getElementById('toolsView').style.display='none';
     document.getElementById('employeesView').style.display='block';
     loadEmployees();
   }
-  function showTools(){
-    document.getElementById('employeesView').style.display='none';
-    document.getElementById('toolsView').style.display='block';
-  }
-  document.getElementById('employeesBtn').onclick = showEmployees;
-  document.getElementById('backToTools').onclick = showTools;
   document.getElementById('addEmpBtn').onclick = function(){ openModal(null); };
   document.getElementById('archToggle').onclick = function(){
     showArchived = !showArchived;
