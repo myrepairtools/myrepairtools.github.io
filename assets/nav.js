@@ -98,7 +98,10 @@
     display:flex; flex-direction:column; overflow-y:auto;
     font-family:'Nunito','Nunito Sans',sans-serif; }
   .cpr-rail a{ text-decoration:none; }
-  .cpr-brand{ display:flex; align-items:center; gap:10px; padding:16px 16px 12px; }
+  .cpr-brand{ display:block; padding:18px 18px 4px; }
+  .cpr-logo{ width:158px; max-width:100%; height:auto; display:block; }
+  .cpr-eyebrow{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.56rem; letter-spacing:.9px; text-transform:uppercase; color:#B9BDCB; padding:2px 18px 10px; }
+  .cpr-fallback{ display:flex; align-items:center; gap:10px; }
   .cpr-mark{ width:36px; height:36px; border-radius:9px; background:#DC282E; flex:none;
     display:flex; align-items:center; justify-content:center; }
   .cpr-mark svg{ width:20px; height:20px; }
@@ -210,8 +213,11 @@
     var ops = OPERATIONS.map(function(t){ return linkHtml(t); }).join('');
     var homeActive = ON_HOME ? ' active' : '';
     return ''
-      + '<a class="cpr-brand" href="'+esc(HOME)+'"><span class="cpr-mark">'+MARK+'</span>'
-      +   '<span class="cpr-wm">CPR Tools<small>Oregon</small></span></a>'
+      + '<a class="cpr-brand" href="'+esc(HOME)+'">'
+      +   '<img class="cpr-logo" src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR Cell Phone Repair" onerror="this.style.display=\'none\';var f=this.parentNode.querySelector(\'.cpr-fallback\');if(f)f.style.display=\'flex\'">'
+      +   '<span class="cpr-fallback" style="display:none"><span class="cpr-mark">'+MARK+'</span><span class="cpr-wm">CPR Tools<small>Oregon</small></span></span>'
+      + '</a>'
+      + '<div class="cpr-eyebrow">Internal Tools · Oregon</div>'
       + '<a class="cpr-link'+homeActive+'" href="'+esc(HOME)+'"><span class="ic">🏠</span> Home</a>'
       + '<div class="cpr-grp">Operations</div>'
       + ops
@@ -277,8 +283,8 @@
     // mobile top bar
     var top = document.createElement('div'); top.className = 'cpr-top';
     top.innerHTML = '<button class="cpr-burger" aria-label="Menu">☰</button>'
-      + '<span class="cpr-mark" style="width:30px;height:30px;border-radius:7px"><svg viewBox="0 0 24 24" style="width:17px;height:17px"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>'
-      + '<span class="cpr-wm" style="font-size:.95rem">CPR Tools</span>';
+      + '<img src="assets/images/CPRLogo_NoAssurant_Black.svg" alt="CPR" style="height:24px;width:auto;display:block" onerror="this.style.display=\'none\';if(this.nextElementSibling)this.nextElementSibling.style.display=\'inline\'">'
+      + '<span class="cpr-wm" style="display:none;font-size:.95rem">CPR Tools</span>';
     document.body.insertBefore(top, document.body.firstChild);
 
     scrim = document.createElement('div'); scrim.className = 'cpr-scrim';
