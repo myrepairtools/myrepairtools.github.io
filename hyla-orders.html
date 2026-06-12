@@ -1015,17 +1015,27 @@ function colorVariants(dev){
   var c = norm(dev.color);
   var v = [c];
   var mfr = norm(dev.manufacturer);
-  if (mfr.indexOf('samsung')>=0 && c==='black'){ v.push('graphite','phantom black'); }
+  if ((mfr.indexOf('sams')>=0 || mfr.indexOf('samsung')>=0) && c==='black'){ v.push('graphite','phantom black'); }
   if (c==='product red' || c==='productred' || c==='red product') v.push('red');
   if (c==='alpine green') v.push('green');
   return v;
 }
+function mfrEq(devMfr, catMfr){
+  var a = norm(devMfr), b = norm(catMfr);
+  if (!a) return true;                       // blank on the Hyla side: let model+storage+color decide
+  if (a === b) return true;
+  var alias = { appl:'apple', sams:'samsung', samsng:'samsung', goog:'google', googl:'google',
+                motr:'motorola', moto:'motorola', lge:'lg', onpl:'oneplus', nok:'nokia' };
+  if (alias[a] === b) return true;
+  // prefix tolerance: "APPLE INC" vs "Apple", "SAMSUNG ELECTRONICS" vs "Samsung"
+  if (a.length >= 3 && b.length >= 3 && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) return true;
+  return false;
+}
 function matchDevice(dev, catalog){
-  var mfr = norm(dev.manufacturer);
   var model = norm(dev.model);
   var stor = String(dev.storage||'').replace(/\D/g,'');
   var cands = catalog.filter(function(c){
-    if (norm(c.mfr)!==mfr) return false;
+    if (!mfrEq(dev.manufacturer, c.mfr)) return false;
     var n = norm(c.name);
     if (n.indexOf(model)!==0) return false;
     if (stor && n.indexOf(' '+stor+' gb')<0) return false;
