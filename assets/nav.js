@@ -40,7 +40,7 @@
 
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵' },
-    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️' },
+    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/assurant_icon.png' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦' },
     { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮' },
@@ -115,6 +115,7 @@
     font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem; color:#4E4E50;
     border-left:3px solid transparent; cursor:pointer; }
   .cpr-link .ic{ width:21px; text-align:center; font-size:1rem; flex:none; }
+  .cpr-link .ic img{ width:18px; height:18px; object-fit:contain; display:block; margin:0 auto; }
   .cpr-link:hover{ background:#F3F2F2; color:#2D2D3B; }
   .cpr-link.active{ background:#EAF6FD; border-left-color:#4FB0E3; color:#2D2D3B; font-weight:800; }
   .cpr-link .tag{ margin-left:auto; font-family:'Nunito',sans-serif; font-weight:800; font-size:.5rem;
@@ -173,7 +174,10 @@
   function linkHtml(t, tag){
     var active = (t.url.toLowerCase() === currentFile) ? ' active' : '';
     var tagHtml = tag ? (' <span class="tag '+(tag==='Owner'?'owner':'')+'">'+tag+'</span>') : '';
-    return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+t.icon+'</span> '+esc(t.label)+tagHtml+'</a>';
+    var ic = t.img
+      ? '<img src="'+esc(t.img)+'" alt="'+esc(t.icon||'')+'" onerror="this.outerHTML=this.alt">'
+      : (t.icon||'');
+    return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+ic+'</span> '+esc(t.label)+tagHtml+'</a>';
   }
 
   function privilegedHtml(){
