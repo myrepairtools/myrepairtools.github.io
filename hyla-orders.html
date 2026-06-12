@@ -472,18 +472,33 @@ function api(action, params){
 function apiError(msg){ var b=$('apiBanner'); b.textContent='⚠ ' + msg; b.classList.remove('hide'); }
 
 /* ================= BOOT ================= */
+/* local snapshot: paint instantly from the last visit, then refresh from the server */
+var SNAP_KEY = 'hyla-snap-v1';
+function snapSave(){
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ ts:Date.now(), data:DATA, roster:ROSTER, settings:SETTINGS })); } catch(_){}
+}
+function snapLoad(){
+  try {
+    var s = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null');
+    if (!s || !s.data || Date.now() - s.ts > 7*86400000) return false;   // ignore week-old snapshots
+    DATA = s.data; ROSTER = s.roster || []; SETTINGS = s.settings || {};
+    renderAll(); renderGuide();
+    return true;
+  } catch(_){ return false; }
+}
 function boot(){
+  var hadSnap = snapLoad();   // instant paint if we've been here before
   api('list').then(function(j){
     DATA = { orders:j.orders||[], devices:j.devices||[], rmas:j.rmas||[] };
-    renderAll();
-  }).catch(function(e){ apiError('Could not load data: ' + e.message); });
+    renderAll(); snapSave();
+  }).catch(function(e){ apiError(hadSnap ? 'Couldn\u2019t refresh \u2014 showing last saved data. ('+e.message+')' : 'Could not load data: ' + e.message); });
   api('settingsGet').then(function(j){
     SETTINGS = j || {};
-    renderGuide();
+    renderGuide(); snapSave();
   }).catch(function(){});
-  api('roster').then(function(j){ ROSTER = j.names || []; renderAll(); }).catch(function(){});
+  api('roster').then(function(j){ ROSTER = j.names || []; renderAll(); snapSave(); }).catch(function(){});
 }
-function reload(){ return api('list').then(function(j){ DATA={orders:j.orders||[],devices:j.devices||[],rmas:j.rmas||[]}; renderAll(); }); }
+function reload(){ return api('list').then(function(j){ DATA={orders:j.orders||[],devices:j.devices||[],rmas:j.rmas||[]}; renderAll(); snapSave(); }); }
 
 function labelItems(){ try{ var a=JSON.parse(SETTINGS.labelItems||'[]'); if(a.length)return a; }catch(e){} return ['Battery life','All functions','Audio test','Cleaned']; }
 function guideSteps(){ try{ var a=JSON.parse(SETTINGS.guideSteps||'[]'); if(a.length)return a; }catch(e){} return ['Power on & boot','Check for iCloud / Google / MDM lock','Screen: brightness, dead pixels, lines, touch accuracy','Face ID / Touch ID enrolls','Front & rear cameras (photo + video, all lenses)','Speakers, earpiece & microphone','Charging port + wireless charging','Buttons: power, volume, mute','Wi-Fi & cellular signal','Battery health reading','Cosmetic check: glass, frame, lens covers','Clean device & apply label']; }
