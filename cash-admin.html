@@ -329,6 +329,18 @@ function api(action,params){var url=WEBAPP_URL+'?action='+encodeURIComponent(act
 function apiPost(body){body.token=API_TOKEN;return fetch(WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json();});}
 function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
 
+/* ===== BROWSER CACHE (stale-while-revalidate) =====
+   Paints instantly from localStorage, then re-fetches and only re-renders if
+   the data actually changed. Every key is tagged with the logged-in user's
+   name+role so a different viewer never reads someone else's cache. */
+var CACHE_NS='cprCashCache:v1';
+function cacheUser(){try{var u=(window.CPRGate&&CPRGate.user&&CPRGate.user())||{};return (u.name||'?')+'|'+(u.role||'?');}catch(_){return '?|?';}}
+function cacheKey(p){return CACHE_NS+'|'+cacheUser()+'|'+p;}
+function cacheGet(p){try{var raw=localStorage.getItem(cacheKey(p));return raw?JSON.parse(raw):null;}catch(_){return null;}}
+function cacheSet(p,d){try{localStorage.setItem(cacheKey(p),JSON.stringify(d));}catch(_){}}
+function cacheDel(p){try{localStorage.removeItem(cacheKey(p));}catch(_){}}
+function entriesKey(){return 'entries|'+STATE.store+'|'+STATE.period;}
+
 function tillsFor(store){var t=STATE.setup.filter(function(s){return s.Store===store&&/^VCT\d+$/i.test(String(s.Location));}).map(function(s){return s.Location;});t.sort();return t;}
 function locsFor(store){return STATE.setup.filter(function(s){return s.Store===store;}).map(function(s){return s.Location;});}
 function startBal(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.StartingBalance):0;}
@@ -344,19 +356,33 @@ function computeBalances(){
   return bal;
 }
 
+function applyBootstrap(r){
+  if(!r||!r.ok)return false;
+  STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
+  if(!STATE.store) STATE.store=STATE.stores[0]||null;
+  renderStorePills(); renderSettings();
+  return true;
+}
 function boot(){
   if(booted)return; booted=true;
   $('#period').value=thisPeriod(); STATE.period=thisPeriod();
+  var cached=cacheGet('bootstrap'), cachedRaw=cached?JSON.stringify(cached):null, painted=false;
+  if(cached && applyBootstrap(cached)){ painted=true; loadData(); }
   api('bootstrap').then(function(r){
-    if(!r||!r.ok){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';return;}
-    STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
-    STATE.store=STATE.stores[0]||null;
-    renderStorePills(); renderSettings(); loadData();
-  }).catch(function(){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';});
+    if(!r||!r.ok){ if(!painted){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';} return; }
+    cacheSet('bootstrap',r);
+    if(JSON.stringify(r)===cachedRaw) return; // unchanged — entries already revalidating
+    applyBootstrap(r); loadData();
+  }).catch(function(){ if(!painted){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';} });
 }
 function loadData(){
   if(!STATE.store)return;
-  api('entries',{store:STATE.store,period:STATE.period}).then(function(r){STATE.entries=(r&&r.rows)||[];renderCards();renderLog();}).catch(function(e){toast(String(e),true);});
+  var key=entriesKey(), cached=cacheGet(key), cachedRaw=cached?JSON.stringify(cached):null;
+  if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
+  api('entries',{store:STATE.store,period:STATE.period}).then(function(r){
+    var rows=(r&&r.rows)||[]; cacheSet(key,rows);
+    if(JSON.stringify(rows)!==cachedRaw){ STATE.entries=rows; renderCards(); renderLog(); }
+  }).catch(function(e){ if(!cached) toast(String(e),true); });
 }
 
 /* ===== AUDIT ===== */
@@ -552,7 +578,7 @@ $('#auClose').onclick=function(){
   $('#auClose').disabled=true; $('#auSaved').textContent='Saving…';
   apiPost({action:'closeMonth',store:STATE.store,period:STATE.period,repairQSales:rq,pettyCash:petty,auditor:(CPRGate&&CPRGate.user&&CPRGate.user()?CPRGate.user().name:''),rows:rows,days:days})
     .then(function(r){$('#auClose').disabled=false;
-      if(r&&r.ok){toast('Month closed — balances carried forward');$('#auSaved').textContent='Saved '+new Date().toLocaleTimeString();loadAudit();}
+      if(r&&r.ok){toast('Month closed — balances carried forward');cacheDel(entriesKey());$('#auSaved').textContent='Saved '+new Date().toLocaleTimeString();loadAudit();}
       else{toast((r&&r.error)||'Save failed',true);$('#auSaved').textContent='';}
     }).catch(function(e){$('#auClose').disabled=false;$('#auSaved').textContent='';toast(String(e),true);});
 };
@@ -726,7 +752,7 @@ function renderLog(){
   $all('#logBody .xbtn').forEach(function(x){x.onclick=function(){
     if(!confirm('Delete this entry permanently? This cannot be undone.')) return;
     apiPost({action:'deleteEntry',id:x.dataset.del}).then(function(r){
-      if(r&&r.ok){toast('Entry deleted');loadData();} else {toast((r&&r.error)||'Delete failed',true);}
+      if(r&&r.ok){toast('Entry deleted');cacheDel(entriesKey());loadData();} else {toast((r&&r.error)||'Delete failed',true);}
     }).catch(function(e){toast(String(e),true);});
   };});
 }
@@ -775,6 +801,7 @@ $('#saveAll').onclick=function(){
   var setupRows=STATE.setup.map(function(s){return {Store:s.Store,Location:s.Location,StartingBalance:num(s.StartingBalance),FloatTarget:num(s.FloatTarget)};});
   apiPost({action:'saveSetup',rows:setupRows}).then(function(r){
     $('#saveAll').disabled=false; STATE.dirty=false; $('#dirty').textContent='Saved ✓'; setTimeout(function(){$('#dirty').textContent='';},2000);
+    cacheDel('bootstrap');
     toast('Settings saved');
   }).catch(function(e){$('#saveAll').disabled=false;toast(String(e),true);});
 };
