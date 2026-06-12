@@ -218,17 +218,42 @@ function applyEntry(bal,e){
 }
 
 /* ===== bootstrap ===== */
+/* local snapshot: paint instantly from the last visit, then refresh from the server */
+var SNAP_KEY='ct-snap-v1';
+function snapRead(){ try{ var s=JSON.parse(localStorage.getItem(SNAP_KEY)||'null'); return (s&&s.stores&&Date.now()-s.ts<7*86400000)?s:null; }catch(e){ return null; } }
+function snapWrite(){
+  try{
+    var s=snapRead()||{entries:{}};
+    s.ts=Date.now(); s.stores=STATE.stores; s.staff=STATE.staff; s.setup=STATE.setup;
+    s.entries=s.entries||{};
+    if(STATE.store) s.entries[STATE.store+'|'+thisPeriod()]=STATE.entries;
+    var keys=Object.keys(s.entries);                 // keep it small: last 6 store|period sets
+    if(keys.length>6) keys.slice(0,keys.length-6).forEach(function(k){delete s.entries[k];});
+    localStorage.setItem(SNAP_KEY,JSON.stringify(s));
+  }catch(e){}
+}
 function boot(){
   $('#todayLbl').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  // instant paint from snapshot, if we have one
+  var snap=snapRead();
+  if(snap){
+    STATE.stores=snap.stores||[]; STATE.staff=snap.staff||[]; STATE.setup=snap.setup||[];
+    var savedStore=pref('ct_store');
+    STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
+    pickInitialVct();
+    renderStorePills(); renderRegPills(); fillEmp();
+    var cached=snap.entries&&snap.entries[STATE.store+'|'+thisPeriod()];
+    if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
+  }
   api('bootstrap').then(function(r){
-    if(!r||!r.ok){showSetupBanner();return;}
+    if(!r||!r.ok){if(!snap)showSetupBanner();return;}
     STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
     var savedStore=pref('ct_store');
     STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
     pickInitialVct();
     renderStorePills(); renderRegPills(); fillEmp();
     loadData();
-  }).catch(function(){showSetupBanner();});
+  }).catch(function(){if(!snap)showSetupBanner();});
 }
 function showSetupBanner(){var b=$('#setupBanner');b.classList.remove('hide');b.innerHTML='<b>Not connected.</b> The cash tracker cannot reach its database right now.';}
 function pickInitialVct(){
@@ -237,10 +262,15 @@ function pickInitialVct(){
 }
 function loadData(){
   if(!STATE.store) return;
+  // paint cached entries for this store/period right away while the fresh ones load
+  var snap=snapRead();
+  var cached=snap&&snap.entries&&snap.entries[STATE.store+'|'+thisPeriod()];
+  if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
   api('entries',{store:STATE.store,period:thisPeriod()}).then(function(r){
     STATE.entries=(r&&r.rows)||[];
     renderCards(); renderLog();
-  }).catch(function(e){toast(String(e),true);});
+    snapWrite();
+  }).catch(function(e){if(!cached)toast(String(e),true);});
 }
 
 /* ===== store / register switchers ===== */
