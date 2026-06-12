@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyla Device Orders — CPR Tools</title>
+<link rel="icon" href="assets/images/CPRLogo_Mark.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="assets/locations.js"></script>
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#fff;--border:#E0E2EA;--green:#23A62F;--amber:#E1A100;--purple:#6C5CE7;--teal:#0EA5A5;
+--eugene:#23A62F;--salem:#DE262E;--clack:#4FB0E3}
+*{box-sizing:border-box}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);margin:0}
+main{max-width:1150px;margin:0 auto;padding:18px 18px 80px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:-.4px;margin:0 0 2px}
+.sub{font-size:.78rem;color:var(--dark-grey);margin:0}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;border:none;border-radius:11px;cursor:pointer}
+.btn.red{background:var(--red);color:#fff;padding:11px 16px;font-size:.9rem;box-shadow:0 3px 10px rgba(220,40,46,.25)}
+.btn[disabled]{opacity:.55;cursor:default}
+.headtools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.guidebtn{font-family:'Nunito';font-weight:800;font-size:.72rem;border-radius:999px;padding:10px 14px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.guidebtn:hover{border-color:var(--blue);color:var(--blue)}
+.gearbtn{width:40px;height:40px;border-radius:10px;background:#fff;border:1.5px solid var(--border);font-size:1.05rem;cursor:pointer}
+.gearbtn:hover{border-color:var(--blue)}
+.searchwrap{position:relative}
+.searchwrap input{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;padding:10px 12px 10px 30px;border:1.5px solid var(--border);border-radius:10px;width:210px}
+.searchwrap::before{content:'🔍';position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:.75rem;opacity:.5}
+.banner{background:#FFF6E0;border:1.5px solid #F2D27D;color:#8a6d00;border-radius:12px;padding:11px 14px;font-size:.82rem;font-weight:700;margin:12px 0}
+.banner.err{background:#FFE9E9;border-color:#F6C9CA;color:var(--red)}
+
+.tabs{display:flex;gap:6px;margin:14px 0 12px;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:5px;max-width:640px}
+.tab{flex:1;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:10px 4px;border-radius:8px;cursor:pointer;color:var(--dark-grey)}
+.tab.active{background:var(--dark);color:#fff}
+.tab .n{display:inline-block;min-width:18px;padding:1px 5px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey);font-size:.66rem;margin-left:4px}
+.tab.active .n{background:rgba(255,255,255,.18);color:#fff}
+.tab .n.alert{background:var(--red);color:#fff}
+
+.filterbar{display:flex;align-items:center;gap:7px;margin:0 0 12px;flex-wrap:wrap}
+.filterbar .lbl{font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey)}
+.fpill{font-family:'Nunito';font-weight:800;font-size:.72rem;border-radius:999px;padding:8px 14px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.fpill.on{color:#fff;border-color:transparent;background:var(--dark)}
+.fpill.eugene.on{background:var(--eugene)}
+.fpill.salem.on{background:var(--salem)}
+.fpill.clack.on{background:var(--clack)}
+.ftotal{font-family:'Nunito';font-weight:800;font-size:.72rem;color:var(--dark-grey);margin-left:4px}
+
+/* order card */
+.order{background:var(--white);border:1px solid var(--border);border-radius:14px;margin-bottom:12px}
+.ohead{display:flex;align-items:flex-start;gap:10px;padding:13px 16px;cursor:pointer;min-height:88px}
+.ohead .chev{font-size:.85rem;color:var(--grey);transition:transform .15s;flex:none;margin-top:5px}
+.order.open .chev{transform:rotate(90deg)}
+.ohgrid{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.ohrow{display:flex;align-items:center;gap:0}
+.otit{flex:none;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.onum{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;white-space:nowrap}
+.ometa{font-size:.72rem;color:var(--dark-grey);white-space:nowrap}
+.ometa b{color:var(--dark)}
+.ohrow2{display:flex;align-items:center;gap:11px;flex-wrap:wrap;font-size:.72rem;color:var(--dark-grey)}
+.ohrow2 b{color:var(--dark)}
+.ohrow2 .recv{display:flex;align-items:center;gap:6px}
+.ohrow2 input[type=date]{font-family:'Nunito Sans';font-size:.74rem;padding:4px 6px;border:1.5px solid var(--border);border-radius:7px}
+.inspwrap{display:flex;align-items:center;gap:6px;font-family:'Nunito';font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)}
+.inspwrap select{font-family:'Nunito';font-weight:800;font-size:.72rem;padding:5px 7px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--dark)}
+.ohead .right{display:flex;align-items:center;gap:12px;flex:none;margin-top:3px}
+.countdown{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;border-radius:999px;padding:4px 10px;white-space:nowrap}
+.countdown.ok{background:#E8F7EC;color:var(--green)}
+.countdown.warn{background:#FFF6E0;color:var(--amber)}
+.countdown.late{background:#FFE9E9;color:var(--red)}
+.countdown.none{background:var(--light-grey);color:var(--grey)}
+.oamt{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;white-space:nowrap}
+
+.menuwrap{position:relative;flex:none}
+.dots{width:30px;height:30px;border-radius:8px;background:#fff;border:1.5px solid var(--border);cursor:pointer;font-weight:900;color:var(--dark-grey);line-height:1}
+.dots:hover{border-color:var(--blue);color:var(--blue)}
+.menu{position:absolute;right:0;top:36px;background:#fff;border:1.5px solid var(--border);border-radius:11px;box-shadow:0 10px 30px rgba(45,45,59,.14);min-width:185px;z-index:50;display:none;padding:5px}
+.menu.show{display:block}
+.menu button{display:block;width:100%;text-align:left;font-family:'Nunito';font-weight:700;font-size:.8rem;padding:9px 11px;border:none;background:none;border-radius:8px;cursor:pointer;color:var(--dark)}
+.menu button:hover{background:var(--light-grey)}
+.menu button.danger{color:var(--red)}
+
+.obody{display:none;border-top:1px solid var(--border)}
+.order.open .obody{display:block}
+.cols{display:grid;grid-template-columns:minmax(250px,1fr) 86px 140px 115px 112px 62px;gap:12px;align-items:center;padding:7px 16px;background:#FAFAFB;border-bottom:1px solid var(--border)}
+.cols span{font-family:'Nunito';font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey)}
+.cols .r{text-align:right}
+.cols .c{text-align:center}
+.dev{display:grid;grid-template-columns:minmax(250px,1fr) 86px 140px 115px 112px 62px;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--light-grey);min-height:58px}
+.dev:last-child{border-bottom:none}
+.dev.hit{background:#FFFBEA}
+.dmain{min-width:0}
+.dline{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.dname{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;white-space:nowrap}
+.dspec{font-size:.74rem;color:var(--dark-grey);white-space:nowrap}
+.grade{font-family:'Nunito';font-weight:800;font-size:.58rem;background:var(--light-grey);border-radius:5px;padding:2px 6px;color:var(--dark-grey)}
+.unlock{font-family:'Nunito';font-weight:800;font-size:.58rem;background:#EAF6FD;border-radius:5px;padding:2px 6px;color:#1F7FB5;cursor:pointer;white-space:nowrap}
+.imei{font-family:ui-monospace,Menlo,monospace;font-size:.68rem;color:var(--grey);margin-top:2px;cursor:pointer}
+.imei:hover{color:var(--blue)}
+.imei.copied{color:var(--green)}
+.insp{font-size:.62rem;color:var(--grey);font-weight:700;min-height:14px}
+
+.wb{display:flex;gap:0;justify-content:center}
+.wb button{font-family:'Nunito';font-weight:800;font-size:.6rem;padding:5px 8px;border:1.5px solid var(--border);background:#fff;color:var(--grey);cursor:pointer}
+.wb button:first-child{border-radius:999px 0 0 999px}
+.wb button:last-child{border-radius:0 999px 999px 0;margin-left:-1.5px}
+.wb button.on{background:var(--dark);border-color:var(--dark);color:#fff;position:relative;z-index:1}
+
+.storesel{font-family:'Nunito';font-weight:800;font-size:.7rem;height:30px;padding:0 13px;border:1.5px solid var(--border);border-radius:999px;background:#fff;color:var(--dark-grey);width:auto;max-width:100%;cursor:pointer;-webkit-appearance:none;appearance:none;text-align:center;justify-self:start}
+.storesel.eugene{background:var(--eugene);border-color:var(--eugene);color:#fff}
+.storesel.salem{background:var(--salem);border-color:var(--salem);color:#fff}
+.storesel.clack{background:var(--clack);border-color:var(--clack);color:#fff}
+.dev input.sale{font-family:'Nunito Sans';font-size:.78rem;padding:8px 9px;border:1.5px solid var(--border);border-radius:8px;width:100%}
+.statusgrp{display:flex;gap:5px;justify-content:center}
+.spill{font-family:'Nunito';font-weight:800;font-size:.64rem;border-radius:999px;padding:6px 10px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer;white-space:nowrap}
+.spill.pend.on{background:var(--light-grey);border-color:var(--grey);color:var(--dark);cursor:default}
+.spill.pass.on{background:#E8F7EC;border-color:var(--green);color:var(--green);cursor:default}
+.spill.fail.on{background:#FFE9E9;border-color:var(--red);color:var(--red);cursor:default}
+.dprice{font-family:'Nunito';font-weight:900;font-size:.88rem;text-align:right}
+.failnote{grid-column:1/-1;font-size:.72rem;background:#FFF6F6;border:1px solid #F6C9CA;border-radius:8px;padding:6px 10px;color:var(--dark-grey)}
+.failnote b{color:var(--red)}
+.suggest{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#E8F7EC;border-top:1px solid #CDEBD6;padding:9px 16px;font-size:.8rem;color:var(--green);font-weight:700}
+.suggest .btn{padding:7px 13px;font-size:.78rem;background:var(--green);color:#fff;box-shadow:none}
+
+/* RMA */
+.rma{background:var(--white);border:1px solid var(--border);border-left:4px solid var(--red);border-radius:12px;padding:12px 14px;margin-bottom:10px;min-height:86px}
+.rma .r1{display:flex;align-items:center;gap:11px}
+.rma input[type=checkbox]{width:17px;height:17px;flex:none}
+.rtit{display:flex;align-items:baseline;gap:8px;min-width:0;flex:1;overflow:hidden}
+.rname{font-family:'Nunito';font-weight:900;font-size:.92rem;white-space:nowrap}
+.rmeta{font-size:.73rem;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rmeta b{color:var(--dark)}
+.rma .r2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;padding-left:28px}
+.rday{font-family:'Nunito';font-weight:800;font-size:.6rem;background:var(--light-grey);color:var(--dark-grey);border-radius:6px;padding:3px 8px;white-space:nowrap}
+.rday.warn{background:#FFF6E0;color:var(--amber)}
+.kept{font-family:'Nunito';font-weight:800;font-size:.6rem;background:#EFEAFE;color:var(--purple);border-radius:6px;padding:3px 8px}
+.netchip{font-family:'Nunito';font-weight:800;font-size:.6rem;border-radius:6px;padding:3px 8px}
+.netchip.pos{background:#E8F7EC;color:var(--green)}
+.netchip.neg{background:#FFE9E9;color:var(--red)}
+.reason{font-family:'Nunito';font-weight:800;font-size:.6rem;background:#FFE9E9;color:var(--red);border-radius:6px;padding:3px 8px;white-space:nowrap}
+.rcmt{font-size:.75rem;color:var(--dark-grey)}
+.rstat{margin-left:auto;flex:none;display:flex;align-items:center}
+.rtrack{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;width:150px;margin-right:6px}
+.rstat select{font-family:'Nunito';font-weight:800;font-size:.7rem;padding:6px 22px 6px 10px;border:1.5px solid var(--border);border-radius:999px;background:#fff;color:var(--dark-grey);-webkit-appearance:none;appearance:none;cursor:pointer}
+.rstat select.s-needs{background:var(--amber);border-color:var(--amber);color:#fff}
+.rstat select.s-submitted{background:var(--blue);border-color:var(--blue);color:#fff}
+.rstat select.s-approved{background:var(--teal);border-color:var(--teal);color:#fff}
+.rstat select.s-shipped{background:var(--purple);border-color:var(--purple);color:#fff}
+.rstat select.s-credited{background:var(--green);border-color:var(--green);color:#fff}
+.rstat select.s-denied{background:var(--red);border-color:var(--red);color:#fff}
+.rmabar{position:sticky;bottom:0;background:var(--white);border:1.5px solid var(--border);border-radius:13px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 -4px 18px rgba(45,45,59,.07);margin-top:8px}
+.rmabar .cnt{font-size:.78rem;color:var(--dark-grey);font-weight:700}
+.rmabar .btn{margin-left:auto}
+.empty{background:var(--white);border:1px dashed var(--border);border-radius:13px;padding:26px;text-align:center;color:var(--grey);font-size:.85rem}
+.hide{display:none!important}
+
+/* reports */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.kpi{background:var(--white);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:12px;padding:13px 15px}
+.kpi.green{border-left-color:var(--green)}
+.kpi.red{border-left-color:var(--red)}
+.kpi .kl{font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
+.kpi .kv{font-family:'Nunito';font-weight:900;font-size:1.45rem;margin-top:3px}
+.kpi.red .kv{color:var(--red)}
+.kpi.green .kv{color:var(--green)}
+.kpi .kb{font-size:.68rem;color:var(--grey);font-weight:700;margin-top:3px}
+.brkcard{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--red);border-radius:12px;padding:15px;margin-bottom:12px}
+.brkcard h3{font-family:'Nunito';font-weight:800;font-size:.78rem;margin:0 0 11px;display:flex;justify-content:space-between}
+.brkcard h3 .rng{font-weight:700;font-size:.62rem;color:var(--grey);text-transform:none;letter-spacing:0}
+.brow{display:flex;justify-content:space-between;font-size:.8rem;font-weight:700;margin-top:9px}
+.brow .bn{font-family:'Nunito';font-weight:900}
+.btrack{height:7px;background:var(--light-grey);border-radius:4px;margin-top:4px}
+.bfill{height:7px;border-radius:4px;background:var(--red)}
+.bfill.dark{background:var(--dark)}
+.repgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr}.repgrid{grid-template-columns:1fr}}
+
+/* modals */
+.modal-bg{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:40px 16px}
+.modal-bg.hide{display:none}
+.modal{background:var(--white);border-radius:16px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;padding:24px}
+.modal h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.1rem;margin:0 0 4px}
+.modal .mclose{float:right;font-size:1.6rem;color:var(--grey);cursor:pointer;font-weight:900;line-height:1}
+.modal p.help{font-size:.78rem;color:var(--dark-grey);margin:4px 0 14px}
+.modal label{display:block;font-family:'Nunito';font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:12px 0 5px}
+.modal select,.modal textarea,.modal input{width:100%;font-family:'Nunito Sans';font-size:.95rem;padding:11px;border:1.5px solid var(--border);border-radius:10px}
+.drop{border:2px dashed var(--border);border-radius:13px;padding:30px 16px;text-align:center;color:var(--grey);font-size:.85rem;background:#FAFAFB;cursor:pointer}
+.drop b{color:var(--blue)}
+.drop.over{border-color:var(--blue);background:#EAF6FD}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;font-family:'Nunito';font-weight:800;font-size:.8rem;padding:10px;border:1.5px solid var(--border);background:#fff;border-radius:10px;cursor:pointer;color:var(--dark-grey)}
+.seg button.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.setrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-family:'Nunito';font-weight:800;font-size:.92rem;padding:14px 13px;border:1.5px solid var(--border);background:#fff;border-radius:12px;cursor:pointer;margin-bottom:9px;color:var(--dark)}
+.setrow:hover{border-color:var(--blue)}
+.setrow .setsub{margin-left:auto;font-size:.7rem;color:var(--grey);font-weight:700}
+.setrow .chev2{font-size:1.2rem;color:var(--grey);font-weight:900}
+.backbtn{cursor:pointer;color:var(--grey);font-size:1.5rem;margin-right:4px;font-weight:900}
+.backbtn:hover{color:var(--dark)}
+.setlist{list-style:none;margin:0 0 10px;padding:0}
+.setlist li{display:flex;align-items:center;gap:10px;padding:10px 11px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:7px;font-family:'Nunito';font-weight:700;font-size:.86rem;background:#fff;cursor:grab}
+.setlist li.dragging{opacity:.45;border-style:dashed}
+.setlist li .handle{color:var(--grey);font-size:.95rem;letter-spacing:-2px}
+.setlist li .x{margin-left:auto;cursor:pointer;color:var(--red);font-weight:900;padding:0 4px}
+.misslist{font-size:.82rem;line-height:1.7;margin:0;padding-left:18px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:800;font-size:.8rem;border-radius:999px;padding:10px 18px;opacity:0;transition:opacity .25s;z-index:99;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <div>
+      <h1>Hyla Device Orders</h1>
+      <p class="sub">7-day return window &middot; inspect fast, RMA faster.</p>
+    </div>
+    <div class="headtools">
+      <button class="guidebtn" onclick="show('guide')">&#128203; Testing Guide</button>
+      <div class="searchwrap"><input id="imeiSearch" placeholder="Search IMEI…" oninput="searchImei(this.value)"></div>
+      <button class="gearbtn" title="Settings" onclick="openSettings()">&#9881;</button>
+      <button class="btn red" onclick="openUpload()">&uarr; Upload IMEI List</button>
+    </div>
+  </div>
+
+  <div id="apiBanner" class="banner err hide"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="open" onclick="setTab('open')">Open <span class="n" id="nOpen">0</span></div>
+    <div class="tab" data-tab="done" onclick="setTab('done')">Completed <span class="n" id="nDone">0</span></div>
+    <div class="tab" data-tab="rmatab" onclick="setTab('rmatab')">RMA <span class="n alert" id="nRma">0</span></div>
+    <div class="tab" data-tab="reports" onclick="setTab('reports')">Reports</div>
+  </div>
+
+  <!-- OPEN -->
+  <div id="open">
+    <div class="filterbar" id="storeBarOpen"></div>
+    <div id="openList"></div>
+  </div>
+
+  <!-- COMPLETED -->
+  <div id="done" class="hide">
+    <div class="filterbar" id="storeBarDone"></div>
+    <div id="doneList"></div>
+  </div>
+
+  <!-- RMA -->
+  <div id="rmatab" class="hide">
+    <div class="filterbar">
+      <span class="lbl">View</span>
+      <button class="fpill on" id="rvActive" onclick="rmaView('active')">Active</button>
+      <button class="fpill" id="rvClosed" onclick="rmaView('closed')">Closed</button>
+    </div>
+    <div class="empty hide" id="rmaEmpty"></div>
+    <div id="rmaList"></div>
+    <div class="rmabar hide" id="rmaBar">
+      <span class="cnt"><b id="rmaSel">0</b> selected</span>
+      <button class="btn red" onclick="generateRmaForm()">&#11015; Generate RMA Form</button>
+    </div>
+  </div>
+
+  <!-- REPORTS -->
+  <div id="reports" class="hide">
+    <div class="filterbar">
+      <span class="lbl">Range</span>
+      <button class="fpill on" data-rng="90" onclick="setRange(90,this)">Last 90 days</button>
+      <button class="fpill" data-rng="ytd" onclick="setRange('ytd',this)">YTD</button>
+      <button class="fpill" data-rng="all" onclick="setRange('all',this)">All time</button>
+    </div>
+    <div class="kpi-grid" id="kpis"></div>
+    <div class="repgrid" id="repBreaks"></div>
+  </div>
+</main>
+
+<!-- UPLOAD MODAL -->
+<div class="modal-bg hide" id="upload">
+  <div class="modal">
+    <span class="mclose" onclick="hide('upload')">&times;</span>
+    <h2>Upload IMEI list</h2>
+    <p class="help">Drop the Hyla "Order IMEI list" XLSX. Devices, IMEIs, costs, tracking, and unlock codes import automatically — each device becomes its own line.</p>
+    <div class="drop" id="dropzone" onclick="document.getElementById('fileInput').click()">Drag &amp; drop or <b>browse</b><br><span style="font-size:.72rem">Order-Imei_list-_Order___#######.xlsx</span></div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="fileChosen(this.files)">
+    <div id="parseSummary" class="help" style="margin-top:10px"></div>
+    <label>Received date (starts the 7-day clock — leave blank if not arrived)</label>
+    <input type="date" id="upRecv">
+    <div style="height:14px"></div>
+    <button class="btn red" style="width:100%" id="importBtn" disabled onclick="doImport()">Import order</button>
+  </div>
+</div>
+
+<!-- FAIL MODAL -->
+<div class="modal-bg hide" id="fail">
+  <div class="modal">
+    <span class="mclose" onclick="hide('fail')">&times;</span>
+    <h2>Fail inspection</h2>
+    <p class="help" id="failCtx"></p>
+    <label>Reason (Hyla official list)</label>
+    <select id="failReason">
+      <option value="">Select one&hellip;</option>
+      <option>DD-COSMETIC - CRACKS</option><option>DD-COSMETIC - SCRATCHES</option><option>DD_DISPLAY</option>
+      <option>DD_FUNCTIONAL</option><option>DD_FUNCTIONAL_FACE/TOUCH ID</option><option>DD_FUNCTIONAL_VIDEO/CAMERA</option>
+      <option>FINANCED</option><option>ID_INCORRECT CARRIER</option><option>ID_INCORRECT MODEL</option>
+      <option>INCORRECT CAPACITY</option><option>LOCK_USER</option>
+    </select>
+    <label>What's wrong (comments)</label>
+    <textarea id="failComment" rows="3" placeholder="Describe the failure&hellip;"></textarea>
+    <div style="height:14px"></div>
+    <button class="btn red" style="width:100%" onclick="doFail()">Fail &amp; create RMA</button>
+  </div>
+</div>
+
+<!-- RMA CLOSE-OUT MODAL -->
+<div class="modal-bg hide" id="closeout">
+  <div class="modal">
+    <span class="mclose" onclick="cancelCloseout()">&times;</span>
+    <h2 id="coTitle"></h2>
+    <p class="help" id="coCtx"></p>
+    <label>What happened to the device?</label>
+    <div class="seg" id="coSeg">
+      <button onclick="coOutcome('returned')">Returned to Hyla</button>
+      <button onclick="coOutcome('kept')">Kept</button>
+    </div>
+    <div id="coCreditWrap"><label>Credit received from Hyla</label><input id="coCredit" inputmode="decimal" placeholder="0.00"></div>
+    <div id="coRepairWrap"><label>Repair cost you put in (parts)</label><input id="coRepair" inputmode="decimal" placeholder="0.00"></div>
+    <p class="help" id="coNet" style="margin-top:12px"></p>
+    <button class="btn red" style="width:100%" onclick="saveCloseout()">Save &amp; close RMA</button>
+  </div>
+</div>
+
+<!-- TESTING GUIDE -->
+<div class="modal-bg hide" id="guide">
+  <div class="modal" style="max-width:480px">
+    <span class="mclose" onclick="hide('guide')">&times;</span>
+    <h2>&#128203; Device Testing Guide</h2>
+    <p class="help">Run every device through this list before passing it. New staff: when in doubt, fail it and ask.</p>
+    <ul id="guideList" style="margin:0;padding-left:22px;font-size:.92rem;line-height:2;font-weight:700;list-style:disc"></ul>
+    <div style="height:14px"></div>
+    <button class="btn red" style="width:100%" onclick="hide('guide')">Got it</button>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="modal-bg hide" id="settings">
+  <div class="modal" style="max-width:480px">
+    <span class="mclose" onclick="hide('settings')">&times;</span>
+    <div id="setMenu">
+      <h2>&#9881; Settings</h2>
+      <p class="help">Pick a setting to edit.</p>
+      <button class="setrow" onclick="openSet('label')"><span>&#127991; Label checklist</span><span class="setsub" id="subLabel"></span><span class="chev2">&#8250;</span></button>
+      <button class="setrow" onclick="openSet('guide')"><span>&#128203; Testing guide</span><span class="setsub" id="subGuide"></span><span class="chev2">&#8250;</span></button>
+      <button class="setrow" onclick="openSet('form')"><span>&#128196; RMA form defaults</span><span class="setsub" id="subForm"></span><span class="chev2">&#8250;</span></button>
+      <button class="setrow" onclick="openSet('notify')"><span>&#128231; Notifications</span><span class="setsub" id="subNotify"></span><span class="chev2">&#8250;</span></button>
+    </div>
+    <div id="setEdit" class="hide">
+      <h2><span class="backbtn" onclick="backSet()">&#8249;</span> <span id="setTitle"></span></h2>
+      <p class="help" id="setHelp"></p>
+      <div id="setListWrap">
+        <ul class="setlist" id="setList"></ul>
+        <input type="text" id="setAdd" placeholder="Add item + Enter">
+      </div>
+      <div id="setFormWrap" class="hide">
+        <label>Hyla sales rep (form D8)</label>
+        <input id="setSalesRep" placeholder="Rep name">
+        <label>Credit or Return (form D9)</label>
+        <select id="setCreditReturn"><option>Credit</option><option>Return</option></select>
+      </div>
+      <div id="setNotifyWrap" class="hide">
+        <label>Teams channel email (RMA alerts)</label>
+        <input id="setTeams" placeholder="channel@…teams.ms">
+        <label>Digest email (daily deadline warnings)</label>
+        <input id="setDigest" placeholder="leave blank to use Teams email">
+        <label>RMA aging warning (days)</label>
+        <input id="setWarn" inputmode="numeric" placeholder="3">
+      </div>
+      <div style="height:14px"></div>
+      <button class="btn red" style="width:100%" onclick="backSet()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- PO NO-MATCH MODAL -->
+<div class="modal-bg hide" id="pomiss">
+  <div class="modal">
+    <span class="mclose" onclick="hide('pomiss')">&times;</span>
+    <h2>Some devices didn't match the RQ catalog</h2>
+    <p class="help">These were left out of the import file — add them in RepairQ manually after upload:</p>
+    <ul class="misslist" id="pomissList"></ul>
+    <div style="height:14px"></div>
+    <button class="btn red" style="width:100%" onclick="hide('pomiss')">Got it</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="assets/nav.js"></script>
+<script>
+/* ================= CONFIG ================= */
+var API_URL = 'https://script.google.com/macros/s/AKfycbzVfcAH4l28JzGMe-horVin4G24QiKlS9XF6o1jsaVE3rUXArdxa3B9Od6o2z3u35ME/exec';
+var TOKEN   = 'c4e8a2d6f1b9374c5e0a8d2b6f4c1e9a7d3b5f8c2e6a0d4b8f2c6e1a9d5b3f7c';
+var ASSET_RMA_TEMPLATE = 'assets/hyla/rma-claim-template.xlsx';
+var ASSET_DEVICE_CATALOG = 'assets/hyla/rq-device-catalog.json';
+var RMA_CUSTOMER_EMAIL = 'bbay@cpr-stores.com';
+
+/* ================= STATE ================= */
+var DATA = { orders:[], devices:[], rmas:[] };
+var SETTINGS = {};
+var ROSTER = [];
+var TAB='open', STORE_FILTER='all', RMA_VIEW='active', RANGE='90', SEARCH='';
+var CATALOG = null;
+
+/* ================= UTIL ================= */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function money(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._x); t._x=setTimeout(function(){t.classList.remove('show');},2200); }
+function show(id){ if(id==='guide')renderGuide(); $(id).classList.remove('hide'); }
+function hide(id){ $(id).classList.add('hide'); }
+function parseYmd(s){ if(!s)return null; var m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return null; return new Date(+m[1],+m[2]-1,+m[3]); }
+function todayMid(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+function ymd(d){ function p(n){return (n<10?'0':'')+n;} return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function fmtShort(s){ var d=parseYmd(s); if(!d)return ''; return (d.getMonth()+1)+'/'+('0'+d.getDate()).slice(-2); }
+function fmtMonDay(d){ return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function debounceMap(){} // saves fire on 'change' (blur), no debounce needed
+
+/* store helpers (locations.js is source of truth, with safe fallback) */
+function storeNames(){
+  try{
+    var L = window.CPRLocations;
+    if (L){
+      if (typeof L.options === 'function') return L.options();
+      if (Array.isArray(L.displayOrder)) return L.displayOrder.slice();
+      if (typeof L.all === 'function') return L.all();
+    }
+  }catch(e){}
+  return ['Eugene','Salem Northeast','Clackamas'];
+}
+function storeKey(name){
+  var v = String(name||'').toLowerCase();
+  if (v.indexOf('eugene')>=0) return 'eugene';
+  if (v.indexOf('salem')>=0) return 'salem';
+  if (v.indexOf('clack')>=0) return 'clack';
+  return '';
+}
+
+/* ================= API ================= */
+function api(action, params){
+  if (API_URL.indexOf('PASTE_') === 0){ apiError('Backend URL not set — edit API_URL at the top of hyla-orders.html.'); return Promise.reject('no url'); }
+  var qs = new URLSearchParams({ action:action, token:TOKEN });
+  params = params || {};
+  for (var k in params){ qs.set(k, typeof params[k]==='object' ? JSON.stringify(params[k]) : params[k]); }
+  return fetch(API_URL + '?' + qs.toString())
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if(!j.ok && j.error){ throw new Error(j.error); } return j; });
+}
+function apiError(msg){ var b=$('apiBanner'); b.textContent='⚠ ' + msg; b.classList.remove('hide'); }
+
+/* ================= BOOT ================= */
+function boot(){
+  api('list').then(function(j){
+    DATA = { orders:j.orders||[], devices:j.devices||[], rmas:j.rmas||[] };
+    renderAll();
+  }).catch(function(e){ apiError('Could not load data: ' + e.message); });
+  api('settingsGet').then(function(j){
+    SETTINGS = j || {};
+    renderGuide();
+  }).catch(function(){});
+  api('roster').then(function(j){ ROSTER = j.names || []; renderAll(); }).catch(function(){});
+}
+function reload(){ return api('list').then(function(j){ DATA={orders:j.orders||[],devices:j.devices||[],rmas:j.rmas||[]}; renderAll(); }); }
+
+function labelItems(){ try{ var a=JSON.parse(SETTINGS.labelItems||'[]'); if(a.length)return a; }catch(e){} return ['Battery life','All functions','Audio test','Cleaned']; }
+function guideSteps(){ try{ var a=JSON.parse(SETTINGS.guideSteps||'[]'); if(a.length)return a; }catch(e){} return ['Power on & boot','Check for iCloud / Google / MDM lock','Screen: brightness, dead pixels, lines, touch accuracy','Face ID / Touch ID enrolls','Front & rear cameras (photo + video, all lenses)','Speakers, earpiece & microphone','Charging port + wireless charging','Buttons: power, volume, mute','Wi-Fi & cellular signal','Battery health reading','Cosmetic check: glass, frame, lens covers','Clean device & apply label']; }
+
+/* ================= TABS / FILTERS ================= */
+function setTab(t){
+  TAB=t;
+  document.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('active', x.dataset.tab===t); });
+  ['open','done','rmatab','reports'].forEach(function(x){ $(x).classList.toggle('hide', x!==t); });
+  if (t==='reports') renderReports();
+}
+function storeBarHtml(){
+  var html = '<span class="lbl">Store</span><button class="fpill '+(STORE_FILTER==='all'?'on':'')+'" onclick="setStore(\'all\')">All</button>';
+  storeNames().forEach(function(n){
+    var k = storeKey(n);
+    html += '<button class="fpill '+k+' '+(STORE_FILTER===k?'on':'')+'" onclick="setStore(\''+k+'\')">'+esc(n)+'</button>';
+  });
+  html += '<span class="ftotal" id="ftotal_'+(TAB==='done'?'done':'open')+'"></span>';
+  return html;
+}
+function setStore(k){ STORE_FILTER=k; renderOrders(); }
+function rmaView(v){ RMA_VIEW=v; $('rvActive').classList.toggle('on',v==='active'); $('rvClosed').classList.toggle('on',v==='closed'); renderRmas(); }
+function setRange(r, btn){ RANGE=String(r); document.querySelectorAll('#reports .fpill').forEach(function(p){p.classList.remove('on');}); btn.classList.add('on'); renderReports(); }
+function searchImei(q){ SEARCH=q.replace(/\D/g,''); renderOrders(); }
+
+/* ================= ORDER HELPERS ================= */
+function orderDevices(oid){ return DATA.devices.filter(function(d){ return d.orderId===oid; }); }
+function orderTotal(oid){ return orderDevices(oid).reduce(function(s,d){ return s+(d.cost||0); },0); }
+function orderCounts(oid){
+  var c={passed:0,failed:0,pending:0};
+  orderDevices(oid).forEach(function(d){ c[d.status==='passed'?'passed':d.status==='failed'?'failed':'pending']++; });
+  return c;
+}
+function daysLeft(o){
+  if (!o.receivedDate) return null;
+  var recv=parseYmd(o.receivedDate); if(!recv) return null;
+  var deadline=new Date(recv.getTime()+7*86400000);
+  return Math.round((deadline-todayMid())/86400000);
+}
+function returnBy(o){
+  var recv=parseYmd(o.receivedDate); if(!recv) return '';
+  return fmtMonDay(new Date(recv.getTime()+7*86400000));
+}
+function countdownHtml(o){
+  if (o.status==='completed') return '<span class="countdown ok">&#10003; Complete</span>';
+  var dl=daysLeft(o);
+  if (dl===null) return '<span class="countdown none">Not received</span>';
+  if (dl<0) return '<span class="countdown late">&#9200; Overdue '+Math.abs(dl)+'d</span>';
+  if (dl===0) return '<span class="countdown late">&#9200; Due today</span>';
+  var cls = dl<=1?'late':(dl<=3?'warn':'ok');
+  return '<span class="countdown '+cls+'">&#9200; '+dl+' day'+(dl===1?'':'s')+' left</span>';
+}
+
+/* ================= RENDER: ORDERS ================= */
+var OPEN_STATE = {};   // orderId -> expanded bool
+function renderAll(){ renderTabsCounts(); renderOrders(); renderRmas(); if(TAB==='reports')renderReports(); }
+function renderTabsCounts(){
+  $('nOpen').textContent = DATA.orders.filter(function(o){return o.status!=='completed';}).length;
+  $('nDone').textContent = DATA.orders.filter(function(o){return o.status==='completed';}).length;
+  var act = DATA.rmas.filter(function(r){ return ['credited','denied'].indexOf(String(r.status).toLowerCase())<0; }).length;
+  $('nRma').textContent = act;
+  $('nRma').classList.toggle('alert', act>0);
+}
+function inspectorOptions(sel){
+  var names = ROSTER.length?ROSTER:[];
+  var html = '<option value="">&mdash;</option>';
+  if (sel && names.indexOf(sel)<0) html += '<option selected>'+esc(sel)+'</option>';
+  names.forEach(function(n){ html += '<option '+(n===sel?'selected':'')+'>'+esc(n)+'</option>'; });
+  return html;
+}
+function deviceRow(d, o){
+  var editable = o.status!=='completed' || true; // store stays editable on completed
+  var received = !!o.receivedDate;
+  var k = storeKey(d.store);
+  var unlockHtml = (/\d{6,}/.test(d.unlockCode||'')) ? ' &nbsp;<span class="unlock" onclick="event.stopPropagation();copyText(\''+esc(d.unlockCode)+'\',this)">&#128273; '+esc(d.unlockCode)+'</span>' : '';
+  var inspLine = (d.status!=='pending' && o.inspector) ? 'Inspected by '+esc(o.inspector) : '';
+  var hit = SEARCH && String(d.imei).indexOf(SEARCH)>=0;
+
+  var status;
+  if (d.status==='passed'){
+    status = '<button class="spill pass on">Passed</button><button class="spill fail" onclick="openFail(\''+d.deviceId+'\')">Fail</button>';
+  } else if (d.status==='failed'){
+    status = '<button class="spill fail on">Failed</button><button class="spill pass" onclick="unfail(\''+d.deviceId+'\')">Un-fail</button>';
+  } else if (!received){
+    status = '<button class="spill pend on">Pending</button>';
+  } else {
+    status = '<button class="spill pass" onclick="passDevice(\''+d.deviceId+'\')">Pass</button><button class="spill fail" onclick="openFail(\''+d.deviceId+'\')">Fail</button>';
+  }
+
+  var storeOpts = '<option value="">&mdash; Assign &mdash;</option>';
+  storeNames().forEach(function(n){ storeOpts += '<option '+(n===d.store?'selected':'')+'>'+esc(n)+'</option>'; });
+
+  var fail = d.status==='failed' ? '<div class="failnote"><b>'+esc(d.failReason)+'</b>'+(d.failComment?' &middot; '+esc(d.failComment):'')+' &rarr; In RMA queue.</div>' : '';
+
+  return '<div class="dev'+(hit?' hit':'')+'" data-store="'+k+'" data-id="'+d.deviceId+'">'
+    + '<div class="dmain"><div class="dline"><span class="dname">'+esc(d.model)+'</span><span class="dspec">'+esc(d.storage)+(d.color?' &middot; '+esc(d.color):'')+(d.carrier?' &middot; '+esc(d.carrier):'')+'</span>'+(d.grade?'<span class="grade">'+esc(d.grade)+'</span>':'')+'</div>'
+    + '<div class="imei" onclick="copyImei(this)">IMEI '+esc(d.imei)+unlockHtml+'</div>'
+    + '<div class="insp">'+inspLine+'</div></div>'
+    + '<div class="wb"><button class="'+(d.packaging==='wrapped'?'on':'')+'" onclick="setPack(\''+d.deviceId+'\',\'wrapped\',this)">Wrap</button><button class="'+(d.packaging==='bagged'?'on':'')+'" onclick="setPack(\''+d.deviceId+'\',\'bagged\',this)">Bag</button></div>'
+    + '<select class="storesel '+k+'" onclick="event.stopPropagation()" onchange="setDevStore(\''+d.deviceId+'\',this)">'+storeOpts+'</select>'
+    + '<input class="sale" placeholder="$ —" value="'+esc(d.salePrice)+'" onclick="event.stopPropagation()" onchange="setSale(\''+d.deviceId+'\',this.value)">'
+    + '<div class="statusgrp">'+status+'</div>'
+    + '<span class="dprice">'+money(d.cost)+'</span>'
+    + fail
+    + '</div>';
+}
+function orderCard(o){
+  var devs = orderDevices(o.orderId);
+  var counts = orderCounts(o.orderId);
+  var expanded = OPEN_STATE[o.orderId];
+  if (SEARCH && devs.some(function(d){return String(d.imei).indexOf(SEARCH)>=0;})) expanded = true;
+  var visDevs = devs.filter(function(d){ return STORE_FILTER==='all' || storeKey(d.store)===STORE_FILTER; });
+  if (SEARCH) visDevs = visDevs.filter(function(d){ return String(d.imei).indexOf(SEARCH)>=0; });
+  var dim = (STORE_FILTER!=='all'||SEARCH) && visDevs.length===0;
+
+  var line2 = '<span class="inspwrap" onclick="event.stopPropagation()">Insp: <select class="orderInsp" onchange="setInsp(\''+o.orderId+'\',this.value)">'+inspectorOptions(o.inspector)+'</select></span>';
+  if (o.status==='completed'){
+    line2 += '<span>Received <b>'+fmtShort(o.receivedDate)+'</b></span><span><b>'+counts.passed+'</b> passed &middot; <b>'+counts.failed+'</b> failed</span>';
+  } else {
+    line2 += '<span class="recv" onclick="event.stopPropagation()">Recv: <input type="date" value="'+esc(o.receivedDate)+'" onchange="setRecv(\''+o.orderId+'\',this.value)"></span>';
+    line2 += o.receivedDate
+      ? '<span>Return <b>'+returnBy(o)+'</b></span><span><b>'+counts.passed+'</b> passed &middot; <b>'+counts.failed+'</b> failed &middot; <b>'+counts.pending+'</b> pending</span>'
+      : '<span style="color:var(--grey)">Set date to start clock</span>';
+  }
+
+  var menu = '<div class="menuwrap"><button class="dots" onclick="event.stopPropagation();toggleMenu(this)">&#8942;</button><div class="menu">'
+    + '<button onclick="event.stopPropagation();printLabels(\''+o.orderId+'\')">&#127991; Print labels</button>'
+    + '<button onclick="event.stopPropagation();rqExport(\''+o.orderId+'\')">&#11015; RQ PO import</button>'
+    + (o.status==='completed'
+        ? '<button onclick="event.stopPropagation();reopenOrder(\''+o.orderId+'\')">&#8634; Reopen</button>'
+        : '<button onclick="event.stopPropagation();completeOrder(\''+o.orderId+'\')">&#10003; Mark complete</button>')
+    + '<button class="danger" onclick="event.stopPropagation();delOrder(\''+o.orderId+'\',\''+esc(o.orderNbr)+'\')">&#128465; Delete order</button>'
+    + '</div></div>';
+
+  var suggest = '';
+  if (o.status!=='completed' && o.receivedDate && devs.length && counts.pending===0){
+    suggest = '<div class="suggest"><span>All devices resolved &mdash; mark this order complete?</span><button class="btn" onclick="completeOrder(\''+o.orderId+'\')">Mark complete</button></div>';
+  }
+
+  return '<div class="order '+(expanded?'open':'')+'" style="'+(dim?'opacity:.45':'')+'">'
+    + '<div class="ohead" onclick="toggleOrder(\''+o.orderId+'\')">'
+    + '<span class="chev">&#9654;</span>'
+    + '<div class="ohgrid">'
+    +   '<div class="ohrow"><div class="otit"><div class="onum">Order #'+esc(o.orderNbr)+'</div><div class="ometa">'+devs.length+' device'+(devs.length===1?'':'s')+(o.tracking?' &middot; tracking <b>'+esc(o.tracking)+'</b>':'')+(o.shipDate?' &middot; shipped '+fmtShort(o.shipDate):'')+'</div></div></div>'
+    +   '<div class="ohrow2">'+line2+'</div>'
+    + '</div>'
+    + '<div class="right">'+countdownHtml(o)+'<div class="oamt">'+money(orderTotal(o.orderId))+'</div>'+menu+'</div>'
+    + '</div>'
+    + '<div class="obody">'
+    + '<div class="cols"><span>Device</span><span class="c">Pack</span><span>Store</span><span>Sale price</span><span class="c">Status</span><span class="r">Cost</span></div>'
+    + visDevs.map(function(d){ return deviceRow(d,o); }).join('')
+    + (visDevs.length===0 ? '<div class="dev" style="display:block;color:var(--grey);font-size:.8rem">No devices match the current filter.</div>' : '')
+    + suggest
+    + '</div></div>';
+}
+function sortOpen(a,b){
+  var da=daysLeft(a), db=daysLeft(b);
+  if (da===null && db===null) return (b.createdAt||'').localeCompare(a.createdAt||'');
+  if (da===null) return 1;
+  if (db===null) return -1;
+  return da-db;
+}
+function renderOrders(){
+  $('storeBarOpen').innerHTML = storeBarHtml().replace('id="ftotal_done"','id="ftotal_open"');
+  $('storeBarDone').innerHTML = storeBarHtml().replace('id="ftotal_open"','id="ftotal_done"');
+  var open = DATA.orders.filter(function(o){return o.status!=='completed';}).sort(sortOpen);
+  var done = DATA.orders.filter(function(o){return o.status==='completed';}).sort(function(a,b){return (b.createdAt||'').localeCompare(a.createdAt||'');});
+  $('openList').innerHTML = open.length ? open.map(orderCard).join('') : '<div class="empty">No open orders &mdash; upload an IMEI list to start.</div>';
+  $('doneList').innerHTML = done.length ? done.map(orderCard).join('') : '<div class="empty">No completed orders yet.</div>';
+  // filter totals
+  ['open','done'].forEach(function(which){
+    var el = $('ftotal_'+which); if(!el) return;
+    if (STORE_FILTER==='all' && !SEARCH){ el.textContent=''; return; }
+    var ids = (which==='open'?open:done).map(function(o){return o.orderId;});
+    var devs = DATA.devices.filter(function(d){
+      if (ids.indexOf(d.orderId)<0) return false;
+      if (STORE_FILTER!=='all' && storeKey(d.store)!==STORE_FILTER) return false;
+      if (SEARCH && String(d.imei).indexOf(SEARCH)<0) return false;
+      return true;
+    });
+    var tot = devs.reduce(function(s,d){return s+(d.cost||0);},0);
+    el.textContent = devs.length + ' device' + (devs.length===1?'':'s') + ' · ' + money(tot);
+  });
+}
+function toggleOrder(oid){ OPEN_STATE[oid]=!OPEN_STATE[oid]; renderOrders(); }
+function toggleMenu(btn){
+  document.querySelectorAll('.menu').forEach(function(m){ if(m!==btn.nextElementSibling) m.classList.remove('show'); });
+  btn.nextElementSibling.classList.toggle('show');
+}
+document.addEventListener('click', function(e){ if(!e.target.closest('.menuwrap')) document.querySelectorAll('.menu').forEach(function(m){m.classList.remove('show');}); });
+
+/* ================= ORDER ACTIONS ================= */
+function setRecv(oid, val){
+  api('setReceived',{orderId:oid, receivedDate:val}).then(function(){
+    var o=DATA.orders.find(function(x){return x.orderId===oid;}); if(o)o.receivedDate=val;
+    renderOrders(); toast(val?'7-day clock started':'Received date cleared');
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+function setInsp(oid, val){
+  api('setInspector',{orderId:oid, inspector:val}).then(function(){
+    var o=DATA.orders.find(function(x){return x.orderId===oid;}); if(o)o.inspector=val;
+    renderOrders();
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+function setDevStore(devId, sel){
+  var val = sel.value;
+  api('updateDevice',{deviceId:devId, store:val}).then(function(){
+    var d=DATA.devices.find(function(x){return x.deviceId===devId;}); if(d)d.store=val;
+    renderOrders();
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+function setSale(devId, val){
+  api('updateDevice',{deviceId:devId, salePrice:val}).then(function(){
+    var d=DATA.devices.find(function(x){return x.deviceId===devId;}); if(d)d.salePrice=val;
+    toast('Sale price saved');
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+function setPack(devId, pack, btn){
+  var d=DATA.devices.find(function(x){return x.deviceId===devId;});
+  var val = (d && d.packaging===pack) ? '' : pack;  // tap again to clear
+  api('updateDevice',{deviceId:devId, packaging:val}).then(function(){
+    if(d)d.packaging=val; renderOrders();
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+function passDevice(devId){
+  api('updateDevice',{deviceId:devId, status:'passed'}).then(function(){
+    var d=DATA.devices.find(function(x){return x.deviceId===devId;}); if(d){d.status='passed';d.failReason='';d.failComment='';}
+    renderOrders(); renderTabsCounts();
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+function unfail(devId){
+  var r = DATA.rmas.find(function(x){ return x.deviceId===devId && ['credited','denied'].indexOf(String(x.status).toLowerCase())<0; });
+  var warn = 'Un-fail this device and return it to Pass/Fail?';
+  if (r && String(r.status).toLowerCase()!=='needs submission') warn = 'This device has an RMA already '+r.status+'. Un-fail anyway? (The RMA stays in the queue — close or manage it there.)';
+  if (!confirm(warn)) return;
+  api('updateDevice',{deviceId:devId, status:'pending'}).then(reload).catch(function(e){ toast('Failed: '+e.message); });
+}
+function completeOrder(oid){
+  api('completeOrder',{orderId:oid}).then(reload).then(function(){ toast('Order completed'); }).catch(function(e){ toast('Failed: '+e.message); });
+}
+function reopenOrder(oid){
+  api('reopenOrder',{orderId:oid}).then(reload).then(function(){ toast('Order reopened'); }).catch(function(e){ toast('Failed: '+e.message); });
+}
+function delOrder(oid, nbr){
+  if (!confirm('Delete order #'+nbr+' and all its devices and RMAs? This cannot be undone.')) return;
+  api('deleteOrder',{orderId:oid}).then(reload).then(function(){ toast('Order deleted'); }).catch(function(e){ toast('Failed: '+e.message); });
+}
+
+/* ================= FAIL FLOW ================= */
+var FAIL_DEV = null;
+function openFail(devId){
+  FAIL_DEV = DATA.devices.find(function(x){return x.deviceId===devId;});
+  if (!FAIL_DEV) return;
+  $('failCtx').innerHTML = esc(FAIL_DEV.model)+' &middot; IMEI '+esc(FAIL_DEV.imei)+' &middot; Order #'+esc(FAIL_DEV.orderNbr)+'. Creates an RMA and notifies the Teams channel.';
+  $('failReason').value=''; $('failComment').value='';
+  show('fail');
+}
+function doFail(){
+  if (!FAIL_DEV) return;
+  var reason=$('failReason').value, comment=$('failComment').value.trim();
+  if (!reason){ toast('Pick a reason'); return; }
+  api('failDevice',{deviceId:FAIL_DEV.deviceId, reason:reason, comment:comment}).then(function(){
+    hide('fail'); return reload();
+  }).then(function(){ toast('RMA created'); }).catch(function(e){ toast('Failed: '+e.message); });
+}
+
+/* ================= COPY ================= */
+function copyText(txt, el){
+  navigator.clipboard.writeText(txt).then(function(){ toast('Copied'); }).catch(function(){ toast('Copy blocked by browser'); });
+}
+function copyImei(el){
+  var m = el.textContent.match(/\d{14,16}/); if(!m) return;
+  navigator.clipboard.writeText(m[0]).then(function(){
+    el.classList.add('copied'); var o=el.innerHTML;
+    el.innerHTML='IMEI '+m[0]+' &nbsp;✓ copied';
+    setTimeout(function(){ el.classList.remove('copied'); el.innerHTML=o; },1100);
+  }).catch(function(){ toast('Copy blocked — works once hosted (https)'); });
+}
+
+/* ================= UPLOAD / PARSE ================= */
+var PARSED = null;
+function openUpload(){ PARSED=null; $('parseSummary').textContent=''; $('upRecv').value=''; $('importBtn').disabled=true; $('fileInput').value=''; show('upload'); }
+var dz=null;
+document.addEventListener('DOMContentLoaded', function(){
+  dz = $('dropzone');
+  ['dragover','dragenter'].forEach(function(ev){ dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('over');}); });
+  ['dragleave','drop'].forEach(function(ev){ dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.remove('over');}); });
+  dz.addEventListener('drop', function(e){ if(e.dataTransfer.files.length) fileChosen(e.dataTransfer.files); });
+  $('setAdd').addEventListener('keydown', function(e){ if(e.key==='Enter'&&this.value.trim()&&CUR_SET&&SET_PAGES[CUR_SET].arr){ SET_PAGES[CUR_SET].arr.push(this.value.trim()); this.value=''; renderSetList(); } });
+  boot();
+});
+function fileChosen(files){
+  var f=files[0]; if(!f) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      PARSED = parseImeiRows(rows);
+      if (!PARSED.devices.length){ $('parseSummary').innerHTML='<b style="color:var(--red)">No devices found — is this the Hyla IMEI list?</b>'; $('importBtn').disabled=true; return; }
+      $('parseSummary').innerHTML='<b>Order #'+esc(PARSED.order.orderNbr)+'</b> &middot; '+PARSED.devices.length+' devices &middot; '+money(PARSED.total)+(PARSED.order.tracking?' &middot; tracking '+esc(PARSED.order.tracking):'');
+      $('importBtn').disabled=false;
+    }catch(err){
+      $('parseSummary').innerHTML='<b style="color:var(--red)">Could not read file: '+esc(err.message)+'</b>';
+      $('importBtn').disabled=true;
+    }
+  };
+  reader.readAsArrayBuffer(f);
+}
+function parseImeiRows(rows){
+  var devices=[], order={orderNbr:'',tracking:'',shipDate:''}, total=0;
+  rows.forEach(function(r){
+    var imei = String(r.serialnumber||r.SerialNumber||'').trim();
+    if (!imei) return;
+    var desc = String(r.itemdescription||'');
+    var parts = desc.split('.');
+    var storage='', color='', modelNbr='';
+    if (parts.length>=7){ modelNbr=parts[2]; storage=parts[3]; color=parts[4]; }
+    else {
+      var m=desc.match(/(\d+\s?[GT]B)/i); if(m) storage=m[1];
+    }
+    var cost = Number(String(r.Unit_Selling_Price||r.unit_selling_price||'').replace(/[^0-9.\-]/g,''))||0;
+    total += cost;
+    var unlock = String(r.Unlock_Code||r.unlock_code||'').trim();
+    if (!/\d{6,}/.test(unlock)) unlock='';
+    if (!order.orderNbr) order.orderNbr = String(r.ordernbr||r.OrderNbr||'').trim();
+    if (!order.tracking) order.tracking = String(r.trackingnumber||'').trim();
+    if (!order.shipDate){
+      var sd = r.Ship_Date||r.ship_date||'';
+      if (sd instanceof Date) order.shipDate = ymd(sd);
+      else if (sd){ var d=new Date(sd); if(!isNaN(d)) order.shipDate=ymd(d); }
+    }
+    devices.push({
+      imei:imei,
+      manufacturer:String(r.manufacturer||'').trim(),
+      model:String(r.model||'').trim(),
+      modelNbr:modelNbr, storage:storage.replace(/\s+/g,''), color:color,
+      carrier:String(r.carrier||'').trim(),
+      grade:String(r.grade||'').trim(),
+      cost:cost, unlockCode:unlock
+    });
+  });
+  return { order:order, devices:devices, total:total };
+}
+function doImport(){
+  if (!PARSED) return;
+  PARSED.order.receivedDate = $('upRecv').value || '';
+  $('importBtn').disabled=true;
+  api('addOrder',{order:PARSED.order, devices:PARSED.devices}).then(function(){
+    hide('upload'); return reload();
+  }).then(function(){ toast('Order #'+PARSED.order.orderNbr+' imported'); })
+  .catch(function(e){ $('parseSummary').innerHTML='<b style="color:var(--red)">'+esc(e.message)+'</b>'; $('importBtn').disabled=false; });
+}
+
+/* ================= RMA TAB ================= */
+var RMA_CHECKS = {};
+function rmaClosed(r){ return ['credited','denied'].indexOf(String(r.status).toLowerCase())>=0; }
+function rmaDay(r){
+  var open=parseYmd(r.openedAt); if(!open) return '';
+  var end = rmaClosed(r) && r.closedAt ? parseYmd(r.closedAt) : todayMid();
+  var n = Math.max(1, Math.round((end-open)/86400000)+1);
+  var warnDays = Number(SETTINGS.rmaWarnDays)||3;
+  var cls = (!rmaClosed(r) && n>=warnDays) ? 'rday warn' : 'rday';
+  return '<span class="'+cls+'">Day '+n+(rmaClosed(r)?' &middot; closed':'')+'</span>';
+}
+function statusClass(st){
+  var map={'needs submission':'s-needs','submitted':'s-submitted','approved':'s-approved','shipped':'s-shipped','credited':'s-credited','denied':'s-denied'};
+  return map[String(st).toLowerCase()]||'';
+}
+function rmaCard(r){
+  var checked = RMA_CHECKS[r.rmaId]?'checked':'';
+  var sts = ['Needs Submission','Submitted','Approved','Shipped','Credited','Denied'];
+  var opts = sts.map(function(s){ return '<option '+(s.toLowerCase()===String(r.status).toLowerCase()?'selected':'')+'>'+s+'</option>'; }).join('');
+  var o = DATA.orders.find(function(x){return x.orderId===r.orderId;});
+  var rb = o && o.receivedDate && !rmaClosed(r) ? ' &middot; return by <b>'+returnBy(o)+'</b>' : '';
+  var chips = rmaDay(r);
+  if (rmaClosed(r)){
+    if (String(r.outcome).toLowerCase()==='kept') chips += '<span class="kept">Kept</span>';
+    var net = (r.repairCost||0)-(r.creditAmt||0);
+    chips += '<span class="netchip '+(net>0?'neg':'pos')+'">Net '+(net>0?'-':'')+money(Math.abs(net)).replace('$-','$')+'</span>';
+  }
+  chips += '<span class="reason">'+esc(r.reason)+'</span>';
+  if (r.comment) chips += '<span class="rcmt">'+esc(r.comment)+'</span>';
+  return '<div class="rma">'
+    + '<div class="r1">'
+    + '<input type="checkbox" '+checked+' onchange="rmaCheck(\''+r.rmaId+'\',this.checked)">'
+    + '<div class="rtit"><span class="rname">'+esc(r.model)+'</span><span class="rmeta">'+esc(r.storage)+(r.color?' '+esc(r.color):'')+' &middot; Order <b>#'+esc(r.orderNbr)+'</b> &middot; IMEI '+esc(r.imei)+' &middot; '+money(r.cost)+rb+'</span></div>'
+    + '<div class="rstat"><input class="rtrack" placeholder="Tracking #" value="'+esc(r.trackingNbr)+'" onchange="rmaTrack(\''+r.rmaId+'\',this.value)"> <select class="'+statusClass(r.status)+'" onchange="rmaStatus(\''+r.rmaId+'\',this)">'+opts+'</select></div>'
+    + '</div>'
+    + '<div class="r2">'+chips+'</div>'
+    + '</div>';
+}
+function renderRmas(){
+  var list = DATA.rmas.filter(function(r){ return (RMA_VIEW==='closed')===rmaClosed(r); })
+    .sort(function(a,b){ return (b.openedAt||'').localeCompare(a.openedAt||''); });
+  $('rmaList').innerHTML = list.map(rmaCard).join('');
+  var empty=$('rmaEmpty');
+  empty.textContent = RMA_VIEW==='closed' ? 'No closed RMAs yet.' : 'No active RMAs — all clear. 🎉';
+  empty.classList.toggle('hide', list.length>0);
+  updateRmaBar();
+}
+function rmaCheck(id, on){ RMA_CHECKS[id]=on; updateRmaBar(); }
+function updateRmaBar(){
+  var visible = DATA.rmas.filter(function(r){ return (RMA_VIEW==='closed')===rmaClosed(r); });
+  var n = visible.filter(function(r){ return RMA_CHECKS[r.rmaId]; }).length;
+  $('rmaSel').textContent=n;
+  $('rmaBar').classList.toggle('hide', visible.length===0 || RMA_VIEW==='closed');
+}
+function rmaTrack(id, val){
+  api('updateRma',{rmaId:id, trackingNbr:val}).then(function(){
+    var r=DATA.rmas.find(function(x){return x.rmaId===id;}); if(r)r.trackingNbr=val;
+    toast('Tracking saved');
+  }).catch(function(e){ toast('Save failed: '+e.message); });
+}
+var CO = null;
+function rmaStatus(id, sel){
+  var r=DATA.rmas.find(function(x){return x.rmaId===id;}); if(!r) return;
+  var v=sel.value;
+  if (['credited','denied'].indexOf(v.toLowerCase())>=0){
+    CO = { rmaId:id, status:v, prev:r.status, outcome: v.toLowerCase()==='denied'?'kept':'returned' };
+    $('coTitle').textContent='Close RMA — '+v;
+    $('coCtx').innerHTML=esc(r.model)+' &middot; IMEI '+esc(r.imei)+' &middot; device cost '+money(r.cost);
+    $('coCredit').value = v.toLowerCase()==='credited' ? (r.cost||'') : '';
+    $('coRepair').value='';
+    coOutcome(CO.outcome);
+    show('closeout');
+  } else {
+    api('updateRma',{rmaId:id, status:v}).then(function(){ r.status=v; renderRmas(); renderTabsCounts(); })
+      .catch(function(e){ toast('Save failed: '+e.message); renderRmas(); });
+  }
+}
+function coOutcome(oc){
+  if (CO) CO.outcome=oc;
+  var btns=document.querySelectorAll('#coSeg button');
+  btns[0].classList.toggle('on',oc==='returned');
+  btns[1].classList.toggle('on',oc==='kept');
+  $('coRepairWrap').classList.toggle('hide', oc==='returned');
+  $('coCreditWrap').classList.remove('hide');
+  coNet();
+}
+function coNet(){
+  var c=Number(String($('coCredit').value).replace(/[^0-9.]/g,''))||0;
+  var rp=CO&&CO.outcome==='kept' ? (Number(String($('coRepair').value).replace(/[^0-9.]/g,''))||0) : 0;
+  var net=rp-c;
+  $('coNet').innerHTML = 'Net impact: <b style="color:'+(net>0?'var(--red)':'var(--green)')+'">'+(net>0?'-':'+')+money(Math.abs(net)).replace('$','$')+'</b>'
+    + (CO&&CO.outcome==='kept'?' &middot; device flips back to sellable':' &middot; device returned to Hyla');
+}
+document.addEventListener('input', function(e){ if(e.target.id==='coCredit'||e.target.id==='coRepair') coNet(); });
+function cancelCloseout(){ hide('closeout'); CO=null; renderRmas(); }
+function saveCloseout(){
+  if (!CO) return;
+  var credit=Number(String($('coCredit').value).replace(/[^0-9.]/g,''))||0;
+  var repair=CO.outcome==='kept' ? (Number(String($('coRepair').value).replace(/[^0-9.]/g,''))||0) : 0;
+  api('updateRma',{rmaId:CO.rmaId, status:CO.status, outcome:CO.outcome, creditAmt:credit, repairCost:repair})
+    .then(function(){ hide('closeout'); CO=null; return reload(); })
+    .then(function(){ toast('RMA closed'); })
+    .catch(function(e){ toast('Failed: '+e.message); });
+}
+
+/* ================= RMA FORM GENERATION ================= */
+function generateRmaForm(){
+  var sel = DATA.rmas.filter(function(r){ return RMA_CHECKS[r.rmaId] && !rmaClosed(r); });
+  if (!sel.length){ toast('Check at least one RMA'); return; }
+  fetch(ASSET_RMA_TEMPLATE).then(function(r){
+    if (!r.ok) throw new Error('Template not found at '+ASSET_RMA_TEMPLATE);
+    return r.arrayBuffer();
+  }).then(function(buf){
+    var wb = new ExcelJS.Workbook();
+    return wb.xlsx.load(buf).then(function(){ return wb; });
+  }).then(function(wb){
+    var ws = wb.getWorksheet('Claim Form') || wb.worksheets[0];
+    ws.getCell('D5').value = new Date().toLocaleDateString('en-US');
+    ws.getCell('D6').value = RMA_CUSTOMER_EMAIL;
+    if (SETTINGS.rmaSalesRep) ws.getCell('D8').value = SETTINGS.rmaSalesRep;
+    if (SETTINGS.rmaCreditReturn) ws.getCell('D9').value = SETTINGS.rmaCreditReturn;
+    sel.forEach(function(r,i){
+      var row = 16+i;
+      ws.getCell('C'+row).value = String(r.imei);
+      ws.getCell('D'+row).value = r.model;
+      ws.getCell('E'+row).value = isNaN(Number(r.orderNbr)) ? r.orderNbr : Number(r.orderNbr);
+      ws.getCell('F'+row).value = Number(r.cost)||0;
+      ws.getCell('G'+row).value = r.reason;
+      ws.getCell('H'+row).value = r.comment||'';
+    });
+    return wb.xlsx.writeBuffer();
+  }).then(function(out){
+    var blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='RMA_Claim_Form_'+ymd(new Date())+'.xlsx';
+    a.click(); URL.revokeObjectURL(a.href);
+    toast(sel.length+' device'+(sel.length===1?'':'s')+' on the form');
+  }).catch(function(e){ toast('Form failed: '+e.message); });
+}
+
+/* ================= RQ PO EXPORT ================= */
+function loadCatalog(){
+  if (CATALOG) return Promise.resolve(CATALOG);
+  return fetch(ASSET_DEVICE_CATALOG).then(function(r){
+    if (!r.ok) throw new Error('Catalog not found at '+ASSET_DEVICE_CATALOG);
+    return r.json();
+  }).then(function(j){ CATALOG=j; return j; });
+}
+function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+function colorVariants(dev){
+  var c = norm(dev.color);
+  var v = [c];
+  var mfr = norm(dev.manufacturer);
+  if (mfr.indexOf('samsung')>=0 && c==='black'){ v.push('graphite','phantom black'); }
+  if (c==='product red' || c==='productred' || c==='red product') v.push('red');
+  if (c==='alpine green') v.push('green');
+  return v;
+}
+function matchDevice(dev, catalog){
+  var mfr = norm(dev.manufacturer);
+  var model = norm(dev.model);
+  var stor = String(dev.storage||'').replace(/\D/g,'');
+  var cands = catalog.filter(function(c){
+    if (norm(c.mfr)!==mfr) return false;
+    var n = norm(c.name);
+    if (n.indexOf(model)!==0) return false;
+    if (stor && n.indexOf(' '+stor+' gb')<0) return false;
+    return true;
+  });
+  if (!cands.length) return null;
+  var colors = colorVariants(dev);
+  for (var i=0;i<colors.length;i++){
+    var hit = cands.filter(function(c){ var n=norm(c.name); return n.endsWith(' '+colors[i]) || n.indexOf(' '+colors[i])>=0 && n.split(' - ')[1]===colors[i]; });
+    if (hit.length===1) return hit[0];
+    if (hit.length>1) return hit[0];
+  }
+  if (cands.length===1 && !dev.color) return cands[0];
+  return null;
+}
+function rqExport(oid){
+  var o = DATA.orders.find(function(x){return x.orderId===oid;});
+  var devs = orderDevices(oid);
+  loadCatalog().then(function(cat){
+    var rows=[], misses=[];
+    devs.forEach(function(d){
+      var m = matchDevice(d, cat);
+      if (m) rows.push([m.sku, m.sku, 1, d.cost, '', '', '', '', '', '', '', '']);
+      else misses.push(d);
+    });
+    if (!rows.length){ showMisses(misses, true); return; }
+    var headers = ['Catalog Item','Supplier SKU','Qty','Cost','Price','Note','Location','Supplier','Vendor Order Id','Backordered tickets','Use fifo','Supplier Location'];
+    var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    XLSX.writeFile(wb, 'Hyla_PO_'+(o?o.orderNbr:'order')+'.xlsx');
+    if (misses.length) showMisses(misses, false);
+    else toast(rows.length+' devices in the import file');
+  }).catch(function(e){ toast('Export failed: '+e.message); });
+}
+function showMisses(misses, none){
+  $('pomissList').innerHTML = misses.map(function(d){
+    return '<li><b>'+esc(d.model)+'</b> '+esc(d.storage)+' '+esc(d.color)+' &middot; IMEI '+esc(d.imei)+' &middot; '+money(d.cost)+'</li>';
+  }).join('');
+  if (none) $('pomissList').innerHTML = '<li style="color:var(--red)"><b>No devices matched</b> — check that assets/hyla/rq-device-catalog.json is uploaded.</li>' + $('pomissList').innerHTML;
+  show('pomiss');
+}
+
+/* ================= LABELS (Dymo 30334) ================= */
+function printLabels(oid){
+  var devs = orderDevices(oid).filter(function(d){ return STORE_FILTER==='all' || storeKey(d.store)===STORE_FILTER; });
+  if (!devs.length){ toast('No devices match the current store filter'); return; }
+  var items = labelItems();
+  var lis = items.map(function(c){ return '<li>'+esc(c)+'</li>'; }).join('');
+  var labels = devs.map(function(d){
+    var st = d.store || '____________';
+    return '<div class="lab"><div class="lstore"><span>'+esc(st).toUpperCase()+'</span><span class="lrma">RMA</span></div><ul>'+lis+'</ul></div>';
+  }).join('');
+  var w = window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html><head><title>Labels</title><style>'
+    + '@page{size:2.25in 1.25in;margin:0.05in}'
+    + 'body{margin:0;font-family:Arial,Helvetica,sans-serif}'
+    + '.lab{width:2.15in;height:1.15in;padding:0.04in 0.06in;box-sizing:border-box;page-break-after:always;display:flex;flex-direction:column;overflow:hidden}'
+    + '.lstore{font-weight:900;font-size:11pt;text-transform:uppercase;border-bottom:1.5pt solid #000;padding-bottom:1pt;display:flex;justify-content:space-between;align-items:center}'
+    + '.lrma{font-weight:900;font-size:8pt;border:1.5pt solid #000;border-radius:99pt;padding:0 5pt}'
+    + 'ul{list-style:none;margin:2pt 0 0;padding:0;columns:2;column-gap:8pt}'
+    + 'li{font-size:6.5pt;font-weight:700;margin-bottom:2.5pt;break-inside:avoid}'
+    + 'li::before{content:"\\2610  "}'
+    + '</style></head><body>'+labels+'</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(function(){ w.print(); }, 300);
+}
+
+/* ================= TESTING GUIDE / SETTINGS ================= */
+function renderGuide(){ $('guideList').innerHTML = guideSteps().map(function(c){return '<li>'+esc(c)+'</li>';}).join(''); }
+var SET_PAGES = {};
+var CUR_SET = null, DRAG = null;
+function openSettings(){
+  SET_PAGES = {
+    label:{ arr: labelItems(), title:'Label checklist', help:'Items print as check-off boxes on every device label (Dymo 30334). Drag to reorder.' },
+    guide:{ arr: guideSteps(), title:'Testing guide', help:'The step list shown to techs in the Testing Guide popup. Drag to reorder.' },
+    form:{ title:'RMA form defaults', help:'Filled into the Hyla claim form header when you generate it.' },
+    notify:{ title:'Notifications', help:'Where RMA alerts and the daily deadline digest go.' }
+  };
+  $('subLabel').textContent = SET_PAGES.label.arr.length+' items';
+  $('subGuide').textContent = SET_PAGES.guide.arr.length+' steps';
+  $('subForm').textContent = SETTINGS.rmaSalesRep || '—';
+  $('subNotify').textContent = SETTINGS.teamsEmail ? 'on' : 'off';
+  $('setMenu').classList.remove('hide'); $('setEdit').classList.add('hide');
+  show('settings');
+}
+function openSet(key){
+  CUR_SET=key;
+  $('setMenu').classList.add('hide'); $('setEdit').classList.remove('hide');
+  $('setTitle').textContent=SET_PAGES[key].title;
+  $('setHelp').textContent=SET_PAGES[key].help;
+  $('setListWrap').classList.toggle('hide', !SET_PAGES[key].arr);
+  $('setFormWrap').classList.toggle('hide', key!=='form');
+  $('setNotifyWrap').classList.toggle('hide', key!=='notify');
+  if (key==='form'){ $('setSalesRep').value=SETTINGS.rmaSalesRep||''; $('setCreditReturn').value=SETTINGS.rmaCreditReturn||'Credit'; }
+  if (key==='notify'){ $('setTeams').value=SETTINGS.teamsEmail||''; $('setDigest').value=SETTINGS.digestEmail||''; $('setWarn').value=SETTINGS.rmaWarnDays||'3'; }
+  if (SET_PAGES[key].arr) renderSetList();
+}
+function backSet(){
+  // persist whichever page we were on
+  var save = {};
+  if (CUR_SET==='label') save.labelItems = JSON.stringify(SET_PAGES.label.arr);
+  if (CUR_SET==='guide') save.guideSteps = JSON.stringify(SET_PAGES.guide.arr);
+  if (CUR_SET==='form'){ save.rmaSalesRep=$('setSalesRep').value.trim(); save.rmaCreditReturn=$('setCreditReturn').value; }
+  if (CUR_SET==='notify'){ save.teamsEmail=$('setTeams').value.trim(); save.digestEmail=$('setDigest').value.trim(); save.rmaWarnDays=$('setWarn').value.trim()||'3'; }
+  if (Object.keys(save).length){
+    api('settingsSet', save).then(function(){
+      for (var k in save) SETTINGS[k]=save[k];
+      renderGuide(); toast('Saved');
+    }).catch(function(e){ toast('Save failed: '+e.message); });
+  }
+  CUR_SET=null;
+  $('setEdit').classList.add('hide'); $('setMenu').classList.remove('hide');
+  $('subLabel').textContent = SET_PAGES.label.arr.length+' items';
+  $('subGuide').textContent = SET_PAGES.guide.arr.length+' steps';
+}
+function renderSetList(){
+  var arr=SET_PAGES[CUR_SET].arr;
+  var ul=$('setList');
+  ul.innerHTML=arr.map(function(c,i){
+    return '<li draggable="true" data-i="'+i+'"><span class="handle">&#8942;&#8942;</span>'+esc(c)+'<span class="x" data-x="'+i+'">&times;</span></li>';
+  }).join('');
+  ul.querySelectorAll('.x').forEach(function(x){
+    x.addEventListener('click', function(){ arr.splice(+x.dataset.x,1); renderSetList(); });
+  });
+  ul.querySelectorAll('li').forEach(function(li){
+    li.addEventListener('dragstart',function(){ DRAG=+li.dataset.i; li.classList.add('dragging'); });
+    li.addEventListener('dragend',function(){ li.classList.remove('dragging'); });
+    li.addEventListener('dragover',function(e){ e.preventDefault(); });
+    li.addEventListener('drop',function(e){
+      e.preventDefault();
+      var to=+li.dataset.i;
+      if (DRAG===null||DRAG===to) return;
+      var item=arr.splice(DRAG,1)[0];
+      arr.splice(to,0,item);
+      DRAG=null; renderSetList();
+    });
+  });
+}
+
+/* ================= REPORTS ================= */
+function inRange(dateStr){
+  if (RANGE==='all') return true;
+  var d=parseYmd(dateStr); if(!d) return true;
+  if (RANGE==='ytd') return d.getFullYear()===new Date().getFullYear();
+  return (todayMid()-d)/86400000 <= Number(RANGE);
+}
+function renderReports(){
+  var orders = DATA.orders.filter(function(o){ return inRange(o.receivedDate||o.createdAt); });
+  var oids = orders.map(function(o){return o.orderId;});
+  var devs = DATA.devices.filter(function(d){ return oids.indexOf(d.orderId)>=0; });
+  var rmas = DATA.rmas.filter(function(r){ return inRange(r.openedAt); });
+  var devCost = devs.reduce(function(s,d){return s+(d.cost||0);},0);
+  var rmaDevIds = {}; rmas.forEach(function(r){ rmaDevIds[r.deviceId]=1; });
+  var rmaCount = devs.filter(function(d){ return rmaDevIds[d.deviceId]; }).length;
+  var rmaRate = devs.length ? (rmaCount/devs.length*100) : 0;
+  var closed = rmas.filter(rmaClosed);
+  var credits = closed.reduce(function(s,r){return s+(r.creditAmt||0);},0);
+  var repairs = closed.reduce(function(s,r){return s+(r.repairCost||0);},0);
+  var netCost = repairs-credits;
+  var reclaimed = closed.filter(function(r){ return ((r.repairCost||0)-(r.creditAmt||0))<=0; }).length;
+  var reclaimRate = closed.length ? (reclaimed/closed.length*100) : 0;
+  var avgDays = 0;
+  if (closed.length){
+    var tot=0,n=0;
+    closed.forEach(function(r){
+      var a=parseYmd(r.openedAt), b=parseYmd(r.closedAt);
+      if(a&&b){ tot+=Math.round((b-a)/86400000); n++; }
+    });
+    avgDays = n? (tot/n) : 0;
+  }
+  var openRmas = DATA.rmas.filter(function(r){return !rmaClosed(r);});
+  var oldest = 0;
+  openRmas.forEach(function(r){ var a=parseYmd(r.openedAt); if(a){ var d=Math.round((todayMid()-a)/86400000)+1; if(d>oldest)oldest=d; } });
+
+  function kpi(cls,l,v,b){ return '<div class="kpi '+cls+'"><div class="kl">'+l+'</div><div class="kv">'+v+'</div><div class="kb">'+b+'</div></div>'; }
+  $('kpis').innerHTML =
+      kpi('','Devices received', devs.length, money(devCost)+' cost')
+    + kpi('','RMA rate (defects)', rmaRate.toFixed(1)+'%', rmaCount+' of '+devs.length+' devices')
+    + kpi('green','Credits received', money(credits), closed.filter(function(r){return (r.creditAmt||0)>0;}).length+' RMAs credited')
+    + kpi('red','Repair spend', money(repairs), 'on kept devices')
+    + kpi(netCost>0?'red':'green','Net RMA cost', money(Math.abs(netCost)), netCost>0?'repair &minus; credit (eaten)':'net recovered')
+    + kpi('green','Reclaim rate', reclaimRate.toFixed(0)+'%', reclaimed+' of '+closed.length+' closed at net &le; $0')
+    + kpi('','Avg days to close', avgDays.toFixed(1), 'from RMA opened')
+    + kpi('','Open RMAs', openRmas.length, openRmas.length?('oldest: Day '+oldest):'all clear');
+
+  // wrapped vs bagged + reasons
+  function packStats(pk){
+    var ds = devs.filter(function(d){return d.packaging===pk;});
+    var rm = ds.filter(function(d){return rmaDevIds[d.deviceId];}).length;
+    return { n:ds.length, rma:rm, rate: ds.length? rm/ds.length*100 : 0 };
+  }
+  var w=packStats('wrapped'), b=packStats('bagged');
+  var maxRate=Math.max(w.rate,b.rate,1);
+  var packCard = '<div class="brkcard"><h3>RMA rate: wrapped vs bagged <span class="rng">machine-graded vs hand-uplifted</span></h3>'
+    + '<div class="brow"><span>&#129529; Bagged (hand-uplifted)</span><span class="bn">'+b.rate.toFixed(1)+'% &middot; '+b.rma+' of '+b.n+'</span></div><div class="btrack"><div class="bfill" style="width:'+(b.rate/maxRate*100)+'%"></div></div>'
+    + '<div class="brow"><span>&#127873; Wrapped (machine-graded)</span><span class="bn">'+w.rate.toFixed(1)+'% &middot; '+w.rma+' of '+w.n+'</span></div><div class="btrack"><div class="bfill dark" style="width:'+(w.rate/maxRate*100)+'%"></div></div>'
+    + ((w.n+b.n)===0 ? '<div style="font-size:.72rem;color:var(--grey);margin-top:10px">Set Wrap/Bag on device rows to build this comparison.</div>' : '')
+    + '</div>';
+  var reasonCounts={};
+  rmas.forEach(function(r){ reasonCounts[r.reason]=(reasonCounts[r.reason]||0)+1; });
+  var reasons=Object.keys(reasonCounts).sort(function(a,b){return reasonCounts[b]-reasonCounts[a];}).slice(0,8);
+  var maxN=reasons.length?reasonCounts[reasons[0]]:1;
+  var reasonCard='<div class="brkcard"><h3>Fail reasons <span class="rng">'+(RANGE==='all'?'all time':RANGE==='ytd'?'YTD':'last '+RANGE+' days')+'</span></h3>'
+    + (reasons.length? reasons.map(function(rs){
+        return '<div class="brow"><span>'+esc(rs)+'</span><span class="bn">'+reasonCounts[rs]+'</span></div><div class="btrack"><div class="bfill" style="width:'+(reasonCounts[rs]/maxN*100)+'%"></div></div>';
+      }).join('') : '<div style="font-size:.78rem;color:var(--grey)">No RMAs in range.</div>')
+    + '</div>';
+  $('repBreaks').innerHTML = packCard + reasonCard;
+}
+</script>
+</body>
+</html>
