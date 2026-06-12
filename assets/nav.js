@@ -40,7 +40,7 @@
 
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵' },
-    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/assurant_icon.png' },
+    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦' },
     { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮' },
