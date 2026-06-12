@@ -100,6 +100,11 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
 .imei{font-family:ui-monospace,Menlo,monospace;font-size:.88rem;color:var(--grey);margin-top:6px;cursor:pointer}
 .imei:hover{color:var(--blue)}
 .imei.copied{color:var(--green)}
+
+/* full-page drag & drop overlay */
+#pageDrop{position:fixed;inset:0;z-index:80;display:none;background:rgba(79,176,227,.12);backdrop-filter:blur(2px);border:4px dashed var(--blue);pointer-events:none}
+#pageDrop.show{display:flex;align-items:center;justify-content:center}
+#pageDrop .pd-inner{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.3rem;color:var(--blue);background:#fff;border:2px solid var(--blue);border-radius:16px;padding:22px 34px;box-shadow:0 14px 40px rgba(45,45,59,.18)}
 .insp{font-size:.62rem;color:var(--grey);font-weight:700;min-height:14px}
 
 .wb{display:flex;gap:0;justify-content:center}
@@ -706,6 +711,7 @@ function unfail(devId){
   api('updateDevice',{deviceId:devId, status:'pending'}).then(reload).catch(function(e){ toast('Failed: '+e.message); });
 }
 function completeOrder(oid){
+  OPEN_STATE[oid] = false;   // arrive on the Completed tab collapsed
   api('completeOrder',{orderId:oid}).then(reload).then(function(){ toast('Order completed'); }).catch(function(e){ toast('Failed: '+e.message); });
 }
 function reopenOrder(oid){
@@ -756,6 +762,34 @@ document.addEventListener('DOMContentLoaded', function(){
   ['dragover','dragenter'].forEach(function(ev){ dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('over');}); });
   ['dragleave','drop'].forEach(function(ev){ dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.remove('over');}); });
   dz.addEventListener('drop', function(e){ if(e.dataTransfer.files.length) fileChosen(e.dataTransfer.files); });
+
+  // page-wide drag & drop: drop an IMEI list anywhere to start an import
+  var pageOverlay = document.createElement('div');
+  pageOverlay.id = 'pageDrop';
+  pageOverlay.innerHTML = '<div class="pd-inner">&#8679; Drop IMEI list to import</div>';
+  document.body.appendChild(pageOverlay);
+  var dragDepth = 0;
+  document.addEventListener('dragenter', function(e){
+    if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types,'Files') < 0) return;
+    e.preventDefault();
+    dragDepth++;
+    pageOverlay.classList.add('show');
+  });
+  document.addEventListener('dragover', function(e){ e.preventDefault(); });
+  document.addEventListener('dragleave', function(e){
+    dragDepth = Math.max(0, dragDepth-1);
+    if (dragDepth === 0) pageOverlay.classList.remove('show');
+  });
+  document.addEventListener('drop', function(e){
+    e.preventDefault();
+    dragDepth = 0;
+    pageOverlay.classList.remove('show');
+    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+    if (e.target.closest && e.target.closest('#upload')) return;  // modal dropzone already handled it
+    openUpload();
+    fileChosen(e.dataTransfer.files);
+  });
+
   $('setAdd').addEventListener('keydown', function(e){ if(e.key==='Enter'&&this.value.trim()&&CUR_SET&&SET_PAGES[CUR_SET].arr){ SET_PAGES[CUR_SET].arr.push(this.value.trim()); this.value=''; renderSetList(); } });
   boot();
 });
@@ -970,7 +1004,11 @@ function loadCatalog(){
   return fetch(ASSET_DEVICE_CATALOG).then(function(r){
     if (!r.ok) throw new Error('Catalog not found at '+ASSET_DEVICE_CATALOG);
     return r.json();
-  }).then(function(j){ CATALOG=j; return j; });
+  }).then(function(j){
+    // catalog JSON uses compact keys: t=type, m=manufacturer, s=sku, n=name
+    CATALOG = j.map(function(c){ return { mfr:c.m||c.mfr||'', name:c.n||c.name||'', sku:c.s||c.sku||'' }; });
+    return CATALOG;
+  });
 }
 function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
 function colorVariants(dev){
