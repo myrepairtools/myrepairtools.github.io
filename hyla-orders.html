@@ -395,6 +395,17 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
   </div>
 </div>
 
+<!-- RQ PO STORE PICKER -->
+<div class="modal-bg hide" id="popick">
+  <div class="modal" style="max-width:440px">
+    <span class="mclose" onclick="hide('popick')">&times;</span>
+    <h2>&#11015; RQ PO import</h2>
+    <p class="help">Each store gets its own PO file. Which store is this one for?</p>
+    <div id="popickPills" style="display:flex;flex-direction:column;gap:9px"></div>
+    <p class="help hide" id="popickUnassigned" style="margin-top:12px;color:var(--amber)"></p>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="assets/nav.js"></script>
@@ -1054,6 +1065,32 @@ function matchDevice(dev, catalog){
 function rqExport(oid){
   var o = DATA.orders.find(function(x){return x.orderId===oid;});
   var devs = orderDevices(oid);
+
+  // count devices per store for this order
+  var counts = {};
+  storeNames().forEach(function(n){ counts[storeKey(n)] = 0; });
+  var unassigned = 0;
+  devs.forEach(function(d){
+    var k = storeKey(d.store);
+    if (k) counts[k] = (counts[k]||0) + 1; else unassigned++;
+  });
+
+  $('popickPills').innerHTML = storeNames().map(function(n){
+    var k = storeKey(n), c = counts[k]||0;
+    if (!c) return '<button class="fpill" disabled style="opacity:.4;cursor:default;text-align:left;padding:13px 16px;font-size:.84rem">'+esc(n)+' <span style="float:right;font-weight:700;color:var(--grey)">no devices</span></button>';
+    return '<button class="fpill '+k+' on" style="text-align:left;padding:13px 16px;font-size:.84rem" onclick="rqExportStore(\''+oid+'\',\''+k+'\')">'+esc(n)+' <span style="float:right;font-weight:700">'+c+' device'+(c===1?'':'s')+'</span></button>';
+  }).join('');
+  var ua = $('popickUnassigned');
+  if (unassigned){ ua.innerHTML = '&#9888; '+unassigned+' device'+(unassigned===1?'':'s')+' in this order '+(unassigned===1?'has':'have')+' no store assigned and won\u2019t be in any PO file.'; ua.classList.remove('hide'); }
+  else ua.classList.add('hide');
+  show('popick');
+}
+function rqExportStore(oid, key){
+  hide('popick');
+  var o = DATA.orders.find(function(x){return x.orderId===oid;});
+  var devs = orderDevices(oid).filter(function(d){ return storeKey(d.store)===key; });
+  var storeLabel = '';
+  storeNames().forEach(function(n){ if (storeKey(n)===key) storeLabel = n; });
   loadCatalog().then(function(cat){
     var rows=[], misses=[];
     devs.forEach(function(d){
@@ -1066,9 +1103,9 @@ function rqExport(oid){
     var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-    XLSX.writeFile(wb, 'Hyla_PO_'+(o?o.orderNbr:'order')+'.xlsx');
+    XLSX.writeFile(wb, 'Hyla_PO_'+(o?o.orderNbr:'order')+'_'+storeLabel.replace(/\s+/g,'-')+'.xlsx');
     if (misses.length) showMisses(misses, false);
-    else toast(rows.length+' devices in the import file');
+    else toast(rows.length+' '+storeLabel+' device'+(rows.length===1?'':'s')+' in the import file');
   }).catch(function(e){ toast('Export failed: '+e.message); });
 }
 function showMisses(misses, none){
