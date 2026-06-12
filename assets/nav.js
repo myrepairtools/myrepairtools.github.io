@@ -40,10 +40,11 @@
 
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵' },
-    { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮' },
-    { label:'Price Guide',         url:'price-guide.html',         icon:'📱' },
+    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦' },
+    { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮' },
+    { label:'Price Guide',         url:'price-guide.html',         icon:'📱' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧' }
   ];
   // minRole: 'admin' = managers + owner; 'owner' = owner only.
