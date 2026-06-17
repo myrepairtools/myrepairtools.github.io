@@ -112,7 +112,15 @@ tr.archived td{opacity:.5}
       <div id="lockHost"></div>
       <div class="bar">
         <h2>Staff</h2>
-        <button class="btn" id="addBtn">+ Add staff</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="staffFilter" style="font-size:.84rem;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-weight:700">
+            <option value="">All locations</option>
+            <option value="CPR Eugene">Eugene</option>
+            <option value="CPR Salem Northeast">Salem NE</option>
+            <option value="CPR Clackamas">Clackamas</option>
+          </select>
+          <button class="btn" id="addBtn">+ Add staff</button>
+        </div>
       </div>
       <table>
         <thead><tr><th>Name</th><th>Role</th><th>Home store</th><th>Authorized</th><th></th></tr></thead>
@@ -218,7 +226,24 @@ async function loadStaff(){
   var r=await adminFn({action:'list_staff_admin'});
   if(r.status!==200){$('#staffBody').innerHTML='<tr><td colspan="5" class="muted">'+(r.data.error||'Could not load')+'</td></tr>';return;}
   STAFF=r.data.staff||[];
-  $('#staffBody').innerHTML=STAFF.map(function(s){
+  renderStaff();
+}
+var ROLE_RANK={owner:0,manager:1,employee:2};
+function renderStaff(){
+  var filt=$('#staffFilter').value;
+  var list=STAFF.filter(function(s){
+    if(!filt)return true;
+    if(s.role==='owner')return true;                 // owners float all stores
+    if(s.home_store===filt)return true;
+    return (s.authorized_stores||[]).indexOf(filt)>-1;
+  });
+  list.sort(function(a,b){
+    var ra=ROLE_RANK[a.role]??9, rb=ROLE_RANK[b.role]??9;
+    if(ra!==rb)return ra-rb;
+    if(a.active!==b.active)return a.active?-1:1;       // active before archived
+    return (a.display_name||'').localeCompare(b.display_name||'');
+  });
+  $('#staffBody').innerHTML=list.map(function(s){
     var ed=canEdit(s);
     return '<tr class="'+(s.active?'':'archived')+'">'
       +'<td><b>'+s.display_name+'</b>'+(s.username?'<br><span class="muted">@'+s.username+'</span>':'')+'</td>'
@@ -231,7 +256,7 @@ async function loadStaff(){
         +(ed&&s.active?'<button class="btn alt sm" data-arch="'+s.id+'">Archive</button>':'')
         +(ed&&!s.active?'<button class="btn alt sm" data-rest="'+s.id+'">Restore</button>':'')
       +'</div></td></tr>';
-  }).join('')||'<tr><td colspan="5" class="muted">No staff yet.</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="muted">No staff at this location.</td></tr>';
   $('#staffBody').querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){openModal(+b.dataset.edit);});});
   $('#staffBody').querySelectorAll('[data-pin]').forEach(function(b){b.addEventListener('click',function(){openPin(+b.dataset.pin);});});
   $('#staffBody').querySelectorAll('[data-arch]').forEach(function(b){b.addEventListener('click',function(){setActive(+b.dataset.arch,false);});});
@@ -336,6 +361,7 @@ async function init(){
   $('#lovUser').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
   $('#lovGo').addEventListener('click',doLogin);
   $('#addBtn').addEventListener('click',function(){openModal(null);});
+  $('#staffFilter').addEventListener('change',renderStaff);
   $('#mCancel').addEventListener('click',closeModal);
   $('#mSave').addEventListener('click',saveModal);
   $('#staffOv').addEventListener('click',function(e){if(e.target.id==='staffOv')closeModal();});
