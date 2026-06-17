@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consumption &amp; Ordering — CPR</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--blue);--green:#2E9E5B;--amber:#C9820B;--purple:#8b5cf6;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
+.sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
+.hide{display:none}
+.bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.store-pills{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap}
+.tabs{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px}
+.tab{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer}
+.tab.active{background:var(--dark);color:#fff}
+.maxwrap{display:inline-flex;align-items:center;gap:5px;justify-content:flex-end}
+.maxval{font-family:'Nunito',sans-serif;font-weight:800}
+.maxval.unset{color:var(--grey);font-weight:700}
+.maxval.ovr{color:var(--blue)}
+.pen{background:none;border:none;cursor:pointer;color:var(--grey);font-size:.82rem;padding:0;line-height:1;opacity:.5}
+.pen:hover{color:var(--blue);opacity:1}
+.resetmax{background:none;border:1px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;color:var(--dark-grey);cursor:pointer;padding:2px 6px;white-space:nowrap}
+.resetmax:hover{border-color:var(--blue);color:var(--blue)}
+.maxinput{width:50px;text-align:right;padding:4px 6px;font-size:.85rem}
+.sp{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer}
+.sp.active{background:var(--blue);color:#fff}
+.spacer{margin-left:auto}
+input,select{font-family:'Nunito Sans',sans-serif;font-size:.92rem;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--white)}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;border:none;border-radius:8px;padding:9px 15px;cursor:pointer;background:var(--red);color:#fff}
+.btn.alt{background:var(--white);color:var(--dark);border:1.5px solid var(--border)}
+.btn.blue{background:var(--blue)}
+.btn.sm{padding:6px 11px;font-size:.72rem}
+.btn:disabled{opacity:.5;cursor:default}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.kpi .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;line-height:1}
+.kpi .l{font-size:.72rem;font-weight:700;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.4px;margin-top:5px}
+.kpi.order{border-top-color:var(--red)}
+.kpi.order .v{color:var(--red)}
+
+.card{background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:.86rem}
+.tbl thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);text-align:left;padding:11px 12px;background:var(--light-grey);border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl thead th.num,.tbl td.num{text-align:right}
+.tbl tbody td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tbody tr:last-child td{border-bottom:none}
+.tbl tbody tr.grp{cursor:pointer}
+.tbl tbody tr.grp:hover{background:#FAFAFB}
+.tbl tbody tr.member td{background:#FBFCFD;font-size:.8rem;color:var(--dark-grey)}
+.tbl tbody tr.member td.itm{padding-left:34px}
+.sku{font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--dark-grey);white-space:nowrap}
+.itm{font-weight:600;max-width:380px}
+.itm .nm{display:block;line-height:1.25}
+.chev{display:inline-block;width:14px;color:var(--blue);font-weight:900;transition:transform .12s}
+tr.grp.open .chev{transform:rotate(90deg)}
+.gtag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:var(--blue);background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
+.poolbadge{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:var(--green);background:#E9F6EE;border:1px solid #CFE9D8;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
+.stoptag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);background:#EDEDF1;border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
+.cstag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--purple);background:#F1ECFB;border-radius:5px;padding:1px 6px;margin-left:6px}
+.cstxt{color:var(--purple)}
+.cpill{display:inline-block;min-width:22px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border-radius:6px;padding:2px 7px}
+.cp-red{color:#B42318;background:#FDECEA;border:1px solid #F7C9C4}
+.cp-amber{color:#9A5B00;background:#FCF1DD;border:1px solid #F2D7A8}
+.cp-green{color:#1F7A40;background:#E7F5EC;border:1px solid #C5E7D1}
+.warnpanel{position:relative;background:#FCF6E8;border:1px solid #F2D7A8;border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.warnpanel.hide{display:none}
+.warnpanel h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:.95rem;color:#8A5A00;margin-bottom:3px;padding-right:26px}
+.warnpanel .wsub{font-size:.78rem;color:#9A6A12;margin-bottom:10px;line-height:1.45;padding-right:26px}
+.wp-x{position:absolute;top:10px;right:12px;background:none;border:none;font-size:1.4rem;line-height:1;color:#B89248;cursor:pointer;font-weight:800;padding:0}
+.wp-x:hover{color:#8A5A00}
+.wp-item{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid #F2E3C2;font-size:.84rem}
+.wp-item:first-of-type{border-top:none}
+.wp-tkt{font-family:'Nunito',sans-serif;font-weight:800;color:#8A5A00;white-space:nowrap;text-decoration:none}
+.wp-tkt:hover{text-decoration:underline}
+.wp-dev{font-weight:600}
+.wp-tech{color:var(--dark-grey);margin-left:auto;white-space:nowrap;font-size:.78rem}
+.wp-ix{background:none;border:none;color:#C3A05A;cursor:pointer;font-size:1.05rem;font-weight:800;line-height:1;padding:0 2px;margin-left:4px}
+.wp-ix:hover{color:#8A5A00}
+.brk{font-size:.8rem;color:var(--dark-grey)}
+.brk b{font-family:'Nunito Sans',sans-serif}
+.flags{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.flags .stoptag,.flags .claimtag{margin-left:0}
+.claimtag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 6px;white-space:nowrap}
+.optcell{text-align:center;white-space:nowrap}
+.opt{background:none;border:1px solid var(--border);border-radius:7px;width:28px;height:28px;cursor:pointer;color:var(--dark-grey);font-size:1.05rem;font-weight:900;line-height:1;padding:0}
+.opt:hover{border-color:var(--blue);color:var(--blue)}
+.optmenu{position:fixed;z-index:950;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(45,45,59,.18);padding:6px;min-width:200px}
+.optmenu .oih{font-family:'Nunito Sans',sans-serif;font-size:.66rem;color:var(--grey);padding:4px 10px 6px;border-bottom:1px solid var(--light-grey);margin-bottom:4px;word-break:break-all}
+.optmenu .oi{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:700;font-size:.8rem}
+.optmenu .oi:hover{background:var(--light-grey)}
+.optmenu .oi .chk{width:16px;height:16px;border:1.5px solid var(--grey);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.66rem;color:#fff;flex:none}
+.optmenu .oi.on .chk{background:var(--blue);border-color:var(--blue)}
+.badge{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;border-radius:6px;padding:2px 7px;margin-right:4px}
+.badge.sold{color:var(--green);background:#E9F6EE}
+.badge.pulled{color:var(--amber);background:#FBF1DC}
+.sugg{font-family:'Nunito',sans-serif;font-weight:900}
+.sugg.go{color:var(--red)}
+.sugg.zero{color:var(--grey)}
+.buysku{font-size:.74rem;color:var(--dark-grey)}
+.buysku select{font-size:.74rem;padding:4px 6px;border-radius:6px}
+.empty{padding:34px;text-align:center;color:var(--grey);font-weight:700}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:900;overflow:auto}
+.ov.hide{display:none}
+.modal{background:var(--white);border-radius:14px;width:100%;max-width:620px;padding:22px}
+.modal h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin-bottom:4px}
+.modal .x{float:right;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--grey);font-weight:800}
+.grp-edit{border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:11px}
+.grp-edit .top{display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap}
+.grp-edit .top .f{flex:1;min-width:140px}
+.grp-edit .top .f.mx{flex:none;width:90px}
+.mlist{list-style:none}
+.mrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--light-grey)}
+.mrow .mv{flex:1;font-size:.8rem}
+.mrow .mv b{font-family:'Nunito Sans'}
+.mrow .pref{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--green);background:#E9F6EE;border-radius:5px;padding:1px 6px}
+.mrow .mkdef{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--dark-grey);background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer;white-space:nowrap}
+.mrow .mkdef:hover{border-color:var(--blue);color:var(--blue)}
+.mrow .mbtns button{background:none;border:none;cursor:pointer;color:var(--grey);font-weight:900;font-size:.95rem;padding:2px 5px}
+.addrow{display:flex;gap:8px;margin-top:8px}
+.addrow input{flex:1}
+.note{font-size:.76rem;color:var(--dark-grey);line-height:1.5;background:var(--light-grey);border-radius:8px;padding:10px 12px;margin-top:6px}
+.note b{font-family:'Nunito',sans-serif}
+@media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}.itm{max-width:200px}.hide-sm{display:none}}
+
+.lov{position:fixed;inset:0;background:var(--light-grey);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:1000}
+.lovcard{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(45,45,59,.06);width:100%;max-width:420px;padding:26px}
+.lovcard h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;margin-bottom:4px}
+.lovsub{color:var(--grey);font-size:.82rem;font-weight:600;margin-bottom:6px}
+.lovcard label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#4E4E50;margin:14px 0 5px}
+.lovcard select,.lovcard input{width:100%;font-size:1rem;padding:11px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit}
+.lovbtn{width:100%;margin-top:18px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;border:none;border-radius:10px;padding:13px;cursor:pointer;background:var(--red);color:#fff}
+.lovbtn:disabled{opacity:.5;cursor:default}
+.lovmsg{margin-top:14px;font-size:.85rem;font-weight:700;padding:10px 12px;border-radius:9px;display:none}
+.lovmsg.err{display:block;background:#FDECEA;color:#B42318;border:1px solid #F7C9C4}
+.lovmsg.ok{display:block;background:#E7F5EC;color:#1F7A40;border:1px solid #C5E7D1}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" class="lov">
+  <div class="lovcard">
+    <h1>Consumption &amp; Ordering</h1>
+    <p class="lovsub">Sign in to continue.</p>
+    <label>Location</label>
+    <select id="lovStore"><option value="">Select a store…</option><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select>
+    <label>Name</label>
+    <select id="lovName" disabled><option value="">Pick a store first…</option></select>
+    <label>PIN</label>
+    <input id="lovPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
+    <button class="lovbtn" id="lovGo" disabled>Sign in</button>
+    <div class="lovmsg" id="lovMsg"></div>
+  </div>
+</div>
+<div class="app" id="app" style="display:none">
+<main>
+  <h1>Consumption &amp; Ordering</h1>
+  <p class="sub">Daily parts used &middot; current stock &middot; suggested MobileSentrix order.</p>
+
+  <div class="bar">
+    <div class="tabs" id="viewTabs">
+      <button class="tab active" data-v="daily">Daily order</button>
+      <button class="tab" data-v="stock">Stock levels</button>
+    </div>
+    <div class="store-pills" id="storePills"></div>
+    <div class="spacer"></div>
+    <button class="btn alt sm" id="grpBtn">⚙ Manage groups</button>
+  </div>
+
+  <section id="view-daily">
+  <div class="warnpanel hide" id="nopartsPanel"></div>
+  <div class="bar">
+    <input type="date" id="day" style="width:auto">
+    <div class="spacer"></div>
+    <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="kUsed">0</div><div class="l">Parts used</div></div>
+    <div class="kpi"><div class="v" id="kLines">0</div><div class="l">Line items</div></div>
+    <div class="kpi"><div class="v" id="kBelow">0</div><div class="l">Out of stock</div></div>
+    <div class="kpi order"><div class="v" id="kOrder">0</div><div class="l">To order</div></div>
+  </div>
+
+  <div class="card">
+    <table class="tbl">
+      <thead><tr>
+        <th>SKU</th>
+        <th>Item</th>
+        <th class="num">Used</th>
+        <th class="num">In stock</th>
+        <th class="num">Claim ✓</th>
+        <th class="num">On order</th>
+        <th class="num">Max</th>
+        <th class="num">Suggest</th>
+        <th>Order SKU</th>
+        <th>Flags</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty hide" id="empty">No consumption for this day.</div>
+  </div>
+  </section>
+
+  <section id="view-stock" class="hide">
+  <div class="bar">
+    <input type="search" id="stockSearch" placeholder="Search SKU or item…" style="flex:1;max-width:380px">
+    <span class="muted" id="stockCount" style="font-size:.78rem;font-weight:700;color:var(--grey)"></span>
+  </div>
+  <div class="card">
+    <table class="tbl">
+      <thead><tr>
+        <th>SKU</th>
+        <th>Item</th>
+        <th class="num">In stock</th>
+        <th class="num">Claim ✓</th>
+        <th class="num">On order</th>
+        <th class="num">Max</th>
+        <th>Flags</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="stockRows"></tbody>
+    </table>
+    <div class="empty hide" id="stockEmpty">No matching SKUs.</div>
+  </div>
+  </section>
+</main>
+</div>
+
+<!-- GROUPS MODAL -->
+<div class="ov hide" id="grpOv">
+  <div class="modal">
+    <button class="x" id="grpClose">&times;</button>
+    <h2>Stock groups</h2>
+    <p class="sub" style="margin-bottom:14px">Pool interchangeable parts so stock is tracked as one (e.g. all iPhone 14 charging ports). Mark one SKU as the default — that's the one the CSV always orders.</p>
+    <div id="grpList"></div>
+    <button class="btn alt sm" id="addGrp" style="margin-top:6px">+ New group</button>
+    <p class="note"><b>How pooling works:</b> a group shows one row with combined stock vs the group's max. Screens stay ungrouped so each quality is tracked at its true SKU. Add new qualities to a group anytime MobileSentrix adds them.</p>
+  </div>
+</div>
+
+<div class="optmenu hide" id="optMenu"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/* ============================================================
+   Consumption & Ordering  —  LIVE (Supabase)
+   Wiring TODO (after layout sign-off):
+     - replace MOCK with two nightly Looker feeds joined on SKU:
+         consumption:  sku, item, units, status(sold|pulled), store, date
+         snapshot:     sku, item, instock, onorder, max, store
+       suggested = max(0, max - instock - onorder)   [stock-driven]
+     - groups persisted server-side (PropertiesService) + localStorage fallback
+     - gate this page to Operations tier; "Manage groups" to admin only
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SUPABASE_URL="https://xuvsehrevxackuhmbmry.supabase.co";
+var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY";
+var FN=SUPABASE_URL+"/functions/v1/cpr-auth";
+var sb=createClient(SUPABASE_URL,ANON);
+var RQ_TICKET_URL='https://cpr.repairq.io/ticket/';
+var IDLE_MS=24*60*60*1000;
+var STORES=['CPR Eugene','CPR Salem Northeast','CPR Clackamas'];
+var STATE={store:null,me:null,stores:[]};
+
+/* in-memory caches the render layer reads (refilled per active store) */
+var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={};
+
+var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
+function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
+function idleExpired(){var t=+localStorage.getItem('cpr_last_active')||0;return Date.now()-t>IDLE_MS;}
+async function fn(body){var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)});return {status:r.status,data:await r.json()};}
+function allowedStores(me){if(!me)return [];if(me.role==='owner')return STORES.slice();var set={};set[me.home_store]=1;(me.authorized_stores||[]).forEach(function(s){set[s]=1;});return STORES.filter(function(s){return set[s];});}
+
+async function loadGroups(){
+  var g=await sb.from('groups').select('id,name,max,default_sku');
+  var m=await sb.from('group_members').select('group_id,sku,name,position').order('position');
+  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,members:[]};});
+  (m.data||[]).forEach(function(x){if(byId[x.group_id])byId[x.group_id].members.push({sku:x.sku,name:x.name});});
+  GROUPS=Object.keys(byId).map(function(k){return byId[k];});
+}
+async function saveGroups(){
+  for(var i=0;i<GROUPS.length;i++){var g=GROUPS[i];
+    await sb.from('groups').upsert({id:g.id,name:g.name,max:g.max,default_sku:g.def||null});
+    await sb.from('group_members').delete().eq('group_id',g.id);
+    if(g.members.length){await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));}
+  }
+}
+async function loadAll(){
+  var store=STATE.store, day=$('#day').value||new Date().toISOString().slice(0,10);
+  var snap={};var st=await sb.from('stock').select('sku,name,in_stock,on_order,max_baseline').eq('store',store);
+  (st.data||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
+  var ov={};var mo=await sb.from('max_overrides').select('sku,value').eq('store',store);
+  (mo.data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
+  var co=await sb.from('consignment_only').select('sku').eq('store',store);
+  STOPSTOCK[store]=(co.data||[]).map(function(r){return r.sku;});
+  var cr={};var cl=await sb.from('claim_report').select('sku,elig_in_stock').eq('store',store);
+  (cl.data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
+  var cons=[];var cs=await sb.from('consumption_log').select('sku,units,status,consigned').eq('store',store).eq('biz_date',day);
+  (cs.data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units,status:r.status,consigned:!!r.consigned});});CONSUMPTION=cons;
+  var rn=await sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day);
+  REPAIRSNOPARTS[store]=(rn.data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
+  await loadGroups();
+  pills();render();renderStock();renderNoParts();
+}
+
+/* ---- login overlay ---- */
+function showLogin(){$('#loginOverlay').style.display='';$('#app').style.display='none';}
+function afterLogin(){
+  STATE.stores=allowedStores(STATE.me);
+  STATE.store=(STATE.stores.indexOf(STATE.me.home_store)>=0)?STATE.me.home_store:STATE.stores[0];
+  $('#loginOverlay').style.display='none';$('#app').style.display='';
+  if(!$('#day').value)$('#day').value=new Date().toISOString().slice(0,10);
+  touchIdle();loadAll();
+}
+async function loadNames(){
+  var store=$('#lovStore').value,sel=$('#lovName');
+  sel.innerHTML='<option value="">Loading…</option>';sel.disabled=true;lovReady();
+  if(!store)return;
+  var r=await fn({action:'list_staff',store:store});
+  var list=(r.data&&r.data.staff)||[];
+  sel.innerHTML='<option value="">Select your name…</option>'+list.map(function(x){return '<option>'+x.display_name+'</option>';}).join('');
+  sel.disabled=false;lovReady();
+}
+function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovName').value&&$('#lovPin').value);}
+function lovMsg(t,k){var m=$('#lovMsg');m.textContent=t;m.className='lovmsg '+(k||'');}
+async function doLogin(){
+  $('#lovGo').disabled=true;lovMsg('Signing in…','ok');
+  var r=await fn({action:'login',store:$('#lovStore').value,display_name:$('#lovName').value,pin:$('#lovPin').value,device_id:deviceId});
+  if(r.status!==200){var d=r.data||{};
+    if(d.locked)lovMsg('Locked after too many tries — a manager must reset this device.','err');
+    else if(d.error==='invalid')lovMsg('Wrong PIN. '+d.remaining+' attempt(s) left.','err');
+    else lovMsg(d.error||'Login failed.','err');
+    lovReady();return;}
+  await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+  STATE.me=r.data.staff;afterLogin();
+}
+
+/* member sku -> group */
+function groupOf(sku){for(var i=0;i<GROUPS.length;i++){for(var j=0;j<GROUPS[i].members.length;j++){if(GROUPS[i].members[j].sku===sku)return GROUPS[i];}}return null;}
+
+/* roll consumption up into used{sku}={sold,pulled} */
+function usedMap(){var m={};CONSUMPTION.forEach(function(c){if(!m[c.sku])m[c.sku]={sold:0,pulled:0,consigned:0};m[c.sku][c.status]+=c.units;if(c.consigned)m[c.sku].consigned+=c.units;});return m;}
+
+/* build display rows: grouped rollups + ungrouped sku rows */
+function buildRows(){
+  var used=usedMap(), seenGrp={}, rows=[];
+  var stop=STOPSTOCK[STATE.store]||[], claimRep=CLAIMREPORT[STATE.store]||{};
+  var skus={};Object.keys(used).forEach(function(s){skus[s]=1;});
+  Object.keys(skus).forEach(function(sku){
+    var g=groupOf(sku);
+    if(g){ seenGrp[g.id]=1; return; }
+    var s=SNAP[sku]||{name:sku,instock:0,onorder:0,max:0};
+    var u=used[sku]||{sold:0,pulled:0,consigned:0};
+    var blocked=stop.indexOf(sku)>-1;
+    var mx=effMax(sku);
+    rows.push({type:'sku',sku:sku,name:s.name,sold:u.sold,pulled:u.pulled,consigned:u.consigned,
+      instock:s.instock,onorder:s.onorder,max:mx,stop:blocked,
+      claimElig:claimRep.hasOwnProperty(sku)?claimRep[sku]:null,flagSku:sku,
+      suggest:blocked?0:Math.max(0,mx-s.instock-s.onorder),orderSku:sku});
+  });
+  GROUPS.forEach(function(g){
+    if(!seenGrp[g.id])return;
+    var sold=0,pulled=0,consigned=0,instock=0,onorder=0,members=[],usedSkus=[],cElig=null;
+    g.members.forEach(function(m){
+      var s=SNAP[m.sku]||{instock:0,onorder:0};var u=used[m.sku]||{sold:0,pulled:0,consigned:0};
+      sold+=u.sold;pulled+=u.pulled;consigned+=u.consigned;instock+=s.instock;onorder+=s.onorder;
+      if(claimRep.hasOwnProperty(m.sku))cElig=(cElig||0)+claimRep[m.sku];
+      if(u.sold+u.pulled>0)usedSkus.push(m.sku);
+      members.push({sku:m.sku,name:m.name,instock:s.instock,onorder:s.onorder,sold:u.sold,pulled:u.pulled,consigned:u.consigned});
+    });
+    var pref=g.def||(g.members[0]&&g.members[0].sku)||'';
+    var blocked=stop.indexOf(pref)>-1;
+    rows.push({type:'group',gid:g.id,name:g.name,sold:sold,pulled:pulled,consigned:consigned,
+      instock:instock,onorder:onorder,max:g.max,usedSkus:usedSkus,stop:blocked,
+      claimElig:cElig,flagSku:pref,
+      suggest:blocked?0:Math.max(0,g.max-instock-onorder),orderSku:pref,members:members});
+  });
+  rows.sort(function(a,b){return b.suggest-a.suggest;});
+  return rows;
+}
+
+function usedCell(sold,pulled){
+  var t=sold+pulled;
+  return t?'<span style="font-family:Nunito;font-weight:800">'+t+'</span>':'<span style="color:var(--grey)">—</span>';
+}
+
+function toggleFlag(map,sku){var a=map[STATE.store]||(map[STATE.store]=[]);var i=a.indexOf(sku);if(i>-1)a.splice(i,1);else a.push(sku);}
+function openOptMenu(btn){
+  var sku=btn.getAttribute('data-sku'), menu=$('#optMenu');
+  var isStop=(STOPSTOCK[STATE.store]||[]).indexOf(sku)>-1;
+  menu.innerHTML='<div class="oih">'+sku+' · '+STATE.store+'</div>'
+    +'<div class="oi'+(isStop?' on':'')+'" data-f="stop"><span class="chk">✓</span> Consignment only</div>';
+  menu.querySelectorAll('.oi').forEach(function(oi){oi.addEventListener('click',async function(){
+    menu.classList.add('hide');
+    var on=(STOPSTOCK[STATE.store]||[]).indexOf(sku)>-1;
+    if(on){await sb.from('consignment_only').delete().eq('store',STATE.store).eq('sku',sku);}
+    else{await sb.from('consignment_only').insert({store:STATE.store,sku:sku});}
+    await loadAll();
+  });});
+  var rc=btn.getBoundingClientRect();
+  menu.style.top=(rc.bottom+6)+'px';
+  menu.style.left=Math.max(8,Math.min(rc.right-200,window.innerWidth-208))+'px';
+  menu.classList.remove('hide');
+}
+function claimPill(n){
+  if(n==null)return '<span style="color:var(--grey)">—</span>';
+  var c=n===0?'cp-red':(n===1?'cp-amber':'cp-green');
+  return '<span class="cpill '+c+'" title="Claim-eligible in stock">'+n+'</span>';
+}
+var NP_DISMISSED={};
+function renderNoParts(){
+  var p=$('#nopartsPanel');if(!p)return;
+  var all=REPAIRSNOPARTS[STATE.store]||[];
+  var list=all.filter(function(r){return !NP_DISMISSED[STATE.store+'|'+r.tkt];});
+  if(!list.length){p.classList.add('hide');return;}
+  var h='<button class="wp-x" id="wpX" aria-label="Dismiss all">&times;</button>'
+    +'<h2>⚠ '+list.length+' repair'+(list.length>1?'s':'')+' closed without a part attached</h2>'
+    +'<div class="wsub">Attach the part to each ticket in RepairQ so it lands on consumption — otherwise stock drifts and these won\u2019t prompt a reorder. Fix these first, then refresh.</div>';
+  list.forEach(function(r){
+    h+='<div class="wp-item"><a class="wp-tkt" href="'+RQ_TICKET_URL+r.tkt+'" target="_blank" rel="noopener">#'+r.tkt+'</a>'
+      +'<span class="wp-dev">'+r.dev+(r.note?' <span style="color:#A8843A">· '+r.note+'</span>':'')+'</span>'
+      +'<span class="wp-tech">'+r.tech+'</span>'
+      +'<button class="wp-ix" data-tkt="'+r.tkt+'" aria-label="Dismiss this ticket">&times;</button></div>';
+  });
+  p.innerHTML=h;p.classList.remove('hide');
+  $('#wpX').addEventListener('click',function(){list.forEach(function(r){NP_DISMISSED[STATE.store+'|'+r.tkt]=1;});renderNoParts();});
+  p.querySelectorAll('.wp-ix').forEach(function(b){b.addEventListener('click',function(){NP_DISMISSED[STATE.store+'|'+b.getAttribute('data-tkt')]=1;renderNoParts();});});
+}
+
+function groupById(id){return GROUPS.filter(function(x){return x.id===id;})[0];}
+function effMax(sku){var o=OVERRIDE[STATE.store]||{};return o.hasOwnProperty(sku)?o[sku]:((SNAP[sku]&&SNAP[sku].max)||0);}
+function isOverridden(sku){return (OVERRIDE[STATE.store]||{}).hasOwnProperty(sku);}
+function maxCell(kind,key,val){
+  var ovr=(kind==='sku')&&isOverridden(key);
+  return '<span class="maxwrap" data-mk="'+kind+'" data-mv="'+key+'">'
+    +'<span class="maxval'+(val>0?'':' unset')+(ovr?' ovr':'')+'">'+(val>0?val:'—')+'</span>'
+    +'<button class="pen" aria-label="Edit max" title="Edit max">✎</button></span>';
+}
+function wireMaxEdit(scope){
+  scope.querySelectorAll('.pen').forEach(function(pen){
+    pen.addEventListener('click',function(e){
+      e.stopPropagation();
+      var wrap=pen.closest('.maxwrap');if(wrap.querySelector('input'))return;
+      var kind=wrap.getAttribute('data-mk'),key=wrap.getAttribute('data-mv');
+      var cur=wrap.querySelector('.maxval').textContent.trim();
+      var done=false;
+      async function commit(save){if(done)return;done=true;
+        if(save){var v=Math.max(0,parseInt(inp.value,10)||0);
+          if(kind==='gid'){await sb.from('groups').update({max:v}).eq('id',key);}
+          else{await sb.from('max_overrides').upsert({store:STATE.store,sku:key,value:v});}}
+        await loadAll();}
+      var inp=document.createElement('input');inp.type='number';inp.min='0';inp.className='maxinput';inp.value=(cur==='—'?'':cur);
+      wrap.innerHTML='';wrap.appendChild(inp);
+      if(kind==='sku'){
+        var base=(SNAP[key]&&SNAP[key].max)||0;
+        var rb=document.createElement('button');rb.className='resetmax';rb.textContent='↺ RQ '+base;rb.title='Reset to RepairQ value';
+        rb.addEventListener('mousedown',async function(ev){ev.preventDefault();done=true;await sb.from('max_overrides').delete().eq('store',STATE.store).eq('sku',key);await loadAll();});
+        wrap.appendChild(rb);
+      }
+      inp.focus();inp.select();
+      inp.addEventListener('keydown',function(ev){if(ev.key==='Enter')commit(true);else if(ev.key==='Escape')commit(false);});
+      inp.addEventListener('blur',function(){setTimeout(function(){commit(true);},120);});
+    });
+  });
+}
+
+function renderStock(){
+  var tb=$('#stockRows');if(!tb)return;tb.innerHTML='';
+  var q=(($('#stockSearch')&&$('#stockSearch').value)||'').toLowerCase();
+  var stop=STOPSTOCK[STATE.store]||[],claimRep=CLAIMREPORT[STATE.store]||{};
+  var memberSet={};GROUPS.forEach(function(g){g.members.forEach(function(m){memberSet[m.sku]=1;});});
+  var list=[];
+  Object.keys(SNAP).forEach(function(sku){
+    if(memberSet[sku])return;var s=SNAP[sku];
+    list.push({type:'sku',sku:sku,name:s.name,instock:s.instock,onorder:s.onorder,max:effMax(sku),flagSku:sku,
+      claimElig:claimRep.hasOwnProperty(sku)?claimRep[sku]:null});
+  });
+  GROUPS.forEach(function(g){
+    var instock=0,onorder=0,cElig=null;g.members.forEach(function(m){var s=SNAP[m.sku]||{instock:0,onorder:0};instock+=s.instock;onorder+=s.onorder;if(claimRep.hasOwnProperty(m.sku))cElig=(cElig||0)+claimRep[m.sku];});
+    list.push({type:'group',gid:g.id,name:g.name,instock:instock,onorder:onorder,max:g.max,members:g.members.length,claimElig:cElig,flagSku:(g.def||(g.members[0]&&g.members[0].sku)||'')});
+  });
+  list=list.filter(function(r){return !q||((r.type==='group'?'':r.sku)+' '+r.name).toLowerCase().indexOf(q)>-1;});
+  list.sort(function(a,b){return a.name.localeCompare(b.name);});
+  list.forEach(function(r){
+    var isStop=stop.indexOf(r.flagSku)>-1;
+    var flags='<span class="flags">'+(isStop?'<span class="stoptag">Consignment only</span>':'')+'</span>';
+    var skuCell=r.type==='group'?'<span style="color:var(--grey)">pooled</span>':r.sku;
+    var nameHtml=r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="sku">'+skuCell+'</td>'
+      +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
+      +'<td class="num">'+r.instock+'</td>'
+      +'<td class="num">'+claimPill(r.claimElig)+'</td>'
+      +'<td class="num">'+r.onorder+'</td>'
+      +'<td class="num">'+maxCell(r.type==='group'?'gid':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
+      +'<td>'+flags+'</td>'
+      +'<td class="optcell"><button class="opt" data-sku="'+r.flagSku+'" aria-label="Options">⋮</button></td>';
+    tb.appendChild(tr);
+  });
+  $('#stockCount').textContent=list.length+' SKUs';
+  $('#stockEmpty').classList.toggle('hide',list.length>0);
+  tb.querySelectorAll('.opt').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();openOptMenu(b);});});
+  wireMaxEdit(tb);
+}
+
+function render(){
+  /* ANCHOR */
+  var rows=buildRows(), tb=$('#rows'); tb.innerHTML='';
+  var totUsed=0,totOrder=0,below=0;
+  rows.forEach(function(r){
+    totUsed+=r.sold+r.pulled; totOrder+=r.suggest; if(r.instock===0)below++;
+    var sCls=r.suggest>0?'go':'zero';
+    var hasDetail=(r.type==='group')||(r.consigned>0);
+    var orderCell=r.suggest>0
+      ? '<span class="buysku">'+r.orderSku+(r.type==='group'?' <span class="gtag" style="color:var(--green);background:#E9F6EE;border-color:#CFE9D8">default</span>':'')+'</span>'
+      : '<span class="buysku" style="color:var(--grey)">—</span>';
+    var badges='';
+    if(r.type==='group')badges+='<span class="poolbadge">⬡ Pool · '+r.members.length+'</span>';
+    var nameHtml=(hasDetail?'<span class="chev">›</span> ':'')+r.name+badges;
+    var flags='<span class="flags">';
+    if(r.stop)flags+='<span class="stoptag">Consignment only</span>';
+    flags+='</span>';
+    var skuCell=(r.type==='group')
+      ? (r.usedSkus.length?(r.usedSkus.length===1?r.usedSkus[0]:r.usedSkus[0]+' <span style="color:var(--grey)">+'+(r.usedSkus.length-1)+'</span>'):'<span style="color:var(--grey)">—</span>')
+      : r.sku;
+    var tr=document.createElement('tr');
+    if(hasDetail)tr.className='grp';
+    tr.innerHTML='<td class="sku">'+skuCell+'</td>'
+      +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
+      +'<td class="num">'+usedCell(r.sold,r.pulled)+'</td>'
+      +'<td class="num">'+r.instock+'</td>'
+      +'<td class="num">'+claimPill(r.claimElig)+'</td>'
+      +'<td class="num">'+r.onorder+'</td>'
+      +'<td class="num">'+maxCell(r.type==='group'?'gid':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
+      +'<td class="num"><span class="sugg '+sCls+'">'+r.suggest+'</span></td>'
+      +'<td>'+orderCell+'</td>'
+      +'<td>'+flags+'</td>'
+      +'<td class="optcell"><button class="opt" data-sku="'+r.flagSku+'" aria-label="Options">⋮</button></td>';
+    tb.appendChild(tr);
+    var detailRows=[];
+    if(r.type==='group'){
+      r.members.forEach(function(m){
+        var mtr=document.createElement('tr');mtr.className='member';mtr.style.display='none';
+        mtr.innerHTML='<td class="sku">'+m.sku+'</td>'
+          +'<td class="itm">'+m.name+(m.consigned?' <span class="cstag">'+m.consigned+' consigned</span>':'')+'</td>'
+          +'<td class="num">'+usedCell(m.sold,m.pulled)+'</td>'
+          +'<td class="num">'+m.instock+'</td>'
+          +'<td class="num"></td>'
+          +'<td class="num">'+m.onorder+'</td>'
+          +'<td class="num"></td><td class="num"></td><td></td><td></td><td></td>';
+        tb.appendChild(mtr);detailRows.push(mtr);
+      });
+    } else if(r.consigned>0){
+      var owned=(r.sold+r.pulled)-r.consigned;
+      var dtr=document.createElement('tr');dtr.className='member';dtr.style.display='none';
+      dtr.innerHTML='<td></td><td colspan="10" class="brk">Of '+(r.sold+r.pulled)+' used: <b>'+owned+' owned</b> &middot; <b class="cstxt">'+r.consigned+' consigned</b></td>';
+      tb.appendChild(dtr);detailRows.push(dtr);
+    }
+    if(hasDetail){
+      tr.addEventListener('click',function(e){
+        if(e.target.closest('.opt')||e.target.closest('.maxwrap'))return;
+        tr.classList.toggle('open');
+        var open=tr.classList.contains('open');
+        detailRows.forEach(function(d){d.style.display=open?'':'none';});
+      });
+    }
+  });
+  tb.querySelectorAll('.opt').forEach(function(b){
+    b.addEventListener('click',function(e){e.stopPropagation();openOptMenu(b);});
+  });
+  wireMaxEdit(tb);
+  $('#kUsed').textContent=totUsed;
+  $('#kLines').textContent=rows.length;
+  $('#kBelow').textContent=below;
+  $('#kOrder').textContent=totOrder;
+  $('#empty').classList.toggle('hide',rows.length>0);
+}
+
+/* order rows use each group's default SKU (set in Manage groups) */
+function orderList(){
+  var rows=buildRows(), out=[];
+  rows.forEach(function(r){
+    if(r.suggest<=0)return;
+    out.push([r.orderSku,r.suggest]);
+  });
+  return out;
+}
+
+function exportCsv(){
+  var rows=orderList();
+  if(!rows.length){alert('Nothing to order — everything is at max.');return;}
+  var csv=rows.map(function(r){return r[0]+','+r[1];}).join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='mobilesentrix-order-'+STATE.store.replace(/\s+/g,'-').toLowerCase()+'-'+($('#day').value||'today')+'.csv';
+  a.click();
+}
+
+/* ---- store pills + date ---- */
+function pills(){
+  var h='';STATE.stores.forEach(function(s){h+='<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+s.replace('CPR ','')+'</button>';});
+  var el=$('#storePills');el.innerHTML=h;
+  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');touchIdle();loadAll();});});
+}
+
+/* ---- groups modal ---- */
+function renderGroups(){
+  var box=$('#grpList');box.innerHTML='';
+  GROUPS.forEach(function(g){
+    var d=document.createElement('div');d.className='grp-edit';
+    var mh='<ul class="mlist">';
+    g.members.forEach(function(m,i){
+      var ctl=(m.sku===g.def)
+        ? '<span class="pref">★ Default</span>'
+        : '<button class="mkdef" data-def="'+g.id+'|'+m.sku+'">Make default</button>';
+      mh+='<li class="mrow"><span class="mv"><b>'+m.sku+'</b> — '+m.name+'</span>'
+        +ctl
+        +'<span class="mbtns"><button data-del="'+g.id+'|'+i+'" title="Remove">×</button></span></li>';
+    });
+    mh+='</ul>';
+    d.innerHTML='<div class="top">'
+      +'<div class="f"><label>Group name</label><input value="'+g.name+'" data-gn="'+g.id+'" style="width:100%"></div>'
+      +'<div class="f mx"><label>Max</label><input type="number" value="'+g.max+'" data-gm="'+g.id+'" style="width:100%"></div>'
+      +'</div>'+mh
+      +'<div class="addrow"><input placeholder="SKU" data-ns="'+g.id+'"><input placeholder="Name / quality" data-nn="'+g.id+'"><button class="btn alt sm" data-add="'+g.id+'">Add</button></div>';
+    box.appendChild(d);
+  });
+  box.querySelectorAll('[data-add]').forEach(function(b){b.addEventListener('click',function(){
+    var id=b.getAttribute('data-add');var g=GROUPS.filter(function(x){return x.id===id;})[0];
+    var sku=document.querySelector('[data-ns="'+id+'"]').value.trim();
+    var nm=document.querySelector('[data-nn="'+id+'"]').value.trim();
+    if(sku){g.members.push({sku:sku,name:nm||sku});if(!g.def)g.def=sku;renderGroups();}
+  });});
+  box.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',function(){
+    var p=b.getAttribute('data-del').split('|');var g=GROUPS.filter(function(x){return x.id===p[0];})[0];
+    var removed=g.members.splice(+p[1],1)[0];
+    if(removed&&removed.sku===g.def)g.def=(g.members[0]&&g.members[0].sku)||'';
+    renderGroups();
+  });});
+  box.querySelectorAll('[data-def]').forEach(function(b){b.addEventListener('click',function(){
+    var p=b.getAttribute('data-def').split('|');var g=GROUPS.filter(function(x){return x.id===p[0];})[0];
+    g.def=p[1];renderGroups();
+  });});
+  box.querySelectorAll('[data-gn]').forEach(function(inp){inp.addEventListener('change',function(){GROUPS.filter(function(x){return x.id===inp.getAttribute('data-gn');})[0].name=inp.value;});});
+  box.querySelectorAll('[data-gm]').forEach(function(inp){inp.addEventListener('change',function(){GROUPS.filter(function(x){return x.id===inp.getAttribute('data-gm');})[0].max=+inp.value||0;});});
+}
+
+async function init(){
+  $('#exportBtn').addEventListener('click',exportCsv);
+  $('#day').addEventListener('change',function(){touchIdle();loadAll();});
+  $('#grpBtn').addEventListener('click',function(){renderGroups();$('#grpOv').classList.remove('hide');});
+  $('#grpClose').addEventListener('click',async function(){$('#grpOv').classList.add('hide');await saveGroups();await loadGroups();render();renderStock();});
+  $('#addGrp').addEventListener('click',function(){GROUPS.push({id:'g'+(Date.now()),name:'New group',max:1,members:[]});renderGroups();});
+  $('#stockSearch').addEventListener('input',renderStock);
+  $('#viewTabs').querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
+    $('#viewTabs').querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');
+    var v=t.getAttribute('data-v');
+    $('#view-daily').classList.toggle('hide',v!=='daily');
+    $('#view-stock').classList.toggle('hide',v!=='stock');
+    if(v==='stock')renderStock();
+  });});
+  document.addEventListener('click',function(e){var m=$('#optMenu');if(!m||m.classList.contains('hide'))return;if(e.target.closest('#optMenu')||e.target.closest('.opt'))return;m.classList.add('hide');});
+  ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
+  $('#lovStore').addEventListener('change',loadNames);
+  $('#lovName').addEventListener('change',lovReady);
+  $('#lovPin').addEventListener('input',lovReady);
+  $('#lovGo').addEventListener('click',doLogin);
+  var sess=(await sb.auth.getSession()).data.session;
+  if(sess&&!idleExpired()){
+    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){STATE.me=sr.data;return afterLogin();}
+  }
+  showLogin();
+}
+init();
+</script>
+</body>
+</html>
