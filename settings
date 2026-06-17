@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings · CPR Tools</title>
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--green:#23A62F;--grey:#9aa0b4;--light-grey:#F3F2F2;--border:#E3E5ED;--ink:#2D2D3B}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans',system-ui,-apple-system,sans-serif;background:var(--light-grey);color:var(--ink);min-height:100vh}
+h1,h2,h3{font-family:'Nunito','Nunito Sans',sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:26px 18px 80px}
+.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.head h1{font-weight:900;font-size:1.5rem}
+.who{font-size:.82rem;font-weight:700;color:var(--grey)}
+.who b{color:var(--ink)}
+.who .lo{margin-left:12px;color:var(--red);cursor:pointer;font-weight:800}
+.tabs{display:flex;gap:6px;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:10px 16px;border:none;background:none;color:var(--grey);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab.active{color:var(--ink);border-bottom-color:var(--red)}
+.bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.bar h2{font-size:1.05rem;font-weight:800}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;border:none;border-radius:9px;padding:10px 15px;cursor:pointer;background:var(--red);color:#fff}
+.btn.alt{background:#fff;color:var(--ink);border:1.5px solid var(--border)}
+.btn.sm{padding:6px 10px;font-size:.78rem}
+.btn:disabled{opacity:.5;cursor:default}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+th,td{text-align:left;padding:11px 13px;font-size:.86rem;border-bottom:1px solid var(--border);vertical-align:middle}
+th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#6b7088;background:#FafafB}
+tr:last-child td{border-bottom:none}
+tr.archived td{opacity:.5}
+.pill{display:inline-block;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.3px;padding:3px 8px;border-radius:20px}
+.pill.owner{background:#FbE7E8;color:#B0212A}
+.pill.manager{background:#E5F1FB;color:#1D6FA5}
+.pill.employee{background:#EaF6EC;color:#1C7C2A}
+.stores{font-size:.8rem;color:#5b6076}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.dot.eug{background:var(--green)}.dot.sal{background:var(--red)}.dot.cla{background:var(--blue)}
+.rowbtns{display:flex;gap:6px;justify-content:flex-end}
+.muted{color:var(--grey);font-size:.8rem}
+/* lockout banner */
+.lockban{background:#FdF4E3;border:1px solid #F0D9A0;border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.lockban h3{font-size:.95rem;color:#8A5A00;margin-bottom:8px}
+.lockrow{display:flex;align-items:center;gap:10px;font-size:.82rem;padding:5px 0}
+.lockrow .mono{font-family:ui-monospace,monospace;font-size:.78rem;color:#5b6076}
+.lockrow .when{color:var(--grey);margin-left:auto}
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:flex-start;justify-content:center;padding:50px 16px;z-index:900}
+.ov.hide{display:none}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:460px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.modal h3{font-weight:900;font-size:1.15rem;margin-bottom:14px}
+.f{margin-bottom:13px}
+.f label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#4E4E50;margin-bottom:5px}
+.f input,.f select{width:100%;font-size:.95rem;padding:10px 11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit}
+.f input:focus,.f select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.chks{display:flex;gap:14px;flex-wrap:wrap;padding-top:2px}
+.chk{display:flex;align-items:center;gap:6px;font-size:.88rem;font-weight:600}
+.chk input{width:auto}
+.mfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px}
+.mmsg{font-size:.82rem;font-weight:700;display:none}
+.mmsg.err{display:block;color:#B42318}
+.mmsg.ok{display:block;color:#1C7C2A}
+.mright{display:flex;gap:8px}
+/* login overlay */
+.lov{position:fixed;inset:0;background:var(--light-grey);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:1000}
+.lov.hide{display:none}
+.lovcard{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(45,45,59,.06);width:100%;max-width:420px;padding:26px}
+.lovcard h1{font-weight:900;font-size:1.25rem;margin-bottom:4px}
+.lovsub{color:var(--grey);font-size:.82rem;font-weight:600;margin-bottom:6px}
+.lovcard label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#4E4E50;margin:14px 0 5px}
+.lovcard select,.lovcard input{width:100%;font-size:1rem;padding:11px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit}
+.lovbtn{width:100%;margin-top:18px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;border:none;border-radius:10px;padding:13px;cursor:pointer;background:var(--red);color:#fff}
+.lovbtn:disabled{opacity:.5;cursor:default}
+.lovmsg{margin-top:14px;font-size:.85rem;font-weight:700;padding:10px 12px;border-radius:9px;display:none}
+.lovmsg.err{display:block;background:#FDECEA;color:#B42318;border:1px solid #F7C9C4}
+.lovmsg.ok{display:block;background:#E7F5EC;color:#1F7A40;border:1px solid #C5E7D1}
+.denied{max-width:460px;margin:60px auto;background:#fff;border:1px solid var(--border);border-radius:14px;padding:26px;text-align:center}
+.denied h2{font-size:1.1rem;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginOverlay" class="lov">
+  <div class="lovcard">
+    <h1>Settings</h1>
+    <p class="lovsub">Sign in to continue.</p>
+    <label>Location</label>
+    <select id="lovStore"><option value="">Select a store…</option><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select>
+    <label>Name</label>
+    <select id="lovName" disabled><option value="">Pick a store first…</option></select>
+    <label>PIN</label>
+    <input id="lovPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
+    <button class="lovbtn" id="lovGo" disabled>Sign in</button>
+    <div class="lovmsg" id="lovMsg"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="wrap" id="app" style="display:none">
+  <div class="head">
+    <h1>Settings</h1>
+    <div class="who" id="whoami"></div>
+  </div>
+
+  <div id="adminArea">
+    <div class="tabs">
+      <button class="tab active" data-t="staff">Staff</button>
+    </div>
+
+    <div id="tab-staff">
+      <div id="lockHost"></div>
+      <div class="bar">
+        <h2>Staff</h2>
+        <button class="btn" id="addBtn">+ Add staff</button>
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>Role</th><th>Home store</th><th>Authorized</th><th></th></tr></thead>
+        <tbody id="staffBody"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="deniedArea" class="denied" style="display:none">
+    <h2>Admin access required</h2>
+    <p class="muted">Settings is limited to managers and owners. If that should be you, check with an owner.</p>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="ov hide" id="staffOv">
+  <div class="modal">
+    <h3 id="mTitle">Add staff</h3>
+    <div class="f"><label>Name</label><input id="mName" placeholder="First Last"></div>
+    <div class="f"><label>Role</label><select id="mRole"><option value="employee">Employee</option><option value="manager">Manager</option><option value="owner">Owner</option></select></div>
+    <div class="f"><label>Home store</label><select id="mHome"><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select></div>
+    <div class="f"><label>Authorized stores</label>
+      <div class="chks">
+        <label class="chk"><input type="checkbox" class="mStore" value="CPR Eugene"> Eugene</label>
+        <label class="chk"><input type="checkbox" class="mStore" value="CPR Salem Northeast"> Salem NE</label>
+        <label class="chk"><input type="checkbox" class="mStore" value="CPR Clackamas"> Clackamas</label>
+      </div>
+      <div class="muted" style="margin-top:5px">Owners see all stores automatically.</div>
+    </div>
+    <div class="f" id="pinField"><label id="pinLabel">PIN (4–6 digits)</label><input id="mPin" inputmode="numeric" autocomplete="off" placeholder="••••"></div>
+    <div class="mfoot">
+      <span class="mmsg" id="mMsg"></span>
+      <div class="mright">
+        <button class="btn alt sm" id="mCancel">Cancel</button>
+        <button class="btn sm" id="mSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+var SUPABASE_URL="https://xuvsehrevxackuhmbmry.supabase.co";
+var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY";
+var FN=SUPABASE_URL+"/functions/v1/cpr-auth";
+var sb=createClient(SUPABASE_URL,ANON);
+var $=function(s,c){return (c||document).querySelector(s);};
+var IDLE_MS=24*60*60*1000;
+var ME=null, EDIT_ID=null, STAFF=[];
+var STORE_SHORT={'CPR Eugene':'Eugene','CPR Salem Northeast':'Salem NE','CPR Clackamas':'Clackamas'};
+var STORE_DOT={'CPR Eugene':'eug','CPR Salem Northeast':'sal','CPR Clackamas':'cla'};
+
+var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
+function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
+function idleExpired(){var t=+localStorage.getItem('cpr_last_active')||0;return Date.now()-t>IDLE_MS;}
+
+/* anon call (login + name dropdown) */
+async function anonFn(body){var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)});return {status:r.status,data:await r.json()};}
+/* authed call (admin actions) — sends the logged-in session token so the function knows who's calling */
+async function adminFn(body){
+  var tok=(await sb.auth.getSession()).data.session?.access_token;
+  var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)});
+  return {status:r.status,data:await r.json()};
+}
+
+/* ---------- login overlay ---------- */
+function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovName').value&&$('#lovPin').value);}
+function lovMsg(t,k){var m=$('#lovMsg');m.textContent=t;m.className='lovmsg '+(k||'');}
+async function loadNames(){
+  var store=$('#lovStore').value,sel=$('#lovName');
+  sel.innerHTML='<option value="">Loading…</option>';sel.disabled=true;lovReady();
+  if(!store)return;
+  var r=await anonFn({action:'list_staff',store:store});
+  var list=(r.data&&r.data.staff)||[];
+  sel.innerHTML='<option value="">Select your name…</option>'+list.map(function(x){return '<option>'+x.display_name+'</option>';}).join('');
+  sel.disabled=false;lovReady();
+}
+async function doLogin(){
+  $('#lovGo').disabled=true;lovMsg('Signing in…','ok');
+  var r=await anonFn({action:'login',store:$('#lovStore').value,display_name:$('#lovName').value,pin:$('#lovPin').value,device_id:deviceId});
+  if(r.status!==200){var d=r.data||{};
+    if(d.locked)lovMsg('Locked after too many tries — a manager must reset this device.','err');
+    else if(d.error==='invalid')lovMsg('Wrong PIN. '+d.remaining+' attempt(s) left.','err');
+    else lovMsg(d.error||'Login failed.','err');
+    lovReady();return;}
+  await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+  ME=r.data.staff;touchIdle();enter();
+}
+
+/* ---------- enter app ---------- */
+function enter(){
+  $('#loginOverlay').classList.add('hide');$('#app').style.display='';
+  $('#whoami').innerHTML='<b>'+ME.display_name+'</b> · '+ME.role+' <span class="lo" id="logout">Log out</span>';
+  $('#logout').addEventListener('click',doLogout);
+  var admin=(ME.role==='owner'||ME.role==='manager');
+  $('#adminArea').style.display=admin?'':'none';
+  $('#deniedArea').style.display=admin?'none':'';
+  if(admin){loadStaff();loadLockouts();}
+}
+async function doLogout(){await sb.auth.signOut();localStorage.removeItem('cpr_last_active');location.reload();}
+
+/* ---------- staff list ---------- */
+function canEdit(target){ if(ME.role==='owner')return true; return target.role==='employee'; }
+function authCells(s){
+  if(s.role==='owner')return '<span class="stores">All stores</span>';
+  var arr=(s.authorized_stores&&s.authorized_stores.length)?s.authorized_stores:[s.home_store];
+  return arr.map(function(st){return '<span class="stores"><span class="dot '+(STORE_DOT[st]||'')+'"></span>'+(STORE_SHORT[st]||st)+'</span>';}).join('&nbsp; ');
+}
+async function loadStaff(){
+  var r=await adminFn({action:'list_staff_admin'});
+  if(r.status!==200){$('#staffBody').innerHTML='<tr><td colspan="5" class="muted">'+(r.data.error||'Could not load')+'</td></tr>';return;}
+  STAFF=r.data.staff||[];
+  $('#staffBody').innerHTML=STAFF.map(function(s){
+    var ed=canEdit(s);
+    return '<tr class="'+(s.active?'':'archived')+'">'
+      +'<td><b>'+s.display_name+'</b></td>'
+      +'<td><span class="pill '+s.role+'">'+s.role+'</span></td>'
+      +'<td>'+(STORE_SHORT[s.home_store]||s.home_store)+'</td>'
+      +'<td>'+authCells(s)+'</td>'
+      +'<td><div class="rowbtns">'
+        +(ed?'<button class="btn alt sm" data-edit="'+s.id+'">Edit</button>':'<span class="muted">—</span>')
+        +(ed?'<button class="btn alt sm" data-pin="'+s.id+'">PIN</button>':'')
+        +(ed&&s.active?'<button class="btn alt sm" data-arch="'+s.id+'">Archive</button>':'')
+        +(ed&&!s.active?'<button class="btn alt sm" data-rest="'+s.id+'">Restore</button>':'')
+      +'</div></td></tr>';
+  }).join('')||'<tr><td colspan="5" class="muted">No staff yet.</td></tr>';
+  $('#staffBody').querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){openModal(+b.dataset.edit);});});
+  $('#staffBody').querySelectorAll('[data-pin]').forEach(function(b){b.addEventListener('click',function(){openPin(+b.dataset.pin);});});
+  $('#staffBody').querySelectorAll('[data-arch]').forEach(function(b){b.addEventListener('click',function(){setActive(+b.dataset.arch,false);});});
+  $('#staffBody').querySelectorAll('[data-rest]').forEach(function(b){b.addEventListener('click',function(){setActive(+b.dataset.rest,true);});});
+}
+async function setActive(id,active){
+  if(!active&&!confirm('Archive this person? They won\u2019t be able to sign in.'))return;
+  var r=await adminFn({action:'update_staff',staff_id:id,active:active});
+  if(r.status!==200){alert(r.data.error||'Failed');return;}
+  loadStaff();
+}
+
+/* ---------- lockouts ---------- */
+async function loadLockouts(){
+  var r=await adminFn({action:'list_lockouts'});
+  var locks=(r.status===200&&r.data.lockouts)||[];
+  var host=$('#lockHost');
+  if(!locks.length){host.innerHTML='';return;}
+  host.innerHTML='<div class="lockban"><h3>⚠ '+locks.length+' locked device'+(locks.length>1?'s':'')+'</h3>'
+    +locks.map(function(l){return '<div class="lockrow"><span class="mono">'+(l.device_id||'').slice(0,8)+'…</span><span class="muted">IP '+(l.ip||'—')+'</span><button class="btn sm" data-unlock="'+l.device_id+'">Reset</button></div>';}).join('')
+    +'</div>';
+  host.querySelectorAll('[data-unlock]').forEach(function(b){b.addEventListener('click',async function(){
+    b.disabled=true;await adminFn({action:'reset_lockout',device_id:b.dataset.unlock});loadLockouts();
+  });});
+}
+
+/* ---------- add / edit modal ---------- */
+function openModal(id){
+  EDIT_ID=id||null;
+  var s=id?STAFF.filter(function(x){return x.id===id;})[0]:null;
+  $('#mTitle').textContent=id?'Edit staff':'Add staff';
+  $('#mName').value=s?s.display_name:'';
+  $('#mRole').value=s?s.role:'employee';
+  $('#mHome').value=s?s.home_store:'CPR Eugene';
+  var auth=s?(s.authorized_stores||[]):[];
+  document.querySelectorAll('.mStore').forEach(function(c){c.checked=auth.indexOf(c.value)>-1;});
+  // managers can't create/assign admin roles
+  var roleSel=$('#mRole');
+  Array.from(roleSel.options).forEach(function(o){o.disabled=(ME.role!=='owner'&&o.value!=='employee');});
+  $('#pinField').style.display=id?'none':'';   // PIN set on create; edited via PIN button
+  $('#mPin').value='';
+  mMsg('','');$('#staffOv').classList.remove('hide');
+}
+function openPin(id){
+  EDIT_ID=id;var s=STAFF.filter(function(x){return x.id===id;})[0];
+  $('#mTitle').textContent='Set PIN — '+s.display_name;
+  ['#mName','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='none';});
+  document.querySelectorAll('.mStore')[0].closest('.f').style.display='none';
+  $('#pinField').style.display='';$('#pinLabel').textContent='New PIN (4–6 digits)';$('#mPin').value='';
+  $('#mSave').dataset.mode='pin';
+  mMsg('','');$('#staffOv').classList.remove('hide');
+}
+function resetModalFields(){ // restore full form for next add/edit
+  ['#mName','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='';});
+  document.querySelectorAll('.mStore')[0].closest('.f').style.display='';
+  $('#mSave').dataset.mode='';
+}
+function mMsg(t,k){var m=$('#mMsg');m.textContent=t;m.className='mmsg '+(k||'');}
+function closeModal(){$('#staffOv').classList.add('hide');resetModalFields();}
+
+async function saveModal(){
+  var mode=$('#mSave').dataset.mode;
+  if(mode==='pin'){
+    var pin=$('#mPin').value.trim();
+    if(!/^\d{4,6}$/.test(pin)){mMsg('PIN must be 4–6 digits.','err');return;}
+    $('#mSave').disabled=true;
+    var r=await adminFn({action:'set_pin',staff_id:EDIT_ID,pin:pin});
+    $('#mSave').disabled=false;
+    if(r.status!==200){mMsg(r.data.error||'Failed','err');return;}
+    closeModal();loadStaff();return;
+  }
+  var name=$('#mName').value.trim();
+  var role=$('#mRole').value;
+  var home=$('#mHome').value;
+  var stores=Array.from(document.querySelectorAll('.mStore')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
+  if(stores.indexOf(home)<0)stores.push(home);   // home is always authorized
+  if(!name){mMsg('Name is required.','err');return;}
+  $('#mSave').disabled=true;
+  var r;
+  if(EDIT_ID){
+    r=await adminFn({action:'update_staff',staff_id:EDIT_ID,display_name:name,role:role,home_store:home,authorized_stores:stores});
+  } else {
+    var pin=$('#mPin').value.trim();
+    if(!/^\d{4,6}$/.test(pin)){mMsg('PIN must be 4–6 digits.','err');$('#mSave').disabled=false;return;}
+    r=await adminFn({action:'create_staff',display_name:name,role:role,home_store:home,authorized_stores:stores,pin:pin});
+  }
+  $('#mSave').disabled=false;
+  if(r.status!==200){mMsg(r.data.error||'Failed','err');return;}
+  closeModal();loadStaff();
+}
+
+/* ---------- init ---------- */
+async function init(){
+  $('#lovStore').addEventListener('change',loadNames);
+  $('#lovName').addEventListener('change',lovReady);
+  $('#lovPin').addEventListener('input',lovReady);
+  $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
+  $('#lovGo').addEventListener('click',doLogin);
+  $('#addBtn').addEventListener('click',function(){openModal(null);});
+  $('#mCancel').addEventListener('click',closeModal);
+  $('#mSave').addEventListener('click',saveModal);
+  $('#staffOv').addEventListener('click',function(e){if(e.target.id==='staffOv')closeModal();});
+  ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
+
+  var sess=(await sb.auth.getSession()).data.session;
+  if(sess&&!idleExpired()){
+    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){ME=sr.data;return enter();}
+  }
+  // show login
+}
+init();
+</script>
+</body>
+</html>
