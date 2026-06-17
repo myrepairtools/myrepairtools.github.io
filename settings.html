@@ -87,8 +87,8 @@ tr.archived td{opacity:.5}
     <p class="lovsub">Sign in to continue.</p>
     <label>Location</label>
     <select id="lovStore"><option value="">Select a store…</option><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select>
-    <label>Name</label>
-    <select id="lovName" disabled><option value="">Pick a store first…</option></select>
+    <label>Username</label>
+    <input id="lovUser" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="username">
     <label>PIN</label>
     <input id="lovPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
     <button class="lovbtn" id="lovGo" disabled>Sign in</button>
@@ -131,7 +131,9 @@ tr.archived td{opacity:.5}
 <div class="ov hide" id="staffOv">
   <div class="modal">
     <h3 id="mTitle">Add staff</h3>
-    <div class="f"><label>Name</label><input id="mName" placeholder="First Last"></div>
+    <div class="f"><label>First name</label><input id="mFirst" placeholder="First"></div>
+    <div class="f"><label>Last name</label><input id="mLast" placeholder="Last"></div>
+    <div class="f"><label>Username</label><input id="mUser" autocapitalize="none" autocorrect="off" placeholder="matches their RepairQ login"></div>
     <div class="f"><label>Role</label><select id="mRole"><option value="employee">Employee</option><option value="manager">Manager</option><option value="owner">Owner</option></select></div>
     <div class="f"><label>Home store</label><select id="mHome"><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select></div>
     <div class="f"><label>Authorized stores</label>
@@ -179,23 +181,14 @@ async function adminFn(body){
 }
 
 /* ---------- login overlay ---------- */
-function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovName').value&&$('#lovPin').value);}
+function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovUser').value&&$('#lovPin').value);}
 function lovMsg(t,k){var m=$('#lovMsg');m.textContent=t;m.className='lovmsg '+(k||'');}
-async function loadNames(){
-  var store=$('#lovStore').value,sel=$('#lovName');
-  sel.innerHTML='<option value="">Loading…</option>';sel.disabled=true;lovReady();
-  if(!store)return;
-  var r=await anonFn({action:'list_staff',store:store});
-  var list=(r.data&&r.data.staff)||[];
-  sel.innerHTML='<option value="">Select your name…</option>'+list.map(function(x){return '<option>'+x.display_name+'</option>';}).join('');
-  sel.disabled=false;lovReady();
-}
 async function doLogin(){
   $('#lovGo').disabled=true;lovMsg('Signing in…','ok');
-  var r=await anonFn({action:'login',store:$('#lovStore').value,display_name:$('#lovName').value,pin:$('#lovPin').value,device_id:deviceId});
+  var r=await anonFn({action:'login',store:$('#lovStore').value,username:$('#lovUser').value.trim(),pin:$('#lovPin').value,device_id:deviceId});
   if(r.status!==200){var d=r.data||{};
     if(d.locked)lovMsg('Locked after too many tries — a manager must reset this device.','err');
-    else if(d.error==='invalid')lovMsg('Wrong PIN. '+d.remaining+' attempt(s) left.','err');
+    else if(d.error==='invalid')lovMsg('Wrong username or PIN. '+d.remaining+' attempt(s) left.','err');
     else lovMsg(d.error||'Login failed.','err');
     lovReady();return;}
   await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
@@ -228,7 +221,7 @@ async function loadStaff(){
   $('#staffBody').innerHTML=STAFF.map(function(s){
     var ed=canEdit(s);
     return '<tr class="'+(s.active?'':'archived')+'">'
-      +'<td><b>'+s.display_name+'</b></td>'
+      +'<td><b>'+s.display_name+'</b>'+(s.username?'<br><span class="muted">@'+s.username+'</span>':'')+'</td>'
       +'<td><span class="pill '+s.role+'">'+s.role+'</span></td>'
       +'<td>'+(STORE_SHORT[s.home_store]||s.home_store)+'</td>'
       +'<td>'+authCells(s)+'</td>'
@@ -270,29 +263,30 @@ function openModal(id){
   EDIT_ID=id||null;
   var s=id?STAFF.filter(function(x){return x.id===id;})[0]:null;
   $('#mTitle').textContent=id?'Edit staff':'Add staff';
-  $('#mName').value=s?s.display_name:'';
+  $('#mFirst').value=s?(s.first_name||''):'';
+  $('#mLast').value=s?(s.last_name||''):'';
+  $('#mUser').value=s?(s.username||''):'';
   $('#mRole').value=s?s.role:'employee';
   $('#mHome').value=s?s.home_store:'CPR Eugene';
   var auth=s?(s.authorized_stores||[]):[];
   document.querySelectorAll('.mStore').forEach(function(c){c.checked=auth.indexOf(c.value)>-1;});
-  // managers can't create/assign admin roles
   var roleSel=$('#mRole');
   Array.from(roleSel.options).forEach(function(o){o.disabled=(ME.role!=='owner'&&o.value!=='employee');});
-  $('#pinField').style.display=id?'none':'';   // PIN set on create; edited via PIN button
+  $('#pinField').style.display=id?'none':'';
   $('#mPin').value='';
   mMsg('','');$('#staffOv').classList.remove('hide');
 }
 function openPin(id){
   EDIT_ID=id;var s=STAFF.filter(function(x){return x.id===id;})[0];
   $('#mTitle').textContent='Set PIN — '+s.display_name;
-  ['#mName','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='none';});
+  ['#mFirst','#mLast','#mUser','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='none';});
   document.querySelectorAll('.mStore')[0].closest('.f').style.display='none';
   $('#pinField').style.display='';$('#pinLabel').textContent='New PIN (4–6 digits)';$('#mPin').value='';
   $('#mSave').dataset.mode='pin';
   mMsg('','');$('#staffOv').classList.remove('hide');
 }
-function resetModalFields(){ // restore full form for next add/edit
-  ['#mName','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='';});
+function resetModalFields(){
+  ['#mFirst','#mLast','#mUser','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='';});
   document.querySelectorAll('.mStore')[0].closest('.f').style.display='';
   $('#mSave').dataset.mode='';
 }
@@ -310,20 +304,23 @@ async function saveModal(){
     if(r.status!==200){mMsg(r.data.error||'Failed','err');return;}
     closeModal();loadStaff();return;
   }
-  var name=$('#mName').value.trim();
+  var first=$('#mFirst').value.trim();
+  var last=$('#mLast').value.trim();
+  var user=$('#mUser').value.trim();
   var role=$('#mRole').value;
   var home=$('#mHome').value;
   var stores=Array.from(document.querySelectorAll('.mStore')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
-  if(stores.indexOf(home)<0)stores.push(home);   // home is always authorized
-  if(!name){mMsg('Name is required.','err');return;}
+  if(stores.indexOf(home)<0)stores.push(home);
+  if(!user){mMsg('Username is required.','err');return;}
+  if(!/^[a-zA-Z0-9._-]+$/.test(user)){mMsg('Username: letters, numbers, . _ - only.','err');return;}
   $('#mSave').disabled=true;
   var r;
   if(EDIT_ID){
-    r=await adminFn({action:'update_staff',staff_id:EDIT_ID,display_name:name,role:role,home_store:home,authorized_stores:stores});
+    r=await adminFn({action:'update_staff',staff_id:EDIT_ID,first_name:first,last_name:last,username:user,role:role,home_store:home,authorized_stores:stores});
   } else {
     var pin=$('#mPin').value.trim();
     if(!/^\d{4,6}$/.test(pin)){mMsg('PIN must be 4–6 digits.','err');$('#mSave').disabled=false;return;}
-    r=await adminFn({action:'create_staff',display_name:name,role:role,home_store:home,authorized_stores:stores,pin:pin});
+    r=await adminFn({action:'create_staff',first_name:first,last_name:last,username:user,role:role,home_store:home,authorized_stores:stores,pin:pin});
   }
   $('#mSave').disabled=false;
   if(r.status!==200){mMsg(r.data.error||'Failed','err');return;}
@@ -332,10 +329,11 @@ async function saveModal(){
 
 /* ---------- init ---------- */
 async function init(){
-  $('#lovStore').addEventListener('change',loadNames);
-  $('#lovName').addEventListener('change',lovReady);
+  $('#lovStore').addEventListener('change',lovReady);
+  $('#lovUser').addEventListener('input',lovReady);
   $('#lovPin').addEventListener('input',lovReady);
   $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
+  $('#lovUser').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
   $('#lovGo').addEventListener('click',doLogin);
   $('#addBtn').addEventListener('click',function(){openModal(null);});
   $('#mCancel').addEventListener('click',closeModal);
