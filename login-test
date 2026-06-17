@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPR Login Test</title>
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans',system-ui,sans-serif;background:var(--light);color:var(--dark);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(45,45,59,.06);width:100%;max-width:420px;padding:26px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;margin-bottom:4px}
+.sub{color:var(--grey);font-size:.82rem;font-weight:600;margin-bottom:18px}
+label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#4E4E50;margin:14px 0 5px}
+select,input{width:100%;font-size:1rem;padding:11px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit}
+select:focus,input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.btn{width:100%;margin-top:18px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;border:none;border-radius:10px;padding:13px;cursor:pointer;background:var(--red);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.msg{margin-top:14px;font-size:.85rem;font-weight:700;padding:10px 12px;border-radius:9px;display:none}
+.msg.err{display:block;background:#FDECEA;color:#B42318;border:1px solid #F7C9C4}
+.msg.ok{display:block;background:#E7F5EC;color:#1F7A40;border:1px solid #C5E7D1}
+pre{margin-top:16px;background:var(--dark);color:#D7F7E0;font-size:.74rem;border-radius:10px;padding:14px;overflow:auto;max-height:340px;white-space:pre-wrap;display:none}
+pre.show{display:block}
+.who{margin-top:8px;font-size:.8rem;font-weight:700;color:var(--green);display:none}
+.who.show{display:block}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>CPR Login Test</h1>
+  <p class="sub">Proving sign-in + RLS read of seeded stock.</p>
+
+  <label>Location</label>
+  <select id="store">
+    <option value="">Select a store…</option>
+    <option>CPR Eugene</option>
+    <option>CPR Salem Northeast</option>
+    <option>CPR Clackamas</option>
+  </select>
+
+  <label>Name</label>
+  <select id="name" disabled><option value="">Pick a store first…</option></select>
+
+  <label>PIN</label>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
+
+  <button class="btn" id="go" disabled>Sign in</button>
+  <div class="msg" id="msg"></div>
+  <div class="who" id="who"></div>
+  <pre id="out"></pre>
+</div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://xuvsehrevxackuhmbmry.supabase.co";
+const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY";
+const FN = SUPABASE_URL + "/functions/v1/cpr-auth";
+
+const sb = createClient(SUPABASE_URL, ANON);
+const $ = s => document.querySelector(s);
+
+// stable per-device id
+let deviceId = localStorage.getItem("cpr_device_id");
+if(!deviceId){ deviceId = crypto.randomUUID(); localStorage.setItem("cpr_device_id", deviceId); }
+
+function show(msg, kind){ const m=$("#msg"); m.textContent=msg; m.className="msg "+kind; }
+
+async function fn(body){
+  const r = await fetch(FN, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+ANON, "apikey":ANON },
+    body: JSON.stringify(body)
+  });
+  return { status:r.status, data: await r.json() };
+}
+
+// load staff names when a store is picked
+$("#store").addEventListener("change", async e => {
+  const store = e.target.value;
+  const nameSel = $("#name");
+  nameSel.innerHTML = '<option value="">Loading…</option>'; nameSel.disabled = true;
+  checkReady();
+  if(!store) return;
+  const { data } = await fn({ action:"list_staff", store });
+  const list = (data && data.staff) || [];
+  nameSel.innerHTML = '<option value="">Select your name…</option>' +
+    list.map(s => `<option value="${s.display_name}">${s.display_name}</option>`).join("");
+  nameSel.disabled = false;
+  if(!list.length) show("No staff found for that store.","err"); else show("","ok"), $("#msg").className="msg";
+  checkReady();
+});
+
+["#name","#pin"].forEach(s => $(s).addEventListener("input", checkReady));
+$("#name").addEventListener("change", checkReady);
+function checkReady(){ $("#go").disabled = !($("#store").value && $("#name").value && $("#pin").value); }
+
+$("#go").addEventListener("click", async () => {
+  $("#go").disabled = true; show("Signing in…","ok"); $("#msg").className="msg ok";
+  const res = await fn({
+    action:"login",
+    store: $("#store").value,
+    display_name: $("#name").value,
+    pin: $("#pin").value,
+    device_id: deviceId
+  });
+  if(res.status !== 200){
+    const d = res.data || {};
+    if(d.locked) show("Locked out after too many tries. A manager must reset this device.","err");
+    else if(d.error === "invalid") show(`Wrong PIN. ${d.remaining} attempt(s) left.`,"err");
+    else show(d.error || "Login failed.","err");
+    checkReady(); return;
+  }
+  // set the real session so RLS applies to our reads
+  await sb.auth.setSession({ access_token: res.data.access_token, refresh_token: res.data.refresh_token });
+  const s = res.data.staff;
+  $("#who").className="who show";
+  $("#who").textContent = `Signed in: ${s.display_name} · ${s.role} · home ${s.home_store}`;
+  show("Session active — reading stock through RLS…","ok");
+
+  // THE PROOF: read seeded stock as the authenticated user
+  const { data: stock, error } = await sb.from("stock").select("sku,name,in_stock,on_order,max_baseline").order("name");
+  if(error){ show("Read failed: "+error.message,"err"); return; }
+  show(`RLS read OK — ${stock.length} stock rows visible to you.`,"ok");
+  $("#out").className="show";
+  $("#out").textContent = stock.map(r => `${r.in_stock.toString().padStart(2)}  ${r.sku.padEnd(14)} ${r.name}`).join("\n");
+});
+</script>
+</body>
+</html>
