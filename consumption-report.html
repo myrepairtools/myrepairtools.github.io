@@ -153,8 +153,8 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <p class="lovsub">Sign in to continue.</p>
     <label>Location</label>
     <select id="lovStore"><option value="">Select a store…</option><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select>
-    <label>Name</label>
-    <select id="lovName" disabled><option value="">Pick a store first…</option></select>
+    <label>Username</label>
+    <input id="lovUser" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="username">
     <label>PIN</label>
     <input id="lovPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
     <button class="lovbtn" id="lovGo" disabled>Sign in</button>
@@ -326,23 +326,14 @@ function afterLogin(){
   if(!$('#day').value)$('#day').value=new Date().toISOString().slice(0,10);
   touchIdle();loadAll();
 }
-async function loadNames(){
-  var store=$('#lovStore').value,sel=$('#lovName');
-  sel.innerHTML='<option value="">Loading…</option>';sel.disabled=true;lovReady();
-  if(!store)return;
-  var r=await fn({action:'list_staff',store:store});
-  var list=(r.data&&r.data.staff)||[];
-  sel.innerHTML='<option value="">Select your name…</option>'+list.map(function(x){return '<option>'+x.display_name+'</option>';}).join('');
-  sel.disabled=false;lovReady();
-}
-function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovName').value&&$('#lovPin').value);}
+function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovUser').value&&$('#lovPin').value);}
 function lovMsg(t,k){var m=$('#lovMsg');m.textContent=t;m.className='lovmsg '+(k||'');}
 async function doLogin(){
   $('#lovGo').disabled=true;lovMsg('Signing in…','ok');
-  var r=await fn({action:'login',store:$('#lovStore').value,display_name:$('#lovName').value,pin:$('#lovPin').value,device_id:deviceId});
+  var r=await fn({action:'login',store:$('#lovStore').value,username:$('#lovUser').value.trim(),pin:$('#lovPin').value,device_id:deviceId});
   if(r.status!==200){var d=r.data||{};
     if(d.locked)lovMsg('Locked after too many tries — a manager must reset this device.','err');
-    else if(d.error==='invalid')lovMsg('Wrong PIN. '+d.remaining+' attempt(s) left.','err');
+    else if(d.error==='invalid')lovMsg('Wrong username or PIN. '+d.remaining+' attempt(s) left.','err');
     else lovMsg(d.error||'Login failed.','err');
     lovReady();return;}
   await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
@@ -683,8 +674,8 @@ async function init(){
   });});
   document.addEventListener('click',function(e){var m=$('#optMenu');if(!m||m.classList.contains('hide'))return;if(e.target.closest('#optMenu')||e.target.closest('.opt'))return;m.classList.add('hide');});
   ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
-  $('#lovStore').addEventListener('change',loadNames);
-  $('#lovName').addEventListener('change',lovReady);
+  $('#lovStore').addEventListener('change',lovReady);
+  $('#lovUser').addEventListener('input',lovReady);
   $('#lovPin').addEventListener('input',lovReady);
   $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
   $('#lovGo').addEventListener('click',doLogin);
