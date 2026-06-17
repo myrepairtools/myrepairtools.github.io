@@ -272,6 +272,7 @@ var RQ_TICKET_URL='https://cpr.repairq.io/ticket/';
 var IDLE_MS=24*60*60*1000;
 var STORES=['CPR Eugene','CPR Salem Northeast','CPR Clackamas'];
 var STATE={store:null,me:null,stores:[]};
+var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={};
@@ -298,19 +299,21 @@ async function saveGroups(){
 }
 async function loadAll(){
   var store=STATE.store, day=$('#day').value||new Date().toISOString().slice(0,10);
-  var snap={};var st=await sb.from('stock').select('sku,name,in_stock,on_order,max_baseline').eq('store',store);
-  (st.data||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
-  var ov={};var mo=await sb.from('max_overrides').select('sku,value').eq('store',store);
-  (mo.data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
-  var co=await sb.from('consignment_only').select('sku').eq('store',store);
-  STOPSTOCK[store]=(co.data||[]).map(function(r){return r.sku;});
-  var cr={};var cl=await sb.from('claim_report').select('sku,elig_in_stock').eq('store',store);
-  (cl.data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
-  var cons=[];var cs=await sb.from('consumption_log').select('sku,units,status,consigned').eq('store',store).eq('biz_date',day);
-  (cs.data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units,status:r.status,consigned:!!r.consigned});});CONSUMPTION=cons;
-  var rn=await sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day);
-  REPAIRSNOPARTS[store]=(rn.data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
-  await loadGroups();
+  var res=await Promise.all([
+    sb.from('stock').select('sku,name,in_stock,on_order,max_baseline').eq('store',store),
+    sb.from('max_overrides').select('sku,value').eq('store',store),
+    sb.from('consignment_only').select('sku').eq('store',store),
+    sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
+    sb.from('consumption_log').select('sku,units,status,consigned').eq('store',store).eq('biz_date',day),
+    sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
+    loadGroups()
+  ]);
+  var snap={};(res[0].data||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
+  var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
+  STOPSTOCK[store]=(res[2].data||[]).map(function(r){return r.sku;});
+  var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
+  var cons=[];(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units,status:r.status,consigned:!!r.consigned});});CONSUMPTION=cons;
+  REPAIRSNOPARTS[store]=(res[5].data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
   pills();render();renderStock();renderNoParts();
 }
 
@@ -386,7 +389,14 @@ function buildRows(){
       claimElig:cElig,flagSku:pref,
       suggest:blocked?0:Math.max(0,g.max-instock-onorder),orderSku:pref,members:members});
   });
-  rows.sort(function(a,b){return b.suggest-a.suggest;});
+  var keyOf=function(r){return r.type==='group'?('g:'+r.gid):r.sku;};
+  if(ORDER){
+    var oidx={};ORDER.forEach(function(k,i){oidx[k]=i;});
+    rows.sort(function(a,b){var ia=oidx[keyOf(a)],ib=oidx[keyOf(b)];if(ia==null)ia=99999;if(ib==null)ib=99999;return ia-ib;});
+  } else {
+    rows.sort(function(a,b){return b.suggest-a.suggest;});
+    ORDER=rows.map(keyOf);
+  }
   return rows;
 }
 
@@ -612,7 +622,7 @@ function exportCsv(){
 function pills(){
   var h='';STATE.stores.forEach(function(s){h+='<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+s.replace('CPR ','')+'</button>';});
   var el=$('#storePills');el.innerHTML=h;
-  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');touchIdle();loadAll();});});
+  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');ORDER=null;touchIdle();loadAll();});});
 }
 
 /* ---- groups modal ---- */
@@ -659,7 +669,7 @@ function renderGroups(){
 
 async function init(){
   $('#exportBtn').addEventListener('click',exportCsv);
-  $('#day').addEventListener('change',function(){touchIdle();loadAll();});
+  $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
   $('#grpBtn').addEventListener('click',function(){renderGroups();$('#grpOv').classList.remove('hide');});
   $('#grpClose').addEventListener('click',async function(){$('#grpOv').classList.add('hide');await saveGroups();await loadGroups();render();renderStock();});
   $('#addGrp').addEventListener('click',function(){GROUPS.push({id:'g'+(Date.now()),name:'New group',max:1,members:[]});renderGroups();});
@@ -676,6 +686,7 @@ async function init(){
   $('#lovStore').addEventListener('change',loadNames);
   $('#lovName').addEventListener('change',lovReady);
   $('#lovPin').addEventListener('input',lovReady);
+  $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
   $('#lovGo').addEventListener('click',doLogin);
   var sess=(await sb.auth.getSession()).data.session;
   if(sess&&!idleExpired()){
