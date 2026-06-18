@@ -55,7 +55,21 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 .tbl tbody tr:last-child td{border-bottom:none}
 .tbl tbody tr.grp{cursor:pointer}
 .tbl tbody tr.grp:hover{background:#FAFAFB}
-.tbl tbody tr.member td{background:#FBFCFD;font-size:.8rem;color:var(--dark-grey)}
+.tbl tbody tr.member td{background:#F4F7FB;font-size:.8rem;color:var(--dark-grey)}
+.tbl tbody tr.member td:first-child{border-left:3px solid var(--blue);padding-left:24px}
+.tbl tbody tr.member td.itm,.tbl tbody tr.member td.sku{color:var(--dark-grey)}
+.tbl tbody tr.grp.open{background:#EEF4FB}
+.gpane{display:flex;gap:16px;align-items:flex-start}
+.gleft{width:300px;flex:none;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.glhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);background:var(--light-grey);border-bottom:1px solid var(--border)}
+.gnav-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}
+.gnav-item:last-child{border-bottom:none}
+.gnav-item:hover{background:#FAFAFB}
+.gnav-item.sel{background:#EEF4FB;border-left:3px solid var(--blue);padding-left:11px}
+.gnav-name{font-weight:800;color:var(--dark);font-size:.9rem}
+.gnav-meta{font-size:.74rem;color:var(--grey);margin-top:2px}
+.gright{flex:1;background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px;min-height:240px}
+.gright .empty-pane{color:var(--grey);font-weight:700;text-align:center;padding:60px 0}
 .tbl tbody tr.member td.itm{padding-left:34px}
 .sku{font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--dark-grey);white-space:nowrap}
 .itm{font-weight:600;max-width:380px}
@@ -172,11 +186,11 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <div class="tabs" id="viewTabs">
       <button class="tab active" data-v="daily">Daily order</button>
       <button class="tab" data-v="stock">Stock levels</button>
+      <button class="tab" data-v="groups">Stock groups</button>
     </div>
     <div class="store-pills" id="storePills"></div>
     <div class="spacer"></div>
     <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix</button>
-    <button class="btn alt sm" id="grpBtn">⚙ Manage groups</button>
   </div>
 
   <section id="view-daily">
@@ -232,20 +246,20 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <div class="empty hide" id="stockEmpty">No matching SKUs.</div>
   </div>
   </section>
+
+  <section id="view-groups" class="hide">
+  <p class="sub" style="margin-bottom:14px">Pool interchangeable parts so stock is tracked as one (e.g. all iPhone 14 charging ports). Mark one SKU as the default — that's the one the CSV always orders.</p>
+  <div class="gpane">
+    <div class="gleft">
+      <div class="glhead">Groups<button class="btn alt sm" id="addGrp">+ New</button></div>
+      <div id="grpNav"></div>
+    </div>
+    <div class="gright" id="grpDetail"></div>
+  </div>
+  </section>
 </main>
 </div>
 
-<!-- GROUPS MODAL -->
-<div class="ov hide" id="grpOv">
-  <div class="modal">
-    <button class="x" id="grpClose">&times;</button>
-    <h2>Stock groups</h2>
-    <p class="sub" style="margin-bottom:14px">Pool interchangeable parts so stock is tracked as one (e.g. all iPhone 14 charging ports). Mark one SKU as the default — that's the one the CSV always orders.</p>
-    <div id="grpList"></div>
-    <button class="btn alt sm" id="addGrp" style="margin-top:6px">+ New group</button>
-    <p class="note"><b>How pooling works:</b> a group shows one row with combined stock vs the group's max. Screens stay ungrouped so each quality is tracked at its true SKU. Add new qualities to a group anytime MobileSentrix adds them.</p>
-  </div>
-</div>
 
 <div class="optmenu hide" id="optMenu"></div>
 
@@ -627,62 +641,73 @@ function pills(){
   el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');ORDER=null;touchIdle();loadAll();});});
 }
 
-/* ---- groups modal ---- */
-function renderGroups(){
-  var box=$('#grpList');box.innerHTML='';
+/* ---- groups two-pane ---- */
+var GSEL=null;
+async function persistGroups(){await saveGroups();await loadGroups();render();renderStock();}
+function renderGroupNav(){
+  var nav=$('#grpNav');nav.innerHTML='';
+  if(!GROUPS.length){nav.innerHTML='<div class="gnav-item" style="color:var(--grey);cursor:default">No groups yet.</div>';}
   GROUPS.forEach(function(g){
-    var d=document.createElement('div');d.className='grp-edit';
-    var mh='<ul class="mlist">';
-    g.members.forEach(function(m,i){
-      var ctl=(m.sku===g.def)
-        ? '<span class="pref">★ Default</span>'
-        : '<button class="mkdef" data-def="'+g.id+'|'+m.sku+'">Make default</button>';
-      mh+='<li class="mrow"><span class="mv"><b>'+m.sku+'</b> — '+m.name+'</span>'
-        +ctl
-        +'<span class="mbtns"><button data-del="'+g.id+'|'+i+'" title="Remove">×</button></span></li>';
-    });
-    mh+='</ul>';
-    d.innerHTML='<div class="top">'
-      +'<div class="f"><label>Group name</label><input value="'+g.name+'" data-gn="'+g.id+'" style="width:100%"></div>'
-      +'<div class="f mx"><label>Max</label><input type="number" value="'+g.max+'" data-gm="'+g.id+'" style="width:100%"></div>'
-      +'</div>'+mh
-      +'<div class="addrow"><input placeholder="SKU" data-ns="'+g.id+'"><input placeholder="Name / quality" data-nn="'+g.id+'"><button class="btn alt sm" data-add="'+g.id+'">Add</button></div>';
-    box.appendChild(d);
+    var d=document.createElement('div');d.className='gnav-item'+(g.id===GSEL?' sel':'');
+    d.innerHTML='<div class="gnav-name">'+(g.name||'Untitled')+'</div><div class="gnav-meta">'+g.members.length+' SKU'+(g.members.length===1?'':'s')+' · max '+g.max+'</div>';
+    d.addEventListener('click',function(){GSEL=g.id;renderGroupNav();renderGroupDetail();});
+    nav.appendChild(d);
   });
-  box.querySelectorAll('[data-add]').forEach(function(b){b.addEventListener('click',function(){
-    var id=b.getAttribute('data-add');var g=GROUPS.filter(function(x){return x.id===id;})[0];
-    var sku=document.querySelector('[data-ns="'+id+'"]').value.trim();
-    var nm=document.querySelector('[data-nn="'+id+'"]').value.trim();
-    if(sku){g.members.push({sku:sku,name:nm||sku});if(!g.def)g.def=sku;renderGroups();}
-  });});
-  box.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',function(){
-    var p=b.getAttribute('data-del').split('|');var g=GROUPS.filter(function(x){return x.id===p[0];})[0];
-    var removed=g.members.splice(+p[1],1)[0];
-    if(removed&&removed.sku===g.def)g.def=(g.members[0]&&g.members[0].sku)||'';
-    renderGroups();
-  });});
-  box.querySelectorAll('[data-def]').forEach(function(b){b.addEventListener('click',function(){
-    var p=b.getAttribute('data-def').split('|');var g=GROUPS.filter(function(x){return x.id===p[0];})[0];
-    g.def=p[1];renderGroups();
-  });});
-  box.querySelectorAll('[data-gn]').forEach(function(inp){inp.addEventListener('change',function(){GROUPS.filter(function(x){return x.id===inp.getAttribute('data-gn');})[0].name=inp.value;});});
-  box.querySelectorAll('[data-gm]').forEach(function(inp){inp.addEventListener('change',function(){GROUPS.filter(function(x){return x.id===inp.getAttribute('data-gm');})[0].max=+inp.value||0;});});
 }
+function renderGroupDetail(){
+  var box=$('#grpDetail');
+  var g=GROUPS.filter(function(x){return x.id===GSEL;})[0];
+  if(!g){box.innerHTML='<div class="empty-pane">Select a group, or create one.</div>';return;}
+  var mh='<ul class="mlist">';
+  g.members.forEach(function(m,i){
+    var ctl=(m.sku===g.def)
+      ? '<span class="pref">★ Default</span>'
+      : '<button class="mkdef" data-def="'+g.id+'|'+m.sku+'">Make default</button>';
+    mh+='<li class="mrow"><span class="mv"><b>'+m.sku+'</b> — '+m.name+'</span>'+ctl
+      +'<span class="mbtns"><button data-del="'+g.id+'|'+i+'" title="Remove">×</button></span></li>';
+  });
+  mh+='</ul>';
+  box.innerHTML='<div class="top">'
+    +'<div class="f"><label>Group name</label><input value="'+g.name+'" data-gn="'+g.id+'" style="width:100%"></div>'
+    +'<div class="f mx"><label>Max</label><input type="number" value="'+g.max+'" data-gm="'+g.id+'" style="width:90px"></div>'
+    +'<button class="btn alt sm" data-delgrp="'+g.id+'" style="margin-left:auto">Delete group</button>'
+    +'</div>'+mh
+    +'<div class="addrow"><input placeholder="SKU" data-ns="'+g.id+'"><input placeholder="Name / quality" data-nn="'+g.id+'"><button class="btn alt sm" data-add="'+g.id+'">Add</button></div>';
+  box.querySelector('[data-add]').addEventListener('click',async function(){
+    var sku=box.querySelector('[data-ns]').value.trim();var nm=box.querySelector('[data-nn]').value.trim();
+    if(sku){g.members.push({sku:sku,name:nm||sku});if(!g.def)g.def=sku;await persistGroups();renderGroupNav();renderGroupDetail();}
+  });
+  box.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',async function(){
+    var p=b.getAttribute('data-del').split('|');var rm=g.members.splice(+p[1],1)[0];
+    if(rm&&rm.sku===g.def)g.def=(g.members[0]&&g.members[0].sku)||'';
+    await persistGroups();renderGroupNav();renderGroupDetail();
+  });});
+  box.querySelectorAll('[data-def]').forEach(function(b){b.addEventListener('click',async function(){
+    g.def=b.getAttribute('data-def').split('|')[1];await persistGroups();renderGroupDetail();
+  });});
+  box.querySelector('[data-gn]').addEventListener('change',async function(){g.name=this.value;await persistGroups();renderGroupNav();});
+  box.querySelector('[data-gm]').addEventListener('change',async function(){g.max=+this.value||0;await persistGroups();renderGroupNav();});
+  box.querySelector('[data-delgrp]').addEventListener('click',async function(){
+    if(!confirm('Delete this group?'))return;
+    GROUPS=GROUPS.filter(function(x){return x.id!==g.id;});GSEL=null;await persistGroups();renderGroupNav();renderGroupDetail();
+  });
+}
+function renderGroups(){if(!GSEL&&GROUPS.length)GSEL=GROUPS[0].id;renderGroupNav();renderGroupDetail();}
 
 async function init(){
   $('#exportBtn').addEventListener('click',exportCsv);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
-  $('#grpBtn').addEventListener('click',function(){renderGroups();$('#grpOv').classList.remove('hide');});
-  $('#grpClose').addEventListener('click',async function(){$('#grpOv').classList.add('hide');await saveGroups();await loadGroups();render();renderStock();});
-  $('#addGrp').addEventListener('click',function(){GROUPS.push({id:'g'+(Date.now()),name:'New group',max:1,members:[]});renderGroups();});
+  $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[]};GROUPS.push(ng);GSEL=ng.id;await persistGroups();renderGroupNav();renderGroupDetail();});
   $('#stockSearch').addEventListener('input',renderStock);
   $('#viewTabs').querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
     $('#viewTabs').querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');
     var v=t.getAttribute('data-v');
     $('#view-daily').classList.toggle('hide',v!=='daily');
     $('#view-stock').classList.toggle('hide',v!=='stock');
+    $('#view-groups').classList.toggle('hide',v!=='groups');
     $('#exportBtn').style.display=(v==='daily')?'':'none';
     if(v==='stock')renderStock();
+    if(v==='groups')renderGroups();
   });});
   document.addEventListener('click',function(e){var m=$('#optMenu');if(!m||m.classList.contains('hide'))return;if(e.target.closest('#optMenu')||e.target.closest('.opt'))return;m.classList.add('hide');});
   ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
