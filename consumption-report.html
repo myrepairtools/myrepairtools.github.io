@@ -275,7 +275,7 @@ var STATE={store:null,me:null,stores:[]};
 var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
-var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={};
+var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
 
 var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
 function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
@@ -304,7 +304,7 @@ async function loadAll(){
     sb.from('max_overrides').select('sku,value').eq('store',store),
     sb.from('consignment_only').select('sku').eq('store',store),
     sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
-    sb.from('consumption_log').select('sku,units').eq('store',store).eq('biz_date',day),
+    sb.from('consumption_log').select('sku,units,name').eq('store',store).eq('biz_date',day),
     sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
     loadGroups()
   ]);
@@ -312,7 +312,7 @@ async function loadAll(){
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
   STOPSTOCK[store]=(res[2].data||[]).map(function(r){return r.sku;});
   var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
-  var cons=[];(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units});});CONSUMPTION=cons;
+  var cons=[];var cnames={};(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units});if(r.name)cnames[r.sku]=r.name;});CONSUMPTION=cons;CNAMES=cnames;
   REPAIRSNOPARTS[store]=(res[5].data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
   pills();render();renderStock();renderNoParts();
 }
@@ -361,11 +361,12 @@ function buildRows(){
   Object.keys(skus).forEach(function(sku){
     var g=groupOf(sku);
     if(g){ seenGrp[g.id]=1; return; }
-    var s=SNAP[sku]||{name:sku,instock:0,onorder:0,max:0};
+    var s=SNAP[sku]||{instock:0,onorder:0,max:0};
+    var nm=CNAMES[sku]||s.name||sku;
     var u=used[sku]||0;
     var blocked=stop.indexOf(sku)>-1;
     var mx=effMax(sku);
-    rows.push({type:'sku',sku:sku,name:s.name,used:u,
+    rows.push({type:'sku',sku:sku,name:nm,used:u,
       instock:s.instock,onorder:s.onorder,max:mx,stop:blocked,
       claimElig:claimRep.hasOwnProperty(sku)?claimRep[sku]:null,flagSku:sku,
       suggest:blocked?0:Math.max(0,mx-s.instock-s.onorder),orderSku:sku});
