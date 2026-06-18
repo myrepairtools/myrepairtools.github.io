@@ -298,10 +298,20 @@ async function saveGroups(){
     if(g.members.length){await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));}
   }
 }
+async function fetchAllStock(store){
+  var all=[],from=0,size=1000;
+  while(true){
+    var r=await sb.from('stock').select('sku,name,in_stock,on_order,max_baseline').eq('store',store).range(from,from+size-1);
+    var d=r.data||[];all=all.concat(d);
+    if(d.length<size)break;
+    from+=size;
+  }
+  return all;
+}
 async function loadAll(){
   var store=STATE.store, day=$('#day').value||new Date().toISOString().slice(0,10);
   var res=await Promise.all([
-    sb.from('stock').select('sku,name,in_stock,on_order,max_baseline').eq('store',store),
+    fetchAllStock(store),
     sb.from('max_overrides').select('sku,value').eq('store',store),
     sb.from('consignment_only').select('sku').eq('store',store),
     sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
@@ -309,7 +319,7 @@ async function loadAll(){
     sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
     loadGroups()
   ]);
-  var snap={};(res[0].data||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
+  var snap={};(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
   STOPSTOCK[store]=(res[2].data||[]).map(function(r){return r.sku;});
   var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
