@@ -45,6 +45,7 @@
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦' },
     { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮' },
     { label:'Price Guide',         url:'price-guide.html',         icon:'📱' },
+    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧' }
   ];
   // minRole: 'admin' = managers + owner; 'owner' = owner only.
