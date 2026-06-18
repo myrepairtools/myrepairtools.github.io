@@ -62,8 +62,8 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 .gpane{display:flex;gap:16px;align-items:flex-start}
 .gleft{width:300px;flex:none;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .glhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--white);background:var(--dark);border-bottom:1px solid var(--border)}
-.glhead .btn{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.3);color:var(--white)}
-.glhead .btn:hover{background:rgba(255,255,255,.25)}
+.glhead .btn{background:var(--red);border-color:var(--red);color:var(--white)}
+.glhead .btn:hover{background:#c41f25;border-color:#c41f25}
 .gnav-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer}
 .gnav-item:last-child{border-bottom:none}
 .gnav-item:hover{background:#FAFAFB}
@@ -72,6 +72,22 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 .gnav-meta{font-size:.74rem;color:var(--grey);margin-top:2px}
 .gright{flex:1;background:#FAFBFD;border:1px solid var(--border);border-radius:12px;padding:18px;min-height:240px}
 .gright .empty-pane{color:var(--grey);font-weight:700;text-align:center;padding:60px 0}
+.gnav-item{display:flex;align-items:center;gap:10px}
+.gnav-item .emp-avatar{width:34px;height:34px;border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.gnav-item.dragging{opacity:.4}
+.gnav-item.dragover{border-top:2px solid var(--blue)}
+.gnav-item .ghandle{color:var(--grey);cursor:grab;font-size:13px;letter-spacing:-2px;flex-shrink:0}
+.gnav-tags{margin-top:3px;display:flex;flex-wrap:wrap;gap:3px}
+.gtagpill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.3px;color:var(--dark-grey);background:var(--light-grey);border-radius:4px;padding:1px 5px}
+.gfilter{display:flex;flex-wrap:wrap;gap:5px;padding:10px 12px;border-bottom:1px solid var(--border);background:#FAFBFD}
+.fchip{font-family:'Nunito',sans-serif;font-weight:700;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;padding:3px 9px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.fchip.active{background:var(--dark);border-color:var(--dark);color:#fff}
+.gtagrow{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.gtagrow-l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-right:2px}
+.tchip{font-family:'Nunito',sans-serif;font-weight:700;font-size:.66rem;padding:3px 9px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.tchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.tagrow{display:flex;align-items:center;gap:8px;padding:5px 0}
+.tagrow input{flex:1;padding:6px 10px}
 .tbl tbody tr.member td.itm{padding-left:34px}
 .sku{font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--dark-grey);white-space:nowrap}
 .itm{font-weight:600;max-width:380px}
@@ -260,11 +276,13 @@ tr.grp.open .chev{transform:rotate(90deg)}
   <div class="bar">
     <button class="btn alt sm" id="grpBack">← Back</button>
     <h2 style="margin:0;font-size:1.05rem">Stock groups</h2>
+    <div class="spacer"></div>
+    <button class="btn alt sm" id="tagMgrBtn">⚙ Manage tags</button>
   </div>
-  <p class="sub" style="margin-bottom:14px">Pool interchangeable parts so stock is tracked as one (e.g. all iPhone 14 charging ports). Mark one SKU as the default — that's the one the CSV always orders.</p>
   <div class="gpane">
     <div class="gleft">
       <div class="glhead">Groups<button class="btn alt sm" id="addGrp">+ New</button></div>
+      <div class="gfilter" id="grpFilter"></div>
       <div id="grpNav"></div>
     </div>
     <div class="gright" id="grpDetail"></div>
@@ -273,6 +291,16 @@ tr.grp.open .chev{transform:rotate(90deg)}
 </main>
 </div>
 
+
+<div class="ov hide" id="tagOv">
+  <div class="modal" style="max-width:460px">
+    <button class="x" id="tagClose">&times;</button>
+    <h2>Manage tags</h2>
+    <p class="sub" style="margin-bottom:14px">Company-wide tags for grouping (e.g. by model or part type). Filter groups by these.</p>
+    <div id="tagList"></div>
+    <div class="addrow" style="margin-top:12px"><input placeholder="New tag (e.g. iPhone 17, Charging Port)" id="newTag"><button class="btn blue sm" id="addTag">Add</button></div>
+  </div>
+</div>
 
 <div class="optmenu hide" id="optMenu"></div>
 
@@ -300,7 +328,7 @@ var STATE={store:null,me:null,stores:[]};
 var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
-var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
+var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={},TAGS=[],GFILTER=null;
 
 var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
 function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
@@ -309,17 +337,22 @@ async function fn(body){var r=await fetch(FN,{method:'POST',headers:{'Content-Ty
 function allowedStores(me){if(!me)return [];if(me.role==='owner')return STORES.slice();var set={};set[me.home_store]=1;(me.authorized_stores||[]).forEach(function(s){set[s]=1;});return STORES.filter(function(s){return set[s];});}
 
 async function loadGroups(){
-  var g=await sb.from('groups').select('id,name,max,default_sku');
+  var g=await sb.from('groups').select('id,name,max,default_sku,position').order('position');
   var m=await sb.from('group_members').select('group_id,sku,name,position').order('position');
-  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,members:[]};});
+  var tm=await sb.from('group_tag_map').select('group_id,tag_id');
+  var tagsBy={};(tm.data||[]).forEach(function(x){(tagsBy[x.group_id]=tagsBy[x.group_id]||[]).push(x.tag_id);});
+  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,position:x.position||0,members:[],tags:tagsBy[x.id]||[]};});
   (m.data||[]).forEach(function(x){if(byId[x.group_id])byId[x.group_id].members.push({sku:x.sku,name:x.name});});
-  GROUPS=Object.keys(byId).map(function(k){return byId[k];});
+  GROUPS=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return a.position-b.position;});
 }
+async function loadTags(){var r=await sb.from('group_tags').select('id,label,kind').order('label');TAGS=r.data||[];}
 async function saveGroups(){
   for(var i=0;i<GROUPS.length;i++){var g=GROUPS[i];
-    await sb.from('groups').upsert({id:g.id,name:g.name,max:g.max,default_sku:g.def||null});
+    await sb.from('groups').upsert({id:g.id,name:g.name,max:g.max,default_sku:g.def||null,position:i});
     await sb.from('group_members').delete().eq('group_id',g.id);
     if(g.members.length){await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));}
+    await sb.from('group_tag_map').delete().eq('group_id',g.id);
+    if(g.tags&&g.tags.length){await sb.from('group_tag_map').insert(g.tags.map(function(t){return {group_id:g.id,tag_id:t};}));}
   }
 }
 async function fetchAllStock(store){
@@ -657,13 +690,45 @@ function pills(){
 /* ---- groups two-pane ---- */
 var GSEL=null;
 async function persistGroups(){await saveGroups();await loadGroups();render();renderStock();}
+function tagLabel(id){var t=TAGS.filter(function(x){return x.id===id;})[0];return t?t.label:id;}
+function initials(n){n=(n||'').trim();if(!n)return '?';var p=n.split(/\s+/);return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase();}
+function colorFor(id){var c=['#23A62F','#DE262E','#4FB0E3','#8b5cf6','#C9820B','#2E9E5B'];var h=0;for(var i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0;return c[h%c.length];}
+
+function renderGroupFilter(){
+  var box=$('#grpFilter');if(!box)return;
+  if(!TAGS.length){box.innerHTML='';return;}
+  var h='<button class="fchip'+(GFILTER===null?' active':'')+'" data-f="">All</button>';
+  TAGS.forEach(function(t){h+='<button class="fchip'+(GFILTER===t.id?' active':'')+'" data-f="'+t.id+'">'+t.label+'</button>';});
+  box.innerHTML=h;
+  box.querySelectorAll('.fchip').forEach(function(b){b.addEventListener('click',function(){var f=b.getAttribute('data-f');GFILTER=f||null;renderGroupFilter();renderGroupNav();});});
+}
+function visibleGroups(){return GFILTER?GROUPS.filter(function(g){return (g.tags||[]).indexOf(GFILTER)>-1;}):GROUPS;}
 function renderGroupNav(){
   var nav=$('#grpNav');nav.innerHTML='';
-  if(!GROUPS.length){nav.innerHTML='<div class="gnav-item" style="color:var(--grey);cursor:default">No groups yet.</div>';}
-  GROUPS.forEach(function(g){
+  var list=visibleGroups();
+  if(!list.length){nav.innerHTML='<div class="gnav-item" style="color:var(--grey);cursor:default">No groups'+(GFILTER?' with this tag.':' yet.')+'</div>';return;}
+  list.forEach(function(g){
+    var idx=GROUPS.indexOf(g);
     var d=document.createElement('div');d.className='gnav-item'+(g.id===GSEL?' sel':'');
-    d.innerHTML='<div class="gnav-name">'+(g.name||'Untitled')+'</div><div class="gnav-meta">'+g.members.length+' SKU'+(g.members.length===1?'':'s')+' · max '+g.max+'</div>';
-    d.addEventListener('click',function(){GSEL=g.id;renderGroupNav();renderGroupDetail();});
+    d.setAttribute('draggable','true');d.setAttribute('data-idx',idx);
+    var tagsH=(g.tags||[]).map(function(t){return '<span class="gtagpill">'+tagLabel(t)+'</span>';}).join('');
+    d.innerHTML='<div class="emp-avatar" style="background:'+colorFor(g.id)+'">'+initials(g.name)+'</div>'
+      +'<div style="flex:1;min-width:0"><div class="gnav-name">'+(g.name||'Untitled')+'</div>'
+      +'<div class="gnav-meta">'+g.members.length+' SKU'+(g.members.length===1?'':'s')+' · max '+g.max+'</div>'
+      +(tagsH?'<div class="gnav-tags">'+tagsH+'</div>':'')+'</div>'
+      +'<span class="ghandle" title="Drag to reorder">⋮⋮</span>';
+    d.addEventListener('click',function(e){if(e.target.closest('.ghandle'))return;GSEL=g.id;renderGroupNav();renderGroupDetail();});
+    d.addEventListener('dragstart',function(e){e.dataTransfer.setData('text/plain',idx);d.classList.add('dragging');});
+    d.addEventListener('dragend',function(){d.classList.remove('dragging');});
+    d.addEventListener('dragover',function(e){e.preventDefault();d.classList.add('dragover');});
+    d.addEventListener('dragleave',function(){d.classList.remove('dragover');});
+    d.addEventListener('drop',async function(e){
+      e.preventDefault();d.classList.remove('dragover');
+      var from=+e.dataTransfer.getData('text/plain'),to=idx;
+      if(from===to)return;
+      var moved=GROUPS.splice(from,1)[0];GROUPS.splice(to,0,moved);
+      await persistGroups();renderGroupNav();
+    });
     nav.appendChild(d);
   });
 }
@@ -681,20 +746,24 @@ function renderGroupDetail(){
     mh+='<li class="mrow"><span class="mv"><b>'+m.sku+'</b> — '+m.name+'</span>'+ctl
       +'<button class="mdel" data-del="'+g.id+'|'+i+'" title="Remove">×</button></li>';
   });
+  var tagH=TAGS.map(function(t){var on=(g.tags||[]).indexOf(t.id)>-1;return '<button class="tchip'+(on?' on':'')+'" data-tog="'+t.id+'">'+t.label+'</button>';}).join('');
   box.innerHTML='<div class="ghdr">'
     +'<input class="gname" value="'+g.name+'" data-gn="'+g.id+'" placeholder="Group name">'
     +'<label class="gmax">Max <input type="number" value="'+g.max+'" data-gm="'+g.id+'"></label>'
     +'<button class="btn alt sm" data-delgrp="'+g.id+'">Delete</button>'
     +'</div>'
+    +(TAGS.length?'<div class="gtagrow"><span class="gtagrow-l">Tags</span>'+tagH+'</div>':'')
     +'<ul class="mlist">'+mh+'</ul>'
-    +'<button class="btn alt sm" id="addMem">+ Add SKU</button>'
-    +'<div class="addrow hide" id="addRow"><input placeholder="SKU" id="nsSku"><input placeholder="Name / quality" id="nnName"><button class="btn blue sm" id="nsAdd">Add</button><button class="btn alt sm" id="nsCancel">Cancel</button></div>';
-  $('#addMem').addEventListener('click',function(){$('#addMem').classList.add('hide');$('#addRow').classList.remove('hide');$('#nsSku').focus();});
-  $('#nsCancel').addEventListener('click',function(){$('#addRow').classList.add('hide');$('#addMem').classList.remove('hide');});
+    +'<div class="addrow" id="addRow"><input placeholder="SKU" id="nsSku"><input placeholder="Name / quality" id="nnName"><button class="btn blue sm" id="nsAdd">Add</button></div>';
   $('#nsAdd').addEventListener('click',async function(){
     var sku=$('#nsSku').value.trim(),nm=$('#nnName').value.trim();
     if(sku){g.members.push({sku:sku,name:nm||sku});if(!g.def)g.def=sku;await persistGroups();renderGroupNav();renderGroupDetail();}
   });
+  box.querySelectorAll('[data-tog]').forEach(function(b){b.addEventListener('click',async function(){
+    var id=b.getAttribute('data-tog');g.tags=g.tags||[];var i=g.tags.indexOf(id);
+    if(i>-1)g.tags.splice(i,1);else g.tags.push(id);
+    await persistGroups();renderGroupNav();renderGroupDetail();
+  });});
   box.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',async function(){
     var p=b.getAttribute('data-del').split('|');var rm=g.members.splice(+p[1],1)[0];
     if(rm&&rm.sku===g.def)g.def=(g.members[0]&&g.members[0].sku)||'';
@@ -710,17 +779,40 @@ function renderGroupDetail(){
     GROUPS=GROUPS.filter(function(x){return x.id!==g.id;});GSEL=null;await persistGroups();renderGroupNav();renderGroupDetail();
   });
 }
-function renderGroups(){if(!GSEL&&GROUPS.length)GSEL=GROUPS[0].id;renderGroupNav();renderGroupDetail();}
+function renderGroups(){if(!GSEL&&GROUPS.length)GSEL=GROUPS[0].id;renderGroupFilter();renderGroupNav();renderGroupDetail();}
+
+/* ---- tag manager ---- */
+function renderTagMgr(){
+  var box=$('#tagList');box.innerHTML='';
+  if(!TAGS.length){box.innerHTML='<div style="color:var(--grey);font-size:.85rem;padding:4px 0">No tags yet.</div>';}
+  TAGS.forEach(function(t){
+    var r=document.createElement('div');r.className='tagrow';
+    r.innerHTML='<input value="'+t.label+'" data-tl="'+t.id+'"><button class="mdel" data-td="'+t.id+'">×</button>';
+    box.appendChild(r);
+  });
+  box.querySelectorAll('[data-tl]').forEach(function(inp){inp.addEventListener('change',async function(){
+    await sb.from('group_tags').update({label:inp.value}).eq('id',inp.getAttribute('data-tl'));
+    await loadTags();renderTagMgr();renderGroupFilter();renderGroupDetail();
+  });});
+  box.querySelectorAll('[data-td]').forEach(function(b){b.addEventListener('click',async function(){
+    if(!confirm('Delete this tag? It will be removed from all groups.'))return;
+    var id=b.getAttribute('data-td');
+    await sb.from('group_tag_map').delete().eq('tag_id',id);
+    await sb.from('group_tags').delete().eq('id',id);
+    if(GFILTER===id)GFILTER=null;
+    await loadTags();await loadGroups();renderTagMgr();renderGroupFilter();renderGroupNav();renderGroupDetail();
+  });});
+}
 
 async function init(){
   $('#exportBtn').addEventListener('click',exportCsv);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
-  $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[]};GROUPS.push(ng);GSEL=ng.id;await persistGroups();renderGroupNav();renderGroupDetail();});
-  $('#grpBtn').addEventListener('click',function(){
+  $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],tags:[]};GROUPS.push(ng);GSEL=ng.id;await persistGroups();renderGroupNav();renderGroupDetail();});
+  $('#grpBtn').addEventListener('click',async function(){
     $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-groups').classList.remove('hide');
     $('#exportBtn').style.display='none';$('#viewTabs').style.visibility='hidden';
     $('#storePills').style.display='none';$('#day').style.display='none';
-    renderGroups();
+    await loadTags();renderGroups();
   });
   $('#grpBack').addEventListener('click',async function(){
     await persistGroups();
@@ -732,6 +824,14 @@ async function init(){
     $('#exportBtn').style.display=(active==='daily')?'':'none';
   });
   $('#stockSearch').addEventListener('input',renderStock);
+  $('#tagMgrBtn').addEventListener('click',function(){renderTagMgr();$('#tagOv').classList.remove('hide');});
+  $('#tagClose').addEventListener('click',function(){$('#tagOv').classList.add('hide');});
+  $('#addTag').addEventListener('click',async function(){
+    var label=$('#newTag').value.trim();if(!label)return;
+    await sb.from('group_tags').insert({id:'t'+Date.now(),label:label});
+    $('#newTag').value='';await loadTags();renderTagMgr();renderGroupFilter();renderGroupDetail();
+  });
+  $('#newTag').addEventListener('keydown',function(e){if(e.key==='Enter')$('#addTag').click();});
   $('#viewTabs').querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
     $('#viewTabs').querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');
     var v=t.getAttribute('data-v');
