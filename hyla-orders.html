@@ -310,7 +310,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
     <label>What's wrong (comments)</label>
     <textarea id="failComment" rows="3" placeholder="Describe the failure&hellip;"></textarea>
     <div style="height:14px"></div>
-    <button class="btn red" style="width:100%" onclick="doFail()">Fail &amp; create RMA</button>
+    <button class="btn red" style="width:100%" id="failBtn" onclick="doFail()">Fail &amp; create RMA</button>
   </div>
 </div>
 
@@ -750,6 +750,12 @@ function delOrder(oid, nbr){
 
 /* ================= FAIL FLOW ================= */
 var FAIL_DEV = null;
+var FAIL_BUSY = false;
+function deviceOpenRma(devId){
+  return DATA.rmas.find(function(x){
+    return x.deviceId===devId && ['credited','denied'].indexOf(String(x.status).toLowerCase())<0;
+  });
+}
 function openFail(devId){
   FAIL_DEV = DATA.devices.find(function(x){return x.deviceId===devId;});
   if (!FAIL_DEV) return;
@@ -758,12 +764,21 @@ function openFail(devId){
   show('fail');
 }
 function doFail(){
-  if (!FAIL_DEV) return;
+  if (!FAIL_DEV || FAIL_BUSY) return;            // ignore double/triple taps while a save is in flight
+  if (deviceOpenRma(FAIL_DEV.deviceId)){         // already has an open RMA — don't create a second
+    toast('This device already has an open RMA');
+    hide('fail');
+    return;
+  }
   var reason=$('failReason').value, comment=$('failComment').value.trim();
   if (!reason){ toast('Pick a reason'); return; }
+  FAIL_BUSY = true;
+  var btn=$('failBtn'); if(btn) btn.disabled=true;
   api('failDevice',{deviceId:FAIL_DEV.deviceId, reason:reason, comment:comment}).then(function(){
     hide('fail'); return reload();
-  }).then(function(){ toast('RMA created'); }).catch(function(e){ toast('Failed: '+e.message); });
+  }).then(function(){ toast('RMA created'); })
+    .catch(function(e){ toast('Failed: '+e.message); })
+    .finally(function(){ FAIL_BUSY=false; var b=$('failBtn'); if(b) b.disabled=false; });
 }
 
 /* ================= COPY ================= */
