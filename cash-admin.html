@@ -9,17 +9,18 @@
 :root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;--purple:#8b5cf6;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
-main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
+main{max-width:none;margin:0;padding:24px 28px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
 /* lock */
-.lock{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+.lock{position:fixed;top:calc(-1 * var(--cpr-top-h, 0px));left:calc(-1 * var(--cpr-nav-w, 0px));width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
 .lock.hide{display:none}
 .lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
 .lock-box .ic{font-size:30px;margin-bottom:14px}
 .lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
 .lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
-.lock-box input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px}
+.lock-box input,.lock-box select{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px}
+.lock-box select option{color:#000}
 .lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
 .lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
 .app{display:none}.app.show{display:block}
@@ -109,6 +110,18 @@ tr.detrow.hide{display:none}
 </style>
 </head>
 <body>
+
+<div class="lock" id="lockScreen">
+  <div class="lock-box">
+    <div class="ic">🔒</div>
+    <h2>Cash Admin</h2>
+    <p>Manager / owner sign-in</p>
+    <select id="lkName"><option value="">Select your name…</option></select>
+    <input id="lkPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+    <button id="lkGo">Unlock admin tools</button>
+    <div class="lock-err" id="lkErr"></div>
+  </div>
+</div>
 
 <div class="app" id="app">
 <script src="assets/nav.js" data-section="admin"></script>
@@ -282,16 +295,17 @@ tr.detrow.hide{display:none}
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
-document.addEventListener('cpr-unlocked', function(){
-  document.getElementById('app').classList.add('show');
-  boot();
-});
-
-/* ===== CONFIG ===== */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyEatKeCwZeeOpG3tvQwz-rYzlDSkU1tvU_OB2MzqLMt4InPpvHUln6Iu16d3ZRwj9L/exec';
-var API_TOKEN  = '1c098481a85026995fb5f0c943ce949d6961f5eafb4d71a580025cc2144c6769';
-/* ================= */
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/* ===== SUPABASE ===== */
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var FN=SB_URL+'/functions/v1/cpr-auth';
+var sb=createClient(SB_URL,ANON);
+/* ==================== */
+var AUTH=null;       /* logged-in staff: {name, role, home_store, authorized_stores} */
+var ORIG_SETUP=[];   /* baseline cash_setup keys, for delete-on-save diffing */
+var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 
 var $=function(s){return document.querySelector(s);};
 var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
@@ -325,16 +339,85 @@ function opLabelFor(e){
 var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false,logLoc:null};
 var booted=false;
 
-function api(action,params){var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);for(var k in (params||{}))url+='&'+k+'='+encodeURIComponent(params[k]);return fetch(url).then(function(r){return r.json();});}
-function apiPost(body){body.token=API_TOKEN;return fetch(WEBAPP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}).then(function(r){return r.json();});}
 function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
+/* Supabase row (snake_case) -> the field shape the render/compute code expects */
+function rowFromDb(r){return {Id:r.id,Date:r.biz_date,Period:r.period,Store:r.store,Employee:r.employee,Operation:r.operation,Location:r.location,ToLocation:r.to_location,Amount:r.amount,Counted:r.counted,C100:r.c100,C50:r.c50,C20:r.c20,C10:r.c10,C5:r.c5,C1:r.c1,Q25:r.q25,D10:r.d10,N5:r.n5,P1:r.p1,OpeningBalance:r.opening_balance,Payments:r.payments,Returns:r.returns,Payouts:r.payouts,TransferIn:r.transfer_in,TransferOut:r.transfer_out,Expected:r.expected,OverShort:r.over_short,Notes:r.notes};}
+async function loadBootstrap(){
+  var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target');
+  if(s.error) return false;
+  STATE.setup=(s.data||[]).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
+  ORIG_SETUP=STATE.setup.map(function(r){return {Store:r.Store,Location:r.Location};});
+  var st=await sb.from('staff').select('display_name,home_store,authorized_stores,role,active').eq('active',true);
+  STATE.staff=(st.error?[]:(st.data||[])).map(function(r){return {Name:r.display_name,Role:r.role,HomeStore:r.home_store,Authorized:r.authorized_stores||[],Active:r.active};});
+  var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;});
+  var stores=Object.keys(seen);
+  STATE.stores=window.CPRLocations?CPRLocations.sort(stores):stores.sort();
+  if(!STATE.store) STATE.store=STATE.stores[0]||null;
+  renderStorePills(); renderSettings();
+  return true;
+}
+function fetchEntries(store,period){
+  return sb.from('cash_entries').select('*').eq('store',store).eq('period',period).then(function(r){if(r.error)throw r.error;return (r.data||[]).map(rowFromDb);});
+}
+
+/* ===== auth: name + PIN via cpr-auth, Supabase session, 5-min idle relock ===== */
+var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
+function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
+function lockErr(t){var e=$('#lkErr');if(e)e.textContent=t||'';}
+function showLock(){$('#app').classList.remove('show');var lk=$('#lockScreen');if(lk)lk.classList.remove('hide');var pin=$('#lkPin');if(pin)pin.value='';}
+function idleExpired(){var t=+localStorage.getItem('cash_admin_last_active')||0;return Date.now()-t>IDLE_MS;}
+function resetIdle(){var now=Date.now();clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('cash_admin_last_active',String(now));}}
+function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;booted=false;showLock();}
+function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();boot();}
+async function populateLockNames(){
+  var r=await sb.from('staff').select('display_name,username,role,active').eq('active',true);
+  var rows=(r.error?[]:(r.data||[])).filter(function(s){return s.role==='manager'||s.role==='owner';});
+  rows.sort(function(a,b){return String(a.display_name).localeCompare(String(b.display_name));});
+  NAME2USER={};rows.forEach(function(s){NAME2USER[s.display_name]=s.username;});
+  var sel=$('#lkName');if(sel)sel.innerHTML='<option value="">Select your name…</option>'+rows.map(function(s){return '<option>'+s.display_name+'</option>';}).join('');
+}
+async function doLogin(){
+  var nm=($('#lkName')&&$('#lkName').value)||'', pin=($('#lkPin')&&$('#lkPin').value)||'';
+  if(!nm){lockErr('Pick your name');return;}
+  var username=NAME2USER[nm];
+  if(!username){lockErr('No username on file for that name');return;}
+  if(!pin){lockErr('Enter your PIN');return;}
+  $('#lkGo').disabled=true; lockErr('Signing in…');
+  try{
+    var r=await fn({action:'login',username:username,pin:pin,device_id:DEVICE_ID});
+    if(r.status!==200){var d=r.data||{};
+      if(r.status===423||d.locked) lockErr('Locked after too many tries — an owner must reset this device.');
+      else if(d.error==='invalid') lockErr('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' attempt(s) left.'):''));
+      else lockErr(d.error||'Login failed.');
+      $('#lkGo').disabled=false; return;
+    }
+    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+    var st=r.data.staff||{};
+    AUTH={name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
+    $('#lkGo').disabled=false; lockErr('');
+    unlockUI();
+  }catch(e){$('#lkGo').disabled=false; lockErr(String(e&&e.message||e));}
+}
+async function initAuth(){
+  await populateLockNames();
+  if($('#lkGo')) $('#lkGo').onclick=doLogin;
+  if($('#lkPin')) $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
+  var sess=(await sb.auth.getSession()).data.session;
+  if(sess && !idleExpired()){
+    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}
+  }
+  if(sess) await sb.auth.signOut();
+  showLock();
+}
 
 /* ===== BROWSER CACHE (stale-while-revalidate) =====
    Paints instantly from localStorage, then re-fetches and only re-renders if
    the data actually changed. Every key is tagged with the logged-in user's
    name+role so a different viewer never reads someone else's cache. */
 var CACHE_NS='cprCashCache:v1';
-function cacheUser(){try{var u=(window.CPRGate&&CPRGate.user&&CPRGate.user())||{};return (u.name||'?')+'|'+(u.role||'?');}catch(_){return '?|?';}}
+function cacheUser(){return (AUTH&&AUTH.name?AUTH.name:'?')+'|'+(AUTH&&AUTH.role?AUTH.role:'?');}
 function cacheKey(p){return CACHE_NS+'|'+cacheUser()+'|'+p;}
 function cacheGet(p){try{var raw=localStorage.getItem(cacheKey(p));return raw?JSON.parse(raw):null;}catch(_){return null;}}
 function cacheSet(p,d){try{localStorage.setItem(cacheKey(p),JSON.stringify(d));}catch(_){}}
@@ -356,42 +439,73 @@ function computeBalances(){
   return bal;
 }
 
-function applyBootstrap(r){
-  if(!r||!r.ok)return false;
-  STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
-  if(!STATE.store) STATE.store=STATE.stores[0]||null;
-  renderStorePills(); renderSettings();
-  return true;
-}
 function boot(){
   if(booted)return; booted=true;
   $('#period').value=thisPeriod(); STATE.period=thisPeriod();
-  var cached=cacheGet('bootstrap'), cachedRaw=cached?JSON.stringify(cached):null, painted=false;
-  if(cached && applyBootstrap(cached)){ painted=true; loadData(); }
-  api('bootstrap').then(function(r){
-    if(!r||!r.ok){ if(!painted){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';} return; }
-    cacheSet('bootstrap',r);
-    if(JSON.stringify(r)===cachedRaw) return; // unchanged — entries already revalidating
-    applyBootstrap(r); loadData();
+  var cached=cacheGet('bootstrap'), painted=false;
+  if(cached && cached.setup){
+    STATE.setup=cached.setup; STATE.stores=cached.stores||[];
+    ORIG_SETUP=STATE.setup.map(function(r){return {Store:r.Store,Location:r.Location};});
+    if(!STATE.store) STATE.store=STATE.stores[0]||null;
+    renderStorePills(); renderSettings(); painted=true; loadData();
+  }
+  loadBootstrap().then(function(ok){
+    if(!ok){ if(!painted){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';} return; }
+    cacheSet('bootstrap',{setup:STATE.setup,stores:STATE.stores}); loadData();
   }).catch(function(){ if(!painted){$('#setupBanner').classList.remove('hide');$('#setupBanner').innerHTML='<b>Not connected.</b>';} });
 }
 function loadData(){
   if(!STATE.store)return;
   var key=entriesKey(), cached=cacheGet(key), cachedRaw=cached?JSON.stringify(cached):null;
   if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
-  api('entries',{store:STATE.store,period:STATE.period}).then(function(r){
-    var rows=(r&&r.rows)||[]; cacheSet(key,rows);
+  fetchEntries(STATE.store,STATE.period).then(function(rows){ cacheSet(key,rows);
     if(JSON.stringify(rows)!==cachedRaw){ STATE.entries=rows; renderCards(); renderLog(); }
-  }).catch(function(e){ if(!cached) toast(String(e),true); });
+  }).catch(function(e){ if(!cached) toast(String(e&&e.message||e),true); });
 }
 
 /* ===== AUDIT ===== */
 var AUDIT={data:null};
+/* balances replay for an arbitrary store+entry set (same rules as computeBalances) */
+function computeBalancesFor(store,entries){
+  var bal={}; locsFor(store).forEach(function(l){bal[l]=startBal(store,l);});
+  entries.slice().sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));}).forEach(function(e){
+    var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
+    if(op==='Open'||op==='Close'){if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null)bal[loc]=num(e.Counted);return;}
+    if(loc!=null&&bal[loc]!=null)bal[loc]-=amt; if(to!=null&&bal[to]!=null)bal[to]+=amt;
+  });
+  return bal;
+}
+function priorPeriod(p){var a=String(p).split('-'),y=+a[0],m=+a[1]-1;if(m<1){m=12;y--;}return y+'-'+('0'+m).slice(-2);}
+/* Builds the audit payload the old api('auditData') returned, now from Supabase tables. */
+async function computeAuditData(store,period){
+  var entries=await fetchEntries(store,period);
+  var tracked=computeBalancesFor(store,entries);
+  var petty=0; entries.forEach(function(e){ if(e.ToLocation===EXPENSE) petty+=num(e.Amount); }); petty=Math.round(petty*100)/100;
+  // opening = prior month's closed counted per location, else cash_setup starting balance
+  var openingByLoc={};
+  var pa=await sb.from('cash_audits').select('id').eq('store',store).eq('period',priorPeriod(period)).maybeSingle();
+  if(pa.data){ var pl=await sb.from('cash_audit_locations').select('location,counted').eq('audit_id',pa.data.id); (pl.error?[]:(pl.data||[])).forEach(function(r){openingByLoc[r.location]=num(r.counted);}); }
+  // this month's saved audit (header + children), if any
+  var aud=await sb.from('cash_audits').select('id,repairq_sales,petty_cash,closed_at').eq('store',store).eq('period',period).maybeSingle();
+  if(aud.error) return {ok:false,error:aud.error.message};
+  var savedCounted={}, days=[], closed=false, rq='', savedPetty=null;
+  if(aud.data){
+    closed=true; rq=(aud.data.repairq_sales==null?'':aud.data.repairq_sales); savedPetty=aud.data.petty_cash;
+    var al=await sb.from('cash_audit_locations').select('location,counted').eq('audit_id',aud.data.id);
+    (al.error?[]:(al.data||[])).forEach(function(r){savedCounted[r.location]=r.counted;});
+    var ad=await sb.from('cash_audit_days').select('day,location,c100,c50,c20,c10,c5,c1,total').eq('audit_id',aud.data.id);
+    days=(ad.error?[]:(ad.data||[])).map(function(r){return {day:(r.day==null?'__SMALL__':r.day),location:r.location,C100:r.c100,C50:r.c50,C20:r.c20,C10:r.c10,C5:r.c5,C1:r.c1,total:r.total};});
+  }
+  var locations=locsFor(store).map(function(l){
+    return {location:l, opening:(openingByLoc.hasOwnProperty(l)?openingByLoc[l]:startBal(store,l)), tracked:(tracked[l]||0), counted:(savedCounted.hasOwnProperty(l)?savedCounted[l]:'')};
+  });
+  return {ok:true, locations:locations, days:days, repairQSales:rq, pettyCash:(savedPetty!=null?savedPetty:petty), closed:closed, auditId:(aud.data?aud.data.id:null)};
+}
 function loadAudit(){
   if(!STATE.store||!STATE.period)return;
   $('#auditTitle').textContent=shortStore(STATE.store)+' — '+STATE.period+' reconciliation';
   $('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">Loading…</td></tr>';
-  api('auditData',{store:STATE.store,period:STATE.period}).then(function(r){
+  computeAuditData(STATE.store,STATE.period).then(function(r){
     if(!r||!r.ok){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+((r&&r.error)||'Could not load')+'</td></tr>';return;}
     AUDIT.data=r;
     $('#auRQ').value=(r.repairQSales===''||r.repairQSales==null)?'':r.repairQSales;
@@ -405,7 +519,7 @@ function loadAudit(){
       $('#auClosedNote').textContent='';
       $('#auClose').textContent='Close month & carry forward';
     }
-  }).catch(function(e){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+String(e)+'</td></tr>';});
+  }).catch(function(e){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+String(e&&e.message||e)+'</td></tr>';});
 }
 function renderAudit(){
   var d=AUDIT.data; if(!d)return;
@@ -573,15 +687,23 @@ $('#auClose').onclick=function(){
   var missing=counts.filter(function(c){return c.counted==null;});
   if(missing.length){toast('Enter a counted balance for every location first',true);return;}
   var rq=num($('#auRQ').value), petty=num($('#auPetty').value);
-  var rows=counts.map(function(c){return {Location:c.location,Tracked:c.tracked,Counted:c.counted,OverShort:(c.counted-c.tracked)};});
+  var rows=counts.map(function(c){return {location:c.location,tracked:c.tracked,counted:c.counted,over_short:(c.counted-c.tracked)};});
   var days=collectEnvDays();
   $('#auClose').disabled=true; $('#auSaved').textContent='Saving…';
-  apiPost({action:'closeMonth',store:STATE.store,period:STATE.period,repairQSales:rq,pettyCash:petty,auditor:(CPRGate&&CPRGate.user&&CPRGate.user()?CPRGate.user().name:''),rows:rows,days:days})
-    .then(function(r){$('#auClose').disabled=false;
-      if(r&&r.ok){toast('Month closed — balances carried forward');cacheDel(entriesKey());$('#auSaved').textContent='Saved '+new Date().toLocaleTimeString();loadAudit();}
-      else{toast((r&&r.error)||'Save failed',true);$('#auSaved').textContent='';}
-    }).catch(function(e){$('#auClose').disabled=false;$('#auSaved').textContent='';toast(String(e),true);});
+  saveAudit(rq,petty,rows,days).then(function(){
+    $('#auClose').disabled=false; toast('Month closed — balances carried forward'); cacheDel(entriesKey()); $('#auSaved').textContent='Saved '+new Date().toLocaleTimeString(); loadAudit();
+  }).catch(function(e){ $('#auClose').disabled=false; $('#auSaved').textContent=''; toast(String(e&&e.message||e),true); });
 };
+/* upsert the cash_audits header, then replace its children (locations + days) */
+async function saveAudit(rq,petty,rows,days){
+  var up=await sb.from('cash_audits').upsert({store:STATE.store,period:STATE.period,auditor:(AUTH?AUTH.name:''),repairq_sales:rq,petty_cash:petty,closed_at:new Date().toISOString()},{onConflict:'store,period'}).select('id').single();
+  if(up.error)throw up.error;
+  var aid=up.data.id;
+  var dl=await sb.from('cash_audit_locations').delete().eq('audit_id',aid); if(dl.error)throw dl.error;
+  var dd=await sb.from('cash_audit_days').delete().eq('audit_id',aid); if(dd.error)throw dd.error;
+  if(rows.length){ var il=await sb.from('cash_audit_locations').insert(rows.map(function(c){return {audit_id:aid,store:STATE.store,location:c.location,tracked:c.tracked,counted:c.counted,over_short:c.over_short};})); if(il.error)throw il.error; }
+  if(days.length){ var id2=await sb.from('cash_audit_days').insert(days.map(function(r){return {audit_id:aid,store:STATE.store,period:STATE.period,day:(r.day==='__SMALL__'?null:r.day),location:r.location,c100:num(r.C100),c50:num(r.C50),c20:num(r.C20),c10:num(r.C10),c5:num(r.C5),c2:0,c1:num(r.C1),total:r.total};})); if(id2.error)throw id2.error; }
+}
 $('#auRangeMode').onchange=function(){
   var custom=this.value==='custom';
   $('#auRangeFrom').classList.toggle('hide',!custom);
@@ -751,9 +873,9 @@ function renderLog(){
   };});
   $all('#logBody .xbtn').forEach(function(x){x.onclick=function(){
     if(!confirm('Delete this entry permanently? This cannot be undone.')) return;
-    apiPost({action:'deleteEntry',id:x.dataset.del}).then(function(r){
-      if(r&&r.ok){toast('Entry deleted');cacheDel(entriesKey());loadData();} else {toast((r&&r.error)||'Delete failed',true);}
-    }).catch(function(e){toast(String(e),true);});
+    sb.from('cash_entries').delete().eq('id',x.dataset.del).then(function(r){
+      if(!r.error){toast('Entry deleted');cacheDel(entriesKey());loadData();} else {toast(r.error.message||'Delete failed',true);}
+    }).catch(function(e){toast(String(e&&e.message||e),true);});
   };});
 }
 
@@ -798,15 +920,23 @@ $('#addStore').onclick=function(){
 };
 $('#saveAll').onclick=function(){
   $('#saveAll').disabled=true;
-  var setupRows=STATE.setup.map(function(s){return {Store:s.Store,Location:s.Location,StartingBalance:num(s.StartingBalance),FloatTarget:num(s.FloatTarget)};});
-  apiPost({action:'saveSetup',rows:setupRows}).then(function(r){
+  saveSetup().then(function(){
     $('#saveAll').disabled=false; STATE.dirty=false; $('#dirty').textContent='Saved ✓'; setTimeout(function(){$('#dirty').textContent='';},2000);
-    cacheDel('bootstrap');
-    toast('Settings saved');
-  }).catch(function(e){$('#saveAll').disabled=false;toast(String(e),true);});
+    cacheDel('bootstrap'); toast('Settings saved');
+  }).catch(function(e){$('#saveAll').disabled=false;toast(String(e&&e.message||e),true);});
 };
-$('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';api('ping').then(function(r){$('#connStatus').textContent=r&&r.ok?'✓ Connected':'✗ '+(r&&r.error||'No response');}).catch(function(e){$('#connStatus').textContent='✗ '+e;});};
+/* upsert all current rows; delete any that were removed since load */
+async function saveSetup(){
+  var rows=STATE.setup.map(function(s){return {store:s.Store,location:s.Location,starting_balance:num(s.StartingBalance),float_target:num(s.FloatTarget)};});
+  var up=await sb.from('cash_setup').upsert(rows,{onConflict:'store,location'}); if(up.error)throw up.error;
+  var now={}; STATE.setup.forEach(function(s){now[s.Store+'|'+s.Location]=1;});
+  var dels=(ORIG_SETUP||[]).filter(function(o){return !now[o.Store+'|'+o.Location];});
+  for(var i=0;i<dels.length;i++){ var dr=await sb.from('cash_setup').delete().eq('store',dels[i].Store).eq('location',dels[i].Location); if(dr.error)throw dr.error; }
+  ORIG_SETUP=STATE.setup.map(function(s){return {Store:s.Store,Location:s.Location};});
+}
+$('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';sb.from('cash_setup').select('id').limit(1).then(function(r){$('#connStatus').textContent=r.error?('✗ '+r.error.message):'✓ Connected';}).catch(function(e){$('#connStatus').textContent='✗ '+(e&&e.message||e);});};
+
+initAuth();
 </script>
-<script src="assets/admin-gate.js"></script>
 </body>
 </html>

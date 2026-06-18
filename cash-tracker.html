@@ -10,7 +10,7 @@
 :root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
-main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
+main{max-width:none;margin:0;padding:24px 28px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
 .page-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
@@ -152,11 +152,13 @@ tr.detrow.hide{display:none}
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
-/* ===== CONFIG ===== */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyEatKeCwZeeOpG3tvQwz-rYzlDSkU1tvU_OB2MzqLMt4InPpvHUln6Iu16d3ZRwj9L/exec';
-var API_TOKEN  = '1c098481a85026995fb5f0c943ce949d6961f5eafb4d71a580025cc2144c6769';
-/* ================= */
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/* ===== SUPABASE ===== */
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+/* ==================== */
 
 var $=function(s){return document.querySelector(s);};
 var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
@@ -171,19 +173,21 @@ var EXPENSE='Cash Expenses';
 
 var STATE={store:null,vct:null,stores:[],staff:[],setup:[],entries:[]};
 
-function api(action,params){
-  if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
-  var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);
-  for(var k in (params||{})) url+='&'+k+'='+encodeURIComponent(params[k]);
-  return fetch(url).then(function(r){return r.json();});
+/* Supabase row (snake_case) -> the field shape the render/compute code expects */
+function rowFromDb(r){return {Id:r.id,Date:r.biz_date,Period:r.period,Store:r.store,Employee:r.employee,Operation:r.operation,Location:r.location,ToLocation:r.to_location,Amount:r.amount,Counted:r.counted,C100:r.c100,C50:r.c50,C20:r.c20,C10:r.c10,C5:r.c5,C1:r.c1,Q25:r.q25,D10:r.d10,N5:r.n5,P1:r.p1,OpeningBalance:r.opening_balance,Payments:r.payments,Returns:r.returns,Payouts:r.payouts,TransferIn:r.transfer_in,TransferOut:r.transfer_out,Expected:r.expected,OverShort:r.over_short,Notes:r.notes};}
+/* read registers/safes (cash_setup) + staff roster; derive the store list */
+async function loadBootstrap(){
+  var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target');
+  if(s.error) throw s.error;
+  STATE.setup=(s.data||[]).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
+  var st=await sb.from('staff').select('display_name,home_store,authorized_stores,role,active').eq('active',true);
+  STATE.staff=(st.error?[]:(st.data||[])).map(function(r){return {Name:r.display_name,Role:r.role,HomeStore:r.home_store,Authorized:r.authorized_stores||[],Active:r.active};});
+  var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;});
+  var stores=Object.keys(seen);
+  STATE.stores=window.CPRLocations?CPRLocations.sort(stores):stores.sort();
 }
-function apiPost(body){
-  if(!WEBAPP_URL||WEBAPP_URL.indexOf('PASTE_')===0) return Promise.reject('Not configured');
-  body.token=API_TOKEN;
-  // Pack the whole payload into the query string: an Apps Script POST body can be
-  // dropped across the /exec redirect, but query params always arrive.
-  var url=WEBAPP_URL+'?action='+encodeURIComponent(body.action||'')+'&token='+encodeURIComponent(API_TOKEN)+'&payload='+encodeURIComponent(JSON.stringify(body));
-  return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:'{}'}).then(function(r){return r.json();});
+function fetchEntries(store,period){
+  return sb.from('cash_entries').select('*').eq('store',store).eq('period',period).then(function(r){if(r.error)throw r.error;return (r.data||[]).map(rowFromDb);});
 }
 
 function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
@@ -202,7 +206,7 @@ function safesFor(store){
 }
 function startBal(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.StartingBalance):0;}
 function floatTarget(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.FloatTarget):0;}
-function staffFor(store){return STATE.staff.filter(function(s){return s.Store===store&&s.Active!==false;}).map(function(s){return s.Name;});}
+function staffFor(store){return STATE.staff.filter(function(s){return s.Active!==false&&(s.HomeStore===store||(s.Authorized||[]).indexOf(store)>=0||s.Role==='owner');}).map(function(s){return s.Name;});}
 
 /* counted-anchored balances (tills follow last count; safes accumulate) */
 function computeBalances(){
@@ -245,9 +249,7 @@ function boot(){
     var cached=snap.entries&&snap.entries[STATE.store+'|'+thisPeriod()];
     if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
   }
-  api('bootstrap').then(function(r){
-    if(!r||!r.ok){if(!snap)showSetupBanner();return;}
-    STATE.stores=(window.CPRLocations?CPRLocations.sort(r.stores||[]):(r.stores||[])); STATE.staff=r.staff||[]; STATE.setup=r.setup||[];
+  loadBootstrap().then(function(){
     var savedStore=pref('ct_store');
     STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
     pickInitialVct();
@@ -266,11 +268,11 @@ function loadData(){
   var snap=snapRead();
   var cached=snap&&snap.entries&&snap.entries[STATE.store+'|'+thisPeriod()];
   if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
-  api('entries',{store:STATE.store,period:thisPeriod()}).then(function(r){
-    STATE.entries=(r&&r.rows)||[];
+  fetchEntries(STATE.store,thisPeriod()).then(function(rows){
+    STATE.entries=rows;
     renderCards(); renderLog();
     snapWrite();
-  }).catch(function(e){if(!cached)toast(String(e),true);});
+  }).catch(function(e){if(!cached)toast(String(e&&e.message||e),true);});
 }
 
 /* ===== store / register switchers ===== */
@@ -400,7 +402,7 @@ function renderExpenseLog(rows){
     '</tbody></table></div>':'<p class="muted">No cash expenses logged this month.</p>');
 }
 function shortLoc(l){return l===EXPENSE?'Cash Expenses':String(l||'');}
-function wireDelete(){$all('#logBody .xbtn').forEach(function(x){x.onclick=function(){if(!confirm('Delete this entry?'))return;apiPost({action:'deleteEntry',id:x.dataset.id}).then(function(){toast('Deleted');loadData();});};});}
+/* delete is admin-only (Cash Admin activity log) — the terminal never deletes entries */
 
 /* ===== new entry modal ===== */
 function openModal(){ $('#enOp').value='Open'; fillEmp(); renderForm(); $('#entryModal').classList.remove('hide'); }
@@ -521,10 +523,24 @@ $('#enSubmit').onclick=function(){
     payload.location=from; payload.toLocation=to; payload.amount=total;
   }
   $('#enSubmit').disabled=true;
-  apiPost(Object.assign({action:'addEntry'},payload)).then(function(r){$('#enSubmit').disabled=false;
-    if(!r.ok){toast(r.error||'Save failed',true);return;}
+  var dn=payload.denoms||{};
+  var ins={period:payload.date.slice(0,7),store:payload.store,biz_date:payload.date,employee:payload.employee,operation:payload.operation,
+    location:payload.location||null,to_location:payload.toLocation||null,amount:num(payload.amount),
+    c100:num(dn.C100),c50:num(dn.C50),c20:num(dn.C20),c10:num(dn.C10),c5:num(dn.C5),c1:num(dn.C1),q25:num(dn.Q25),d10:num(dn.D10),n5:num(dn.N5),p1:num(dn.P1),
+    counted:(payload.counted==null?null:num(payload.counted)),
+    opening_balance:(payload.openingBalance==null?null:num(payload.openingBalance)),
+    payments:(payload.payments==null?null:num(payload.payments)),
+    returns:(payload.returns==null?null:num(payload.returns)),
+    payouts:(payload.payouts==null?null:num(payload.payouts)),
+    transfer_in:(payload.transferIn==null?null:num(payload.transferIn)),
+    transfer_out:(payload.transferOut==null?null:num(payload.transferOut)),
+    expected:(payload.expected==null?null:num(payload.expected)),
+    over_short:(payload.overShort==null?null:num(payload.overShort)),
+    notes:payload.notes||null};
+  sb.from('cash_entries').insert(ins).then(function(r){$('#enSubmit').disabled=false;
+    if(r.error){toast(r.error.message||'Save failed',true);return;}
     toast('Entry saved'); closeModal(); loadData();
-  }).catch(function(e){$('#enSubmit').disabled=false;toast(String(e),true);});
+  }).catch(function(e){$('#enSubmit').disabled=false;toast(String(e&&e.message||e),true);});
 };
 
 boot();
