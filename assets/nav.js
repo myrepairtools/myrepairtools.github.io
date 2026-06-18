@@ -196,7 +196,7 @@
   }
 
   function paneInner(area){
-    var hd = '<div class="cpr-pane-hd">CPR Tools</div>';
+    var hd = '<div class="cpr-pane-hd">myRepairTools</div>';
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
