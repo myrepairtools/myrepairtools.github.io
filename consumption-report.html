@@ -48,7 +48,7 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 
 .card{background:var(--white);border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse;font-size:.86rem}
-.tbl thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);text-align:left;padding:11px 12px;background:var(--light-grey);border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);text-align:left;padding:11px 12px;background:var(--light-grey);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:5}
 .tbl thead th.num,.tbl td.num{text-align:right}
 .tbl thead th.ctr,.tbl td.ctr{text-align:center}
 .tbl tbody td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -168,22 +168,19 @@ tr.grp.open .chev{transform:rotate(90deg)}
   <p class="sub">Daily parts used &middot; current stock &middot; suggested MobileSentrix order.</p>
 
   <div class="bar">
+    <input type="date" id="day" style="width:auto">
     <div class="tabs" id="viewTabs">
       <button class="tab active" data-v="daily">Daily order</button>
       <button class="tab" data-v="stock">Stock levels</button>
     </div>
     <div class="store-pills" id="storePills"></div>
     <div class="spacer"></div>
+    <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix</button>
     <button class="btn alt sm" id="grpBtn">⚙ Manage groups</button>
   </div>
 
   <section id="view-daily">
   <div class="warnpanel hide" id="nopartsPanel"></div>
-  <div class="bar">
-    <input type="date" id="day" style="width:auto">
-    <div class="spacer"></div>
-    <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix</button>
-  </div>
 
   <div class="kpis">
     <div class="kpi"><div class="v" id="kUsed">0</div><div class="l">Parts used</div></div>
@@ -684,6 +681,7 @@ async function init(){
     var v=t.getAttribute('data-v');
     $('#view-daily').classList.toggle('hide',v!=='daily');
     $('#view-stock').classList.toggle('hide',v!=='stock');
+    $('#exportBtn').style.display=(v==='daily')?'':'none';
     if(v==='stock')renderStock();
   });});
   document.addEventListener('click',function(e){var m=$('#optMenu');if(!m||m.classList.contains('hide'))return;if(e.target.closest('#optMenu')||e.target.closest('.opt'))return;m.classList.add('hide');});
