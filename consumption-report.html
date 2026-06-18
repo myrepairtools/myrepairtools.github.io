@@ -186,6 +186,25 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .lovmsg{margin-top:14px;font-size:.85rem;font-weight:700;padding:10px 12px;border-radius:9px;display:none}
 .lovmsg.err{display:block;background:#FDECEA;color:#B42318;border:1px solid #F7C9C4}
 .lovmsg.ok{display:block;background:#E7F5EC;color:#1F7A40;border:1px solid #C5E7D1}
+
+/* ===== Device attributes (Manufacturer/Model) + MobileSentrix catalog type-ahead ===== */
+.gdevrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;max-width:720px}
+.gdevrow .gdevf{flex:1;min-width:170px}
+.gdevrow label{margin-bottom:4px}
+.gdevrow select{width:100%}
+.gdevmsg{font-size:.76rem;font-weight:700;color:var(--red);max-width:720px;margin-bottom:8px}
+.gdevmsg:empty{display:none}
+.gdev{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.3px;color:var(--blue);background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 7px}
+.gdev .gdevmod{color:var(--dark-grey);background:none;border:none;padding:0 0 0 5px}
+.addrow.msq{position:relative}
+.msdrop{position:absolute;top:calc(100% + 4px);left:0;right:64px;max-height:300px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(45,45,59,.18);z-index:60}
+.msdrop.hide{display:none}
+.msrow{padding:8px 11px;cursor:pointer;border-bottom:1px solid var(--light-grey)}
+.msrow:last-child{border-bottom:none}
+.msrow:hover,.msrow.on{background:var(--light-grey)}
+.msname{display:block;font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.85rem;color:var(--dark);line-height:1.25}
+.mssku{display:block;font-size:.72rem;color:var(--grey)}
+.msadd{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--blue)}
 </style>
 </head>
 <body>
@@ -280,19 +299,14 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <button class="btn alt sm" id="grpBack">← Daily order</button>
     <input type="search" id="grpSearch" placeholder="Search group, SKU, or item…" style="flex:1;max-width:380px">
     <div class="spacer"></div>
-    <button class="btn alt sm" id="tagMgrBtn">⚙ Manage tags</button>
     <button class="btn red sm" id="addGrp">+ New group</button>
-  </div>
-
-  <div class="card" id="grpFilterCard" style="padding:4px 0;margin-bottom:14px">
-    <div id="grpFilter"></div>
   </div>
 
   <div class="kpis">
     <div class="kpi"><div class="v" id="kgGroups">0</div><div class="l">Groups</div></div>
     <div class="kpi"><div class="v" id="kgSkus">0</div><div class="l">Pooled SKUs</div></div>
-    <div class="kpi"><div class="v" id="kgTags">0</div><div class="l">Tags</div></div>
-    <div class="kpi order"><div class="v" id="kgUntag">0</div><div class="l">Untagged</div></div>
+    <div class="kpi"><div class="v" id="kgMfrs">0</div><div class="l">Manufacturers</div></div>
+    <div class="kpi order"><div class="v" id="kgUnassigned">0</div><div class="l">No device set</div></div>
   </div>
 
   <div class="card">
@@ -302,7 +316,7 @@ tr.grp.open .chev{transform:rotate(90deg)}
         <th class="ctr">SKUs</th>
         <th class="ctr">Max</th>
         <th>Default SKU</th>
-        <th>Tags</th>
+        <th>Device</th>
       </tr></thead>
       <tbody id="grpRows"></tbody>
     </table>
@@ -312,15 +326,6 @@ tr.grp.open .chev{transform:rotate(90deg)}
 </main>
 </div>
 
-
-<div class="ov hide" id="tagOv">
-  <div class="modal" style="max-width:460px">
-    <button class="x" id="tagClose">&times;</button>
-    <h2>Manage tags</h2>
-    <p class="sub" style="margin-bottom:14px">Company-wide tags by Model and Part type. Assign to groups and filter by them.</p>
-    <div id="tagList"></div>
-  </div>
-</div>
 
 <div class="optmenu hide" id="optMenu"></div>
 
@@ -348,7 +353,7 @@ var STATE={store:null,me:null,stores:[]};
 var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
-var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={},TAGS=[],GFILTER={model:null,part_type:null};
+var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
 
 var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
 function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
@@ -357,22 +362,17 @@ async function fn(body){var r=await fetch(FN,{method:'POST',headers:{'Content-Ty
 function allowedStores(me){if(!me)return [];if(me.role==='owner')return STORES.slice();var set={};set[me.home_store]=1;(me.authorized_stores||[]).forEach(function(s){set[s]=1;});return STORES.filter(function(s){return set[s];});}
 
 async function loadGroups(){
-  var g=await sb.from('groups').select('id,name,max,default_sku,position').order('position');
+  var g=await sb.from('groups').select('id,name,max,default_sku,position,manufacturer,model').order('position');
   var m=await sb.from('group_members').select('group_id,sku,name,position').order('position');
-  var tm=await sb.from('group_tag_map').select('group_id,tag_id');
-  var tagsBy={};(tm.data||[]).forEach(function(x){(tagsBy[x.group_id]=tagsBy[x.group_id]||[]).push(x.tag_id);});
-  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,position:x.position||0,members:[],tags:tagsBy[x.id]||[]};});
+  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,position:x.position||0,members:[],manufacturer:x.manufacturer||null,model:x.model||null};});
   (m.data||[]).forEach(function(x){if(byId[x.group_id])byId[x.group_id].members.push({sku:x.sku,name:x.name});});
   GROUPS=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return a.position-b.position;});
 }
-async function loadTags(){var r=await sb.from('group_tags').select('id,label,kind').order('label');TAGS=r.data||[];}
 async function saveGroups(){
   for(var i=0;i<GROUPS.length;i++){var g=GROUPS[i];
     await sb.from('groups').upsert({id:g.id,name:g.name,max:g.max,default_sku:g.def||null,position:i});
     await sb.from('group_members').delete().eq('group_id',g.id);
     if(g.members.length){await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));}
-    await sb.from('group_tag_map').delete().eq('group_id',g.id);
-    if(g.tags&&g.tags.length){await sb.from('group_tag_map').insert(g.tags.map(function(t){return {group_id:g.id,tag_id:t};}));}
   }
 }
 async function fetchAllStock(store){
@@ -709,34 +709,40 @@ function pills(){
 
 /* ---- groups (in-main table + inline editor) ---- */
 var GOPEN=null, GQ='';
-var KINDS=[{k:'model',label:'Model'},{k:'part_type',label:'Part type'}];
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function persistGroups(){await saveGroups();await loadGroups();render();renderStock();}
-function tagLabel(id){var t=TAGS.filter(function(x){return x.id===id;})[0];return t?t.label:id;}
-function tagsOfKind(kind){return TAGS.filter(function(t){return (t.kind||'general')===kind;});}
 
-function renderGroupFilter(){
-  var box=$('#grpFilter');if(!box)return;
-  var html='';
-  KINDS.forEach(function(kd){
-    var tags=tagsOfKind(kd.k);if(!tags.length)return;
-    var cur=GFILTER[kd.k];
-    var h='<div class="gfilter-bar"><span class="gfilter-l">'+kd.label+'</span>';
-    h+='<button class="fchip'+(cur===null?' active':'')+'" data-k="'+kd.k+'" data-f="">All</button>';
-    tags.forEach(function(t){h+='<button class="fchip'+(cur===t.id?' active':'')+'" data-k="'+kd.k+'" data-f="'+t.id+'">'+t.label+'</button>';});
-    h+='</div>';html+=h;
-  });
-  box.innerHTML=html||'<div class="gfilter-bar"><span class="gfilter-l" style="color:var(--grey)">No tags yet — add some under Manage tags</span></div>';
-  box.querySelectorAll('.fchip').forEach(function(b){b.addEventListener('click',function(){
-    var k=b.getAttribute('data-k'),f=b.getAttribute('data-f');GFILTER[k]=f||null;renderGroups();
-  });});
+/* ---- device_models (Manufacturer -> Model) ---- */
+var DEVICE_MFRS=null, DEVICE_MODELS_BY_MFR={};
+async function loadManufacturers(){
+  if(DEVICE_MFRS)return DEVICE_MFRS;
+  var r=await sb.from('device_models').select('manufacturer').order('manufacturer');
+  var seen={},out=[];(r.data||[]).forEach(function(x){if(x.manufacturer&&!seen[x.manufacturer]){seen[x.manufacturer]=1;out.push(x.manufacturer);}});
+  DEVICE_MFRS=out;return out;
 }
+async function loadModels(mfr){
+  if(!mfr)return [];
+  if(DEVICE_MODELS_BY_MFR[mfr])return DEVICE_MODELS_BY_MFR[mfr];
+  var r=await sb.from('device_models').select('model').eq('manufacturer',mfr).order('model');
+  var out=(r.data||[]).map(function(x){return x.model;}).filter(Boolean);
+  DEVICE_MODELS_BY_MFR[mfr]=out;return out;
+}
+/* persist groups.manufacturer/model on the existing groups row; FK groups_device_fk rejects bad pairs */
+async function saveDeviceAttrs(g,er){
+  var msg=er&&er.querySelector('[data-devmsg]');
+  var r=await sb.from('groups').update({manufacturer:g.manufacturer||null,model:g.model||null}).eq('id',g.id);
+  if(r.error){
+    if(msg)msg.textContent='Couldn’t save device — '+(/foreign key|groups_device_fk/i.test(r.error.message||'')?'that manufacturer/model isn’t a valid pair.':(r.error.message||'try again.'));
+  }else if(msg){msg.textContent='';}
+}
+
 function visibleGroups(){
   var q=GQ.trim().toLowerCase();
   return GROUPS.filter(function(g){
-    var t=g.tags||[];
-    for(var i=0;i<KINDS.length;i++){var sel=GFILTER[KINDS[i].k];if(sel&&t.indexOf(sel)<0)return false;}
     if(q){
       var hit=(g.name||'').toLowerCase().indexOf(q)>-1
+        || (g.manufacturer||'').toLowerCase().indexOf(q)>-1
+        || (g.model||'').toLowerCase().indexOf(q)>-1
         || g.members.some(function(m){return (m.sku||'').toLowerCase().indexOf(q)>-1||(m.name||'').toLowerCase().indexOf(q)>-1;});
       if(!hit)return false;
     }
@@ -750,48 +756,50 @@ function editorRowHtml(g){
     var i=g.members.indexOf(m);
     var ctl=(m.sku===g.def)?'<span class="pref">★ Default</span>'
       :'<button class="mkdef" data-def="'+g.id+'|'+m.sku+'">Make default</button>';
-    mh+='<li class="mrow"><span class="mv"><b>'+m.sku+'</b> — '+m.name+'</span>'+ctl
+    mh+='<li class="mrow"><span class="mv"><b>'+esc(m.sku)+'</b> — '+esc(m.name)+'</span>'+ctl
       +'<button class="mdel" data-del="'+g.id+'|'+i+'" title="Remove">×</button></li>';
-  });
-  var tagRows='';
-  KINDS.forEach(function(kd){
-    var tags=tagsOfKind(kd.k);if(!tags.length)return;
-    var chips=tags.map(function(t){var on=(g.tags||[]).indexOf(t.id)>-1;return '<button class="tchip'+(on?' on':'')+'" data-tog="'+t.id+'">'+t.label+'</button>';}).join('');
-    tagRows+='<div class="gtagrow"><span class="gtagrow-l">'+kd.label+'</span>'+chips+'</div>';
   });
   return '<div class="geditor">'
     +'<div class="ghdr">'
-    +'<input class="gname" value="'+g.name+'" data-gn="'+g.id+'" placeholder="Group name">'
+    +'<input class="gname" value="'+esc(g.name)+'" data-gn="'+g.id+'" placeholder="Group name">'
     +'<label class="gmax">Max <input type="number" value="'+g.max+'" data-gm="'+g.id+'"></label>'
     +'<button class="btn alt sm" data-delgrp="'+g.id+'">Delete</button></div>'
-    +tagRows
+    +'<div class="gdevrow">'
+      +'<div class="gdevf"><label>Manufacturer</label><select data-mfr="'+g.id+'"></select></div>'
+      +'<div class="gdevf"><label>Model</label><select data-model="'+g.id+'" disabled></select></div>'
+    +'</div>'
+    +'<div class="gdevmsg" data-devmsg="'+g.id+'"></div>'
     +'<ul class="mlist">'+mh+'</ul>'
-    +'<div class="addrow"><input placeholder="SKU" id="nsSku"><input placeholder="Name / quality" id="nnName"><button class="btn blue sm" id="nsAdd">Add</button></div>'
+    +'<div class="addrow msq">'
+      +'<input placeholder="Search MobileSentrix catalog — SKU or product name…" id="msSearch" autocomplete="off">'
+      +'<button class="btn blue sm" id="msAddManual">Add</button>'
+      +'<div class="msdrop hide" id="msDrop"></div>'
+    +'</div>'
     +'</div>';
 }
 function renderGroups(){
-  renderGroupFilter();
   // KPIs
   $('#kgGroups').textContent=GROUPS.length;
   $('#kgSkus').textContent=GROUPS.reduce(function(s,g){return s+g.members.length;},0);
-  $('#kgTags').textContent=TAGS.length;
-  $('#kgUntag').textContent=GROUPS.filter(function(g){return !(g.tags&&g.tags.length);}).length;
+  var mset={};GROUPS.forEach(function(g){if(g.manufacturer)mset[g.manufacturer]=1;});
+  $('#kgMfrs').textContent=Object.keys(mset).length;
+  $('#kgUnassigned').textContent=GROUPS.filter(function(g){return !g.manufacturer||!g.model;}).length;
 
   var tb=$('#grpRows');tb.innerHTML='';
   var list=visibleGroups();
   $('#grpEmpty').classList.toggle('hide',list.length>0);
   list.forEach(function(g){
     var open=(g.id===GOPEN);
-    var tagPills=(g.tags||[]).length
-      ? (g.tags||[]).map(function(t){return '<span class="gtag">'+tagLabel(t)+'</span>';}).join('')
-      : '<span style="color:var(--grey);font-size:.76rem">untagged</span>';
+    var devCell=(g.manufacturer||g.model)
+      ? '<span class="gdev">'+esc(g.manufacturer||'?')+(g.model?'<span class="gdevmod">'+esc(g.model)+'</span>':'')+'</span>'
+      : '<span style="color:var(--grey);font-size:.76rem">no device set</span>';
     var tr=document.createElement('tr');tr.className='grp'+(open?' open':'');
-    tr.innerHTML='<td class="itm"><span class="nm"><span class="chev">›</span> '+(g.name||'Untitled')
+    tr.innerHTML='<td class="itm"><span class="nm"><span class="chev">›</span> '+esc(g.name||'Untitled')
         +' <span class="poolbadge">⬡ '+g.members.length+'</span></span></td>'
       +'<td class="ctr">'+g.members.length+'</td>'
       +'<td class="ctr">'+maxCell('gid',g.id,g.max)+'</td>'
-      +'<td class="sku">'+(g.def||'<span style="color:var(--grey)">—</span>')+'</td>'
-      +'<td>'+tagPills+'</td>';
+      +'<td class="sku">'+(g.def?esc(g.def):'<span style="color:var(--grey)">—</span>')+'</td>'
+      +'<td>'+devCell+'</td>';
     tr.addEventListener('click',function(e){
       if(e.target.closest('.maxwrap'))return;
       GOPEN=open?null:g.id;renderGroups();
@@ -807,15 +815,8 @@ function renderGroups(){
   wireMaxEdit(tb);
 }
 function wireEditor(er,g){
-  er.querySelector('#nsAdd').addEventListener('click',async function(){
-    var sku=er.querySelector('#nsSku').value.trim(),nm=er.querySelector('#nnName').value.trim();
-    if(sku){g.members.push({sku:sku,name:nm||sku});if(!g.def)g.def=sku;await persistGroups();renderGroups();}
-  });
-  er.querySelectorAll('[data-tog]').forEach(function(b){b.addEventListener('click',async function(){
-    var id=b.getAttribute('data-tog');g.tags=g.tags||[];var i=g.tags.indexOf(id);
-    if(i>-1)g.tags.splice(i,1);else g.tags.push(id);
-    await persistGroups();renderGroups();
-  });});
+  wireDeviceSelects(er,g);
+  wireMsTypeahead(er,g);
   er.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',async function(){
     var p=b.getAttribute('data-del').split('|');var rm=g.members.splice(+p[1],1)[0];
     if(rm&&rm.sku===g.def)g.def=(g.members[0]&&g.members[0].sku)||'';
@@ -832,50 +833,96 @@ function wireEditor(er,g){
   });
 }
 
-/* ---- tag manager (two kinds) ---- */
-function renderTagMgr(){
-  var box=$('#tagList');box.innerHTML='';
-  KINDS.forEach(function(kd){
-    var h=document.createElement('div');h.className='tagkind-h';h.textContent=kd.label;box.appendChild(h);
-    var tags=tagsOfKind(kd.k);
-    if(!tags.length){var e=document.createElement('div');e.style.cssText='color:var(--grey);font-size:.82rem;padding:2px 0';e.textContent='None yet.';box.appendChild(e);}
-    tags.forEach(function(t){
-      var r=document.createElement('div');r.className='tagrow';
-      r.innerHTML='<input value="'+t.label+'" data-tl="'+t.id+'"><button class="mdel" data-td="'+t.id+'">×</button>';
-      box.appendChild(r);
-    });
-    var add=document.createElement('div');add.className='addrow';add.style.marginTop='6px';
-    add.innerHTML='<input placeholder="New '+kd.label.toLowerCase()+'" data-newk="'+kd.k+'"><button class="btn blue sm" data-addk="'+kd.k+'">Add</button>';
-    box.appendChild(add);
+/* Task A: cascading Manufacturer -> Model selects, writing groups.manufacturer/model */
+async function wireDeviceSelects(er,g){
+  var mSel=er.querySelector('[data-mfr]'), modSel=er.querySelector('[data-model]');
+  if(!mSel||!modSel)return;
+  var mfrs=await loadManufacturers();
+  var opts='<option value="">— Manufacturer —</option>';
+  if(g.manufacturer&&mfrs.indexOf(g.manufacturer)<0)opts+='<option selected>'+esc(g.manufacturer)+'</option>';
+  opts+=mfrs.map(function(m){return '<option'+(m===g.manufacturer?' selected':'')+'>'+esc(m)+'</option>';}).join('');
+  mSel.innerHTML=opts;
+  async function fillModels(selected){
+    if(!g.manufacturer){modSel.innerHTML='<option value="">— Model —</option>';modSel.disabled=true;return;}
+    modSel.disabled=true;modSel.innerHTML='<option value="">Loading…</option>';
+    var models=await loadModels(g.manufacturer);
+    var mo='<option value="">— Model —</option>';
+    if(selected&&models.indexOf(selected)<0)mo+='<option selected>'+esc(selected)+'</option>';
+    mo+=models.map(function(m){return '<option'+(m===selected?' selected':'')+'>'+esc(m)+'</option>';}).join('');
+    modSel.innerHTML=mo;modSel.disabled=false;
+  }
+  await fillModels(g.model);
+  mSel.addEventListener('change',async function(){
+    g.manufacturer=mSel.value||null; g.model=null;           // clear stale cross-brand model
+    await fillModels(null);
+    await saveDeviceAttrs(g,er);
   });
-  box.querySelectorAll('[data-tl]').forEach(function(inp){inp.addEventListener('change',async function(){
-    await sb.from('group_tags').update({label:inp.value}).eq('id',inp.getAttribute('data-tl'));
-    await loadTags();renderTagMgr();renderGroups();
-  });});
-  box.querySelectorAll('[data-td]').forEach(function(b){b.addEventListener('click',async function(){
-    if(!confirm('Delete this tag? It will be removed from all groups.'))return;
-    var id=b.getAttribute('data-td');
-    await sb.from('group_tag_map').delete().eq('tag_id',id);
-    await sb.from('group_tags').delete().eq('id',id);
-    KINDS.forEach(function(kd){if(GFILTER[kd.k]===id)GFILTER[kd.k]=null;});
-    await loadTags();await loadGroups();renderTagMgr();renderGroups();
-  });});
-  box.querySelectorAll('[data-addk]').forEach(function(b){b.addEventListener('click',async function(){
-    var k=b.getAttribute('data-addk');var inp=box.querySelector('[data-newk="'+k+'"]');var label=inp.value.trim();if(!label)return;
-    await sb.from('group_tags').insert({id:'t'+Date.now(),label:label,kind:k});
-    await loadTags();renderTagMgr();renderGroups();
-  });});
+  modSel.addEventListener('change',async function(){
+    g.model=modSel.value||null;
+    await saveDeviceAttrs(g,er);
+  });
+}
+
+/* Task B: MobileSentrix SKU type-ahead -> adds via the existing member path */
+function wireMsTypeahead(er,g){
+  var inp=er.querySelector('#msSearch'), drop=er.querySelector('#msDrop'), addBtn=er.querySelector('#msAddManual');
+  if(!inp)return;
+  var items=[], active=-1, timer=null, seq=0;
+  function close(){drop.classList.add('hide');drop.innerHTML='';items=[];active=-1;}
+  function addMember(sku,name){
+    sku=(sku||'').trim(); if(!sku)return;
+    g.members.push({sku:sku,name:(name||sku)}); if(!g.def)g.def=sku;   // same add-member path the old button used
+    close(); inp.value='';
+    persistGroups().then(renderGroups);
+  }
+  function renderDrop(){
+    if(!items.length){close();return;}
+    drop.innerHTML=items.map(function(it,i){
+      if(it.manual){
+        return '<div class="msrow'+(i===active?' on':'')+'" data-i="'+i+'"><span class="msadd">＋ Add “'+esc(it.q)+'” as a new SKU</span></div>';
+      }
+      var meta=[it.make,it.model,it.quality].filter(Boolean).join(' · ');
+      return '<div class="msrow'+(i===active?' on':'')+'" data-i="'+i+'">'
+        +'<span class="msname">'+esc(it.name||it.sku)+'</span>'
+        +'<span class="mssku">SKU: '+esc(it.sku)+(meta?'  ·  '+esc(meta):'')+'</span></div>';
+    }).join('');
+    drop.classList.remove('hide');
+    drop.querySelectorAll('.msrow').forEach(function(row){
+      row.addEventListener('mousedown',function(e){e.preventDefault();pick(+row.getAttribute('data-i'));});
+    });
+  }
+  function pick(i){var it=items[i];if(!it)return;if(it.manual)addMember(it.q,it.q);else addMember(it.sku,it.name);}
+  async function search(raw){
+    var my=++seq;
+    var clean=(raw||'').replace(/[(),]/g,' ').trim();
+    if(clean.length<2){close();return;}
+    var r=await sb.from('ms_catalog').select('sku,name,make,model,quality').or('sku.ilike.'+clean+'%,name.ilike.%'+clean+'%').limit(20);
+    if(my!==seq)return;                       // a newer keystroke superseded this one
+    var rows=(r.error?[]:(r.data||[]));
+    items=rows.map(function(x){return {sku:x.sku,name:x.name,make:x.make,model:x.model,quality:x.quality};});
+    items.push({manual:true,q:clean});        // manual fallback always offered
+    active=-1;renderDrop();
+  }
+  inp.addEventListener('input',function(){clearTimeout(timer);var q=inp.value;timer=setTimeout(function(){search(q);},250);});
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='ArrowDown'){e.preventDefault();if(items.length){active=(active+1)%items.length;renderDrop();}}
+    else if(e.key==='ArrowUp'){e.preventDefault();if(items.length){active=(active-1+items.length)%items.length;renderDrop();}}
+    else if(e.key==='Enter'){e.preventDefault();if(active>=0)pick(active);else if(inp.value.trim())addMember(inp.value.trim(),inp.value.trim());}
+    else if(e.key==='Escape'){close();}
+  });
+  if(addBtn)addBtn.addEventListener('click',function(){if(inp.value.trim())addMember(inp.value.trim(),inp.value.trim());});
+  inp.addEventListener('blur',function(){setTimeout(close,150);});   // close on outside click (mousedown on a row fires first)
 }
 
 async function init(){
   $('#exportBtn').addEventListener('click',exportCsv);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
-  $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],tags:[]};GROUPS.push(ng);GOPEN=ng.id;await persistGroups();renderGroups();});
+  $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null};GROUPS.push(ng);GOPEN=ng.id;await persistGroups();renderGroups();});
   $('#grpBtn').addEventListener('click',async function(){
     $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-groups').classList.remove('hide');
     $('#exportBtn').style.display='none';$('#viewTabs').style.visibility='hidden';
     $('#storePills').style.display='none';$('#day').style.display='none';$('#grpBtn').style.display='none';
-    await loadTags();renderGroups();
+    loadManufacturers();renderGroups();
   });
   $('#grpBack').addEventListener('click',function(){
     $('#view-groups').classList.add('hide');$('#viewTabs').style.visibility='';
@@ -887,8 +934,6 @@ async function init(){
   });
   $('#grpSearch').addEventListener('input',function(){GQ=this.value;renderGroups();});
   $('#stockSearch').addEventListener('input',renderStock);
-  $('#tagMgrBtn').addEventListener('click',function(){renderTagMgr();$('#tagOv').classList.remove('hide');});
-  $('#tagClose').addEventListener('click',function(){$('#tagOv').classList.add('hide');});
   $('#viewTabs').querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
     $('#viewTabs').querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');
     var v=t.getAttribute('data-v');
