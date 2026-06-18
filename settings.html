@@ -3,378 +3,560 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Settings · CPR Tools</title>
+<title>Settings — CPR</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--green:#23A62F;--grey:#9aa0b4;--light-grey:#F3F2F2;--border:#E3E5ED;--ink:#2D2D3B}
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito Sans',system-ui,-apple-system,sans-serif;background:var(--light-grey);color:var(--ink);min-height:100vh}
-h1,h2,h3{font-family:'Nunito','Nunito Sans',sans-serif}
-.wrap{max-width:980px;margin:0 auto;padding:26px 18px 80px}
-.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
-.head h1{font-weight:900;font-size:1.5rem}
-.who{font-size:.82rem;font-weight:700;color:var(--grey)}
-.who b{color:var(--ink)}
-.who .lo{margin-left:12px;color:var(--red);cursor:pointer;font-weight:800}
-.tabs{display:flex;gap:6px;border-bottom:2px solid var(--border);margin-bottom:20px}
-.tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:10px 16px;border:none;background:none;color:var(--grey);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
-.tab.active{color:var(--ink);border-bottom-color:var(--red)}
-.bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
-.bar h2{font-size:1.05rem;font-weight:800}
-.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;border:none;border-radius:9px;padding:10px 15px;cursor:pointer;background:var(--red);color:#fff}
-.btn.alt{background:#fff;color:var(--ink);border:1.5px solid var(--border)}
-.btn.sm{padding:6px 10px;font-size:.78rem}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 70px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
+.sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
+.hide{display:none}
+.muted{color:var(--grey);font-weight:600}
+label{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:4px}
+input,select{font-family:'Nunito Sans',sans-serif;font-size:.88rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;border:none;border-radius:8px;padding:9px 15px;cursor:pointer;background:var(--red);color:#fff}
+.btn.blue{background:var(--blue)}.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+.btn.sm{padding:6px 13px;font-size:.72rem}
+.btn.alt.sm:hover{border-color:var(--blue);color:var(--blue)}
 .btn:disabled{opacity:.5;cursor:default}
-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
-th,td{text-align:left;padding:11px 13px;font-size:.86rem;border-bottom:1px solid var(--border);vertical-align:middle}
-th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#6b7088;background:#FafafB}
-tr:last-child td{border-bottom:none}
-tr.archived td{opacity:.5}
-.pill{display:inline-block;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.3px;padding:3px 8px;border-radius:20px}
-.pill.owner{background:#FbE7E8;color:#B0212A}
-.pill.manager{background:#E5F1FB;color:#1D6FA5}
-.pill.employee{background:#EaF6EC;color:#1C7C2A}
-.stores{font-size:.8rem;color:#5b6076}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
-.dot.eug{background:var(--green)}.dot.sal{background:var(--red)}.dot.cla{background:var(--blue)}
-.rowbtns{display:flex;gap:6px;justify-content:flex-end}
-.muted{color:var(--grey);font-size:.8rem}
-/* lockout banner */
-.lockban{background:#FdF4E3;border:1px solid #F0D9A0;border-radius:12px;padding:14px 16px;margin-bottom:18px}
-.lockban h3{font-size:.95rem;color:#8A5A00;margin-bottom:8px}
-.lockrow{display:flex;align-items:center;gap:10px;font-size:.82rem;padding:5px 0}
-.lockrow .mono{font-family:ui-monospace,monospace;font-size:.78rem;color:#5b6076}
-.lockrow .when{color:var(--grey);margin-left:auto}
-/* modal */
-.ov{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:flex-start;justify-content:center;padding:50px 16px;z-index:900}
-.ov.hide{display:none}
-.modal{background:#fff;border-radius:14px;width:100%;max-width:460px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,.2)}
-.modal h3{font-weight:900;font-size:1.15rem;margin-bottom:14px}
-.f{margin-bottom:13px}
-.f label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#4E4E50;margin-bottom:5px}
-.f input,.f select{width:100%;font-size:.95rem;padding:10px 11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit}
-.f input:focus,.f select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
-.chks{display:flex;gap:14px;flex-wrap:wrap;padding-top:2px}
-.chk{display:flex;align-items:center;gap:6px;font-size:.88rem;font-weight:600}
-.chk input{width:auto}
-.mfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px}
-.mmsg{font-size:.82rem;font-weight:700;display:none}
-.mmsg.err{display:block;color:#B42318}
-.mmsg.ok{display:block;color:#1C7C2A}
-.mright{display:flex;gap:8px}
-/* login overlay */
-.lov{position:fixed;inset:0;background:var(--light-grey);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:1000}
-.lov.hide{display:none}
-.lovcard{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(45,45,59,.06);width:100%;max-width:420px;padding:26px}
-.lovcard h1{font-weight:900;font-size:1.25rem;margin-bottom:4px}
-.lovsub{color:var(--grey);font-size:.82rem;font-weight:600;margin-bottom:6px}
-.lovcard label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#4E4E50;margin:14px 0 5px}
-.lovcard select,.lovcard input{width:100%;font-size:1rem;padding:11px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit}
-.lovbtn{width:100%;margin-top:18px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;border:none;border-radius:10px;padding:13px;cursor:pointer;background:var(--red);color:#fff}
-.lovbtn:disabled{opacity:.5;cursor:default}
-.lovmsg{margin-top:14px;font-size:.85rem;font-weight:700;padding:10px 12px;border-radius:9px;display:none}
-.lovmsg.err{display:block;background:#FDECEA;color:#B42318;border:1px solid #F7C9C4}
-.lovmsg.ok{display:block;background:#E7F5EC;color:#1F7A40;border:1px solid #C5E7D1}
-.denied{max-width:460px;margin:60px auto;background:#fff;border:1px solid var(--border);border-radius:14px;padding:26px;text-align:center}
-.denied h2{font-size:1.1rem;margin-bottom:8px}
+/* lock (lifted from cash-admin) */
+.lock{position:fixed;top:calc(-1 * var(--cpr-top-h, 0px));left:calc(-1 * var(--cpr-nav-w, 0px));width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+.lock.hide{display:none}
+.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
+.lock-box .ic{font-size:30px;margin-bottom:14px}
+.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
+.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
+.lock-box input,.lock-box select{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px}
+.lock-box select option{color:#000}
+.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
+.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
+.app{display:none}.app.show{display:block}
+/* tabs */
+.tabs{display:inline-flex;gap:4px;background:#fff;border:1px solid var(--border);border-radius:11px;padding:4px;margin-bottom:20px}
+.tab{display:inline-flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:8px 16px;border-radius:8px;background:none;border:none;color:var(--dark-grey);cursor:pointer}
+.tab.active{background:var(--dark);color:#fff;font-weight:900}
+.tab .ct{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:var(--light-grey);color:var(--grey);font-size:.66rem;font-weight:900;padding:0 5px}
+.tab.active .ct{background:rgba(255,255,255,.22);color:#fff}
+/* toolbar */
+.bar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.bar input[type=search]{flex:1;max-width:300px}
+.spacer{flex:1}
+.seg{display:inline-flex;gap:3px;background:var(--light-grey);border:1px solid var(--border);border-radius:9px;padding:3px}
+.seg button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;padding:6px 13px;border-radius:7px;background:none;border:none;color:var(--dark-grey);cursor:pointer}
+.seg button.on{background:#fff;color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.08)}
+.seg button .n{color:var(--grey)}
+/* table card */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden;margin-bottom:18px}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);text-align:left;padding:11px 16px;background:var(--light-grey);border-bottom:1px solid var(--border)}
+thead th.r{text-align:right}
+tbody td{padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#FAFAFB}
+td.r{text-align:right;white-space:nowrap}
+.empty{padding:34px;text-align:center;color:var(--grey);font-weight:700}
+.sect-h{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;margin:4px 0 10px;display:flex;align-items:center;gap:10px}
+.note{font-size:.74rem;color:var(--grey);font-weight:600;line-height:1.5;margin:2px 0 12px}
+.note b{color:var(--dark-grey)}
+.avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem}
+.who{display:flex;align-items:center;gap:11px}
+.who .nm{font-weight:700;color:var(--dark);display:block;line-height:1.25}
+.who .un{font-size:.72rem;color:var(--grey);font-weight:600}
+.chip{font-family:'Nunito',sans-serif;font-weight:700;font-size:.66rem;padding:2px 8px;border-radius:20px;border:1px solid var(--border);background:var(--light-grey);color:var(--dark-grey);display:inline-block;margin:1px 2px 1px 0}
+.badge{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;padding:3px 9px;border-radius:20px}
+.badge .dot{width:6px;height:6px;border-radius:50%}
+.badge.ok{color:var(--green);background:#E9F6EE;border:1px solid #CFE9D8}.badge.ok .dot{background:var(--green)}
+.badge.warn{color:#8A5A00;background:#FCF1DD;border:1px solid #F2D7A8}.badge.warn .dot{background:var(--amber)}
+.badge.off{color:var(--dark-grey);background:var(--light-grey);border:1px solid var(--border)}
+.lnk{color:var(--blue);font-weight:800;cursor:pointer;text-decoration:none}
+/* modal (Part Groups shell) */
+.modal-back{position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:880}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:620px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(45,45,59,.32);z-index:890;text-align:left}
+.modal.sm{width:540px}
+.modal-hd{flex:none;display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.modal-hd .t{flex:1;min-width:0;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;line-height:1.2}
+.modal-hd .s{font-size:.74rem;color:var(--grey);font-weight:600}
+.modal-x{background:none;border:none;font-size:1.45rem;cursor:pointer;color:var(--grey);font-weight:800;line-height:1;padding:0 2px}
+.modal-body{flex:1;min-height:60px;overflow:auto;padding:16px 18px}
+.modal-ft{flex:none;display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-top:1px solid var(--border)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.f+.f,.row+.row{margin-top:12px}
+.authwrap{display:flex;flex-wrap:wrap;gap:7px}
+.authpill{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.76rem;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.authpill.on{font-weight:800;border-color:var(--blue);background:#EAF6FD;color:#1E7AA8}
+.authpill .home{font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:var(--blue)}
+.pinbox{margin-top:16px;background:#FbFbFc;border:1px solid var(--border);border-radius:11px;padding:13px 14px;display:flex;align-items:center;gap:12px}
+.pinbox input{width:120px;font-family:'Nunito',sans-serif;font-weight:800;font-size:1.05rem;letter-spacing:.3em;text-align:center}
+.pinbox .h{flex:1;font-size:.72rem;color:var(--dark-grey);line-height:1.4}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:1100}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="loginOverlay" class="lov">
-  <div class="lovcard">
-    <h1>Settings</h1>
-    <p class="lovsub">Sign in to continue.</p>
-    <label>Location</label>
-    <select id="lovStore"><option value="">Select a store…</option><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select>
-    <label>Username</label>
-    <input id="lovUser" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="username">
-    <label>PIN</label>
-    <input id="lovPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
-    <button class="lovbtn" id="lovGo" disabled>Sign in</button>
-    <div class="lovmsg" id="lovMsg"></div>
+<div class="lock" id="lockScreen">
+  <div class="lock-box">
+    <div class="ic">🔒</div>
+    <h2>Settings</h2>
+    <p>Manager / owner sign-in</p>
+    <select id="lkName"><option value="">Select your name…</option></select>
+    <input id="lkPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+    <button id="lkGo">Unlock settings</button>
+    <div class="lock-err" id="lkErr"></div>
   </div>
 </div>
 
-<!-- APP -->
-<div class="wrap" id="app" style="display:none">
-  <div class="head">
-    <h1>Settings</h1>
-    <div class="who" id="whoami"></div>
+<div class="app" id="app">
+<script src="assets/nav.js" data-section="admin"></script>
+<main>
+  <h1>Settings</h1>
+  <p class="sub">Global configuration for every CPR tool &middot; the master team roster and store list other tools read from.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="staff" id="tabStaff">Team Members <span class="ct" id="ctStaff">0</span></button>
+    <button class="tab" data-tab="loc" id="tabLoc">Locations <span class="ct" id="ctLoc">0</span></button>
   </div>
 
-  <div id="adminArea">
-    <div class="tabs">
-      <button class="tab active" data-t="staff">Staff</button>
+  <!-- STAFF TAB -->
+  <section id="view-staff">
+    <div class="bar">
+      <input type="search" id="staffSearch" placeholder="Search name, username, role…">
+      <span class="seg" id="rosterSeg">
+        <button data-v="active" class="on">Active <span class="n" id="cActive">0</span></button>
+        <button data-v="archived">Archived <span class="n" id="cArchived">0</span></button>
+      </span>
+      <span class="spacer"></span>
+      <button class="btn" id="addMember">+ Add member</button>
     </div>
-
-    <div id="tab-staff">
-      <div id="lockHost"></div>
-      <div class="bar">
-        <h2>Staff</h2>
-        <div style="display:flex;gap:8px;align-items:center">
-          <select id="staffFilter" style="font-size:.84rem;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-weight:700">
-            <option value="">All locations</option>
-            <option value="CPR Eugene">Eugene</option>
-            <option value="CPR Salem Northeast">Salem NE</option>
-            <option value="CPR Clackamas">Clackamas</option>
-          </select>
-          <button class="btn" id="addBtn">+ Add staff</button>
-        </div>
-      </div>
-      <table>
-        <thead><tr><th>Name</th><th>Role</th><th>Home store</th><th>Authorized</th><th></th></tr></thead>
-        <tbody id="staffBody"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
-      </table>
+    <div class="card"><table><thead><tr>
+      <th>Employee</th><th>Role</th><th>Home store</th><th>Authorized</th><th>Status</th><th></th>
+    </tr></thead><tbody id="staffRows"></tbody></table>
+      <div class="empty hide" id="staffEmpty">No team members.</div>
     </div>
-  </div>
+  </section>
 
-  <div id="deniedArea" class="denied" style="display:none">
-    <h2>Admin access required</h2>
-    <p class="muted">Settings is limited to managers and owners. If that should be you, check with an owner.</p>
-  </div>
+  <!-- LOCATIONS TAB -->
+  <section id="view-loc" class="hide">
+    <div class="sect-h">Stores</div>
+    <p class="note" id="storesNote"></p>
+    <div class="card"><table><thead><tr>
+      <th>Display name (canonical)</th><th>RepairQ name</th><th class="r">Order</th><th>Status</th><th></th>
+    </tr></thead><tbody id="storeRows"></tbody></table>
+      <div class="empty hide" id="storeEmpty">No stores.</div>
+    </div>
+    <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addStore">+ Add store</button></div>
+
+    <div class="sect-h" style="margin-top:22px">Registers &amp; safes
+      <select id="regStore" style="width:auto;min-width:200px"></select>
+    </div>
+    <p class="note">These are the till registers (<b>VCT1</b>…) and safes for the selected store, read by Cash Tracker &amp; Cash Admin. Deactivating keeps cash history intact.</p>
+    <div class="card"><table><thead><tr>
+      <th>Location</th><th class="r">Starting $</th><th class="r">Float $</th><th>Status</th><th></th>
+    </tr></thead><tbody id="regRows"></tbody></table>
+      <div class="empty hide" id="regEmpty">No registers for this store yet.</div>
+    </div>
+    <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
+  </section>
+</main>
 </div>
 
-<!-- ADD/EDIT MODAL -->
-<div class="ov hide" id="staffOv">
-  <div class="modal">
-    <h3 id="mTitle">Add staff</h3>
-    <div class="f"><label>First name</label><input id="mFirst" placeholder="First"></div>
-    <div class="f"><label>Last name</label><input id="mLast" placeholder="Last"></div>
-    <div class="f"><label>Username</label><input id="mUser" autocapitalize="none" autocorrect="off" placeholder="matches their RepairQ login"></div>
-    <div class="f"><label>Role</label><select id="mRole"><option value="employee">Employee</option><option value="manager">Manager</option><option value="owner">Owner</option></select></div>
-    <div class="f"><label>Home store</label><select id="mHome"><option value="CPR Eugene">Eugene</option><option value="CPR Salem Northeast">Salem Northeast</option><option value="CPR Clackamas">Clackamas</option></select></div>
-    <div class="f"><label>Authorized stores</label>
-      <div class="chks">
-        <label class="chk"><input type="checkbox" class="mStore" value="CPR Eugene"> Eugene</label>
-        <label class="chk"><input type="checkbox" class="mStore" value="CPR Salem Northeast"> Salem NE</label>
-        <label class="chk"><input type="checkbox" class="mStore" value="CPR Clackamas"> Clackamas</label>
-      </div>
-      <div class="muted" style="margin-top:5px">Owners see all stores automatically.</div>
-    </div>
-    <div class="f" id="pinField"><label id="pinLabel">PIN (4–6 digits)</label><input id="mPin" inputmode="numeric" autocomplete="off" placeholder="••••"></div>
-    <div class="mfoot">
-      <span class="mmsg" id="mMsg"></span>
-      <div class="mright">
-        <button class="btn alt sm" id="mCancel">Cancel</button>
-        <button class="btn sm" id="mSave">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
+<div id="modalHost"></div>
+<div class="toast" id="toast"></div>
 
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-var SUPABASE_URL="https://xuvsehrevxackuhmbmry.supabase.co";
-var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY";
-var FN=SUPABASE_URL+"/functions/v1/cpr-auth";
-var sb=createClient(SUPABASE_URL,ANON);
-var $=function(s,c){return (c||document).querySelector(s);};
-var IDLE_MS=24*60*60*1000;
-var ME=null, EDIT_ID=null, STAFF=[];
-var STORE_SHORT={'CPR Eugene':'Eugene','CPR Salem Northeast':'Salem NE','CPR Clackamas':'Clackamas'};
-var STORE_DOT={'CPR Eugene':'eug','CPR Salem Northeast':'sal','CPR Clackamas':'cla'};
+/* ===== SUPABASE ===== */
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var FN=SB_URL+'/functions/v1/cpr-auth';
+var sb=createClient(SB_URL,ANON);
+/* ==================== */
+var AUTH=null;        /* logged-in staff {name, role, home_store, authorized_stores} */
+var ME_ROLE='manager';/* from list_staff_admin */
+var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 
-var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
-function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
-function idleExpired(){var t=+localStorage.getItem('cpr_last_active')||0;return Date.now()-t>IDLE_MS;}
+var $=function(s){return document.querySelector(s);};
+var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
+function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
+var ROLES=['employee','manager','owner'];
+function roleLabel(r){return r?r.charAt(0).toUpperCase()+r.slice(1):'';}
+var AVATARS=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
+function avatarBg(id){var h=0,s=String(id||'');for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AVATARS[h%AVATARS.length];}
+function initialsOf(m){var a=(m.first_name||'').trim(),b=(m.last_name||'').trim();var x=(a[0]||'')+(b[0]||'');if(!x.trim())x=(m.display_name||m.username||'?').trim()[0]||'?';return x.toUpperCase();}
+function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
-/* anon call (login + name dropdown) */
-async function anonFn(body){var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)});return {status:r.status,data:await r.json()};}
-/* authed call (admin actions) — sends the logged-in session token so the function knows who's calling */
-async function adminFn(body){
-  var tok=(await sb.auth.getSession()).data.session?.access_token;
-  var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)});
-  return {status:r.status,data:await r.json()};
+/* ===== state ===== */
+var TAB='staff', SEARCH='', ROSTER='active';
+var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
+var MOPEN=null; /* {type:'member'|'store'|'reg', isNew, draft} */
+
+/* ===== auth (lifted from cash-admin) ===== */
+var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
+function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
+/* CRUD calls carry the authenticated session bearer token */
+async function authFn(body){
+  var sess=(await sb.auth.getSession()).data.session;
+  var tok=sess?sess.access_token:ANON;
+  var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)});
+  var d=await r.json().catch(function(){return {};});
+  return {status:r.status,data:d};
 }
-
-/* ---------- login overlay ---------- */
-function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovUser').value&&$('#lovPin').value);}
-function lovMsg(t,k){var m=$('#lovMsg');m.textContent=t;m.className='lovmsg '+(k||'');}
+function lockErr(t){var e=$('#lkErr');if(e)e.textContent=t||'';}
+function showLock(){$('#app').classList.remove('show');var lk=$('#lockScreen');if(lk)lk.classList.remove('hide');var pin=$('#lkPin');if(pin)pin.value='';}
+function idleExpired(){var t=+localStorage.getItem('settings_last_active')||0;return Date.now()-t>IDLE_MS;}
+function resetIdle(){var now=Date.now();clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('settings_last_active',String(now));}}
+function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;showLock();}
+function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
+async function populateLockNames(){
+  var r=await sb.from('staff').select('display_name,username,role,active').eq('active',true);
+  var rows=(r.error?[]:(r.data||[])).filter(function(s){return s.role==='manager'||s.role==='owner';});
+  rows.sort(function(a,b){return String(a.display_name).localeCompare(String(b.display_name));});
+  NAME2USER={};rows.forEach(function(s){NAME2USER[s.display_name]=s.username;});
+  var sel=$('#lkName');if(sel)sel.innerHTML='<option value="">Select your name…</option>'+rows.map(function(s){return '<option>'+esc(s.display_name)+'</option>';}).join('');
+}
 async function doLogin(){
-  $('#lovGo').disabled=true;lovMsg('Signing in…','ok');
-  var r=await anonFn({action:'login',store:$('#lovStore').value,username:$('#lovUser').value.trim(),pin:$('#lovPin').value,device_id:deviceId});
-  if(r.status!==200){var d=r.data||{};
-    if(d.locked)lovMsg('Locked after too many tries — a manager must reset this device.','err');
-    else if(d.error==='invalid')lovMsg('Wrong username or PIN. '+d.remaining+' attempt(s) left.','err');
-    else lovMsg(d.error||'Login failed.','err');
-    lovReady();return;}
-  await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-  ME=r.data.staff;touchIdle();enter();
+  var nm=($('#lkName')&&$('#lkName').value)||'', pin=($('#lkPin')&&$('#lkPin').value)||'';
+  if(!nm){lockErr('Pick your name');return;}
+  var username=NAME2USER[nm];
+  if(!username){lockErr('No username on file for that name');return;}
+  if(!pin){lockErr('Enter your PIN');return;}
+  $('#lkGo').disabled=true; lockErr('Signing in…');
+  try{
+    var r=await fn({action:'login',username:username,pin:pin,device_id:DEVICE_ID});
+    if(r.status!==200){var d=r.data||{};
+      if(r.status===423||d.locked) lockErr('Locked after too many tries — an owner must reset this device.');
+      else if(d.error==='invalid') lockErr('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' attempt(s) left.'):''));
+      else lockErr(d.error||'Login failed.');
+      $('#lkGo').disabled=false; return;
+    }
+    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+    var st=r.data.staff||{};
+    AUTH={name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
+    $('#lkGo').disabled=false; lockErr('');
+    unlockUI();
+  }catch(e){$('#lkGo').disabled=false; lockErr(String(e&&e.message||e));}
+}
+async function initAuth(){
+  await populateLockNames();
+  if($('#lkGo')) $('#lkGo').onclick=doLogin;
+  if($('#lkPin')) $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
+  var sess=(await sb.auth.getSession()).data.session;
+  if(sess && !idleExpired()){
+    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}
+  }
+  if(sess) await sb.auth.signOut();
+  showLock();
 }
 
-/* ---------- enter app ---------- */
-function enter(){
-  $('#loginOverlay').classList.add('hide');$('#app').style.display='';
-  $('#whoami').innerHTML='<b>'+ME.display_name+'</b> · '+ME.role+' <span class="lo" id="logout">Log out</span>';
-  $('#logout').addEventListener('click',doLogout);
-  var admin=(ME.role==='owner'||ME.role==='manager');
-  $('#adminArea').style.display=admin?'':'none';
-  $('#deniedArea').style.display=admin?'none':'';
-  if(admin){loadStaff();loadLockouts();}
-}
-async function doLogout(){await sb.auth.signOut();localStorage.removeItem('cpr_last_active');location.reload();}
-
-/* ---------- staff list ---------- */
-function canEdit(target){ if(ME.role==='owner')return true; return target.role==='employee'; }
-function authCells(s){
-  if(s.role==='owner')return '<span class="stores">All stores</span>';
-  var arr=(s.authorized_stores&&s.authorized_stores.length)?s.authorized_stores:[s.home_store];
-  return arr.map(function(st){return '<span class="stores"><span class="dot '+(STORE_DOT[st]||'')+'"></span>'+(STORE_SHORT[st]||st)+'</span>';}).join('&nbsp; ');
+/* ===== data ===== */
+async function loadStores(){
+  var r=await sb.from('stores').select('store,rq_name,display_order,active').order('display_order');
+  STORES=r.error?[]:(r.data||[]);
 }
 async function loadStaff(){
-  var r=await adminFn({action:'list_staff_admin'});
-  if(r.status!==200){$('#staffBody').innerHTML='<tr><td colspan="5" class="muted">'+(r.data.error||'Could not load')+'</td></tr>';return;}
-  STAFF=r.data.staff||[];
-  renderStaff();
+  var r=await authFn({action:'list_staff_admin'});
+  if(r.status!==200){toast((r.data&&r.data.error)||'Could not load staff',true);STAFF=[];return;}
+  STAFF=r.data.staff||[]; ME_ROLE=r.data.me_role||(AUTH&&AUTH.role)||'manager';
 }
-var ROLE_RANK={owner:0,manager:1,employee:2};
+async function loadRegs(){
+  if(!REGSTORE){REGS=[];return;}
+  var r=await sb.from('cash_setup').select('id,store,location,starting_balance,float_target,active,sort_order').eq('store',REGSTORE).order('sort_order').order('location');
+  REGS=r.error?[]:(r.data||[]);
+}
+async function load(){
+  await Promise.all([loadStores(),loadStaff()]);
+  if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
+  await loadRegs();
+  renderAll();
+}
+
+/* ===== render ===== */
+function activeStores(){return STORES.filter(function(s){return s.active;});}
+function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
+function renderAll(){renderTabs();renderStaff();renderLoc();renderModal();}
+function renderTabs(){
+  $('#ctStaff').textContent=STAFF.length;
+  $('#ctLoc').textContent=STORES.length;
+  $('#tabStaff').classList.toggle('active',TAB==='staff');
+  $('#tabLoc').classList.toggle('active',TAB==='loc');
+  $('#view-staff').classList.toggle('hide',TAB!=='staff');
+  $('#view-loc').classList.toggle('hide',TAB!=='loc');
+}
 function renderStaff(){
-  var filt=$('#staffFilter').value;
-  var list=STAFF.filter(function(s){
-    if(!filt)return true;
-    if(s.role==='owner')return true;                 // owners float all stores
-    if(s.home_store===filt)return true;
-    return (s.authorized_stores||[]).indexOf(filt)>-1;
+  var q=SEARCH.trim().toLowerCase();
+  var rosterAll=STAFF.filter(function(m){return m.active;});
+  var archAll=STAFF.filter(function(m){return !m.active;});
+  $('#cActive').textContent=rosterAll.length; $('#cArchived').textContent=archAll.length;
+  $all('#rosterSeg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===ROSTER);});
+  var list=(ROSTER==='archived'?archAll:rosterAll).filter(function(m){
+    if(!q)return true;
+    var hay=((m.display_name||'')+' '+(m.username||'')+' '+(m.role||'')+' '+(m.home_store||'')).toLowerCase();
+    return hay.indexOf(q)>-1;
   });
-  list.sort(function(a,b){
-    var ra=ROLE_RANK[a.role]??9, rb=ROLE_RANK[b.role]??9;
-    if(ra!==rb)return ra-rb;
-    if(a.active!==b.active)return a.active?-1:1;       // active before archived
-    return (a.display_name||'').localeCompare(b.display_name||'');
+  var tb=$('#staffRows');tb.innerHTML='';
+  $('#staffEmpty').classList.toggle('hide',list.length>0);
+  $('#staffEmpty').textContent=ROSTER==='archived'?'No archived members.':(q?'No matching team members.':'No team members yet.');
+  list.forEach(function(m){
+    var chips=(m.authorized_stores||[]).map(function(s){return '<span class="chip">'+esc(shortStore(s))+'</span>';}).join('');
+    var badge=m.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Archived</span>';
+    var act=m.active
+      ? '<button class="btn alt sm" data-edit="'+m.id+'">Edit</button>'
+      : '<button class="btn alt sm" data-reinstate="'+m.id+'">Reinstate</button>';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td><div class="who"><span class="avatar" style="background:'+avatarBg(m.id)+'">'+esc(initialsOf(m))+'</span>'
+        +'<span><span class="nm">'+esc(m.display_name||'Unnamed')+'</span><span class="un">'+(m.username?('@'+esc(m.username)):'—')+'</span></span></div></td>'
+      +'<td class="muted">'+esc(roleLabel(m.role))+'</td>'
+      +'<td style="font-weight:700">'+esc(shortStore(m.home_store)||'—')+'</td>'
+      +'<td>'+(chips||'<span class="muted">—</span>')+'</td>'
+      +'<td>'+badge+'</td>'
+      +'<td class="r">'+act+'</td>';
+    tb.appendChild(tr);
   });
-  $('#staffBody').innerHTML=list.map(function(s){
-    var ed=canEdit(s);
-    return '<tr class="'+(s.active?'':'archived')+'">'
-      +'<td><b>'+s.display_name+'</b>'+(s.username?'<br><span class="muted">@'+s.username+'</span>':'')+'</td>'
-      +'<td><span class="pill '+s.role+'">'+s.role+'</span></td>'
-      +'<td>'+(STORE_SHORT[s.home_store]||s.home_store)+'</td>'
-      +'<td>'+authCells(s)+'</td>'
-      +'<td><div class="rowbtns">'
-        +(ed?'<button class="btn alt sm" data-edit="'+s.id+'">Edit</button>':'<span class="muted">—</span>')
-        +(ed?'<button class="btn alt sm" data-pin="'+s.id+'">PIN</button>':'')
-        +(ed&&s.active?'<button class="btn alt sm" data-arch="'+s.id+'">Archive</button>':'')
-        +(ed&&!s.active?'<button class="btn alt sm" data-rest="'+s.id+'">Restore</button>':'')
-      +'</div></td></tr>';
-  }).join('')||'<tr><td colspan="5" class="muted">No staff at this location.</td></tr>';
-  $('#staffBody').querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){openModal(+b.dataset.edit);});});
-  $('#staffBody').querySelectorAll('[data-pin]').forEach(function(b){b.addEventListener('click',function(){openPin(+b.dataset.pin);});});
-  $('#staffBody').querySelectorAll('[data-arch]').forEach(function(b){b.addEventListener('click',function(){setActive(+b.dataset.arch,false);});});
-  $('#staffBody').querySelectorAll('[data-rest]').forEach(function(b){b.addEventListener('click',function(){setActive(+b.dataset.rest,true);});});
+  tb.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){openMember(b.getAttribute('data-edit'));};});
+  tb.querySelectorAll('[data-reinstate]').forEach(function(b){b.onclick=async function(){
+    var r=await authFn({action:'update_staff',staff_id:b.getAttribute('data-reinstate'),active:true});
+    if(r.status===200&&r.data.ok){toast('Reinstated');await loadStaff();renderAll();}else toast((r.data&&r.data.error)||'Failed',true);
+  };});
 }
-async function setActive(id,active){
-  if(!active&&!confirm('Archive this person? They won\u2019t be able to sign in.'))return;
-  var r=await adminFn({action:'update_staff',staff_id:id,active:active});
-  if(r.status!==200){alert(r.data.error||'Failed');return;}
-  loadStaff();
+function renderLoc(){
+  var owner=(AUTH&&AUTH.role==='owner');
+  $('#storesNote').innerHTML=owner
+    ? 'The two-name model: <b>Display name</b> is the canonical key every tool joins on; <b>RepairQ name</b> matches imported RepairQ data. Renaming the display key is a breaking change, so it’s fixed once created — edit the RepairQ name, order &amp; status freely.'
+    : 'Stores are owner-managed (read-only for managers). You can manage your store’s registers below.';
+  $('#addStore').style.display=owner?'':'none';
+  var sb1=$('#storeRows');sb1.innerHTML='';
+  $('#storeEmpty').classList.toggle('hide',STORES.length>0);
+  STORES.forEach(function(s){
+    var badge=s.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Inactive</span>';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td style="font-weight:800">'+esc(s.store)+'</td>'
+      +'<td class="muted">'+esc(s.rq_name||'—')+'</td>'
+      +'<td class="r">'+(s.display_order==null?'—':s.display_order)+'</td>'
+      +'<td>'+badge+'</td>'
+      +'<td class="r">'+(owner?'<button class="btn alt sm" data-estore="'+esc(s.store)+'">Edit</button>':'')+'</td>';
+    sb1.appendChild(tr);
+  });
+  if(owner)sb1.querySelectorAll('[data-estore]').forEach(function(b){b.onclick=function(){openStore(b.getAttribute('data-estore'));};});
+  // register store picker
+  var rs=$('#regStore'); rs.innerHTML=STORES.map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===REGSTORE?' selected':'')+'>'+esc(s.store)+'</option>';}).join('');
+  var rb=$('#regRows');rb.innerHTML='';
+  $('#regEmpty').classList.toggle('hide',REGS.length>0);
+  REGS.forEach(function(r){
+    var badge=r.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Inactive</span>';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td style="font-weight:700">'+esc(r.location)+'</td>'
+      +'<td class="r">'+money(r.starting_balance)+'</td>'
+      +'<td class="r">'+money(r.float_target)+'</td>'
+      +'<td>'+badge+'</td>'
+      +'<td class="r"><button class="btn alt sm" data-ereg="'+r.id+'">Edit</button></td>';
+    rb.appendChild(tr);
+  });
+  rb.querySelectorAll('[data-ereg]').forEach(function(b){b.onclick=function(){openReg(b.getAttribute('data-ereg'));};});
 }
 
-/* ---------- lockouts ---------- */
-async function loadLockouts(){
-  var r=await adminFn({action:'list_lockouts'});
-  var locks=(r.status===200&&r.data.lockouts)||[];
-  var host=$('#lockHost');
-  if(!locks.length){host.innerHTML='';return;}
-  host.innerHTML='<div class="lockban"><h3>⚠ '+locks.length+' locked device'+(locks.length>1?'s':'')+'</h3>'
-    +locks.map(function(l){return '<div class="lockrow"><span class="mono">'+(l.device_id||'').slice(0,8)+'…</span><span class="muted">IP '+(l.ip||'—')+'</span><button class="btn sm" data-unlock="'+l.device_id+'">Reset</button></div>';}).join('')
-    +'</div>';
-  host.querySelectorAll('[data-unlock]').forEach(function(b){b.addEventListener('click',async function(){
-    b.disabled=true;await adminFn({action:'reset_lockout',device_id:b.dataset.unlock});loadLockouts();
-  });});
+/* ===== member modal ===== */
+function genPin(){var s='';for(var i=0;i<4;i++)s+=Math.floor(Math.random()*10);return s;}
+function openMember(id){
+  var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
+  if(!m)return;
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'employee',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:''}};
+  renderModal();
+}
+function openAddMember(){
+  var home=(activeStores()[0]||{}).store||'';
+  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'employee',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin()}};
+  renderModal();
+}
+function memberModalHtml(){
+  var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
+  var roleSet=owner?ROLES:['employee'];
+  var roleOpts=roleSet.map(function(r){return '<option value="'+r+'"'+(r===d.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('');
+  var home=d.home_store;
+  var pills=activeStores().map(function(s){
+    var on=(d.authorized_stores||[]).indexOf(s.store)>-1, isHome=(s.store===home);
+    return '<button class="authpill'+(on?' on':'')+'" data-auth="'+esc(s.store)+'">'+esc(shortStore(s.store))
+      +(isHome?'<span class="home">home</span>':(on?'<span style="color:#1E7AA8;font-weight:900">✓</span>':''))+'</button>';
+  }).join('');
+  var fake={first_name:d.first_name,last_name:d.last_name,display_name:'',username:d.username};
+  var title=MOPEN.isNew?'New team member':((d.first_name+' '+d.last_name).trim()||'Edit member');
+  var pinHint=MOPEN.isNew?'New members get an admin-set 4-digit PIN for tool sign-in. Type one or reset to a random PIN.'
+    :'Leave blank to keep the current PIN. Type a new one or hit Reset PIN to set a new admin PIN (shown once).';
+  var ini=initialsOf(fake); if(ini==='  '||!ini.trim())ini='?';
+  return '<div class="modal-back" data-close></div>'
+   +'<div class="modal"><div class="modal-hd">'
+     +'<span class="avatar" style="width:38px;height:38px;font-size:.8rem;background:'+avatarBg(MOPEN.isNew?'new':d.staff_id)+'">'+esc(ini)+'</span>'
+     +'<div class="t">'+esc(title)+'<div class="s">'+(d.username?('@'+esc(d.username)):'Fill in the details below')+'</div></div>'
+     +'<button class="modal-x" data-close>×</button></div>'
+   +'<div class="modal-body">'
+     +'<div class="grid2">'
+       +'<div class="f"><label>First name</label><input data-k="first_name" value="'+esc(d.first_name)+'"></div>'
+       +'<div class="f"><label>Last name</label><input data-k="last_name" value="'+esc(d.last_name)+'"></div>'
+       +'<div class="f"><label>Username</label><input data-k="username" value="'+esc(d.username)+'" autocomplete="off"></div>'
+       +'<div class="f"><label>Role</label><select data-k="role">'+roleOpts+'</select></div>'
+       +'<div class="f"><label>Home store</label><select data-k="home_store">'+storeOpts(home)+'</select></div>'
+       +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Archived</option></select></div>'
+     +'</div>'
+     +'<div class="row" style="margin-top:14px"><label>Authorized locations</label><div class="authwrap">'+pills+'</div>'
+       +'<div class="note" style="margin-top:6px">Home store is always authorized. Other tools use this list to decide where this person can clock in.</div></div>'
+     +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
+       +'<div class="h">'+pinHint+'</div>'
+       +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
+   +'</div>'
+   +'<div class="modal-ft">'
+     +(MOPEN.isNew?'<span></span>':'<button class="btn alt sm" data-archive>'+(d.active?'Archive member':'Reinstate')+'</button>')
+     +'<button class="btn blue" data-save>'+(MOPEN.isNew?'Create member':'Done')+'</button></div></div>';
+}
+function wireMember(host){
+  var d=MOPEN.draft;
+  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  host.querySelectorAll('[data-k]').forEach(function(el){
+    el.oninput=el.onchange=function(){
+      var k=el.getAttribute('data-k'),v=el.value;
+      if(k==='username')v=v.replace(/\s+/g,'').toLowerCase();
+      if(k==='pin')v=v.replace(/\D/g,'').slice(0,8);
+      if(k==='active'){d.active=(v==='1');return;}
+      d[k]=v;
+      if(k==='home_store'){ if((d.authorized_stores||[]).indexOf(v)<0)d.authorized_stores.push(v); renderModal(); }
+    };
+  });
+  host.querySelectorAll('[data-auth]').forEach(function(b){b.onclick=function(){
+    var s=b.getAttribute('data-auth');
+    if(s===d.home_store)return; // home locked on
+    var i=d.authorized_stores.indexOf(s);
+    if(i>-1)d.authorized_stores.splice(i,1);else d.authorized_stores.push(s);
+    renderModal();
+  };});
+  var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
+  var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
+  host.querySelector('[data-save]').onclick=saveMember;
+}
+async function saveMember(){
+  var d=MOPEN.draft;
+  if(!d.username){toast('Username is required',true);return;}
+  if(!d.home_store){toast('Pick a home store',true);return;}
+  var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
+  try{
+    if(MOPEN.isNew){
+      if(!d.pin||d.pin.length<3){toast('Set a PIN (3-8 digits)',true);if(btn)btn.disabled=false;return;}
+      var c=await authFn({action:'create_staff',first_name:d.first_name,last_name:d.last_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,pin:d.pin});
+      if(c.status!==200||!c.data.ok){toast((c.data&&c.data.error)||'Create failed',true);if(btn)btn.disabled=false;return;}
+      toast('Member created · PIN '+d.pin);
+    } else {
+      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active});
+      if(u.status!==200||!u.data.ok){toast((u.data&&u.data.error)||'Save failed',true);if(btn)btn.disabled=false;return;}
+      if(d.pin){ var p=await authFn({action:'set_pin',staff_id:d.staff_id,pin:d.pin});
+        if(p.status===200&&p.data.ok)toast('Saved · new PIN '+d.pin); else toast((p.data&&p.data.error)||'Saved, but PIN reset failed',true);
+      } else toast('Saved');
+    }
+    MOPEN=null; await loadStaff(); renderAll();
+  }catch(e){toast(String(e&&e.message||e),true);if(btn)btn.disabled=false;}
 }
 
-/* ---------- add / edit modal ---------- */
-function openModal(id){
-  EDIT_ID=id||null;
-  var s=id?STAFF.filter(function(x){return x.id===id;})[0]:null;
-  $('#mTitle').textContent=id?'Edit staff':'Add staff';
-  $('#mFirst').value=s?(s.first_name||''):'';
-  $('#mLast').value=s?(s.last_name||''):'';
-  $('#mUser').value=s?(s.username||''):'';
-  $('#mRole').value=s?s.role:'employee';
-  $('#mHome').value=s?s.home_store:'CPR Eugene';
-  var auth=s?(s.authorized_stores||[]):[];
-  document.querySelectorAll('.mStore').forEach(function(c){c.checked=auth.indexOf(c.value)>-1;});
-  var roleSel=$('#mRole');
-  Array.from(roleSel.options).forEach(function(o){o.disabled=(ME.role!=='owner'&&o.value!=='employee');});
-  $('#pinField').style.display=id?'none':'';
-  $('#mPin').value='';
-  mMsg('','');$('#staffOv').classList.remove('hide');
+/* ===== store modal (owner only) ===== */
+function openStore(store){
+  var s=STORES.filter(function(x){return x.store===store;})[0];if(!s)return;
+  MOPEN={type:'store',isNew:false,draft:{store:s.store,rq_name:s.rq_name||'',display_order:s.display_order==null?0:s.display_order,active:!!s.active}};
+  renderModal();
 }
-function openPin(id){
-  EDIT_ID=id;var s=STAFF.filter(function(x){return x.id===id;})[0];
-  $('#mTitle').textContent='Set PIN — '+s.display_name;
-  ['#mFirst','#mLast','#mUser','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='none';});
-  document.querySelectorAll('.mStore')[0].closest('.f').style.display='none';
-  $('#pinField').style.display='';$('#pinLabel').textContent='New PIN (4–6 digits)';$('#mPin').value='';
-  $('#mSave').dataset.mode='pin';
-  mMsg('','');$('#staffOv').classList.remove('hide');
+function openAddStore(){MOPEN={type:'store',isNew:true,draft:{store:'',rq_name:'',display_order:(STORES.length?Math.max.apply(null,STORES.map(function(s){return s.display_order||0;}))+1:1),active:true}};renderModal();}
+function storeModalHtml(){
+  var d=MOPEN.draft;
+  return '<div class="modal-back" data-close></div><div class="modal sm"><div class="modal-hd"><div class="t">'+(MOPEN.isNew?'New store':'Edit '+esc(d.store))+'</div><button class="modal-x" data-close>×</button></div>'
+   +'<div class="modal-body">'
+     +'<div class="f"><label>Display name (canonical key)</label><input data-k="store" value="'+esc(d.store)+'" '+(MOPEN.isNew?'placeholder="CPR Beaverton"':'readonly style="background:var(--light-grey);color:var(--dark-grey)"')+'></div>'
+     +(MOPEN.isNew?'':'<div class="note">The display key is joined on by staff &amp; cash data — renaming it requires a coordinated migration, so it’s fixed here.</div>')
+     +'<div class="f"><label>RepairQ name</label><input data-k="rq_name" value="'+esc(d.rq_name)+'" placeholder="CPR Beaverton OR"></div>'
+     +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Display order</label><input type="number" data-k="display_order" value="'+(d.display_order)+'"></div>'
+       +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Inactive</option></select></div></div>'
+   +'</div><div class="modal-ft"><span></span><button class="btn blue" data-save>'+(MOPEN.isNew?'Create store':'Done')+'</button></div></div>';
 }
-function resetModalFields(){
-  ['#mFirst','#mLast','#mUser','#mRole','#mHome'].forEach(function(x){$(x).closest('.f').style.display='';});
-  document.querySelectorAll('.mStore')[0].closest('.f').style.display='';
-  $('#mSave').dataset.mode='';
+function wireStore(host){
+  var d=MOPEN.draft;
+  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  host.querySelectorAll('[data-k]').forEach(function(el){el.oninput=el.onchange=function(){var k=el.getAttribute('data-k');d[k]=(k==='active')?(el.value==='1'):(k==='display_order'?(parseInt(el.value,10)||0):el.value);};});
+  host.querySelector('[data-save]').onclick=saveStore;
 }
-function mMsg(t,k){var m=$('#mMsg');m.textContent=t;m.className='mmsg '+(k||'');}
-function closeModal(){$('#staffOv').classList.add('hide');resetModalFields();}
-
-async function saveModal(){
-  var mode=$('#mSave').dataset.mode;
-  if(mode==='pin'){
-    var pin=$('#mPin').value.trim();
-    if(!/^\d{4,6}$/.test(pin)){mMsg('PIN must be 4–6 digits.','err');return;}
-    $('#mSave').disabled=true;
-    var r=await adminFn({action:'set_pin',staff_id:EDIT_ID,pin:pin});
-    $('#mSave').disabled=false;
-    if(r.status!==200){mMsg(r.data.error||'Failed','err');return;}
-    closeModal();loadStaff();return;
-  }
-  var first=$('#mFirst').value.trim();
-  var last=$('#mLast').value.trim();
-  var user=$('#mUser').value.trim();
-  var role=$('#mRole').value;
-  var home=$('#mHome').value;
-  var stores=Array.from(document.querySelectorAll('.mStore')).filter(function(c){return c.checked;}).map(function(c){return c.value;});
-  if(stores.indexOf(home)<0)stores.push(home);
-  if(!user){mMsg('Username is required.','err');return;}
-  if(!/^[a-zA-Z0-9._-]+$/.test(user)){mMsg('Username: letters, numbers, . _ - only.','err');return;}
-  $('#mSave').disabled=true;
+async function saveStore(){
+  var d=MOPEN.draft;
+  if(!String(d.store).trim()){toast('Display name is required',true);return;}
+  var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
   var r;
-  if(EDIT_ID){
-    r=await adminFn({action:'update_staff',staff_id:EDIT_ID,first_name:first,last_name:last,username:user,role:role,home_store:home,authorized_stores:stores});
-  } else {
-    var pin=$('#mPin').value.trim();
-    if(!/^\d{4,6}$/.test(pin)){mMsg('PIN must be 4–6 digits.','err');$('#mSave').disabled=false;return;}
-    r=await adminFn({action:'create_staff',first_name:first,last_name:last,username:user,role:role,home_store:home,authorized_stores:stores,pin:pin});
-  }
-  $('#mSave').disabled=false;
-  if(r.status!==200){mMsg(r.data.error||'Failed','err');return;}
-  closeModal();loadStaff();
+  if(MOPEN.isNew) r=await sb.from('stores').insert({store:String(d.store).trim(),rq_name:d.rq_name||null,display_order:d.display_order,active:d.active});
+  else r=await sb.from('stores').update({rq_name:d.rq_name||null,display_order:d.display_order,active:d.active}).eq('store',d.store);
+  if(r.error){toast(r.error.message||'Save failed (owner-only?)',true);if(btn)btn.disabled=false;return;}
+  toast('Store saved'); MOPEN=null; await loadStores(); renderAll();
 }
 
-/* ---------- init ---------- */
-async function init(){
-  $('#lovStore').addEventListener('change',lovReady);
-  $('#lovUser').addEventListener('input',lovReady);
-  $('#lovPin').addEventListener('input',lovReady);
-  $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
-  $('#lovUser').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
-  $('#lovGo').addEventListener('click',doLogin);
-  $('#addBtn').addEventListener('click',function(){openModal(null);});
-  $('#staffFilter').addEventListener('change',renderStaff);
-  $('#mCancel').addEventListener('click',closeModal);
-  $('#mSave').addEventListener('click',saveModal);
-  $('#staffOv').addEventListener('click',function(e){if(e.target.id==='staffOv')closeModal();});
-  ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
-
-  var sess=(await sb.auth.getSession()).data.session;
-  if(sess&&!idleExpired()){
-    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){ME=sr.data;return enter();}
-  }
-  // show login
+/* ===== register (cash_setup) modal ===== */
+function openReg(id){
+  var r=REGS.filter(function(x){return String(x.id)===String(id);})[0];if(!r)return;
+  MOPEN={type:'reg',isNew:false,draft:{id:r.id,store:r.store,location:r.location,starting_balance:r.starting_balance,float_target:r.float_target,active:!!r.active,sort_order:r.sort_order||0}};
+  renderModal();
 }
-init();
+function openAddReg(){MOPEN={type:'reg',isNew:true,draft:{store:REGSTORE,location:'',starting_balance:0,float_target:0,active:true,sort_order:(REGS.length?Math.max.apply(null,REGS.map(function(r){return r.sort_order||0;}))+1:0)}};renderModal();}
+function regModalHtml(){
+  var d=MOPEN.draft;
+  return '<div class="modal-back" data-close></div><div class="modal sm"><div class="modal-hd"><div class="t">'+(MOPEN.isNew?'New register · '+esc(shortStore(d.store)):'Edit '+esc(d.location))+'</div><button class="modal-x" data-close>×</button></div>'
+   +'<div class="modal-body">'
+     +'<div class="f"><label>Location name</label><input data-k="location" value="'+esc(d.location)+'" '+(MOPEN.isNew?'placeholder="VCT3 / Small Safe"':'readonly style="background:var(--light-grey);color:var(--dark-grey)"')+'></div>'
+     +(MOPEN.isNew?'':'<div class="note">The location name is the key cash entries reference — fixed once created. Deactivate instead of renaming.</div>')
+     +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Starting $</label><input type="number" step="0.01" data-k="starting_balance" value="'+(d.starting_balance)+'"></div>'
+       +'<div class="f"><label>Float $</label><input type="number" step="0.01" data-k="float_target" value="'+(d.float_target)+'"></div></div>'
+     +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Sort order</label><input type="number" data-k="sort_order" value="'+(d.sort_order)+'"></div>'
+       +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Inactive</option></select></div></div>'
+   +'</div><div class="modal-ft"><span></span><button class="btn blue" data-save>'+(MOPEN.isNew?'Create register':'Done')+'</button></div></div>';
+}
+function wireReg(host){
+  var d=MOPEN.draft;
+  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  host.querySelectorAll('[data-k]').forEach(function(el){el.oninput=el.onchange=function(){var k=el.getAttribute('data-k');
+    if(k==='active')d.active=(el.value==='1');
+    else if(k==='starting_balance'||k==='float_target')d[k]=parseFloat(el.value)||0;
+    else if(k==='sort_order')d.sort_order=parseInt(el.value,10)||0;
+    else d[k]=el.value;};});
+  host.querySelector('[data-save]').onclick=saveReg;
+}
+async function saveReg(){
+  var d=MOPEN.draft;
+  if(!String(d.location).trim()){toast('Location name is required',true);return;}
+  var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
+  var r;
+  if(MOPEN.isNew) r=await sb.from('cash_setup').insert({store:d.store,location:String(d.location).trim(),starting_balance:d.starting_balance,float_target:d.float_target,active:d.active,sort_order:d.sort_order});
+  else r=await sb.from('cash_setup').update({starting_balance:d.starting_balance,float_target:d.float_target,active:d.active,sort_order:d.sort_order}).eq('id',d.id);
+  if(r.error){toast(r.error.message||'Save failed (admin of this store only)',true);if(btn)btn.disabled=false;return;}
+  toast('Register saved'); MOPEN=null; await loadRegs(); renderAll();
+}
+
+function closeModal(){MOPEN=null;renderModal();}
+function renderModal(){
+  var host=$('#modalHost');if(!host)return;
+  if(!MOPEN){host.innerHTML='';return;}
+  if(MOPEN.type==='member'){host.innerHTML=memberModalHtml();wireMember(host);}
+  else if(MOPEN.type==='store'){host.innerHTML=storeModalHtml();wireStore(host);}
+  else if(MOPEN.type==='reg'){host.innerHTML=regModalHtml();wireReg(host);}
+}
+
+/* ===== wiring ===== */
+function initUI(){
+  $('#tabStaff').onclick=function(){TAB='staff';SEARCH='';$('#staffSearch').value='';renderAll();};
+  $('#tabLoc').onclick=function(){TAB='loc';SEARCH='';renderAll();};
+  $('#staffSearch').addEventListener('input',function(){SEARCH=this.value;renderStaff();});
+  $all('#rosterSeg button').forEach(function(b){b.onclick=function(){ROSTER=b.getAttribute('data-v');renderStaff();};});
+  $('#addMember').onclick=openAddMember;
+  $('#addStore').onclick=openAddStore;
+  $('#addReg').onclick=function(){if(!REGSTORE){toast('Add a store first',true);return;}openAddReg();};
+  $('#regStore').onchange=async function(){REGSTORE=this.value;await loadRegs();renderAll();};
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&MOPEN)closeModal();});
+}
+initUI();
+initAuth();
 </script>
 </body>
 </html>
