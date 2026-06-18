@@ -180,7 +180,8 @@ async function loadBootstrap(){
   var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target');
   if(s.error) throw s.error;
   STATE.setup=(s.data||[]).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
-  var st=await sb.from('staff').select('display_name,home_store,authorized_stores,role,active').eq('active',true);
+  var st=await sb.from('staff_roster').select('display_name,home_store,authorized_stores,role,active').eq('active',true);
+  if(st.error) console.warn('staff_roster read failed:', st.error.message);
   STATE.staff=(st.error?[]:(st.data||[])).map(function(r){return {Name:r.display_name,Role:r.role,HomeStore:r.home_store,Authorized:r.authorized_stores||[],Active:r.active};});
   var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;});
   var stores=Object.keys(seen);
