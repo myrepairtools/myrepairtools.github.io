@@ -304,7 +304,7 @@ async function loadAll(){
     sb.from('max_overrides').select('sku,value').eq('store',store),
     sb.from('consignment_only').select('sku').eq('store',store),
     sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
-    sb.from('consumption_log').select('sku,units,status,consigned').eq('store',store).eq('biz_date',day),
+    sb.from('consumption_log').select('sku,units').eq('store',store).eq('biz_date',day),
     sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
     loadGroups()
   ]);
@@ -312,18 +312,25 @@ async function loadAll(){
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
   STOPSTOCK[store]=(res[2].data||[]).map(function(r){return r.sku;});
   var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
-  var cons=[];(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units,status:r.status,consigned:!!r.consigned});});CONSUMPTION=cons;
+  var cons=[];(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units});});CONSUMPTION=cons;
   REPAIRSNOPARTS[store]=(res[5].data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
   pills();render();renderStock();renderNoParts();
 }
 
 /* ---- login overlay ---- */
 function showLogin(){$('#loginOverlay').style.display='';$('#app').style.display='none';}
-function afterLogin(){
+async function defaultDay(){
+  try{
+    var r=await sb.from('consumption_log').select('biz_date').order('biz_date',{ascending:false}).limit(1).maybeSingle();
+    if(r.data&&r.data.biz_date)return r.data.biz_date;
+  }catch(e){}
+  return new Date().toISOString().slice(0,10);
+}
+async function afterLogin(){
   STATE.stores=allowedStores(STATE.me);
   STATE.store=(STATE.stores.indexOf(STATE.me.home_store)>=0)?STATE.me.home_store:STATE.stores[0];
   $('#loginOverlay').style.display='none';$('#app').style.display='';
-  if(!$('#day').value)$('#day').value=new Date().toISOString().slice(0,10);
+  if(!$('#day').value)$('#day').value=await defaultDay();
   touchIdle();loadAll();
 }
 function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovUser').value&&$('#lovPin').value);}
@@ -344,7 +351,7 @@ async function doLogin(){
 function groupOf(sku){for(var i=0;i<GROUPS.length;i++){for(var j=0;j<GROUPS[i].members.length;j++){if(GROUPS[i].members[j].sku===sku)return GROUPS[i];}}return null;}
 
 /* roll consumption up into used{sku}={sold,pulled} */
-function usedMap(){var m={};CONSUMPTION.forEach(function(c){if(!m[c.sku])m[c.sku]={sold:0,pulled:0,consigned:0};m[c.sku][c.status]+=c.units;if(c.consigned)m[c.sku].consigned+=c.units;});return m;}
+function usedMap(){var m={};CONSUMPTION.forEach(function(c){m[c.sku]=(m[c.sku]||0)+(c.units||0);});return m;}
 
 /* build display rows: grouped rollups + ungrouped sku rows */
 function buildRows(){
@@ -355,27 +362,27 @@ function buildRows(){
     var g=groupOf(sku);
     if(g){ seenGrp[g.id]=1; return; }
     var s=SNAP[sku]||{name:sku,instock:0,onorder:0,max:0};
-    var u=used[sku]||{sold:0,pulled:0,consigned:0};
+    var u=used[sku]||0;
     var blocked=stop.indexOf(sku)>-1;
     var mx=effMax(sku);
-    rows.push({type:'sku',sku:sku,name:s.name,sold:u.sold,pulled:u.pulled,consigned:u.consigned,
+    rows.push({type:'sku',sku:sku,name:s.name,used:u,
       instock:s.instock,onorder:s.onorder,max:mx,stop:blocked,
       claimElig:claimRep.hasOwnProperty(sku)?claimRep[sku]:null,flagSku:sku,
       suggest:blocked?0:Math.max(0,mx-s.instock-s.onorder),orderSku:sku});
   });
   GROUPS.forEach(function(g){
     if(!seenGrp[g.id])return;
-    var sold=0,pulled=0,consigned=0,instock=0,onorder=0,members=[],usedSkus=[],cElig=null;
+    var used2=0,instock=0,onorder=0,members=[],usedSkus=[],cElig=null;
     g.members.forEach(function(m){
-      var s=SNAP[m.sku]||{instock:0,onorder:0};var u=used[m.sku]||{sold:0,pulled:0,consigned:0};
-      sold+=u.sold;pulled+=u.pulled;consigned+=u.consigned;instock+=s.instock;onorder+=s.onorder;
+      var s=SNAP[m.sku]||{instock:0,onorder:0};var u=used[m.sku]||0;
+      used2+=u;instock+=s.instock;onorder+=s.onorder;
       if(claimRep.hasOwnProperty(m.sku))cElig=(cElig||0)+claimRep[m.sku];
-      if(u.sold+u.pulled>0)usedSkus.push(m.sku);
-      members.push({sku:m.sku,name:m.name,instock:s.instock,onorder:s.onorder,sold:u.sold,pulled:u.pulled,consigned:u.consigned});
+      if(u>0)usedSkus.push(m.sku);
+      members.push({sku:m.sku,name:m.name,instock:s.instock,onorder:s.onorder,used:u});
     });
     var pref=g.def||(g.members[0]&&g.members[0].sku)||'';
     var blocked=stop.indexOf(pref)>-1;
-    rows.push({type:'group',gid:g.id,name:g.name,sold:sold,pulled:pulled,consigned:consigned,
+    rows.push({type:'group',gid:g.id,name:g.name,used:used2,
       instock:instock,onorder:onorder,max:g.max,usedSkus:usedSkus,stop:blocked,
       claimElig:cElig,flagSku:pref,
       suggest:blocked?0:Math.max(0,g.max-instock-onorder),orderSku:pref,members:members});
@@ -520,9 +527,9 @@ function render(){
   var rows=buildRows(), tb=$('#rows'); tb.innerHTML='';
   var totUsed=0,totOrder=0,below=0;
   rows.forEach(function(r){
-    totUsed+=r.sold+r.pulled; totOrder+=r.suggest; if(r.instock===0)below++;
+    totUsed+=r.used; totOrder+=r.suggest; if(r.instock===0)below++;
     var sCls=r.suggest>0?'go':'zero';
-    var hasDetail=(r.type==='group')||(r.consigned>0);
+    var hasDetail=(r.type==='group');
     var orderCell=r.suggest>0
       ? '<span class="buysku">'+r.orderSku+(r.type==='group'?' <span class="gtag" style="color:var(--green);background:#E9F6EE;border-color:#CFE9D8">default</span>':'')+'</span>'
       : '<span class="buysku" style="color:var(--grey)">—</span>';
@@ -539,7 +546,7 @@ function render(){
     if(hasDetail)tr.className='grp';
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
-      +'<td class="num">'+usedCell(r.sold,r.pulled)+'</td>'
+      +'<td class="num"><b>'+r.used+'</b></td>'
       +'<td class="num">'+r.instock+'</td>'
       +'<td class="num">'+claimPill(r.claimElig)+'</td>'
       +'<td class="num">'+r.onorder+'</td>'
@@ -554,19 +561,14 @@ function render(){
       r.members.forEach(function(m){
         var mtr=document.createElement('tr');mtr.className='member';mtr.style.display='none';
         mtr.innerHTML='<td class="sku">'+m.sku+'</td>'
-          +'<td class="itm">'+m.name+(m.consigned?' <span class="cstag">'+m.consigned+' consigned</span>':'')+'</td>'
-          +'<td class="num">'+usedCell(m.sold,m.pulled)+'</td>'
+          +'<td class="itm">'+m.name+'</td>'
+          +'<td class="num">'+m.used+'</td>'
           +'<td class="num">'+m.instock+'</td>'
           +'<td class="num"></td>'
           +'<td class="num">'+m.onorder+'</td>'
           +'<td class="num"></td><td class="num"></td><td></td><td></td><td></td>';
         tb.appendChild(mtr);detailRows.push(mtr);
       });
-    } else if(r.consigned>0){
-      var owned=(r.sold+r.pulled)-r.consigned;
-      var dtr=document.createElement('tr');dtr.className='member';dtr.style.display='none';
-      dtr.innerHTML='<td></td><td colspan="10" class="brk">Of '+(r.sold+r.pulled)+' used: <b>'+owned+' owned</b> &middot; <b class="cstxt">'+r.consigned+' consigned</b></td>';
-      tb.appendChild(dtr);detailRows.push(dtr);
     }
     if(hasDetail){
       tr.addEventListener('click',function(e){
