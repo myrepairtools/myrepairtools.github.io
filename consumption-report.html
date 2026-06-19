@@ -799,7 +799,9 @@ async function exportOrder(){
   window.open('https://www.cpr.parts/quickorder/index/view','_blank');
   try{
     var XLSX=await import('https://esm.sh/xlsx@0.18.5');
-    var aoa=rows.map(function(r){return [r[0],r[1]];});   // [sku, qty]
+    // MobileSentrix quick-order skips row 1 as a header — include one so the
+    // first SKU isn't dropped.
+    var aoa=[['SKU','Qty']].concat(rows.map(function(r){return [r[0],r[1]];}));
     var ws=XLSX.utils.aoa_to_sheet(aoa);
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Order');
