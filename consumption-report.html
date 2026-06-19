@@ -430,6 +430,10 @@ var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
+/* kill-switch for the consignment-only flag. Set to true to instantly disable
+   the action site-wide (it once coincided with a consumption_log wipe; root
+   cause never confirmed, so this stays as a quick off-switch). */
+var CONSIGNMENT_DISABLED=false;
 
 var deviceId=localStorage.getItem('cpr_device_id')||(function(){var d=crypto.randomUUID();localStorage.setItem('cpr_device_id',d);return d;})();
 function touchIdle(){localStorage.setItem('cpr_last_active',Date.now());}
@@ -593,6 +597,9 @@ function openOptMenu(btn){
     +'<div class="oi'+(isStop?' on':'')+'" data-f="stop"><span class="chk">✓</span> Consignment only</div>';
   menu.querySelectorAll('.oi').forEach(function(oi){oi.addEventListener('click',async function(){
     menu.classList.add('hide');
+    // TEMPORARILY DISABLED: a server-side trigger/cascade on consignment_only
+    // deletes consumption_log. Re-enable (remove this block) once the DB is fixed.
+    if(CONSIGNMENT_DISABLED){alert('Consignment-only is temporarily disabled while a database issue is fixed.');return;}
     var on=(STOPSTOCK[STATE.store]||[]).indexOf(sku)>-1;
     if(on){await sb.from('consignment_only').delete().eq('store',STATE.store).eq('sku',sku);}
     else{await sb.from('consignment_only').insert({store:STATE.store,sku:sku});}
@@ -687,7 +694,7 @@ function renderStock(){
   list.sort(function(a,b){return a.name.localeCompare(b.name);});
   list.forEach(function(r){
     var isStop=stop.indexOf(r.flagSku)>-1;
-    var flags='<span class="flags">'+(isStop?'<span class="stoptag">Consignment only</span>':'')+'</span>';
+    var flags='<span class="flags">'+(isStop?'<span class="stoptag" title="Consignment only">CO</span>':'')+'</span>';
     var skuCell=r.type==='group'?'<span style="color:var(--grey)">pooled</span>':r.sku;
     var nameHtml=r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
     var tr=document.createElement('tr');
@@ -722,7 +729,7 @@ function render(){
     if(r.type==='group')badges+='<span class="poolbadge">⬡ Pool · '+r.members.length+'</span>';
     var nameHtml=(hasDetail?'<span class="chev">›</span> ':'')+r.name+badges;
     var flags='<span class="flags">';
-    if(r.stop)flags+='<span class="stoptag">Consignment only</span>';
+    if(r.stop)flags+='<span class="stoptag" title="Consignment only">CO</span>';
     flags+='</span>';
     var skuCell=(r.type==='group')
       ? (r.usedSkus.length?(r.usedSkus.length===1?r.usedSkus[0]:r.usedSkus[0]+' <span style="color:var(--grey)">+'+(r.usedSkus.length-1)+'</span>'):'<span style="color:var(--grey)">—</span>')
