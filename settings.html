@@ -23,7 +23,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .btn.alt.sm:hover{border-color:var(--blue);color:var(--blue)}
 .btn:disabled{opacity:.5;cursor:default}
 /* lock (lifted from cash-admin) */
-.lock{position:fixed;top:calc(-1 * var(--cpr-top-h, 0px));left:calc(-1 * var(--cpr-nav-w, 0px));width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000}
 .lock.hide{display:none}
 .lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
 .lock-box .ic{font-size:30px;margin-bottom:14px}
@@ -213,7 +213,8 @@ function resetIdle(){var now=Date.now();clearTimeout(idleTimer);idleTimer=setTim
 function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;showLock();}
 function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
 async function populateLockNames(){
-  var r=await sb.from('staff').select('display_name,username,role,active').eq('active',true);
+  /* read the anon-readable roster view (the base staff table is RLS-locked pre-login) */
+  var r=await sb.from('staff_roster').select('display_name,username,role,active').eq('active',true);
   var rows=(r.error?[]:(r.data||[])).filter(function(s){return s.role==='manager'||s.role==='owner';});
   rows.sort(function(a,b){return String(a.display_name).localeCompare(String(b.display_name));});
   NAME2USER={};rows.forEach(function(s){NAME2USER[s.display_name]=s.username;});
