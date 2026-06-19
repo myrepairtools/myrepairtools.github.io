@@ -13,7 +13,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
 /* lock */
-.lock{position:fixed;top:calc(-1 * var(--cpr-top-h, 0px));left:calc(-1 * var(--cpr-nav-w, 0px));width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000}
 .lock.hide{display:none}
 .lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
 .lock-box .ic{font-size:30px;margin-bottom:14px}
@@ -263,32 +263,21 @@ tr.detrow.hide{display:none}
     <p class="hint" id="auClosedNote" style="margin-top:10px"></p>
   </section>
 
-  <!-- SETTINGS -->
+  <!-- SETTINGS (read-only — locations, stores & staff are managed on the Settings page) -->
   <section id="tab-settings" class="hide">
-    <div class="card"><h2>Locations, balances &amp; floats — <span id="setStore"></span></h2>
-      <p class="hint">Add or remove a register here to set how many VCTs a store has. Starting balance is where each location begins the month; float is the till's target.</p>
+    <div class="card">
+      <h2>Configuration moved to Settings</h2>
+      <p class="hint">Locations, registers, floats, stores and staff are now managed on the <b>Settings</b> page. This tab is read-only.</p>
+      <a class="btn" href="settings.html" style="display:inline-block;text-decoration:none">Open Settings →</a>
+    </div>
+
+    <div class="card"><h2>Locations &amp; floats — <span id="setStore"></span> <span class="muted" style="font-weight:600;text-transform:none;letter-spacing:0;font-size:.78rem">(read-only)</span></h2>
+      <p class="hint">Active registers and safes for this store. Starting balance is where each location begins the month; float is the till's target. Edit these in Settings.</p>
       <div id="locTable"></div>
-      <div class="row" style="margin-top:12px">
-        <div class="field"><label>Add location</label><input id="newLocName" placeholder="e.g. VCT3"></div>
-        <div class="field"><label>Starting $</label><input type="number" step="0.01" id="newLocStart" placeholder="0"></div>
-        <div class="field"><label>Float $</label><input type="number" step="0.01" id="newLocFloat" placeholder="0"></div>
-        <button class="btn alt sm" id="addLoc">Add location</button>
-      </div>
     </div>
 
-    <div class="card"><h2>Staff</h2>
-      <p class="hint">Staff is managed in <b>Admin &rarr; Employees</b> (the CPR Auth roster). This page reads that roster automatically &mdash; add, edit, or archive people there.</p>
-    </div>
-
-    <div class="card"><h2>Stores</h2>
-      <p class="hint">Add a new store (e.g. a future Beaverton location). It starts with VCT1, VCT2, a Small Safe and a Large Safe — adjust above.</p>
-      <div id="storeList"></div>
-      <div class="row" style="margin-top:12px"><div class="field"><label>Add store</label><input id="newStore" placeholder="e.g. CPR Beaverton"></div><button class="btn alt sm" id="addStore">Add store</button></div>
-    </div>
-
-    <div class="card"><h2>Save &amp; connection</h2>
-      <div class="save-row"><button class="btn" id="saveAll">Save settings</button><span id="dirty" class="dirty"></span></div>
-      <div class="save-row" style="margin-top:14px"><button class="btn alt sm" id="testConn">Test connection</button><span class="muted" id="connStatus"></span></div>
+    <div class="card"><h2>Connection</h2>
+      <div class="save-row"><button class="btn alt sm" id="testConn">Test connection</button><span class="muted" id="connStatus"></span></div>
     </div>
   </section>
 </main>
@@ -304,7 +293,6 @@ var FN=SB_URL+'/functions/v1/cpr-auth';
 var sb=createClient(SB_URL,ANON);
 /* ==================== */
 var AUTH=null;       /* logged-in staff: {name, role, home_store, authorized_stores} */
-var ORIG_SETUP=[];   /* baseline cash_setup keys, for delete-on-save diffing */
 var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 
 var $=function(s){return document.querySelector(s);};
@@ -343,15 +331,16 @@ function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMon
 /* Supabase row (snake_case) -> the field shape the render/compute code expects */
 function rowFromDb(r){return {Id:r.id,Date:r.biz_date,Period:r.period,Store:r.store,Employee:r.employee,Operation:r.operation,Location:r.location,ToLocation:r.to_location,Amount:r.amount,Counted:r.counted,C100:r.c100,C50:r.c50,C20:r.c20,C10:r.c10,C5:r.c5,C1:r.c1,Q25:r.q25,D10:r.d10,N5:r.n5,P1:r.p1,OpeningBalance:r.opening_balance,Payments:r.payments,Returns:r.returns,Payouts:r.payouts,TransferIn:r.transfer_in,TransferOut:r.transfer_out,Expected:r.expected,OverShort:r.over_short,Notes:r.notes};}
 async function loadBootstrap(){
-  var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target');
+  var stq=await sb.from('stores').select('store,rq_name,display_order,active').eq('active',true).order('display_order');
+  if(stq.error) return false;
+  STATE.stores=(stq.data||[]).map(function(r){return r.store;});
+  var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target,active');
   if(s.error) return false;
-  STATE.setup=(s.data||[]).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
-  ORIG_SETUP=STATE.setup.map(function(r){return {Store:r.Store,Location:r.Location};});
+  STATE.setup=(s.data||[]).filter(function(r){return r.active!==false;}).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
   var st=await sb.from('staff').select('display_name,home_store,authorized_stores,role,active').eq('active',true);
   STATE.staff=(st.error?[]:(st.data||[])).map(function(r){return {Name:r.display_name,Role:r.role,HomeStore:r.home_store,Authorized:r.authorized_stores||[],Active:r.active};});
-  var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;});
-  var stores=Object.keys(seen);
-  STATE.stores=window.CPRLocations?CPRLocations.sort(stores):stores.sort();
+  // defensive: if the stores table is empty/unreadable, fall back to cash_setup keys
+  if(!STATE.stores.length){ var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;}); var ks=Object.keys(seen); STATE.stores=window.CPRLocations?CPRLocations.sort(ks):ks.sort(); }
   if(!STATE.store) STATE.store=STATE.stores[0]||null;
   renderStorePills(); renderSettings();
   return true;
@@ -445,7 +434,6 @@ function boot(){
   var cached=cacheGet('bootstrap'), painted=false;
   if(cached && cached.setup){
     STATE.setup=cached.setup; STATE.stores=cached.stores||[];
-    ORIG_SETUP=STATE.setup.map(function(r){return {Store:r.Store,Location:r.Location};});
     if(!STATE.store) STATE.store=STATE.stores[0]||null;
     renderStorePills(); renderSettings(); painted=true; loadData();
   }
@@ -879,60 +867,17 @@ function renderLog(){
   };});
 }
 
-/* ===== SETTINGS ===== */
-function markDirty(){STATE.dirty=true;$('#dirty').textContent='Unsaved changes';}
+/* ===== SETTINGS (read-only view) ===== */
+/* read-only — register/float editing now lives on the Settings page */
 function renderSettings(){
   $('#setStore').textContent=shortStore(STATE.store);
-  // locations table
   var locs=STATE.setup.filter(function(s){return s.Store===STATE.store;});
-  $('#locTable').innerHTML='<div class="table-card"><table><thead><tr><th>Location</th><th class="num">Starting $</th><th class="num">Float $</th><th></th></tr></thead><tbody>'+
-    locs.map(function(r,i){return '<tr><td>'+r.Location+'</td>'+
-      '<td class="num"><input type="number" step="0.01" data-loc="'+r.Location+'" data-f="start" value="'+num(r.StartingBalance)+'" style="width:110px"></td>'+
-      '<td class="num"><input type="number" step="0.01" data-loc="'+r.Location+'" data-f="float" value="'+num(r.FloatTarget)+'" style="width:110px"></td>'+
-      '<td class="num"><span class="xbtn" data-delloc="'+r.Location+'">&times;</span></td></tr>';}).join('')+
+  $('#locTable').innerHTML='<div class="table-card"><table><thead><tr><th>Location</th><th class="num">Starting $</th><th class="num">Float $</th></tr></thead><tbody>'+
+    (locs.length?locs.map(function(r){return '<tr><td>'+r.Location+'</td>'+
+      '<td class="num">'+money(num(r.StartingBalance))+'</td>'+
+      '<td class="num">'+money(num(r.FloatTarget))+'</td></tr>';}).join('')
+      :'<tr><td colspan="3" class="muted" style="padding:12px">No active locations for this store. Add registers in Settings.</td></tr>')+
     '</tbody></table></div>';
-  $all('#locTable input').forEach(function(i){i.onchange=function(){
-    var row=STATE.setup.filter(function(s){return s.Store===STATE.store&&s.Location===i.dataset.loc;})[0];
-    if(row){if(i.dataset.f==='start')row.StartingBalance=num(i.value);else row.FloatTarget=num(i.value);markDirty();}
-  };});
-  $all('#locTable [data-delloc]').forEach(function(x){x.onclick=function(){
-    if(!confirm('Remove '+x.dataset.delloc+' from '+shortStore(STATE.store)+'?'))return;
-    STATE.setup=STATE.setup.filter(function(s){return !(s.Store===STATE.store&&s.Location===x.dataset.delloc);});
-    markDirty();renderSettings();
-  };});
-  // staff is managed in Admin → Employees (CPR Auth roster); no staff editor here
-  // stores list
-  $('#storeList').innerHTML='<div class="table-card"><table><thead><tr><th>Store</th><th class="num">Registers</th></tr></thead><tbody>'+
-    STATE.stores.map(function(s){return '<tr><td>'+s+(s===STATE.store?' <span class="op-pill">selected</span>':'')+'</td><td class="num">'+tillsFor(s).length+'</td></tr>';}).join('')+'</tbody></table></div>';
-}
-$('#addLoc').onclick=function(){
-  var n=$('#newLocName').value.trim(); if(!n){toast('Enter a location name',true);return;}
-  if(STATE.setup.some(function(s){return s.Store===STATE.store&&s.Location.toLowerCase()===n.toLowerCase();})){toast('That location already exists',true);return;}
-  STATE.setup.push({Store:STATE.store,Location:n,StartingBalance:num($('#newLocStart').value),FloatTarget:num($('#newLocFloat').value)});
-  $('#newLocName').value='';$('#newLocStart').value='';$('#newLocFloat').value='';markDirty();renderSettings();
-};
-$('#addStore').onclick=function(){
-  var n=$('#newStore').value.trim(); if(!n){toast('Enter a store name',true);return;}
-  if(STATE.stores.indexOf(n)>=0){toast('Store already exists',true);return;}
-  STATE.stores.push(n);
-  [['VCT1',200],['VCT2',200],['Small Safe',0],['Large Safe',0]].forEach(function(p){STATE.setup.push({Store:n,Location:p[0],StartingBalance:p[1],FloatTarget:p[1]});});
-  $('#newStore').value=''; STATE.store=n; markDirty(); renderStorePills(); renderSettings(); loadData();
-};
-$('#saveAll').onclick=function(){
-  $('#saveAll').disabled=true;
-  saveSetup().then(function(){
-    $('#saveAll').disabled=false; STATE.dirty=false; $('#dirty').textContent='Saved ✓'; setTimeout(function(){$('#dirty').textContent='';},2000);
-    cacheDel('bootstrap'); toast('Settings saved');
-  }).catch(function(e){$('#saveAll').disabled=false;toast(String(e&&e.message||e),true);});
-};
-/* upsert all current rows; delete any that were removed since load */
-async function saveSetup(){
-  var rows=STATE.setup.map(function(s){return {store:s.Store,location:s.Location,starting_balance:num(s.StartingBalance),float_target:num(s.FloatTarget)};});
-  var up=await sb.from('cash_setup').upsert(rows,{onConflict:'store,location'}); if(up.error)throw up.error;
-  var now={}; STATE.setup.forEach(function(s){now[s.Store+'|'+s.Location]=1;});
-  var dels=(ORIG_SETUP||[]).filter(function(o){return !now[o.Store+'|'+o.Location];});
-  for(var i=0;i<dels.length;i++){ var dr=await sb.from('cash_setup').delete().eq('store',dels[i].Store).eq('location',dels[i].Location); if(dr.error)throw dr.error; }
-  ORIG_SETUP=STATE.setup.map(function(s){return {Store:s.Store,Location:s.Location};});
 }
 $('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';sb.from('cash_setup').select('id').limit(1).then(function(r){$('#connStatus').textContent=r.error?('✗ '+r.error.message):'✓ Connected';}).catch(function(e){$('#connStatus').textContent='✗ '+(e&&e.message||e);});};
 
