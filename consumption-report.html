@@ -175,7 +175,7 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .note b{font-family:'Nunito',sans-serif}
 @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}.itm{max-width:200px}.hide-sm{display:none}}
 
-.lov{position:fixed;top:calc(-1 * var(--cpr-top-h, 0px));left:calc(-1 * var(--cpr-nav-w, 0px));width:100vw;height:100vh;background:var(--light-grey);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:1100;overflow:auto}
+.lov{position:fixed;inset:0;width:100vw;height:100vh;background:var(--light-grey);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:2000;overflow:auto}
 .lovcard{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(45,45,59,.06);width:100%;max-width:420px;padding:26px}
 .lovcard h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;margin-bottom:4px}
 .lovsub{color:var(--grey);font-size:.82rem;font-weight:600;margin-bottom:6px}
@@ -497,6 +497,23 @@ async function afterLogin(){
   if(!$('#day').value)$('#day').value=await defaultDay();
   touchIdle();loadAll();
 }
+/* operational tool — no per-employee gate. store list from the stores table,
+   reads/writes run as the anon key (RLS must allow it). */
+async function loadStores(){
+  try{
+    var r=await sb.from('stores').select('store,display_order,active').eq('active',true).order('display_order');
+    if(!r.error&&r.data&&r.data.length)return r.data.map(function(x){return x.store;});
+  }catch(e){}
+  return STORES.slice();
+}
+async function bootApp(){
+  STATE.stores=await loadStores();
+  var saved=null;try{saved=localStorage.getItem('cr_store');}catch(e){}
+  STATE.store=(saved&&STATE.stores.indexOf(saved)>=0)?saved:STATE.stores[0];
+  $('#loginOverlay').style.display='none';$('#app').style.display='';
+  if(!$('#day').value)$('#day').value=await defaultDay();
+  touchIdle();loadAll();
+}
 function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovUser').value&&$('#lovPin').value);}
 function lovMsg(t,k){var m=$('#lovMsg');m.textContent=t;m.className='lovmsg '+(k||'');}
 async function doLogin(){
@@ -616,8 +633,11 @@ function effMax(sku){var o=OVERRIDE[STATE.store]||{};return o.hasOwnProperty(sku
 function isOverridden(sku){return (OVERRIDE[STATE.store]||{}).hasOwnProperty(sku);}
 function maxCell(kind,key,val){
   var ovr=(kind==='sku')&&isOverridden(key);
+  // An override (incl. an explicit 0 = "don't stock") shows the number in blue.
+  // A non-overridden 0 means no max set yet -> gray dash.
+  var showNum=ovr||val>0;
   return '<span class="maxwrap" data-mk="'+kind+'" data-mv="'+key+'">'
-    +'<span class="maxval'+(val>0?'':' unset')+(ovr?' ovr':'')+'">'+(val>0?val:'—')+'</span>'
+    +'<span class="maxval'+(showNum?'':' unset')+(ovr?' ovr':'')+'">'+(showNum?val:'—')+'</span>'
     +'<button class="pen" aria-label="Edit max" title="Edit max">✎</button></span>';
 }
 function wireMaxEdit(scope){
@@ -780,7 +800,7 @@ function exportCsv(){
 function pills(){
   var h='';STATE.stores.forEach(function(s){h+='<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+s.replace('CPR ','')+'</button>';});
   var el=$('#storePills');el.innerHTML=h;
-  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');ORDER=null;touchIdle();loadAll();});});
+  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');try{localStorage.setItem('cr_store',STATE.store);}catch(e){}ORDER=null;touchIdle();loadAll();});});
 }
 
 /* ---- Part Groups (table + read-only expander + edit modal) ---- */
@@ -1154,12 +1174,7 @@ async function init(){
   $('#lovPin').addEventListener('input',lovReady);
   $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
   $('#lovGo').addEventListener('click',doLogin);
-  var sess=(await sb.auth.getSession()).data.session;
-  if(sess&&!idleExpired()){
-    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){STATE.me=sr.data;return afterLogin();}
-  }
-  showLogin();
+  bootApp();
 }
 init();
 </script>
