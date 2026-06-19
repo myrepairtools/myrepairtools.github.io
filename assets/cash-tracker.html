@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cash Tracker — CPR</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='52' font-size='86' text-anchor='middle' dominant-baseline='central'>💵</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 70px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
+.sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
+.page-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.today{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:7px;padding:8px 14px;white-space:nowrap}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);margin-right:2px}
+.pills{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap}
+.pill{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer;transition:all .18s;white-space:nowrap}
+.pill:not(.active):hover{color:var(--dark-grey)}
+.store-pills .pill.active{background:var(--blue);color:#fff}
+.reg-pills .pill.active{background:var(--dark);color:#fff}
+.card{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.muted{color:var(--dark-grey);font-size:.85rem}
+.hint{font-size:.78rem;color:var(--dark-grey);margin-top:6px}
+.hide{display:none}
+label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
+input,select{font-family:'Nunito Sans',sans-serif;font-size:.92rem;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);width:100%}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.field{flex:1;min-width:150px}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;padding:11px 22px;border:none;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer;transition:filter .15s}
+.btn:hover{filter:brightness(1.07)}
+.btn:disabled{background:var(--grey);color:#fff;opacity:1;cursor:default;filter:none}
+.btn.alt{background:var(--white);color:var(--dark);border:1.5px solid var(--border)}
+.bal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.bal{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:15px 16px;border-left:4px solid var(--blue);transition:transform .12s}
+.bal.active{border-left-width:6px;box-shadow:0 4px 16px rgba(79,176,227,.22);transform:translateY(-2px)}
+.bal .bl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
+.bal .bv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;color:var(--dark);margin-top:4px}
+.bal .bsub{font-size:.72rem;color:var(--grey);font-weight:600;margin-top:3px}
+.bal .badge{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);margin-top:6px}
+.denoms{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:8px;margin-top:4px}
+.den{background:var(--light-grey);border-radius:9px;padding:8px;text-align:center}
+.den .dl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey)}
+.den input{width:100%;text-align:center;margin-top:4px;padding:6px 4px;font-weight:800;font-family:'Nunito',sans-serif}
+.den .ds{font-size:.66rem;color:var(--grey);font-weight:700;margin-top:3px;min-height:.8em}
+.entry-total{display:flex;align-items:baseline;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)}
+.entry-total .etl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.entry-total .etv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green)}
+.preview{background:#EFEAFB;border:1px solid #E6E0F4;border-radius:10px;padding:12px 14px;margin-top:12px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;color:#5b3fb0}
+.rqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;background:#FFFBEC;border:1px solid #F1E4B8;border-radius:10px;padding:12px}
+.rqgrid label{font-size:.62rem;margin-bottom:3px}
+.rqgrid input{padding:7px 8px;font-weight:800;font-family:'Nunito',sans-serif}
+.remind{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:9px 12px;border-radius:9px;font-size:.82rem;font-weight:700;margin-top:10px}
+.os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}.os.over{color:#d97706}
+.table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
+table{width:100%;border-collapse:collapse}
+thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
+thead th.num{text-align:right}
+tbody td{padding:9px 12px;border-bottom:1px solid rgba(224,226,234,.6);font-size:.86rem;vertical-align:middle}
+tbody td.num{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+tbody tr:hover{background:rgba(79,176,227,.04)}
+tbody tr:hover td.bal,tbody tr:hover td.den{background:rgba(79,176,227,.04)}
+.op-pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;padding:3px 8px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey);white-space:nowrap}
+.op-pill.exp{background:#FFE9E9;color:var(--red)}
+.op-pill.op-open{background:#E7F0FB;color:#1b6fa3}
+.op-pill.op-close{background:#EAEAF2;color:#4b4b6b}
+.op-pill.op-transfer{background:#FFF1DC;color:#8a5a00}
+.op-pill.op-largedep{background:#F3ECFB;color:#5b3fb0}
+.op-pill.op-smalldep{background:#E1F5EE;color:#0f6e56}
+.op-pill.cp-vct{background:#E7EEF6;color:#3a5a78}
+/* entries log */
+table.elog{table-layout:fixed;width:100%}
+table.elog col.c-date{width:84px}table.elog col.c-emp{width:74px}table.elog col.c-op{width:158px}
+table.elog col.c-bal{width:94px}table.elog col.c-den{width:44px}table.elog col.c-amt{width:90px}
+table.elog col.c-os{width:80px}table.elog col.c-exp{width:34px}
+table.elog th,table.elog td{padding-left:8px;padding-right:8px}
+table.elog td.opcell{overflow:hidden;white-space:nowrap}
+table.elog td.bal{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;border-left:3px solid var(--blue);padding-left:14px}
+table.elog th.bal-h{border-left:3px solid var(--blue);padding-left:14px}
+table.elog td.den,table.elog th.den-h{text-align:center}
+table.elog td.den{font-family:'Nunito',sans-serif;font-weight:700;color:var(--dark-grey)}
+table.elog td.den.z{color:var(--grey)}
+.dir{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:4px;margin-left:5px}
+.dir.in{background:#d1fae5;color:#065f46}.dir.out{background:#FFE9E9;color:var(--red)}
+.exp-btn{cursor:pointer;color:var(--blue);font-weight:800;font-size:.95rem;user-select:none;text-align:center}
+tr.detrow>td{background:#fafbfc;padding:0;border-bottom:1px solid var(--border)}
+tr.detrow.hide{display:none}
+.recon{padding:12px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;box-sizing:border-box}
+.recon .rl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--dark-grey);padding:2px 0}
+.recon .rl span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
+.recon .rl.tot{border-top:1px solid var(--border);margin-top:3px;padding-top:5px}
+.recon .rl.tot span:last-child{color:var(--dark)}
+.recon .rl .bad{color:var(--red)}.recon .rl .ok{color:var(--green)}.recon .rl .over{color:#d97706}
+.table-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.table-head h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;margin:0}
+.sumline{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey);margin-bottom:10px}
+.banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:16px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.modal-bg{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:flex-start;justify-content:center;padding:96px 16px 20px;z-index:60;overflow-y:auto}
+.modal-bg.hide{display:none}
+.modal{background:var(--white);border-radius:14px;border-top:4px solid var(--accent);width:100%;max-width:760px;max-height:calc(100vh - 116px);overflow-y:auto;padding:22px 22px 24px;box-shadow:0 22px 60px rgba(45,45,59,.32)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-head h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem}
+.modal-close{font-size:1.6rem;color:var(--grey);cursor:pointer;font-weight:900;line-height:1;padding:0 4px}.modal-close:hover{color:var(--red)}
+</style>
+</head>
+<body>
+<script src="assets/nav.js" data-section="operations"></script>
+<script src="assets/locations.js"></script>
+<main>
+  <div class="page-title-row">
+    <div><h1>Cash Tracker</h1><p class="sub">Opens, closes &amp; transfers — logged by register.</p></div>
+    <div class="today" id="todayLbl"></div>
+  </div>
+
+  <div class="banner hide" id="setupBanner"></div>
+
+  <div class="bar"><span class="bar-label">Store</span><div class="pills store-pills" id="storePills"></div></div>
+  <div class="bar"><span class="bar-label">Register</span><div class="pills reg-pills" id="regPills"></div></div>
+
+  <div class="card"><h2 style="font-family:'Nunito';font-weight:800;font-size:1rem;margin-bottom:12px">Till balances</h2>
+    <div class="bal-grid" id="cards"></div>
+  </div>
+
+  <div class="card">
+    <div class="table-head"><h2 id="logTitle">Activity</h2><button class="btn" id="btnNewEntry">+ New Entry</button></div>
+    <div id="logBody"></div>
+  </div>
+</main>
+
+<!-- NEW ENTRY MODAL -->
+<div class="modal-bg hide" id="entryModal">
+  <div class="modal">
+    <div class="modal-head"><h2>New entry</h2><span class="modal-close" id="enClose">×</span></div>
+    <div class="row">
+      <div class="field"><label>Operation</label><select id="enOp"><option>Open</option><option>Close</option><option>Transfer</option></select></div>
+      <div class="field"><label>Employee</label><select id="enEmp"></select></div>
+    </div>
+    <div id="enDynamic" style="margin-top:14px"></div>
+    <div id="enDenoms" style="margin-top:14px"></div>
+    <div class="entry-total"><span class="etl" id="enTotalLbl">Counted total</span><span class="etv" id="enTotal">$0.00</span></div>
+    <div id="enPreview"></div>
+    <div class="row" style="margin-top:14px"><div class="field"><label id="enNotesLbl">Notes (optional)</label><input type="text" id="enNotes" placeholder="Anything worth recording…"></div></div>
+    <div id="enRemind"></div>
+    <div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end"><button class="btn alt" id="enCancel">Cancel</button><button class="btn" id="enSubmit">Save entry</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/* ===== SUPABASE ===== */
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+/* ==================== */
+
+var $=function(s){return document.querySelector(s);};
+var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
+function money(n){var x=Number(n)||0;return (x<0?'-$':'$')+Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function num(v){return (v===''||v==null)?0:Number(v)||0;}
+function fmtDate(v){return String(v||'').slice(0,10);}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2400);}
+function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
+
+var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'},{k:'Q25',v:0.25,l:'25¢'},{k:'D10',v:0.10,l:'10¢'},{k:'N5',v:0.05,l:'5¢'},{k:'P1',v:0.01,l:'1¢'}];
+var EXPENSE='Cash Expenses';
+
+var STATE={store:null,vct:null,stores:[],staff:[],setup:[],entries:[]};
+
+/* Supabase row (snake_case) -> the field shape the render/compute code expects */
+function rowFromDb(r){return {Id:r.id,Date:r.biz_date,Period:r.period,Store:r.store,Employee:r.employee,Operation:r.operation,Location:r.location,ToLocation:r.to_location,Amount:r.amount,Counted:r.counted,C100:r.c100,C50:r.c50,C20:r.c20,C10:r.c10,C5:r.c5,C1:r.c1,Q25:r.q25,D10:r.d10,N5:r.n5,P1:r.p1,OpeningBalance:r.opening_balance,Payments:r.payments,Returns:r.returns,Payouts:r.payouts,TransferIn:r.transfer_in,TransferOut:r.transfer_out,Expected:r.expected,OverShort:r.over_short,Notes:r.notes};}
+/* store list comes from the stores table (managed in Settings); registers/safes
+   from cash_setup, honoring the active flag; staff from the roster */
+async function loadBootstrap(){
+  var stq=await sb.from('stores').select('store,rq_name,display_order,active').eq('active',true).order('display_order');
+  if(stq.error) throw stq.error;
+  STATE.stores=(stq.data||[]).map(function(r){return r.store;});
+  var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target,active');
+  if(s.error) throw s.error;
+  STATE.setup=(s.data||[]).filter(function(r){return r.active!==false;}).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
+  var st=await sb.from('staff_roster').select('display_name,home_store,authorized_stores,role,active').eq('active',true);
+  if(st.error) console.warn('staff_roster read failed:', st.error.message);
+  STATE.staff=(st.error?[]:(st.data||[])).map(function(r){return {Name:r.display_name,Role:r.role,HomeStore:r.home_store,Authorized:r.authorized_stores||[],Active:r.active};});
+  // defensive: if the stores table is empty/unreadable, fall back to cash_setup keys
+  if(!STATE.stores.length){ var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;}); var ks=Object.keys(seen); STATE.stores=window.CPRLocations?CPRLocations.sort(ks):ks.sort(); }
+}
+function fetchEntries(store,period){
+  return sb.from('cash_entries').select('*').eq('store',store).eq('period',period).then(function(r){if(r.error)throw r.error;return (r.data||[]).map(rowFromDb);});
+}
+
+function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function shortStore(s){return (window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,''));}
+
+/* tills/locations are data-driven from the Setup tab */
+function tillsFor(store){
+  var t=STATE.setup.filter(function(s){return s.Store===store&&/^VCT\d+$/i.test(String(s.Location));}).map(function(s){return s.Location;});
+  t.sort();
+  return t.length?t:['VCT1','VCT2','VCT3'];
+}
+function safesFor(store){
+  var s=STATE.setup.filter(function(r){return r.Store===store&&/safe/i.test(String(r.Location));}).map(function(r){return r.Location;});
+  return s.length?s:['Small Safe','Large Safe'];
+}
+function startBal(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.StartingBalance):0;}
+function floatTarget(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.FloatTarget):0;}
+function staffFor(store){return STATE.staff.filter(function(s){return s.Active!==false&&(s.HomeStore===store||(s.Authorized||[]).indexOf(store)>=0||s.Role==='owner');}).map(function(s){return s.Name;});}
+
+/* counted-anchored balances (tills follow last count; safes accumulate) */
+function computeBalances(){
+  var bal={}; tillsFor(STATE.store).concat(safesFor(STATE.store)).forEach(function(l){bal[l]=startBal(STATE.store,l);});
+  STATE.entries.slice().sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));}).forEach(function(e){applyEntry(bal,e);});
+  return bal;
+}
+function applyEntry(bal,e){
+  var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
+  if(op==='Open'||op==='Close'){ if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null) bal[loc]=num(e.Counted); return; }
+  if(loc!=null&&bal[loc]!=null) bal[loc]-=amt;     // Transfer: debit source
+  if(to!=null&&bal[to]!=null)  bal[to]+=amt;       // credit destination (Cash Expenses untracked -> leaves)
+}
+
+/* ===== bootstrap ===== */
+/* local snapshot: paint instantly from the last visit, then refresh from the server */
+var SNAP_KEY='ct-snap-v1';
+function snapRead(){ try{ var s=JSON.parse(localStorage.getItem(SNAP_KEY)||'null'); return (s&&s.stores&&Date.now()-s.ts<7*86400000)?s:null; }catch(e){ return null; } }
+function snapWrite(){
+  try{
+    var s=snapRead()||{entries:{}};
+    s.ts=Date.now(); s.stores=STATE.stores; s.staff=STATE.staff; s.setup=STATE.setup;
+    s.entries=s.entries||{};
+    if(STATE.store) s.entries[STATE.store+'|'+thisPeriod()]=STATE.entries;
+    var keys=Object.keys(s.entries);                 // keep it small: last 6 store|period sets
+    if(keys.length>6) keys.slice(0,keys.length-6).forEach(function(k){delete s.entries[k];});
+    localStorage.setItem(SNAP_KEY,JSON.stringify(s));
+  }catch(e){}
+}
+function boot(){
+  $('#todayLbl').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  // instant paint from snapshot, if we have one
+  var snap=snapRead();
+  if(snap){
+    STATE.stores=snap.stores||[]; STATE.staff=snap.staff||[]; STATE.setup=snap.setup||[];
+    var savedStore=pref('ct_store');
+    STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
+    pickInitialVct();
+    renderStorePills(); renderRegPills(); fillEmp();
+    var cached=snap.entries&&snap.entries[STATE.store+'|'+thisPeriod()];
+    if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
+  }
+  loadBootstrap().then(function(){
+    var savedStore=pref('ct_store');
+    STATE.store=(savedStore&&STATE.stores.indexOf(savedStore)>=0)?savedStore:(STATE.stores[0]||null);
+    pickInitialVct();
+    renderStorePills(); renderRegPills(); fillEmp();
+    loadData();
+  }).catch(function(){if(!snap)showSetupBanner();});
+}
+function showSetupBanner(){var b=$('#setupBanner');b.classList.remove('hide');b.innerHTML='<b>Not connected.</b> The cash tracker cannot reach its database right now.';}
+function pickInitialVct(){
+  var tl=tillsFor(STATE.store), saved=pref('ct_vct_'+STATE.store);
+  STATE.vct=(saved&&(tl.indexOf(saved)>=0||saved==='Small Safe'||saved===EXPENSE))?saved:(tl[0]||'VCT1');
+}
+function loadData(){
+  if(!STATE.store) return;
+  // paint cached entries for this store/period right away while the fresh ones load
+  var snap=snapRead();
+  var cached=snap&&snap.entries&&snap.entries[STATE.store+'|'+thisPeriod()];
+  if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
+  fetchEntries(STATE.store,thisPeriod()).then(function(rows){
+    STATE.entries=rows;
+    renderCards(); renderLog();
+    snapWrite();
+  }).catch(function(e){if(!cached)toast(String(e&&e.message||e),true);});
+}
+
+/* ===== store / register switchers ===== */
+function renderStorePills(){
+  $('#storePills').innerHTML=STATE.stores.map(function(s){
+    return '<button class="pill'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+shortStore(s)+'</button>';}).join('');
+  $all('#storePills .pill').forEach(function(b){b.onclick=function(){
+    if(b.dataset.s===STATE.store) return;
+    if(!confirm('Switch to '+shortStore(b.dataset.s)+'? Entries you log will be recorded under '+shortStore(b.dataset.s)+'.')) return;
+    STATE.store=b.dataset.s; pref('ct_store',STATE.store); pickInitialVct();
+    renderStorePills(); renderRegPills(); fillEmp(); loadData();
+  };});
+}
+function renderRegPills(){
+  var items=tillsFor(STATE.store).concat(['Small Safe',EXPENSE]);
+  $('#regPills').innerHTML=items.map(function(l){
+    var lbl=l===EXPENSE?'Cash Expenses':l;
+    return '<button class="pill'+(l===STATE.vct?' active':'')+'" data-v="'+l+'">'+lbl+'</button>';}).join('');
+  $all('#regPills .pill').forEach(function(b){b.onclick=function(){
+    STATE.vct=b.dataset.v; pref('ct_vct_'+STATE.store,STATE.vct);
+    renderRegPills(); renderCards(); renderLog();
+  };});
+}
+function fillEmp(){$('#enEmp').innerHTML=staffFor(STATE.store).map(function(n){return '<option>'+n+'</option>';}).join('');}
+
+/* ===== cards (tills only; active highlighted) ===== */
+function renderCards(){
+  var bal=computeBalances(), tl=tillsFor(STATE.store);
+  $('#cards').innerHTML=tl.map(function(l){
+    var active=l===STATE.vct?' active':'';
+    return '<div class="bal'+active+'"><div class="bl">'+l+'</div><div class="bv">'+money(bal[l])+'</div>'+
+      '<div class="bsub">float target '+money(floatTarget(STATE.store,l))+'</div>'+(active?'<div class="badge">this register</div>':'')+'</div>';
+  }).join('');
+}
+
+/* ===== log (scoped to selected register / small safe / cash expenses) ===== */
+function scopedEntries(){
+  var v=STATE.vct;
+  return STATE.entries.filter(function(e){
+    if(v===EXPENSE) return e.ToLocation===EXPENSE;
+    return e.Location===v||e.ToLocation===v;
+  }).sort(function(a,b){return String(b.Date).localeCompare(String(a.Date))||String(b.Id).localeCompare(String(a.Id));});
+}
+var LOG_DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'}];
+function runningBalances(loc){
+  var bal=startBal(STATE.store,loc);
+  var chron=STATE.entries.slice().sort(function(a,b){
+    return String(a.Date).localeCompare(String(b.Date))||String(a.Id).localeCompare(String(b.Id));
+  });
+  var out={};
+  chron.forEach(function(e){
+    var op=e.Operation, amt=num(e.Amount);
+    if(op==='Open'||op==='Close'){
+      if(e.Location===loc){ if(e.Counted!==''&&e.Counted!=null) bal=num(e.Counted); out[e.Id]={bal:bal,dir:''}; }
+      return;
+    }
+    if(e.Location===loc){ bal-=amt; out[e.Id]={bal:bal,dir:'out'}; }
+    else if(e.ToLocation===loc){ bal+=amt; out[e.Id]={bal:bal,dir:'in'}; }
+  });
+  return out;
+}
+// Over/Short color: within $1 either way = green; short $1+ = red; over $1+ = orange.
+function osClass(v){ v=num(v); if(Math.abs(v)<1) return 'ok'; return v<0 ? 'bad' : 'over'; }
+function reconHTML(e){
+  var opening=num(e.OpeningBalance),pay=num(e.Payments),ret=num(e.Returns),pyo=num(e.Payouts),
+      tin=num(e.TransferIn),tout=num(e.TransferOut),exp=num(e.Expected),cnt=num(e.Counted),os=num(e.OverShort);
+  var hasRecon=(e.OpeningBalance!==''&&e.OpeningBalance!=null);
+  if(!hasRecon) return '<div class="recon"><div class="rl"><span class="muted">No reconciliation detail recorded for this close.</span></div></div>';
+  function line(l,v,cls){return '<div class="rl"><span>'+l+'</span><span class="'+(cls||'')+'">'+v+'</span></div>';}
+  return '<div class="recon"><div>'+
+      line('Opening balance',money(opening))+line('+ Payments (sales)',money(pay))+
+      line('− Returns',money(ret))+line('− Payouts',money(pyo))+
+      line('+ Transfers in',money(tin))+line('− Transfers out',money(tout))+
+      line('Expected drawer',money(exp),'tot')+
+    '</div><div>'+
+      line('Counted drawer',money(cnt))+line('Expected',money(exp))+
+      line('Over / Short',money(os),osClass(os)+' tot')+
+      (e.Notes?('<div class="rl"><span>Note</span><span class="muted">'+e.Notes+'</span></div>'):'')+
+    '</div></div>';
+}
+function renderLog(){
+  var rows=scopedEntries();
+  if(STATE.vct===EXPENSE){ $('#logTitle').textContent='Cash Expenses — '+shortStore(STATE.store)+' (this month)'; renderExpenseLog(rows); return; }
+  var loc=STATE.vct, scopeName=(loc==='Small Safe')?'Small Safe':loc;
+  $('#logTitle').textContent=scopeName+' activity — this month';
+  if(!rows.length){ $('#logBody').innerHTML='<p class="muted">No entries yet this month. Tap <b>+ New Entry</b>.</p>'; return; }
+  var run=runningBalances(loc), isSafe=(loc==='Small Safe'||loc==='Large Safe');
+  var denCols=LOG_DENOMS.map(function(){return '<col class="c-den">';}).join('');
+  var denHead=LOG_DENOMS.map(function(d){return '<th class="den-h">'+d.l+'</th>';}).join('');
+  var ncol=7+LOG_DENOMS.length;
+  var html='<div class="table-card"><div style="overflow-x:auto"><table class="elog"><colgroup>'+
+    '<col class="c-date"><col class="c-emp"><col class="c-op"><col class="c-bal">'+denCols+'<col class="c-amt"><col class="c-os"><col class="c-exp"></colgroup>'+
+    '<thead><tr><th>Date</th><th>Employee</th><th>Operation</th><th class="num bal-h">'+(isSafe?'Balance':'Till Balance')+'</th>'+denHead+'<th class="num">Amount</th><th class="num">Over/Short</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(e){
+    var isClose=(e.Operation==='Close'), isTransfer=(e.Operation==='Transfer'), r=run[e.Id]||{};
+    var dir='', opCell;
+    if(isTransfer){
+      var cp; if(e.Location===loc){ cp=e.ToLocation; dir='out'; } else { cp=e.Location; dir='in'; }
+      var cpLabel=(cp===EXPENSE)?'Cash Expense':cp;
+      var cpCls=(cp==='Large Safe')?'op-largedep':(cp==='Small Safe')?'op-smalldep':(cp===EXPENSE)?'exp':'cp-vct';
+      opCell='<span class="op-pill '+cpCls+'">'+cpLabel+'</span><span class="dir '+dir+'">'+dir+'</span>';
+    } else {
+      opCell='<span class="op-pill '+(e.Operation==='Open'?'op-open':'op-close')+'">'+e.Operation+'</span>';
+    }
+    var balCell=(r.bal!=null)?money(r.bal):'<span class="muted">—</span>';
+    var amt=money(num(e.Amount)); if(isTransfer&&dir==='out') amt='-'+amt;
+    var os=isClose?('<span class="os '+osClass(e.OverShort)+'">'+money(e.OverShort)+'</span>'):'—';
+    var expBtn=isClose?('<span class="exp-btn" data-exp="'+e.Id+'">+</span>'):'';
+    var denCells=LOG_DENOMS.map(function(d){var c=num(e[d.k]);return '<td class="den'+(c>0?'':' z')+'">'+(c>0?c:'·')+'</td>';}).join('');
+    html+='<tr><td>'+fmtDate(e.Date)+'</td><td>'+(e.Employee||'')+'</td>'+
+      '<td class="opcell">'+opCell+'</td><td class="bal">'+balCell+'</td>'+denCells+
+      '<td class="num">'+amt+'</td><td class="num">'+os+'</td><td class="num">'+expBtn+'</td></tr>';
+    if(isClose) html+='<tr class="detrow hide" id="det-'+e.Id+'"><td colspan="'+ncol+'">'+reconHTML(e)+'</td></tr>';
+  });
+  html+='</tbody></table></div></div>';
+  $('#logBody').innerHTML=html;
+  $all('#logBody .exp-btn').forEach(function(b){b.onclick=function(){
+    var d=document.getElementById('det-'+b.dataset.exp);
+    var hidden=d.classList.toggle('hide'); b.textContent=hidden?'+':'−';
+  };});
+}
+function renderExpenseLog(rows){
+  var total=rows.reduce(function(a,e){return a+num(e.Amount);},0);
+  $('#logBody').innerHTML='<div class="sumline">Total cash expenses this month: <span style="color:var(--red)">'+money(total)+'</span> &middot; '+rows.length+' payout'+(rows.length===1?'':'s')+'</div>'+
+    (rows.length?'<div class="table-card"><table><thead><tr><th>Date</th><th>From</th><th>Employee</th><th class="num">Amount</th><th>Reason</th></tr></thead><tbody>'+
+    rows.map(function(e){return '<tr><td>'+fmtDate(e.Date)+'</td><td>'+shortLoc(e.Location)+'</td><td>'+(e.Employee||'')+'</td><td class="num">'+money(e.Amount)+'</td><td>'+(e.Notes||'<span class="muted">&mdash;</span>')+'</td></tr>';}).join('')+
+    '</tbody></table></div>':'<p class="muted">No cash expenses logged this month.</p>');
+}
+function shortLoc(l){return l===EXPENSE?'Cash Expenses':String(l||'');}
+/* delete is admin-only (Cash Admin activity log) — the terminal never deletes entries */
+
+/* ===== new entry modal ===== */
+function openModal(){ $('#enOp').value='Open'; fillEmp(); renderForm(); $('#entryModal').classList.remove('hide'); }
+function closeModal(){$('#entryModal').classList.add('hide');}
+$('#btnNewEntry').onclick=openModal; $('#enClose').onclick=closeModal; $('#enCancel').onclick=closeModal;
+$('#entryModal').addEventListener('click',function(e){if(e.target===$('#entryModal'))closeModal();});
+$('#enOp').onchange=renderForm;
+
+function vctOptions(sel){return tillsFor(STATE.store).map(function(t){return '<option'+(t===sel?' selected':'')+'>'+t+'</option>';}).join('');}
+function xferOptions(sel){return tillsFor(STATE.store).concat(['Large Safe','Small Safe',EXPENSE]).map(function(l){return '<option value="'+l+'"'+(l===sel?' selected':'')+'>'+(l===EXPENSE?'Cash Expenses':l)+'</option>';}).join('');}
+function transferLocs(){return tillsFor(STATE.store).concat(safesFor(STATE.store));}
+
+function renderForm(){
+  var op=$('#enOp').value;
+  var activeVct=(tillsFor(STATE.store).indexOf(STATE.vct)>=0)?STATE.vct:tillsFor(STATE.store)[0];
+  var dyn='';
+  if(op==='Open'||op==='Close'){
+    dyn='<div class="row"><div class="field"><label>Register</label><select id="enVct">'+vctOptions(activeVct)+'</select></div>';
+    if(op==='Close'){
+      dyn+='<div class="field"><label>Opening balance <span style="font-weight:400;color:#888;font-size:.85em">(from the open — locked)</span></label><input type="number" step="0.01" id="enOpening" placeholder="0.00" readonly tabindex="-1" style="background:#eceef3;color:#555;cursor:not-allowed"></div></div>';
+      dyn+='<p class="hint" style="margin:12px 0 6px">Enter the cash figures from the RepairQ VCT closure form:</p><div class="rqgrid">'+
+        rqf('enPayments','Payments')+rqf('enReturns','Returns')+rqf('enPayouts','Payouts')+rqf('enTin','Transfer In (+)')+rqf('enTout','Transfer Out (-)')+'</div>';
+    } else { dyn+='</div>'; }
+  } else {
+    dyn='<div class="row">'+
+      '<div class="field"><label>From</label><select id="enXfrom">'+xferOptions(activeVct)+'</select></div>'+
+      '<div class="field"><label>To</label><select id="enXto">'+xferOptions('Large Safe')+'</select></div></div>';
+  }
+  $('#enDynamic').innerHTML=dyn;
+  var coins=(op==='Open'||op==='Close');
+  $('#enTotalLbl').textContent=op==='Transfer'?'Amount moved':'Counted total';
+  var dens=DENOMS.filter(function(d){return coins||d.v>=1;});
+  $('#enDenoms').innerHTML='<label>'+(coins?'Denomination count':'Bills moved')+'</label><div class="denoms">'+
+    dens.map(function(d){return '<div class="den"><div class="dl">'+d.l+'</div><input type="number" min="0" step="1" data-k="'+d.k+'" data-v="'+d.v+'" placeholder="0"><div class="ds" data-sub="'+d.k+'"></div></div>';}).join('')+'</div>';
+  $all('#enDenoms input').forEach(function(i){i.oninput=recalc;});
+  $all('#enDynamic input,#enDynamic select').forEach(function(i){i.oninput=recalc;i.onchange=recalc;});
+  var empSel=$('#enEmp'); if(empSel) empSel.onchange=recalc;
+  var ntField=$('#enNotes'); if(ntField) ntField.oninput=recalc;
+  var vsel=$('#enVct'); if(vsel)vsel.onchange=function(){prefillOpening();recalc();};
+  prefillOpening(); recalc();
+}
+function rqf(id,label){return '<div><label>'+label+'</label><input type="number" step="0.01" id="'+id+'" placeholder="0.00"></div>';}
+// Derive from/to for a guided transfer, relative to the chosen till.
+function xfDeriv(){
+  var from=$('#enXfrom')?$('#enXfrom').value:STATE.vct;
+  var to=$('#enXto')?$('#enXto').value:'Large Safe';
+  return {from:from,to:to};
+}
+// Sum of transfers logged INTO this till today (safe -> till withdrawals).
+function autoTinFor(till){
+  var today=todayISO();
+  return Math.round(STATE.entries.filter(function(e){
+    return e.Operation==='Transfer' && e.ToLocation===till && String(e.Date)===today;
+  }).reduce(function(s,e){return s+num(e.Amount);},0)*100)/100;
+}
+function prefillOpening(){var ob=$('#enOpening');if(ob){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
+function denomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return Math.round(t*100)/100;}
+function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:num(($('#enTin')||{}).value),tout:num(($('#enTout')||{}).value)};}
+function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
+function isTill(l){return /^VCT\d+$/i.test(String(l));}
+
+function recalc(){
+  var op=$('#enOp').value, total=denomTotal(); $('#enTotal').textContent=money(total);
+  var pv='',rm='';
+  if(op==='Close'){
+    var v=rqVals(),exp=rqExpected(v),os=total-exp;
+    pv='Expected drawer: <b>'+money(exp)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Over/Short: <span class="os '+osClass(os)+'">'+money(os)+'</span>';
+  } else if(op==='Open'){
+    var till=$('#enVct')?$('#enVct').value:STATE.vct,b=computeBalances(),diff=total-(b[till]||0);
+    pv='Expected in drawer: <b>'+money(b[till]||0)+'</b> &middot; Counted: <b>'+money(total)+'</b> &middot; Difference: <span class="os '+(Math.abs(diff)<0.005?'ok':'bad')+'">'+money(diff)+'</span>';
+  } else {
+    var d=xfDeriv(),from=d.from,to=d.to,b2=computeBalances();
+    if(to===EXPENSE){ pv='<b>'+money(total)+'</b> paid out of '+from+' (cash leaves the store)'; rm='Also record this payout in RepairQ so the till reconciles.'; $('#enNotesLbl').textContent='Reason / payee (required)'; }
+    else { $('#enNotesLbl').textContent='Notes (optional)';
+      var parts=[]; if(isTill(from)) parts.push(from+': '+money((b2[from]||0)-total)); else parts.push('from '+from);
+      if(isTill(to)) parts.push(to+': '+money((b2[to]||0)+total)); else parts.push('to '+to);
+      pv=money(total)+' &nbsp; '+parts.join(' &nbsp;&middot;&nbsp; '); }
+  }
+  $('#enPreview').innerHTML=pv?'<div class="preview">'+pv+'</div>':'';
+  $('#enRemind').innerHTML=rm?'<div class="remind">'+rm+'</div>':'';
+  var sb=$('#enSubmit'); if(sb) sb.disabled=!entryValid(op,total);
+}
+function entryValid(op,total){
+  if(!$('#enEmp')||!$('#enEmp').value) return false;
+  if(op==='Open') return total>0;
+  if(op==='Close'){
+    if(total<=0) return false;
+    return ['enOpening','enPayments','enReturns','enPayouts','enTin','enTout'].every(function(id){var el=$('#'+id);return el&&el.value!=='';});
+  }
+  if(total<=0) return false;
+  var d=xfDeriv(); if(d.from===d.to) return false;
+  if(d.to===EXPENSE && !$('#enNotes').value.trim()) return false;
+  return true;
+}
+function collectDenoms(){var o={};$all('#enDenoms input').forEach(function(i){o[i.dataset.k]=num(i.value);});return o;}
+
+$('#enSubmit').onclick=function(){
+  var op=$('#enOp').value, emp=$('#enEmp').value, total=denomTotal();
+  if(!emp){toast('Pick an employee',true);return;}
+  var payload={store:STATE.store,date:todayISO(),employee:emp,operation:op,denoms:collectDenoms(),notes:$('#enNotes').value};
+  if(op==='Open'){
+    if(total<=0){toast('Enter the drawer count',true);return;}
+    var till=$('#enVct').value; payload.location=till; payload.amount=total; payload.counted=total;
+  } else if(op==='Close'){
+    var t2=$('#enVct').value, v=rqVals();
+    var anyBlank=['enOpening','enPayments','enReturns','enPayouts','enTin','enTout'].some(function(id){return !$('#'+id)||$('#'+id).value==='';});
+    if(anyBlank){toast('Fill in every RepairQ closing field (use 0 if none)',true);return;}
+    if(total<=0){toast('Enter the drawer count',true);return;}
+    var exp=rqExpected(v);
+    payload.location=t2; payload.amount=total; payload.counted=total;
+    payload.openingBalance=v.opening; payload.payments=v.payments; payload.returns=v.returns; payload.payouts=v.payouts;
+    payload.transferIn=v.tin; payload.transferOut=v.tout; payload.expected=exp; payload.overShort=total-exp;
+  } else {
+    var d=xfDeriv(),from=d.from,to=d.to;
+    if(from===to){toast('From and To must differ',true);return;}
+    if(total<=0){toast('Enter the bills moved',true);return;}
+    if(to===EXPENSE&&!$('#enNotes').value.trim()){toast('Add a reason for the cash expense',true);return;}
+    payload.location=from; payload.toLocation=to; payload.amount=total;
+  }
+  $('#enSubmit').disabled=true;
+  var dn=payload.denoms||{};
+  var ins={period:payload.date.slice(0,7),store:payload.store,biz_date:payload.date,employee:payload.employee,operation:payload.operation,
+    location:payload.location||null,to_location:payload.toLocation||null,amount:num(payload.amount),
+    c100:num(dn.C100),c50:num(dn.C50),c20:num(dn.C20),c10:num(dn.C10),c5:num(dn.C5),c1:num(dn.C1),q25:num(dn.Q25),d10:num(dn.D10),n5:num(dn.N5),p1:num(dn.P1),
+    counted:(payload.counted==null?null:num(payload.counted)),
+    opening_balance:(payload.openingBalance==null?null:num(payload.openingBalance)),
+    payments:(payload.payments==null?null:num(payload.payments)),
+    returns:(payload.returns==null?null:num(payload.returns)),
+    payouts:(payload.payouts==null?null:num(payload.payouts)),
+    transfer_in:(payload.transferIn==null?null:num(payload.transferIn)),
+    transfer_out:(payload.transferOut==null?null:num(payload.transferOut)),
+    expected:(payload.expected==null?null:num(payload.expected)),
+    over_short:(payload.overShort==null?null:num(payload.overShort)),
+    notes:payload.notes||null};
+  sb.from('cash_entries').insert(ins).then(function(r){$('#enSubmit').disabled=false;
+    if(r.error){toast(r.error.message||'Save failed',true);return;}
+    toast('Entry saved'); closeModal(); loadData();
+  }).catch(function(e){$('#enSubmit').disabled=false;toast(String(e&&e.message||e),true);});
+};
+
+boot();
+</script>
+</body>
+</html>
