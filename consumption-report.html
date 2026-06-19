@@ -785,15 +785,22 @@ function orderList(){
   return out;
 }
 
-function exportCsv(){
+async function exportOrder(){
   var rows=orderList();
   if(!rows.length){alert('Nothing to order — everything is at max.');return;}
-  var csv=rows.map(function(r){return r[0]+','+r[1];}).join('\r\n');
-  var blob=new Blob([csv],{type:'text/csv'});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='mobilesentrix-order-'+STATE.store.replace(/\s+/g,'-').toLowerCase()+'-'+($('#day').value||'today')+'.csv';
-  a.click();
+  // open the MobileSentrix quick-order tab in the click gesture (avoids popup blocking)
+  window.open('https://www.cpr.parts/quickorder/index/view','_blank');
+  try{
+    var XLSX=await import('https://esm.sh/xlsx@0.18.5');
+    var aoa=rows.map(function(r){return [r[0],r[1]];});   // [sku, qty]
+    var ws=XLSX.utils.aoa_to_sheet(aoa);
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Order');
+    var fname='mobilesentrix-order-'+STATE.store.replace(/\s+/g,'-').toLowerCase()+'-'+($('#day').value||'today')+'.xlsx';
+    XLSX.writeFile(wb,fname);
+  }catch(e){
+    alert('Could not build the Excel file: '+(e&&e.message||e));
+  }
 }
 
 /* ---- store pills + date ---- */
@@ -1127,7 +1134,7 @@ function wireMsTypeahead(er,g){
 }
 
 async function init(){
-  $('#exportBtn').addEventListener('click',exportCsv);
+  $('#exportBtn').addEventListener('click',exportOrder);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
   $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null,part_type:null};GROUPS.push(ng);MOPEN=ng.id;await persistGroups();renderGroups();});
   $('#grpBtn').addEventListener('click',async function(){
