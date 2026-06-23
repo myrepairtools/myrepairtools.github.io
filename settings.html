@@ -91,6 +91,19 @@ td.r{text-align:right;white-space:nowrap}
 .pinbox{margin-top:16px;background:#FbFbFc;border:1px solid var(--border);border-radius:11px;padding:13px 14px;display:flex;align-items:center;gap:12px}
 .pinbox input{width:120px;font-family:'Nunito',sans-serif;font-weight:800;font-size:1.05rem;letter-spacing:.3em;text-align:center}
 .pinbox .h{flex:1;font-size:.72rem;color:var(--dark-grey);line-height:1.4}
+/* roles & permissions — permission picker */
+.permcat{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.permcat-h{display:flex;align-items:center;justify-content:space-between;background:var(--light-grey);padding:8px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.catall{background:none;border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;color:var(--blue);cursor:pointer;text-transform:none;letter-spacing:0}
+.permrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;border-top:1px solid var(--border)}
+.permrow .pl{font-weight:700;font-size:.84rem;color:var(--dark)}
+.permrow .pk{font-size:.7rem;color:var(--grey);font-weight:600}
+.toggle{width:40px;height:23px;border-radius:20px;border:none;background:var(--grey);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:#fff;transition:left .15s}
+.toggle.on{background:var(--blue)}.toggle.on::after{left:19px}
+.tag-sys{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;padding:2px 8px;border-radius:20px;background:#EAF6FD;border:1px solid #CFE7F6;color:#1E7AA8;display:inline-block;margin-left:6px}
+.tag-custom{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;padding:2px 8px;border-radius:20px;background:var(--light-grey);border:1px solid var(--border);color:var(--dark-grey);display:inline-block;margin-left:6px}
+.kcode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.74rem;color:var(--dark-grey);background:var(--light-grey);padding:1px 6px;border-radius:5px}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:1100}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 </style>
@@ -118,6 +131,7 @@ td.r{text-align:right;white-space:nowrap}
   <div class="tabs">
     <button class="tab active" data-tab="staff" id="tabStaff">Team Members <span class="ct" id="ctStaff">0</span></button>
     <button class="tab" data-tab="loc" id="tabLoc">Locations <span class="ct" id="ctLoc">0</span></button>
+    <button class="tab hide" data-tab="roles" id="tabRoles">Roles &amp; Permissions <span class="ct" id="ctRoles">0</span></button>
   </div>
 
   <!-- STAFF TAB -->
@@ -160,6 +174,33 @@ td.r{text-align:right;white-space:nowrap}
     </div>
     <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
   </section>
+
+  <!-- ROLES & PERMISSIONS TAB (owner only) -->
+  <section id="view-roles" class="hide">
+    <span class="seg" id="rpSeg" style="margin-bottom:14px">
+      <button data-rp="roles" class="on">Roles</button>
+      <button data-rp="perms">Permissions</button>
+    </span>
+
+    <!-- Roles sub-view -->
+    <div id="rp-roles">
+      <p class="note">A <b>role</b> is a named bundle of permissions. <b>Owner</b>, <b>Admin</b> and <b>Team Member</b> ship built-in; add your own and tick exactly what each can do.</p>
+      <div class="bar"><span class="spacer"></span><button class="btn" id="addRole">+ New role</button></div>
+      <div class="card"><table><thead><tr>
+        <th>Role</th><th>Description</th><th class="r">Permissions</th><th class="r">Used by</th><th></th>
+      </tr></thead><tbody id="roleRows"></tbody></table>
+        <div class="empty hide" id="roleEmpty">No roles yet.</div>
+      </div>
+    </div>
+
+    <!-- Permissions catalog sub-view -->
+    <div id="rp-perms" class="hide">
+      <p class="note">The master list of capabilities the tools understand. Roles are built from these — this catalog is read-only for now.</p>
+      <div class="card"><table><thead><tr>
+        <th>Permission</th><th>Key</th><th>Category</th><th>In roles</th>
+      </tr></thead><tbody id="permRows"></tbody></table></div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -191,9 +232,12 @@ function initialsOf(m){var a=(m.first_name||'').trim(),b=(m.last_name||'').trim(
 function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 /* ===== state ===== */
-var TAB='staff', SEARCH='', ROSTER='active';
+var TAB='staff', SEARCH='', ROSTER='active', RP='roles';
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
-var MOPEN=null; /* {type:'member'|'store'|'reg', isNew, draft} */
+var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
+var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
+/* legacy staff.role text -> new role key, for the "Used by" count only */
+var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
 
 /* ===== auth (lifted from cash-admin) ===== */
 var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
@@ -271,8 +315,16 @@ async function loadRegs(){
   var r=await sb.from('cash_setup').select('id,store,location,starting_balance,float_target,active,sort_order').eq('store',REGSTORE).order('sort_order').order('location');
   REGS=r.error?[]:(r.data||[]);
 }
+async function loadRBAC(){
+  var rr=await sb.from('roles').select('id,key,name,description,is_system,sort').order('sort').order('name');
+  RBROLES=rr.error?[]:(rr.data||[]);
+  var pr=await sb.from('permissions').select('id,key,label,category,description,sort').order('sort');
+  RBPERMS=pr.error?[]:(pr.data||[]);
+  var rp=await sb.from('role_permissions').select('role_id,permission_id');
+  RBROLEPERMS=rp.error?[]:(rp.data||[]);
+}
 async function load(){
-  await Promise.all([loadStores(),loadStaff()]);
+  await Promise.all([loadStores(),loadStaff(),loadRBAC()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
   await loadRegs();
   renderAll();
@@ -281,14 +333,20 @@ async function load(){
 /* ===== render ===== */
 function activeStores(){return STORES.filter(function(s){return s.active;});}
 function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
-function renderAll(){renderTabs();renderStaff();renderLoc();renderModal();}
+function renderAll(){renderTabs();renderStaff();renderLoc();renderRoles();renderModal();}
 function renderTabs(){
+  var owner=(AUTH&&AUTH.role==='owner');
   $('#ctStaff').textContent=STAFF.length;
   $('#ctLoc').textContent=STORES.length;
+  $('#ctRoles').textContent=RBROLES.length;
+  $('#tabRoles').classList.toggle('hide',!owner);
+  if(!owner&&TAB==='roles')TAB='staff';   /* non-owners can't sit on the roles tab */
   $('#tabStaff').classList.toggle('active',TAB==='staff');
   $('#tabLoc').classList.toggle('active',TAB==='loc');
+  $('#tabRoles').classList.toggle('active',TAB==='roles');
   $('#view-staff').classList.toggle('hide',TAB!=='staff');
   $('#view-loc').classList.toggle('hide',TAB!=='loc');
+  $('#view-roles').classList.toggle('hide',TAB!=='roles');
 }
 function renderStaff(){
   var q=SEARCH.trim().toLowerCase();
@@ -360,6 +418,133 @@ function renderLoc(){
     rb.appendChild(tr);
   });
   rb.querySelectorAll('[data-ereg]').forEach(function(b){b.onclick=function(){openReg(b.getAttribute('data-ereg'));};});
+}
+
+/* ===== roles & permissions ===== */
+function permIdsForRole(roleId){return RBROLEPERMS.filter(function(x){return x.role_id===roleId;}).map(function(x){return x.permission_id;});}
+function rolesForPerm(permId){return RBROLEPERMS.filter(function(x){return x.permission_id===permId;})
+  .map(function(x){var r=RBROLES.filter(function(rr){return rr.id===x.role_id;})[0];return r?r.name:null;}).filter(Boolean);}
+function usedByCount(roleKey){
+  if(!roleKey)return 0; /* custom roles: no per-person assignment yet (follow-up) */
+  return STAFF.filter(function(m){return m.active && ROLE_ALIAS[String(m.role||'').toLowerCase()]===roleKey;}).length;
+}
+function renderRoles(){
+  $('#rp-roles').classList.toggle('hide',RP!=='roles');
+  $('#rp-perms').classList.toggle('hide',RP!=='perms');
+  $all('#rpSeg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-rp')===RP);});
+  /* roles table */
+  var tb=$('#roleRows'); tb.innerHTML='';
+  $('#roleEmpty').classList.toggle('hide',RBROLES.length>0);
+  RBROLES.forEach(function(r){
+    var pc=permIdsForRole(r.id).length, used=usedByCount(r.key);
+    var tag=r.is_system?'<span class="tag-sys">Built-in</span>':'<span class="tag-custom">Custom</span>';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td><span style="font-weight:800">'+esc(r.name)+'</span>'+tag+'</td>'
+      +'<td class="muted">'+esc(r.description||'—')+'</td>'
+      +'<td class="r"><span class="chip">'+pc+'</span></td>'
+      +'<td class="r muted">'+(used?(used+(used===1?' person':' people')):'—')+'</td>'
+      +'<td class="r"><button class="btn alt sm" data-erole="'+r.id+'">Edit</button></td>';
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('[data-erole]').forEach(function(b){b.onclick=function(){openRole(b.getAttribute('data-erole'));};});
+  /* permissions catalog */
+  var pt=$('#permRows'); pt.innerHTML='';
+  RBPERMS.forEach(function(p){
+    var inRoles=rolesForPerm(p.id);
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td><span style="font-weight:700;color:var(--dark)">'+esc(p.label)+'</span><span style="display:block;font-size:.72rem;color:var(--grey);font-weight:600">'+esc(p.description||'')+'</span></td>'
+      +'<td><span class="kcode">'+esc(p.key)+'</span></td>'
+      +'<td class="muted">'+esc(p.category)+'</td>'
+      +'<td>'+(inRoles.length?inRoles.map(function(n){return '<span class="chip">'+esc(n)+'</span>';}).join(''):'<span class="muted">—</span>')+'</td>';
+    pt.appendChild(tr);
+  });
+}
+function openRole(id){
+  var r=RBROLES.filter(function(x){return String(x.id)===String(id);})[0]; if(!r)return;
+  MOPEN={type:'role',isNew:false,draft:{id:r.id,key:r.key,name:r.name,description:r.description||'',is_system:r.is_system,perms:permIdsForRole(r.id).slice()}};
+  renderModal();
+}
+function openAddRole(){MOPEN={type:'role',isNew:true,draft:{name:'',description:'',is_system:false,perms:[]}};renderModal();}
+function roleModalHtml(){
+  var d=MOPEN.draft, sel=d.perms;
+  var cats={}, order=[];
+  RBPERMS.forEach(function(p){ if(!cats[p.category]){cats[p.category]=[];order.push(p.category);} cats[p.category].push(p); });
+  var body=order.map(function(cat){
+    var list=cats[cat], allOn=list.every(function(p){return sel.indexOf(p.id)>-1;});
+    var rows=list.map(function(p){
+      var on=sel.indexOf(p.id)>-1;
+      return '<div class="permrow"><div><div class="pl">'+esc(p.label)+'</div><div class="pk">'+esc(p.key)+'</div></div>'
+        +'<button class="toggle'+(on?' on':'')+'" data-perm="'+p.id+'" aria-label="toggle '+esc(p.label)+'"></button></div>';
+    }).join('');
+    return '<div class="permcat"><div class="permcat-h"><span>'+esc(cat)+'</span>'
+      +'<button class="catall" data-cat="'+esc(cat)+'">'+(allOn?'Clear all':'Select all')+'</button></div>'+rows+'</div>';
+  }).join('');
+  var title=MOPEN.isNew?'New role':('Edit role: '+esc(d.name||''));
+  var sysNote=d.is_system?'<div class="note" style="margin:0 0 12px">Built-in role — you can rename it and change its permissions, but it can\'t be deleted.</div>':'';
+  return '<div class="modal-back" data-close></div><div class="modal"><div class="modal-hd">'
+    +'<div class="t">'+title+'<div class="s"><span id="permCount">'+sel.length+'</span> permission'+(sel.length===1?'':'s')+' on</div></div>'
+    +'<button class="modal-x" data-close>×</button></div>'
+    +'<div class="modal-body">'+sysNote
+      +'<div class="grid2"><div class="f"><label>Role name</label><input data-k="name" value="'+esc(d.name)+'" placeholder="e.g. Shift Lead"></div>'
+      +'<div class="f"><label>Description</label><input data-k="description" value="'+esc(d.description)+'" placeholder="Short summary"></div></div>'
+      +'<div style="margin-top:16px">'+body+'</div>'
+    +'</div>'
+    +'<div class="modal-ft">'
+      +((d.is_system||MOPEN.isNew)?'<span></span>':'<button class="btn alt sm" data-delrole style="color:var(--red);border-color:#F3C7C9">Delete role</button>')
+      +'<button class="btn blue" data-save>'+(MOPEN.isNew?'Create role':'Save')+'</button></div></div>';
+}
+function wireRole(host){
+  var d=MOPEN.draft;
+  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  host.querySelectorAll('[data-k]').forEach(function(el){el.oninput=function(){d[el.getAttribute('data-k')]=el.value;};});
+  host.querySelectorAll('[data-perm]').forEach(function(b){b.onclick=function(){
+    var id=parseInt(b.getAttribute('data-perm'),10), i=d.perms.indexOf(id);
+    if(i>-1)d.perms.splice(i,1);else d.perms.push(id);
+    renderModal();
+  };});
+  host.querySelectorAll('[data-cat]').forEach(function(b){b.onclick=function(){
+    var cat=b.getAttribute('data-cat');
+    var ids=RBPERMS.filter(function(p){return p.category===cat;}).map(function(p){return p.id;});
+    var allOn=ids.every(function(id){return d.perms.indexOf(id)>-1;});
+    if(allOn)d.perms=d.perms.filter(function(id){return ids.indexOf(id)<0;});
+    else ids.forEach(function(id){if(d.perms.indexOf(id)<0)d.perms.push(id);});
+    renderModal();
+  };});
+  var del=host.querySelector('[data-delrole]'); if(del)del.onclick=deleteRole;
+  host.querySelector('[data-save]').onclick=saveRole;
+}
+async function saveRole(){
+  var d=MOPEN.draft;
+  if(!String(d.name).trim()){toast('Role name is required',true);return;}
+  var btn=$('#modalHost [data-save]'); if(btn)btn.disabled=true;
+  try{
+    var roleId=d.id;
+    if(MOPEN.isNew){
+      var nextSort=RBROLES.length?Math.max.apply(null,RBROLES.map(function(r){return r.sort||0;}))+1:1;
+      var ins=await sb.from('roles').insert({name:String(d.name).trim(),description:d.description||null,is_system:false,sort:nextSort}).select('id').single();
+      if(ins.error){toast(ins.error.message||'Create failed (owner only)',true);if(btn)btn.disabled=false;return;}
+      roleId=ins.data.id;
+    } else {
+      var up=await sb.from('roles').update({name:String(d.name).trim(),description:d.description||null}).eq('id',roleId);
+      if(up.error){toast(up.error.message||'Save failed',true);if(btn)btn.disabled=false;return;}
+    }
+    var del=await sb.from('role_permissions').delete().eq('role_id',roleId);
+    if(del.error){toast(del.error.message||'Save failed (permissions)',true);if(btn)btn.disabled=false;return;}
+    if(d.perms.length){
+      var insp=await sb.from('role_permissions').insert(d.perms.map(function(pid){return {role_id:roleId,permission_id:pid};}));
+      if(insp.error){toast(insp.error.message||'Save failed (permissions)',true);if(btn)btn.disabled=false;return;}
+    }
+    toast(MOPEN.isNew?'Role created':'Role saved'); MOPEN=null; await loadRBAC(); renderAll();
+  }catch(e){toast(String(e&&e.message||e),true);if(btn)btn.disabled=false;}
+}
+async function deleteRole(){
+  var d=MOPEN.draft;
+  if(d.is_system){toast('Built-in roles can\'t be deleted',true);return;}
+  var used=usedByCount(d.key);
+  if(!confirm('Delete the “'+d.name+'” role?'+(used?(' '+used+' people currently use it.'):'')))return;
+  var r=await sb.from('roles').delete().eq('id',d.id);
+  if(r.error){toast(r.error.message||'Delete failed',true);return;}
+  toast('Role deleted'); MOPEN=null; await loadRBAC(); renderAll();
 }
 
 /* ===== member modal ===== */
@@ -542,12 +727,16 @@ function renderModal(){
   if(MOPEN.type==='member'){host.innerHTML=memberModalHtml();wireMember(host);}
   else if(MOPEN.type==='store'){host.innerHTML=storeModalHtml();wireStore(host);}
   else if(MOPEN.type==='reg'){host.innerHTML=regModalHtml();wireReg(host);}
+  else if(MOPEN.type==='role'){host.innerHTML=roleModalHtml();wireRole(host);}
 }
 
 /* ===== wiring ===== */
 function initUI(){
   $('#tabStaff').onclick=function(){TAB='staff';SEARCH='';$('#staffSearch').value='';renderAll();};
   $('#tabLoc').onclick=function(){TAB='loc';SEARCH='';renderAll();};
+  $('#tabRoles').onclick=function(){TAB='roles';SEARCH='';renderAll();};
+  $('#addRole').onclick=openAddRole;
+  $all('#rpSeg button').forEach(function(b){b.onclick=function(){RP=b.getAttribute('data-rp');renderRoles();};});
   $('#staffSearch').addEventListener('input',function(){SEARCH=this.value;renderStaff();});
   $all('#rosterSeg button').forEach(function(b){b.onclick=function(){ROSTER=b.getAttribute('data-v');renderStaff();};});
   $('#addMember').onclick=openAddMember;

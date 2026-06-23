@@ -41,10 +41,16 @@ picking. The PIN attributes every action (checklists, tasks) to the right person
    the whole crew could lock everyone out. Proposed: raise to ~10 tries **and**
    auto-unlock after a few minutes instead of requiring a manager. *Owner has not
    confirmed yet.*
-2. **Role naming.** The `cpr-auth` function uses roles `owner` / `manager` /
-   `employee`, but the site nav (`nav.js`, `index.html`) uses `employee` / `admin`
-   / `owner`. Pick one vocabulary (Manager vs Admin) and standardize everywhere.
-   *Owner has not confirmed yet.*
+2. ~~**Role naming.**~~ **RESOLVED (2026-06-23).** The vocabulary is **Owner /
+   Admin / Team Member** (owner's choice: *Manager → Admin*, *Employee → Team
+   Member*). These three ship as **built-in** roles; the owner can add custom
+   roles and tick their permissions (see `permissions-design-handoff.md` and the
+   new Roles & Permissions tab). Still to reconcile in code: `cpr-auth` storage
+   values (`owner`/`manager`/`employee`) and `nav.js`'s `RANK` ladder
+   (`employee`/`admin`/`owner`) — these now map onto the role catalog. The
+   `staff.role` text column was **not** mass-migrated in this pass (it still
+   drives login + RLS); aligning those values to the new `roles.key`
+   (`owner`/`admin`/`team_member`) is a follow-up, tracked below.
 
 ## What already exists (no need to rebuild)
 

@@ -9,6 +9,16 @@
 > Scope chosen: **Full RBAC with groups, scoped by store location.**
 > Deliverable from design: screen layouts / flows we can then build against.
 
+> **Build status (2026-06-23).** Owner confirmed the role vocabulary as
+> **Owner / Admin / Team Member** (built-in), with the ability to add custom
+> roles and customize each role's permissions. **Now built:** the
+> `permissions` / `roles` / `role_permissions` tables (owner-only RLS), seeded
+> with the catalog below and the three built-in roles, **plus** the owner-only
+> **Roles & Permissions** tab in `settings.html` (Roles list + Role editor +
+> read-only Permissions catalog). **Deferred:** Groups (§5.4–5.5) and the
+> per-person *Access by location* grid (§5.6); per-store scoped grants and
+> wiring `staff.role` to the new catalog are follow-ups (see §9).
+
 ---
 
 ## 1. The one-sentence goal
@@ -56,10 +66,10 @@ Four building blocks. Read these top to bottom — each builds on the last.
    counts"* or *"Manage staff."* There's a fixed master list (people rarely add
    new ones; they're tied to what the tools can do).
 
-2. **Role** — a named bundle of permissions, e.g. **Manager** = {view cash, edit
-   cash, view claims, view commission, manage staff…}. Owners create and edit
-   roles by ticking which permissions belong to them. A few roles ship
-   pre-made (Owner, Manager, Shift Lead, Employee); owners can add custom ones.
+2. **Role** — a named bundle of permissions, e.g. **Admin** = {view cash, edit
+   cash, view claims, manage staff…}. Owners create and edit roles by ticking
+   which permissions belong to them. Three roles ship **built-in** — **Owner**,
+   **Admin**, **Team Member** — and owners can add custom ones.
 
 3. **Group** — a named bundle of **people** that carries role-grants, e.g.
    *"Eugene Managers"* = these 3 people, each gets the **Manager** role **at
@@ -117,12 +127,17 @@ real tools):
 - **Admin** — `settings.locations`, `settings.access` (assign people),
   `settings.roles` (edit roles/permissions/groups — the most powerful)
 
-**Seed roles** (illustrative):
-- **Owner** — everything, at All stores.
-- **Manager** — most things at their store: cash (view+admin), claims, staff
-  view/manage, orders, pricing, damage. Not `settings.roles`.
-- **Shift Lead** — cash view, orders, damage, pricing view.
-- **Employee** — cash view, pricing view, damage view, orders they run.
+**Built-in roles** (seeded — `roles.is_system = true`, with `roles.key`):
+- **Owner** (`owner`) — everything (all 16 permissions), at All stores.
+- **Admin** (`admin`) — most things at their store: cash (view+admin), claims,
+  staff view/manage, orders, pricing, damage, plus `settings.locations` and
+  `settings.access`. **Not** owner financials (`commission.view`,
+  `profit.view`) or `settings.roles`. (13 permissions.)
+- **Team Member** (`team_member`) — front-line: cash view, pricing view, damage
+  view, and the orders they run (Hyla / Jerry Ding / PO / consumption).
+  (7 permissions.)
+
+*Owner can add more (e.g. a "Shift Lead") as custom roles in the new tab.*
 
 ---
 
@@ -148,9 +163,9 @@ This is the heart of the handoff. The new **"Roles & Permissions" tab** has
 - Columns: **Role** (bold name) · **Description** (muted one-liner) ·
   **Permissions** (a count pill, e.g. "12") · **Used by** (count of people/groups
   using it, e.g. "4 people") · row action **Edit**.
-- Rows: Owner, Manager, Shift Lead, Employee (+ any custom).
-- **System roles** (Owner/Employee) show a small "Built-in" tag and can't be
-  deleted, only edited.
+- Rows: Owner, Admin, Team Member (+ any custom).
+- **Built-in roles** (Owner / Admin / Team Member) show a small "Built-in" tag
+  and can't be deleted, only edited. Custom roles show a "Custom" tag.
 - Top-right primary button: **+ New role** (red).
 
 **States to show:** normal list; a custom role with a "Custom" tag; empty state
@@ -162,7 +177,7 @@ text ("No custom roles yet").
 **Purpose:** define exactly what a role can do. **This is the most important
 screen** — get it clean and scannable.
 
-**Header:** "Edit role: Manager" + small description field.
+**Header:** "Edit role: Admin" + small description field.
 
 **Body — the permission picker:** the master permission list, **grouped by
 category** (Cash, Claims, Commission, Profit, Staff, Orders & Inventory,
@@ -329,6 +344,24 @@ information density.
 - Migrating the older parallel login system (engineering task, not design).
 - Audit logs / permission history (future).
 - Custom permission creation UI (future; catalog is read-only for now).
+
+### Follow-ups after the first build (2026-06-23)
+
+The Roles list, Role editor, and Permissions catalog (§5.1–5.3) are **built**.
+Still to do, in rough priority order:
+
+1. **Groups** (§5.4–5.5). Needs a new people-group schema — note the existing
+   `groups` / `group_members` tables are **product-ordering groups** (SKUs), so
+   RBAC groups must use distinct names (e.g. `access_groups`, `group_grants`).
+2. **Per-person "Access by location"** (§5.6) — `staff_roles` (scoped grants)
+   + the grid that replaces the single role field in the Team Member modal.
+3. **Wire `staff.role` to the catalog.** Today `staff.role` is free text
+   (`owner`/`manager`/`employee`) driving login + RLS; the Roles tab's "Used by"
+   count bridges it with an alias map (`manager→admin`, `employee→team_member`).
+   Migrate the column to the new `roles.key` values and update `cpr-auth`'s
+   `canManageRole` + `nav.js` `RANK` to read the catalog.
+4. **Enforce permissions in tools** via the `can(key)` model already stubbed in
+   `assets/auth.js` (effective perms resolved server-side per store).
 
 ---
 
