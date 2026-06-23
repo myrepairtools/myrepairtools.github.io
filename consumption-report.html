@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -387,7 +388,7 @@ tr.grp.open .chev{transform:rotate(90deg)}
       <thead><tr>
         <th>Group</th>
         <th class="ctr">SKUs</th>
-        <th class="ctr">Max</th>
+        <th class="ctr">Max / loc</th>
         <th>Manufacturer</th>
         <th>Model</th>
         <th>Part type</th>
@@ -430,6 +431,8 @@ var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
+/* GMAX[group_id][store] = per-location max stock for a part group */
+var GMAX={};
 /* kill-switch for the consignment-only flag. Set to true to instantly disable
    the action site-wide (it once coincided with a consumption_log wipe; root
    cause never confirmed, so this stays as a quick off-switch). */
@@ -447,6 +450,38 @@ async function loadGroups(){
   var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,position:x.position||0,members:[],manufacturer:x.manufacturer||null,model:x.model||null,part_type:x.part_type||null};});
   (m.data||[]).forEach(function(x){if(byId[x.group_id])byId[x.group_id].members.push({sku:x.sku,name:x.name});});
   GROUPS=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return a.position-b.position;});
+  // per-location max for each group (tolerant if the table doesn't exist yet)
+  GMAX={};
+  try{
+    var gm=await sb.from('group_store_max').select('group_id,store,max');
+    (gm.error?[]:(gm.data||[])).forEach(function(r){(GMAX[r.group_id]||(GMAX[r.group_id]={}))[r.store]=r.max;});
+  }catch(e){}
+}
+/* effective per-location max for a group (0 when nothing set for that store) */
+function effGroupMax(gid,store){var m=GMAX[gid];return (m&&m.hasOwnProperty(store))?(+m[store]||0):0;}
+/* compact per-location max summary for the Part Groups list (read-only) */
+function groupMaxSummaryHtml(gid){
+  var stores=(STATE.stores&&STATE.stores.length)?STATE.stores:[];
+  if(!stores.length)return '<span class="dash">—</span>';
+  var any=false;
+  var parts=stores.map(function(s){
+    var v=effGroupMax(gid,s), code=String(s).replace(/^CPR\s*/,'').slice(0,3);
+    if(v>0)any=true;
+    return '<span style="white-space:nowrap;font-family:Nunito,sans-serif;font-weight:800;color:'+(v>0?'var(--dark)':'var(--grey)')+'">'+esc(code)+' '+v+'</span>';
+  });
+  return any?parts.join('<span style="color:var(--grey)"> · </span>'):'<span class="dash">—</span>';
+}
+/* per-location max inputs for the edit modal */
+function maxByLocationCells(g){
+  var stores=(STATE.stores&&STATE.stores.length)?STATE.stores:[];
+  if(!stores.length)return '<span style="font-size:.8rem;color:var(--grey);font-weight:700">No locations configured.</span>';
+  return stores.map(function(s){
+    var v=effGroupMax(g.id,s);
+    return '<label style="display:flex;flex-direction:column;gap:4px;font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)">'
+      +esc(String(s).replace(/^CPR\s*/,''))
+      +'<input type="number" min="0" data-gmax="'+esc(s)+'" value="'+(v>0?v:'')+'" placeholder="0" style="width:104px;font-size:.95rem;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:Nunito Sans,sans-serif;font-weight:700">'
+      +'</label>';
+  }).join('');
 }
 async function saveGroups(){
   for(var i=0;i<GROUPS.length;i++){var g=GROUPS[i];
@@ -568,10 +603,11 @@ function buildRows(){
     });
     var pref=g.def||(g.members[0]&&g.members[0].sku)||'';
     var blocked=stop.indexOf(pref)>-1;
+    var gmx=effGroupMax(g.id,STATE.store);
     rows.push({type:'group',gid:g.id,name:g.name,used:used2,
-      instock:instock,onorder:onorder,max:g.max,usedSkus:usedSkus,stop:blocked,
+      instock:instock,onorder:onorder,max:gmx,usedSkus:usedSkus,stop:blocked,
       claimElig:cElig,flagSku:pref,
-      suggest:blocked?0:Math.max(0,g.max-instock-onorder),orderSku:pref,members:members});
+      suggest:blocked?0:Math.max(0,gmx-instock-onorder),orderSku:pref,members:members});
   });
   var keyOf=function(r){return r.type==='group'?('g:'+r.gid):r.sku;};
   if(ORDER){
@@ -657,7 +693,7 @@ function wireMaxEdit(scope){
       var done=false;
       async function commit(save){if(done)return;done=true;
         if(save){var v=Math.max(0,parseInt(inp.value,10)||0);
-          if(kind==='gid'){await sb.from('groups').update({max:v}).eq('id',key);}
+          if(kind==='gid'){await sb.from('group_store_max').upsert({group_id:key,store:STATE.store,max:v},{onConflict:'group_id,store'});}
           else{await sb.from('max_overrides').upsert({store:STATE.store,sku:key,value:v});}}
         await loadAll();}
       var inp=document.createElement('input');inp.type='number';inp.min='0';inp.className='maxinput';inp.value=(cur==='—'?'':cur);
@@ -688,7 +724,7 @@ function renderStock(){
   });
   GROUPS.forEach(function(g){
     var instock=0,onorder=0,cElig=null;g.members.forEach(function(m){var s=SNAP[m.sku]||{instock:0,onorder:0};instock+=s.instock;onorder+=s.onorder;if(claimRep.hasOwnProperty(m.sku))cElig=(cElig||0)+claimRep[m.sku];});
-    list.push({type:'group',gid:g.id,name:g.name,instock:instock,onorder:onorder,max:g.max,members:g.members.length,claimElig:cElig,flagSku:(g.def||(g.members[0]&&g.members[0].sku)||'')});
+    list.push({type:'group',gid:g.id,name:g.name,instock:instock,onorder:onorder,max:effGroupMax(g.id,STATE.store),members:g.members.length,claimElig:cElig,flagSku:(g.def||(g.members[0]&&g.members[0].sku)||'')});
   });
   list=list.filter(function(r){return !q||((r.type==='group'?'':r.sku)+' '+r.name).toLowerCase().indexOf(q)>-1;});
   list.sort(function(a,b){return a.name.localeCompare(b.name);});
@@ -949,7 +985,6 @@ function editModalHtml(g){
     +'<div class="emodal" role="dialog" aria-modal="true">'
       +'<div class="emodal-hd">'
         +'<input class="gname" value="'+esc(g.name)+'" data-gn placeholder="Group name">'
-        +'<label class="gmax">Max <input type="number" min="0" value="'+g.max+'" data-gm></label>'
         +'<button class="emodal-x" data-mclose title="Close">×</button>'
       +'</div>'
       +'<div class="emodal-top">'
@@ -965,6 +1000,10 @@ function editModalHtml(g){
           +'<div class="msdrop hide" id="msDrop"></div>'
         +'</div>'
         +'<div class="empooled"><span class="epl">Pooled SKUs</span><span class="epn">'+g.members.length+'</span></div>'
+      +'</div>'
+      +'<div class="emaxloc" style="margin:2px 0 0;border-top:1px solid var(--border);padding-top:12px">'
+        +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin-bottom:8px">Max stock by location</div>'
+        +'<div style="display:flex;gap:10px;flex-wrap:wrap">'+maxByLocationCells(g)+'</div>'
       +'</div>'
       +'<div class="emodal-list"><ul class="mlist">'+mh+'</ul></div>'
       +'<div class="emodal-ft">'
@@ -1007,7 +1046,7 @@ function renderTable(){
         +' <span class="poolbadge">⬡ '+g.members.length+'</span>'+miss+'</span>'
         +'<div class="defsub">'+def+'</div></td>'
       +'<td class="ctr">'+g.members.length+'</td>'
-      +'<td class="ctr">'+maxCell('gid',g.id,g.max)+'</td>'
+      +'<td class="ctr">'+groupMaxSummaryHtml(g.id)+'</td>'
       +'<td class="attrc">'+(g.manufacturer?esc(g.manufacturer):dash)+'</td>'
       +'<td class="attrc strong">'+(g.model?esc(g.model):dash)+'</td>'
       +'<td class="attrc">'+(g.part_type?esc(g.part_type):dash)+'</td>'
@@ -1038,7 +1077,13 @@ function closeModal(){MOPEN=null;renderEditModal();}
 function wireEditModal(host,g){
   host.querySelectorAll('[data-mclose],[data-mdone]').forEach(function(b){b.addEventListener('click',closeModal);});
   host.querySelector('[data-gn]').addEventListener('change',async function(){g.name=this.value;await persistGroups();refreshModal();});
-  host.querySelector('[data-gm]').addEventListener('change',async function(){g.max=+this.value||0;await persistGroups();refreshModal();});
+  host.querySelectorAll('[data-gmax]').forEach(function(inp){inp.addEventListener('change',async function(){
+    var store=inp.getAttribute('data-gmax'), v=Math.max(0,parseInt(inp.value,10)||0);
+    var r=await sb.from('group_store_max').upsert({group_id:g.id,store:store,max:v},{onConflict:'group_id,store'});
+    if(r&&r.error){alert('Save failed: '+r.error.message);return;}
+    (GMAX[g.id]||(GMAX[g.id]={}))[store]=v;
+    refreshModal();
+  });});
   host.querySelector('[data-delgrp]').addEventListener('click',async function(){
     if(!confirm('Delete this part group?'))return;
     GROUPS=GROUPS.filter(function(x){return x.id!==g.id;});if(GOPEN===g.id)GOPEN=null;MOPEN=null;
