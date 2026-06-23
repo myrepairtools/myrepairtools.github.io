@@ -3,17 +3,19 @@
 -- Branch: claude/auth-roles-permissions-design-5yz462
 -- Supabase project: xuvsehrevxackuhmbmry
 --
--- RUN THIS ONLY AS PART OF THE COORDINATED RELEASE:
---   1. Deploy the updated cpr-auth Edge Function (caller() accepts owner|admin;
---      canManageRole() targets team_member).
---   2. Run this script (is_admin gate + data rename).
---   3. Merge the front-end changes to main so the live site uses the new names.
--- Doing any one of these alone will break admin login / cash-admin / staff mgmt.
+-- BACKEND PREP DONE (2026-06-23): the cpr-auth Edge Function (v15) and
+-- is_admin() are already BILINGUAL — they accept both the legacy
+-- (manager/employee) and new (admin/team_member) role names. So the only
+-- remaining live step is the data rename below + merging the front-end to
+-- main. Because the backend is bilingual, the data rename no longer breaks
+-- the backend; it only desyncs the OLD front-end on main (which filters on
+-- 'manager'), so still run it together with the main merge.
 --
 -- Reversible: re-run with the values swapped back if needed.
 -- ============================================================
 
--- 1) RLS gate for Cash Admin writes: manager -> admin --------------------
+-- is_admin() is already bilingual in the DB (manager+admin+owner). Kept here
+-- for reference; re-running is a no-op:
 create or replace function public.is_admin(target text default null::text)
  returns boolean
  language sql
@@ -23,13 +25,13 @@ as $function$
   select exists (
     select 1 from staff s
     where s.auth_uid = auth.uid() and s.active
-      and s.role in ('admin','owner')
+      and s.role in ('manager','admin','owner')
       and ( s.role = 'owner' or target is null
             or target = any(s.authorized_stores) or target = s.home_store )
   );
 $function$;
 
--- 2) Migrate the stored role values (owner is unchanged) -----------------
+-- THE REMAINING LIVE STEP — migrate stored role values (owner unchanged) --
 update public.staff set role = 'admin'        where role = 'manager';
 update public.staff set role = 'team_member'  where role = 'employee';
 

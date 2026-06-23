@@ -60,9 +60,15 @@ picking. The PIN attributes every action (checklists, tasks) to the right person
    - Supabase-stack front-end updated: `settings.html`, `cash-admin.html`
      (+ `assets/` dup). `cash-tracker` / `consumption-report` / `login-test`
      only key on `owner`, so unchanged.
-   - **Blocking the live cutover:** redeploy `cpr-auth` so `caller()` accepts
-     `owner|admin` and `canManageRole()` targets `team_member`. Owner is
-     supplying the original source for a clean redeploy.
+   - **Backend prep DONE (2026-06-23):** `cpr-auth` redeployed **v15** —
+     `caller()` accepts `owner|manager|admin`, `canManageRole()` targets
+     `employee|team_member` — and `is_admin()` made bilingual
+     (`manager+admin+owner`). Both additive, verified (owner login +
+     `list_staff_admin` clean), v14 rollback available. Source now
+     version-controlled at `supabase/functions/cpr-auth/index.ts`.
+   - **Remaining live step:** run the data rename in the cutover SQL **and**
+     merge the front-end to `main`, together (the bilingual backend no longer
+     breaks; only the old `main` front-end filters on `manager`).
    - **Scope boundary:** `staff-management.html` + `employee-records.html` run on
      the **older Apps Script backend** (`CPRGate`) — a separate role store, **out
      of scope** for this Supabase cutover.
