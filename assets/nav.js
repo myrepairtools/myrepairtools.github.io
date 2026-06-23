@@ -92,6 +92,16 @@
   .cpr-rail .cpr-collapse{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:6px; opacity:.7; }
   .cpr-rail .cpr-collapse:hover{ background:rgba(255,255,255,.12); opacity:1; }
 
+  /* collapsed flyout — hover an area icon to reach its tools without expanding */
+  .cpr-flyout{ position:fixed; left:calc(var(--cpr-rail-w) + 6px); width:224px; background:#fff;
+    border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 14px 34px rgba(45,45,59,.20);
+    z-index:1002; padding:6px 0; display:none; }
+  .cpr-flyout.show{ display:block; }
+  .cpr-flyout .cpr-fly-hd{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:9px 16px 5px; }
+  .cpr-flyout .cpr-fly-lock{ display:flex; gap:9px; align-items:flex-start; padding:4px 14px 6px; font-size:.74rem; color:#4E4E50; line-height:1.35; }
+  .cpr-flyout .cpr-fly-lock .pad{ font-size:.95rem; line-height:1; }
+  @media(max-width:859px){ .cpr-flyout{ display:none !important; } }
+
   /* menu pane */
   .cpr-pane{ position:fixed; top:0; left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
     background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; transition:transform .2s ease; }
@@ -206,6 +216,26 @@
       + '<div class="cpr-unlocked-hd"><span class="cpr-pill"><span class="dot"></span> '+esc(roleLabel)+(name?(' · '+esc(name)):'')+'</span>'
       +   '<button class="cpr-lockbtn" data-act="lock">Lock</button></div>'
       + links + '<div class="cpr-spacer"></div>' + gear;
+  }
+
+  // build the contents of the collapsed-rail hover flyout for an area
+  function flyoutLinksHtml(area){
+    if (area === 'ops'){
+      return '<div class="cpr-fly-hd">Operations</div>'
+        + OPERATIONS.map(function(t){ return linkHtml(t); }).join('');
+    }
+    // admin area
+    var r = rank();
+    if (r < RANK.admin){
+      return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
+        + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>Owner &amp; manager tools are locked. Unlock to access them.</div></div>'
+        + '<div style="padding:2px 12px 8px"><button class="cpr-btn red" data-act="flyout-unlock">Unlock</button></div>';
+    }
+    var links = PRIVILEGED.filter(function(t){ return r >= RANK[t.minRole]; })
+      .map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
+    var gear = (currentRole()==='owner')
+      ? '<a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>' : '';
+    return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links + gear;
   }
 
   function paneInner(area){
@@ -337,12 +367,41 @@
     updateCollapseBtn();
     if (collapseBtn) collapseBtn.onclick = function(){ setCollapsed(!collapsed); };
 
+    // ── collapsed flyout: hover an area icon to reach its tools ──────────
+    var flyout = document.createElement('div'); flyout.className = 'cpr-flyout';
+    document.body.appendChild(flyout);
+    var flyHideT = null;
+    function wireFlyout(){
+      var ub = flyout.querySelector('[data-act="flyout-unlock"]');
+      if (ub) ub.onclick = function(){ flyout.classList.remove('show'); setCollapsed(false); setArea('admin'); };
+    }
+    function showFlyout(area, btn){
+      if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
+      if (area !== 'ops' && area !== 'admin') return;
+      clearTimeout(flyHideT);
+      flyout.innerHTML = flyoutLinksHtml(area);
+      flyout.classList.add('show');
+      var rect = btn.getBoundingClientRect();
+      var top = Math.max(8, Math.min(rect.top - 4, window.innerHeight - flyout.offsetHeight - 8));
+      flyout.style.top = top + 'px';
+      wireFlyout();
+    }
+    function hideFlyoutSoon(){ clearTimeout(flyHideT); flyHideT = setTimeout(function(){ flyout.classList.remove('show'); }, 200); }
+    flyout.addEventListener('mouseenter', function(){ clearTimeout(flyHideT); });
+    flyout.addEventListener('mouseleave', hideFlyoutSoon);
+
     rail.querySelectorAll('.cpr-areabtn').forEach(function(b){
       b.onclick = function(){
+        flyout.classList.remove('show');
         setArea(b.getAttribute('data-area'));
         if (window.innerWidth < 860){ pane.classList.add('open'); scrim.classList.add('show'); }
         else if (collapsed){ setCollapsed(false); }   // expand to reveal the area's tools
       };
+      var area = b.getAttribute('data-area');
+      if (area){
+        b.addEventListener('mouseenter', function(){ showFlyout(area, b); });
+        b.addEventListener('mouseleave', hideFlyoutSoon);
+      }
     });
 
     wirePriv();
@@ -351,7 +410,7 @@
     function closeMenu(){ pane.classList.remove('open'); scrim.classList.remove('show'); }
     burger.onclick = function(){ var open = pane.classList.toggle('open'); scrim.classList.toggle('show', open); };
     scrim.onclick = closeMenu;
-    window.addEventListener('resize', function(){ if (window.innerWidth >= 860){ closeMenu(); } });
+    window.addEventListener('resize', function(){ flyout.classList.remove('show'); if (window.innerWidth >= 860){ closeMenu(); } });
 
     ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){
       window.addEventListener(ev, throttle(touchAuth, 5000), { passive:true });
