@@ -189,7 +189,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { first_name, last_name, username, role, home_store, authorized_stores, pin } = body;
+    const { first_name, last_name, username, role, home_store, authorized_stores, pin, title, start_date, hr_status } = body;
     const newRole = role ?? "employee";
     if (!canManageRole(c.role, newRole)) return json({
       error: "managers can only create employees"
@@ -217,6 +217,9 @@ Deno.serve(async (req)=>{
       home_store,
       authorized_stores: authorized_stores ?? [],
       pin_hash,
+      title: title ?? null,
+      start_date: start_date || null,
+      hr_status: hr_status ?? "active",
       active: true
     });
     if (ie) {
@@ -236,7 +239,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { staff_id, first_name, last_name, username, role, home_store, authorized_stores, active } = body;
+    const { staff_id, first_name, last_name, username, role, home_store, authorized_stores, active, title, start_date, hr_status, notes, archived } = body;
     if (!staff_id) return json({
       error: "missing staff_id"
     }, 400);
@@ -258,6 +261,11 @@ Deno.serve(async (req)=>{
     if (home_store != null) patch.home_store = home_store;
     if (authorized_stores != null) patch.authorized_stores = authorized_stores;
     if (active != null) patch.active = active;
+    if (title != null) patch.title = title;
+    if (start_date != null) patch.start_date = start_date || null;
+    if (hr_status != null) patch.hr_status = hr_status;
+    if (notes != null) patch.notes = notes;
+    if (archived != null) patch.archived = archived;
     if (first_name != null || last_name != null || username != null) {
       patch.display_name = displayFrom(first_name ?? target.first_name, last_name ?? target.last_name, username ?? target.username);
     }

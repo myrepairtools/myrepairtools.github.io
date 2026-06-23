@@ -45,6 +45,11 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .arch-btn{width:100%;font-family:'Nunito';font-weight:800;font-size:.74rem;border:1.5px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;background:#fff;color:var(--dark-grey)}
 .arch-btn:hover{border-color:var(--grey)}
 .arch-btn.on{border-color:var(--blue);color:var(--blue);background:#EAF6FD}
+.emp-addrow{flex:none;padding:0 12px 11px;border-bottom:1px solid var(--border)}
+.addbtn{width:100%;font-family:'Nunito';font-weight:800;font-size:.78rem;border:none;border-radius:8px;padding:9px;cursor:pointer;background:var(--red);color:#fff}
+.addbtn:hover{background:var(--light-red)}
+.kebab{flex:none;border:none;background:none;color:var(--grey);font-size:1.05rem;line-height:1;cursor:pointer;padding:3px 5px;border-radius:6px;margin-left:2px}
+.kebab:hover{background:#E7EBF2;color:var(--dark)}
 
 /* ----- main ----- */
 .erec-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--light-grey)}
@@ -195,6 +200,7 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
 <div id="app" class="erec-root" hidden>
   <aside class="emp-pane" id="empPane">
     <div class="emp-hd"><span class="ttl head">Employees</span><span class="pill-sync">&#10003; Synced</span></div>
+    <div class="emp-addrow"><button id="addPersonBtn" class="addbtn">+ Add employee</button></div>
     <div class="emp-search-wrap"><input id="empSearch" class="emp-search" placeholder="🔍  Search name or role…"></div>
     <div class="emp-list" id="empList"></div>
     <div class="emp-foot"><button id="archBtn" class="arch-btn">Show archived</button></div>
@@ -272,6 +278,14 @@ let ALL=[], EMPLOYEES=[], DMG_BYNAME={};
 const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',catF:'all',sortNewest:true,empSearch:'',logRange:'all',dmgRange:'all',showArchived:false,mDetail:false};
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
+/* staff CRUD carries the authenticated session bearer (caller() requires owner/admin) */
+async function authFn(body){
+  const sess=(await sb.auth.getSession()).data.session;
+  const tok=sess?sess.access_token:ANON;
+  const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));
+  return {status:r.status,data:d};
+}
 
 /* ===== auth (PIN only) ===== */
 async function doLogin(){
@@ -310,7 +324,7 @@ async function initAuth(){
 /* ===== data load ===== */
 async function load(){
   const [stRes,enRes,piRes]=await Promise.all([
-    sb.from('staff').select('id,display_name,title,role,home_store,authorized_stores,start_date,hr_status,archived,active'),
+    sb.from('staff').select('id,display_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
   ]);
@@ -318,7 +332,9 @@ async function load(){
   const byId={};
   (stRes.data||[]).forEach(s=>{byId[s.id]={
     id:s.id,name:s.display_name,role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
-    start:isoOf(s.start_date),archived:!!s.archived||s.active===false,onPip:false,entries:[],pips:[]
+    title:s.title||'',roleLevel:s.role,homeStore:s.home_store,first:s.first_name||'',last:s.last_name||'',
+    username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',
+    start:isoOf(s.start_date),archived:!!s.archived||s.active===false,active:s.active!==false,onPip:false,entries:[],pips:[]
   };});
   (enRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
     e.entries.push({id:r.id,date:isoOf(r.entry_date),incidentDate:isoOf(r.incident_date||r.entry_date),
@@ -391,7 +407,8 @@ function renderEmpList(){
         +'<div style="min-width:0;flex:1"><div class="nm">'+esc(e.name)+'</div><div class="rl">'+esc(e.role)+'</div></div>'
         +(recentIncident?'<span class="dot7" style="background:var(--red)" title="Recent incident (90 days)"></span>':'')
         +(e.onPip?'<span class="dot7" style="background:var(--amber)" title="On PIP"></span>':'')
-        +'<span class="cnt">'+e.entries.length+'</span></div>';
+        +'<span class="cnt">'+e.entries.length+'</span>'
+        +'<button class="kebab" data-editperson="'+esc(e.id)+'" title="Edit person" aria-label="Edit person">&#8942;</button></div>';
     });
   });
   $('#empList').innerHTML=html;
@@ -702,6 +719,64 @@ function openCheckinEditor(p){
   };
 }
 
+/* ----- add / edit a person (account + HR via cpr-auth) ----- */
+function personStores(){const s=[...new Set(ALL.map(e=>e.homeStore).filter(Boolean))];return s.length?s:['CPR Eugene','CPR Salem Northeast','CPR Clackamas'];}
+function openPersonEditor(emp){
+  const isNew=!emp;emp=emp||{};
+  const storeOpts=personStores().map(s=>'<option value="'+esc(s)+'"'+(s===emp.homeStore?' selected':'')+'>'+esc(stripStore(s))+'</option>').join('');
+  const roleOpts=[['employee','Team Member'],['admin','Admin']].map(r=>'<option value="'+r[0]+'"'+(r[0]===(emp.roleLevel||'employee')?' selected':'')+'>'+r[1]+'</option>').join('');
+  const curStatus=emp.archived?'terminated':(emp.hrStatus||'active');
+  const statusOpts=[['active','Active'],['notice','On notice'],['terminated','Terminated']].map(s=>'<option value="'+s[0]+'"'+(s[0]===curStatus?' selected':'')+'>'+s[1]+'</option>').join('');
+  modal(
+    '<h2>'+(isNew?'Add employee':'Edit '+esc(emp.name))+'</h2>'
+    +(isNew?'<div class="msub">Creates a login (PIN) and a records profile.</div>':'')
+    +'<div class="frow">'+field('First name','<input id="p_first" class="fin" value="'+esc(emp.first||'')+'">')+field('Last name','<input id="p_last" class="fin" value="'+esc(emp.last||'')+'">')+'</div>'
+    +'<div class="frow">'+field('Store','<select id="p_store" class="fin">'+storeOpts+'</select>')+field('Job title','<input id="p_title" class="fin" value="'+esc(emp.title||'')+'" placeholder="e.g. Repair Technician">')+'</div>'
+    +'<div class="frow">'+field('Start date','<input id="p_start" type="date" class="fin" value="'+esc(emp.start||'')+'">')+field('Access level','<select id="p_role" class="fin">'+roleOpts+'</select>')+'</div>'
+    +(isNew
+      ? field('PIN','<input id="p_pin" class="fin" inputmode="numeric" autocomplete="off" placeholder="unique per person">')
+      : field('Employment status','<select id="p_status" class="fin">'+statusOpts+'</select>')+field('Notes','<textarea id="p_notes" class="fin">'+esc(emp.notes||'')+'</textarea>'))
+    +'<div class="mactions">'
+    +(isNew?'':'<button class="btn-o" id="p_arch" style="margin-right:auto">'+(emp.archived?'Restore':'Archive')+'</button>')
+    +'<button class="btn-o" data-close>Cancel</button><button class="btn-red" id="p_psave">'+(isNew?'Create employee':'Save changes')+'</button></div>'
+  );
+  $('#p_psave').onclick=()=>savePerson(isNew?null:emp);
+  if(!isNew&&$('#p_arch'))$('#p_arch').onclick=()=>archivePerson(emp,!emp.archived);
+}
+async function savePerson(emp){
+  const v=i=>$('#'+i);
+  const first=v('p_first').value.trim(),last=v('p_last').value.trim();
+  const home=v('p_store').value,title=v('p_title').value.trim(),start=v('p_start').value,role=v('p_role').value;
+  if(!first&&!last){toast('Enter a name',true);return;}
+  v('p_psave').disabled=true;
+  if(!emp){
+    const pin=v('p_pin').value.trim();
+    if(!pin){toast('Set a PIN',true);v('p_psave').disabled=false;return;}
+    const base=((first[0]||'')+last).toLowerCase().replace(/[^a-z0-9]/g,'')||('user'+Date.now().toString(36));
+    let res=null;
+    for(let n=0;n<6;n++){
+      res=await authFn({action:'create_staff',first_name:first,last_name:last,username:base+(n?String(n+1):''),
+        role,home_store:home,authorized_stores:[home],pin,title,start_date:start});
+      if(res.status===200&&res.data.ok)break;
+      if(!/taken/i.test(res.data.error||''))break;
+    }
+    if(!(res&&res.status===200&&res.data.ok)){toast((res&&res.data.error)||'Could not create employee',true);v('p_psave').disabled=false;return;}
+    closeModal();toast('Employee added');await load();
+  }else{
+    const status=v('p_status').value,notes=v('p_notes').value.trim();
+    const archived=status==='terminated',active=status!=='terminated';
+    const res=await authFn({action:'update_staff',staff_id:emp.id,first_name:first,last_name:last,
+      home_store:home,role,title,start_date:start,hr_status:status,notes,archived,active});
+    if(!(res.status===200&&res.data.ok)){toast(res.data.error||'Could not save',true);v('p_psave').disabled=false;return;}
+    closeModal();toast('Saved');await load();
+  }
+}
+async function archivePerson(emp,arch){
+  const res=await authFn({action:'update_staff',staff_id:emp.id,archived:arch,active:!arch,hr_status:arch?'terminated':'active'});
+  if(!(res.status===200&&res.data.ok)){toast(res.data.error||'Could not update',true);return;}
+  closeModal();toast(arch?'Archived':'Restored');await load();
+}
+
 /* ----- download (printable .html) ----- */
 function slug(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'document';}
 function docShell(title,body){return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Arial,Helvetica,sans-serif;max-width:720px;margin:40px auto;padding:0 24px;color:#2D2D3B;line-height:1.55}h1{font-size:1.55rem;margin:.2em 0}h3{text-transform:uppercase;font-size:.78rem;letter-spacing:.5px;color:#4E4E50;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:24px}.meta{color:#666;font-size:.85rem;margin:2px 0}.goal{border-left:3px solid #4FB0E3;padding:4px 10px;margin:6px 0;background:#f6f8fb}</style></head><body>'+body+'</body></html>';}
@@ -822,7 +897,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 /* ===== events (delegated on stable parents) ===== */
 $('#empSearch').addEventListener('input',e=>{S.empSearch=e.target.value;renderEmpList();});
 $('#archBtn').addEventListener('click',()=>{S.showArchived=!S.showArchived;$('#archBtn').classList.toggle('on',S.showArchived);$('#archBtn').textContent=S.showArchived?'Hide archived':'Show archived';refilter();if(!EMPLOYEES.find(x=>x.id===S.empId))selectFirst();render();});
-$('#empList').addEventListener('click',e=>{const row=e.target.closest('[data-emp]');if(!row)return;
+$('#addPersonBtn').addEventListener('click',()=>openPersonEditor(null));
+$('#empList').addEventListener('click',e=>{
+  const kb=e.target.closest('[data-editperson]');
+  if(kb){const emp=ALL.find(x=>String(x.id)===String(kb.dataset.editperson));if(emp)openPersonEditor(emp);return;}
+  const row=e.target.closest('[data-emp]');if(!row)return;
   const raw=row.dataset.emp,id=(raw!==''&&!isNaN(+raw))?+raw:raw;
   const emp=ALL.find(x=>String(x.id)===String(id));S.empId=emp?emp.id:id;syncSel(emp);S.mDetail=false;render();
   if(window.innerWidth<=620)$('#empPane').classList.remove('show');});
