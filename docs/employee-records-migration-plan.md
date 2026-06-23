@@ -5,6 +5,25 @@
 > `staff-management.html` afterward. This doc is the concrete plan to do that.
 > Branch: `claude/auth-roles-permissions-design-5yz462`.
 
+## 0. Decisions locked (2026-06-23, with owner)
+
+- **Everyone is a `staff` row.** With PIN-only login, every active person signs
+  in with a PIN and is on the roster. Terminated staff remain as **archived**
+  rows (no active login) so their records persist. No blank-passcode "roster
+  only" people anymore.
+- **Migrate all history** — every entry/PIP, including terminated staff.
+- **Visibility is store-scoped:** Owner → everyone. **Admin → only Team Member
+  staff at the store(s) the admin manages.** Admins do **not** see other admins
+  or the owner in records. Team Members → no records access.
+- **"Stores an admin manages" = the admin's `authorized_stores`** (which always
+  includes `home_store`). Reuses the field Settings already manages — no new
+  "manager-of-store" concept. A Team Member is visible if their `home_store` or
+  any of their `authorized_stores` overlaps the admin's `authorized_stores`.
+- **Sequencing:** the staff.role hard cutover (`admin`/`team_member`) is a
+  separate gated live release. The records **schema below is additive/safe** and
+  uses role-tolerant RLS (accepts `admin`+`manager`, `team_member`+`employee`),
+  so it can land before or after the cutover.
+
 ## 1. Where things stand today (the legacy stack)
 
 `employee-records.html` is a hand-authored HR tool that reads from **two
@@ -75,16 +94,43 @@ create index on public.staff_entries(staff_id);
 create index on public.staff_pips(staff_id);
 ```
 
-### 2c. RLS (mirror the legacy hierarchy)
-Legacy visibility: **owner → everyone; admin → only `employee` (now
-`team_member`) records; employee → none.** Encode that for both tables:
+### 2c. RLS — store-scoped, via a SECURITY DEFINER helper
+The visibility check must read **other people's** `staff` rows, but `staff` RLS
+is `staff_self_read` (you only see your own row). So the check lives in a
+`SECURITY DEFINER` helper (same pattern as `is_admin()`):
 ```sql
--- read/write if I'm owner, OR I'm admin and the target staff is team_member.
--- (writes additionally require an authenticated session; helpers reuse the
---  staff/auth_uid join already used by stores_write / is_admin.)
+create or replace function public.can_see_staff(target bigint)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from staff me
+    where me.auth_uid = auth.uid() and me.active and (
+      me.role = 'owner'
+      or ( me.role in ('admin','manager')        -- role-tolerant during cutover
+           and exists (
+             select 1 from staff tgt
+             where tgt.id = target
+               and tgt.role in ('team_member','employee')
+               and ( tgt.home_store = any(me.authorized_stores)
+                     or tgt.authorized_stores && me.authorized_stores )
+           ) )
+    )
+  );
+$$;
 ```
-Depends on the **staff.role hard cutover** landing first (so "admin" +
-"team_member" are the real values).
+Then both coaching tables gate read **and** write on it:
+```sql
+create policy staff_entries_rw on staff_entries for all
+  using (public.can_see_staff(staff_id)) with check (public.can_see_staff(staff_id));
+create policy staff_pips_rw on staff_pips for all
+  using (public.can_see_staff(staff_id)) with check (public.can_see_staff(staff_id));
+```
+And `staff` gains an additive supervisor-read policy (so the records page can
+read HR fields for the people it's allowed to see), alongside `staff_self_read`:
+```sql
+create policy staff_supervisor_read on staff for select using (public.can_see_staff(id));
+```
+The roster *names* are non-secret (already exposed via the public `staff_roster`
+view); the sensitive coaching data is what `can_see_staff` protects.
 
 ## 3. Data migration (one-time)
 
@@ -142,16 +188,13 @@ Its roster CRUD is already replaced by **Settings → Team Members** (Supabase)
 4. **Retire `staff-management.html`** (§5).
 5. **Decommission** the Apps Script Employee Records backend + CPR Auth roster.
 
-## 7. Dependencies & open questions
+## 7. Dependencies & resolved questions
 
-- **Depends on the staff.role hard cutover** (admin/team_member) for the RLS
-  hierarchy — do that first, or the records RLS keys off the wrong values.
-- **Account vs. roster identity.** Not every legacy roster person has a Supabase
-  `staff` row / `auth_uid`. Decide: do non-login staff (passcode blank) get a
-  `staff` row (so they can hold coaching records) even though they never sign
-  in? Likely **yes** — `staff.active`/`pin_hash` already allow a roster-only
-  person.
-- **History fidelity.** Migrate *all* historical entries/PIPs, or only active
-  staff? (Recommend all, for the record.)
-- **Who can see records.** Confirm the admin→team_member visibility rule still
-  matches how the owner wants it (admins seeing front-line staff records only).
+- **staff.role hard cutover** — RLS is written role-tolerant, so the schema
+  doesn't block on it; but the cutover should still ship so the data is clean.
+- ~~Account vs. roster identity~~ → **Everyone gets a `staff` row.** PIN-only
+  login means all active staff are on the roster; terminated staff are archived
+  rows (records persist).
+- ~~History fidelity~~ → **Migrate all** entries/PIPs, including terminated staff.
+- ~~Who can see records~~ → **Owner: everyone. Admin: only Team Members at the
+  store(s) in the admin's `authorized_stores`.** Encoded in `can_see_staff()`.
