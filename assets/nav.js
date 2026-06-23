@@ -8,11 +8,13 @@
   'use strict';
   if (window.self !== window.top) return;   // skip inside iframes
 
-  var NAV_AUTH = {
-    url: 'https://script.google.com/macros/s/AKfycbz-QLDZVZZPeHzs1ScSkx9cs59bbi2NS6k8f_rf7avFWW07Mx8wlS96XrC1yE8z2fCj/exec',
-    token: 'a3f1c8e90b2d4f6a8c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d',
-    idleMinutes: 15
-  };
+  // Single sign-on: role comes from the shared Supabase PIN session (same
+  // session the pages use), so one PIN unlock covers the nav and every page.
+  var SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
+  var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+  var SB_FN   = SB_URL + '/functions/v1/cpr-auth';
+  var sbClient = null, sbReady = null;
+  var NAV_ROLE = null, NAV_NAME = '';
   var HOME = 'index.html';
 
   var OPERATIONS = [
@@ -34,34 +36,50 @@
     { label:'Staff Management', url:'staff-management.html',      icon:'👥', minRole:'owner' }
   ];
 
-  var RANK = { none:0, employee:1, admin:2, owner:3 };
-  var AUTH_KEY = 'cprNavAuth';
+  var RANK = { none:0, employee:1, team_member:1, manager:2, admin:2, owner:3 };
   var COLLAPSE_KEY = 'cprNavCollapsed';   // desktop: menu pane collapsed to icon rail
   var collapsed = false;
-  var IDLE_MS = NAV_AUTH.idleMinutes * 60 * 1000;
 
   var currentFile = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
   var ON_HOME = (currentFile === '' || currentFile === 'index.html' ||
                  currentFile === 'operations.html' || currentFile === 'admin.html');
 
-  // ── AUTH STATE (unchanged) ───────────────────────────────────────────
-  function readAuth(){
-    try {
-      var raw = localStorage.getItem(AUTH_KEY); if (!raw) return null;
-      var a = JSON.parse(raw);
-      if (!a || !a.role) return null;
-      if (Date.now() - (a.last || 0) > IDLE_MS) { localStorage.removeItem(AUTH_KEY); return null; }
-      return a;
-    } catch(_) { return null; }
+  // ── AUTH STATE (Supabase PIN session — single sign-on) ───────────────
+  function loadSB(){
+    if (sbReady) return sbReady;
+    sbReady = import('https://esm.sh/@supabase/supabase-js@2')
+      .then(function(m){ sbClient = m.createClient(SB_URL, SB_ANON); return sbClient; })
+      .catch(function(){ sbClient = null; return null; });
+    return sbReady;
   }
-  function writeAuth(role, name){ try { localStorage.setItem(AUTH_KEY, JSON.stringify({ role:role, name:name||'', last:Date.now() })); } catch(_){} }
-  function touchAuth(){ var a = readAuth(); if (a) writeAuth(a.role, a.name); }
-  function clearAuth(){ try { localStorage.removeItem(AUTH_KEY); } catch(_){} }
-  function currentRole(){ var a = readAuth(); return a ? a.role : null; }
-  function rank(){ return RANK[currentRole()] || 0; }
+  function navDevice(){ try { var d = localStorage.getItem('cpr_device_id'); if (!d){ d = 'dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('cpr_device_id', d); } return d; } catch(_){ return 'dev-x'; } }
+  function normRole(r){ return r === 'manager' ? 'admin' : (r || null); }   // legacy manager ranks as admin
+  function currentRole(){ return NAV_ROLE; }
+  function rank(){ return RANK[NAV_ROLE] || 0; }
   function broadcastRole(){
-    window.CPRNavRole = currentRole();
-    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:window.CPRNavRole } })); } catch(_){}
+    window.CPRNavRole = NAV_ROLE;
+    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:NAV_ROLE } })); } catch(_){}
+  }
+  // read the current role from the shared session, then re-render
+  function refreshRole(){
+    loadSB().then(function(sb){
+      if (!sb){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); return; }
+      sb.auth.getSession().then(function(res){
+        var sess = res && res.data && res.data.session;
+        if (!sess){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); return; }
+        sb.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
+          if (sr && sr.data){ NAV_ROLE = normRole(sr.data.role); NAV_NAME = sr.data.display_name || ''; }
+          else { NAV_ROLE = null; NAV_NAME = ''; }
+          renderPriv();
+        }, function(){ renderPriv(); });
+      }, function(){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); });
+    });
+  }
+  function doSignOut(){
+    loadSB().then(function(sb){
+      function done(){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); }
+      if (sb && sb.auth) sb.auth.signOut().then(done, done); else done();
+    });
   }
 
   // Which area is the current page in?
@@ -191,21 +209,30 @@
   function privilegedHtml(){
     var r = rank();
     if (r < RANK.admin){
+      if (NAV_NAME){   // signed in, but this account has no admin tools
+        return ''
+          + '<div class="cpr-grp">Admin &amp; Owner</div>'
+          + '<div class="cpr-lock">'
+          +   '<div class="hd"><span class="pad">🔒</span> No admin tools</div>'
+          +   '<p>Signed in as '+esc(NAV_NAME)+'. Your account doesn\'t have owner or manager tools.</p>'
+          +   '<button class="cpr-btn red" data-act="lock">Sign out</button>'
+          + '</div>';
+      }
       return ''
         + '<div class="cpr-grp">Admin &amp; Owner</div>'
         + '<div class="cpr-lock">'
         +   '<div class="hd"><span class="pad">🔒</span> Locked tools</div>'
-        +   '<p>Owner &amp; manager tools are hidden. Enter your passcode to unlock them on this device.</p>'
+        +   '<p>Owner &amp; manager tools are hidden. Enter your PIN to unlock them.</p>'
         +   '<button class="cpr-btn red" data-act="show-pass">Unlock</button>'
         +   '<div class="cpr-passwrap" data-pass>'
-        +     '<input type="password" inputmode="numeric" placeholder="Passcode" data-passinput>'
+        +     '<input type="password" inputmode="numeric" placeholder="PIN" data-passinput>'
         +     '<div style="height:8px"></div>'
-        +     '<button class="cpr-btn red" data-act="do-unlock">Unlock settings</button>'
-        +     '<div class="cpr-err" data-err>That passcode doesn\'t have admin access.</div>'
+        +     '<button class="cpr-btn red" data-act="do-unlock">Sign in</button>'
+        +     '<div class="cpr-err" data-err>That PIN doesn\'t have admin access.</div>'
         +   '</div>'
         + '</div>';
     }
-    var name = (readAuth() && readAuth().name) || '';
+    var name = NAV_NAME;
     var roleLabel = (currentRole()==='owner') ? 'Owner' : 'Admin';
     var links = PRIVILEGED.filter(function(t){ return r >= RANK[t.minRole]; })
       .map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
@@ -273,7 +300,7 @@
       el.onclick = function(e){
         if (act === 'show-pass'){ var w = pane.querySelector('[data-pass]'); if (w){ w.classList.add('show'); var i = w.querySelector('[data-passinput]'); if (i) i.focus(); } }
         else if (act === 'do-unlock'){ doUnlock(); }
-        else if (act === 'lock'){ clearAuth(); renderPriv(); }
+        else if (act === 'lock'){ doSignOut(); }
         else if (act === 'settings'){ e.preventDefault(); window.location.href = 'settings.html'; }
       };
     });
@@ -281,44 +308,52 @@
     if (input) input.onkeydown = function(e){ if (e.key === 'Enter') doUnlock(); };
   }
 
+  // PIN login -> shared Supabase session (unlocks nav + every page)
   function doUnlock(){
     var input = pane.querySelector('[data-passinput]');
     var err = pane.querySelector('[data-err]');
     var btn = pane.querySelector('[data-act="do-unlock"]');
-    var code = input ? input.value.trim() : '';
-    if (!code) return;
+    var pin = input ? input.value.trim() : '';
+    if (!pin) return;
     if (err) err.classList.remove('show');
-    if (btn){ btn.disabled = true; btn.textContent = 'Checking…'; }
-    var u = NAV_AUTH.url + '?action=verify&code=' + encodeURIComponent(code) + '&token=' + encodeURIComponent(NAV_AUTH.token);
-    fetch(u).then(function(r){ return r.json(); }).then(function(d){
-      if (d && d.ok && (d.role === 'admin' || d.role === 'owner')){
-        writeAuth(d.role, d.name); renderPriv();
-      } else {
-        if (err){ err.textContent = 'That passcode doesn\'t have admin access.'; err.classList.add('show'); }
-        if (btn){ btn.disabled = false; btn.textContent = 'Unlock settings'; }
-      }
-    }).catch(function(){
-      if (err){ err.textContent = 'Could not reach the server. Try again.'; err.classList.add('show'); }
-      if (btn){ btn.disabled = false; btn.textContent = 'Unlock settings'; }
+    if (btn){ btn.disabled = true; btn.textContent = 'Signing in…'; }
+    function fail(msg){ if (err){ err.textContent = msg; err.classList.add('show'); } if (btn){ btn.disabled = false; btn.textContent = 'Sign in'; } }
+    loadSB().then(function(sb){
+      if (!sb) return fail('Could not reach the server. Try again.');
+      fetch(SB_FN, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SB_ANON, 'apikey':SB_ANON }, body: JSON.stringify({ action:'login', pin:pin, device_id:navDevice() }) })
+        .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }, function(){ return { status:r.status, data:{} }; }); })
+        .then(function(res){
+          var d = res.data || {};
+          if (res.status !== 200 || !d.access_token){
+            return fail(d.error === 'invalid' ? 'Wrong PIN.' + (d.remaining!=null ? (' '+d.remaining+' left.') : '')
+                      : (res.status === 423 || d.locked) ? 'Locked — too many tries.'
+                      : (d.error || 'Could not sign in.'));
+          }
+          sb.auth.setSession({ access_token:d.access_token, refresh_token:d.refresh_token }).then(function(){
+            var st = d.staff || {};
+            NAV_ROLE = normRole(st.role); NAV_NAME = st.display_name || '';
+            renderPriv();
+            if (rank() < RANK.admin && err){ err.textContent = 'Signed in — no admin tools for this account.'; err.classList.add('show'); }
+          }, function(){ fail('Could not start your session.'); });
+        }, function(){ fail('Could not reach the server. Try again.'); });
     });
   }
 
   function roleSlotHtml(){
     var role = currentRole();
     if (!role) return '';
-    var name = (readAuth() && readAuth().name) || '';
     var label = (role==='owner') ? 'Owner' : 'Admin';
-    return '<span class="cpr-tb-role"><span class="dot"></span>'+esc(label)+(name?(' · '+esc(name)):'')+'</span>';
+    return '<span class="cpr-tb-role"><span class="dot"></span>'+esc(label)+(NAV_NAME?(' · '+esc(NAV_NAME)):'')+'</span>';
   }
 
   function wireTop(){
     if (!top) return;
     var lock = top.querySelector('[data-tbact="lock"]');
-    if (lock) lock.onclick = function(){ clearAuth(); renderPriv(); };
+    if (lock) lock.onclick = function(){ doSignOut(); };
   }
 
   function avatarInitials(){
-    var name = (readAuth() && readAuth().name) || '';
+    var name = NAV_NAME;
     if (!name) return 'CPR';
     var p = name.trim().split(/\s+/);
     return (p[0][0] + (p[1]?p[1][0]:'')).toUpperCase();
@@ -412,16 +447,14 @@
     scrim.onclick = closeMenu;
     window.addEventListener('resize', function(){ flyout.classList.remove('show'); if (window.innerWidth >= 860){ closeMenu(); } });
 
-    ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){
-      window.addEventListener(ev, throttle(touchAuth, 5000), { passive:true });
-    });
-    setInterval(function(){ if (currentRole() && !readAuth()){ renderPriv(); } }, 30000);
-    window.addEventListener('storage', function(e){ if (e.key === AUTH_KEY) renderPriv(); });
+    // single sign-on: pick up the shared session, and react when it changes
+    // here, in another tab, or on another page (login / logout / refresh).
+    loadSB().then(function(sb){ if (sb && sb.auth && sb.auth.onAuthStateChange){ sb.auth.onAuthStateChange(function(){ refreshRole(); }); } });
+    window.addEventListener('storage', function(e){ if (e.key && e.key.indexOf('-auth-token') >= 0) refreshRole(); });
 
     broadcastRole();
+    refreshRole();
   }
-
-  function throttle(fn, ms){ var last = 0; return function(){ var now = Date.now(); if (now - last > ms){ last = now; fn(); } }; }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectNav);
   else injectNav();
