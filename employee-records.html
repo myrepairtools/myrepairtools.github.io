@@ -1,1946 +1,604 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Employee Records — CPR Oregon</title>
-  <link rel="apple-touch-icon" href="assets/images/CPRLogo_NoAssurant_Black.svg">
-  <meta name="apple-mobile-web-app-title" content="Employee Records">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
-  <style>
-    :root {
-      --red:#DC282E; --light-red:#F15F5E; --dark:#2D2D3B; --dark-grey:#4E4E50;
-      --blue:#4FB0E3; --grey:#B9BDCB; --light-grey:#F3F2F2;
-      --white:#FFFFFF; --border:#E0E2EA; --accent:#DC282E;
-    }
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Nunito Sans',sans-serif;background:var(--light-grey);color:var(--dark);min-height:100vh;}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Employee Records · CPR Oregon</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#DC282E;--light-red:#E8474C;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;
+  --grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--light-grey)}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#D2D5DF;border-radius:6px}::-webkit-scrollbar-track{background:transparent}
+.head{font-family:'Nunito',sans-serif}
 
-    .back-btn{font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;color:var(--dark-grey);text-decoration:none;border:1.5px solid var(--border);border-radius:6px;padding:4px 10px;transition:border-color .15s,color .15s;}
-    .back-btn:hover{border-color:var(--accent);color:var(--accent);}
-    .header-logo{display:flex;align-items:center;gap:8px;flex:1;}
-    .header-logo img{height:28px;width:auto;display:block;}
-    .page-badge{background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;letter-spacing:.5px;text-transform:uppercase;padding:4px 10px;border-radius:20px;}
-    /* Lock screen */
-    .lock-screen{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:0;}
-    .lock-screen.hidden{display:none;}
-    .lock-logo{margin-bottom:32px;}
-    .lock-logo img{height:36px;width:auto;display:block;}
-    .lock-box{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:36px 40px;text-align:center;width:100%;max-width:340px;}
-    .lock-icon{font-size:32px;margin-bottom:16px;}
-    .lock-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--white);margin-bottom:6px;}
-    .lock-sub{font-size:12px;color:rgba(255,255,255,0.4);font-weight:600;margin-bottom:28px;}
+/* ===== app shell (sits right of the shared nav, which sets body margin) ===== */
+.erec-root{display:flex;height:100vh;overflow:hidden;background:var(--light-grey)}
+.erec-root[hidden]{display:none}
 
-    .lock-error{font-size:12px;font-weight:700;color:#ef4444;margin-top:16px;min-height:18px;text-align:center;}
-    .app-wrapper{display:none;flex-direction:column;min-height:100vh;}
-    .app-wrapper.visible{display:flex;}
+/* ----- Employees pane ----- */
+.emp-pane{width:248px;flex:none;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.emp-hd{display:flex;align-items:center;justify-content:space-between;padding:15px 16px 10px;flex:none}
+.emp-hd .ttl{font-family:'Nunito';font-weight:900;font-size:1rem}
+.pill-sync{font-family:'Nunito';font-weight:800;font-size:.64rem;color:var(--green);background:#E9F6EE;border:1px solid #CFE9D8;border-radius:6px;padding:3px 8px}
+.emp-search-wrap{flex:none;padding:0 12px 11px;border-bottom:1px solid var(--border)}
+.emp-search{width:100%;font-family:'Nunito Sans';font-size:.82rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;outline:none}
+.emp-search:focus{border-color:var(--blue)}
+.emp-list{flex:1;overflow-y:auto;padding:10px 10px 14px}
+.grp-lbl{font-family:'Nunito';font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);padding:12px 8px 6px}
+.erow{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;margin-bottom:2px;background:transparent}
+.erow:hover{background:var(--light-grey)}
+.erow.sel{background:#FDEBEC}
+.erow.sel:hover{background:#FDEBEC}
+.av{border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-family:'Nunito';font-weight:800;color:#fff}
+.erow .av{width:34px;height:34px;font-size:.72rem}
+.erow .nm{font-family:'Nunito';font-weight:800;font-size:.84rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dark)}
+.erow.sel .nm{color:#B91C1C}
+.erow .rl{font-size:.68rem;color:var(--grey);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot7{width:7px;height:7px;border-radius:50%;flex:none}
+.cnt{font-family:'Nunito';font-weight:800;font-size:.66rem;color:var(--dark-grey);background:var(--light-grey);border-radius:7px;padding:2px 7px;flex:none}
+.emp-foot{flex:none;padding:10px 12px;border-top:1px solid var(--border)}
+.arch-btn{width:100%;font-family:'Nunito';font-weight:800;font-size:.74rem;border:1.5px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+.arch-btn:hover{border-color:var(--grey)}
+.arch-btn.on{border-color:var(--blue);color:var(--blue);background:#EAF6FD}
 
-    /* Mobile employee picker screen */
-    .mobile-picker{display:none;flex-direction:column;min-height:calc(100vh - 63px);background:var(--light-grey);}
-    .mobile-picker-header{padding:16px;display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1.5px solid var(--border);}
-    .mobile-picker-header h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);}
-    .store-group{margin:12px 12px 0;}
-    .store-group-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);padding:0 4px 6px;}
-    .mobile-emp-card{background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:8px;transition:border-color .12s,box-shadow .12s;}
-    .mobile-emp-card:hover,.mobile-emp-card:active{border-color:var(--accent);box-shadow:0 2px 10px rgba(220,40,46,.1);}
-    .mobile-emp-chevron{color:var(--grey);font-size:16px;margin-left:auto;flex-shrink:0;}
+/* ----- main ----- */
+.erec-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--light-grey)}
+.prof{flex:none;padding:18px 24px 16px;background:#fff;border-bottom:1px solid var(--border)}
+.prof-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.prof-id{display:flex;align-items:center;gap:15px;min-width:0}
+.prof .av{width:56px;height:56px;font-size:1.2rem}
+.prof-name{font-family:'Nunito';font-weight:900;font-size:1.5rem;line-height:1;letter-spacing:-.4px}
+.status-pill{font-family:'Nunito';font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.4px;border-radius:6px;padding:4px 9px}
+.prof-sub{font-size:.86rem;color:var(--dark-grey);font-weight:700;margin-top:5px}
+.btn-red{font-family:'Nunito';font-weight:800;font-size:.82rem;border:none;border-radius:9px;padding:11px 20px;cursor:pointer;background:var(--red);color:#fff}
+.btn-red:hover{background:var(--light-red)}
+.metrics{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;margin-top:13px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:11px 16px}
+.metric{display:flex;align-items:center;gap:7px}
+.metric .mdot{width:8px;height:8px;border-radius:2px;flex:none}
+.metric .mval{font-family:'Nunito';font-weight:900;font-size:1.02rem;line-height:1}
+.metric .mval.sm{font-size:.86rem}
+.metric .mlbl{font-family:'Nunito';font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey)}
 
-    .app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 63px);}
+.tabbar{flex:none;display:flex;align-items:center;gap:10px;padding:11px 22px 0;background:#fff;border-bottom:1px solid var(--border)}
+.tab{font-family:'Nunito';font-weight:800;font-size:.84rem;background:none;border:none;border-bottom:3px solid transparent;color:var(--grey);padding:7px 4px 11px;cursor:pointer;margin-bottom:-1px;display:flex;align-items:center;gap:7px}
+.tab.on{border-bottom-color:var(--red);color:var(--red)}
+.tab .badge{font-family:'Nunito';font-weight:800;font-size:.62rem;color:#fff;border-radius:9px;padding:1px 7px}
+.badge.amber{background:var(--amber)}.badge.blue{background:var(--blue)}
 
-    /* Sidebar */
-    .sidebar{background:var(--white);border-right:1.5px solid var(--border);display:flex;flex-direction:column;}
-    .sidebar-header{padding:16px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-    .sidebar-header h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);}
-    .add-employee-btn{background:var(--accent);color:var(--white);border:none;border-radius:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:18px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1;}
-    .add-employee-btn:hover{background:var(--light-red);}
-    .employee-list{flex:1;overflow-y:auto;padding:8px 0;}
-    .employee-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-left:3px solid transparent;transition:background .12s,border-color .12s;}
-    .employee-item:hover{background:var(--light-grey);}
-    .employee-item.active{background:#fef2f2;border-left-color:var(--accent);}
-    .emp-avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--white);font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-    .emp-info{flex:1;min-width:0;}
-    .emp-name{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .emp-meta{font-size:11px;color:var(--grey);margin-top:1px;}
-    .emp-delete{display:none;}
-    .emp-archive{display:none;}
-    /* ··· Settings button on employee items */
-    .emp-settings-btn{opacity:0;background:none;border:1.5px solid transparent;border-radius:6px;color:var(--grey);cursor:pointer;font-size:18px;padding:2px 6px;line-height:1;transition:opacity .12s,border-color .12s,color .12s;flex-shrink:0;}
-    .employee-item:hover .emp-settings-btn{opacity:1;}
-    .emp-settings-btn:hover{border-color:var(--border);color:var(--dark);}
-    /* ··· Settings button on mobile cards */
-    .mobile-emp-settings{background:none;border:1.5px solid var(--border);border-radius:6px;color:var(--dark-grey);cursor:pointer;font-size:16px;padding:4px 8px;line-height:1;flex-shrink:0;transition:border-color .12s,color .12s;}
-    .mobile-emp-settings:hover,.mobile-emp-settings:active{border-color:var(--accent);color:var(--accent);}
-    /* Dropdown menu */
-    .emp-menu{position:absolute;background:var(--white);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.12);min-width:160px;z-index:200;overflow:hidden;animation:fadeIn .12s ease;}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
-    .emp-menu-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:13px;color:var(--dark);transition:background .1s;}
-    .emp-menu-item:hover{background:var(--light-grey);}
-    .emp-menu-item.danger{color:var(--accent);}
-    .emp-menu-item .menu-icon{font-size:14px;width:16px;text-align:center;flex-shrink:0;}
-    .emp-menu-divider{border:none;border-top:1px solid var(--border);margin:3px 0;}
-    .employee-item.archived .emp-name{color:var(--grey);}
-    .employee-item.archived .emp-avatar{background:var(--grey);}
-    .archived-badge{font-size:9px;font-family:'Nunito',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle;}
-    .archive-toggle-btn{width:100%;background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;color:var(--dark-grey);padding:6px 10px;cursor:pointer;transition:border-color .12s,color .12s;}
-    .archive-toggle-btn:hover{border-color:var(--grey);color:var(--dark);}
-    .archive-toggle-btn.showing{border-color:var(--blue);color:var(--blue);}
-    .sidebar-footer{padding:10px 12px;border-top:1.5px solid var(--border);}
-    .mobile-emp-card.archived .emp-avatar{background:var(--grey);}
-    .mobile-emp-card.archived .emp-name{color:var(--grey);}
-    @media(max-width:580px){ .desktop-only{display:none!important;} }
-    .mobile-archive-footer{display:none;padding:16px 20px 24px;text-align:center;}
-    @media(max-width:580px){ .mobile-archive-footer{display:block;} }
-    .mobile-archive-btn{background:none;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;color:var(--dark-grey);padding:8px 20px;cursor:pointer;transition:border-color .12s,color .12s;}
-    .mobile-archive-btn:hover,.mobile-archive-btn:active{border-color:var(--accent);color:var(--accent);}
+.work{flex:1;min-height:0;display:flex;overflow:hidden}
+.list-pane{flex:none;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:#fff}
+.detail-pane{flex:1;min-width:0;overflow-y:auto;background:var(--light-grey)}
+.list-scroll{flex:1;overflow-y:auto;padding:10px}
 
-    /* Main */
-    .main{display:flex;flex-direction:column;overflow:hidden;}
-    .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--grey);padding:40px;text-align:center;}
-    .empty-state .icon{font-size:48px;opacity:.4;}
-    .empty-state h3{font-family:'Nunito',sans-serif;font-weight:800;font-size:18px;color:var(--dark-grey);}
-    .empty-state p{font-size:14px;max-width:280px;line-height:1.5;}
-    .employee-view{display:none;flex-direction:column;height:100%;}
-    .employee-view.visible{display:flex;}
-    .employee-view-header{background:var(--white);border-bottom:1.5px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;}
-    .emp-view-name{font-family:'Nunito',sans-serif;font-weight:900;font-size:20px;color:var(--dark);}
-    .emp-view-role{font-size:13px;color:var(--grey);margin-top:1px;}
-    .new-entry-btn{background:var(--accent);color:var(--white);border:none;border-radius:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;padding:8px 16px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s;white-space:nowrap;flex-shrink:0;}
-    .new-entry-btn:hover{background:var(--light-red);}
+.flt{flex:none;padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px}
+.flt label{flex:1;min-width:0}
+.flt .lbl{display:block;font-family:'Nunito';font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:4px}
+.sel{width:100%;font-family:'Nunito Sans';font-size:.82rem;font-weight:600;padding:8px 28px 8px 10px;border:1.5px solid var(--border);border-radius:8px;color:var(--dark);cursor:pointer;-webkit-appearance:none;appearance:none;
+  background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5L6 6.5L11 1.5' stroke='%23B9BDCB' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>") no-repeat right 10px center;background-size:11px}
+.sel.sm{font-size:.72rem;font-weight:700;padding:4px 22px 4px 9px;border-radius:7px;color:var(--dark-grey);background-size:9px;background-position:right 7px center}
+.sel:focus{outline:none;border-color:var(--blue)}
+.flt2{flex:none;display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border)}
+.flt2 .ecount{font-family:'Nunito';font-weight:800;font-size:.66rem;color:var(--dark-grey);flex:1}
+.sortbtn{font-family:'Nunito';font-weight:800;font-size:.7rem;border:1.5px solid var(--border);border-radius:7px;padding:4px 10px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+.sortbtn:hover{border-color:var(--blue);color:var(--blue)}
 
-    .entries-layout{display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden;}
-    .entries-list{overflow-y:auto;padding:0;display:flex;flex-direction:column;}
-    .no-entries{text-align:center;color:var(--grey);font-size:14px;padding:40px 20px;}
+.card{border:1.5px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:8px;cursor:pointer;background:#fff}
+.card:hover{box-shadow:0 2px 10px rgba(45,45,59,.08)}
+.card .crow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tbadge{font-family:'Nunito';font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;border-radius:5px;padding:2px 7px}
+.cdate{font-size:.68rem;color:var(--grey);font-weight:700;white-space:nowrap}
+.csubj{font-family:'Nunito';font-weight:800;font-size:.88rem;color:var(--dark);margin-top:7px;line-height:1.3}
+.cmeta{display:flex;align-items:center;gap:7px;margin-top:8px}
+.catchip{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito';font-weight:700;font-size:.66rem}
+.disc{font-family:'Nunito';font-weight:700;font-size:.64rem;color:var(--green);margin-left:auto}
+.empty{padding:42px 22px;text-align:center}
+.empty .ico{font-size:1.6rem;margin-bottom:8px}
+.empty .t{font-family:'Nunito';font-weight:800;font-size:.92rem;color:var(--dark);margin-bottom:4px}
+.empty .s{color:var(--grey);font-weight:700;font-size:.8rem;line-height:1.5}
+.empty-sm{padding:34px 18px;text-align:center;color:var(--grey);font-weight:700;font-size:.84rem}
+.center-msg{height:100%;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:700;font-size:.88rem;padding:40px;text-align:center}
 
-    /* Filter bars */
-    .filter-bars{background:var(--white);border-bottom:1.5px solid var(--border);flex-shrink:0;}
-    .filter-bar{padding:10px 16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-    .filter-bar+.filter-bar{border-top:1px dashed var(--border);}
-    .filter-bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);white-space:nowrap;margin-right:2px;}
-    .filter-chip{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);color:var(--dark-grey);cursor:pointer;transition:all .12s;white-space:nowrap;}
-    .filter-chip:hover{border-color:var(--grey);}
-    .filter-chip.active{background:var(--dark);border-color:var(--dark);color:var(--white);}
-    /* Type chip active colors */
-    .filter-chip.active[data-type="observation"]{background:#1e40af;border-color:#1e40af;}
-    .filter-chip.active[data-type="incident"]{background:#92400e;border-color:#92400e;}
-    .filter-chip.active[data-type="conversation"]{background:#065f46;border-color:#065f46;}
-    /* Category chip active colors */
-    .filter-chip.active[data-cat="performance"]{background:#b91c1c;border-color:#b91c1c;}
-    .filter-chip.active[data-cat="attendance"]{background:#3730a3;border-color:#3730a3;}
-    .filter-chip.active[data-cat="positive"]{background:#065f46;border-color:#065f46;}
-    .filter-chip.active[data-cat="general"]{background:var(--dark-grey);border-color:var(--dark-grey);}
-    .filter-chip.active[data-cat="coaching"]{background:#856404;border-color:#856404;}
-    .filter-bar-right{margin-left:auto;flex-shrink:0;}
-    .sort-btn{font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;color:var(--dark-grey);background:none;border:1.5px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;transition:border-color .12s,color .12s;white-space:nowrap;}
-    .sort-btn:hover{border-color:var(--grey);color:var(--dark);}
+/* detail cards */
+.dwrap{max-width:760px;margin:0 auto;padding:22px 26px 60px}
+.dcard{background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:22px 24px}
+.dcard.stripe{border-top-width:3px;border-top-style:solid}
+.dbadges{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.dcatchip{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito';font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.4px;border-radius:5px;padding:3px 8px}
+.dtitle{font-family:'Nunito';font-weight:900;font-size:1.4rem;letter-spacing:-.3px;line-height:1.2;margin:0 0 8px}
+.dmeta{font-size:.82rem;color:var(--dark-grey);font-weight:700;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.dactions{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}
+.btn-o{font-family:'Nunito';font-weight:800;font-size:.74rem;border:1.5px solid var(--border);border-radius:8px;padding:7px 13px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+.btn-o:hover{border-color:var(--blue);color:var(--blue)}
+.btn-o.del:hover{border-color:var(--red);color:var(--red)}
+.btn-o.gr{border-color:var(--green);background:#E9F6EE;color:#1B7A41}
+.btn-o.gr:hover{background:#DCF0E4}
+.sec{margin-bottom:18px}
+.sec .sh{font-family:'Nunito';font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark);border-bottom:1.5px solid var(--border);padding-bottom:5px;margin-bottom:8px}
+.sec .sb{font-size:.9rem;color:var(--dark);line-height:1.65}
+.sec .sb p{margin:0 0 8px}
 
-    /* Year groups */
-    .entries-scroll{flex:1;overflow-y:auto;padding:16px;}
-    .year-group{margin-bottom:16px;}
-    .year-header{display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0 8px;user-select:none;}
-    .year-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;color:var(--dark-grey);letter-spacing:.3px;}
-    .year-count{font-size:11px;color:var(--grey);}
-    .year-chevron{font-size:12px;color:var(--grey);transition:transform .18s;margin-left:auto;}
-    .year-chevron.collapsed{transform:rotate(-90deg);}
-    .year-entries{display:flex;flex-direction:column;gap:8px;overflow:hidden;transition:opacity .15s;}
-    .year-entries.collapsed{display:none;}
+/* lock screen */
+.lock{position:fixed;inset:0;z-index:1500;background:var(--light-grey);display:flex;align-items:center;justify-content:center;padding:24px}
+.lock[hidden]{display:none}
+.lock-card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 30px rgba(45,45,59,.10);padding:26px 26px 22px;width:340px;max-width:100%}
+.lock-card .lk-mark{width:42px;height:42px;border-radius:11px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Nunito';font-weight:900;margin-bottom:14px}
+.lock-card h1{font-family:'Nunito';font-weight:900;font-size:1.15rem;margin:0 0 3px}
+.lock-card p{font-size:.8rem;color:var(--dark-grey);font-weight:600;margin:0 0 16px}
+.lk-field{margin-bottom:11px}
+.lk-field label{display:block;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:5px}
+.lk-input{width:100%;font-family:'Nunito Sans';font-size:.92rem;padding:10px 11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;outline:none}
+.lk-input:focus{border-color:var(--blue)}
+.lk-go{width:100%;font-family:'Nunito';font-weight:800;font-size:.9rem;border:none;border-radius:9px;padding:11px;cursor:pointer;background:var(--red);color:#fff;margin-top:6px}
+.lk-go:disabled{opacity:.6;cursor:default}
+.lk-err{color:var(--red);font-size:.74rem;font-weight:700;margin-top:9px;min-height:1em;text-align:center}
 
-    .entry-card{background:var(--white);border:1.5px solid var(--border);border-top:3px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .12s;}
-    .entry-card:hover{border-color:var(--blue);border-top-color:var(--blue);box-shadow:0 4px 16px rgba(0,0,0,.07);transform:translateY(-1px);}
-    .entry-card.selected{border-color:var(--accent);border-top-color:var(--accent);box-shadow:0 4px 16px rgba(220,40,46,.1);}
-    .entry-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
-    .entry-subject{font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--dark);line-height:1.3;}
-    .entry-date{font-size:11px;color:var(--grey);white-space:nowrap;flex-shrink:0;margin-top:2px;}
-    .entry-preview{font-size:12px;color:var(--dark-grey);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-    .entry-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;background:var(--light-grey);color:var(--dark-grey);}
-    .entry-tag.coaching{background:#fff3cd;color:#856404;}
-    .entry-tag.performance{background:#fce8e8;color:#b91c1c;}
-    .entry-tag.positive{background:#d1fae5;color:#065f46;}
-    .entry-tag.attendance{background:#e0e7ff;color:#3730a3;}
-    /* Entry type tags */
-    .type-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:8px;margin-right:4px;}
-    .type-tag.observation{background:#dbeafe;color:#1e40af;}
-    .type-tag.incident{background:#fef3c7;color:#92400e;}
-    .type-tag.conversation{background:#d1fae5;color:#065f46;}
-    /* Convert button */
-    .convert-btn{background:#92400e;border:none;border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--white);padding:4px 10px;cursor:pointer;transition:background .12s;}
-    .convert-btn:hover{background:#78350f;}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:700;font-size:.84rem;padding:11px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;z-index:1600}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
 
-    /* Detail pane */
-    .detail-pane{background:var(--white);border-left:1.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-    .detail-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--grey);font-size:13px;padding:20px;text-align:center;}
-    .detail-content{display:none;flex-direction:column;height:100%;}
-    .detail-content.visible{display:flex;}
-    .detail-header{padding:16px 18px 12px;border-bottom:none;flex-shrink:0;}
-    .detail-subject{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:var(--dark);line-height:1.3;}
-    .detail-meta{font-size:12px;color:var(--grey);line-height:1.6;}
-    .detail-meta span{color:var(--dark-grey);font-weight:600;}
-    .detail-actions-bar{display:flex;gap:6px;padding:0 18px 12px;flex-wrap:wrap;border-bottom:1.5px solid var(--border);flex-shrink:0;}
-    .detail-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
-    .detail-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:5px 12px;cursor:pointer;transition:border-color .12s,color .12s;}
-    .detail-btn:hover{border-color:var(--accent);color:var(--accent);}
-    .detail-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
-
-    /* Print styles */
-    @media print{
-      header,footer,.sidebar,.filter-bar,.detail-actions,.employee-view-header,.entries-list{display:none!important;}
-      .app{display:block!important;}
-      .main{display:block!important;}
-      .entries-layout{display:block!important;}
-      .detail-pane{border:none!important;display:block!important;height:auto!important;}
-      .detail-content{display:flex!important;height:auto!important;}
-      .detail-body{overflow:visible!important;}
-      .print-header{display:block!important;}
-      body{background:white!important;}
-    }
-    .print-header{display:none;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #333;}
-    .print-header h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:20px;}
-    .print-header p{font-size:13px;color:#666;margin-top:4px;}
-
-    /* Structured sections in detail */
-    .detail-section{}
-    .detail-section-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);margin-bottom:4px;}
-    .detail-section-body{font-size:13px;color:var(--dark);line-height:1.7;}
-    .detail-section-body ul{padding-left:16px;}
-    .detail-section-body li{margin-bottom:2px;}
-    .detail-section-body b{font-weight:700;}
-    .detail-section-body i{font-style:italic;}
-    .detail-section-divider{border:none;border-top:1px solid var(--border);}
-
-    /* Mobile full-screen entry detail */
-    .entry-detail-overlay{display:none;position:fixed;inset:0;background:var(--white);z-index:200;flex-direction:column;overflow:hidden;}
-    .entry-detail-overlay.open{display:flex;}
-    .entry-detail-top{background:var(--white);border-bottom:1.5px solid var(--border);padding:14px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0;}
-    .entry-detail-top-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;}
-    .mobile-back-btn{background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:5px 10px;cursor:pointer;transition:border-color .12s;}
-    .mobile-back-btn:hover{border-color:var(--grey);}
-    .entry-detail-scroll{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
-
-    /* Modals */
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:100;align-items:center;justify-content:center;padding:20px;}
-    .modal-overlay.open{display:flex;}
-    .modal{background:var(--white);border-radius:14px;width:100%;max-width:580px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.18);animation:slideUpModal .22s ease;}
-    @keyframes slideUpModal{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
-    @media(max-width:580px){
-      .modal{border-radius:20px 20px 0 0;align-self:flex-end;}
-      .modal-overlay{align-items:flex-end;padding:0;}
-    }
-    .modal-header{padding:18px 20px 14px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-    .modal-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;color:var(--dark);}
-    .modal-close{background:none;border:none;font-size:22px;color:var(--grey);cursor:pointer;line-height:1;padding:2px 6px;transition:color .12s;}
-    .modal-close:hover{color:var(--dark);}
-    .modal-body{padding:16px 20px;display:flex;flex-direction:column;gap:0;overflow-y:auto;flex:1;}
-    .modal-footer{padding:14px 20px;border-top:1.5px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;}
-
-    /* Form fields */
-    .field-group{margin-bottom:14px;}
-    label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin-bottom:5px;}
-    input[type="text"],input[type="date"],select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-family:'Nunito Sans',sans-serif;font-size:14px;color:var(--dark);background:var(--white);outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none;}
-    input:focus,select:focus{border-color:var(--accent);}
-
-    /* Tab bar */
-    .emp-tab-bar{display:flex;background:var(--white);border-bottom:1.5px solid var(--border);flex-shrink:0;}
-    .emp-tab{flex:1;max-width:200px;padding:11px 16px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;color:var(--grey);background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;transition:color .12s,border-color .12s;display:flex;align-items:center;gap:6px;justify-content:center;}
-    .emp-tab:hover{color:var(--dark-grey);}
-    .emp-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:800;}
-    .pip-badge{background:var(--accent);color:var(--white);font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px;}
-    .tab-panel{display:flex;flex:1;overflow:hidden;flex-direction:column;}
-
-    /* PIP panel */
-    .pip-panel{display:grid;grid-template-columns:280px 1fr;flex:1;overflow:hidden;height:100%;}
-    .pip-list-col{border-right:1.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--white);}
-    .pip-list-header{padding:12px 16px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-    .pip-list{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
-    .pip-card{background:var(--white);border:1.5px solid var(--border);border-left:4px solid var(--grey);border-radius:8px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s;}
-    .pip-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07);}
-    .pip-card.selected{box-shadow:0 2px 10px rgba(220,40,46,.1);border-color:var(--accent);}
-    .pip-card.status-active{border-left-color:#92400e;}
-    .pip-card.status-under-review{border-left-color:#1e40af;}
-    .pip-card.status-closed-met{border-left-color:#065f46;}
-    .pip-card.status-closed-extended{border-left-color:#3730a3;}
-    .pip-card.status-closed-terminated{border-left-color:#b91c1c;}
-    .pip-card-title{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--dark);}
-    .pip-card-meta{font-size:11px;color:var(--grey);margin-top:3px;}
-    .pip-status-tag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:6px;}
-    .pip-status-tag.draft{background:var(--light-grey);color:var(--dark-grey);}
-    .pip-status-tag.active{background:#fef3c7;color:#92400e;}
-    .pip-status-tag.under-review{background:#dbeafe;color:#1e40af;}
-    .pip-status-tag.closed-met{background:#d1fae5;color:#065f46;}
-    .pip-status-tag.closed-extended{background:#e0e7ff;color:#3730a3;}
-    .pip-status-tag.closed-terminated{background:#fce8e8;color:#b91c1c;}
-    .pip-detail-col{overflow-y:auto;background:var(--white);}
-    .pip-detail-empty{display:flex;align-items:center;justify-content:center;color:var(--grey);font-size:13px;padding:40px;text-align:center;height:200px;}
-    .pip-doc{max-width:680px;margin:0 auto;padding:28px 32px 60px;}
-    .pip-doc-header{text-align:center;padding-bottom:20px;border-bottom:2px solid var(--dark);margin-bottom:24px;}
-    .pip-doc-company{font-family:'Nunito',sans-serif;font-weight:900;font-size:18px;color:var(--accent);}
-    .pip-doc-subtitle{font-size:12px;color:var(--grey);margin-top:2px;}
-    .pip-doc-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:15px;color:var(--dark);margin-top:8px;text-transform:uppercase;letter-spacing:.8px;}
-    .pip-doc-actions{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-    .pip-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;background:var(--light-grey);border-radius:8px;padding:14px 16px;margin-bottom:24px;}
-    .pip-info-label{font-family:'Nunito',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:2px;}
-    .pip-info-value{font-size:13px;font-weight:600;color:var(--dark);}
-    .pip-section{margin-bottom:22px;}
-    .pip-section-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dark);border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:10px;}
-    .pip-section-body{font-size:13px;color:var(--dark);line-height:1.7;white-space:pre-wrap;}
-    .pip-goals-list{display:flex;flex-direction:column;gap:8px;}
-    .pip-goal-item{background:var(--light-grey);border-radius:6px;padding:10px 12px;border-left:3px solid var(--blue);}
-    .pip-goal-text{font-size:13px;color:var(--dark);font-weight:600;}
-    .pip-goal-deadline{font-size:11px;color:var(--grey);margin-top:3px;}
-    .pip-checkin-item{border-left:3px solid var(--border);padding:8px 12px;margin-bottom:8px;background:var(--light-grey);border-radius:0 6px 6px 0;}
-    .pip-checkin-item.has-notes{border-left-color:#065f46;}
-    .pip-checkin-date{font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);}
-    .pip-checkin-notes{font-size:13px;color:var(--dark);margin-top:4px;line-height:1.6;}
-    .pip-add-checkin-btn{background:none;border:1.5px dashed var(--border);border-radius:6px;padding:8px 14px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--grey);cursor:pointer;width:100%;transition:border-color .12s,color .12s;margin-top:4px;}
-    .pip-add-checkin-btn:hover{border-color:var(--blue);color:var(--blue);}
-    .pip-sig-block{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:36px;padding-top:20px;border-top:1.5px solid var(--border);}
-    .pip-sig-line{border-bottom:1px solid var(--dark);margin-bottom:6px;height:36px;}
-    .pip-sig-label{font-size:11px;color:var(--grey);}
-    .no-pips{text-align:center;color:var(--grey);font-size:13px;padding:40px 20px;}
-
-    /* Section divider in form */
-    .form-section-divider{border:none;border-top:1.5px solid var(--border);margin:6px 0 16px;}
-    .form-section-label{font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:14px;margin-top:4px;}
-
-    /* Mini rich editor */
-    .editor-wrap{border:1.5px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .15s;}
-    .editor-wrap:focus-within{border-color:var(--accent);}
-    .editor-toolbar{display:flex;gap:2px;padding:5px 7px;background:var(--light-grey);border-bottom:1.5px solid var(--border);flex-wrap:wrap;}
-    .toolbar-btn{background:none;border:1.5px solid transparent;border-radius:5px;font-size:13px;font-weight:700;color:var(--dark-grey);width:28px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s,color .12s;font-family:Georgia,serif;}
-    .toolbar-btn:hover{background:var(--white);border-color:var(--border);color:var(--dark);}
-    .toolbar-btn.active{background:var(--white);border-color:var(--accent);color:var(--accent);}
-    .toolbar-sep{width:1px;background:var(--border);margin:3px 2px;}
-    .editor-content{min-height:80px;max-height:180px;overflow-y:auto;padding:9px 12px;font-family:'Nunito Sans',sans-serif;font-size:14px;color:var(--dark);line-height:1.65;outline:none;}
-    .editor-content:empty:before{content:attr(data-placeholder);color:var(--grey);pointer-events:none;}
-    .editor-content ul{padding-left:16px;} .editor-content li{margin-bottom:2px;}
-    .editor-content b,.editor-content strong{font-weight:700;}
-    .editor-content i,.editor-content em{font-style:italic;}
-    .editor-content u{text-decoration:underline;}
-
-    .btn-cancel{background:none;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--dark-grey);padding:9px 18px;cursor:pointer;transition:border-color .12s;}
-    .btn-cancel:hover{border-color:var(--grey);}
-    .btn-save{background:var(--accent);border:none;border-radius:8px;font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;color:var(--white);padding:9px 22px;cursor:pointer;transition:background .15s;}
-    .btn-save:hover{background:var(--light-red);}
-
-    .sync-status{font-family:'Nunito',sans-serif;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;transition:all .3s;}
-    .sync-status.ok{color:#065f46;background:#d1fae5;}
-    .sync-status.syncing{color:#92400e;background:#fef3c7;}
-    .sync-status.error{color:#991b1b;background:#fee2e2;}
-    footer{background:var(--white);border-top:1.5px solid var(--border);padding:10px 24px;font-size:11px;color:var(--grey);text-align:center;}
-
-    @media(max-width:860px){.entries-layout{grid-template-columns:1fr;}.detail-pane{display:none;}}
-    @media(max-width:580px){
-      .app{display:block;}.sidebar{display:none;}
-      .mobile-picker{display:flex;}
-      .employee-view-header .emp-mobile-back{display:flex!important;}
-    }
-    .emp-mobile-back{display:none;background:none;border:1.5px solid var(--border);border-radius:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;color:var(--dark-grey);padding:5px 10px;cursor:pointer;transition:border-color .12s;white-space:nowrap;}
-    .emp-mobile-back:hover{border-color:var(--grey);}
-  </style>
+/* responsive: collapse detail to an overlay on narrow screens */
+@media(max-width:900px){
+  .emp-pane{width:208px}
+  .detail-pane{position:fixed;inset:0 0 0 auto;width:min(560px,100%);z-index:1200;box-shadow:-8px 0 30px rgba(45,45,59,.16);display:none}
+  .detail-pane.show{display:block}
+  .list-pane{flex:1}
+}
+@media(max-width:620px){
+  .emp-pane{position:fixed;left:0;top:0;bottom:0;z-index:1100;transform:translateX(-100%);transition:.2s}
+  .emp-pane.show{transform:translateX(0)}
+}
+</style>
 </head>
 <body>
 
-<script src="assets/site-gate.js"></script>
-
-<div class="app-wrapper" id="appWrapper">
-
-<div class="app">
-  <!-- Desktop sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <h2>Employees</h2>
-      <span id="syncStatus" class="sync-status syncing">⟳ Loading...</span>
+<!-- ===== PIN lock ===== -->
+<div id="lock" class="lock">
+  <div class="lock-card">
+    <div class="lk-mark">+</div>
+    <h1>Employee Records</h1>
+    <p>Sign in with your PIN to view staff records.</p>
+    <div class="lk-field">
+      <label>Your name</label>
+      <select id="lkName" class="lk-input"><option value="">Select your name…</option></select>
     </div>
-    <div class="employee-list" id="employeeList"></div>
-    <div class="sidebar-footer">
-      <button class="archive-toggle-btn" id="archiveToggleDesktop" onclick="toggleShowArchived()">Show Archived</button>
+    <div class="lk-field">
+      <label>PIN</label>
+      <input id="lkPin" class="lk-input" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
     </div>
+    <button id="lkGo" class="lk-go">Sign in</button>
+    <div id="lkErr" class="lk-err"></div>
+  </div>
+</div>
+
+<!-- ===== app ===== -->
+<div id="app" class="erec-root" hidden>
+  <aside class="emp-pane" id="empPane">
+    <div class="emp-hd"><span class="ttl head">Employees</span><span class="pill-sync">&#10003; Synced</span></div>
+    <div class="emp-search-wrap"><input id="empSearch" class="emp-search" placeholder="🔍  Search name or role…"></div>
+    <div class="emp-list" id="empList"></div>
+    <div class="emp-foot"><button id="archBtn" class="arch-btn">Show archived</button></div>
   </aside>
-
-  <main class="main">
-    <!-- Mobile: employee picker (shown instead of empty state on small screens) -->
-    <div class="mobile-picker" id="mobilePicker">
-      <div class="mobile-picker-header">
-        <h2>Employees</h2>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button class="archive-toggle-btn" id="archiveToggleMobile" onclick="toggleShowArchived()">Archived</button>
-        </div>
-      </div>
-      <div id="mobilePickerList"></div>
+  <main class="erec-main">
+    <div id="profile"></div>
+    <div class="tabbar" id="tabbar">
+      <button class="tab on" data-tab="log">Log</button>
+      <button class="tab" data-tab="pips">PIPs &amp; Reviews <span class="badge amber" data-pipbadge hidden></span></button>
+      <button class="tab" data-tab="damage">Tech Damage <span class="badge blue" data-dmgbadge hidden></span></button>
     </div>
-
-    <div class="empty-state" id="emptyState">
-      <div class="icon">📋</div>
-      <h3>Select an employee</h3>
-      <p>Choose an employee from the sidebar to view their records, or tap + to add one.</p>
-    </div>
-
-    <div class="employee-view" id="employeeView">
-      <div class="employee-view-header">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <button class="emp-mobile-back" onclick="goBackToMobilePicker()">← All</button>
-          <div>
-            <div class="emp-view-name" id="viewName"></div>
-            <div class="emp-view-role" id="viewRole"></div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button class="archive-toggle-btn desktop-only" id="empViewArchiveBtn"></button>
-          <button class="new-entry-btn" onclick="openAddEntry()">+ New Entry</button>
-        </div>
-      </div>
-      <!-- Tab bar -->
-      <div class="emp-tab-bar">
-        <button class="emp-tab active" id="tabLog" onclick="switchTab('log')">📋 Log</button>
-        <button class="emp-tab" id="tabPips" onclick="switchTab('pips')">📄 PIPs & Reviews <span class="pip-badge" id="pipBadge" style="display:none;"></span></button>
-      </div>
-
-      <!-- LOG TAB -->
-      <div class="tab-panel" id="panelLog">
-      <div class="entries-layout">
-        <div class="entries-list" id="entriesList">
-          <div class="filter-bars">
-            <div class="filter-bar">
-              <span class="filter-bar-label">Type</span>
-              <button class="filter-chip active" data-type="all" onclick="setTypeFilter('all')">All</button>
-              <button class="filter-chip" data-type="observation" onclick="setTypeFilter('observation')">Observation</button>
-              <button class="filter-chip" data-type="incident" onclick="setTypeFilter('incident')">Incident</button>
-              <button class="filter-chip" data-type="conversation" onclick="setTypeFilter('conversation')">Conversation</button>
-              <div class="filter-bar-right">
-                <button class="sort-btn" id="sortBtn" onclick="toggleSort()">↓ Newest</button>
-              </div>
-            </div>
-            <div class="filter-bar">
-              <span class="filter-bar-label">Category</span>
-              <button class="filter-chip active" data-cat="all" onclick="setCatFilter('all')">All</button>
-              <button class="filter-chip" data-cat="coaching" onclick="setCatFilter('coaching')">Coaching</button>
-              <button class="filter-chip" data-cat="performance" onclick="setCatFilter('performance')">Performance</button>
-              <button class="filter-chip" data-cat="attendance" onclick="setCatFilter('attendance')">Attendance</button>
-              <button class="filter-chip" data-cat="positive" onclick="setCatFilter('positive')">Positive</button>
-              <button class="filter-chip" data-cat="general" onclick="setCatFilter('general')">General</button>
-            </div>
-          </div>
-          <div class="entries-scroll" id="entriesScroll"></div>
-        </div>
-        <div class="detail-pane">
-          <div class="detail-empty" id="detailEmpty">← Select an entry to view details</div>
-          <div class="detail-content" id="detailContent">
-            <div class="detail-header">
-              <div style="flex:1;min-width:0;">
-                <div class="detail-subject" id="detailSubject"></div>
-                <div class="detail-tags" id="detailTags" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
-                <div class="detail-meta" id="detailMeta" style="margin-top:6px;"></div>
-              </div>
-            </div>
-            <div class="detail-actions-bar" id="detailActionsBar">
-              <button class="convert-btn" id="convertBtn" onclick="convertToConversation()" style="display:none;">💬 Log Discussion</button>
-              <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
-              <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
-              <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
-            </div>
-            <div class="detail-body" id="detailBody">
-              <div class="print-header" id="printHeader"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-
-      <!-- PIPs TAB -->
-      <div class="tab-panel" id="panelPips" style="display:none;">
-        <div class="pip-panel">
-          <!-- PIP list -->
-          <div class="pip-list-col">
-            <div class="pip-list-header">
-              <span style="font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.5px;">PIPs</span>
-              <button class="new-entry-btn" onclick="openNewPIP()">+ New PIP</button>
-            </div>
-            <div class="pip-list" id="pipList"></div>
-          </div>
-          <!-- PIP detail -->
-          <div class="pip-detail-col">
-            <div class="pip-detail-empty" id="pipDetailEmpty">← Select a PIP to view</div>
-            <div class="pip-detail-content" id="pipDetailContent" style="display:none;"></div>
-          </div>
-        </div>
-      </div>
-
-    </div>
+    <div class="work" id="work"></div>
   </main>
 </div>
 
-<footer>CPR Oregon — Internal Tools — Employee Records v1.2</footer>
+<div id="toast" class="toast"></div>
 
-<!-- Mobile full-screen entry detail -->
-<div class="entry-detail-overlay" id="entryDetailOverlay">
-  <div class="entry-detail-top">
-    <div>
-      <div class="detail-subject" id="mobileDetailSubject"></div>
-      <div class="detail-meta" id="mobileDetailMeta"></div>
-    </div>
-    <div class="entry-detail-top-actions">
-      <button class="convert-btn" id="mobileConvertBtn" onclick="convertToConversation()" style="display:none;">💬 Log Discussion</button>
-      <button class="detail-btn" onclick="printEntry()">⬇️ Download</button>
-      <button class="detail-btn" onclick="editCurrentEntry()">Edit</button>
-      <button class="detail-btn" onclick="deleteCurrentEntry()">Delete</button>
-      <button class="mobile-back-btn" onclick="closeMobileDetail()">✕ Close</button>
-    </div>
-  </div>
-  <div class="entry-detail-scroll" id="mobileDetailBody"></div>
-</div>
-
-<!-- PIP Modal -->
-<div class="modal-overlay" id="pipModal">
-  <div class="modal" style="max-width:640px;">
-    <div class="modal-header">
-      <div class="modal-title" id="pipModalTitle">New Performance Improvement Plan</div>
-      <button class="modal-close" onclick="closePIPModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group"><label>PIP Title / Subject</label><input type="text" id="pipTitleInput" placeholder="e.g. Performance Improvement Plan — Q2 2026"/></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="field-group"><label>Start Date</label><input type="date" id="pipStartDateInput"/></div>
-        <div class="field-group"><label>Review Date</label><input type="date" id="pipReviewDateInput"/></div>
-      </div>
-      <div class="field-group"><label>Manager Name</label><input type="text" id="pipManagerInput" placeholder="e.g. Britt Bay"/></div>
-      <hr class="form-section-divider"/>
-      <div class="form-section-label">PIP Content</div>
-      <div class="field-group">
-        <label>Performance Issues</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-issues"></div><div class="editor-content" id="pip-issues" contenteditable="true" data-placeholder="Describe the performance concerns and specific incidents..." style="min-height:80px;max-height:150px;"></div></div>
-      </div>
-      <div class="field-group">
-        <label>Goals & Expectations</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-goals"></div><div class="editor-content" id="pip-goals" contenteditable="true" data-placeholder="List specific, measurable goals with deadlines..." style="min-height:80px;max-height:150px;"></div></div>
-      </div>
-      <div class="field-group">
-        <label>Support Provided</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-support"></div><div class="editor-content" id="pip-support" contenteditable="true" data-placeholder="What training, coaching, or resources will be provided..." style="min-height:60px;max-height:120px;"></div></div>
-      </div>
-      <div class="field-group">
-        <label>Consequences</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-consequences"></div><div class="editor-content" id="pip-consequences" contenteditable="true" data-placeholder="Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment." style="min-height:60px;max-height:100px;"></div></div>
-      </div>
-      <div class="field-group">
-        <label>Check-in Schedule</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-pip-schedule"></div><div class="editor-content" id="pip-schedule" contenteditable="true" data-placeholder="e.g. Weekly check-ins every Monday at 10am through the review date..." style="min-height:50px;max-height:100px;"></div></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closePIPModal()">Cancel</button>
-      <button class="btn-save" onclick="savePIP('draft')" style="background:var(--dark-grey);margin-right:auto;">Save as Draft</button>
-      <button class="btn-save" onclick="savePIP('active')">Activate PIP</button>
-    </div>
-  </div>
-</div>
-
-<!-- Check-in Modal -->
-<div class="modal-overlay" id="checkinModal">
-  <div class="modal" style="max-width:500px;">
-    <div class="modal-header">
-      <div class="modal-title">Add Check-in Note</div>
-      <button class="modal-close" onclick="closeCheckinModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group"><label>Check-in Date</label><input type="date" id="checkinDateInput"/></div>
-      <div class="field-group">
-        <label>Notes</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-checkin"></div><div class="editor-content" id="checkinNotesInput" contenteditable="true" data-placeholder="What was discussed? Progress made? Concerns?" style="min-height:100px;max-height:200px;"></div></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeCheckinModal()">Cancel</button>
-      <button class="btn-save" onclick="saveCheckin()">Save Check-in</button>
-    </div>
-  </div>
-</div>
-
-<!-- Outcome Modal -->
-<div class="modal-overlay" id="outcomeModal">
-  <div class="modal" style="max-width:500px;">
-    <div class="modal-header">
-      <div class="modal-title">Record PIP Outcome</div>
-      <button class="modal-close" onclick="closeOutcomeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group"><label>Outcome</label>
-        <select id="outcomeInput">
-          <option value="closed-met">✓ Met Expectations — PIP Closed</option>
-          <option value="closed-extended">↻ Extended — Additional Time Granted</option>
-          <option value="closed-terminated">✕ Terminated — Did Not Meet Expectations</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label>Outcome Notes</label>
-        <div class="editor-wrap"><div class="editor-toolbar" id="tb-outcome"></div><div class="editor-content" id="outcomeNotesInput" contenteditable="true" data-placeholder="Summarize the outcome and any final notes..." style="min-height:100px;max-height:180px;"></div></div>
-      </div>
-      <div class="field-group"><label>Outcome Date</label><input type="date" id="outcomeDateInput"/></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeOutcomeModal()">Cancel</button>
-      <button class="btn-save" onclick="saveOutcome()">Save Outcome</button>
-    </div>
-  </div>
-</div>
-<div class="modal-overlay" id="employeeModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title" id="employeeModalTitle">Add Employee</div>
-      <button class="modal-close" onclick="closeEmployeeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group"><label>Full Name</label><input type="text" id="empNameInput" placeholder="e.g. Jason Smith"/></div>
-      <div class="field-group"><label>Role / Position</label><input type="text" id="empRoleInput" placeholder="e.g. Repair Technician"/></div>
-      <div class="field-group"><label>Store / Location</label><select id="empStoreInput"></select></div>
-      <div class="field-group"><label>Start Date</label><input type="date" id="empStartDateInput"/></div>
-      <div class="field-group"><label>Status</label>
-        <select id="empStatusInput">
-          <option value="active">Active</option>
-          <option value="notice">On Notice</option>
-          <option value="terminated">Terminated</option>
-        </select>
-      </div>
-      <div class="field-group"><label>Notes</label>
-        <div class="editor-wrap">
-          <div class="editor-content" id="empNotesInput" contenteditable="true" data-placeholder="Hire context, referrals, general notes about this employee..." style="min-height:70px;max-height:120px;"></div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeEmployeeModal()">Cancel</button>
-      <button class="btn-save" onclick="saveEmployeeData()">Save Employee</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add/Edit Entry Modal -->
-<div class="modal-overlay" id="entryModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title" id="entryModalTitle">New Coaching Entry</div>
-      <button class="modal-close" onclick="closeEntryModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group"><label>Entry Type</label>
-        <select id="entryTypeInput" onchange="onEntryTypeChange()">
-          <option value="observation">Observation — documenting for records</option>
-          <option value="incident">Incident — needs conversation</option>
-          <option value="conversation">Conversation — discussion already happened</option>
-        </select>
-      </div>
-      <div class="field-group"><label>Incident Date</label><input type="date" id="entryIncidentDateInput"/></div>
-      <div class="field-group"><label>Log Date</label><input type="date" id="entryDateInput"/></div>
-      <div class="field-group"><label>Subject / Title</label><input type="text" id="entrySubjectInput" placeholder="e.g. Missed order deadline"/></div>
-      <div class="field-group"><label>Category</label>
-        <select id="entryCategoryInput">
-          <option value="performance">Performance Issue</option>
-          <option value="coaching">Coaching</option>
-          <option value="attendance">Attendance</option>
-          <option value="positive">Positive Feedback</option>
-          <option value="general">General Note</option>
-        </select>
-      </div>
-      <hr class="form-section-divider"/>
-      <div class="form-section-label" id="entrySectionLabel">Notes</div>
-      <div class="field-group">
-        <label>Issue / What Happened</label>
-        <div class="editor-wrap" id="wrap-issue">
-          <div class="editor-toolbar" id="tb-issue"></div>
-          <div class="editor-content" id="f-issue" contenteditable="true" data-placeholder="Describe what happened or was observed..."></div>
-        </div>
-      </div>
-      <div class="field-group" id="fieldGroupCause">
-        <label>Root Cause</label>
-        <div class="editor-wrap" id="wrap-cause">
-          <div class="editor-toolbar" id="tb-cause"></div>
-          <div class="editor-content" id="f-cause" contenteditable="true" data-placeholder="Why did this happen? Background context..."></div>
-        </div>
-      </div>
-      <div class="field-group" id="fieldGroupCoaching">
-        <label>Coaching Provided</label>
-        <div class="editor-wrap" id="wrap-coaching">
-          <div class="editor-toolbar" id="tb-coaching"></div>
-          <div class="editor-content" id="f-coaching" contenteditable="true" data-placeholder="What guidance, technique, or feedback was given?"></div>
-        </div>
-      </div>
-      <div class="field-group" id="fieldGroupResponse">
-        <label>Employee Response</label>
-        <div class="editor-wrap" id="wrap-response">
-          <div class="editor-toolbar" id="tb-response"></div>
-          <div class="editor-content" id="f-response" contenteditable="true" data-placeholder="How did they react? Did they understand?"></div>
-        </div>
-      </div>
-      <div class="field-group" id="fieldGroupActions">
-        <label>Action Items</label>
-        <div class="editor-wrap" id="wrap-actions">
-          <div class="editor-toolbar" id="tb-actions"></div>
-          <div class="editor-content" id="f-actions" contenteditable="true" data-placeholder="Next steps, follow-ups, things to monitor..."></div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeEntryModal()">Cancel</button>
-      <button class="btn-save" onclick="saveEntryData()">Save Entry</button>
-    </div>
-  </div>
-</div>
-
-</div><!-- end app-wrapper -->
-
+<script src="assets/site-gate.js"></script>
 <script src="assets/locations.js"></script>
-<script>
-  // ── Admin gate unlock ──
-  document.addEventListener('cpr-unlocked', function(){
-    document.getElementById('appWrapper').classList.add('visible');
-    initApp();
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const FN=SB_URL+'/functions/v1/cpr-auth';
+const DMG_URL='https://script.google.com/macros/s/AKfycbyvHDQSWs6p9d3WING02i9VyO_ja0TzL8nb_DhhO4Myom_H0_34045pz8GOhyWQUWc7/exec';
+const RQ='https://cpr.repairq.io/ticket/';
+const TRACKER='damage-tracker.html';
+
+/* ===== brand maps (from the design spec) ===== */
+const TYPE={
+  observation:{label:'Observation',fg:'#4E4E50',bg:'#EEF0F3',stripe:'#B9BDCB'},
+  incident:{label:'Incident',fg:'#8A5A00',bg:'#FCF1DD',stripe:'#C9820B'},
+  conversation:{label:'Conversation',fg:'#1B7A41',bg:'#E9F6EE',stripe:'#2E9E5B'},
+};
+const CAT={
+  coaching:{label:'Coaching',fg:'#1E7AA8',bg:'#EAF6FD',bd:'#CDEAF8',dot:'#4FB0E3'},
+  performance:{label:'Performance',fg:'#B91C1C',bg:'#FCE8E8',bd:'#F3C9C9',dot:'#DC282E'},
+  attendance:{label:'Attendance',fg:'#3730A3',bg:'#E9E9FA',bd:'#D2D2F0',dot:'#5B54C9'},
+  positive:{label:'Positive',fg:'#1B7A41',bg:'#E9F6EE',bd:'#CFE9D8',dot:'#2E9E5B'},
+  general:{label:'General',fg:'#4E4E50',bg:'#EEF0F3',bd:'#DDE0E7',dot:'#9AA0AE'},
+};
+const PIPST={
+  draft:{label:'Draft',fg:'#4E4E50',bg:'#EEF0F3',stripe:'#B9BDCB'},
+  active:{label:'Active',fg:'#8A5A00',bg:'#FCF1DD',stripe:'#C9820B'},
+  'under-review':{label:'Under Review',fg:'#1E7AA8',bg:'#EAF6FD',stripe:'#4FB0E3'},
+  'closed-met':{label:'Closed — Met',fg:'#1B7A41',bg:'#E9F6EE',stripe:'#2E9E5B'},
+  'closed-extended':{label:'Closed — Extended',fg:'#3730A3',bg:'#E9E9FA',stripe:'#5B54C9'},
+  'closed-terminated':{label:'Closed — Terminated',fg:'#B91C1C',bg:'#FCE8E8',stripe:'#DC282E'},
+};
+const AV=['#4FB0E3','#2E9E5B','#C9820B','#5B54C9','#DC282E','#2D7D8A'];
+const SECLABELS={issue:'Issue / What Happened',cause:'Root Cause',coaching:'Coaching Provided',response:'Employee Response',actions:'Action Items'};
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const STORECOLOR={'Eugene':'#23A62F','Salem Northeast':'#DE262E','Clackamas':'#4FB0E3'};
+
+/* ===== helpers ===== */
+const $=s=>document.querySelector(s);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function money(n){const x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function isoOf(v){return String(v||'').slice(0,10);}
+function fmt(iso){iso=isoOf(iso);if(!iso)return '';const p=iso.split('-');if(p.length<3)return iso;return MONTHS[(+p[1])-1]+' '+(+p[2])+', '+p[0];}
+function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function tenure(iso){iso=isoOf(iso);if(!iso)return '—';const s=new Date(iso+'T00:00:00'),n=new Date(todayISO()+'T00:00:00');if(isNaN(s))return '—';let m=(n.getFullYear()-s.getFullYear())*12+(n.getMonth()-s.getMonth());if(n.getDate()<s.getDate())m--;if(m<0)return '—';const y=Math.floor(m/12),mo=m%12;return (y?y+'y ':'')+mo+'m';}
+function inRange(iso,range){iso=isoOf(iso);if(!iso||range==='all')return true;const d=new Date(iso+'T00:00:00'),now=new Date(todayISO()+'T00:00:00');if(range==='90'){const c=new Date(now);c.setDate(c.getDate()-90);return d>=c;}if(range==='ytd')return d>=new Date(now.getFullYear()+'-01-01T00:00:00');return true;}
+function initials(name){return String(name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()||'—';}
+function stripStore(s){return String(s||'').replace(/^CPR\s+/i,'').trim();}
+function deviceId(){try{let d=localStorage.getItem('cpr_device_id');if(!d){d='dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('cpr_device_id',d);}return d;}catch(e){return 'dev-x';}}
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>{t.className='toast';},2400);}
+
+/* ===== state + data ===== */
+let AUTH=null, NAME2USER={};
+let ALL=[], EMPLOYEES=[], DMG_BYNAME={};
+const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',catF:'all',sortNewest:true,empSearch:'',logRange:'all',dmgRange:'all',showArchived:false,mDetail:false};
+
+function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
+
+/* ===== auth ===== */
+async function populateNames(){
+  const r=await sb.from('staff_roster').select('display_name,username,role,active').eq('active',true);
+  const rows=(r.error?[]:(r.data||[])).filter(s=>['admin','manager','owner'].indexOf(s.role)>-1);
+  rows.sort((a,b)=>String(a.display_name).localeCompare(String(b.display_name)));
+  NAME2USER={};rows.forEach(s=>{NAME2USER[s.display_name]=s.username;});
+  $('#lkName').innerHTML='<option value="">Select your name…</option>'+rows.map(s=>'<option>'+esc(s.display_name)+'</option>').join('');
+}
+async function doLogin(){
+  const nm=$('#lkName').value, pin=$('#lkPin').value;
+  const err=$('#lkErr');
+  if(!nm){err.textContent='Pick your name';return;}
+  const username=NAME2USER[nm];
+  if(!username){err.textContent='No username on file for that name';return;}
+  if(!pin){err.textContent='Enter your PIN';return;}
+  $('#lkGo').disabled=true;err.textContent='Signing in…';
+  try{
+    const r=await fn({action:'login',username,pin,device_id:deviceId()});
+    if(r.status!==200){const d=r.data||{};
+      if(r.status===423||d.locked)err.textContent='Locked after too many tries — an owner must reset this device.';
+      else if(d.error==='invalid')err.textContent='Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'');
+      else err.textContent=d.error||'Login failed.';
+      $('#lkGo').disabled=false;return;
+    }
+    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+    const st=r.data.staff||{};
+    AUTH={name:st.display_name,role:st.role};
+    err.textContent='';$('#lkGo').disabled=false;
+    unlock();
+  }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
+}
+function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
+async function initAuth(){
+  await populateNames();
+  $('#lkGo').onclick=doLogin;
+  $('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  const sess=(await sb.auth.getSession()).data.session;
+  if(sess){
+    const sr=await sb.from('staff').select('display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role};unlock();return;}
+  }
+  $('#lock').removeAttribute('hidden');
+}
+
+/* ===== data load ===== */
+async function load(){
+  const [stRes,enRes,piRes]=await Promise.all([
+    sb.from('staff').select('id,display_name,title,role,home_store,authorized_stores,start_date,hr_status,archived,active'),
+    sb.from('staff_entries').select('*'),
+    sb.from('staff_pips').select('*'),
+  ]);
+  if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
+  const byId={};
+  (stRes.data||[]).forEach(s=>{byId[s.id]={
+    id:s.id,name:s.display_name,role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
+    start:isoOf(s.start_date),archived:!!s.archived||s.active===false,onPip:false,entries:[],pips:[]
+  };});
+  (enRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
+    e.entries.push({id:r.id,date:isoOf(r.entry_date),incidentDate:isoOf(r.incident_date||r.entry_date),
+      subject:r.subject||'(untitled)',type:r.entry_type||'observation',category:r.category||'general',
+      discussed:!!r.discussed,sections:r.sections||{}});});
+  (piRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;const d=r.doc||{};
+    e.pips.push({id:r.id,title:d.title||'Performance Improvement Plan',status:r.status||d.status||'draft',
+      start:isoOf(r.start_date||d.start),review:isoOf(r.outcome_date||d.review),manager:d.manager||'',
+      issues:d.issues||'',goals:Array.isArray(d.goals)?d.goals:[],support:d.support||'',
+      checkins:Array.isArray(d.checkins)?d.checkins:[]});});
+  ALL=Object.values(byId);
+  ALL.forEach(e=>{e.onPip=e.pips.some(p=>p.status==='active'||p.status==='under-review');});
+  ALL.sort((a,b)=>String(a.store).localeCompare(String(b.store))||String(a.name).localeCompare(String(b.name)));
+  ALL.forEach((e,i)=>{e.avatarBg=AV[i%AV.length];});
+  loadDamage();   // async, re-renders when done
+  refilter();
+  if(!S.empId||!EMPLOYEES.find(e=>e.id===S.empId))selectFirst();
+  render();
+}
+function roleLabel(r){return ({owner:'Owner',admin:'Admin',manager:'Manager',team_member:'Team Member',employee:'Team Member'})[r]||r||'';}
+function refilter(){EMPLOYEES=ALL.filter(e=>S.showArchived?true:!e.archived);}
+function selectFirst(){const e=EMPLOYEES[0]||ALL[0]||null;S.empId=e?e.id:null;syncSel(e);}
+function selEmp(){return EMPLOYEES.find(e=>e.id===S.empId)||ALL.find(e=>e.id===S.empId)||EMPLOYEES[0]||null;}
+function syncSel(e){if(!e){S.entryId=S.pipId=S.damageId=null;return;}
+  const ents=sortedEntries(e);S.entryId=ents[0]?ents[0].id:null;
+  S.pipId=e.pips[0]?e.pips[0].id:null;
+  const dmg=dmgFor(e);S.damageId=dmg[0]?dmg[0].id:null;}
+
+async function loadDamage(){
+  try{
+    const u=DMG_URL+'?action=list';
+    const res=await fetch(u);const b=await res.json();
+    const rows=(b&&b.ok&&b.rows)?b.rows:[];
+    DMG_BYNAME={};
+    rows.forEach(row=>{const k=normName(row.tech);if(!k)return;
+      (DMG_BYNAME[k]=DMG_BYNAME[k]||[]).push({
+        id:row.id||('t'+(row.ticket||'')+'-'+(row.date||'')),date:isoOf(row.date),store:stripStore(row.store),
+        device:row.device||'',mfr:(row.manufacturer==='Other'&&row.mfrDetail)?('Other: '+row.mfrDetail):(row.manufacturer||''),
+        part:(row.part==='Other'&&row.partDetail)?('Other: '+row.partDetail):(row.part||''),
+        cost:Number(row.cost)||0,ticket:String(row.ticket||''),how:row.how||''});});
+    if(!$('#app').hasAttribute('hidden'))render();
+  }catch(e){DMG_BYNAME={};}
+}
+function normName(n){return String(n||'').trim().toLowerCase().replace(/\s+/g,' ');}
+function dmgFor(e){if(!e)return [];return (DMG_BYNAME[normName(e.name)]||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));}
+
+function sortedEntries(e){
+  let ents=e.entries.slice();
+  ents.sort((a,b)=>S.sortNewest?b.incidentDate.localeCompare(a.incidentDate):a.incidentDate.localeCompare(b.incidentDate));
+  return ents;
+}
+
+/* ===== render ===== */
+function render(){renderEmpList();renderProfile();renderTabs();renderWork();}
+
+function renderEmpList(){
+  const q=S.empSearch.trim().toLowerCase();
+  const match=e=>!q||(e.name+' '+e.role+' '+e.store).toLowerCase().includes(q);
+  const vis=EMPLOYEES.filter(match);
+  if(!vis.length){$('#empList').innerHTML='<div class="empty-sm">No employees match your search.</div>';return;}
+  const order=[...new Set(EMPLOYEES.map(e=>e.store))];
+  let html='';
+  order.forEach(store=>{
+    const grp=vis.filter(e=>e.store===store);if(!grp.length)return;
+    html+='<div class="grp-lbl">'+esc(store||'—')+'</div>';
+    grp.forEach(e=>{
+      const recentIncident=e.entries.some(en=>en.type==='incident'&&inRange(en.incidentDate||en.date,'90'));
+      html+='<div class="erow'+(e.id===S.empId?' sel':'')+'" data-emp="'+esc(e.id)+'">'
+        +'<div class="av" style="background:'+e.avatarBg+'">'+esc(initials(e.name))+'</div>'
+        +'<div style="min-width:0;flex:1"><div class="nm">'+esc(e.name)+'</div><div class="rl">'+esc(e.role)+'</div></div>'
+        +(recentIncident?'<span class="dot7" style="background:var(--red)" title="Recent incident (90 days)"></span>':'')
+        +(e.onPip?'<span class="dot7" style="background:var(--amber)" title="On PIP"></span>':'')
+        +'<span class="cnt">'+e.entries.length+'</span></div>';
+    });
   });
-  // ── Config ──
-  const SECTIONS = [
-    { key:'issue',    label:'Issue / What Happened' },
-    { key:'cause',    label:'Root Cause' },
-    { key:'coaching', label:'Coaching Provided' },
-    { key:'response', label:'Employee Response' },
-    { key:'actions',  label:'Action Items' },
-  ];
+  $('#empList').innerHTML=html;
+}
 
-  // ── Toolbar factory ──
-  function buildToolbar(tbId, editorId) {
-    const tb = document.getElementById(tbId);
-    const btns = [
-      {title:'Bold',   cmd:'bold',      html:'<b>B</b>'},
-      {title:'Italic', cmd:'italic',    html:'<i>I</i>'},
-      {title:'Bullet', cmd:'list',      html:'•', style:'font-size:15px;'},
-      {title:'Clear',  cmd:'clear',     html:'Clr', style:'font-size:11px;width:34px;'},
-    ];
-    btns.forEach((b,i) => {
-      if (i===2) { const sep=document.createElement('div'); sep.className='toolbar-sep'; tb.appendChild(sep); }
-      const btn = document.createElement('button');
-      btn.className='toolbar-btn'; btn.title=b.title; btn.innerHTML=b.html;
-      if(b.style) btn.style.cssText=b.style;
-      btn.addEventListener('mousedown', e => {
-        e.preventDefault();
-        document.getElementById(editorId).focus();
-        if(b.cmd==='bold') document.execCommand('bold',false,null);
-        else if(b.cmd==='italic') document.execCommand('italic',false,null);
-        else if(b.cmd==='list') document.execCommand('insertUnorderedList',false,null);
-        else if(b.cmd==='clear') { document.execCommand('removeFormat',false,null); }
-        updateToolbarStates();
-      });
-      tb.appendChild(btn);
-    });
-  }
+function renderProfile(){
+  const e=selEmp();
+  if(!e){$('#profile').innerHTML='<div class="prof"><div class="prof-sub">No staff to display.</div></div>';return;}
+  const last=e.entries.map(x=>x.date).filter(Boolean).sort().slice(-1)[0];
+  const dmgYtd=dmgFor(e).filter(r=>r.date>=todayISO().slice(0,4)+'-01-01').reduce((s,r)=>s+r.cost,0);
+  const openPips=e.pips.filter(p=>p.status==='active'||p.status==='under-review').length;
+  const absences=e.entries.filter(x=>x.category==='attendance').length;
+  const sBg=e.onPip?'#FCF1DD':'#E9F6EE',sFg=e.onPip?'#8A5A00':'#1B7A41',sLbl=e.onPip?'On PIP':(e.archived?'Archived':'Active');
+  const stBg=e.archived?'#EEF0F3':sBg,stFg=e.archived?'#4E4E50':sFg;
+  const m=(dot,val,lbl,sm)=>'<div class="metric"><span class="mdot" style="background:'+dot+'"></span><span class="mval'+(sm?' sm':'')+'">'+esc(val)+'</span><span class="mlbl">'+lbl+'</span></div>';
+  $('#profile').innerHTML='<div class="prof"><div class="prof-top">'
+    +'<div class="prof-id"><div class="av" style="background:'+e.avatarBg+'">'+esc(initials(e.name))+'</div>'
+    +'<div style="min-width:0"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<span class="prof-name head">'+esc(e.name)+'</span>'
+    +'<span class="status-pill" style="background:'+stBg+';color:'+stFg+'">'+esc(sLbl)+'</span></div>'
+    +'<div class="prof-sub">'+esc(e.role)+' &middot; '+esc(e.store||'—')+(e.start?(' &middot; Started '+esc(fmt(e.start))):'')+'</div></div></div>'
+    +'<button class="btn-red" data-act="new-entry">+ New Entry</button></div>'
+    +'<div class="metrics">'
+    +m('var(--blue)',e.entries.length,'Entries')
+    +m('var(--amber)',openPips,'Open PIPs')
+    +m('var(--red)',absences,'Absences')
+    +m('var(--dark)',money(dmgYtd),'Damage YTD')
+    +m('var(--green)',tenure(e.start),'Tenure')
+    +m('var(--grey)',last?fmt(last):'—','Last Seen',true)
+    +'</div></div>';
+}
 
-  function updateToolbarStates() {
-    document.querySelectorAll('.toolbar-btn[title="Bold"]').forEach(btn => btn.classList.toggle('active', document.queryCommandState('bold')));
-    document.querySelectorAll('.toolbar-btn[title="Italic"]').forEach(btn => btn.classList.toggle('active', document.queryCommandState('italic')));
-  }
-  document.addEventListener('selectionchange', updateToolbarStates);
+function renderTabs(){
+  const e=selEmp();
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===S.tab));
+  const pb=$('[data-pipbadge]'),db=$('[data-dmgbadge]');
+  const np=e?e.pips.length:0,nd=e?dmgFor(e).length:0;
+  if(np>0){pb.textContent=np;pb.hidden=false;}else pb.hidden=true;
+  if(nd>0){db.textContent=nd;db.hidden=false;}else db.hidden=true;
+}
 
-  // Build all toolbars
-  SECTIONS.forEach(s => buildToolbar('tb-'+s.key, 'f-'+s.key));
+function renderWork(){
+  const e=selEmp();
+  const w=$('#work');
+  if(!e){w.innerHTML='';return;}
+  if(S.tab==='log')w.innerHTML=logHtml(e);
+  else if(S.tab==='pips')w.innerHTML=pipHtml(e);
+  else w.innerHTML=dmgHtml(e);
+  const dp=w.querySelector('.detail-pane');if(dp)dp.classList.toggle('show',S.mDetail);
+}
 
-  // ── State ──
-  const API_URL='https://script.google.com/macros/s/AKfycbz5B5NEbCaFOUKwCcoZOw0wV6CC63YirCrSka9OFMCvVTe0Enar2IxV_c9LXj2rIzu3/exec';
-  const CACHE_KEY='cpr_employee_records_cache';
-  let data = { employees:[] };
-  let activeEmployeeId=null, activeEntryId=null, editingEmployeeId=null, editingEntryId=null;
-  let showArchived=false;
-  let activeTypeFilter='all';
-  let activeCatFilter='all';
-  let sortNewestFirst=true;
-  let collapsedYears={};
-  let isSyncing=false;
-  let pendingMarkDiscussed=false;
-
-  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-
-  // ── Cache (local fallback) — scoped to the logged-in person so one user
-  //    never sees another's cached records. Tagged with name|role.
-  function currentOwnerTag(){ try{ var u=window.CPRGate&&CPRGate.user(); return u?(String(u.name)+'|'+String(u.role)):''; }catch(e){ return ''; } }
-  function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(Object.assign({},data,{_owner:currentOwnerTag()}))); }catch(e){} }
-  function loadCache(){
-    try{
-      const r=localStorage.getItem(CACHE_KEY); if(!r){ data={employees:[]}; return; }
-      const parsed=JSON.parse(r);
-      // Only adopt the cache if it belongs to the current viewer; otherwise show nothing.
-      if((parsed._owner||'')!==currentOwnerTag()){ data={employees:[]}; return; }
-      data=parsed;
-    }catch(e){ data={employees:[]}; }
-  }
-
-  // ── Sync status UI ──
-  function setSyncStatus(status, msg){
-    const el=document.getElementById('syncStatus');
-    if(!el) return;
-    el.textContent=msg;
-    el.className='sync-status '+status;
-  }
-
-  // ── Flatten/unflatten data for Sheets ──
-  // Sheets stores employees and entries as flat rows
-  // In-memory we store entries nested under employees
-  function flattenForSheets(){
-    const employees=data.employees.map(emp=>{
-      const {entries,...rest}=emp;
-      return rest;
-    });
-    const entries=[];
-    data.employees.forEach(emp=>{
-      (emp.entries||[]).forEach(entry=>{
-        const flat={employeeId:emp.id};
-        Object.assign(flat, entry);
-        // Flatten sections
-        if(entry.sections){
-          Object.keys(entry.sections).forEach(k=>{ flat[k]=entry.sections[k]||''; });
-          delete flat.sections;
-        }
-        entries.push(flat);
-      });
-    });
-    return {employees, entries};
-  }
-
-  function normalizeDate(val){
-    if(!val) return '';
-    if(typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0,10);
-    // Handle Google Sheets Date object or other formats
-    const d=new Date(val);
-    if(isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0,10);
-  }
-
-  // Build the in-memory model: employee PROFILES come from the CPR Auth roster
-  // (already hierarchy-filtered server-side); entries + PIPs come from the records backend.
-  // Roster "title" maps to the page's job-title field (emp.role).
-  function buildData(rosterRows, entries, pips){
-    const empMap={};
-    rosterRows.forEach(r=>{
-      if(String(r.role||'').toLowerCase()==='owner') return; // owner isn't tracked in coaching records
-      empMap[r.id]={
-        id:r.id, name:r.name||'', role:r.title||'', store:r.store||'',
-        status:r.status||'active', notes:r.notes||'',
-        archived:!!r.archived, startDate:r.startDate||'',
-        accessRole:r.role||'employee',
-        entries:[], pips:[]
-      };
-    });
-    entries.forEach(row=>{
-      const emp=empMap[row.employeeId]; if(!emp) return;
-      emp.entries.push({
-        id:row.id, date:normalizeDate(row.date), subject:row.subject, category:row.category,
-        entryType:row.entryType||'observation',
-        incidentDate:normalizeDate(row.incidentDate)||normalizeDate(row.date),
-        discussed:row.discussed==='true'||row.discussed===true,
-        sections:{ issue:row.issue||'', cause:row.cause||'', coaching:row.coaching||'', response:row.response||'', actions:row.actions||'' }
-      });
-    });
-    pips.forEach(row=>{
-      const emp=empMap[row.employeeId]; if(!emp) return;
-      try{ const pip=row.data?JSON.parse(row.data):{id:row.id,title:row.title,status:row.status}; emp.pips.push(pip); }catch(e){}
-    });
-    return {employees:Object.values(empMap)};
-  }
-
-  // ── API calls ── (POST so the passcode travels in the body, never the URL)
-  async function apiCall(params){
-    // Send the passcode (and action) in the query string — an Apps Script POST
-    // body can be dropped across the /exec redirect, but query params always
-    // arrive. The full params (including any large `data`) still go in the body.
-    const code=((window.CPRGate?CPRGate.ownerCode():'')||'');
-    const url=new URL(API_URL);
-    url.searchParams.set('code', code);
-    if(params.action) url.searchParams.set('action', params.action);
-    if(params.id!=null) url.searchParams.set('id', params.id);
-    const res=await fetch(url.toString(), { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(params) });
-    return res.json();
-  }
-
-  async function loadFromSheets(){
-    setSyncStatus('syncing','⟳ Syncing...');
-    try{
-      // Roster (authoritative, hierarchy-filtered) from CPR Auth; entries/PIPs from the records backend.
-      const roster=await CPRGate.listEmployees();
-      if(!roster||!roster.ok) throw new Error((roster&&roster.error)||'Roster unavailable');
-      const result=await apiCall({action:'getAll'});
-      if(result.error) throw new Error(result.error);
-      data=buildData(roster.rows||[], result.entries||[], result.pips||[]);
-      saveCache();
-      setSyncStatus('ok','✓ Synced');
-    }catch(e){
-      setSyncStatus('error','⚠ '+(e.message||'Offline')+' — using cached data');
-      loadCache();
-    }
-    render();
-  }
-
-  async function saveEmployee(empObj){
-    setSyncStatus('syncing','⟳ Saving...');
-    try{
-      // Write profile to the CPR Auth roster (single source of truth).
-      // The page's job-title field is emp.role -> roster "title".
-      const payload={
-        id:empObj.id, name:empObj.name, store:empObj.store||'',
-        title:empObj.role||'', status:empObj.status||'active',
-        notes:empObj.notes||'', startDate:empObj.startDate||'',
-        archived:!!empObj.archived
-      };
-      const r=await CPRGate.saveEmployee(payload);
-      if(!r||!r.ok) throw new Error((r&&r.error)||'Save failed');
-      if(r.row && !empObj.id) empObj.id=r.row.id;
-      setSyncStatus('ok','✓ Saved');
-    }catch(e){ setSyncStatus('error','⚠ '+(e.message||'Save failed')); }
-  }
-
-  async function saveEntryToSheets(entry, employeeId){
-    setSyncStatus('syncing','⟳ Saving...');
-    try{
-      const flat={employeeId, id:entry.id, date:entry.date, incidentDate:entry.incidentDate||entry.date, subject:entry.subject, category:entry.category, entryType:entry.entryType||'observation', discussed:entry.discussed?'true':'false'};
-      if(entry.sections) Object.assign(flat, entry.sections);
-      await apiCall({action:'saveEntry', data:JSON.stringify(flat)});
-      setSyncStatus('ok','✓ Saved');
-    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
-  }
-
-  async function deleteEmployeeFromSheets(id){
-    try{ await CPRGate.deleteEmployee(id); }catch(e){}
-  }
-
-  async function deleteEntryFromSheets(id){
-    try{ await apiCall({action:'deleteEntry', id}); }catch(e){}
-  }
-
-  // Local data mutation + sync
-  function save(){ saveCache(); }
-  function initials(n){ return n.trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
-  var STORE_COLORS={ 'CPR Eugene':'#23A62F', 'CPR Salem Northeast':'#DE262E', 'CPR Clackamas OR':'#4FB0E3' };
-  function storeColor(store){ var n=window.CPRLocations?CPRLocations.normalize(store):store; return STORE_COLORS[n]||'#B9BDCB'; }
-  function formatDate(iso){
-    if(!iso) return '';
-    const [y,m,d]=iso.split('-');
-    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]+' '+parseInt(d)+', '+y;
-  }
-  function isMobile(){ return window.innerWidth<=580; }
-
-  // ── Mobile picker navigation ──
-  function goBackToMobilePicker(){
-    activeEmployeeId=null; activeEntryId=null; activePIPId=null;
-    renderMobilePicker(); renderMain();
-  }
-
-  // ── Render sections ──
-  function renderSections(entry, container, keepFirst=false) {
-    // Remove everything except the first child if keepFirst
-    if(keepFirst){ while(container.children.length>1) container.removeChild(container.lastChild); }
-    else container.innerHTML='';
-    let hasContent=false;
-    SECTIONS.forEach((s,i) => {
-      const val = entry.sections && entry.sections[s.key];
-      if (!val || val.trim()==='') return;
-      hasContent=true;
-      if(i>0 && hasContent){
-        const hr=document.createElement('hr'); hr.className='detail-section-divider'; container.appendChild(hr);
-      }
-      const sec=document.createElement('div'); sec.className='detail-section';
-      sec.innerHTML=`<div class="detail-section-label">${s.label}</div><div class="detail-section-body">${val}</div>`;
-      container.appendChild(sec);
-    });
-    if(!hasContent) container.innerHTML='<div style="color:var(--grey);font-size:13px;">No notes recorded.</div>';
-  }
-
-  // ── Render ──
-  function render(){ renderSidebar(); renderMobilePicker(); renderMain(); }
-
-  function toggleShowArchived(){
-    showArchived=!showArchived;
-    ['archiveToggleDesktop','archiveToggleMobile'].forEach(id=>{
-      const btn=document.getElementById(id);
-      if(!btn) return;
-      btn.textContent=showArchived?'Hide Archived':'Show Archived';
-      btn.classList.toggle('showing',showArchived);
-    });
-    render();
-  }
-
-  async function archiveEmployee(id){
-    const emp=data.employees.find(e=>e.id===id);
-    if(!emp) return;
-    emp.archived=true;
-    if(activeEmployeeId===id){ activeEmployeeId=null; activeEntryId=null; }
-    save(); render();
-    await saveEmployee(emp);
-  }
-
-  async function unarchiveEmployee(id){
-    const emp=data.employees.find(e=>e.id===id);
-    if(emp){ emp.archived=false; }
-    save(); render();
-    await saveEmployee(emp);
-  }
-
-  function renderSidebar(){
-    const list=document.getElementById('employeeList');
-    list.innerHTML='';
-    const visible=data.employees.filter(e=>showArchived?e.archived:!e.archived);
-    if(!visible.length){
-      list.innerHTML=`<div style="padding:16px;font-size:13px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees.<br/>Tap + to add one.'}</div>`;
-      return;
-    }
-    // Group by store, sort stores alphabetically, sort employees within each store alphabetically
-    const stores={};
-    visible.forEach(emp=>{ const s=emp.store||'Unassigned'; if(!stores[s]) stores[s]=[]; stores[s].push(emp); });
-    (window.CPRLocations?CPRLocations.sort(Object.keys(stores)):Object.keys(stores).sort()).forEach(store=>{
-      // Store label
-      const label=document.createElement('div');
-      label.style.cssText='padding:10px 16px 4px;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);';
-      label.textContent=store;
-      list.appendChild(label);
-      // Sort employees alphabetically within store
-      stores[store].sort((a,b)=>a.name.localeCompare(b.name)).forEach(emp=>{
-        const count=(emp.entries||[]).length;
-        const item=document.createElement('div');
-        item.style.position='relative';
-        const inner=document.createElement('div');
-        inner.className='employee-item'+(activeEmployeeId===emp.id?' active':'')+(emp.archived?' archived':'');
-        inner.innerHTML=`<div class="emp-avatar" style="background:${emp.archived?'var(--grey)':storeColor(emp.store)}">${initials(emp.name)}</div>
-          <div class="emp-info">
-            <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
-            <div class="emp-meta">${count} entr${count!==1?'ies':'y'}${emp.status&&emp.status!=='active'?' · <b style="color:var(--accent)">'+statusLabel(emp.status)+'</b>':''}</div>
-          </div>
-          <button class="emp-settings-btn" title="Settings">···</button>`;
-        inner.addEventListener('click', e=>{ if(!e.target.classList.contains('emp-settings-btn')) selectEmployee(emp.id); });
-        inner.querySelector('.emp-settings-btn').addEventListener('click', e=>{ e.stopPropagation(); openEmpMenu(emp.id, e.currentTarget, item); });
-        item.appendChild(inner);
-        list.appendChild(item);
-      });
-    });
-  }
-
-  function renderMobilePicker(){
-    const container=document.getElementById('mobilePickerList');
-    if(!container) return;
-    container.innerHTML='';
-    const picker=document.getElementById('mobilePicker');
-    const empView=document.getElementById('employeeView');
-    const emptyState=document.getElementById('emptyState');
-    if(isMobile()){
-      if(activeEmployeeId){ picker.style.display='none'; emptyState.style.display='none'; }
-      else { picker.style.display='flex'; emptyState.style.display='none'; empView.classList.remove('visible'); }
-    } else { picker.style.display='none'; }
-
-    const visible=data.employees.filter(e=>showArchived?e.archived:!e.archived);
-    if(!visible.length){
-      container.innerHTML=`<div style="padding:24px;font-size:14px;color:var(--grey);text-align:center;">${showArchived?'No archived employees.':'No active employees. Tap + to add one.'}</div>`;
-      return;
-    }
-    const stores={};
-    visible.forEach(emp=>{ const s=emp.store||'Unassigned'; if(!stores[s]) stores[s]=[]; stores[s].push(emp); });
-    (window.CPRLocations?CPRLocations.sort(Object.keys(stores)):Object.keys(stores).sort()).forEach(store=>{
-      const group=document.createElement('div');
-      group.className='store-group';
-      group.innerHTML=`<div class="store-group-label">${store}</div>`;
-      stores[store].forEach(emp=>{
-        const count=(emp.entries||[]).length;
-        const wrap=document.createElement('div');
-        wrap.style.position='relative';
-        const card=document.createElement('div');
-        card.className='mobile-emp-card'+(emp.archived?' archived':'');
-        card.innerHTML=`<div class="emp-avatar" style="background:${emp.archived?'var(--grey)':storeColor(emp.store)}">${initials(emp.name)}</div>
-          <div class="emp-info">
-            <div class="emp-name">${emp.name}${emp.archived?'<span class="archived-badge">Archived</span>':''}</div>
-            <div class="emp-meta">${[emp.role,count+' entr'+(count!==1?'ies':'y'),emp.status&&emp.status!=='active'?statusLabel(emp.status):null].filter(Boolean).join(' · ')}</div>
-          </div>
-          <button class="mobile-emp-settings" title="Settings">···</button>`;
-        card.querySelector('.mobile-emp-settings').addEventListener('click',e=>{ e.stopPropagation(); openEmpMenu(emp.id, e.currentTarget, wrap); });
-        card.addEventListener('click', e=>{ if(!e.target.classList.contains('mobile-emp-settings')) selectEmployee(emp.id); });
-        wrap.appendChild(card);
-        group.appendChild(wrap);
-      });
-      container.appendChild(group);
-    });
-  }
-
-  function renderMain(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    if(!isMobile()){
-      document.getElementById('emptyState').style.display=emp?'none':'flex';
-    }
-    const view=document.getElementById('employeeView');
-    view.classList.toggle('visible',!!emp);
-    if(!emp) return;
-    document.getElementById('viewName').textContent=emp.name;
-    const roleParts=[emp.role,emp.store].filter(Boolean).join(' — ');
-    const statusPart=emp.status&&emp.status!=='active'?` · ${statusLabel(emp.status)}`:'';
-    const datePart=emp.startDate?` · Started ${formatDate(emp.startDate)}`:'';
-    document.getElementById('viewRole').textContent=roleParts+statusPart+datePart;
-    // Archive button desktop only
-    const archBtn=document.getElementById('empViewArchiveBtn');
-    if(archBtn){
-      archBtn.textContent=emp.archived?'Restore':'Archive';
-      archBtn.onclick=emp.archived?()=>unarchiveEmployee(emp.id):()=>archiveEmployee(emp.id);
-    }
-
-    const scroll=document.getElementById('entriesScroll');
-    scroll.innerHTML='';
-    const currentYear=new Date().getFullYear();
-    let entries=(emp.entries||[]).slice();
-    if(activeTypeFilter!=='all') entries=entries.filter(e=>e.entryType===activeTypeFilter);
-    if(activeCatFilter!=='all') entries=entries.filter(e=>e.category===activeCatFilter);
-    // Apply sort
-    entries.sort((a,b)=>sortNewestFirst?(b.incidentDate||b.date||'').localeCompare(a.incidentDate||a.date||''):(a.incidentDate||a.date||'').localeCompare(b.incidentDate||b.date||''));
-
-    if(!entries.length){
-      scroll.innerHTML=`<div class="no-entries">${activeTypeFilter!=='all'||activeCatFilter!=='all'?'No entries match the selected filters.':'No entries yet. Tap "New Entry" to add one.'}</div>`;
-    } else {
-      // Group by year
-      const byYear={};
-      entries.forEach(entry=>{
-        const y=(entry.incidentDate||entry.date||'').slice(0,4)||'Unknown';
-        if(!byYear[y]) byYear[y]=[];
-        byYear[y].push(entry);
-      });
-      const years=Object.keys(byYear).sort((a,b)=>sortNewestFirst?b-a:a-b);
-      years.forEach(year=>{
-        const isCurrentYear=parseInt(year)===currentYear;
-        // Default: current year expanded, others collapsed (unless user has toggled)
-        if(collapsedYears[year]===undefined) collapsedYears[year]=!isCurrentYear;
-        const collapsed=collapsedYears[year];
-        const group=document.createElement('div');
-        group.className='year-group';
-        const header=document.createElement('div');
-        header.className='year-header';
-        header.innerHTML=`<span class="year-label">${year}</span><span class="year-count">${byYear[year].length} entr${byYear[year].length!==1?'ies':'y'}</span><span class="year-chevron${collapsed?' collapsed':''}">▼</span>`;
-        header.addEventListener('click',()=>{
-          collapsedYears[year]=!collapsedYears[year];
-          renderMain();
-        });
-        group.appendChild(header);
-        const entriesDiv=document.createElement('div');
-        entriesDiv.className='year-entries'+(collapsed?' collapsed':'');
-        byYear[year].forEach(entry=>{
-          const card=document.createElement('div');
-          card.className='entry-card'+(activeEntryId===entry.id?' selected':'');
-          let preview='';
-          SECTIONS.forEach(s=>{ if(!preview && entry.sections && entry.sections[s.key]) preview=entry.sections[s.key].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,110); });
-          card.innerHTML=`<div class="entry-card-top">
-            <div class="entry-subject">${entry.subject}</div>
-            <div class="entry-date">${formatDate(entry.incidentDate||entry.date)}</div></div>
-            <div class="entry-preview">${preview}${preview.length>=110?'…':''}</div>
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0;margin-top:6px;">
-              <span class="type-tag ${entry.entryType||'observation'}">${entry.entryType||'observation'}</span>
-              <span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>
-            </div>`;
-          card.addEventListener('click',()=>selectEntry(entry.id));
-          entriesDiv.appendChild(card);
-        });
-        group.appendChild(entriesDiv);
-        scroll.appendChild(group);
-      });
-    }
-    renderDetail();
-  }
-
-  function renderDetail(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
-    document.getElementById('detailEmpty').style.display=entry?'none':'flex';
-    const content=document.getElementById('detailContent');
-    content.classList.toggle('visible',!!entry);
-    if(!entry) return;
-    document.getElementById('detailSubject').textContent=entry.subject;
-    // Tags row
-    const tagsDiv=document.getElementById('detailTags');
-    if(tagsDiv){
-      tagsDiv.innerHTML=`<span class="type-tag ${entry.entryType||'observation'}">${entry.entryType||'observation'}</span><span class="entry-tag ${entry.category}">${entry.category.replace('-',' ')}</span>${(entry.entryType==='incident')?'<span style="background:#fef3c7;color:#92400e;font-family:\'Nunito\',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;">⚑ Discussion Needed</span>':''}`;
-    }
-    // Meta row
-    const datePart=entry.incidentDate&&entry.incidentDate!==entry.date
-      ?`Incident: <span>${formatDate(entry.incidentDate)}</span> &nbsp;·&nbsp; Logged: <span>${formatDate(entry.date)}</span>`
-      :`<span>${formatDate(entry.date)}</span>`;
-    document.getElementById('detailMeta').innerHTML=datePart;
-    // Show/hide Log Discussion button — only on Incidents
-    const convertBtn=document.getElementById('convertBtn');
-    if(convertBtn) convertBtn.style.display=(entry.entryType==='incident')?'':'none';
-    const mobileConvertBtn=document.getElementById('mobileConvertBtn');
-    if(mobileConvertBtn) mobileConvertBtn.style.display=(entry.entryType==='incident')?'':'none';
-    // Print header (hidden on screen, shown when printing)
-    const ph=document.getElementById('printHeader');
-    if(ph) ph.innerHTML=`<h1>${entry.subject}</h1><p>${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
-    renderSections(entry, document.getElementById('detailBody'), true);
-  }
-
-  function buildEntryHTML(emp, entry){
-    let html=`<div style="font-family:Arial,sans-serif;padding:24px;max-width:700px;">`;
-    html+=`<div style="border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px;">`;
-    html+=`<h1 style="font-size:18px;font-weight:900;margin:0 0 4px;">${entry.subject}</h1>`;
-    html+=`<p style="font-size:12px;color:#666;margin:0;">${emp.name}${emp.role?' · '+emp.role:''}${emp.store?' · '+emp.store:''} · ${formatDate(entry.date)} · ${entry.category}</p>`;
-    html+=`<p style="font-size:11px;color:#999;margin:4px 0 0;">CPR Cell Phone Repair Oregon — Employee Records</p></div>`;
-    SECTIONS.forEach((s,i)=>{
-      const val=entry.sections&&entry.sections[s.key];
-      if(!val||val.trim()==='') return;
-      if(i>0) html+=`<hr style="border:none;border-top:1px solid #ddd;margin:12px 0;"/>`;
-      html+=`<div style="margin-bottom:12px;">`;
-      html+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#999;margin-bottom:4px;">${s.label}</div>`;
-      html+=`<div style="font-size:13px;line-height:1.7;">${val}</div>`;
-      html+=`</div>`;
-    });
-    html+=`</div>`;
-    return html;
-  }
-
-  function printEntry(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
-    if(!entry) return;
-    // Inject a temporary print-only stylesheet and trigger print
-    const style=document.createElement('style');
-    style.id='print-override';
-    style.textContent=`@media print{*{visibility:hidden;}#printFrame,#printFrame *{visibility:visible;}#printFrame{position:fixed;inset:0;padding:24px;background:white;z-index:9999;}}`;
-    document.head.appendChild(style);
-    const frame=document.createElement('div');
-    frame.id='printFrame';
-    frame.innerHTML=buildEntryHTML(emp,entry);
-    document.body.appendChild(frame);
-    window.print();
-    document.head.removeChild(style);
-    document.body.removeChild(frame);
-  }
-
-  function downloadPDF(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
-    if(!entry) return;
-    // Use print-to-PDF via a hidden iframe
-    const iframe=document.createElement('iframe');
-    iframe.style.cssText='position:fixed;width:0;height:0;border:none;top:-9999px;';
-    document.body.appendChild(iframe);
-    const filename=`${emp.name.replace(/\s+/g,'-')}_${entry.date}_${entry.subject.replace(/[^a-zA-Z0-9]/g,'-').slice(0,30)}.pdf`;
-    iframe.contentDocument.write(`<!DOCTYPE html><html><head><title>${filename}</title><style>body{margin:0;font-family:Arial,sans-serif;}@media print{@page{margin:20mm;}}</style></head><body>${buildEntryHTML(emp,entry)}</body></html>`);
-    iframe.contentDocument.close();
-    setTimeout(()=>{
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      setTimeout(()=>document.body.removeChild(iframe),1000);
-    },400);
-  }
-
-  // ── Entry type field visibility ──
-  function onEntryTypeChange(){
-    const type=document.getElementById('entryTypeInput').value;
-    const label=document.getElementById('entrySectionLabel');
-    const cause=document.getElementById('fieldGroupCause');
-    const coaching=document.getElementById('fieldGroupCoaching');
-    const response=document.getElementById('fieldGroupResponse');
-    const actions=document.getElementById('fieldGroupActions');
-    if(type==='observation'){
-      label.textContent='What Was Observed';
-      cause.style.display='none';
-      coaching.style.display='none';
-      response.style.display='none';
-      actions.style.display='none';
-    } else if(type==='incident'){
-      label.textContent='Incident Details';
-      cause.style.display='';
-      coaching.style.display='none';
-      response.style.display='none';
-      actions.style.display='none';
-    } else {
-      label.textContent='Conversation Notes';
-      cause.style.display='';
-      coaching.style.display='';
-      response.style.display='';
-      actions.style.display='';
-    }
-  }
-
-  // ── Filters ──
-  function setTypeFilter(type){
-    activeTypeFilter=type;
-    document.querySelectorAll('.filter-bar .filter-chip[data-type]').forEach(btn=>{
-      btn.classList.toggle('active', btn.dataset.type===type);
-    });
-    renderMain();
-  }
-
-  function setCatFilter(cat){
-    activeCatFilter=cat;
-    document.querySelectorAll('.filter-bar .filter-chip[data-cat]').forEach(btn=>{
-      btn.classList.toggle('active', btn.dataset.cat===cat);
-    });
-    renderMain();
-  }
-
-  // ── Convert incident to conversation ──
-  async function convertToConversation(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
-    if(!entry) return;
-    // Open in edit mode as conversation type
-    document.getElementById('entryDetailOverlay').classList.remove('open');
-    editingEntryId=entry.id;
-    document.getElementById('entryModalTitle').textContent='Convert to Conversation';
-    document.getElementById('entryTypeInput').value='conversation';
-    document.getElementById('entryDateInput').value=entry.date;
-    document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
-    document.getElementById('entrySubjectInput').value=entry.subject;
-    document.getElementById('entryCategoryInput').value=entry.category;
-    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
-    onEntryTypeChange();
-    document.getElementById('entryModal').classList.add('open');
-  }
-
-  async function toggleDiscussed(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
-    if(!entry) return;
-    // If already discussed, just toggle off
-    if(entry.discussed){
-      entry.discussed=false;
-      save(); renderMain(); renderDetail();
-      updateDiscussedButtons(false);
-      await saveEntryToSheets(entry, emp.id);
-      return;
-    }
-    // If not yet discussed, open in conversation mode to capture details first
-    document.getElementById('entryDetailOverlay').classList.remove('open');
-    editingEntryId=entry.id;
-    document.getElementById('entryModalTitle').textContent='Log Conversation';
-    document.getElementById('entryTypeInput').value='conversation';
-    document.getElementById('entryDateInput').value=entry.date;
-    document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
-    document.getElementById('entrySubjectInput').value=entry.subject;
-    document.getElementById('entryCategoryInput').value=entry.category;
-    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
-    onEntryTypeChange();
-    pendingMarkDiscussed=true;
-    document.getElementById('entryModal').classList.add('open');
-  }
-
-  function updateDiscussedButtons(discussed){
-    ['discussedToggleBtn','mobileDiscussedToggleBtn'].forEach(id=>{
-      const btn=document.getElementById(id);
-      if(!btn) return;
-      btn.textContent=discussed?'✓ Discussed':'⚑ Discussion Needed';
-      btn.className='detail-btn discussed-toggle-btn '+(discussed?'is-discussed':'is-pending');
-    });
-  }
-
-  function setFilter(cat){
-    activeFilter=cat;
-    document.querySelectorAll('.filter-chip').forEach(btn=>{
-      const isActive=btn.dataset.cat===cat;
-      btn.classList.toggle('active', isActive);
-      // Remove all color classes first
-      btn.classList.remove('coaching','performance','attendance','positive','general','pending-chip','discussed-chip');
-      // Re-add the type class so active state uses right color
-      if(btn.dataset.cat==='pending') btn.classList.add('pending-chip');
-      if(btn.dataset.cat==='discussed') btn.classList.add('discussed-chip');
-      if(isActive && !['all','pending','discussed'].includes(cat)) btn.classList.add(cat);
-    });
-    renderMain();
-  }
-
-  function toggleSort(){
-    sortNewestFirst=!sortNewestFirst;
-    document.getElementById('sortBtn').textContent=sortNewestFirst?'↓ Newest':'↑ Oldest';
-    renderMain();
-  }
-
-  function selectEmployee(id){
-    activeEmployeeId=id; activeEntryId=null; activePIPId=null;
-    activeTypeFilter='all'; activeCatFilter='all'; collapsedYears={};
-    activeTab='log';
-    document.querySelectorAll('.filter-chip[data-type]').forEach(btn=>btn.classList.toggle('active',btn.dataset.type==='all'));
-    document.querySelectorAll('.filter-chip[data-cat]').forEach(btn=>btn.classList.toggle('active',btn.dataset.cat==='all'));
-    document.getElementById('tabLog').classList.add('active');
-    document.getElementById('tabPips').classList.remove('active');
-    document.getElementById('panelLog').style.display='flex';
-    document.getElementById('panelPips').style.display='none';
-    render();
-  }
-  function selectEntry(id){
-    activeEntryId=id;
-    if(isMobile()) openMobileDetail();
-    else renderMain();
-  }
-
-  // Mobile detail
-  function openMobileDetail(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?(emp.entries||[]).find(e=>e.id===activeEntryId):null;
-    if(!entry) return;
-    document.getElementById('mobileDetailSubject').textContent=entry.subject;
-    document.getElementById('mobileDetailMeta').textContent=formatDate(entry.date)+' · '+entry.category;
-    renderSections(entry, document.getElementById('mobileDetailBody'));
-    document.getElementById('entryDetailOverlay').classList.add('open');
-  }
-  function closeMobileDetail(){ document.getElementById('entryDetailOverlay').classList.remove('open'); activeEntryId=null; renderMain(); }
-
-  // Employee settings menu
-  let activeMenu=null;
-  function closeMenu(){ if(activeMenu){ activeMenu.remove(); activeMenu=null; } }
-  document.addEventListener('click', closeMenu);
-
-  function statusLabel(s){ return s==='notice'?'On Notice':s==='terminated'?'Terminated':'Active'; }
-
-  function openEmpMenu(empId, anchor, container){
-    closeMenu();
-    const emp=data.employees.find(e=>e.id===empId);
-    if(!emp) return;
-    const menu=document.createElement('div');
-    menu.className='emp-menu';
-    menu.style.cssText='position:absolute;right:8px;top:100%;margin-top:4px;z-index:300;';
-    const items=[
-      {icon:'✏️', label:'Edit Employee', action:()=>{ closeMenu(); openEditEmployee(empId); }},
-      {divider:true},
-      emp.archived
-        ?{icon:'↩️', label:'Restore', action:()=>{ closeMenu(); unarchiveEmployee(empId); }}
-        :{icon:'📦', label:'Archive', action:()=>{ closeMenu(); archiveEmployee(empId); }},
-      {icon:'🗑️', label:'Delete', danger:true, action:()=>{ closeMenu(); deleteEmployee(empId); }},
-    ];
-    items.forEach(item=>{
-      if(item.divider){ const d=document.createElement('hr'); d.className='emp-menu-divider'; menu.appendChild(d); return; }
-      const el=document.createElement('div');
-      el.className='emp-menu-item'+(item.danger?' danger':'');
-      el.innerHTML=`<span class="menu-icon">${item.icon}</span>${item.label}`;
-      el.addEventListener('click', e=>{ e.stopPropagation(); item.action(); });
-      menu.appendChild(el);
-    });
-    menu.addEventListener('click', e=>e.stopPropagation());
-    container.style.position='relative';
-    container.appendChild(menu);
-    activeMenu=menu;
-  }
-
-  // Populate the store dropdown from the shared locations list. Preserves any
-  // legacy free-text value already saved on a record so nothing is lost on edit.
-  function fillStoreSelect(val){
-    const sel=document.getElementById('empStoreInput'); if(!sel) return;
-    val=val||'';
-    let html='<option value="">— Unassigned —</option>';
-    if(window.CPRLocations){
-      html+=CPRLocations.options(val);
-      if(val && !CPRLocations.find(val)) html+='<option value="'+val+'">'+val+'</option>';
-    } else if(val){
-      html+='<option value="'+val+'">'+val+'</option>';
-    }
-    sel.innerHTML=html;
-    sel.value=(window.CPRLocations?CPRLocations.normalize(val):val);
-  }
-
-  // Employee CRUD
-  function openAddEmployee(){
-    editingEmployeeId=null;
-    document.getElementById('employeeModalTitle').textContent='Add Employee';
-    document.getElementById('empNameInput').value='';
-    document.getElementById('empRoleInput').value='';
-    document.getElementById('empStoreInput').value='';
-    fillStoreSelect('');
-    document.getElementById('empStartDateInput').value='';
-    document.getElementById('empStatusInput').value='active';
-    document.getElementById('empNotesInput').innerHTML='';
-    document.getElementById('employeeModal').classList.add('open');
-    setTimeout(()=>document.getElementById('empNameInput').focus(),150);
-  }
-  function openEditEmployee(id){
-    editingEmployeeId=id;
-    const emp=data.employees.find(e=>e.id===id);
-    if(!emp) return;
-    document.getElementById('employeeModalTitle').textContent='Edit Employee';
-    document.getElementById('empNameInput').value=emp.name||'';
-    document.getElementById('empRoleInput').value=emp.role||'';
-    document.getElementById('empStoreInput').value=emp.store||'';
-    fillStoreSelect(emp.store||'');
-    document.getElementById('empStartDateInput').value=emp.startDate||'';
-    document.getElementById('empStatusInput').value=emp.status||'active';
-    document.getElementById('empNotesInput').innerHTML=emp.notes||'';
-    document.getElementById('employeeModal').classList.add('open');
-    setTimeout(()=>document.getElementById('empNameInput').focus(),150);
-  }
-  function closeEmployeeModal(){ document.getElementById('employeeModal').classList.remove('open'); }
-  async function saveEmployeeData(){
-    const name=document.getElementById('empNameInput').value.trim();
-    if(!name){ alert('Please enter a name.'); return; }
-    const role=document.getElementById('empRoleInput').value.trim();
-    const store=document.getElementById('empStoreInput').value.trim();
-    const startDate=document.getElementById('empStartDateInput').value;
-    const status=document.getElementById('empStatusInput').value;
-    const notes=document.getElementById('empNotesInput').innerHTML.trim();
-    if(editingEmployeeId){
-      const emp=data.employees.find(e=>e.id===editingEmployeeId);
-      if(emp){
-        emp.name=name; emp.role=role; emp.store=store; emp.startDate=startDate; emp.status=status; emp.notes=notes;
-        if(status==='terminated') emp.archived=true;   // terminate -> auto-archive
-      }
-      save(); closeEmployeeModal(); render();
-      await saveEmployee(data.employees.find(e=>e.id===editingEmployeeId));
-    } else {
-      const emp={id:uid(),name,role,store,startDate,status,notes,archived:status==='terminated',entries:[],pips:[]};
-      data.employees.push(emp);
-      save(); closeEmployeeModal(); render();
-      await saveEmployee(emp);
-    }
-  }
-  async function deleteEmployee(id){
-    if(!confirm('Remove this employee and all their coaching entries?')) return;
-    data.employees=data.employees.filter(e=>e.id!==id);
-    if(activeEmployeeId===id){activeEmployeeId=null;activeEntryId=null;}
-    save(); render();
-    await deleteEmployeeFromSheets(id);
-  }
-
-  // Entry CRUD
-  function openAddEntry(){
-    editingEntryId=null;
-    document.getElementById('entryModalTitle').textContent='New Entry';
-    const today=new Date().toISOString().slice(0,10);
-    document.getElementById('entryDateInput').value=today;
-    document.getElementById('entryIncidentDateInput').value=today;
-    document.getElementById('entryTypeInput').value='observation';
-    document.getElementById('entrySubjectInput').value='';
-    document.getElementById('entryCategoryInput').value='performance';
-    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML='');
-    onEntryTypeChange();
-    document.getElementById('entryModal').classList.add('open');
-    setTimeout(()=>document.getElementById('entrySubjectInput').focus(),150);
-  }
-  function editCurrentEntry(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const entry=emp?emp.entries.find(e=>e.id===activeEntryId):null;
-    if(!entry) return;
-    document.getElementById('entryDetailOverlay').classList.remove('open');
-    editingEntryId=entry.id;
-    document.getElementById('entryModalTitle').textContent='Edit Entry';
-    document.getElementById('entryTypeInput').value=entry.entryType||'observation';
-    document.getElementById('entryDateInput').value=entry.date;
-    document.getElementById('entryIncidentDateInput').value=entry.incidentDate||entry.date;
-    document.getElementById('entrySubjectInput').value=entry.subject;
-    document.getElementById('entryCategoryInput').value=entry.category;
-    SECTIONS.forEach(s=>document.getElementById('f-'+s.key).innerHTML=(entry.sections&&entry.sections[s.key])||'');
-    onEntryTypeChange();
-    document.getElementById('entryModal').classList.add('open');
-  }
-  function closeEntryModal(){ document.getElementById('entryModal').classList.remove('open'); }
-  async function saveEntryData(){
-    const date=document.getElementById('entryDateInput').value;
-    const incidentDate=document.getElementById('entryIncidentDateInput').value;
-    const subject=document.getElementById('entrySubjectInput').value.trim();
-    const category=document.getElementById('entryCategoryInput').value;
-    const entryType=document.getElementById('entryTypeInput').value;
-    if(!subject){ alert('Please enter a subject.'); return; }
-    const sections={};
-    SECTIONS.forEach(s=>sections[s.key]=document.getElementById('f-'+s.key).innerHTML.trim());
-    const hasContent=SECTIONS.some(s=>sections[s.key] && sections[s.key]!=='');
-    if(!hasContent){ alert('Please fill in at least one section.'); return; }
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    if(!emp) return;
-    let entry;
-    if(editingEntryId){
-      entry=emp.entries.find(e=>e.id===editingEntryId);
-      if(entry){entry.date=date;entry.incidentDate=incidentDate;entry.subject=subject;entry.category=category;entry.entryType=entryType;entry.sections=sections;}
-    } else {
-      entry={id:uid(),date,incidentDate,subject,category,entryType,sections,discussed:entryType==='conversation'};
-      emp.entries.push(entry); activeEntryId=entry.id;
-    }
-    if(pendingMarkDiscussed){ entry.discussed=true; pendingMarkDiscussed=false; }
-    // Always sync discussed state with entry type
-    if(entryType==='conversation') entry.discussed=true;
-    else if(entryType==='observation') entry.discussed=false;
-    save(); closeEntryModal(); renderMain();
-    await saveEntryToSheets(entry, emp.id);
-  }
-
-  async function deleteCurrentEntry(){
-    if(!confirm('Delete this entry?')) return;
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    if(!emp) return;
-    const entryId=activeEntryId;
-    emp.entries=emp.entries.filter(e=>e.id!==entryId);
-    activeEntryId=null;
-    document.getElementById('entryDetailOverlay').classList.remove('open');
-    save(); renderMain();
-    await deleteEntryFromSheets(entryId);
-  }
-
-  // ── Tab switching ──
-  let activeTab='log';
-  let activePIPId=null;
-  let editingPIPId=null;
-  let editingCheckinId=null;
-
-  function switchTab(tab){
-    activeTab=tab;
-    document.getElementById('tabLog').classList.toggle('active',tab==='log');
-    document.getElementById('tabPips').classList.toggle('active',tab==='pips');
-    document.getElementById('panelLog').style.display=tab==='log'?'flex':'none';
-    document.getElementById('panelPips').style.display=tab==='pips'?'flex':'none';
-    if(tab==='pips') renderPIPList();
-  }
-
-  // ── PIP toolbar setup ──
-  const PIP_EDITORS=['pip-issues','pip-goals','pip-support','pip-consequences','pip-schedule','checkinNotesInput','outcomeNotesInput'];
-  PIP_EDITORS.forEach(id=>{
-    const tbId='tb-'+id.replace('Input','').replace('Notes','');
-    if(document.getElementById(tbId)) buildToolbar(tbId,id);
+function logHtml(e){
+  let ents=e.entries.slice();
+  if(S.typeF!=='all')ents=ents.filter(x=>x.type===S.typeF);
+  if(S.catF!=='all')ents=ents.filter(x=>x.category===S.catF);
+  if(S.logRange!=='all')ents=ents.filter(x=>inRange(x.incidentDate||x.date,S.logRange));
+  ents.sort((a,b)=>S.sortNewest?b.incidentDate.localeCompare(a.incidentDate):a.incidentDate.localeCompare(b.incidentDate));
+  const opt=(v,l,cur)=>'<option value="'+v+'"'+(v===cur?' selected':'')+'>'+l+'</option>';
+  let cards='';
+  ents.forEach(x=>{const t=TYPE[x.type]||TYPE.observation,c=CAT[x.category]||CAT.general,on=x.id===S.entryId;
+    cards+='<div class="card'+(on?' sel':'')+'" data-entry="'+esc(x.id)+'" style="border-left:4px solid '+t.stripe+';'+(on?'background:#FBFCFE;border-color:#B7DDF2':'')+'">'
+      +'<div class="crow"><span class="tbadge" style="background:'+t.bg+';color:'+t.fg+'">'+t.label+'</span><span class="cdate">'+esc(fmt(x.date))+'</span></div>'
+      +'<div class="csubj">'+esc(x.subject)+'</div>'
+      +'<div class="cmeta"><span class="catchip" style="color:'+c.fg+'"><span class="dot7" style="background:'+c.dot+'"></span>'+c.label+'</span>'
+      +(x.discussed&&x.type==='conversation'?'<span class="disc">&#10003; Discussed</span>':'')+'</div></div>';
   });
+  let listInner;
+  if(!e.entries.length)listInner='<div class="empty"><div class="ico">📋</div><div class="t">No entries yet</div><div class="s">Log the first observation, incident, or conversation for '+esc(e.name)+'.</div></div>';
+  else if(!ents.length)listInner='<div class="empty-sm">No entries match these filters.</div>';
+  else listInner=cards;
+  const cur=e.entries.find(x=>x.id===S.entryId);
+  return '<div class="list-pane" style="width:368px">'
+    +'<div class="flt">'
+    +'<label><span class="lbl">Type</span><select class="sel" data-f="typeF">'+opt('all','All types',S.typeF)+opt('observation','Observation',S.typeF)+opt('incident','Incident',S.typeF)+opt('conversation','Conversation',S.typeF)+'</select></label>'
+    +'<label><span class="lbl">Category</span><select class="sel" data-f="catF">'+opt('all','All categories',S.catF)+opt('coaching','Coaching',S.catF)+opt('performance','Performance',S.catF)+opt('attendance','Attendance',S.catF)+opt('positive','Positive',S.catF)+opt('general','General',S.catF)+'</select></label>'
+    +'</div>'
+    +'<div class="flt2"><span class="ecount">'+ents.length+(ents.length===1?' entry':' entries')+'</span>'
+    +'<select class="sel sm" data-f="logRange">'+opt('all','All time',S.logRange)+opt('90','Last 90 days',S.logRange)+opt('ytd','This year',S.logRange)+'</select>'
+    +'<button class="sortbtn" data-act="sort">'+(S.sortNewest?'↓ Newest':'↑ Oldest')+'</button></div>'
+    +'<div class="list-scroll">'+listInner+'</div></div>'
+    +'<div class="detail-pane">'+(cur?entryDetail(e,cur):'<div class="center-msg">Select an entry to view the full record.</div>')+'</div>';
+}
+function entryDetail(e,x){
+  const t=TYPE[x.type]||TYPE.observation,c=CAT[x.category]||CAT.general;
+  const secs=Object.keys(SECLABELS).filter(k=>x.sections&&x.sections[k]).map(k=>'<div class="sec"><div class="sh">'+SECLABELS[k]+'</div><div class="sb">'+richText(x.sections[k])+'</div></div>').join('');
+  return '<div class="dwrap"><div class="dcard stripe" style="border-top-color:'+t.stripe+'">'
+    +'<div class="dbadges"><span class="tbadge" style="background:'+t.bg+';color:'+t.fg+';padding:3px 8px">'+t.label+'</span>'
+    +'<span class="dcatchip" style="color:'+c.fg+';border:1px solid '+c.bd+';background:'+c.bg+'"><span class="dot7" style="background:'+c.dot+'"></span>'+c.label+'</span></div>'
+    +'<h1 class="dtitle head">'+esc(x.subject)+'</h1>'
+    +'<div class="dmeta">'+esc(e.name+' · '+e.role+' · '+fmt(x.date))+'</div>'
+    +'<div class="dactions">'
+    +(x.type==='incident'&&!x.discussed?'<button class="btn-o gr" data-act="discuss">&#128172; Log Discussion</button>':'')
+    +'<button class="btn-o" data-act="download">&#8595; Download</button>'
+    +'<button class="btn-o" data-act="edit">Edit</button>'
+    +'<button class="btn-o del" data-act="delete">Delete</button></div>'
+    +'<div style="margin-top:18px">'+(secs||'<div class="sb" style="color:var(--grey)">No write-up recorded.</div>')+'</div>'
+    +'</div></div>';
+}
+/* entry section bodies may contain legacy rich HTML — render it, lightly. */
+function richText(v){
+  const s=String(v==null?'':v);
+  if(/<[a-z][\s\S]*>/i.test(s))return s;            // already HTML
+  return esc(s).replace(/\n/g,'<br>');
+}
 
-  // ── PIP Rendering ──
-  function renderPIPList(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const list=document.getElementById('pipList');
-    if(!list) return;
-    list.innerHTML='';
-    const pips=(emp&&emp.pips)||[];
-    if(!pips.length){
-      list.innerHTML='<div class="no-pips">No PIPs yet.<br/>Click + New PIP to create one.</div>';
-      return;
-    }
-    pips.slice().reverse().forEach(pip=>{
-      const card=document.createElement('div');
-      const statusClass='status-'+(pip.status||'draft');
-      card.className='pip-card '+statusClass+(activePIPId===pip.id?' selected':'');
-      card.innerHTML=`<div class="pip-card-title">${pip.title||'Untitled PIP'}</div>
-        <div class="pip-card-meta">Started: ${formatDate(pip.startDate)} · Review: ${formatDate(pip.reviewDate)}</div>
-        <span class="pip-status-tag ${pip.status||'draft'}">${pipStatusLabel(pip.status)}</span>`;
-      card.addEventListener('click',()=>selectPIP(pip.id));
-      list.appendChild(card);
-    });
-    // Update badge
-    const activePIPs=(emp&&emp.pips||[]).filter(p=>p.status==='active'||p.status==='under-review').length;
-    const badge=document.getElementById('pipBadge');
-    if(badge){ badge.style.display=activePIPs>0?'':'none'; badge.textContent=activePIPs; }
-  }
-
-  function pipStatusLabel(s){
-    const labels={'draft':'Draft','active':'Active','under-review':'Under Review','closed-met':'Closed — Met','closed-extended':'Closed — Extended','closed-terminated':'Closed — Terminated'};
-    return labels[s]||s||'Draft';
-  }
-
-  function selectPIP(id){
-    activePIPId=id;
-    renderPIPList();
-    renderPIPDetail();
-  }
-
-  function renderPIPDetail(){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===activePIPId):null;
-    const empty=document.getElementById('pipDetailEmpty');
-    const content=document.getElementById('pipDetailContent');
-    if(!pip){ if(empty)empty.style.display='flex'; if(content)content.style.display='none'; return; }
-    if(empty)empty.style.display='none';
-    if(content)content.style.display='block';
-
-    const isActive=pip.status==='active'||pip.status==='under-review'||pip.status==='draft';
-    const isClosed=pip.status&&pip.status.startsWith('closed');
-
-    content.innerHTML=`
-      <div class="pip-doc">
-        <div class="pip-doc-header">
-          <div class="pip-doc-company">CPR Cell Phone Repair</div>
-          <div class="pip-doc-subtitle">Oregon Locations</div>
-          <div class="pip-doc-title">Performance Improvement Plan</div>
-        </div>
-
-        <div class="pip-doc-actions">
-          ${isActive&&pip.status!=='draft'?`<button class="convert-btn" onclick="openCheckinModal()">+ Add Check-in</button>`:''}
-          ${pip.status==='draft'?`<button class="new-entry-btn" onclick="activatePIP('${pip.id}')" style="font-size:12px;padding:6px 12px;">Activate PIP</button>`:''}
-          ${!isClosed?`<button class="new-entry-btn" onclick="openOutcomeModal()" style="font-size:12px;padding:6px 12px;background:var(--dark-grey);">Record Outcome</button>`:''}
-          <button class="detail-btn" onclick="editPIP('${pip.id}')">Edit</button>
-          <button class="detail-btn" onclick="downloadPIP('${pip.id}')">⬇️ Download</button>
-          <button class="detail-btn" onclick="deletePIP('${pip.id}')">Delete</button>
-        </div>
-
-        <div class="pip-info-grid">
-          <div><div class="pip-info-label">Employee</div><div class="pip-info-value">${emp.name}</div></div>
-          <div><div class="pip-info-label">Position</div><div class="pip-info-value">${emp.role||'—'}</div></div>
-          <div><div class="pip-info-label">Location</div><div class="pip-info-value">${emp.store||'—'}</div></div>
-          <div><div class="pip-info-label">Manager</div><div class="pip-info-value">${pip.manager||'—'}</div></div>
-          <div><div class="pip-info-label">Start Date</div><div class="pip-info-value">${formatDate(pip.startDate)}</div></div>
-          <div><div class="pip-info-label">Review Date</div><div class="pip-info-value">${formatDate(pip.reviewDate)}</div></div>
-          <div><div class="pip-info-label">Status</div><div class="pip-info-value"><span class="pip-status-tag ${pip.status||'draft'}">${pipStatusLabel(pip.status)}</span></div></div>
-        </div>
-
-        <div class="pip-section">
-          <div class="pip-section-title">Performance Issues</div>
-          <div class="pip-section-body">${pip.issues||'—'}</div>
-        </div>
-
-        <div class="pip-section">
-          <div class="pip-section-title">Goals & Expectations</div>
-          <div class="pip-section-body">${pip.goals||'—'}</div>
-        </div>
-
-        <div class="pip-section">
-          <div class="pip-section-title">Support Provided</div>
-          <div class="pip-section-body">${pip.support||'—'}</div>
-        </div>
-
-        <div class="pip-section">
-          <div class="pip-section-title">Consequences</div>
-          <div class="pip-section-body">${pip.consequences||'Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment.'}</div>
-        </div>
-
-        <div class="pip-section">
-          <div class="pip-section-title">Check-in Schedule</div>
-          <div class="pip-section-body">${pip.schedule||'—'}</div>
-        </div>
-
-        <div class="pip-section">
-          <div class="pip-section-title">Check-in Log</div>
-          <div class="pip-checkins-list">
-            ${(pip.checkins||[]).length===0?'<div style="color:var(--grey);font-size:13px;">No check-ins recorded yet.</div>':''}
-            ${(pip.checkins||[]).map(c=>`
-              <div class="pip-checkin-item ${c.notes?'has-notes':''}">
-                <div style="display:flex;align-items:center;justify-content:space-between;">
-                  <div class="pip-checkin-date">${formatDate(c.date)}</div>
-                  <button onclick="deleteCheckin('${pip.id}','${c.id}')" style="background:none;border:none;color:var(--grey);cursor:pointer;font-size:11px;">✕</button>
-                </div>
-                <div class="pip-checkin-notes">${c.notes||'<em style="color:var(--grey)">No notes</em>'}</div>
-              </div>`).join('')}
-          </div>
-        </div>
-
-        ${isClosed?`
-        <div class="pip-section">
-          <div class="pip-section-title">Outcome</div>
-          <div style="margin-bottom:8px;"><span class="pip-status-tag ${pip.status}">${pipStatusLabel(pip.status)}</span> <span style="font-size:12px;color:var(--grey);">${formatDate(pip.outcomeDate)}</span></div>
-          <div class="pip-section-body">${pip.outcomeNotes||'—'}</div>
-        </div>`:''}
-
-        <div class="pip-sig-block">
-          <div>
-            <div class="pip-sig-line"></div>
-            <div class="pip-sig-label">Employee Signature &amp; Date</div>
-          </div>
-          <div>
-            <div class="pip-sig-line"></div>
-            <div class="pip-sig-label">Manager Signature &amp; Date</div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  // ── PIP CRUD ──
-  function openNewPIP(){
-    editingPIPId=null;
-    document.getElementById('pipModalTitle').textContent='New Performance Improvement Plan';
-    document.getElementById('pipTitleInput').value='';
-    document.getElementById('pipStartDateInput').value=new Date().toISOString().slice(0,10);
-    document.getElementById('pipReviewDateInput').value='';
-    document.getElementById('pipManagerInput').value='Britt Bay';
-    PIP_EDITORS.slice(0,5).forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
-    // Default consequences text
-    document.getElementById('pip-consequences').innerHTML='Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment.';
-    document.getElementById('pipModal').classList.add('open');
-    setTimeout(()=>document.getElementById('pipTitleInput').focus(),150);
-  }
-
-  function editPIP(id){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===id):null;
-    if(!pip) return;
-    editingPIPId=id;
-    document.getElementById('pipModalTitle').textContent='Edit PIP';
-    document.getElementById('pipTitleInput').value=pip.title||'';
-    document.getElementById('pipStartDateInput').value=pip.startDate||'';
-    document.getElementById('pipReviewDateInput').value=pip.reviewDate||'';
-    document.getElementById('pipManagerInput').value=pip.manager||'';
-    document.getElementById('pip-issues').innerHTML=pip.issues||'';
-    document.getElementById('pip-goals').innerHTML=pip.goals||'';
-    document.getElementById('pip-support').innerHTML=pip.support||'';
-    document.getElementById('pip-consequences').innerHTML=pip.consequences||'';
-    document.getElementById('pip-schedule').innerHTML=pip.schedule||'';
-    document.getElementById('pipModal').classList.add('open');
-  }
-
-  function closePIPModal(){ document.getElementById('pipModal').classList.remove('open'); }
-
-  async function savePIP(status){
-    const title=document.getElementById('pipTitleInput').value.trim();
-    if(!title){ alert('Please enter a PIP title.'); return; }
-    const pip={
-      id:editingPIPId||uid(),
-      title,
-      startDate:document.getElementById('pipStartDateInput').value,
-      reviewDate:document.getElementById('pipReviewDateInput').value,
-      manager:document.getElementById('pipManagerInput').value.trim(),
-      issues:document.getElementById('pip-issues').innerHTML.trim(),
-      goals:document.getElementById('pip-goals').innerHTML.trim(),
-      support:document.getElementById('pip-support').innerHTML.trim(),
-      consequences:document.getElementById('pip-consequences').innerHTML.trim(),
-      schedule:document.getElementById('pip-schedule').innerHTML.trim(),
-      status:editingPIPId?(data.employees.find(e=>e.id===activeEmployeeId)?.pips?.find(p=>p.id===editingPIPId)?.status||status):status,
-      checkins:editingPIPId?(data.employees.find(e=>e.id===activeEmployeeId)?.pips?.find(p=>p.id===editingPIPId)?.checkins||[]):[],
-    };
-    if(!editingPIPId) pip.status=status;
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    if(!emp) return;
-    if(!emp.pips) emp.pips=[];
-    if(editingPIPId){
-      const idx=emp.pips.findIndex(p=>p.id===editingPIPId);
-      if(idx>=0) emp.pips[idx]=pip;
-    } else {
-      emp.pips.push(pip);
-      activePIPId=pip.id;
-    }
-    save(); closePIPModal(); renderPIPList(); renderPIPDetail();
-    await savePIPToSheets(pip, emp.id);
-  }
-
-  async function activatePIP(id){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===id):null;
-    if(!pip) return;
-    pip.status='active';
-    save(); renderPIPList(); renderPIPDetail();
-    await savePIPToSheets(pip, emp.id);
-  }
-
-  async function deletePIP(id){
-    if(!confirm('Delete this PIP? This cannot be undone.')) return;
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    if(!emp) return;
-    emp.pips=(emp.pips||[]).filter(p=>p.id!==id);
-    if(activePIPId===id) activePIPId=null;
-    save(); renderPIPList(); renderPIPDetail();
-  }
-
-  // ── Check-ins ──
-  function openCheckinModal(){
-    document.getElementById('checkinDateInput').value=new Date().toISOString().slice(0,10);
-    document.getElementById('checkinNotesInput').innerHTML='';
-    document.getElementById('checkinModal').classList.add('open');
-  }
-  function closeCheckinModal(){ document.getElementById('checkinModal').classList.remove('open'); }
-
-  async function saveCheckin(){
-    const date=document.getElementById('checkinDateInput').value;
-    const notes=document.getElementById('checkinNotesInput').innerHTML.trim();
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===activePIPId):null;
-    if(!pip) return;
-    if(!pip.checkins) pip.checkins=[];
-    pip.checkins.push({id:uid(),date,notes});
-    save(); closeCheckinModal(); renderPIPDetail();
-    await savePIPToSheets(pip, emp.id);
-  }
-
-  async function deleteCheckin(pipId, checkinId){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===pipId):null;
-    if(!pip) return;
-    pip.checkins=(pip.checkins||[]).filter(c=>c.id!==checkinId);
-    save(); renderPIPDetail();
-    await savePIPToSheets(pip, emp.id);
-  }
-
-  // ── Outcome ──
-  function openOutcomeModal(){
-    document.getElementById('outcomeInput').value='closed-met';
-    document.getElementById('outcomeNotesInput').innerHTML='';
-    document.getElementById('outcomeDateInput').value=new Date().toISOString().slice(0,10);
-    document.getElementById('outcomeModal').classList.add('open');
-  }
-  function closeOutcomeModal(){ document.getElementById('outcomeModal').classList.remove('open'); }
-
-  async function saveOutcome(){
-    const outcome=document.getElementById('outcomeInput').value;
-    const notes=document.getElementById('outcomeNotesInput').innerHTML.trim();
-    const date=document.getElementById('outcomeDateInput').value;
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===activePIPId):null;
-    if(!pip) return;
-    pip.status=outcome;
-    pip.outcomeNotes=notes;
-    pip.outcomeDate=date;
-    save(); closeOutcomeModal(); renderPIPList(); renderPIPDetail();
-    await savePIPToSheets(pip, emp.id);
-  }
-
-  // ── PIP Sheets sync ──
-  async function savePIPToSheets(pip, employeeId){
-    setSyncStatus('syncing','⟳ Saving...');
-    try{
-      const flat={employeeId, id:pip.id, type:'pip', data:JSON.stringify(pip)};
-      await apiCall({action:'savePIP', data:JSON.stringify(flat)});
-      setSyncStatus('ok','✓ Saved');
-    }catch(e){ setSyncStatus('error','⚠ Save failed'); }
-  }
-
-  // ── PIP PDF Download ──
-  function downloadPIP(pipId){
-    const emp=data.employees.find(e=>e.id===activeEmployeeId);
-    const pip=emp?(emp.pips||[]).find(p=>p.id===pipId):null;
-    if(!pip) return;
-    const html=buildPIPHTML(emp, pip);
-    const style=document.createElement('style');
-    style.id='print-override';
-    style.textContent=`@media print{*{visibility:hidden;}#printFrame,#printFrame *{visibility:visible;}#printFrame{position:fixed;inset:0;padding:24px;background:white;z-index:9999;overflow:auto;}}`;
-    document.head.appendChild(style);
-    const frame=document.createElement('div');
-    frame.id='printFrame';
-    frame.innerHTML=html;
-    document.body.appendChild(frame);
-    window.print();
-    document.head.removeChild(style);
-    document.body.removeChild(frame);
-  }
-
-  function buildPIPHTML(emp, pip){
-    const checkinRows=(pip.checkins||[]).map(c=>`
-      <div style="border-left:3px solid #ccc;padding:8px 12px;margin-bottom:8px;background:#f9f9f9;">
-        <div style="font-weight:700;font-size:12px;color:#555;">${formatDate(c.date)}</div>
-        <div style="font-size:13px;margin-top:4px;line-height:1.6;">${c.notes||'No notes'}</div>
-      </div>`).join('');
-
-    const outcomeSection=pip.status&&pip.status.startsWith('closed')?`
-      <div style="margin-bottom:20px;">
-        <div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #333;padding-bottom:5px;margin-bottom:10px;">Outcome</div>
-        <p style="font-weight:700;">${pipStatusLabel(pip.status)} — ${formatDate(pip.outcomeDate)}</p>
-        <div style="font-size:13px;line-height:1.7;margin-top:6px;">${pip.outcomeNotes||''}</div>
-      </div>`:'';
-
-    return `<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:32px;">
-      <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:24px;">
-        <div style="font-size:20px;font-weight:900;color:#DC282E;font-family:Arial,sans-serif;">CPR Cell Phone Repair</div>
-        <div style="font-size:11px;color:#999;margin-top:2px;">Oregon Locations</div>
-        <div style="font-size:14px;font-weight:900;margin-top:8px;text-transform:uppercase;letter-spacing:1px;">Performance Improvement Plan</div>
-      </div>
-      <table style="width:100%;border-collapse:collapse;background:#f5f5f5;border-radius:8px;margin-bottom:24px;">
-        <tr><td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Employee</div><div style="font-size:13px;font-weight:600;">${emp.name}</div></td>
-            <td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Position</div><div style="font-size:13px;font-weight:600;">${emp.role||'—'}</div></td></tr>
-        <tr><td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Location</div><div style="font-size:13px;font-weight:600;">${emp.store||'—'}</div></td>
-            <td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Manager</div><div style="font-size:13px;font-weight:600;">${pip.manager||'—'}</div></td></tr>
-        <tr><td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Start Date</div><div style="font-size:13px;font-weight:600;">${formatDate(pip.startDate)}</div></td>
-            <td style="padding:8px 12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;">Review Date</div><div style="font-size:13px;font-weight:600;">${formatDate(pip.reviewDate)}</div></td></tr>
-      </table>
-      ${[['Performance Issues',pip.issues],['Goals & Expectations',pip.goals],['Support Provided',pip.support],['Consequences',pip.consequences||'Failure to meet the expectations outlined above may result in further disciplinary action, up to and including termination of employment.'],['Check-in Schedule',pip.schedule]].map(([title,body])=>`
-        <div style="margin-bottom:20px;">
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #333;padding-bottom:5px;margin-bottom:10px;">${title}</div>
-          <div style="font-size:13px;line-height:1.7;">${body||'—'}</div>
-        </div>`).join('')}
-      ${checkinRows?`<div style="margin-bottom:20px;"><div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid #333;padding-bottom:5px;margin-bottom:10px;">Check-in Log</div>${checkinRows}</div>`:''}
-      ${outcomeSection}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:48px;padding-top:20px;border-top:1.5px solid #ccc;">
-        <div><div style="border-bottom:1px solid #333;height:40px;margin-bottom:6px;"></div><div style="font-size:11px;color:#999;">Employee Signature &amp; Date</div></div>
-        <div><div style="border-bottom:1px solid #333;height:40px;margin-bottom:6px;"></div><div style="font-size:11px;color:#999;">Manager Signature &amp; Date</div></div>
-      </div>
-    </div>`;
-  }
-
-  // Close modals on overlay click
-  document.getElementById('employeeModal').addEventListener('click',function(e){if(e.target===this)closeEmployeeModal();});
-  document.getElementById('entryModal').addEventListener('click',function(e){if(e.target===this)closeEntryModal();});
-  ['pipModal','checkinModal','outcomeModal'].forEach(id=>{
-    document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
+function pipHtml(e){
+  let cards='';
+  e.pips.forEach(p=>{const m=PIPST[p.status]||PIPST.draft,on=p.id===S.pipId;
+    cards+='<div class="card'+(on?' sel':'')+'" data-pip="'+esc(p.id)+'" style="border-left:4px solid '+m.stripe+';'+(on?'background:#FBFCFE;border-color:#B7DDF2':'')+'">'
+      +'<div class="csubj" style="margin-top:0">'+esc(p.title)+'</div>'
+      +'<div class="rl" style="margin-top:4px">'+(p.start?('Started '+esc(fmt(p.start))):'')+(p.review?(' · Review '+esc(fmt(p.review))):'')+'</div>'
+      +'<span class="tbadge" style="display:inline-block;margin-top:8px;background:'+m.bg+';color:'+m.fg+'">'+m.label+'</span></div>';
   });
+  const cur=e.pips.find(p=>p.id===S.pipId);
+  return '<div class="list-pane" style="width:308px">'
+    +'<div class="flt" style="justify-content:space-between;align-items:center"><span class="lbl" style="margin:0">Plans &amp; Reviews</span>'
+    +'<button class="btn-red" style="padding:6px 12px;font-size:.72rem" data-act="new-pip">+ New PIP</button></div>'
+    +'<div class="list-scroll">'+(cards||'<div class="empty-sm">No PIPs on file for this employee.</div>')+'</div></div>'
+    +'<div class="detail-pane">'+(cur?pipDetail(e,cur):'<div class="center-msg">Select a plan to view it, or start a new PIP.</div>')+'</div>';
+}
+function pipDetail(e,p){
+  const m=PIPST[p.status]||PIPST.draft;
+  const info=[['Employee',e.name],['Manager',p.manager||'—'],['Start Date',p.start?fmt(p.start):'—'],['Review Date',p.review?fmt(p.review):'—']]
+    .map(i=>'<div><div class="lbl" style="margin-bottom:2px">'+i[0]+'</div><div style="font-size:.84rem;font-weight:700;color:var(--dark)">'+esc(i[1])+'</div></div>').join('');
+  const goals=(p.goals||[]).map(g=>'<div style="background:var(--light-grey);border-left:3px solid var(--blue);border-radius:0 7px 7px 0;padding:9px 12px;margin-bottom:7px"><div style="font-size:.86rem;font-weight:700">'+esc(g.text||'')+'</div>'+(g.deadline?'<div class="rl" style="margin-top:3px">Target: '+esc(g.deadline)+'</div>':'')+'</div>').join('');
+  const checks=(p.checkins||[]).map(c=>'<div style="border-left:3px solid var(--green);background:var(--light-grey);border-radius:0 7px 7px 0;padding:9px 12px;margin-bottom:8px"><div style="font-family:Nunito;font-weight:800;font-size:.74rem;color:var(--dark-grey)">'+esc(c.date||'')+'</div><div style="font-size:.86rem;margin-top:3px;line-height:1.55">'+esc(c.notes||'')+'</div></div>').join('');
+  const block=(t,b)=>b?('<div class="sec"><div class="sh">'+t+'</div><div class="sb">'+richText(b)+'</div></div>'):'';
+  return '<div class="dwrap" style="max-width:720px"><div class="dcard" style="padding:26px 28px">'
+    +'<div style="text-align:center;padding-bottom:16px;border-bottom:2px solid var(--dark);margin-bottom:18px">'
+    +'<div style="font-family:Nunito;font-weight:900;font-size:1rem;color:var(--red)">CPR CELL PHONE REPAIR — OREGON</div>'
+    +'<div style="font-family:Nunito;font-weight:900;font-size:.86rem;text-transform:uppercase;letter-spacing:.8px;margin-top:8px">Performance Improvement Plan</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px"><span class="tbadge" style="padding:4px 10px;background:'+m.bg+';color:'+m.fg+'">'+m.label+'</span>'
+    +'<button class="btn-o" data-act="download">&#8595; Download</button><button class="btn-o" data-act="edit-pip">Edit</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;background:var(--light-grey);border-radius:9px;padding:14px 16px;margin-bottom:20px">'+info+'</div>'
+    +block('Performance Issues',p.issues)
+    +(goals?'<div class="sec"><div class="sh">Goals &amp; Expectations</div>'+goals+'</div>':'')
+    +block('Support Provided',p.support)
+    +'<div><div class="sh">Check-ins</div>'+checks+'<button class="btn-o" style="width:100%;border-style:dashed;color:var(--grey);margin-top:2px" data-act="add-checkin">+ Add check-in</button></div>'
+    +'</div></div>';
+}
 
-  function initApp(){
-    loadCache(); render();
-    loadFromSheets();
-  }
+function dmgHtml(e){
+  const all=dmgFor(e);
+  const list=S.dmgRange==='all'?all:all.filter(r=>inRange(r.date,S.dmgRange));
+  const total=list.reduce((s,r)=>s+r.cost,0);
+  const opt=(v,l)=>'<option value="'+v+'"'+(v===S.dmgRange?' selected':'')+'>'+l+'</option>';
+  const tile=(bar,val,lbl,red)=>'<div style="flex:1;background:#fff;border:1px solid var(--border);border-left:3px solid '+bar+';border-radius:8px;padding:8px 10px"><div style="font-family:Nunito;font-weight:900;font-size:1.15rem;line-height:1'+(red?';color:var(--red)':'')+'">'+esc(val)+'</div><div style="font-family:Nunito;font-weight:800;font-size:.54rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-top:3px">'+lbl+'</div></div>';
+  let cards='';
+  list.forEach(r=>{const sc=STORECOLOR[r.store]||'#B9BDCB',on=r.id===S.damageId;
+    cards+='<div class="card'+(on?' sel':'')+'" data-dmg="'+esc(r.id)+'" style="border-left:4px solid '+sc+';'+(on?'background:#FBFCFE;border-color:#B7DDF2':'')+'">'
+      +'<div class="crow"><span class="tbadge" style="border-radius:999px;padding:2px 9px;background:var(--light-grey);color:var(--dark-grey)">'+esc(r.mfr||'?')+'</span>'
+      +'<span style="font-family:Nunito;font-weight:900;font-size:.95rem;color:var(--red);white-space:nowrap">'+esc(money(r.cost))+'</span></div>'
+      +'<div class="csubj">'+esc(r.part||'—')+'</div>'
+      +(r.device?'<div class="rl" style="margin-top:2px;color:var(--dark-grey)">'+esc(r.device)+'</div>':'')
+      +'<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:.68rem;color:var(--grey);font-weight:700">'
+      +'<span class="catchip"><span class="dot7" style="background:'+sc+'"></span>'+esc(r.store||'—')+'</span><span>·</span><span>'+esc(fmt(r.date))+'</span>'
+      +(r.ticket?'<span>·</span><a href="'+RQ+esc(r.ticket)+'" target="_blank" rel="noopener" data-ticket style="color:var(--blue);text-decoration:none;font-weight:800">#'+esc(r.ticket)+'</a>':'')+'</div></div>';
+  });
+  let inner;
+  if(!all.length)inner='<div class="empty-sm">No tech damage reported for this employee. 🎉</div>';
+  else if(!list.length)inner='<div class="empty-sm">No reports in this date range.</div>';
+  else inner=cards;
+  const cur=all.find(r=>r.id===S.damageId);
+  return '<div class="list-pane" style="width:368px">'
+    +'<div class="flt" style="display:block"><div style="display:flex;gap:8px">'+tile('var(--red)',money(total),'Damage $',true)+tile('var(--blue)',list.length,'Reports')+tile('var(--dark)',list.length?money(total/list.length):'$0.00','Avg')+'</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-top:9px"><select class="sel sm" data-f="dmgRange">'+opt('all','All time')+opt('90','Last 90 days')+opt('ytd','This year')+'</select>'
+    +'<a href="'+TRACKER+'" target="_blank" rel="noopener" style="margin-left:auto;font-family:Nunito;font-weight:800;font-size:.7rem;color:var(--blue);text-decoration:none;white-space:nowrap">Open Tracker ↗</a></div>'
+    +'<div style="font-size:.62rem;color:var(--grey);font-weight:700;margin-top:8px">↻ Official source: Tech Damage Tracker</div></div>'
+    +'<div class="list-scroll">'+inner+'</div></div>'
+    +'<div class="detail-pane">'+(cur?dmgDetail(e,cur):'<div class="center-msg">Select a report to view the details.</div>')+'</div>';
+}
+function dmgDetail(e,r){
+  const sc=STORECOLOR[r.store]||'#B9BDCB';
+  return '<div class="dwrap" style="max-width:720px"><div class="dcard stripe" style="border-top-color:'+sc+'">'
+    +'<div class="dbadges"><span class="dcatchip" style="color:var(--dark-grey);border:1px solid var(--border)"><span class="dot7" style="background:'+sc+'"></span>'+esc(r.store||'—')+'</span>'
+    +'<span class="tbadge" style="padding:3px 9px;background:var(--light-grey);color:var(--dark-grey)">'+esc(r.mfr||'?')+'</span></div>'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">'
+    +'<div style="min-width:0"><h1 class="dtitle head" style="margin-bottom:3px">'+esc(r.part||'—')+'</h1>'+(r.device?'<div class="prof-sub" style="margin:0">'+esc(r.device)+'</div>':'')+'</div>'
+    +'<div style="text-align:right;flex:none"><div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--red);line-height:1">'+esc(money(r.cost))+'</div><div class="lbl">Part cost</div></div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;background:var(--light-grey);border-radius:9px;padding:13px 16px;margin:16px 0 20px">'
+    +'<div><div class="lbl" style="margin-bottom:2px">Date</div><div style="font-size:.84rem;font-weight:700">'+esc(fmt(r.date))+'</div></div>'
+    +'<div><div class="lbl" style="margin-bottom:2px">Ticket #</div><div style="font-size:.84rem;font-weight:700">'+(r.ticket?'<a href="'+RQ+esc(r.ticket)+'" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-weight:800">'+esc(r.ticket)+' ↗</a>':'—')+'</div></div></div>'
+    +(r.how?'<div class="sec"><div class="sh">How It Happened</div><div class="sb">'+richText(r.how)+'</div></div>':'')
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px dashed var(--border)">'
+    +'<span style="font-size:.68rem;color:var(--grey);font-weight:700">↻ Official source — edits in the Tracker sync back here.</span>'
+    +'<a href="'+TRACKER+'" target="_blank" rel="noopener" class="btn-o" style="text-decoration:none">Open in Tech Damage Tracker ↗</a></div>'
+    +'</div></div>';
+}
+
+/* ===== events (delegated on stable parents) ===== */
+$('#empSearch').addEventListener('input',e=>{S.empSearch=e.target.value;renderEmpList();});
+$('#archBtn').addEventListener('click',()=>{S.showArchived=!S.showArchived;$('#archBtn').classList.toggle('on',S.showArchived);$('#archBtn').textContent=S.showArchived?'Hide archived':'Show archived';refilter();if(!EMPLOYEES.find(x=>x.id===S.empId))selectFirst();render();});
+$('#empList').addEventListener('click',e=>{const row=e.target.closest('[data-emp]');if(!row)return;
+  const raw=row.dataset.emp,id=(raw!==''&&!isNaN(+raw))?+raw:raw;
+  const emp=ALL.find(x=>String(x.id)===String(id));S.empId=emp?emp.id:id;syncSel(emp);S.mDetail=false;render();
+  if(window.innerWidth<=620)$('#empPane').classList.remove('show');});
+$('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;S.mDetail=false;render();});
+$('#work').addEventListener('change',e=>{const f=e.target.closest('[data-f]');if(f){S[f.dataset.f]=f.value;render();}});
+$('#work').addEventListener('click',e=>{
+  if(e.target.closest('[data-ticket]'))return;            // let ticket links open
+  const card=e.target.closest('[data-entry],[data-pip],[data-dmg]');
+  if(card){if(card.dataset.entry!=null)S.entryId=card.dataset.entry;
+    else if(card.dataset.pip!=null)S.pipId=card.dataset.pip;
+    else S.damageId=card.dataset.dmg;
+    if(window.innerWidth<=900)S.mDetail=true;render();return;}
+  const act=e.target.closest('[data-act]');if(!act)return;
+  if(act.dataset.act==='sort'){S.sortNewest=!S.sortNewest;render();return;}
+  toast('Editing arrives in the next migration step.');   // write actions = Phase B
+});
+$('#profile').addEventListener('click',e=>{if(e.target.closest('[data-act="new-entry"]'))toast('Editing arrives in the next migration step.');});
+
+/* boot (skip the lock inside iframes, mirroring the other gates) */
+if(window.self===window.top)initAuth();
+else{$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
 </script>
-<script src="assets/nav.js" data-section="admin"></script>
-<script src="assets/admin-gate.js"></script>
 </body>
 </html>

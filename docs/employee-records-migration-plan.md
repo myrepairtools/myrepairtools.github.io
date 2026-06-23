@@ -1,9 +1,28 @@
 # Employee Records → Supabase — Migration Plan
 
-> **Status: scoping complete, not yet implemented.** Owner asked to move
-> `employee-records.html` onto the new Supabase system and **retire**
-> `staff-management.html` afterward. This doc is the concrete plan to do that.
+> **Status: Phase 0–3 (read path) implemented on the branch.** Owner asked to
+> move `employee-records.html` onto the new Supabase system and **retire**
+> `staff-management.html` afterward.
 > Branch: `claude/auth-roles-permissions-design-5yz462`.
+
+### Execution log (2026-06-23)
+- **Phase 0 schema** — applied (staff HR fields + `staff_entries` + `staff_pips`
+  + `can_see_staff` RLS).
+- **Roster reconcile** — legacy Sheet roster matched to Supabase `staff`:
+  Ben Wyborney→id 2 (title set), "Josh"→Joshua Kirk id 5, "Nick"→Nick Moxley
+  id 4 (both confirmed by owner); **created** Austin Robledo (id 9) and Jassen
+  Lockhart (id 10, archived/terminated — resigned). New roster-only rows use a
+  sentinel `pin_hash` (`00:00`) so they hold records but can't log in until an
+  owner sets a real PIN.
+- **Phase 2 entries** — **21 entries imported** from the Sheet `Entries` tab
+  (Austin 11, Josh 4, Jassen 3, Nick 2, Ben 1), with `issue/cause/coaching/
+  response/actions` → `sections` jsonb and `legacy_id` traceability. PIPs tab
+  was empty → skipped. **The entry content is NOT committed to git** (public
+  repo); it lives only in Supabase under RLS. Import SQL kept out of the tree.
+- **Phase 3 page** — `employee-records.html` rebuilt on Supabase (new design:
+  Profile header + metric strip + Log/PIPs/Tech Damage tabs, PIN login, Tech
+  Damage still read from the damage-tracker Apps Script). **Read path done;
+  write actions (New/Edit/Delete/PIP/check-in) are stubbed → Phase B.**
 
 ## 0. Decisions locked (2026-06-23, with owner)
 
