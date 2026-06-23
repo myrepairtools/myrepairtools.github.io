@@ -137,7 +137,27 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .lk-go:disabled{opacity:.6;cursor:default}
 .lk-err{color:var(--red);font-size:.74rem;font-weight:700;margin-top:9px;min-height:1em;text-align:center}
 
-.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:700;font-size:.84rem;padding:11px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;z-index:1600}
+/* ===== modal / editors ===== */
+.modal{position:fixed;inset:0;z-index:1700;display:none}
+.modal.show{display:block}
+.mback{position:absolute;inset:0;background:rgba(45,45,59,.45)}
+.mcard{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:580px;max-width:calc(100% - 28px);max-height:calc(100% - 44px);overflow-y:auto;background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(45,45,59,.28);padding:22px 24px}
+.mcard h2{font-family:'Nunito';font-weight:900;font-size:1.15rem;margin:0 0 3px}
+.mcard .msub{font-size:.78rem;color:var(--dark-grey);font-weight:600;margin:0 0 16px}
+.mcard p.warn{font-size:.85rem;color:var(--dark-grey);line-height:1.5}
+.fblock{margin-bottom:11px}
+.frow{display:flex;gap:10px}
+.frow>.fblock{flex:1;min-width:0}
+.flbl{display:block;font-family:'Nunito';font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:5px}
+.fin{width:100%;font-family:'Nunito Sans';font-size:.86rem;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;outline:none;color:var(--dark)}
+.fin:focus{border-color:var(--blue)}
+select.fin{cursor:pointer}
+textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
+.fcheck{display:flex;align-items:center;gap:8px;font-family:'Nunito';font-weight:700;font-size:.82rem;color:var(--dark-grey);margin-bottom:4px;cursor:pointer}
+.goalrow{display:flex;gap:8px;margin-bottom:7px}
+.mactions{display:flex;gap:9px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:700;font-size:.84rem;padding:11px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;z-index:1800}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{background:var(--red)}
 
@@ -194,6 +214,7 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
   </main>
 </div>
 
+<div id="modal" class="modal"></div>
 <div id="toast" class="toast"></div>
 
 <script src="assets/site-gate.js"></script>
@@ -574,6 +595,155 @@ function dmgDetail(e,r){
     +'</div></div>';
 }
 
+/* ===== write actions (Phase B): editors -> Supabase ===== */
+function modal(html){const m=$('#modal');m.innerHTML='<div class="mback" data-close></div><div class="mcard">'+html+'</div>';m.classList.add('show');}
+function closeModal(){const m=$('#modal');m.classList.remove('show');m.innerHTML='';}
+function field(label,inner){return '<div class="fblock"><label class="flbl">'+label+'</label>'+inner+'</div>';}
+function optList(arr,cur){return arr.map(o=>'<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+o[1]+'</option>').join('');}
+const TYPES=[['observation','Observation'],['incident','Incident'],['conversation','Conversation']];
+const CATS=[['coaching','Coaching'],['performance','Performance'],['attendance','Attendance'],['positive','Positive'],['general','General']];
+const STATS=[['draft','Draft'],['active','Active'],['under-review','Under Review'],['closed-met','Closed — Met'],['closed-extended','Closed — Extended'],['closed-terminated','Closed — Terminated']];
+
+function handleAct(a){
+  const e=selEmp();if(!e)return;
+  const curEntry=()=>e.entries.find(x=>x.id===S.entryId);
+  const curPip=()=>e.pips.find(p=>p.id===S.pipId);
+  if(a==='new-entry')openEntryEditor(e,null);
+  else if(a==='edit'){const x=curEntry();if(x)openEntryEditor(e,x);}
+  else if(a==='delete'){const x=curEntry();if(x)confirmDeleteEntry(e,x);}
+  else if(a==='discuss'){const x=curEntry();if(x)logDiscussion(x);}
+  else if(a==='new-pip')openPipEditor(e,null);
+  else if(a==='edit-pip'){const p=curPip();if(p)openPipEditor(e,p);}
+  else if(a==='add-checkin'){const p=curPip();if(p)openCheckinEditor(p);}
+  else if(a==='download'){if(S.tab==='pips'){const p=curPip();if(p)downloadPip(e,p);}else{const x=curEntry();if(x)downloadEntry(e,x);}}
+}
+
+function openEntryEditor(e,x){
+  const isNew=!x;x=x||{};const sec=x.sections||{};
+  const ta=(id,label,val)=>field(label,'<textarea id="'+id+'" class="fin">'+esc(val||'')+'</textarea>');
+  modal(
+    '<h2>'+(isNew?'New entry':'Edit entry')+'</h2><div class="msub">'+esc(e.name)+' · '+esc(e.role)+'</div>'
+    +'<div class="frow">'+field('Type','<select id="f_type" class="fin">'+optList(TYPES,x.type||'observation')+'</select>')
+      +field('Category','<select id="f_cat" class="fin">'+optList(CATS,x.category||'general')+'</select>')+'</div>'
+    +field('Subject','<input id="f_subject" class="fin" value="'+esc(x.subject||'')+'">')
+    +'<div class="frow">'+field('Date logged','<input id="f_date" type="date" class="fin" value="'+esc(x.date||todayISO())+'">')
+      +field('Incident date','<input id="f_inc" type="date" class="fin" value="'+esc(x.incidentDate||x.date||todayISO())+'">')+'</div>'
+    +'<label class="fcheck"><input type="checkbox" id="f_disc" '+(x.discussed?'checked':'')+'> Discussed with employee</label>'
+    +ta('f_issue','Issue / What Happened',sec.issue)+ta('f_cause','Root Cause',sec.cause)
+    +ta('f_coaching','Coaching Provided',sec.coaching)+ta('f_response','Employee Response',sec.response)
+    +ta('f_actions','Action Items',sec.actions)
+    +'<div class="mactions"><button class="btn-o" data-close>Cancel</button><button class="btn-red" id="f_save">'+(isNew?'Create entry':'Save changes')+'</button></div>'
+  );
+  $('#f_save').onclick=()=>saveEntry(e,isNew?null:x.id);
+}
+async function saveEntry(e,id){
+  const v=i=>$('#'+i);const sec={};
+  [['issue','f_issue'],['cause','f_cause'],['coaching','f_coaching'],['response','f_response'],['actions','f_actions']]
+    .forEach(([k,fid])=>{const t=v(fid).value.trim();if(t)sec[k]=t;});
+  const rec={entry_type:v('f_type').value,category:v('f_cat').value,subject:v('f_subject').value.trim()||'(untitled)',
+    entry_date:v('f_date').value||todayISO(),incident_date:v('f_inc').value||v('f_date').value||todayISO(),
+    discussed:v('f_disc').checked,sections:sec};
+  v('f_save').disabled=true;
+  let res,newId=id;
+  if(id)res=await sb.from('staff_entries').update(rec).eq('id',id);
+  else{rec.staff_id=e.id;const r=await sb.from('staff_entries').insert(rec).select('id').single();res=r;newId=r.data&&r.data.id;}
+  if(res.error){v('f_save').disabled=false;toast(res.error.message,true);return;}
+  closeModal();toast(id?'Entry updated':'Entry created');if(newId)S.entryId=newId;await load();
+}
+function confirmDeleteEntry(e,x){
+  modal('<h2>Delete entry?</h2><div class="msub">'+esc(x.subject)+'</div>'
+    +'<p class="warn">This permanently removes the entry for '+esc(e.name)+'. This can’t be undone.</p>'
+    +'<div class="mactions"><button class="btn-o" data-close>Cancel</button><button class="btn-red" id="f_del">Delete</button></div>');
+  $('#f_del').onclick=async()=>{$('#f_del').disabled=true;const r=await sb.from('staff_entries').delete().eq('id',x.id);
+    if(r.error){$('#f_del').disabled=false;toast(r.error.message,true);return;}closeModal();toast('Entry deleted');S.entryId=null;await load();};
+}
+async function logDiscussion(x){
+  const r=await sb.from('staff_entries').update({discussed:true}).eq('id',x.id);
+  if(r.error){toast(r.error.message,true);return;}toast('Logged as discussed');await load();
+}
+
+function goalRow(g){g=g||{};return '<div class="goalrow"><input class="fin g_text" placeholder="Goal" value="'+esc(g.text||'')+'"><input class="fin g_dl" placeholder="Target" style="max-width:150px" value="'+esc(g.deadline||'')+'"><button class="btn-o" data-rmgoal style="padding:7px 11px">&times;</button></div>';}
+function openPipEditor(e,p){
+  const isNew=!p;p=p||{};
+  const goals=(p.goals&&p.goals.length?p.goals:[{}]);
+  modal(
+    '<h2>'+(isNew?'New PIP':'Edit PIP')+'</h2><div class="msub">'+esc(e.name)+'</div>'
+    +field('Title','<input id="p_title" class="fin" value="'+esc(p.title||'Performance Improvement Plan')+'">')
+    +'<div class="frow">'+field('Status','<select id="p_status" class="fin">'+optList(STATS,p.status||'draft')+'</select>')
+      +field('Manager','<input id="p_manager" class="fin" value="'+esc(p.manager||(AUTH&&AUTH.name)||'')+'">')+'</div>'
+    +'<div class="frow">'+field('Start date','<input id="p_start" type="date" class="fin" value="'+esc(p.start||todayISO())+'">')
+      +field('Review date','<input id="p_review" type="date" class="fin" value="'+esc(p.review||'')+'">')+'</div>'
+    +field('Performance Issues','<textarea id="p_issues" class="fin">'+esc(p.issues||'')+'</textarea>')
+    +field('Support Provided','<textarea id="p_support" class="fin">'+esc(p.support||'')+'</textarea>')
+    +'<div class="fblock"><label class="flbl">Goals &amp; Expectations</label><div id="p_goals">'+goals.map(goalRow).join('')+'</div>'
+    +'<button class="btn-o" id="p_addgoal" style="border-style:dashed;width:100%">+ Add goal</button></div>'
+    +'<div class="mactions"><button class="btn-o" data-close>Cancel</button><button class="btn-red" id="p_save">'+(isNew?'Create PIP':'Save changes')+'</button></div>'
+  );
+  $('#p_addgoal').onclick=()=>{const d=document.createElement('div');d.innerHTML=goalRow({});$('#p_goals').appendChild(d.firstChild);};
+  $('#p_goals').addEventListener('click',ev=>{const b=ev.target.closest('[data-rmgoal]');if(b)b.closest('.goalrow').remove();});
+  $('#p_save').onclick=()=>savePip(e,isNew?null:p);
+}
+async function savePip(e,p){
+  const v=i=>$('#'+i);
+  const goals=[...$('#p_goals').querySelectorAll('.goalrow')]
+    .map(r=>({text:r.querySelector('.g_text').value.trim(),deadline:r.querySelector('.g_dl').value.trim()})).filter(g=>g.text);
+  const status=v('p_status').value;
+  const doc={title:v('p_title').value.trim()||'Performance Improvement Plan',status,manager:v('p_manager').value.trim(),
+    start:v('p_start').value,review:v('p_review').value,issues:v('p_issues').value.trim(),support:v('p_support').value.trim(),
+    goals,checkins:(p&&p.checkins)?p.checkins:[]};
+  const rec={status,start_date:v('p_start').value||null,outcome_date:v('p_review').value||null,doc};
+  v('p_save').disabled=true;
+  let res,newId=p&&p.id;
+  if(p&&p.id)res=await sb.from('staff_pips').update(rec).eq('id',p.id);
+  else{rec.staff_id=e.id;const r=await sb.from('staff_pips').insert(rec).select('id').single();res=r;newId=r.data&&r.data.id;}
+  if(res.error){v('p_save').disabled=false;toast(res.error.message,true);return;}
+  closeModal();toast(p&&p.id?'PIP saved':'PIP created');S.tab='pips';if(newId)S.pipId=newId;await load();
+}
+function openCheckinEditor(p){
+  modal('<h2>Add check-in</h2><div class="msub">'+esc(p.title)+'</div>'
+    +field('Date','<input id="c_date" type="date" class="fin" value="'+todayISO()+'">')
+    +field('Notes','<textarea id="c_notes" class="fin"></textarea>')
+    +'<div class="mactions"><button class="btn-o" data-close>Cancel</button><button class="btn-red" id="c_save">Add check-in</button></div>');
+  $('#c_save').onclick=async()=>{
+    const notes=$('#c_notes').value.trim();if(!notes){toast('Enter notes',true);return;}
+    const checkins=(p.checkins||[]).concat([{date:fmt($('#c_date').value),notes}]);
+    const doc={title:p.title,status:p.status,manager:p.manager,start:p.start,review:p.review,issues:p.issues,support:p.support,goals:p.goals,checkins};
+    $('#c_save').disabled=true;
+    const r=await sb.from('staff_pips').update({doc}).eq('id',p.id);
+    if(r.error){$('#c_save').disabled=false;toast(r.error.message,true);return;}
+    closeModal();toast('Check-in added');await load();
+  };
+}
+
+/* ----- download (printable .html) ----- */
+function slug(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'document';}
+function docShell(title,body){return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Arial,Helvetica,sans-serif;max-width:720px;margin:40px auto;padding:0 24px;color:#2D2D3B;line-height:1.55}h1{font-size:1.55rem;margin:.2em 0}h3{text-transform:uppercase;font-size:.78rem;letter-spacing:.5px;color:#4E4E50;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:24px}.meta{color:#666;font-size:.85rem;margin:2px 0}.goal{border-left:3px solid #4FB0E3;padding:4px 10px;margin:6px 0;background:#f6f8fb}</style></head><body>'+body+'</body></html>';}
+function downloadDoc(fn,html){const b=new Blob([html],{type:'text/html'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=fn;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);}
+function downloadEntry(e,x){
+  const t=TYPE[x.type]||TYPE.observation,c=CAT[x.category]||CAT.general;
+  const secs=Object.keys(SECLABELS).filter(k=>x.sections&&x.sections[k]).map(k=>'<h3>'+SECLABELS[k]+'</h3><div>'+richText(x.sections[k])+'</div>').join('');
+  downloadDoc(slug(e.name+'-'+x.subject)+'.html',docShell(x.subject,
+    '<p class="meta">'+esc(e.name+' · '+e.role+' · '+(e.store||''))+'</p>'
+    +'<p class="meta">'+t.label+' · '+c.label+' · '+esc(fmt(x.date))+(x.incidentDate?(' · Incident '+esc(fmt(x.incidentDate))):'')+'</p>'
+    +'<h1>'+esc(x.subject)+'</h1>'+(secs||'<p>No write-up recorded.</p>')));
+}
+function downloadPip(e,p){
+  const m=PIPST[p.status]||PIPST.draft;
+  const goals=(p.goals||[]).map(g=>'<div class="goal"><b>'+esc(g.text||'')+'</b>'+(g.deadline?(' — Target: '+esc(g.deadline)):'')+'</div>').join('');
+  const checks=(p.checkins||[]).map(c=>'<div class="goal" style="border-left-color:#2E9E5B"><b>'+esc(c.date||'')+'</b><div>'+esc(c.notes||'')+'</div></div>').join('');
+  downloadDoc(slug(e.name+'-pip')+'.html',docShell('PIP — '+e.name,
+    '<p class="meta">CPR CELL PHONE REPAIR — OREGON</p><h1>Performance Improvement Plan</h1>'
+    +'<p class="meta">'+esc(e.name)+' · Manager '+esc(p.manager||'—')+' · '+m.label+'</p>'
+    +'<p class="meta">Start '+esc(p.start?fmt(p.start):'—')+' · Review '+esc(p.review?fmt(p.review):'—')+'</p>'
+    +(p.issues?'<h3>Performance Issues</h3><div>'+richText(p.issues)+'</div>':'')
+    +(goals?'<h3>Goals &amp; Expectations</h3>'+goals:'')
+    +(p.support?'<h3>Support Provided</h3><div>'+richText(p.support)+'</div>':'')
+    +(checks?'<h3>Check-ins</h3>'+checks:'')));
+}
+
+$('#modal').addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
 /* ===== events (delegated on stable parents) ===== */
 $('#empSearch').addEventListener('input',e=>{S.empSearch=e.target.value;renderEmpList();});
 $('#archBtn').addEventListener('click',()=>{S.showArchived=!S.showArchived;$('#archBtn').classList.toggle('on',S.showArchived);$('#archBtn').textContent=S.showArchived?'Hide archived':'Show archived';refilter();if(!EMPLOYEES.find(x=>x.id===S.empId))selectFirst();render();});
@@ -592,9 +762,9 @@ $('#work').addEventListener('click',e=>{
     if(window.innerWidth<=900)S.mDetail=true;render();return;}
   const act=e.target.closest('[data-act]');if(!act)return;
   if(act.dataset.act==='sort'){S.sortNewest=!S.sortNewest;render();return;}
-  toast('Editing arrives in the next migration step.');   // write actions = Phase B
+  handleAct(act.dataset.act);
 });
-$('#profile').addEventListener('click',e=>{if(e.target.closest('[data-act="new-entry"]'))toast('Editing arrives in the next migration step.');});
+$('#profile').addEventListener('click',e=>{if(e.target.closest('[data-act="new-entry"]'))handleAct('new-entry');});
 
 /* boot (skip the lock inside iframes, mirroring the other gates) */
 if(window.self===window.top)initAuth();
