@@ -413,7 +413,7 @@ function renderProfile(){
     +'<span class="prof-name head">'+esc(e.name)+'</span>'
     +'<span class="status-pill" style="background:'+stBg+';color:'+stFg+'">'+esc(sLbl)+'</span></div>'
     +'<div class="prof-sub">'+esc(e.role)+' &middot; '+esc(e.store||'—')+(e.start?(' &middot; Started '+esc(fmt(e.start))):'')+'</div></div></div>'
-    +'<button class="btn-red" data-act="new-entry">+ New Entry</button></div>'
+    +'<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;flex:none"><button class="btn-o" data-act="export">&#8595; Export</button><button class="btn-red" data-act="new-entry">+ New Entry</button></div></div>'
     +'<div class="metrics">'
     +m('var(--blue)',e.entries.length,'Entries')
     +m('var(--amber)',openPips,'Open PIPs')
@@ -594,7 +594,8 @@ function handleAct(a){
   const e=selEmp();if(!e)return;
   const curEntry=()=>e.entries.find(x=>x.id===S.entryId);
   const curPip=()=>e.pips.find(p=>p.id===S.pipId);
-  if(a==='new-entry')openEntryEditor(e,null);
+  if(a==='export')exportEmployee(e);
+  else if(a==='new-entry')openEntryEditor(e,null);
   else if(a==='edit'){const x=curEntry();if(x)openEntryEditor(e,x);}
   else if(a==='delete'){const x=curEntry();if(x)confirmDeleteEntry(e,x);}
   else if(a==='discuss'){const x=curEntry();if(x)logDiscussion(x);}
@@ -727,6 +728,94 @@ function downloadPip(e,p){
     +(checks?'<h3>Check-ins</h3>'+checks:'')));
 }
 
+/* ----- export employee file (zip: records.csv + one PDF per record) ----- */
+function htmlToText(s){
+  s=String(s==null?'':s);
+  if(!/[<&]/.test(s))return s.trim();
+  s=s.replace(/<\s*(br|\/p|\/div|\/li|\/tr)\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'');
+  const ta=document.createElement('textarea');ta.innerHTML=s;s=ta.value;
+  return s.replace(/\r/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+function pdfSafe(s){return String(s==null?'':s)
+  .replace(/[‘’]/g,"'").replace(/[“”]/g,'"')
+  .replace(/[–—]/g,'-').replace(/…/g,'...').replace(/ /g,' ')
+  .replace(/[^\x00-\xFF]/g,'');}
+function flattenSections(sec){return Object.keys(SECLABELS).filter(k=>sec&&sec[k]).map(k=>SECLABELS[k]+': '+htmlToText(sec[k])).join('\n\n');}
+function flattenPip(p){const a=[];if(p.issues)a.push('Performance Issues: '+htmlToText(p.issues));
+  if(p.goals&&p.goals.length)a.push('Goals: '+p.goals.map(g=>g.text+(g.deadline?(' (Target: '+g.deadline+')'):'')).join('; '));
+  if(p.support)a.push('Support: '+htmlToText(p.support));
+  if(p.checkins&&p.checkins.length)a.push('Check-ins: '+p.checkins.map(c=>c.date+' - '+c.notes).join(' | '));
+  return a.join('\n\n');}
+function buildCsv(e){
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const head=['record_type','date','incident_date','title','category_or_status','discussed','store','cost','ticket','details'];
+  const rows=[head.map(q).join(',')];
+  e.entries.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(x=>rows.push(
+    ['Entry',x.date,x.incidentDate||'',x.subject,x.category,x.discussed?'yes':'no','','','',flattenSections(x.sections)].map(q).join(',')));
+  e.pips.forEach(p=>rows.push(
+    ['PIP',p.start||'',p.review||'',p.title,p.status,'','','','',flattenPip(p)].map(q).join(',')));
+  dmgFor(e).forEach(r=>rows.push(
+    ['Tech Damage',r.date,'',r.part,r.mfr,'',r.store,r.cost,r.ticket,htmlToText(r.how)].map(q).join(',')));
+  return '﻿'+rows.join('\r\n');
+}
+function makePdf(jsPDF){const doc=new jsPDF({unit:'pt',format:'letter'});doc._y=56;return doc;}
+function pdfBlock(doc,text,o){o=o||{};const size=o.size||10,M=56,PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight();
+  doc.setFont('helvetica',o.style||'normal');doc.setFontSize(size);doc.setTextColor.apply(doc,o.color||[45,45,59]);
+  const lines=doc.splitTextToSize(pdfSafe(text),PW-M*2-(o.indent||0));const lh=size*1.35;
+  for(const ln of lines){if(doc._y+lh>PH-M){doc.addPage();doc._y=M;}doc.text(ln,M+(o.indent||0),doc._y);doc._y+=lh;}
+  doc._y+=(o.gap==null?4:o.gap);}
+function entryPdf(jsPDF,e,x){const doc=makePdf(jsPDF),t=TYPE[x.type]||TYPE.observation,c=CAT[x.category]||CAT.general;
+  pdfBlock(doc,'CPR CELL PHONE REPAIR - OREGON',{size:9,style:'bold',color:[220,40,46],gap:2});
+  pdfBlock(doc,t.label+'  ·  '+c.label,{size:8,style:'bold',color:[150,150,160],gap:6});
+  pdfBlock(doc,x.subject,{size:16,style:'bold',gap:4});
+  pdfBlock(doc,e.name+'  ·  '+e.role+'  ·  '+fmt(x.date)+(x.incidentDate&&x.incidentDate!==x.date?('  ·  Incident '+fmt(x.incidentDate)):''),{size:9,color:[110,110,120],gap:10});
+  Object.keys(SECLABELS).forEach(k=>{if(x.sections&&x.sections[k]){pdfBlock(doc,SECLABELS[k].toUpperCase(),{size:8,style:'bold',color:[120,120,130],gap:2});pdfBlock(doc,htmlToText(x.sections[k]),{size:10,gap:9});}});
+  if(x.discussed)pdfBlock(doc,'Discussed with employee.',{size:9,style:'bold',color:[46,158,91]});
+  return doc.output('arraybuffer');}
+function pipPdf(jsPDF,e,p){const doc=makePdf(jsPDF),m=PIPST[p.status]||PIPST.draft;
+  pdfBlock(doc,'CPR CELL PHONE REPAIR - OREGON',{size:9,style:'bold',color:[220,40,46],gap:2});
+  pdfBlock(doc,'Performance Improvement Plan',{size:15,style:'bold',gap:2});
+  pdfBlock(doc,p.title,{size:11,style:'bold',color:[90,90,100],gap:6});
+  pdfBlock(doc,e.name+'  ·  Manager '+(p.manager||'-')+'  ·  '+m.label,{size:9,color:[110,110,120],gap:2});
+  pdfBlock(doc,'Start '+(p.start?fmt(p.start):'-')+'    Review '+(p.review?fmt(p.review):'-'),{size:9,color:[110,110,120],gap:8});
+  if(p.issues){pdfBlock(doc,'PERFORMANCE ISSUES',{size:8,style:'bold',color:[120,120,130],gap:2});pdfBlock(doc,htmlToText(p.issues),{size:10,gap:8});}
+  if(p.goals&&p.goals.length){pdfBlock(doc,'GOALS & EXPECTATIONS',{size:8,style:'bold',color:[120,120,130],gap:2});p.goals.forEach(g=>pdfBlock(doc,'- '+g.text+(g.deadline?('  (Target: '+g.deadline+')'):''),{size:10,gap:2}));doc._y+=6;}
+  if(p.support){pdfBlock(doc,'SUPPORT PROVIDED',{size:8,style:'bold',color:[120,120,130],gap:2});pdfBlock(doc,htmlToText(p.support),{size:10,gap:8});}
+  if(p.checkins&&p.checkins.length){pdfBlock(doc,'CHECK-INS',{size:8,style:'bold',color:[120,120,130],gap:2});p.checkins.forEach(c=>{pdfBlock(doc,c.date,{size:9,style:'bold',gap:1});pdfBlock(doc,htmlToText(c.notes),{size:10,gap:6});});}
+  return doc.output('arraybuffer');}
+function damagePdf(jsPDF,e,r){const doc=makePdf(jsPDF);
+  pdfBlock(doc,'TECH DAMAGE REPORT',{size:9,style:'bold',color:[220,40,46],gap:2});
+  pdfBlock(doc,r.part||'-',{size:16,style:'bold',gap:2});
+  if(r.device)pdfBlock(doc,r.device,{size:10,color:[110,110,120],gap:6});
+  pdfBlock(doc,e.name+'  ·  '+(r.store||'')+'  ·  '+fmt(r.date),{size:9,color:[110,110,120],gap:8});
+  pdfBlock(doc,'Manufacturer: '+(r.mfr||'-')+'      Part cost: '+money(r.cost)+'      Ticket: '+(r.ticket||'-'),{size:10,gap:8});
+  if(r.how){pdfBlock(doc,'HOW IT HAPPENED',{size:8,style:'bold',color:[120,120,130],gap:2});pdfBlock(doc,htmlToText(r.how),{size:10,gap:6});}
+  return doc.output('arraybuffer');}
+function downloadBlob(fn,blob){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=fn;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);}
+async function exportEmployee(e){
+  if(!e)return;
+  toast('Building export…');
+  let JSZip,jsPDF;
+  try{
+    const z=await import('https://esm.sh/jszip@3.10.1');JSZip=z.default||z;
+    const j=await import('https://esm.sh/jspdf@2.5.1');jsPDF=j.jsPDF||(j.default&&j.default.jsPDF);
+  }catch(err){toast('Could not load export libraries.',true);return;}
+  if(!JSZip||!jsPDF){toast('Export libraries unavailable.',true);return;}
+  try{
+    const zip=new JSZip();
+    zip.file('records.csv',buildCsv(e));
+    e.entries.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach((x,i)=>
+      zip.file('entries/'+(x.date||'undated')+'-'+slug(x.subject||('entry-'+(i+1)))+'.pdf',entryPdf(jsPDF,e,x)));
+    e.pips.forEach((p,i)=>
+      zip.file('pips/'+(p.start||'')+'-'+slug(p.title||('pip-'+(i+1)))+'.pdf',pipPdf(jsPDF,e,p)));
+    dmgFor(e).forEach((r,i)=>
+      zip.file('tech-damage/'+(r.date||'undated')+'-'+slug((r.part||'damage')+'-'+(r.ticket||(i+1)))+'.pdf',damagePdf(jsPDF,e,r)));
+    const blob=await zip.generateAsync({type:'blob'});
+    downloadBlob(slug(e.name)+'-records.zip',blob);
+    toast('Export ready');
+  }catch(err){toast('Export failed: '+(err&&err.message||err),true);}
+}
+
 $('#modal').addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
@@ -750,7 +839,7 @@ $('#work').addEventListener('click',e=>{
   if(act.dataset.act==='sort'){S.sortNewest=!S.sortNewest;render();return;}
   handleAct(act.dataset.act);
 });
-$('#profile').addEventListener('click',e=>{if(e.target.closest('[data-act="new-entry"]'))handleAct('new-entry');});
+$('#profile').addEventListener('click',e=>{const a=e.target.closest('[data-act]');if(a)handleAct(a.dataset.act);});
 
 /* boot (skip the lock inside iframes, mirroring the other gates) */
 if(window.self===window.top)initAuth();
