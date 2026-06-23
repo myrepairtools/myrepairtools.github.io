@@ -81,10 +81,10 @@ Deno.serve(async (req)=>{
     }, 400);
   }
   const action = body.action;
-  // ---------- LOGIN (by username) ----------
+  // ---------- LOGIN (by PIN; username optional) ----------
   if (action === "login") {
     const { username, pin, device_id, store } = body;
-    if (!username || !pin || !device_id) return json({
+    if (!pin || !device_id) return json({
       error: "missing fields"
     }, 400);
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "";
@@ -93,8 +93,22 @@ Deno.serve(async (req)=>{
       error: "locked",
       locked: true
     }, 423);
-    const { data: staff } = await admin.from("staff").select("*").ilike("username", username).eq("active", true).limit(1).maybeSingle();
-    const ok = staff ? await verifyPin(pin, staff.pin_hash) : false;
+    // Identify the staff member: by username if given, else by PIN alone.
+    // PIN-only must resolve to exactly ONE active staff member, so PINs must
+    // be unique across staff; an ambiguous PIN is rejected like a bad PIN.
+    let staff = null;
+    if (username) {
+      const { data } = await admin.from("staff").select("*").ilike("username", username).eq("active", true).limit(1).maybeSingle();
+      staff = (data && await verifyPin(pin, data.pin_hash)) ? data : null;
+    } else {
+      const { data: all } = await admin.from("staff").select("*").eq("active", true);
+      const matches = [];
+      for (const s of (all ?? [])){
+        if (s.pin_hash && await verifyPin(pin, s.pin_hash)) matches.push(s);
+      }
+      staff = matches.length === 1 ? matches[0] : null;
+    }
+    const ok = !!staff;
     if (!ok) {
       const fails = (att?.fails ?? 0) + 1;
       await admin.from("login_attempts").upsert({

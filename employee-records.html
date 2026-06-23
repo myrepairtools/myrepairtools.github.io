@@ -181,14 +181,10 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
   <div class="lock-card">
     <div class="lk-mark">+</div>
     <h1>Employee Records</h1>
-    <p>Sign in with your PIN to view staff records.</p>
-    <div class="lk-field">
-      <label>Your name</label>
-      <select id="lkName" class="lk-input"><option value="">Select your name…</option></select>
-    </div>
+    <p>Enter your PIN to view staff records.</p>
     <div class="lk-field">
       <label>PIN</label>
-      <input id="lkPin" class="lk-input" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
+      <input id="lkPin" class="lk-input" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" autofocus>
     </div>
     <button id="lkGo" class="lk-go">Sign in</button>
     <div id="lkErr" class="lk-err"></div>
@@ -277,24 +273,14 @@ const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
 
-/* ===== auth ===== */
-async function populateNames(){
-  const r=await sb.from('staff_roster').select('display_name,username,role,active').eq('active',true);
-  const rows=(r.error?[]:(r.data||[])).filter(s=>['admin','manager','owner'].indexOf(s.role)>-1);
-  rows.sort((a,b)=>String(a.display_name).localeCompare(String(b.display_name)));
-  NAME2USER={};rows.forEach(s=>{NAME2USER[s.display_name]=s.username;});
-  $('#lkName').innerHTML='<option value="">Select your name…</option>'+rows.map(s=>'<option>'+esc(s.display_name)+'</option>').join('');
-}
+/* ===== auth (PIN only) ===== */
 async function doLogin(){
-  const nm=$('#lkName').value, pin=$('#lkPin').value;
+  const pin=$('#lkPin').value;
   const err=$('#lkErr');
-  if(!nm){err.textContent='Pick your name';return;}
-  const username=NAME2USER[nm];
-  if(!username){err.textContent='No username on file for that name';return;}
   if(!pin){err.textContent='Enter your PIN';return;}
   $('#lkGo').disabled=true;err.textContent='Signing in…';
   try{
-    const r=await fn({action:'login',username,pin,device_id:deviceId()});
+    const r=await fn({action:'login',pin,device_id:deviceId()});
     if(r.status!==200){const d=r.data||{};
       if(r.status===423||d.locked)err.textContent='Locked after too many tries — an owner must reset this device.';
       else if(d.error==='invalid')err.textContent='Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'');
@@ -310,8 +296,8 @@ async function doLogin(){
 }
 function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
 async function initAuth(){
-  await populateNames();
   $('#lkGo').onclick=doLogin;
+  $('#lkPin').focus();
   $('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   const sess=(await sb.auth.getSession()).data.session;
   if(sess){
