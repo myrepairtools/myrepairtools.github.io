@@ -36,6 +36,8 @@
 
   var RANK = { none:0, employee:1, admin:2, owner:3 };
   var AUTH_KEY = 'cprNavAuth';
+  var COLLAPSE_KEY = 'cprNavCollapsed';   // desktop: menu pane collapsed to icon rail
+  var collapsed = false;
   var IDLE_MS = NAV_AUTH.idleMinutes * 60 * 1000;
 
   var currentFile = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
@@ -87,10 +89,12 @@
   .cpr-rail .cpr-railsp{ flex:1; }
   .cpr-rail .cpr-raildiv{ width:28px; height:1px; background:rgba(255,255,255,.16); margin:3px 0; }
   .cpr-rail .cpr-avatar{ width:38px; height:38px; border-radius:50%; background:var(--cpr-red); color:#fff; font-weight:900; font-size:.82rem; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .cpr-rail .cpr-collapse{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:6px; opacity:.7; }
+  .cpr-rail .cpr-collapse:hover{ background:rgba(255,255,255,.12); opacity:1; }
 
   /* menu pane */
   .cpr-pane{ position:fixed; top:0; left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
-    background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; }
+    background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; transition:transform .2s ease; }
   .cpr-pane a{ text-decoration:none; }
   .cpr-pane-hd{ display:flex; align-items:center; gap:9px; padding:16px 18px 12px; font-family:'Nunito',sans-serif; font-weight:900; font-size:1.05rem; letter-spacing:-.3px; color:var(--cpr-blue-dark); }
   .cpr-pane-hd .cpr-wm-mark{ width:26px; height:26px; border-radius:7px; background:var(--cpr-red); display:flex; align-items:center; justify-content:center; }
@@ -129,13 +133,18 @@
   .cpr-gear:hover{ background:#F3F2F2; color:#2D2D3B; }
 
   /* push page content clear of shell */
-  @media(min-width:860px){ body{ margin-left:var(--cpr-nav-w) !important; } }
+  @media(min-width:860px){
+    body{ margin-left:var(--cpr-nav-w) !important; }
+    body.cpr-nav-collapsed{ margin-left:var(--cpr-rail-w) !important; }
+    body.cpr-nav-collapsed .cpr-pane{ transform:translateX(-100%); }
+  }
 
   /* mobile — rail stays visible, pane slides */
   .cpr-scrim{ display:none; position:fixed; inset:0; background:rgba(45,45,59,.45); z-index:999; }
   .cpr-scrim.show{ display:block; }
   @media(max-width:859px){
     .cpr-rail .cpr-burger2{ display:flex; align-items:center; justify-content:center; }
+    .cpr-rail .cpr-collapse{ display:none; }              /* burger handles mobile */
     .cpr-pane{ transform:translateX(-100%); transition:transform .22s ease; }
     .cpr-pane.open{ transform:translateX(0); }
     body{ margin-left:var(--cpr-rail-w) !important; }
@@ -154,6 +163,10 @@
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
     return '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="'+d+'"/></svg>';
+  }
+  function chevron(dir){
+    var d = (dir === 'right') ? 'M9 5l6 7-6 7' : 'M15 5l-6 7 6 7';
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+d+'"/></svg>';
   }
 
   function linkHtml(t, tag){
@@ -301,11 +314,35 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
+      + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
       + '<div class="cpr-avatar">'+avatarInitials()+'</div>';
     document.body.insertBefore(rail, document.body.firstChild);
 
+    // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
+    var collapseBtn = rail.querySelector('.cpr-collapse');
+    function updateCollapseBtn(){
+      if (!collapseBtn) return;
+      collapseBtn.innerHTML = chevron(collapsed ? 'right' : 'left');
+      collapseBtn.title = collapsed ? 'Expand menu' : 'Collapse menu';
+      collapseBtn.setAttribute('aria-label', collapseBtn.title);
+    }
+    function setCollapsed(v){
+      collapsed = !!v;
+      try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(_){}
+      document.body.classList.toggle('cpr-nav-collapsed', collapsed);
+      updateCollapseBtn();
+    }
+    try { collapsed = localStorage.getItem(COLLAPSE_KEY) === '1'; } catch(_){ collapsed = false; }
+    document.body.classList.toggle('cpr-nav-collapsed', collapsed);
+    updateCollapseBtn();
+    if (collapseBtn) collapseBtn.onclick = function(){ setCollapsed(!collapsed); };
+
     rail.querySelectorAll('.cpr-areabtn').forEach(function(b){
-      b.onclick = function(){ setArea(b.getAttribute('data-area')); if (window.innerWidth < 860){ pane.classList.add('open'); scrim.classList.add('show'); } };
+      b.onclick = function(){
+        setArea(b.getAttribute('data-area'));
+        if (window.innerWidth < 860){ pane.classList.add('open'); scrim.classList.add('show'); }
+        else if (collapsed){ setCollapsed(false); }   // expand to reveal the area's tools
+      };
     });
 
     wirePriv();
