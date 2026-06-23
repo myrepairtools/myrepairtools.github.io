@@ -116,7 +116,6 @@ tr.detrow.hide{display:none}
     <div class="ic">🔒</div>
     <h2>Cash Admin</h2>
     <p>Manager / owner sign-in</p>
-    <select id="lkName"><option value="">Select your name…</option></select>
     <input id="lkPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
     <button id="lkGo">Unlock admin tools</button>
     <div class="lock-err" id="lkErr"></div>
@@ -365,40 +364,37 @@ async function populateLockNames(){
   NAME2USER={};rows.forEach(function(s){NAME2USER[s.username]=s.username;});
   var sel=$('#lkName');if(sel)sel.innerHTML='<option value="">Select your username…</option>'+rows.map(function(s){return '<option>'+s.username+'</option>';}).join('');
 }
+function isAdminRole(role){return ['admin','manager','owner'].indexOf(role)>-1;}
 async function doLogin(){
-  var nm=($('#lkName')&&$('#lkName').value)||'', pin=($('#lkPin')&&$('#lkPin').value)||'';
-  if(!nm){lockErr('Pick your name');return;}
-  var username=NAME2USER[nm];
-  if(!username){lockErr('No username on file for that name');return;}
+  var pin=($('#lkPin')&&$('#lkPin').value)||'';
   if(!pin){lockErr('Enter your PIN');return;}
   $('#lkGo').disabled=true; lockErr('Signing in…');
   try{
-    var r=await fn({action:'login',username:username,pin:pin,device_id:DEVICE_ID});
+    var r=await fn({action:'login',pin:pin,device_id:DEVICE_ID});
     if(r.status!==200){var d=r.data||{};
       if(r.status===423||d.locked) lockErr('Locked after too many tries — an owner must reset this device.');
       else if(d.error==='invalid') lockErr('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' attempt(s) left.'):''));
       else lockErr(d.error||'Login failed.');
       $('#lkGo').disabled=false; return;
     }
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
     var st=r.data.staff||{};
+    if(!isAdminRole(st.role)){ lockErr('That account doesn\'t have admin access.'); $('#lkGo').disabled=false; return; }
+    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
     AUTH={name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
     $('#lkGo').disabled=false; lockErr('');
     unlockUI();
   }catch(e){$('#lkGo').disabled=false; lockErr(String(e&&e.message||e));}
 }
 async function initAuth(){
-  await populateLockNames();
   if($('#lkGo')) $('#lkGo').onclick=doLogin;
-  if($('#lkPin')) $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+  if($('#lkPin')){ $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();}); $('#lkPin').focus(); }
   ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
   var sess=(await sb.auth.getSession()).data.session;
   if(sess && !idleExpired()){
     var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}
+    if(sr.data && isAdminRole(sr.data.role)){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}
   }
-  if(sess) await sb.auth.signOut();
-  showLock();
+  showLock();   // keep any shared session (SSO); just require admin PIN here
 }
 
 /* ===== BROWSER CACHE (stale-while-revalidate) =====
