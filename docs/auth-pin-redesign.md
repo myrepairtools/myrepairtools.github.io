@@ -52,6 +52,23 @@ picking. The PIN attributes every action (checklists, tasks) to the right person
    drives login + RLS); aligning those values to the new `roles.key`
    (`owner`/`admin`/`team_member`) is a follow-up, tracked below.
 
+   **Cutover staged (2026-06-23).** Owner chose a **hard cutover** to
+   `owner`/`admin`/`team_member`. Prepared on this branch (NOT yet executed live):
+   - `docs/sql/2026-06-23-staff-role-cutover.sql` — `is_admin()` → `('admin',
+     'owner')` plus the `staff.role` data rename (`manager→admin`,
+     `employee→team_member`).
+   - Supabase-stack front-end updated: `settings.html`, `cash-admin.html`
+     (+ `assets/` dup). `cash-tracker` / `consumption-report` / `login-test`
+     only key on `owner`, so unchanged.
+   - **Blocking the live cutover:** redeploy `cpr-auth` so `caller()` accepts
+     `owner|admin` and `canManageRole()` targets `team_member`. Owner is
+     supplying the original source for a clean redeploy.
+   - **Scope boundary:** `staff-management.html` + `employee-records.html` run on
+     the **older Apps Script backend** (`CPRGate`) — a separate role store, **out
+     of scope** for this Supabase cutover.
+   - **Release order (all together):** deploy `cpr-auth` → run the SQL → merge
+     front-end to `main`. Any one alone breaks live admin login / cash-admin.
+
 ## What already exists (no need to rebuild)
 
 The newer Supabase stack already has most of the plumbing.

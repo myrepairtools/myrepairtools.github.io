@@ -216,7 +216,7 @@ var FN=SB_URL+'/functions/v1/cpr-auth';
 var sb=createClient(SB_URL,ANON);
 /* ==================== */
 var AUTH=null;        /* logged-in staff {name, role, home_store, authorized_stores} */
-var ME_ROLE='manager';/* from list_staff_admin */
+var ME_ROLE='admin';/* from list_staff_admin */
 var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 
 var $=function(s){return document.querySelector(s);};
@@ -224,8 +224,9 @@ var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
 function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
-var ROLES=['employee','manager','owner'];
-function roleLabel(r){return r?r.charAt(0).toUpperCase()+r.slice(1):'';}
+var ROLES=['team_member','admin','owner']; /* assignable built-in role keys */
+var ROLE_LABELS={owner:'Owner',admin:'Admin',team_member:'Team Member',manager:'Admin',employee:'Team Member'};
+function roleLabel(r){return ROLE_LABELS[r]||(r?r.charAt(0).toUpperCase()+r.slice(1):'');}
 var AVATARS=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
 function avatarBg(id){var h=0,s=String(id||'');for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AVATARS[h%AVATARS.length];}
 function initialsOf(m){var a=(m.first_name||'').trim(),b=(m.last_name||'').trim();var x=(a[0]||'')+(b[0]||'');if(!x.trim())x=(m.display_name||m.username||'?').trim()[0]||'?';return x.toUpperCase();}
@@ -259,7 +260,7 @@ function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.a
 async function populateLockNames(){
   /* read the anon-readable roster view (the base staff table is RLS-locked pre-login) */
   var r=await sb.from('staff_roster').select('display_name,username,role,active').eq('active',true);
-  var rows=(r.error?[]:(r.data||[])).filter(function(s){return s.role==='manager'||s.role==='owner';});
+  var rows=(r.error?[]:(r.data||[])).filter(function(s){return ['admin','manager','owner'].indexOf(s.role)>-1;});
   rows.sort(function(a,b){return String(a.display_name).localeCompare(String(b.display_name));});
   NAME2USER={};rows.forEach(function(s){NAME2USER[s.display_name]=s.username;});
   var sel=$('#lkName');if(sel)sel.innerHTML='<option value="">Select your name…</option>'+rows.map(function(s){return '<option>'+esc(s.display_name)+'</option>';}).join('');
@@ -308,7 +309,7 @@ async function loadStores(){
 async function loadStaff(){
   var r=await authFn({action:'list_staff_admin'});
   if(r.status!==200){toast((r.data&&r.data.error)||'Could not load staff',true);STAFF=[];return;}
-  STAFF=r.data.staff||[]; ME_ROLE=r.data.me_role||(AUTH&&AUTH.role)||'manager';
+  STAFF=r.data.staff||[]; ME_ROLE=r.data.me_role||(AUTH&&AUTH.role)||'admin';
 }
 async function loadRegs(){
   if(!REGSTORE){REGS=[];return;}
@@ -552,17 +553,17 @@ function genPin(){var s='';for(var i=0;i<4;i++)s+=Math.floor(Math.random()*10);r
 function openMember(id){
   var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
   if(!m)return;
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'employee',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:''}};
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:''}};
   renderModal();
 }
 function openAddMember(){
   var home=(activeStores()[0]||{}).store||'';
-  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'employee',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin()}};
+  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin()}};
   renderModal();
 }
 function memberModalHtml(){
   var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
-  var roleSet=owner?ROLES:['employee'];
+  var roleSet=owner?ROLES:['team_member'];
   var roleOpts=roleSet.map(function(r){return '<option value="'+r+'"'+(r===d.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('');
   var home=d.home_store;
   var pills=activeStores().map(function(s){
