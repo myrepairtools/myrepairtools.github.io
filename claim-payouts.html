@@ -202,7 +202,7 @@
     gap: 10px;
   }
   .metrics-row-totals   { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .metrics-row-averages { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .metrics-row-averages { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   @media (max-width: 900px) {
     .metrics-row-totals,
     .metrics-row-averages {
@@ -533,6 +533,30 @@
   .pcts-panel-t { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 15px; color: var(--dark); }
   .pcts-x { border: none; background: none; font-size: 24px; line-height: 1; color: var(--grey); cursor: pointer; padding: 0 4px; }
   .pcts-x:hover { color: var(--dark); }
+  /* reports modal */
+  .rep-panel { max-width: 840px; gap: 6px; }
+  .rep-trend { display:flex; align-items:center; gap:10px; background:var(--light-grey); border:1px solid var(--border); border-radius:10px; padding:11px 14px; margin-bottom:12px; font-family:'Nunito',sans-serif; }
+  .rep-trend .big { font-weight:900; font-size:20px; }
+  .rep-trend .big.up { color:var(--green); } .rep-trend .big.down { color:var(--red); }
+  .rep-trend .cap { font-size:12px; font-weight:700; color:var(--dark-grey); }
+  .rep-sec-h { font-family:'Nunito',sans-serif; font-weight:900; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--grey); margin:16px 0 8px; }
+  .rep-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .rep-kpi { background:#fff; border:1px solid var(--border); border-radius:10px; padding:11px 12px; box-shadow:0 1px 2px rgba(45,45,59,.04); }
+  .rep-kpi .l { font-family:'Nunito',sans-serif; font-weight:800; font-size:9.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--grey); }
+  .rep-kpi .v { font-family:'Nunito',sans-serif; font-weight:900; font-size:19px; color:var(--dark); margin-top:3px; line-height:1.1; }
+  .rep-kpi .s { font-size:10.5px; font-weight:700; color:var(--grey); margin-top:3px; }
+  .rep-chart { display:flex; align-items:flex-end; gap:8px; height:140px; padding:6px 2px 0; margin-top:4px; }
+  .rep-bar { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:5px; }
+  .rep-bar .fill { width:100%; max-width:46px; background:var(--blue); border-radius:5px 5px 0 0; min-height:2px; transition:height .25s; }
+  .rep-bar:last-child .fill { background:var(--green); }
+  .rep-bar .amt { font-family:'Nunito',sans-serif; font-weight:800; font-size:9.5px; color:var(--dark-grey); white-space:nowrap; }
+  .rep-bar .lbl { font-size:9.5px; font-weight:700; color:var(--grey); }
+  .rep-table { width:100%; border-collapse:collapse; }
+  .rep-table th { text-align:right; font-family:'Nunito',sans-serif; font-weight:800; font-size:9.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--grey); padding:6px 8px; border-bottom:1px solid var(--border); }
+  .rep-table th:first-child, .rep-table td:first-child { text-align:left; }
+  .rep-table td { text-align:right; font-family:'Nunito Sans',sans-serif; font-size:12.5px; font-weight:600; color:var(--dark); padding:7px 8px; border-bottom:1px solid var(--light-grey); }
+  .rep-table tr:last-child td { border-bottom:none; }
+  @media(max-width:680px){ .rep-kpis{ grid-template-columns:repeat(2,1fr); } }
   .pcts-row {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   }
@@ -683,6 +707,7 @@
       <div class="page-sub">Track weekly claim payouts, anticipated consignment, and Profit First allocations</div>
     </div>
     <div class="toolbar">
+      <button class="toolbar-btn" id="btn-reports" onclick="toggleReports()">📈 Reports</button>
       <button class="toolbar-btn" id="btn-pcts" onclick="togglePcts()">⚙ Pcts</button>
       <button class="toolbar-btn" id="btn-refresh" onclick="loadData()">↻ Refresh</button>
     </div>
@@ -719,6 +744,18 @@
         </label>
         <span class="config-help" id="pcts-status"></span>
       </div>
+    </div>
+  </div>
+
+  <!-- REPORTS MODAL -->
+  <div class="pcts-modal hidden" id="reports-modal">
+    <div class="pcts-backdrop" onclick="toggleReports()"></div>
+    <div class="pcts-panel rep-panel" role="dialog" aria-modal="true" aria-label="Claim reports">
+      <div class="pcts-panel-hd">
+        <span class="pcts-panel-t">📈 Claim Payout Reports</span>
+        <button class="pcts-x" onclick="toggleReports()" aria-label="Close">&times;</button>
+      </div>
+      <div id="reports-body"></div>
     </div>
   </div>
 
@@ -786,6 +823,10 @@
       <div class="metric-tile" onclick="copyMetric('avg_cost', this)">
         <div class="metric-label">Avg Cost</div>
         <div class="metric-val" id="m-avg-cost">$0.00</div>
+      </div>
+      <div class="metric-tile" onclick="copyMetric('avg_gross', this)">
+        <div class="metric-label">Avg Gross Profit</div>
+        <div class="metric-val" id="m-avg-gross">$0.00</div>
       </div>
       <div class="metric-tile" onclick="copyMetric('avg_margin_pct', this)">
         <div class="metric-label">Avg Margin</div>
@@ -979,6 +1020,7 @@ function fmt(n) {
   const sign = n < 0 ? '-' : '';
   return sign + '$' + Math.abs(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtPct(v) { return (v || 0).toFixed(1) + '%'; }
 function fmtDate(d) {
   if (!d) return '';
@@ -1019,10 +1061,105 @@ function togglePcts() {
 }
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') {
-    const modal = document.getElementById('pcts-modal');
-    if (modal && !modal.classList.contains('hidden')) togglePcts();
+    document.querySelectorAll('.pcts-modal:not(.hidden)').forEach(m => m.classList.add('hidden'));
   }
 });
+
+// ============================================================================
+// REPORTS — time-based KPIs computed from all loaded claim data
+// ============================================================================
+function toggleReports() {
+  const modal = document.getElementById('reports-modal');
+  modal.classList.toggle('hidden');
+  if (!modal.classList.contains('hidden')) renderReports();
+}
+function fmtK(n) {
+  n = n || 0;
+  if (Math.abs(n) >= 1000) return '$' + (n / 1000).toFixed(1) + 'k';
+  return '$' + n.toFixed(0);
+}
+function monthLabel(ym) {
+  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const p = String(ym).split('-');
+  return p.length === 2 ? `${m[parseInt(p[1],10)-1]} ${p[0]}` : ym;
+}
+function renderReports() {
+  const body = document.getElementById('reports-body');
+  const T = rawTickets || [];
+  const N = T.length;
+  if (!N) { body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--grey);font-weight:700">No claim data yet.</div>'; return; }
+
+  const sum = f => T.reduce((s, t) => s + (num(t[f]) || 0), 0);
+  const totalPayout = sum('total');
+  const totalRoyalty = sum('royalty');
+  const grossProfit = T.reduce((s, t) => s + (num(t.gross_profit) || (num(t.total) - num(t.cogs))), 0);
+  const avgTicket = totalPayout / N;
+  const avgRoyalty = totalRoyalty / N;
+  const marginPct = totalPayout ? grossProfit / totalPayout * 100 : 0;
+
+  // group by payout week + month + location
+  const grp = (key) => {
+    const m = new Map();
+    for (const t of T) {
+      const k = key(t); if (!k) continue;
+      if (!m.has(k)) m.set(k, { payout: 0, tickets: 0, royalty: 0 });
+      const g = m.get(k); g.payout += num(t.total); g.tickets++; g.royalty += num(t.royalty);
+    }
+    return m;
+  };
+  const weeks = [...grp(t => t.payout_date).entries()].sort((a, b) => a[0] < b[0] ? -1 : 1);
+  const months = [...grp(t => t.payout_date ? String(t.payout_date).slice(0, 7) : '').entries()].sort();
+  const locs = [...grp(t => shortLocation(t.location)).entries()].sort((a, b) => b[1].payout - a[1].payout);
+
+  const nWeeks = weeks.length;
+  const avgPerWeek = nWeeks ? totalPayout / nWeeks : 0;
+  const claimsPerWeek = nWeeks ? N / nWeeks : 0;
+
+  // trend: recent half vs older half of the weekly series
+  let trendHtml = '';
+  if (nWeeks >= 2) {
+    const half = Math.floor(nWeeks / 2);
+    const older = weeks.slice(0, nWeeks - half), recent = weeks.slice(nWeeks - half);
+    const oAvg = older.reduce((s, [, w]) => s + w.payout, 0) / older.length;
+    const rAvg = recent.reduce((s, [, w]) => s + w.payout, 0) / recent.length;
+    const pct = oAvg ? (rAvg - oAvg) / oAvg * 100 : 0;
+    const up = pct >= 0;
+    trendHtml = `<div class="rep-trend"><span class="big ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%</span>`
+      + `<span class="cap">weekly payouts ${up ? 'up' : 'down'} — last ${recent.length} weeks (avg ${fmtK(rAvg)}/wk) vs prior ${older.length} (avg ${fmtK(oAvg)}/wk)</span></div>`;
+  }
+
+  const kpi = (l, v, s) => `<div class="rep-kpi"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+  const kpis1 = '<div class="rep-kpis">'
+    + kpi('Total Payouts', fmt(totalPayout), `${N} claims · ${nWeeks} payout weeks`)
+    + kpi('Avg Claim / Ticket', fmt(avgTicket), '')
+    + kpi('Avg Royalty / Ticket', fmt(avgRoyalty), '')
+    + kpi('Total Royalty', fmt(totalRoyalty), `${(totalPayout ? totalRoyalty / totalPayout * 100 : 0).toFixed(1)}% of payouts`)
+    + '</div>';
+  const kpis2 = '<div class="rep-kpis" style="margin-top:10px">'
+    + kpi('Gross Profit', fmt(grossProfit), `${marginPct.toFixed(1)}% margin`)
+    + kpi('Avg Payout / Week', fmt(avgPerWeek), '')
+    + kpi('Claims / Week', claimsPerWeek.toFixed(1), `≈ ${(claimsPerWeek * 4.33).toFixed(0)} / month`)
+    + kpi('Avg Claims / Month', months.length ? (N / months.length).toFixed(0) : '0', `${months.length} month${months.length === 1 ? '' : 's'} of data`)
+    + '</div>';
+
+  // weekly bar chart
+  const maxW = Math.max(...weeks.map(([, w]) => w.payout), 1);
+  const chart = '<div class="rep-chart">' + weeks.map(([d, w]) => {
+    const h = Math.round(w.payout / maxW * 100);
+    const md = String(d).slice(5).replace('-', '/');
+    return `<div class="rep-bar" title="${d}: ${fmt(w.payout)} · ${w.tickets} claims"><div class="amt">${fmtK(w.payout)}</div><div class="fill" style="height:${h}%"></div><div class="lbl">${md}</div></div>`;
+  }).join('') + '</div>';
+
+  const rowsTbl = (rows, firstHdr) => '<table class="rep-table"><thead><tr>'
+    + `<th>${firstHdr}</th><th>Claims</th><th>Payouts</th><th>Avg/Ticket</th><th>Royalty</th></tr></thead><tbody>`
+    + rows.map(([k, g]) => `<tr><td>${esc(k)}</td><td>${g.tickets}</td><td>${fmt(g.payout)}</td><td>${fmt(g.tickets ? g.payout / g.tickets : 0)}</td><td>${fmt(g.royalty)}</td></tr>`).join('')
+    + '</tbody></table>';
+
+  body.innerHTML = trendHtml + kpis1 + kpis2
+    + '<div class="rep-sec-h">Weekly payouts</div>' + chart
+    + '<div class="rep-sec-h">By month</div>' + rowsTbl(months.map(([k, g]) => [monthLabel(k), g]), 'Month')
+    + '<div class="rep-sec-h">By location</div>' + rowsTbl(locs, 'Location');
+}
 
 // Render location selector tabs inside the settings card. Default option first,
 // then one tab per known location.
@@ -1894,10 +2031,11 @@ function renderMetricsBar() {
   const gross = sales - cogs;
   const avgPrice    = claims ? sales / claims : 0;
   const avgCost     = claims ? cogs / claims : 0;
+  const avgGross    = claims ? gross / claims : 0;
   const avgRoyalty  = claims ? royalty / claims : 0;
   const avgMarginPct = sales > 0 ? (gross / sales) * 100 : 0;
 
-  _metricsCache = { sales, cogs, gross, royalty, avg_price: avgPrice, avg_cost: avgCost, avg_royalty: avgRoyalty, avg_margin_pct: avgMarginPct };
+  _metricsCache = { sales, cogs, gross, royalty, avg_price: avgPrice, avg_cost: avgCost, avg_gross: avgGross, avg_royalty: avgRoyalty, avg_margin_pct: avgMarginPct };
 
   document.getElementById('m-sales').textContent      = fmt(sales);
   document.getElementById('m-cogs').textContent       = fmt(cogs);
@@ -1907,6 +2045,7 @@ function renderMetricsBar() {
   document.getElementById('m-parts').textContent      = parts.toLocaleString();
   document.getElementById('m-avg-price').textContent  = fmt(avgPrice);
   document.getElementById('m-avg-cost').textContent   = fmt(avgCost);
+  document.getElementById('m-avg-gross').textContent  = fmt(avgGross);
   document.getElementById('m-avg-margin').textContent = avgMarginPct.toFixed(1) + '%';
   document.getElementById('m-avg-royalty').textContent= fmt(avgRoyalty);
 }
