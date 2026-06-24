@@ -390,11 +390,11 @@ async function initAuth(){
   if($('#lkPin')){ $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();}); $('#lkPin').focus(); }
   ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
   var sess=(await sb.auth.getSession()).data.session;
-  if(sess && !idleExpired()){
+  if(sess){   // SSO: a valid shared session unlocks; idle relock still applies while on the page
     var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
     if(sr.data && isAdminRole(sr.data.role)){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}
   }
-  showLock();   // keep any shared session (SSO); just require admin PIN here
+  showLock();   // no session (or not admin) -> require admin PIN here
 }
 
 /* ===== BROWSER CACHE (stale-while-revalidate) =====
