@@ -1,0 +1,11 @@
+-- 2026-06-24: Adding a team member failed with
+--   new row for relation "staff" violates check constraint "staff_role_check"
+-- The check was frozen at the pre-cutover vocabulary ('employee','manager','owner')
+-- and rejected the new role keys ('team_member','admin') the Settings UI assigns.
+-- Roles are now data-driven (public.roles) and the UI only offers valid keys, so the
+-- rigid CHECK is the wrong model. Dropped it; is_admin() + nav are already bilingual,
+-- so legacy 'employee'/'manager' rows remain valid.
+--
+-- Follow-up (separate): the full role cutover (employee->team_member, manager->admin)
+-- + FK staff.role -> roles.key would re-add a guard once legacy values are migrated.
+alter table public.staff drop constraint if exists staff_role_check;
