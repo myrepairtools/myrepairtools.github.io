@@ -60,6 +60,10 @@ td.r{text-align:right;white-space:nowrap}
 .empty{padding:34px;text-align:center;color:var(--grey);font-weight:700}
 .sect-h{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;margin:4px 0 10px;display:flex;align-items:center;gap:10px}
 .note{font-size:.74rem;color:var(--grey);font-weight:600;line-height:1.5;margin:2px 0 12px}
+.ttag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;text-transform:uppercase;letter-spacing:.4px;color:#fff;border-radius:5px;padding:1px 7px;vertical-align:middle}
+.chcard{display:flex;align-items:center;gap:12px;padding:12px 15px;border:1px solid var(--border);border-radius:12px;background:#fff;margin-bottom:10px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.chchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;border:1.5px solid var(--border);border-radius:999px;padding:4px 10px;cursor:pointer;background:#fff;color:#4E4E50}
+.chchip.on{background:#EAF6FD;border-color:#CDEAF8;color:#1E7AA8}
 .note b{color:var(--dark-grey)}
 .avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem}
 .who{display:flex;align-items:center;gap:11px}
@@ -131,6 +135,7 @@ td.r{text-align:right;white-space:nowrap}
   <div class="tabs">
     <button class="tab active" data-tab="staff" id="tabStaff">Team Members <span class="ct" id="ctStaff">0</span></button>
     <button class="tab" data-tab="loc" id="tabLoc">Locations <span class="ct" id="ctLoc">0</span></button>
+    <button class="tab" data-tab="notif" id="tabNotif">Notifications <span class="ct" id="ctNotif">0</span></button>
     <button class="tab hide" data-tab="roles" id="tabRoles">Roles &amp; Permissions <span class="ct" id="ctRoles">0</span></button>
   </div>
 
@@ -173,6 +178,22 @@ td.r{text-align:right;white-space:nowrap}
       <div class="empty hide" id="regEmpty">No registers for this store yet.</div>
     </div>
     <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
+  </section>
+
+  <!-- NOTIFICATIONS TAB -->
+  <section id="view-notif" class="hide">
+    <div class="sect-h">Delivery channels</div>
+    <p class="note">Where alerts go — a Microsoft Teams channel email, or a Power Automate webhook. Route tool events to these below. <b>Sending is wired server-side</b> (config only for now).</p>
+    <div id="channelCards"></div>
+    <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addChannel">+ Add channel</button></div>
+
+    <div class="sect-h" style="margin-top:22px">Events</div>
+    <p class="note">Turn an event on and pick which channel(s) it notifies — an event can fan out to several.</p>
+    <div class="card"><table><thead><tr>
+      <th>Event</th><th>Send to</th><th class="r">On</th>
+    </tr></thead><tbody id="eventRows"></tbody></table>
+      <div class="empty hide" id="eventEmpty">No events.</div>
+    </div>
   </section>
 
   <!-- ROLES & PERMISSIONS TAB (owner only) -->
@@ -236,6 +257,7 @@ function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimu
 var TAB='staff', SEARCH='', ROSTER='active', RP='roles';
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
 var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
+var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
 var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
@@ -328,8 +350,18 @@ async function loadRBAC(){
   var rp=await sb.from('role_permissions').select('role_id,permission_id');
   RBROLEPERMS=rp.error?[]:(rp.data||[]);
 }
+async function loadNotif(){
+  var res=await Promise.all([
+    sb.from('notification_channels').select('id,name,type,target,webhook_format,enabled,sort').order('sort').order('id'),
+    sb.from('notification_rules').select('id,tool,event_key,name,description,enabled,sort').order('sort'),
+    sb.from('notification_rule_channels').select('rule_id,channel_id'),
+  ]);
+  CHANNELS=res[0].error?[]:(res[0].data||[]);
+  NRULES=res[1].error?[]:(res[1].data||[]);
+  NRC=res[2].error?[]:(res[2].data||[]);
+}
 async function load(){
-  await Promise.all([loadStores(),loadStaff(),loadRBAC()]);
+  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
   await loadRegs();
   renderAll();
@@ -338,7 +370,7 @@ async function load(){
 /* ===== render ===== */
 function activeStores(){return STORES.filter(function(s){return s.active;});}
 function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
-function renderAll(){renderTabs();renderStaff();renderLoc();renderRoles();renderModal();}
+function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderRoles();renderModal();}
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
   $('#ctStaff').textContent=STAFF.length;
@@ -346,11 +378,14 @@ function renderTabs(){
   $('#ctRoles').textContent=RBROLES.length;
   $('#tabRoles').classList.toggle('hide',!owner);
   if(!owner&&TAB==='roles')TAB='staff';   /* non-owners can't sit on the roles tab */
+  $('#ctNotif').textContent=NRULES.filter(function(e){return e.enabled;}).length;
   $('#tabStaff').classList.toggle('active',TAB==='staff');
   $('#tabLoc').classList.toggle('active',TAB==='loc');
+  $('#tabNotif').classList.toggle('active',TAB==='notif');
   $('#tabRoles').classList.toggle('active',TAB==='roles');
   $('#view-staff').classList.toggle('hide',TAB!=='staff');
   $('#view-loc').classList.toggle('hide',TAB!=='loc');
+  $('#view-notif').classList.toggle('hide',TAB!=='notif');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
 }
 function renderStaff(){
@@ -726,6 +761,86 @@ async function saveReg(){
 }
 
 function closeModal(){MOPEN=null;renderModal();}
+/* ===== notifications ===== */
+var TOOLCOLOR={'Tech Damage':'#4FB0E3','Cash Tracker':'#2E9E5B','Consumption':'#C9820B','Employee Records':'#DC282E','Hyla Orders':'#7A6FD0'};
+function chOf(ruleId){return NRC.filter(function(x){return String(x.rule_id)===String(ruleId);}).map(function(x){return x.channel_id;});}
+function renderNotif(){
+  if(!$('#channelCards'))return;
+  var cc=$('#channelCards');
+  if(!CHANNELS.length){cc.innerHTML='<div class="empty" style="padding:22px;margin-bottom:10px">No channels yet — add a Teams channel email or a webhook to start routing alerts.</div>';}
+  else cc.innerHTML=CHANNELS.map(function(c){
+    var email=c.type==='email';
+    return '<div class="chcard">'
+      +'<span style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;font-size:1rem;background:'+(email?'#E9F4FB':'#EDEAF6')+';color:'+(email?'#1E7AA8':'#7A6FD0')+'">'+(email?'✉':'⚡')+'</span>'
+      +'<div style="min-width:0;flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.9rem">'+esc(c.name||'Unnamed channel')+'</div>'
+      +'<div style="font-size:.74rem;color:var(--grey);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(email?'Teams email':'Webhook')+' · '+esc(c.target||'Not set')+'</div></div>'
+      +'<button class="toggle'+(c.enabled?' on':'')+'" data-chtoggle="'+c.id+'" title="Enabled"></button>'
+      +'<button class="btn alt sm" data-chedit="'+c.id+'">Edit</button></div>';
+  }).join('');
+  $('#eventRows').innerHTML=NRULES.map(function(e){
+    var ch=chOf(e.id);
+    var chips=CHANNELS.length?CHANNELS.map(function(c){var on=ch.indexOf(c.id)>-1;return '<button class="chchip'+(on?' on':'')+'" data-evch="'+e.id+'|'+c.id+'">'+esc(c.name||'Unnamed')+'</button>';}).join(' '):'<span style="color:var(--grey);font-size:.74rem;font-weight:700">Add a channel first</span>';
+    var warn=e.enabled&&ch.length===0?' <span style="color:var(--amber);font-size:.64rem;font-weight:800">⚠ no destination</span>':'';
+    return '<tr><td><span class="ttag" style="background:'+(TOOLCOLOR[e.tool]||'#B9BDCB')+'">'+esc(e.tool)+'</span> <b>'+esc(e.name)+'</b>'+warn
+      +'<div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-top:2px">'+esc(e.description||'')+'</div></td>'
+      +'<td><div style="display:flex;flex-wrap:wrap;gap:6px">'+chips+'</div></td>'
+      +'<td class="r"><button class="toggle'+(e.enabled?' on':'')+'" data-evtoggle="'+e.id+'"></button></td></tr>';
+  }).join('');
+}
+async function toggleChannel(id){var c=CHANNELS.filter(function(x){return String(x.id)===String(id);})[0];if(!c)return;var nv=!c.enabled;var r=await sb.from('notification_channels').update({enabled:nv}).eq('id',id);if(r.error){toast(r.error.message,true);return;}c.enabled=nv;renderNotif();}
+async function toggleEvent(id){var e=NRULES.filter(function(x){return String(x.id)===String(id);})[0];if(!e)return;var nv=!e.enabled;var r=await sb.from('notification_rules').update({enabled:nv}).eq('id',id);if(r.error){toast(r.error.message,true);return;}e.enabled=nv;renderNotif();renderTabs();}
+async function toggleEventChannel(ruleId,chId){
+  var has=NRC.some(function(x){return String(x.rule_id)===String(ruleId)&&String(x.channel_id)===String(chId);});
+  if(has){var r=await sb.from('notification_rule_channels').delete().eq('rule_id',ruleId).eq('channel_id',chId);if(r.error){toast(r.error.message,true);return;}NRC=NRC.filter(function(x){return !(String(x.rule_id)===String(ruleId)&&String(x.channel_id)===String(chId));});}
+  else{var r2=await sb.from('notification_rule_channels').insert({rule_id:+ruleId,channel_id:+chId});if(r2.error){toast(r2.error.message,true);return;}NRC.push({rule_id:+ruleId,channel_id:+chId});}
+  renderNotif();
+}
+function openAddChannel(){MOPEN={type:'channel',isNew:true,draft:{name:'',type:'email',target:'',webhook_format:'adaptive'}};renderModal();}
+function openEditChannel(id){var c=CHANNELS.filter(function(x){return String(x.id)===String(id);})[0];if(!c)return;MOPEN={type:'channel',isNew:false,draft:{id:c.id,name:c.name||'',type:c.type,target:c.target||'',webhook_format:c.webhook_format||'adaptive'}};renderModal();}
+function channelModalHtml(){
+  var d=MOPEN.draft, wh=d.type==='webhook';
+  var tLabel=wh?'Webhook URL':'Teams channel email';
+  var tPh=wh?'https://prod-…/triggers/manual/paths/invoke':'channel.abc123@amer.teams.ms';
+  return '<div class="modal-back" data-close></div><div class="modal"><div class="modal-hd">'
+    +'<div class="t">'+(MOPEN.isNew?'New channel':'Edit channel')+'<div class="s">Where matching events post</div></div>'
+    +'<button class="modal-x" data-close>×</button></div>'
+    +'<div class="modal-body">'
+      +'<div class="grid2"><div class="f"><label>Name</label><input data-k="name" value="'+esc(d.name)+'" placeholder="e.g. Ops Teams Channel"></div>'
+      +'<div class="f"><label>Type</label><select data-k="type"><option value="email"'+(wh?'':' selected')+'>Email to Teams channel</option><option value="webhook"'+(wh?' selected':'')+'>Webhook (Power Automate)</option></select></div></div>'
+      +'<div class="f" style="margin-top:12px"><label>'+tLabel+'</label><input data-k="target" value="'+esc(d.target)+'" placeholder="'+tPh+'"></div>'
+      +(wh?'<div class="f" style="margin-top:12px"><label>Payload format</label><select data-k="webhook_format"><option value="adaptive"'+(d.webhook_format==='adaptive'?' selected':'')+'>Adaptive Card</option><option value="messagecard"'+(d.webhook_format==='messagecard'?' selected':'')+'>MessageCard</option></select></div>':'')
+    +'</div>'
+    +'<div class="modal-ft">'
+      +(MOPEN.isNew?'<span></span>':'<button class="btn alt sm" data-delch style="color:var(--red);border-color:#F3C7C9">Delete</button>')
+      +'<span style="display:flex;gap:8px"><button class="btn alt sm" data-test>Send test</button><button class="btn blue" data-save>'+(MOPEN.isNew?'Add channel':'Save')+'</button></span></div></div>';
+}
+function wireChannel(host){
+  var d=MOPEN.draft;
+  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  host.querySelectorAll('[data-k]').forEach(function(el){var h=function(){d[el.getAttribute('data-k')]=el.value;if(el.getAttribute('data-k')==='type')renderModal();};el.oninput=h;el.onchange=h;});
+  var del=host.querySelector('[data-delch]');if(del)del.onclick=deleteChannel;
+  var test=host.querySelector('[data-test]');if(test)test.onclick=function(){toast('Test sending arrives with the delivery backend');};
+  host.querySelector('[data-save]').onclick=saveChannel;
+}
+async function saveChannel(){
+  var d=MOPEN.draft;
+  if(!String(d.name).trim()){toast('Name is required',true);return;}
+  var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
+  var row={name:String(d.name).trim(),type:d.type,target:String(d.target||'').trim()||null,webhook_format:d.webhook_format||'adaptive'};
+  var r;
+  if(MOPEN.isNew){row.enabled=true;row.sort=CHANNELS.length;r=await sb.from('notification_channels').insert(row);}
+  else r=await sb.from('notification_channels').update(row).eq('id',d.id);
+  if(r.error){toast(r.error.message,true);if(btn)btn.disabled=false;return;}
+  toast(MOPEN.isNew?'Channel added':'Channel saved');MOPEN=null;await loadNotif();renderAll();
+}
+async function deleteChannel(){
+  var d=MOPEN.draft;
+  if(!confirm('Delete this channel? It will be removed from any events routed to it.'))return;
+  var r=await sb.from('notification_channels').delete().eq('id',d.id);
+  if(r.error){toast(r.error.message,true);return;}
+  toast('Channel deleted');MOPEN=null;await loadNotif();renderAll();
+}
+
 function renderModal(){
   var host=$('#modalHost');if(!host)return;
   if(!MOPEN){host.innerHTML='';return;}
@@ -733,13 +848,23 @@ function renderModal(){
   else if(MOPEN.type==='store'){host.innerHTML=storeModalHtml();wireStore(host);}
   else if(MOPEN.type==='reg'){host.innerHTML=regModalHtml();wireReg(host);}
   else if(MOPEN.type==='role'){host.innerHTML=roleModalHtml();wireRole(host);}
+  else if(MOPEN.type==='channel'){host.innerHTML=channelModalHtml();wireChannel(host);}
 }
 
 /* ===== wiring ===== */
 function initUI(){
   $('#tabStaff').onclick=function(){TAB='staff';SEARCH='';$('#staffSearch').value='';renderAll();};
   $('#tabLoc').onclick=function(){TAB='loc';SEARCH='';renderAll();};
+  $('#tabNotif').onclick=function(){TAB='notif';SEARCH='';renderAll();};
   $('#tabRoles').onclick=function(){TAB='roles';SEARCH='';renderAll();};
+  $('#addChannel').onclick=openAddChannel;
+  $('#view-notif').addEventListener('click',function(e){
+    var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evch],[data-chedit]');if(!t)return;
+    if(t.hasAttribute('data-chtoggle'))toggleChannel(t.getAttribute('data-chtoggle'));
+    else if(t.hasAttribute('data-evtoggle'))toggleEvent(t.getAttribute('data-evtoggle'));
+    else if(t.hasAttribute('data-evch')){var p=t.getAttribute('data-evch').split('|');toggleEventChannel(p[0],p[1]);}
+    else if(t.hasAttribute('data-chedit'))openEditChannel(t.getAttribute('data-chedit'));
+  });
   $('#addRole').onclick=openAddRole;
   $all('#rpSeg button').forEach(function(b){b.onclick=function(){RP=b.getAttribute('data-rp');renderRoles();};});
   $('#staffSearch').addEventListener('input',function(){SEARCH=this.value;renderStaff();});
