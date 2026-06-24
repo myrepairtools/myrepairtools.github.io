@@ -278,10 +278,17 @@ let ALL=[], EMPLOYEES=[], DMG_BYNAME={};
 const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',catF:'all',sortNewest:true,empSearch:'',logRange:'all',dmgRange:'all',showArchived:false,mDetail:false};
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
+/* best available session token: getSession can intermittently return null when
+   several Supabase clients share storage, so fall back to the stored token. */
+async function sessionToken(){
+  try{ const s=(await sb.auth.getSession()).data.session; if(s&&s.access_token) return s.access_token; }catch(e){}
+  try{ const raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token');
+    if(raw){ const o=JSON.parse(raw); const t=o&&(o.access_token||(o.currentSession&&o.currentSession.access_token)); if(t) return t; } }catch(e){}
+  return ANON;
+}
 /* staff CRUD carries the authenticated session bearer (caller() requires owner/admin) */
 async function authFn(body){
-  const sess=(await sb.auth.getSession()).data.session;
-  const tok=sess?sess.access_token:ANON;
+  const tok=await sessionToken();
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)});
   const d=await r.json().catch(()=>({}));
   return {status:r.status,data:d};
