@@ -1,499 +1,346 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tech Damage Tracker</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='52' font-size='80' text-anchor='middle' dominant-baseline='central'>&#128295;</text></svg>">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Damage Tracker — CPR</title>
+<link rel="icon" href="assets/images/myrepairtools-favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;--eugene:#23A62F;--salem:#DE262E;--clack:#4FB0E3;}
-*{box-sizing:border-box}
-body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);margin:0;-webkit-text-size-adjust:100%}
-main{max-width:760px;margin:0 auto;padding:16px 14px 90px}
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:-.4px;margin:0 0 2px}
-.sub{font-size:.78rem;color:var(--dark-grey);margin:0}
-.gear{flex:none;width:42px;height:42px;border-radius:11px;background:var(--white);border:1.5px solid var(--border);font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.head-actions{display:flex;align-items:center;gap:10px;flex:none}
-.btn-new{display:none}
-@media(min-width:860px){.btn-new{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:#fff;background:var(--red);border:none;border-radius:11px;padding:11px 16px;cursor:pointer;box-shadow:0 3px 10px rgba(220,40,46,.25);white-space:nowrap}}
-.today{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:7px;padding:7px 12px;display:inline-block;margin-top:8px}
-.tabs{display:flex;gap:6px;margin:14px 0 12px;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:5px}
-.tab{flex:1;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;padding:10px;border-radius:8px;cursor:pointer;color:var(--dark-grey)}
-.tab.active{background:var(--dark);color:#fff}
-.bar{display:flex;align-items:center;gap:6px;margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
-.bar::-webkit-scrollbar{display:none}
-.bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);flex:none}
-.pill{flex:none;padding:9px 15px;font-family:'Nunito',sans-serif;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:999px;cursor:pointer;transition:all .15s;white-space:nowrap}
-.pill.active{background:var(--blue);color:#fff;border-color:var(--blue)}
-.customwrap{display:none;gap:8px;margin-bottom:12px}
-.customwrap.show{display:flex}
-.customwrap .field{flex:1;margin:0}
-.chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;align-items:center}
-.chips.empty{display:none}
-.chip{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;background:#FFE9E9;color:var(--red);border-radius:999px;padding:6px 10px}
-.chip .x{cursor:pointer;font-weight:900;opacity:.7}
-.chip.clear{background:var(--dark);color:#fff;cursor:pointer}
-.bal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.bal-grid .wide{grid-column:1 / -1}
-.bal{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 15px;border-left:4px solid var(--blue)}
-.bal.red{border-left-color:var(--red)}
-.bal .bl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
-.bal .bv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;color:var(--dark);margin-top:3px}
-.bal .bv.red{color:var(--red)}
-.bal .badge{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);margin-top:5px}
-.brk{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:15px;margin-bottom:12px}
-.brk h3{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;margin:0 0 11px;display:flex;justify-content:space-between}
-.brk h3 .hint{font-weight:700;font-size:.62rem;color:var(--grey);text-transform:none;letter-spacing:0}
-.brk .empty{color:var(--grey);font-size:.8rem}
-.brk-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px}
-.brk-grid .brk{margin-bottom:0}
-.row-line{font-size:.82rem;margin-bottom:11px;cursor:pointer;border-radius:8px;padding:4px;margin-left:-4px;margin-right:-4px}
-.row-line:last-child{margin-bottom:0}
-.row-line.sel{background:#EAF6FD}
-.row-line .top{display:flex;justify-content:space-between;font-weight:700}
-.row-line .top .amt{font-family:'Nunito';font-weight:900}
-.track{height:8px;background:var(--light-grey);border-radius:4px;margin-top:4px}
-.fill{height:8px;border-radius:4px}
-.logcard-head{display:flex;justify-content:space-between;align-items:center;margin:18px 2px 10px}
-.logcard-head h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;margin:0}
-.logcard-head .count{font-size:.74rem;color:var(--grey);font-weight:700}
-.entry{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:10px;border-left:4px solid var(--grey)}
-.entry.eugene{border-left-color:var(--eugene)}.entry.salem{border-left-color:var(--salem)}.entry.clack{border-left-color:var(--clack)}
-.entry .e1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.entry .who{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem}
-.entry .cost{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--red);white-space:nowrap}
-.entry .e2{font-size:.78rem;color:var(--dark-grey);margin-top:3px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.entry .mfr{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey)}
-.entry .dot{color:var(--grey)}
-.entry .how{font-size:.82rem;margin-top:7px;line-height:1.4}
-.entry .meta{font-size:.68rem;color:var(--grey);margin-top:6px;font-weight:700}
-.chartcard{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:15px;margin-bottom:12px}
-.chartscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
-.lg{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;border:1.5px solid var(--border);border-radius:999px;padding:6px 11px;cursor:pointer;background:var(--white);color:var(--dark)}
-.lg.off{opacity:.4}
-.lg .sw{width:11px;height:11px;border-radius:3px;flex:none}
-table.mt{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:4px}
-table.mt th{padding:8px 10px;text-align:left;font-family:'Nunito';font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);border-bottom:1px solid var(--border)}
-table.mt td{padding:8px 10px;border-bottom:1px solid var(--light-grey)}
-table.mt td.n{text-align:right;font-family:'Nunito';font-weight:800}
-.fab{position:fixed;left:14px;right:14px;bottom:14px;max-width:732px;margin:0 auto;z-index:30}
-@media(min-width:860px){.fab{display:none}}
-.btn{display:block;width:100%;font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;padding:15px;border:none;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(220,40,46,.32)}
-.btn:disabled{opacity:.55;cursor:default;box-shadow:none}
-.btn.alt{background:var(--light-grey);color:var(--dark-grey);box-shadow:none}
-.hide{display:none}
-.modal-bg{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:flex-end;justify-content:center;z-index:60}
-.modal-bg.hide{display:none}
-.modal{background:var(--white);border-radius:18px 18px 0 0;width:100%;max-width:620px;max-height:92vh;overflow-y:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
-.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.modal-head h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin:0}
-.modal-close{font-size:1.7rem;color:var(--grey);cursor:pointer;font-weight:900;line-height:1;padding:0 6px}
-label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
-input,select,textarea{font-family:'Nunito Sans',sans-serif;font-size:1rem;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:var(--white);width:100%}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
-.field{margin-bottom:13px}
-.note{font-size:.7rem;color:var(--grey);margin-top:5px}
-.editchips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
-.editchip{display:inline-flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;background:var(--light-grey);border-radius:999px;padding:7px 12px}
-.editchip .x{cursor:pointer;color:var(--red);font-weight:900}
-.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;padding:11px 18px;border-radius:10px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none}
-.toast.show{opacity:1}
-.loading{text-align:center;color:var(--grey);font-weight:700;padding:30px 0}
-@media(min-width:620px){.bal-grid{grid-template-columns:1fr 1fr 1fr}.bal-grid .wide{grid-column:auto}.modal-bg{align-items:center;padding:32px 16px}.modal{border-radius:16px;padding:24px}.brk-grid{grid-template-columns:1fr 1fr 1fr;align-items:stretch}.brk-grid .brk{padding:13px}}
+  :root{--red:#DC282E;--light-red:#E8474C;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B}
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+  ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#D2D5DF;border-radius:6px}::-webkit-scrollbar-track{background:transparent}
+  .content{padding:24px 30px 80px;max-width:1280px;width:100%}
+  h1{font-family:'Nunito';font-weight:900;font-size:1.6rem;letter-spacing:-.5px;margin:0 0 3px}
+  .seg{display:flex;background:var(--dark);border-radius:10px;padding:3px}
+  .seg button{font-family:'Nunito';font-weight:800;font-size:.8rem;border:none;border-radius:7px;padding:8px 16px;cursor:pointer;color:#9AA0AE;background:transparent}
+  .seg button.on{background:#fff;color:var(--dark)}
+  .newbtn{font-family:'Nunito';font-weight:800;font-size:.82rem;border:none;border-radius:9px;padding:10px 18px;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap}
+  .newbtn:hover{background:var(--light-red)}
+  .pill{font-family:'Nunito';font-weight:800;font-size:.74rem;text-transform:uppercase;letter-spacing:.4px;border:1.5px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+  .pill.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .lbl{font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+  .statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+  .breakdowns{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+  .bignum{font-family:'Nunito';font-weight:900;font-size:1.9rem;line-height:1}
+  .statcap{font-family:'Nunito';font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin-top:6px}
+  .brow{cursor:pointer;border-radius:8px;padding:5px 6px;margin:0 -6px 6px}
+  .brow:hover{background:#F6FAFD}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito';font-weight:700;font-size:.74rem;padding:4px 6px 4px 11px;border-radius:20px;border:1px solid #CDEAF8;background:#EAF6FD;color:#1E7AA8}
+  .chip button{background:none;border:none;cursor:pointer;color:#1E7AA8;font-weight:900;font-size:.95rem;line-height:1;padding:0 2px}
+  .field{display:block}
+  .field>span{display:block;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
+  .in{width:100%;font-family:'Nunito Sans';font-size:.9rem;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff}
+  .ro{background:#F7F8FA;color:var(--dark-grey);font-weight:700;font-family:'Nunito'}
+  .mbtn{font-family:'Nunito';font-weight:800;font-size:.86rem;border:none;border-radius:10px;padding:13px;cursor:pointer}
+  .scrim{position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:90}
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:90vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(45,45,59,.32);z-index:91;padding:22px 22px 24px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:800;font-size:.82rem;padding:11px 18px;border-radius:10px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .toast.err{background:var(--red)}
+  .fab{display:none}
+  @media(max-width:820px){
+    .content{padding:14px 14px 96px}
+    .statgrid{grid-template-columns:1fr 1fr}
+    .breakdowns{grid-template-columns:1fr}
+    .newbtn{display:none}
+    .fab{display:block}
+    .toprow{flex-wrap:wrap}
+  }
+  @media(max-width:480px){ .statgrid{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
+<div id="root" class="content"><div style="color:var(--grey);font-weight:700;padding:40px 4px">Loading…</div></div>
+
+<button class="fab" data-act="new" style="position:fixed;left:16px;right:16px;bottom:16px;z-index:40;font-family:'Nunito';font-weight:800;font-size:1rem;border:none;border-radius:12px;padding:15px;background:var(--red);color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(220,40,46,.32)">+ New Report</button>
+
+<div id="modalHost"></div>
+<div id="toast" class="toast"></div>
+
 <script src="assets/pin-gate.js"></script>
-<script src="assets/nav.js" data-section="operations"></script>
-<main>
-  <div class="head">
-    <div>
-      <h1>Tech Damage Tracker</h1>
-      <p class="sub">Logged by store &middot; tap a stat to filter.</p>
-      <div class="today" id="today"></div>
-    </div>
-    <div class="head-actions">
-      <button class="btn-new" onclick="openModal()">+ New Report</button>
-      <button class="gear" title="Settings" onclick="openPass()">&#9881;</button>
-    </div>
-  </div>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL="https://xuvsehrevxackuhmbmry.supabase.co";
+const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY";
+const sb=createClient(SB_URL,ANON);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-  <div class="tabs">
-    <div class="tab active" id="tabDash" onclick="showTab('dash')">Dashboard</div>
-    <div class="tab" id="tabTrend" onclick="showTab('trend')">Trends</div>
-  </div>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const STORECOLOR={'Eugene':'#23A62F','Salem Northeast':'#DE262E','Clackamas':'#4FB0E3'};
+const PALETTE=['#4FB0E3','#DC282E','#23A62F','#C9820B','#5B54C9','#2D7D8A','#DE7AB0','#8A8F9C'];
+const stripStore=s=>String(s||'').replace(/^CPR\s+/,'');
 
-  <!-- DASHBOARD -->
-  <div id="dash">
-    <div class="bar" id="rangeBar">
-      <span class="bar-label">Range</span>
-      <button class="pill active" data-r="30">Last 30 days</button>
-      <button class="pill" data-r="mtd">MTD</button>
-      <button class="pill" data-r="lm">Last month</button>
-      <button class="pill" data-r="ytd">YTD</button>
-      <button class="pill" data-r="all">All</button>
-      <button class="pill" data-r="custom">Custom</button>
-    </div>
-    <div class="customwrap" id="customWrap">
-      <div class="field"><label>From</label><input type="date" id="cFrom"></div>
-      <div class="field"><label>To</label><input type="date" id="cTo"></div>
-    </div>
+let ME=null, REPORTS=[], MFRS=[], PARTS=[], STORES=[];
+let S={tab:'dash',range:'30',filter:{store:null,mfr:null,tech:null},seriesDim:'store',modal:false};
 
-    <div class="chips empty" id="chips"></div>
+const money=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt=iso=>{const p=String(iso).split('-');return MONTHS[(+p[1])-1]+' '+(+p[2])+', '+p[0];};
+const dimVal=(r,d)=>d==='store'?r.store:d==='mfr'?r.mfr:r.tech;
 
-    <div class="bal-grid">
-      <div class="bal red wide"><div class="bl">Damage $ <span id="scopeLbl" style="color:var(--grey)"></span></div><div class="bv red" id="kTotal">$0.00</div><div class="badge" id="kBadge">selected range</div></div>
-      <div class="bal"><div class="bl">Reports</div><div class="bv" id="kCount">0</div><div class="badge">parts</div></div>
-      <div class="bal"><div class="bl">Avg / report</div><div class="bv" id="kAvg">$0.00</div><div class="badge">per incident</div></div>
-    </div>
-
-    <div class="brk-grid">
-    <div class="brk"><h3>By store <span class="hint">tap to filter</span></h3><div id="byStore"></div></div>
-    <div class="brk"><h3>By manufacturer <span class="hint">tap to filter</span></h3><div id="byMfr"></div></div>
-    <div class="brk"><h3>By tech <span class="hint">tap to filter</span></h3><div id="byTech"></div></div>
-    </div>
-
-    <div class="logcard-head"><h2>Reports</h2><span class="count" id="logCount">&mdash;</span></div>
-    <div id="log"><div class="loading">Loading&hellip;</div></div>
-  </div>
-
-  <!-- TRENDS -->
-  <div id="trend" class="hide">
-    <div class="bar" id="seriesBar">
-      <span class="bar-label">Series</span>
-      <button class="pill active" data-s="store">By store</button>
-      <button class="pill" data-s="mfr">By manufacturer</button>
-      <button class="pill" data-s="tech">By tech</button>
-    </div>
-    <div class="note" id="trendInherit" style="margin:-4px 2px 10px"></div>
-    <div class="chartcard">
-      <h3 style="font-family:'Nunito';font-weight:800;font-size:.82rem;margin:0 0 4px">Damage $ &mdash; rolling 12 months</h3>
-      <div class="note" style="margin:0 0 8px">Tap a name below to show/hide its line.</div>
-      <div class="chartscroll"><svg id="chart" viewBox="0 0 560 240" style="min-width:520px;width:100%;height:auto;display:block"></svg></div>
-      <div class="legend" id="legend"></div>
-    </div>
-    <div class="chartcard">
-      <h3 style="font-family:'Nunito';font-weight:800;font-size:.82rem;margin:0 0 8px">Month by month</h3>
-      <table class="mt"><thead><tr><th>Month</th><th style="text-align:right">Damage $</th><th style="text-align:right">Reports</th></tr></thead><tbody id="mtBody"></tbody></table>
-    </div>
-  </div>
-</main>
-
-<div class="fab" id="fab"><button class="btn" onclick="openModal()">+ New Report</button></div>
-<div class="toast" id="toast"></div>
-
-<!-- NEW REPORT MODAL -->
-<div class="modal-bg hide" id="m">
-  <div class="modal">
-    <div class="modal-head"><h2>New damage report</h2><span class="modal-close" onclick="closeModal()">&times;</span></div>
-    <div class="field"><label>Date</label><input type="date" id="fDate"></div>
-    <div class="field"><label>Tech</label><select id="fTech"></select></div>
-    <div class="field"><label>Store (where it happened)</label><select id="fStore"></select><div class="note">Defaults to this computer&rsquo;s store.</div></div>
-    <div class="field"><label>Ticket #</label><input type="text" id="fTicket" inputmode="numeric" placeholder="e.g. 16035523"></div>
-    <div class="field"><label>Manufacturer</label><select id="fMfr" onchange="toggleOther('Mfr')"></select><div id="MfrOther" class="hide" style="margin-top:8px"><input type="text" id="fMfrOther" placeholder="Which manufacturer?"></div></div>
-    <div class="field"><label>Part</label><select id="fPart" onchange="toggleOther('Part')"></select><div id="PartOther" class="hide" style="margin-top:8px"><input type="text" id="fPartOther" placeholder="Which part?"></div></div>
-    <div class="field"><label>Part cost</label><input type="text" id="fCost" inputmode="decimal" placeholder="$0.00"><div class="note">What the part costs to replace.</div></div>
-    <div class="field"><label>How it happened</label><textarea id="fHow" rows="3" maxlength="1500" placeholder="What went wrong, in your own words&hellip;"></textarea></div>
-    <button class="btn" id="submitBtn" onclick="submitReport()">Submit report</button><div style="height:8px"></div>
-    <button class="btn alt" onclick="closeModal()">Cancel</button>
-  </div>
-</div>
-
-<!-- PASSCODE MODAL -->
-<div class="modal-bg hide" id="pass">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-head"><h2>Settings</h2><span class="modal-close" onclick="closePass()">&times;</span></div>
-    <p class="note" style="margin:0 0 12px">Enter an admin passcode to open settings.</p>
-    <div class="field"><label>Passcode</label><input type="password" inputmode="numeric" id="passInput" placeholder="&bull;&bull;&bull;&bull;"></div>
-    <div class="note" id="passErr" style="color:var(--red);display:none">Not authorized.</div>
-    <button class="btn" id="passBtn" onclick="tryPass()">Unlock settings</button>
-  </div>
-</div>
-
-<!-- SETTINGS MODAL -->
-<div class="modal-bg hide" id="settings">
-  <div class="modal">
-    <div class="modal-head"><h2>Settings</h2><span class="modal-close" onclick="closeSettings()">&times;</span></div>
-    <div class="field"><label>Manufacturers</label><div class="editchips" id="mfrList"></div><input type="text" id="mfrAdd" placeholder="Add manufacturer + Enter"></div>
-    <div class="field"><label>Parts</label><div class="editchips" id="partList"></div><input type="text" id="partAdd" placeholder="Add part + Enter"></div>
-    <div class="field"><label>Notify on new report</label><select id="sMode" onchange="syncModeFields()"><option value="email">Email to Teams channel</option><option value="webhook">Webhook (Adaptive Card)</option><option value="off">Off</option></select></div>
-    <div class="field" id="emailField"><label>Teams channel email</label><input type="email" id="sEmail" placeholder="channel.abc123@amer.teams.ms"><div class="note">Teams &rarr; channel &bull;&bull;&bull; &rarr; Get email address.</div></div>
-    <div class="field hide" id="webhookField"><label>Webhook URL</label><input type="url" id="sWebhook" placeholder="https://&hellip;"><label style="margin-top:10px">Webhook format</label><select id="sWebhookFmt"><option value="adaptive">Adaptive Card (Workflows)</option><option value="messagecard">MessageCard (classic connector)</option></select></div>
-    <button class="btn" id="saveSettingsBtn" onclick="saveSettings()">Save settings</button>
-  </div>
-</div>
-
-<script src="assets/locations.js"></script>
-<script>
-/* ====== config ====== */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyvHDQSWs6p9d3WING02i9VyO_ja0TzL8nb_DhhO4Myom_H0_34045pz8GOhyWQUWc7/exec';
-var TOKEN = '7f3c9a1e8b6d40f2a5c7e9d1b3f5a7c90e2d4b6f8a1c3e5d7b9f1a3c5e7d9b1f';
-
-/* ====== helpers ====== */
-function pref(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v);}catch(_){ return null; } }
-function money(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function pad(n){ return (n<10?'0':'')+n; }
-function todayYMD(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
-function parseYMD(s){ var p=String(s).split('-'); return new Date(+p[0],(+p[1]||1)-1,+p[2]||1); }
-function dispStore(s){ return (window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s):String(s||'').replace(/^CPR\s+/,'').replace(/\s+OR$/,''); }
-function normStore(s){ return (window.CPRLocations&&CPRLocations.normalize)?CPRLocations.normalize(s):String(s||''); }
-var STORE_COLORS={'CPR Eugene':'#23A62F','CPR Salem Northeast':'#DE262E','CPR Clackamas OR':'#4FB0E3'};
-function storeColor(s){ return STORE_COLORS[normStore(s)]||'#B9BDCB'; }
-function storeClass(s){ var n=normStore(s); return n.indexOf('Eugene')>=0?'eugene':n.indexOf('Salem')>=0?'salem':n.indexOf('Clackamas')>=0?'clack':''; }
-var PALETTE=['#4FB0E3','#DC282E','#23A62F','#E1A100','#6C5CE7','#2D8C8C','#E0529B','#7A8B99','#C0392B','#16A085'];
-
-async function api(action, payload){
-  var url=WEBAPP_URL+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(TOKEN);
-  if(payload) url+='&payload='+encodeURIComponent(JSON.stringify(payload));
-  var r=await fetch(url,{method:'GET'});
-  return await r.json();
-}
-function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2200); }
-
-/* ====== state ====== */
-var STATE={ entries:[], techs:[], stores:[], manufacturers:[], parts:[] };
-var RANGE='30', CUSTOM={from:null,to:null};
-var FILTERS={};
-document.getElementById('today').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-
-/* ====== load ====== */
-async function load(){
-  try{
-    var b=await api('bootstrap');
-    if(b&&b.ok){ STATE.techs=b.techs||[]; STATE.stores=b.stores||[]; STATE.manufacturers=b.manufacturers||[]; STATE.parts=b.parts||[]; }
-    var l=await api('list');
-    STATE.entries=(l&&l.ok&&l.rows)?l.rows:[];
-  }catch(e){ STATE.entries=[]; }
-  fillModalOptions();
-  renderDash();
-}
-
-/* ====== range + filters ====== */
-function inRange(e){
-  if(RANGE==='all') return true;
-  var d=parseYMD(e.date), now=new Date(), t0;
-  if(RANGE==='30'){ t0=new Date(); t0.setDate(t0.getDate()-29); t0.setHours(0,0,0,0); return d>=t0; }
-  if(RANGE==='mtd'){ t0=new Date(now.getFullYear(),now.getMonth(),1); return d>=t0; }
-  if(RANGE==='lm'){ var s=new Date(now.getFullYear(),now.getMonth()-1,1), en=new Date(now.getFullYear(),now.getMonth(),0,23,59,59); return d>=s&&d<=en; }
-  if(RANGE==='ytd'){ t0=new Date(now.getFullYear(),0,1); return d>=t0; }
-  if(RANGE==='custom'){ var ok=true; if(CUSTOM.from) ok=ok&&d>=parseYMD(CUSTOM.from); if(CUSTOM.to) ok=ok&&d<=parseYMD(CUSTOM.to); return ok; }
+function inRange(iso){
+  const R=S.range; if(R==='all')return true;
+  const d=new Date(iso+'T00:00:00'), now=new Date(); now.setHours(0,0,0,0);
+  if(R==='30'){const c=new Date(now);c.setDate(c.getDate()-29);return d>=c;}
+  if(R==='mtd')return d>=new Date(now.getFullYear(),now.getMonth(),1);
+  if(R==='lm'){const s=new Date(now.getFullYear(),now.getMonth()-1,1),e=new Date(now.getFullYear(),now.getMonth(),0);return d>=s&&d<=e;}
+  if(R==='ytd')return d>=new Date(now.getFullYear(),0,1);
   return true;
 }
-function dimVal(e,dim){ if(dim==='store') return normStore(e.store); if(dim==='mfr') return e.manufacturer||'(blank)'; if(dim==='tech') return e.tech||'(blank)'; return ''; }
-function passesFilters(e){ for(var d in FILTERS){ if(FILTERS[d]&&dimVal(e,d)!==FILTERS[d]) return false; } return true; }
-function scoped(){ return STATE.entries.filter(function(e){ return inRange(e)&&passesFilters(e); }); }
+function passesExcept(r,skip){const f=S.filter;for(const d of ['store','mfr','tech']){if(d!==skip&&f[d]&&dimVal(r,d)!==f[d])return false;}return true;}
+const passes=r=>passesExcept(r,null);
+function setF(dim,val){S.filter[dim]=S.filter[dim]===val?null:val;render();}
 
-/* ====== dashboard render ====== */
-function breakdown(rows,dim){
-  var m={}; rows.forEach(function(e){ var k=dimVal(e,dim); m[k]=(m[k]||0)+(Number(e.cost)||0); });
-  var arr=Object.keys(m).map(function(k){return {k:k,v:m[k]};});
-  arr.sort(function(a,b){return b.v-a.v;});
-  return arr;
+async function sessionToken(){
+  try{const s=(await sb.auth.getSession()).data.session;if(s&&s.access_token)return s;}catch(e){}
+  return null;
 }
-function renderBreak(elId,dim,rows,colorFn){
-  var arr=breakdown(rows,dim), max=arr.length?arr[0].v:0, el=document.getElementById(elId);
-  if(!arr.length){ el.innerHTML='<div class="empty">No data in range.</div>'; return; }
-  el.innerHTML=arr.slice(0,8).map(function(r){
-    var label=(dim==='store')?dispStore(r.k):r.k;
-    var w=max>0?Math.max(2,Math.round(r.v/max*100)):0;
-    var sel=(FILTERS[dim]===r.k)?' sel':'';
-    return '<div class="row-line'+sel+'" data-dim="'+dim+'" data-val="'+encodeURIComponent(r.k)+'"><div class="top"><span>'+label+'</span><span class="amt">'+money(r.v)+'</span></div><div class="track"><div class="fill" style="width:'+w+'%;background:'+colorFn(r.k)+'"></div></div></div>';
-  }).join('');
-  el.querySelectorAll('.row-line').forEach(function(rl){ rl.addEventListener('click',function(){ toggleFilter(rl.dataset.dim, decodeURIComponent(rl.dataset.val)); }); });
+async function loadMe(){
+  const s=await sessionToken();
+  if(!s)return null;
+  const r=await sb.from('staff').select('id,display_name,home_store,authorized_stores,role').eq('auth_uid',s.user.id).maybeSingle();
+  return r.data||null;
 }
-function renderDash(){
-  var rows=scoped();
-  var total=rows.reduce(function(s,e){return s+(Number(e.cost)||0);},0);
-  document.getElementById('kTotal').textContent=money(total);
-  document.getElementById('kCount').textContent=rows.length;
-  document.getElementById('kAvg').textContent=rows.length?money(total/rows.length):'$0.00';
-  document.getElementById('logCount').textContent=rows.length+' shown';
-  var keys=Object.keys(FILTERS).filter(function(k){return FILTERS[k];});
-  document.getElementById('scopeLbl').textContent=keys.length?'· filtered':'';
-  var chips=document.getElementById('chips');
-  if(keys.length){ chips.className='chips'; chips.innerHTML=keys.map(function(k){ var lbl=(k==='store')?dispStore(FILTERS[k]):FILTERS[k]; return '<span class="chip">'+lbl+' <span class="x" data-d="'+k+'">&times;</span></span>'; }).join('')+'<span class="chip clear" id="clearAll">Clear all</span>';
-    chips.querySelectorAll('.chip .x').forEach(function(x){ x.addEventListener('click',function(){ clearOne(x.dataset.d); }); });
-    document.getElementById('clearAll').addEventListener('click',clearAll);
-  } else { chips.className='chips empty'; chips.innerHTML=''; }
-  // breakdowns use the range-scoped set but ignore their OWN dimension's filter so you can still see/switch within it
-  renderBreak('byStore','store',STATE.entries.filter(function(e){return inRange(e)&&passesExcept(e,'store');}),storeColor);
-  renderBreak('byMfr','mfr',STATE.entries.filter(function(e){return inRange(e)&&passesExcept(e,'mfr');}),function(){return '#2D2D3B';});
-  renderBreak('byTech','tech',STATE.entries.filter(function(e){return inRange(e)&&passesExcept(e,'tech');}),function(){return '#4FB0E3';});
-  var log=document.getElementById('log');
-  log.innerHTML=rows.length?rows.slice().sort(function(a,b){return parseYMD(b.date)-parseYMD(a.date);}).map(function(e){
-    var mfr=(e.manufacturer==='Other'&&e.mfrDetail)?('Other: '+e.mfrDetail):e.manufacturer;
-    var part=(e.part==='Other'&&e.partDetail)?('Other: '+e.partDetail):e.part;
-    return '<div class="entry '+storeClass(e.store)+'"><div class="e1"><span class="who">'+(e.tech||'&mdash;')+'</span><span class="cost">'+money(e.cost)+'</span></div><div class="e2"><span class="mfr">'+(mfr||'?')+'</span><span>'+(part||'')+'</span><span class="dot">&middot;</span><span>'+dispStore(e.store)+'</span></div>'+(e.how?'<div class="how">'+esc(e.how)+'</div>':'')+'<div class="meta">'+e.date+(e.ticket?' &middot; Ticket '+esc(e.ticket):'')+'</div></div>';
-  }).join(''):'<div class="entry" style="color:var(--grey)">No reports match these filters.</div>';
-}
-function passesExcept(e,skipDim){ for(var d in FILTERS){ if(d!==skipDim&&FILTERS[d]&&dimVal(e,d)!==FILTERS[d]) return false; } return true; }
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function toggleFilter(d,v){ FILTERS[d]=(FILTERS[d]===v)?null:v; renderDash(); }
-function clearOne(d){ FILTERS[d]=null; renderDash(); }
-function clearAll(){ FILTERS={}; renderDash(); }
-
-document.getElementById('rangeBar').addEventListener('click',function(e){
-  if(!e.target.classList.contains('pill'))return;
-  this.querySelectorAll('.pill').forEach(function(p){p.classList.remove('active');});
-  e.target.classList.add('active'); RANGE=e.target.dataset.r;
-  document.getElementById('customWrap').className='customwrap'+(RANGE==='custom'?' show':'');
-  renderDash();
-});
-document.getElementById('cFrom').addEventListener('change',function(){ CUSTOM.from=this.value; if(RANGE==='custom')renderDash(); });
-document.getElementById('cTo').addEventListener('change',function(){ CUSTOM.to=this.value; if(RANGE==='custom')renderDash(); });
-
-/* ====== trends ====== */
-var SERIES_DIM='store', VISIBLE={}, TOTAL_ON=true;
-function last12(){ var out=[],d=new Date(); d.setDate(1); for(var i=11;i>=0;i--){ var x=new Date(d.getFullYear(),d.getMonth()-i,1); out.push({y:x.getFullYear(),m:x.getMonth(),key:x.getFullYear()+'-'+pad(x.getMonth()+1),label:x.toLocaleDateString('en-US',{month:'short'})}); } return out; }
-function trendRows(){ return STATE.entries.filter(passesFilters); } // inherits store/mfr/tech filters, ignores date range
-function seriesData(){
-  var months=last12(), rows=trendRows(), groups={};
-  rows.forEach(function(e){
-    var ym=String(e.date).slice(0,7); if(!months.some(function(mo){return mo.key===ym;})) return;
-    var key=dimVal(e,SERIES_DIM); if(!groups[key]) groups[key]={}; groups[key][ym]=(groups[key][ym]||0)+(Number(e.cost)||0);
-  });
-  var keys=Object.keys(groups);
-  // order keys by total desc
-  keys.sort(function(a,b){ var sa=0,sb=0; months.forEach(function(mo){sa+=groups[a][mo.key]||0;sb+=groups[b][mo.key]||0;}); return sb-sa; });
-  var series=keys.map(function(k,i){
-    var color=(SERIES_DIM==='store')?storeColor(k):PALETTE[i%PALETTE.length];
-    return { key:k, label:(SERIES_DIM==='store')?dispStore(k):k, color:color, d:months.map(function(mo){return groups[k][mo.key]||0;}) };
-  });
-  return { months:months, series:series };
-}
-function monthTotals(sd){ return sd.months.map(function(mo,i){ var s=0; sd.series.forEach(function(se){s+=se.d[i];}); return s; }); }
-function monthCounts(sd){ var rows=trendRows(); return sd.months.map(function(mo){ return rows.filter(function(e){return String(e.date).slice(0,7)===mo.key;}).length; }); }
-function initVisible(sd){ VISIBLE={}; sd.series.forEach(function(se,i){ VISIBLE[se.key]=(SERIES_DIM==='tech')?i<3:true; }); VISIBLE.__total=TOTAL_ON; }
-function drawChart(sd){
-  var W=560,H=240,pl=42,pr=14,pt=14,pb=30,iw=W-pl-pr,ih=H-pt-pb;
-  var totals=monthTotals(sd), max=0;
-  sd.series.forEach(function(se){ if(VISIBLE[se.key]) se.d.forEach(function(v){if(v>max)max=v;}); });
-  if(VISIBLE.__total) totals.forEach(function(v){if(v>max)max=v;});
-  if(max<=0)max=100; var top=Math.ceil(max/50)*50||50;
-  var x=function(i){return pl+(iw*(i/11));},y=function(v){return pt+ih-(ih*(v/top));};
-  var svg='';
-  for(var g=0;g<=4;g++){ var gv=Math.round(top*g/4), gy=y(gv); svg+='<line x1="'+pl+'" y1="'+gy+'" x2="'+(W-pr)+'" y2="'+gy+'" stroke="#EEE"/><text x="'+(pl-6)+'" y="'+(gy+3)+'" font-size="9" fill="#B9BDCB" text-anchor="end" font-family="Nunito">$'+gv+'</text>'; }
-  sd.months.forEach(function(mo,i){ svg+='<text x="'+x(i)+'" y="'+(H-10)+'" font-size="9" fill="#B9BDCB" text-anchor="middle" font-family="Nunito">'+mo.label+'</text>'; });
-  function line(d,color,dash){ var pts=d.map(function(v,i){return x(i)+','+y(v);}).join(' '); var s='<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"'+(dash?' stroke-dasharray="5 4"':'')+'/>'; d.forEach(function(v,i){ s+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="2.6" fill="'+color+'"/>'; }); return s; }
-  sd.series.forEach(function(se){ if(VISIBLE[se.key]) svg+=line(se.d,se.color,false); });
-  if(VISIBLE.__total) svg+=line(totals,'#2D2D3B',true);
-  document.getElementById('chart').innerHTML=svg;
-}
-function drawLegend(sd){
-  var html=sd.series.map(function(se){ return '<span class="lg'+(VISIBLE[se.key]?'':' off')+'" data-k="'+encodeURIComponent(se.key)+'"><span class="sw" style="background:'+se.color+'"></span>'+esc(se.label)+'</span>'; }).join('');
-  html+='<span class="lg'+(VISIBLE.__total?'':' off')+'" data-k="__total"><span class="sw" style="background:#2D2D3B"></span>Total</span>';
-  var L=document.getElementById('legend'); L.innerHTML=html;
-  L.querySelectorAll('.lg').forEach(function(el){ el.addEventListener('click',function(){ var k=decodeURIComponent(el.dataset.k); VISIBLE[k]=!VISIBLE[k]; if(k==='__total')TOTAL_ON=VISIBLE[k]; var sd2=seriesData(); drawChart(sd2); drawLegend(sd2); }); });
-}
-function drawTable(sd){
-  var totals=monthTotals(sd), counts=monthCounts(sd);
-  document.getElementById('mtBody').innerHTML=sd.months.map(function(mo,i){ return '<tr><td>'+mo.label+' &rsquo;'+String(mo.y).slice(-2)+'</td><td class="n">'+money(totals[i])+'</td><td class="n">'+counts[i]+'</td></tr>'; }).join('');
-}
-function renderTrend(){
-  var sd=seriesData(); initVisible(sd); drawChart(sd); drawLegend(sd); drawTable(sd);
-  var keys=Object.keys(FILTERS).filter(function(k){return FILTERS[k];});
-  document.getElementById('trendInherit').textContent=keys.length?('Inheriting filters: '+keys.map(function(k){return (k==='store')?dispStore(FILTERS[k]):FILTERS[k];}).join(', ')+' · 12-month window always shown'):'';
-}
-document.getElementById('seriesBar').addEventListener('click',function(e){ if(!e.target.classList.contains('pill'))return; this.querySelectorAll('.pill').forEach(function(p){p.classList.remove('active');}); e.target.classList.add('active'); SERIES_DIM=e.target.dataset.s; renderTrend(); });
-
-/* ====== tabs ====== */
-function showTab(t){
-  var dash=t==='dash';
-  document.getElementById('dash').className=dash?'':'hide';
-  document.getElementById('trend').className=dash?'hide':'';
-  document.getElementById('tabDash').className='tab'+(dash?' active':'');
-  document.getElementById('tabTrend').className='tab'+(dash?'':' active');
-  document.getElementById('fab').className='fab'+(dash?'':' hide');
-  if(!dash) renderTrend();
+async function load(){
+  ME=await loadMe();
+  const [rep,mf,pt,st]=await Promise.all([
+    sb.from('damage_reports').select('report_date,tech_id,tech_name,store,manufacturer,part,device,cost_cents,ticket,how').order('report_date',{ascending:false}),
+    sb.from('damage_manufacturers').select('name').eq('active',true).order('sort'),
+    sb.from('damage_parts').select('name').eq('active',true).order('sort'),
+    sb.from('stores').select('store,display_order,active').eq('active',true).order('display_order'),
+  ]);
+  REPORTS=(rep.data||[]).map(r=>({
+    date:r.report_date, store:stripStore(r.store), storeFull:r.store, tech:r.tech_name||'—', tech_id:r.tech_id,
+    mfr:r.manufacturer||'—', part:r.part||'', device:r.device||'', cost:(r.cost_cents||0)/100,
+    ticket:r.ticket||'', how:r.how||''
+  }));
+  MFRS=(mf.data||[]).map(x=>x.name);
+  PARTS=(pt.data||[]).map(x=>x.name);
+  STORES=(st.data||[]).map(x=>x.store);
 }
 
-/* ====== new report modal ====== */
-function opt(v,label){ return '<option value="'+esc(v)+'">'+esc(label||v)+'</option>'; }
-function fillModalOptions(){
-  document.getElementById('fTech').innerHTML='<option value="">Select tech&hellip;</option>'+STATE.techs.map(function(n){return opt(n);}).join('');
-  document.getElementById('fStore').innerHTML=STATE.stores.map(function(s){return '<option value="'+esc(s)+'">'+esc(dispStore(s))+'</option>';}).join('');
-  document.getElementById('fMfr').innerHTML='<option value="">Select&hellip;</option>'+STATE.manufacturers.map(function(n){return opt(n);}).join('');
-  document.getElementById('fPart').innerHTML='<option value="">Select&hellip;</option>'+STATE.parts.map(function(n){return opt(n);}).join('');
-  var cached=pref('dmg_store'); if(cached){ var sel=document.getElementById('fStore'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===cached){ sel.selectedIndex=i; break; } } }
-}
-function openModal(){ document.getElementById('fDate').value=todayYMD(); document.getElementById('m').classList.remove('hide'); }
-function closeModal(){ document.getElementById('m').classList.add('hide'); }
-function toggleOther(which){ document.getElementById(which+'Other').className=(document.getElementById('f'+which).value==='Other')?'':'hide'; }
-async function submitReport(){
-  var tech=document.getElementById('fTech').value, store=document.getElementById('fStore').value;
-  var mfr=document.getElementById('fMfr').value, part=document.getElementById('fPart').value;
-  if(!tech){ toast('Pick a tech'); return; }
-  if(!mfr){ toast('Pick a manufacturer'); return; }
-  if(!part){ toast('Pick a part'); return; }
-  var payload={
-    date:document.getElementById('fDate').value||todayYMD(),
-    tech:tech, store:store, ticket:document.getElementById('fTicket').value.trim(),
-    manufacturer:mfr, mfrDetail:(mfr==='Other')?document.getElementById('fMfrOther').value.trim():'',
-    part:part, partDetail:(part==='Other')?document.getElementById('fPartOther').value.trim():'',
-    cost:document.getElementById('fCost').value.replace(/[^0-9.\-]/g,''),
-    how:document.getElementById('fHow').value.trim()
+/* ---------- compute (ported from design renderVals) ---------- */
+function compute(){
+  const inRangeAll=REPORTS.filter(r=>inRange(r.date));
+  const scoped=inRangeAll.filter(passes);
+  const total=scoped.reduce((s,r)=>s+r.cost,0);
+  const anyFilter=S.filter.store||S.filter.mfr||S.filter.tech;
+  const rangeLabel={'30':'last 30 days',mtd:'month-to-date',lm:'last month',ytd:'year-to-date',all:'all time'}[S.range];
+
+  const mkBreakdown=(dim,title,colorFn)=>{
+    const base=inRangeAll.filter(r=>passesExcept(r,dim));
+    const m={}; base.forEach(r=>{const k=dimVal(r,dim);m[k]=(m[k]||0)+r.cost;});
+    const arr=Object.keys(m).map(k=>({k,v:m[k]})).sort((a,b)=>b.v-a.v);
+    const max=arr.length?arr[0].v:0;
+    return {title,empty:arr.length===0,rows:arr.slice(0,6).map(r=>({
+      label:r.k,amount:money(r.v),width:(max>0?Math.max(4,Math.round(r.v/max*100)):0)+'%',
+      color:colorFn(r.k),on:S.filter[dim]===r.k,dim,val:r.k}))};
   };
-  var btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='Submitting\u2026';
-  try{
-    var r=await api('addReport',payload);
-    if(r&&r.ok){ pref('dmg_store',store); toast('Report submitted'); closeModal(); clearForm(); await reloadList(); }
-    else { toast((r&&r.error)||'Submit failed'); }
-  }catch(e){ toast('Network error'); }
-  btn.disabled=false; btn.textContent='Submit report';
-}
-function clearForm(){ ['fTicket','fMfrOther','fPartOther','fCost','fHow'].forEach(function(id){document.getElementById(id).value='';}); document.getElementById('fTech').value=''; document.getElementById('fMfr').value=''; document.getElementById('fPart').value=''; document.getElementById('MfrOther').className='hide'; document.getElementById('PartOther').className='hide'; }
-async function reloadList(){ var l=await api('list'); STATE.entries=(l&&l.ok&&l.rows)?l.rows:STATE.entries; renderDash(); if(document.getElementById('trend').className===''){ renderTrend(); } }
+  const breakdowns=[
+    mkBreakdown('store','By store',k=>STORECOLOR[k]||'#B9BDCB'),
+    mkBreakdown('mfr','By manufacturer',()=>'#2D2D3B'),
+    mkBreakdown('tech','By tech',()=>'#4FB0E3'),
+  ];
+  const reports=scoped.slice().sort((a,b)=>b.date.localeCompare(a.date));
 
-/* ====== settings (gear -> passcode -> CPR Auth) ====== */
-var ADMIN_CODE=null;
-function openPass(){ document.getElementById('passInput').value=''; document.getElementById('passErr').style.display='none'; document.getElementById('pass').classList.remove('hide'); }
-function closePass(){ document.getElementById('pass').classList.add('hide'); }
-var EDIT_MFRS=[], EDIT_PARTS=[];
-async function tryPass(){
-  var code=document.getElementById('passInput').value.trim(); if(!code) return;
-  var btn=document.getElementById('passBtn'); btn.disabled=true; btn.textContent='Checking\u2026';
-  try{
-    // settingsGet verifies admin server-side and returns the settings in one trip —
-    // no separate verifyAdmin call, so the passcode is only checked against CPR Auth once.
-    var s=await api('settingsGet',{code:code});
-    if(s&&s.ok){ ADMIN_CODE=code; applySettings(s); closePass(); document.getElementById('settings').classList.remove('hide'); }
-    else { document.getElementById('passErr').style.display='block'; }
-  }catch(e){ document.getElementById('passErr').style.display='block'; }
-  btn.disabled=false; btn.textContent='Unlock settings';
-}
-function applySettings(s){
-  EDIT_MFRS=s.manufacturers||[]; EDIT_PARTS=s.parts||[];
-  document.getElementById('sMode').value=s.notifyMode||'email';
-  document.getElementById('sEmail').value=s.teamsEmail||'';
-  document.getElementById('sWebhook').value=s.webhookUrl||'';
-  document.getElementById('sWebhookFmt').value=s.webhookFormat||'adaptive';
-  syncModeFields(); renderEdit();
-}
-function closeSettings(){ document.getElementById('settings').classList.add('hide'); }
-function syncModeFields(){ var m=document.getElementById('sMode').value; document.getElementById('emailField').className='field'+(m==='email'?'':' hide'); document.getElementById('webhookField').className='field'+(m==='webhook'?'':' hide'); }
-function renderEdit(){
-  document.getElementById('mfrList').innerHTML=EDIT_MFRS.map(function(m,i){return '<span class="editchip">'+esc(m)+' <span class="x" data-i="'+i+'" data-t="m">&times;</span></span>';}).join('');
-  document.getElementById('partList').innerHTML=EDIT_PARTS.map(function(p,i){return '<span class="editchip">'+esc(p)+' <span class="x" data-i="'+i+'" data-t="p">&times;</span></span>';}).join('');
-  document.querySelectorAll('#mfrList .x,#partList .x').forEach(function(x){ x.addEventListener('click',function(){ var i=+x.dataset.i; if(x.dataset.t==='m')EDIT_MFRS.splice(i,1); else EDIT_PARTS.splice(i,1); renderEdit(); }); });
-}
-document.getElementById('mfrAdd').addEventListener('keydown',function(e){ if(e.key==='Enter'&&this.value.trim()){ EDIT_MFRS.push(this.value.trim()); this.value=''; renderEdit(); } });
-document.getElementById('partAdd').addEventListener('keydown',function(e){ if(e.key==='Enter'&&this.value.trim()){ EDIT_PARTS.push(this.value.trim()); this.value=''; renderEdit(); } });
-async function saveSettings(){
-  var btn=document.getElementById('saveSettingsBtn'); btn.disabled=true; btn.textContent='Saving\u2026';
-  try{
-    var r=await api('settingsSave',{ code:ADMIN_CODE, manufacturers:EDIT_MFRS, parts:EDIT_PARTS,
-      notifyMode:document.getElementById('sMode').value, teamsEmail:document.getElementById('sEmail').value.trim(),
-      webhookUrl:document.getElementById('sWebhook').value.trim(), webhookFormat:document.getElementById('sWebhookFmt').value });
-    if(r&&r.ok){ STATE.manufacturers=EDIT_MFRS.slice(); STATE.parts=EDIT_PARTS.slice(); fillModalOptions(); toast('Settings saved'); closeSettings(); }
-    else { toast((r&&r.error)||'Save failed'); }
-  }catch(e){ toast('Network error'); }
-  btn.disabled=false; btn.textContent='Save settings';
+  // trends
+  const now=new Date(); now.setHours(0,0,0,0);
+  const months=[];
+  for(let i=11;i>=0;i--){const x=new Date(now.getFullYear(),now.getMonth()-i,1);months.push({key:x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'),label:MONTHS[x.getMonth()],y:x.getFullYear()});}
+  const dim=S.seriesDim;
+  const trendRows=REPORTS.filter(passes);
+  const groups={};
+  trendRows.forEach(r=>{const ym=r.date.slice(0,7);if(!months.some(mo=>mo.key===ym))return;const k=dimVal(r,dim);(groups[k]=groups[k]||{})[ym]=(groups[k][ym]||0)+r.cost;});
+  const keys=Object.keys(groups).sort((a,b)=>{const sa=months.reduce((s,mo)=>s+(groups[a][mo.key]||0),0),sb2=months.reduce((s,mo)=>s+(groups[b][mo.key]||0),0);return sb2-sa;});
+  const seriesData=keys.map((k,i)=>({key:k,label:k,color:dim==='store'?(STORECOLOR[k]||'#B9BDCB'):PALETTE[i%PALETTE.length],d:months.map(mo=>groups[k][mo.key]||0)}));
+  const totals=months.map((mo,i)=>seriesData.reduce((s,se)=>s+se.d[i],0));
+  let max=0; seriesData.forEach(se=>se.d.forEach(v=>{if(v>max)max=v;})); totals.forEach(v=>{if(v>max)max=v;});
+  const top=Math.max(50,Math.ceil(max/50)*50);
+  const W=720,pl=46,pr=16,pt=16,pb=34,ih=260-pt-pb,iw=W-pl-pr;
+  const X=i=>pl+iw*(i/11), Y=v=>pt+ih-ih*(v/top);
+  const ptsOf=arr=>arr.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
+  const gridlines=[]; for(let g=0;g<=4;g++){const gv=Math.round(top*g/4),gy=Y(gv);gridlines.push({y:gy.toFixed(1),ty:(gy+3).toFixed(1),label:'$'+gv});}
+  const chart={gridlines,xlabels:months.map((mo,i)=>({x:X(i).toFixed(1),label:mo.label})),totalPoints:ptsOf(totals),
+    series:seriesData.map(se=>({color:se.color,points:ptsOf(se.d),dots:se.d.map((v,i)=>({cx:X(i).toFixed(1),cy:Y(v).toFixed(1)}))})),
+    legend:seriesData.map(se=>({label:se.label,color:se.color}))};
+  const monthTable=months.map((mo,i)=>({label:mo.label+" '"+String(mo.y).slice(-2),amount:money(totals[i]),count:trendRows.filter(r=>r.date.slice(0,7)===mo.key).length}));
+
+  return {scoped,total,anyFilter,rangeLabel,breakdowns,reports,seriesData,chart,monthTable,
+    summary:{total:money(total),count:scoped.length,avg:scoped.length?money(total/scoped.length):'$0.00',scopeLbl:anyFilter?'· filtered':'· '+rangeLabel}};
 }
 
-load();
+/* ---------- render ---------- */
+const RANGES=[['30','Last 30 days'],['mtd','MTD'],['lm','Last month'],['ytd','YTD'],['all','All']];
+const SERIES=[['store','By store'],['mfr','By manufacturer'],['tech','By tech']];
+
+function render(){
+  const c=compute();
+  const tabBtn=(id,label)=>`<button data-act="tab" data-tab="${id}" class="${S.tab===id?'on':''}">${label}</button>`;
+  let html=`
+  <div class="toprow" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px">
+    <div style="min-width:0">
+      <h1>Tech Damage Tracker</h1>
+      <p style="color:var(--grey);margin:0;font-size:.84rem;font-weight:600">Parts damaged during repairs · logged by store · tap a stat to filter.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex:none">
+      <div class="seg">${tabBtn('dash','Dashboard')}${tabBtn('trends','Trends')}</div>
+      <button class="newbtn" data-act="new">+ New Report</button>
+    </div>
+  </div>`;
+
+  if(S.tab==='dash'){
+    html+=`<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:16px">
+      <span class="lbl" style="margin-right:3px">Range</span>
+      ${RANGES.map(([id,l])=>`<button class="pill ${S.range===id?'on':''}" data-act="range" data-range="${id}">${l}</button>`).join('')}
+    </div>`;
+    if(c.anyFilter){
+      const chips=[];
+      ['store','mfr','tech'].forEach(d=>{if(S.filter[d])chips.push(`<span class="chip">${esc(S.filter[d])}<button data-act="unfilter" data-dim="${d}">×</button></span>`);});
+      html+=`<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:16px">
+        <span class="lbl">Filtered by</span>${chips.join('')}
+        <button data-act="clearfilters" style="font-family:'Nunito';font-weight:800;font-size:.68rem;color:var(--dark-grey);background:none;border:none;cursor:pointer;text-decoration:underline">Clear all</button>
+      </div>`;
+    }
+    html+=`<div class="statgrid">
+      <div class="card" style="border-top:3px solid var(--red);padding:16px 18px"><div class="bignum" style="color:var(--red)">${c.summary.total}</div><div class="statcap">Damage $ <span style="color:var(--grey)">${c.summary.scopeLbl}</span></div></div>
+      <div class="card" style="border-left:4px solid var(--blue);padding:16px 18px"><div class="bignum">${c.summary.count}</div><div class="statcap">Reports</div></div>
+      <div class="card" style="border-left:4px solid var(--dark);padding:16px 18px"><div class="bignum">${c.summary.avg}</div><div class="statcap">Avg / report</div></div>
+    </div>`;
+    html+=`<div class="breakdowns">${c.breakdowns.map(b=>`
+      <div class="card" style="padding:15px 16px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:11px"><span style="font-family:'Nunito';font-weight:900;font-size:.82rem">${b.title}</span><span style="font-family:'Nunito';font-weight:700;font-size:.62rem;color:var(--grey)">tap to filter</span></div>
+        ${b.empty?`<div style="color:var(--grey);font-size:.8rem;font-weight:700;padding:6px">No data in range.</div>`:b.rows.map(r=>`
+          <div class="brow" data-act="filter" data-dim="${r.dim}" data-val="${esc(r.val)}" style="background:${r.on?'#EAF6FD':'transparent'}">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:.82rem;font-weight:700">${esc(r.label)}</span><span style="font-family:'Nunito';font-weight:900;font-size:.82rem;white-space:nowrap">${r.amount}</span></div>
+            <div style="height:7px;background:var(--light-grey);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:7px;border-radius:4px;width:${r.width};background:${r.color}"></div></div>
+          </div>`).join('')}
+      </div>`).join('')}</div>`;
+    html+=`<div style="display:flex;align-items:baseline;justify-content:space-between;margin:0 2px 10px"><h2 style="font-family:'Nunito';font-weight:900;font-size:1.05rem;margin:0">Reports</h2><span style="font-size:.76rem;color:var(--grey);font-weight:700">${c.summary.count} shown</span></div>`;
+    html+=`<div class="card" style="overflow:hidden">${c.reports.length?c.reports.map(r=>{
+      const stripe=STORECOLOR[r.store]||'#B9BDCB';
+      return `<div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--light-grey);border-left:4px solid ${stripe}">
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+            <span style="font-family:'Nunito';font-weight:900;font-size:1rem">${esc(r.tech)}</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.3px;color:var(--dark-grey)"><span style="width:7px;height:7px;border-radius:50%;background:${stripe}"></span>${esc(r.store)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px">
+            <span style="font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:999px;background:var(--light-grey);color:var(--dark-grey)">${esc(r.mfr)}</span>
+            <span style="font-size:.84rem;font-weight:700">${esc(r.part)}</span>
+            ${r.device?`<span style="color:var(--grey)">·</span><span style="font-size:.8rem;color:var(--dark-grey)">${esc(r.device)}</span>`:''}
+          </div>
+          ${r.how?`<div style="font-size:.82rem;color:var(--dark-grey);margin-top:6px;line-height:1.5">${esc(r.how)}</div>`:''}
+        </div>
+        <div style="text-align:right;flex:none;min-width:120px">
+          <div style="font-family:'Nunito';font-weight:900;font-size:1.15rem;color:var(--red)">${money(r.cost)}</div>
+          <div style="font-size:.7rem;color:var(--grey);font-weight:700;margin-top:4px">${fmt(r.date)}</div>
+          ${r.ticket?`<a href="https://cpr.repairq.io/ticket/${encodeURIComponent(r.ticket)}" target="_blank" rel="noopener" style="display:inline-block;font-family:'Nunito';font-weight:800;font-size:.72rem;color:var(--blue);text-decoration:none;margin-top:2px">#${esc(r.ticket)} ↗</a>`:''}
+        </div>
+      </div>`;}).join(''):`<div style="padding:34px;text-align:center;color:var(--grey);font-weight:700">No reports match these filters.</div>`}</div>`;
+  } else {
+    const seriesNoun=S.seriesDim==='store'?'store':S.seriesDim==='mfr'?'manufacturer':'tech';
+    html+=`<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:16px"><span class="lbl" style="margin-right:3px">Series</span>
+      ${SERIES.map(([id,l])=>`<button class="pill ${S.seriesDim===id?'on':''}" data-act="series" data-series="${id}">${l}</button>`).join('')}</div>`;
+    html+=`<div class="card" style="border-top:3px solid var(--red);padding:18px;margin-bottom:14px">
+      <h3 style="font-family:'Nunito';font-weight:900;font-size:.92rem;margin:0 0 2px">Damage $ — rolling 12 months</h3>
+      <p style="color:var(--grey);font-size:.76rem;font-weight:700;margin:0 0 12px">Total dashed; each ${seriesNoun} a colored line.</p>
+      <div style="overflow-x:auto"><svg viewBox="0 0 720 260" style="min-width:640px;width:100%;height:auto;display:block">
+        ${c.chart.gridlines.map(g=>`<line x1="46" y1="${g.y}" x2="704" y2="${g.y}" stroke="#EEEEF1"></line>`).join('')}
+        ${c.chart.gridlines.map(g=>`<text x="40" y="${g.ty}" font-size="10" fill="#B9BDCB" text-anchor="end" font-family="Nunito" font-weight="700">${g.label}</text>`).join('')}
+        ${c.chart.xlabels.map(x=>`<text x="${x.x}" y="250" font-size="10" fill="#B9BDCB" text-anchor="middle" font-family="Nunito" font-weight="700">${x.label}</text>`).join('')}
+        <polyline points="${c.chart.totalPoints}" fill="none" stroke="#2D2D3B" stroke-width="2.2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"></polyline>
+        ${c.chart.series.map(s=>`<polyline points="${s.points}" fill="none" stroke="${s.color}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"></polyline>${s.dots.map(d=>`<circle cx="${d.cx}" cy="${d.cy}" r="2.8" fill="${s.color}"></circle>`).join('')}`).join('')}
+      </svg></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        ${c.chart.legend.map(l=>`<span style="display:inline-flex;align-items:center;gap:6px;font-family:'Nunito';font-weight:800;font-size:.72rem;border:1.5px solid var(--border);border-radius:999px;padding:5px 11px"><span style="width:11px;height:11px;border-radius:3px;background:${l.color}"></span>${esc(l.label)}</span>`).join('')}
+        <span style="display:inline-flex;align-items:center;gap:6px;font-family:'Nunito';font-weight:800;font-size:.72rem;border:1.5px solid var(--border);border-radius:999px;padding:5px 11px"><span style="width:11px;height:3px;border-radius:2px;background:#2D2D3B"></span>Total</span>
+      </div>
+    </div>`;
+    html+=`<div class="card" style="padding:18px"><h3 style="font-family:'Nunito';font-weight:900;font-size:.92rem;margin:0 0 10px">Month by month</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:.84rem"><thead><tr>
+        <th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)" class="lbl">Month</th>
+        <th style="text-align:right;padding:8px 10px;border-bottom:1px solid var(--border)" class="lbl">Damage $</th>
+        <th style="text-align:right;padding:8px 10px;border-bottom:1px solid var(--border)" class="lbl">Reports</th>
+      </tr></thead><tbody>
+        ${c.monthTable.map(m=>`<tr><td style="padding:8px 10px;border-bottom:1px solid var(--light-grey);font-weight:700">${m.label}</td><td style="padding:8px 10px;border-bottom:1px solid var(--light-grey);text-align:right;font-family:'Nunito';font-weight:800">${m.amount}</td><td style="padding:8px 10px;border-bottom:1px solid var(--light-grey);text-align:right;font-family:'Nunito';font-weight:800;color:var(--dark-grey)">${m.count}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  $('#root').innerHTML=html;
+  renderModal();
+}
+
+function renderModal(){
+  const host=$('#modalHost');
+  if(!S.modal){host.innerHTML='';return;}
+  const today=new Date(); const iso=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  const techName=ME?ME.display_name:'—';
+  const homeFull=ME?ME.home_store:'';
+  const storeOpts=STORES.map(s=>`<option value="${esc(s)}"${s===homeFull?' selected':''}>${esc(stripStore(s))}</option>`).join('');
+  const mfrOpts='<option value="">Select…</option>'+MFRS.map(m=>`<option>${esc(m)}</option>`).join('');
+  const partOpts='<option value="">Select…</option>'+PARTS.map(p=>`<option>${esc(p)}</option>`).join('');
+  host.innerHTML=`
+  <div class="scrim" data-act="close"></div>
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><h2 style="font-family:'Nunito';font-weight:900;font-size:1.2rem;margin:0">New damage report</h2><button data-act="close" style="background:none;border:none;font-size:1.5rem;color:var(--grey);font-weight:800;cursor:pointer;line-height:1">×</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">
+      <label class="field"><span>Date</span><input id="m_date" type="date" class="in" value="${iso}"></label>
+      <label class="field"><span>Reporting as</span><input class="in ro" value="${esc(techName)}" readonly></label>
+      <label class="field"><span>Store</span><select id="m_store" class="in">${storeOpts}</select></label>
+      <label class="field"><span>Ticket #</span><input id="m_ticket" class="in" placeholder="e.g. 16035523"></label>
+      <label class="field"><span>Manufacturer</span><select id="m_mfr" class="in">${mfrOpts}</select></label>
+      <label class="field"><span>Part</span><select id="m_part" class="in">${partOpts}</select></label>
+      <label class="field"><span>Device</span><input id="m_device" class="in" placeholder="e.g. iPhone 14 Pro"></label>
+      <label class="field"><span>Part cost</span><input id="m_cost" class="in" inputmode="decimal" placeholder="$0.00"></label>
+    </div>
+    <label class="field" style="margin-top:13px"><span>How it happened</span><textarea id="m_how" rows="3" class="in" placeholder="What went wrong, in your own words…" style="resize:vertical"></textarea></label>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="mbtn" data-act="submit" style="flex:1;background:var(--red);color:#fff">Submit report</button>
+      <button class="mbtn" data-act="close" style="border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2200);}
+
+async function submitReport(btn){
+  if(!ME){toast('Not signed in',true);return;}
+  const v=id=>{const el=$('#'+id);return el?el.value.trim():'';};
+  const date=v('m_date'), store=v('m_store'), mfr=v('m_mfr'), part=v('m_part'), device=v('m_device'), ticket=v('m_ticket'), how=v('m_how');
+  const costNum=parseFloat(v('m_cost').replace(/[$,]/g,''))||0;
+  if(!date){toast('Pick a date',true);return;}
+  if(!mfr){toast('Pick a manufacturer',true);return;}
+  if(btn)btn.disabled=true;
+  const {error}=await sb.from('damage_reports').insert({
+    report_date:date, tech_id:ME.id, tech_name:ME.display_name, store, manufacturer:mfr,
+    part:part||null, device:device||null, cost_cents:Math.round(costNum*100), ticket:ticket||null, how:how||null
+  });
+  if(error){toast(error.message||'Could not save',true);if(btn)btn.disabled=false;return;}
+  S.modal=false; toast('Report logged'); await load(); render();
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]'); if(!el)return;
+  const act=el.getAttribute('data-act');
+  if(act==='tab'){S.tab=el.getAttribute('data-tab');render();}
+  else if(act==='range'){S.range=el.getAttribute('data-range');render();}
+  else if(act==='series'){S.seriesDim=el.getAttribute('data-series');render();}
+  else if(act==='filter'){setF(el.getAttribute('data-dim'),el.getAttribute('data-val'));}
+  else if(act==='unfilter'){const d=el.getAttribute('data-dim');setF(d,S.filter[d]);}
+  else if(act==='clearfilters'){S.filter={store:null,mfr:null,tech:null};render();}
+  else if(act==='new'){S.modal=true;renderModal();}
+  else if(act==='close'){S.modal=false;renderModal();}
+  else if(act==='submit'){submitReport(el);}
+});
+
+(async function init(){
+  try{ await load(); render(); }
+  catch(err){ $('#root').innerHTML='<div style="color:var(--red);font-weight:700;padding:40px 4px">Could not load: '+esc(err&&err.message||err)+'</div>'; }
+})();
 </script>
 </body>
 </html>
