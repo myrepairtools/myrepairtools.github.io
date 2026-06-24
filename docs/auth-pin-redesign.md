@@ -174,3 +174,25 @@ benign "Multiple GoTrueClient instances" console note).
 
 Net: delete `pin-gate.js`, fold the front-door UI into the shared module, and
 have nav + pages depend on it. Behaviour identical to today; just no shim.
+
+### Why this matters (not just cleanup) — 2026-06-24
+
+The multiple-client situation isn't cosmetic; it causes **real intermittent auth
+failures**, because pin-gate + nav + the page each create their own Supabase
+client over the same storage and contend on the auth lock / token refresh:
+- **Sign-in sometimes errored** ("could not start session" / "can't reach
+  server") even though login succeeded — a refresh then let the user in.
+- **`getSession()` intermittently returned null**, so `authFn` sent the ANON
+  key and `cpr-auth`'s `caller()` replied **"forbidden"** (e.g. Settings →
+  Team Members wouldn't load).
+
+Shipped **band-aids** (delete these once one shared client exists):
+- `pin-gate.js`: reload as soon as the login tokens are saved, regardless of
+  how `setSession()`'s promise settles (+2s backstop).
+- `settings.html` / `employee-records.html`: `authFn` falls back to the
+  access_token in `localStorage` when `getSession()` returns null.
+
+**The fix** is the shared-auth-module refactor above: one Supabase client for
+the whole page (gate + nav + page consume it), which removes the contention and
+lets the band-aids be removed. Priority: do before adding more Supabase-backed
+pages.
