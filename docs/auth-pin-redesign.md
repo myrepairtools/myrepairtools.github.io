@@ -145,3 +145,32 @@ blind-index column (e.g. HMAC(pin) with a server secret) for O(1) lookup.
   (because that session predated the `.com` addition). **Next step: a fresh
   session picks up the full allowlist; then validate access via the Supabase
   Management API (`api.supabase.com`) or the MCP tools.**
+
+---
+
+## Follow-up: replace the `pin-gate.js` shim with proper auth (2026-06-24)
+
+`pin-gate.js` shipped as a **deliberate shim** to deliver the single-PIN front
+door quickly and safely: a full-screen overlay on every page that, on login,
+`setSession()` + `location.reload()`s so each page boots with the session
+present. The legacy per-page lock screens (cash-admin, settings,
+employee-records) still exist underneath — harmless but redundant. The nav,
+pin-gate, and some pages each spin up their own Supabase client (hence the
+benign "Multiple GoTrueClient instances" console note).
+
+**The clean end-state ("coded the right way"):**
+- **One shared auth module** (build on the existing `assets/auth.js`) that owns
+  a single Supabase client, exposes `session`/`role`/`signIn`/`signOut`, and
+  fires a ready/role event. nav.js and every page consume it — no duplicate
+  clients.
+- **No overlay + reload hack.** The gate establishes the session and reveals the
+  page in place; pages render from the shared auth state.
+- **Remove the bespoke per-page lock screens** from cash-admin / settings /
+  employee-records — they read auth state from the shared module instead.
+- **Role-gating defined once** (the page→min-role map lives in one place, shared
+  by nav and the gate).
+- **One idle timer** (not per-page), one device-id, one place to reason about
+  lockout.
+
+Net: delete `pin-gate.js`, fold the front-door UI into the shared module, and
+have nav + pages depend on it. Behaviour identical to today; just no shim.
