@@ -71,13 +71,12 @@ There is **no single backend**. Tools talk to one of two systems:
    body: JSON.stringify({action, token, ...})})` returning JSON `{ok, ...}`. The
    `text/plain` content-type is deliberate — it avoids a CORS preflight against Apps Script.
    Auth services (`site-gate`/`admin-gate`/`nav`) are themselves Apps Script deployments.
-   Tools currently on Apps Script: claim-ledger, commission-calculator, damage-tracker,
-   employee-records, hyla-orders.
+   Tools currently on Apps Script: claim-ledger, commission-calculator.
 
 2. **Supabase** (newer; the active migration target — see recent "Cash Tracker Migration"
    commits). Project `xuvsehrevxackuhmbmry.supabase.co`, client imported from
    `esm.sh/@supabase/supabase-js@2`. Tools on Supabase: cash-tracker, cash-admin,
-   consumption-report, settings, login-test.
+   consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 

@@ -14,7 +14,7 @@
 --eugene:#23A62F;--salem:#DE262E;--clack:#4FB0E3}
 *{box-sizing:border-box}
 body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);margin:0}
-main{max-width:1150px;margin:0 auto;padding:18px 18px 80px}
+main{max-width:1480px;margin:0 auto;padding:18px 30px 80px}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:-.4px;margin:0 0 2px}
 .sub{font-size:.78rem;color:var(--dark-grey);margin:0}
@@ -411,9 +411,17 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script>
-/* ================= CONFIG ================= */
-var API_URL = 'https://script.google.com/macros/s/AKfycbzVfcAH4l28JzGMe-horVin4G24QiKlS9XF6o1jsaVE3rUXArdxa3B9Od6o2z3u35ME/exec';
-var TOKEN   = 'c4e8a2d6f1b9374c5e0a8d2b6f4c1e9a7d3b5f8c2e6a0d4b8f2c6e1a9d5b3f7c';
+/* ================= CONFIG (Supabase) ================= */
+var SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
+var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var SB = null;
+var SB_READY = import('https://esm.sh/@supabase/supabase-js@2')
+  .then(function(m){ SB = m.createClient(SB_URL, SB_ANON);
+    // make sure the shared PIN session is restored from storage before the
+    // first query, so RLS sees the authenticated user (not anon).
+    return SB.auth.getSession().then(function(){ return SB; }, function(){ return SB; });
+  })
+  .catch(function(){ SB = null; return null; });
 var ASSET_RMA_TEMPLATE = 'assets/hyla/rma-claim-template.xlsx';
 var ASSET_DEVICE_CATALOG = 'assets/hyla/rq-device-catalog.json';
 var RMA_CUSTOMER_EMAIL = 'bbay@cpr-stores.com';
@@ -460,15 +468,114 @@ function storeKey(name){
   return '';
 }
 
-/* ================= API ================= */
+/* ================= API (Supabase) =================
+ * Same api(action, params) -> Promise interface the UI already uses; now it
+ * dispatches to Supabase tables instead of the old Apps Script web app. Rows
+ * are mapped snake_case <-> camelCase so the render code is untouched. */
+var O_MAP={order_id:'orderId',order_nbr:'orderNbr',tracking:'tracking',ship_date:'shipDate',received_date:'receivedDate',inspector:'inspector',status:'status',created_at:'createdAt'};
+var D_MAP={device_id:'deviceId',order_id:'orderId',order_nbr:'orderNbr',imei:'imei',manufacturer:'manufacturer',model:'model',model_nbr:'modelNbr',storage:'storage',color:'color',carrier:'carrier',grade:'grade',cost:'cost',unlock_code:'unlockCode',store:'store',sale_price:'salePrice',packaging:'packaging',status:'status',fail_reason:'failReason',fail_comment:'failComment',updated_at:'updatedAt'};
+var R_MAP={rma_id:'rmaId',device_id:'deviceId',order_id:'orderId',order_nbr:'orderNbr',imei:'imei',model:'model',storage:'storage',color:'color',cost:'cost',reason:'reason',comment:'comment',status:'status',tracking_nbr:'trackingNbr',outcome:'outcome',credit_amt:'creditAmt',repair_cost:'repairCost',opened_at:'openedAt',closed_at:'closedAt'};
+function camelRow(map,row){ var o={}; for(var k in map) o[map[k]]=row[k]; return o; }
+function chk(thenable){ return Promise.resolve(thenable).then(function(r){ if(r&&r.error) throw new Error(r.error.message); return {ok:true}; }); }
+function newId(p){ return p+Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36); }
+
 function api(action, params){
-  if (API_URL.indexOf('PASTE_') === 0){ apiError('Backend URL not set — edit API_URL at the top of hyla-orders.html.'); return Promise.reject('no url'); }
-  var qs = new URLSearchParams({ action:action, token:TOKEN });
   params = params || {};
-  for (var k in params){ qs.set(k, typeof params[k]==='object' ? JSON.stringify(params[k]) : params[k]); }
-  return fetch(API_URL + '?' + qs.toString())
-    .then(function(r){ return r.json(); })
-    .then(function(j){ if(!j.ok && j.error){ throw new Error(j.error); } return j; });
+  return SB_READY.then(function(sb){
+    if (!sb) throw new Error('Could not reach the server.');
+    switch(action){
+      case 'list': return hyList(sb);
+      case 'settingsGet': return hySettingsGet(sb);
+      case 'settingsSet': return hySettingsSet(sb, params);
+      case 'roster': return hyRoster(sb);
+      case 'addOrder': return hyAddOrder(sb, params);
+      case 'setReceived': return chk(sb.from('hyla_orders').update({received_date:params.receivedDate||null}).eq('order_id',params.orderId));
+      case 'setInspector': return chk(sb.from('hyla_orders').update({inspector:params.inspector||null}).eq('order_id',params.orderId));
+      case 'completeOrder': return chk(sb.from('hyla_orders').update({status:'completed'}).eq('order_id',params.orderId));
+      case 'reopenOrder': return chk(sb.from('hyla_orders').update({status:'open'}).eq('order_id',params.orderId));
+      case 'deleteOrder': return chk(sb.from('hyla_orders').delete().eq('order_id',params.orderId));
+      case 'updateDevice': return hyUpdateDevice(sb, params);
+      case 'failDevice': return hyFailDevice(sb, params);
+      case 'updateRma': return hyUpdateRma(sb, params);
+      default: throw new Error('Unknown action: '+action);
+    }
+  });
+}
+function hyList(sb){
+  return Promise.all([
+    sb.from('hyla_orders').select('*'),
+    sb.from('hyla_devices').select('*'),
+    sb.from('hyla_rmas').select('*')
+  ]).then(function(res){
+    res.forEach(function(r){ if(r.error) throw new Error(r.error.message); });
+    function numify(o, keys){ keys.forEach(function(k){ if(o[k]!=null && o[k]!=='') o[k]=Number(o[k]); }); return o; }
+    return { ok:true,
+      orders:(res[0].data||[]).map(function(x){return camelRow(O_MAP,x);}),
+      devices:(res[1].data||[]).map(function(x){return numify(camelRow(D_MAP,x),['cost']);}),
+      rmas:(res[2].data||[]).map(function(x){return numify(camelRow(R_MAP,x),['cost','creditAmt','repairCost']);}) };
+  });
+}
+function hySettingsGet(sb){
+  return sb.from('hyla_settings').select('key,value').then(function(r){
+    if(r.error) throw new Error(r.error.message);
+    var o={}; (r.data||[]).forEach(function(row){ o[row.key]=row.value; }); return o;
+  });
+}
+function hySettingsSet(sb, params){
+  var rows=[]; for(var k in params) rows.push({ key:k, value: params[k]==null?'':String(params[k]) });
+  if(!rows.length) return Promise.resolve({ok:true});
+  return chk(sb.from('hyla_settings').upsert(rows));
+}
+function hyRoster(sb){
+  return sb.rpc('hyla_roster').then(function(r){ if(r.error) throw new Error(r.error.message); return { names:r.data||[] }; });
+}
+function hyAddOrder(sb, params){
+  var order=params.order||{}, devices=params.devices||[];
+  var oid=newId('O');
+  var orow={ order_id:oid, order_nbr:order.orderNbr||null, tracking:order.tracking||null,
+    ship_date:order.shipDate||null, received_date:order.receivedDate||null, status:'open' };
+  return chk(sb.from('hyla_orders').insert(orow)).then(function(){
+    if(!devices.length) return {ok:true};
+    var drows=devices.map(function(d){
+      return { device_id:newId('D'), order_id:oid, order_nbr:order.orderNbr||null,
+        imei:d.imei||null, manufacturer:d.manufacturer||null, model:d.model||null, model_nbr:d.modelNbr||null,
+        storage:d.storage||null, color:d.color||null, carrier:d.carrier||null, grade:d.grade||null,
+        cost:(d.cost||d.cost===0)?d.cost:null, unlock_code:d.unlockCode||null, status:'pending' };
+    });
+    return chk(sb.from('hyla_devices').insert(drows));
+  });
+}
+function hyUpdateDevice(sb, params){
+  var patch={ updated_at:new Date().toISOString() };
+  if('store' in params) patch.store=params.store||null;
+  if('salePrice' in params) patch.sale_price=params.salePrice||null;
+  if('packaging' in params) patch.packaging=params.packaging||null;
+  if('status' in params){ patch.status=params.status;
+    if(params.status==='passed'||params.status==='pending'){ patch.fail_reason=null; patch.fail_comment=null; } }
+  return chk(sb.from('hyla_devices').update(patch).eq('device_id',params.deviceId));
+}
+function hyFailDevice(sb, params){
+  return sb.from('hyla_devices').select('*').eq('device_id',params.deviceId).maybeSingle().then(function(r){
+    if(r.error) throw new Error(r.error.message);
+    var d=r.data; if(!d) throw new Error('Device not found');
+    return chk(sb.from('hyla_devices').update({ status:'failed', fail_reason:params.reason||null, fail_comment:params.comment||null, updated_at:new Date().toISOString() }).eq('device_id',params.deviceId))
+      .then(function(){
+        return chk(sb.from('hyla_rmas').insert({ rma_id:newId('R'), device_id:d.device_id, order_id:d.order_id, order_nbr:d.order_nbr,
+          imei:d.imei, model:d.model, storage:d.storage, color:d.color, cost:d.cost,
+          reason:params.reason||null, comment:params.comment||null, status:'Needs Submission' }));
+      });
+  });
+}
+function hyUpdateRma(sb, params){
+  var patch={};
+  if('trackingNbr' in params) patch.tracking_nbr=params.trackingNbr||null;
+  if('outcome' in params) patch.outcome=params.outcome||null;
+  if('creditAmt' in params) patch.credit_amt=(params.creditAmt===''||params.creditAmt==null)?null:params.creditAmt;
+  if('repairCost' in params) patch.repair_cost=(params.repairCost===''||params.repairCost==null)?null:params.repairCost;
+  if('status' in params){ patch.status=params.status;
+    var s=String(params.status).toLowerCase();
+    patch.closed_at=(s==='credited'||s==='denied')?new Date().toISOString():null; }
+  return chk(sb.from('hyla_rmas').update(patch).eq('rma_id',params.rmaId));
 }
 function apiError(msg){ var b=$('apiBanner'); b.textContent='⚠ ' + msg; b.classList.remove('hide'); }
 
