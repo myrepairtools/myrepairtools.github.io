@@ -186,16 +186,6 @@ td.r{text-align:right;white-space:nowrap}
       <div class="empty hide" id="storeEmpty">No stores.</div>
     </div>
     <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addStore">+ Add store</button></div>
-
-    <div class="sect-h" style="margin-top:22px">Registers &amp; safes
-      <select id="regStore" style="width:auto;min-width:200px"></select>
-    </div>
-    <div class="card"><table><thead><tr>
-      <th>Location</th><th class="r">Starting $</th><th class="r">Float $</th><th>Status</th><th></th>
-    </tr></thead><tbody id="regRows"></tbody></table>
-      <div class="empty hide" id="regEmpty">No registers for this store yet.</div>
-    </div>
-    <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
   </section>
 
   <!-- NOTIFICATIONS TAB -->
@@ -218,9 +208,23 @@ td.r{text-align:right;white-space:nowrap}
       <div style="width:230px;flex:none">
         <div class="card" style="padding:6px">
           <button class="pgtool on" data-pgtool="damage">🔧 Tech Damage Tracker</button>
+          <button class="pgtool" data-pgtool="cash">💵 Cash Tracker</button>
         </div>
       </div>
-      <div style="flex:1;min-width:0" id="pagePane"></div>
+      <div style="flex:1;min-width:0">
+        <div id="pagePane"></div>
+        <div id="pagePaneCash" class="hide">
+          <div class="sect-h">Registers &amp; safes
+            <select id="regStore" style="width:auto;min-width:200px"></select>
+          </div>
+          <div class="card"><table><thead><tr>
+            <th>Location</th><th class="r">Starting $</th><th class="r">Float $</th><th>Status</th><th></th>
+          </tr></thead><tbody id="regRows"></tbody></table>
+            <div class="empty hide" id="regEmpty">No registers for this store yet.</div>
+          </div>
+          <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -477,7 +481,9 @@ function renderLoc(){
     sb1.appendChild(tr);
   });
   if(owner)sb1.querySelectorAll('[data-estore]').forEach(function(b){b.onclick=function(){openStore(b.getAttribute('data-estore'));};});
-  // register store picker
+}
+function renderRegs(){
+  if(!$('#regStore'))return;
   var rs=$('#regStore'); rs.innerHTML=STORES.map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===REGSTORE?' selected':'')+'>'+esc(s.store)+'</option>';}).join('');
   var rb=$('#regRows');rb.innerHTML='';
   $('#regEmpty').classList.toggle('hide',REGS.length>0);
@@ -885,10 +891,13 @@ function pgTbl(key){return key==='mfr'?'damage_manufacturers':'damage_parts';}
 function renderPages(){
   if(!$('#pagePane'))return;
   $all('#view-pages [data-pgtool]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-pgtool')===PGTOOL);});
-  var pane=$('#pagePane');
-  if(PGTOOL==='damage'){
-    pane.innerHTML=pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
+  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash';
+  $('#pagePane').classList.toggle('hide',!damageOn);
+  if($('#pagePaneCash'))$('#pagePaneCash').classList.toggle('hide',!cashOn);
+  if(damageOn){
+    $('#pagePane').innerHTML=pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
   }
+  renderRegs();
 }
 function pageListEditor(title,key,rows,mt){
   var single=title.replace(/s$/,'').toLowerCase();
