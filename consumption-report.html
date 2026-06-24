@@ -1183,8 +1183,14 @@ function wireEditModal(host,g){
   host.querySelector('[data-gm]').addEventListener('change',async function(){g.max=+this.value||0;await persistGroups();refreshModal();});
   host.querySelector('[data-delgrp]').addEventListener('click',async function(){
     if(!confirm('Delete this part group?'))return;
-    GROUPS=GROUPS.filter(function(x){return x.id!==g.id;});if(GOPEN===g.id)GOPEN=null;MOPEN=null;
-    await persistGroups();renderEditModal();renderTable();
+    // Actually delete from the DB — saveGroups() only upserts, so without this
+    // the row survives and loadGroups() brings the "deleted" group right back.
+    // FK cascade removes its members and per-store max overrides.
+    var r=await sb.from('groups').delete().eq('id',g.id);
+    if(r.error){alert('Could not delete this group — '+r.error.message);return;}
+    if(GOPEN===g.id)GOPEN=null;MOPEN=null;
+    GROUPS=GROUPS.filter(function(x){return x.id!==g.id;});
+    await loadGroups();render();renderStock();renderEditModal();renderTable();
   });
   host.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',async function(){
     var p=b.getAttribute('data-del').split('|');var rm=g.members.splice(+p[1],1)[0];
