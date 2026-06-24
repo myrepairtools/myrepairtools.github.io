@@ -1,0 +1,121 @@
+/* ===========================================================================
+ * CPR pin-gate.js — the single front door for the whole site.
+ *
+ * Drop into any page with: <script src="assets/pin-gate.js"></script>
+ * (load it BEFORE assets/nav.js). It covers the page until a valid Supabase
+ * PIN session exists, then reveals it. One personal PIN = logged in + identified;
+ * role (from the PIN) decides which tools are reachable. Replaces the old shared
+ * site-wide password and every per-page PIN lock.
+ *
+ * Flow: no session -> PIN box. On login it sets the session and RELOADS, so the
+ * page boots with the session present (its own legacy lock never appears). A
+ * session without the required role for this page -> "no access". 5-min idle.
+ * Skipped inside an iframe (RepairQ embeds) like the other gates.
+ * ========================================================================= */
+(function () {
+  'use strict';
+  if (window.self !== window.top) return;
+
+  var SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
+  var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+  var SB_FN   = SB_URL + '/functions/v1/cpr-auth';
+
+  // pages that need more than "any logged-in user" (mirrors nav.js PRIVILEGED)
+  var MINROLE = {
+    'cash-admin.html':'admin', 'employee-records.html':'admin',
+    'claim-ledger.html':'owner', 'commission-calculator.html':'owner',
+    'profit-first.html':'owner', 'staff-management.html':'owner', 'settings.html':'owner'
+  };
+  var RANK = { none:0, team_member:1, employee:1, manager:2, admin:2, owner:3 };
+  var file = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var NEED = RANK[MINROLE[file] || 'team_member'] || 1;
+  var IDLE_MS = 5 * 60 * 1000;
+
+  var sb = null, sbReady = null, idleTimer = null;
+  function loadSB(){
+    if (sbReady) return sbReady;
+    sbReady = import('https://esm.sh/@supabase/supabase-js@2')
+      .then(function(m){ sb = m.createClient(SB_URL, SB_ANON); return sb; })
+      .catch(function(){ sb = null; return null; });
+    return sbReady;
+  }
+  function device(){ try { var d = localStorage.getItem('cpr_device_id'); if (!d){ d = 'dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('cpr_device_id', d); } return d; } catch(_){ return 'dev-x'; } }
+  function rankOf(role){ return RANK[role === 'manager' ? 'admin' : role] || 0; }
+
+  // full-screen cover, up immediately so page content never shows pre-auth
+  var host = document.createElement('div');
+  host.id = 'cpr-pingate';
+  host.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;background:#F3F2F2;display:flex;align-items:center;justify-content:center;font-family:Nunito Sans,system-ui,sans-serif');
+  host.innerHTML = '<div style="color:#B9BDCB;font-weight:700;font-family:Nunito,system-ui">…</div>';
+  (document.body || document.documentElement).appendChild(host);
+
+  function reveal(){ if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
+  function armIdle(){ ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){ window.addEventListener(ev, bumpIdle, { passive:true }); }); bumpIdle(); }
+  function bumpIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(signOutReload, IDLE_MS); }
+  function signOutReload(){ loadSB().then(function(c){ if (c) c.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); }); else location.reload(); }); }
+
+  var CARD = 'width:320px;max-width:calc(100% - 32px);background:#fff;border:1px solid #E0E2EA;border-radius:14px;box-shadow:0 8px 30px rgba(45,45,59,.12);padding:26px 24px;text-align:center';
+  function gateForm(msg){
+    host.innerHTML = ''
+      + '<div style="'+CARD+'">'
+      +   '<div style="width:46px;height:46px;border-radius:12px;background:#DC282E;color:#fff;font-family:Nunito;font-weight:900;font-size:1.3rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">+</div>'
+      +   '<div style="font-family:Nunito;font-weight:900;font-size:1.15rem;color:#2D2D3B">CPR Oregon</div>'
+      +   '<div style="font-size:.82rem;color:#4E4E50;font-weight:600;margin:3px 0 16px">Enter your PIN to sign in</div>'
+      +   '<input id="cpr-pg-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="width:100%;font-family:Nunito Sans;font-size:1.05rem;text-align:center;letter-spacing:3px;padding:11px;border:1.5px solid #E0E2EA;border-radius:9px;outline:none">'
+      +   '<button id="cpr-pg-go" style="width:100%;font-family:Nunito;font-weight:800;font-size:.92rem;border:none;border-radius:9px;padding:11px;margin-top:10px;background:#DC282E;color:#fff;cursor:pointer">Sign in</button>'
+      +   '<div id="cpr-pg-err" style="color:#DC282E;font-size:.75rem;font-weight:700;margin-top:9px;min-height:1em">'+(msg||'')+'</div>'
+      + '</div>';
+    var pin = host.querySelector('#cpr-pg-pin'), go = host.querySelector('#cpr-pg-go'), err = host.querySelector('#cpr-pg-err');
+    if (pin) pin.focus();
+    function submit(){
+      var v = pin.value.trim(); if (!v) return;
+      go.disabled = true; err.textContent = 'Signing in…';
+      loadSB().then(function(c){
+        if (!c){ go.disabled = false; err.textContent = 'Could not reach the server.'; return; }
+        fetch(SB_FN, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SB_ANON, 'apikey':SB_ANON }, body: JSON.stringify({ action:'login', pin:v, device_id:device() }) })
+          .then(function(r){ return r.json().then(function(d){ return { status:r.status, data:d }; }, function(){ return { status:r.status, data:{} }; }); })
+          .then(function(res){
+            var d = res.data || {};
+            if (res.status !== 200 || !d.access_token){
+              go.disabled = false;
+              err.textContent = d.error === 'invalid' ? ('Wrong PIN.' + (d.remaining!=null ? (' '+d.remaining+' left.') : ''))
+                              : (res.status === 423 || d.locked) ? 'Locked — too many tries.'
+                              : (d.error || 'Could not sign in.');
+              return;
+            }
+            c.auth.setSession({ access_token:d.access_token, refresh_token:d.refresh_token })
+              .then(function(){ location.reload(); }, function(){ go.disabled = false; err.textContent = 'Could not start session.'; });
+          }, function(){ go.disabled = false; err.textContent = 'Could not reach the server.'; });
+      });
+    }
+    if (go) go.onclick = submit;
+    if (pin) pin.addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
+  }
+
+  function noAccess(name){
+    host.innerHTML = ''
+      + '<div style="'+CARD+'">'
+      +   '<div style="font-size:1.6rem;margin-bottom:6px">🔒</div>'
+      +   '<div style="font-family:Nunito;font-weight:900;font-size:1.05rem;color:#2D2D3B">No access to this tool</div>'
+      +   '<div style="font-size:.82rem;color:#4E4E50;font-weight:600;margin:6px 0 16px">Signed in as '+(name||'you')+'. This tool needs a higher access level.</div>'
+      +   '<button id="cpr-pg-home" style="font-family:Nunito;font-weight:800;font-size:.82rem;border:none;border-radius:9px;padding:10px 16px;background:#DC282E;color:#fff;cursor:pointer;margin-right:8px">Home</button>'
+      +   '<button id="cpr-pg-switch" style="font-family:Nunito;font-weight:800;font-size:.82rem;border:1.5px solid #E0E2EA;border-radius:9px;padding:10px 16px;background:#fff;color:#4E4E50;cursor:pointer">Switch user</button>'
+      + '</div>';
+    host.querySelector('#cpr-pg-home').onclick = function(){ location.href = 'index.html'; };
+    host.querySelector('#cpr-pg-switch').onclick = signOutReload;
+  }
+
+  loadSB().then(function(c){
+    if (!c){ gateForm('Offline — could not load sign-in.'); return; }
+    c.auth.getSession().then(function(res){
+      var sess = res && res.data && res.data.session;
+      if (!sess){ gateForm(''); return; }
+      c.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
+        var role = sr && sr.data ? sr.data.role : null;
+        if (!role){ reveal(); return; }                       // valid session, role unknown -> let RLS govern
+        if (rankOf(role) < NEED){ noAccess(sr.data.display_name); return; }
+        reveal();
+      }, function(){ reveal(); });                            // role read failed -> fail open (data still RLS-protected)
+    }, function(){ gateForm(''); });
+  });
+})();
