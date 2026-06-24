@@ -55,6 +55,12 @@ Deno.serve(async (req) => {
 
     // ---------- CONSUMPTION: one row per (date, store, sku); Count summed ----------
     if (feed === "consumption") {
+      // GUARD: a real consumption report carries a business-date column. Without
+      // it the payload is the wrong feed — refuse rather than write junk rows.
+      if (!rows.some((r) => ("Status Updated Date" in r) || ("Date" in r))) {
+        await admin.from("ingest_debug").insert({ feed: "reject:consumption", payload: { reason: "no date column — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a consumption report (no date column); refused" });
+      }
       const agg: Record<string, any> = {};
       for (const r of rows) {
         const store = norm(pick(r, "Location", "Store", "Name"));
@@ -153,6 +159,13 @@ Deno.serve(async (req) => {
 
     // ---------- STOCK: full-replace per store present; Note carried ----------
     if (feed === "stock") {
+      // GUARD: a real stock report carries an Instock column. If it's absent the
+      // payload is the wrong feed (e.g. a consumption report mis-pointed here) —
+      // refuse rather than delete a store's stock and replace it with zeros.
+      if (!rows.some((r) => ("Instock" in r) || ("Inventory Item Instock" in r) || ("In Stock" in r))) {
+        await admin.from("ingest_debug").insert({ feed: "reject:stock", payload: { reason: "no Instock column — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a stock report (no Instock column); refused to overwrite stock" });
+      }
       const out: any[] = [];
       const seen = new Set<string>();
       for (const r of rows) {
