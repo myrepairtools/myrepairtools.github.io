@@ -243,10 +243,17 @@ var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_membe
 /* ===== auth (lifted from cash-admin) ===== */
 var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
+/* best available session token: getSession can intermittently return null when
+   several Supabase clients share storage, so fall back to the token in storage. */
+async function sessionToken(){
+  try{ var s=(await sb.auth.getSession()).data.session; if(s&&s.access_token) return s.access_token; }catch(e){}
+  try{ var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token');
+    if(raw){ var o=JSON.parse(raw); var t=o&&(o.access_token||(o.currentSession&&o.currentSession.access_token)); if(t) return t; } }catch(e){}
+  return ANON;
+}
 /* CRUD calls carry the authenticated session bearer token */
 async function authFn(body){
-  var sess=(await sb.auth.getSession()).data.session;
-  var tok=sess?sess.access_token:ANON;
+  var tok=await sessionToken();
   var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)});
   var d=await r.json().catch(function(){return {};});
   return {status:r.status,data:d};
