@@ -39,6 +39,10 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 .btn.sm{padding:6px 11px;font-size:.72rem}
 .btn:disabled{opacity:.5;cursor:default}
 
+.freshline{font-family:'Nunito Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--grey);margin:-6px 0 14px;display:flex;align-items:center;gap:7px}
+.freshline.stale{color:#A8843A}
+.freshline .fdot{width:7px;height:7px;border-radius:50%;background:#23A62F;flex:none}
+.freshline.stale .fdot{background:#D9A227}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 .kpi{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
 .kpi .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;line-height:1}
@@ -310,6 +314,7 @@ tr.grp.open .chev{transform:rotate(90deg)}
 <main>
   <h1 id="appH1">Consumption &amp; Ordering</h1>
   <p class="sub" id="appSub">Daily parts used &middot; current stock &middot; suggested MobileSentrix order.</p>
+  <div class="freshline" id="freshLine"></div>
 
   <div class="bar">
     <input type="date" id="day" style="width:auto">
@@ -442,6 +447,7 @@ var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
 var FLAGTYPES=[],SKUFLAGS={},GROUPOVR={}; /* custom flag defs; per-store sku->[flag_key]; per-store group_id->max */
+var STOCK_ASOF=null; /* most recent stock.updated_at for the current store's snapshot */
 /* kill-switch for the consignment-only flag. Set to true to instantly disable
    the action site-wide (it once coincided with a consumption_log wipe; root
    cause never confirmed, so this stays as a quick off-switch). */
@@ -470,7 +476,7 @@ async function saveGroups(){
 async function fetchAllStock(store){
   var all=[],from=0,size=1000;
   while(true){
-    var r=await sb.from('stock').select('sku,name,in_stock,on_order,max_baseline').eq('store',store).range(from,from+size-1);
+    var r=await sb.from('stock').select('sku,name,in_stock,on_order,max_baseline,updated_at').eq('store',store).range(from,from+size-1);
     var d=r.data||[];all=all.concat(d);
     if(d.length<size)break;
     from+=size;
@@ -491,7 +497,7 @@ async function loadAll(){
     sb.from('sku_flags').select('sku,flag_key').eq('store',store),
     sb.from('group_max_overrides').select('group_id,value').eq('store',store)
   ]);
-  var snap={};(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
+  var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
   STOPSTOCK[store]=(res[2].data||[]).map(function(r){return r.sku;});
   var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
@@ -500,7 +506,7 @@ async function loadAll(){
   FLAGTYPES=res[7].error?[]:(res[7].data||[]);
   var sf={};(res[8].data||[]).forEach(function(r){(sf[r.sku]||(sf[r.sku]=[])).push(r.flag_key);});SKUFLAGS[store]=sf;
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
-  pills();render();renderStock();renderNoParts();
+  pills();render();renderStock();renderNoParts();renderFresh();
 }
 
 /* ---- login overlay ---- */
@@ -905,6 +911,27 @@ function pills(){
   var h='';STATE.stores.forEach(function(s){h+='<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+s.replace('CPR ','')+'</button>';});
   var el=$('#storePills');el.innerHTML=h;
   el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',async function(){STATE.store=b.getAttribute('data-s');try{localStorage.setItem('cr_store',STATE.store);}catch(e){}ORDER=null;$('#day').value=await defaultDay(STATE.store);touchIdle();loadAll();});});
+}
+/* stock freshness banner — in-stock is a periodic snapshot, so flag when it's
+   stale (older than ~18h) since today's sales won't be reflected yet. */
+function relTime(iso){
+  var t=new Date(iso).getTime();if(isNaN(t))return '';
+  var mins=Math.round((Date.now()-t)/60000);
+  if(mins<2)return 'just now';
+  if(mins<60)return mins+' min ago';
+  var hrs=Math.round(mins/60);if(hrs<24)return hrs+(hrs===1?' hour ago':' hours ago');
+  var days=Math.round(hrs/24);return days+(days===1?' day ago':' days ago');
+}
+function renderFresh(){
+  var el=$('#freshLine');if(!el)return;
+  if(!STOCK_ASOF){el.textContent='';el.className='freshline';return;}
+  var ageH=(Date.now()-new Date(STOCK_ASOF).getTime())/3600000;
+  var stale=ageH>18;
+  var when=new Date(STOCK_ASOF).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  el.className='freshline'+(stale?' stale':'');
+  el.innerHTML='<span class="fdot"></span>'
+    +'Stock snapshot for '+esc(shortStore(STATE.store))+': '+esc(when)+' ('+esc(relTime(STOCK_ASOF))+')'
+    +(stale?' &middot; may not reflect recent sales — check the stock feed':'');
 }
 
 /* ---- Part Groups (table + read-only expander + edit modal) ---- */
