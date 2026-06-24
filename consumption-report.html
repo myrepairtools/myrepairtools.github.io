@@ -39,6 +39,22 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 .btn.sm{padding:6px 11px;font-size:.72rem}
 .btn:disabled{opacity:.5;cursor:default}
 
+.fhpanel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:0 0 16px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.fhpanel .fhhd{display:flex;align-items:center;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;margin-bottom:10px}
+.fhpanel .fhx{border:none;background:none;font-size:1.2rem;color:var(--grey);cursor:pointer;line-height:1}
+.fhtable{width:100%;border-collapse:collapse}
+.fhtable th{text-align:left;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);padding:6px 10px 6px 0;border-bottom:1px solid var(--light-grey)}
+.fhtable td{padding:9px 10px 9px 0;border-bottom:1px solid var(--light-grey);font-family:'Nunito Sans',sans-serif;font-size:.84rem;vertical-align:top}
+.fhtable tr:last-child td{border-bottom:none}
+.fhtable .fhstore{font-weight:800;color:var(--dark)}
+.fhcell{display:flex;align-items:center;gap:8px}
+.fhcell .fhdot{width:8px;height:8px;border-radius:50%;background:#23A62F;flex:none;margin-top:5px}
+.fhcell.warn .fhdot{background:#D9A227}
+.fhcell.bad .fhdot{background:var(--red)}
+.fhcell .fhwhen{line-height:1.3}
+.fhcell .fhrel{display:block;font-size:.72rem;color:var(--grey);font-weight:600}
+.fhcell.warn .fhrel,.fhcell.bad .fhrel{color:#A8843A}
+.fhfoot{font-family:'Nunito Sans',sans-serif;font-size:.72rem;color:var(--grey);font-weight:600;margin-top:10px;line-height:1.4}
 .freshline{font-family:'Nunito Sans',sans-serif;font-size:.76rem;font-weight:700;color:var(--grey);margin:-6px 0 14px;display:flex;align-items:center;gap:7px}
 .freshline.stale{color:#A8843A}
 .freshline .fdot{width:7px;height:7px;border-radius:50%;background:#23A62F;flex:none}
@@ -326,7 +342,9 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <div class="spacer"></div>
     <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix</button>
     <button class="btn alt sm" id="grpBtn">⚙ Part groups</button>
+    <button class="btn alt sm" id="feedBtn">📡 Feed health</button>
   </div>
+  <div class="fhpanel hide" id="feedHealth"></div>
 
   <section id="view-daily">
   <div class="warnpanel hide" id="nopartsPanel"></div>
@@ -944,6 +962,41 @@ function renderFresh(){
     +(stale?' &middot; may not reflect recent sales — check the stock feed':'');
 }
 
+/* ---- feed-health monitor: per-store last stock + consumption sync ---- */
+var FEEDHEALTH=null, FEEDOPEN=false;
+async function loadFeedHealth(){
+  var r=await sb.rpc('feed_health');
+  FEEDHEALTH=r.error?[]:(r.data||[]);
+  renderFeedHealth();
+}
+function fhCell(iso, staleH, badH, extra){
+  if(!iso)return '<span class="fhcell bad"><span class="fhdot"></span><span class="fhwhen">never<span class="fhrel">no data yet</span></span></span>';
+  var ageH=(Date.now()-new Date(iso).getTime())/3600000;
+  var cls=ageH>badH?'bad':(ageH>staleH?'warn':'');
+  var when=new Date(iso).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  return '<span class="fhcell '+cls+'"><span class="fhdot"></span><span class="fhwhen">'+esc(when)
+    +'<span class="fhrel">'+esc(relTime(iso))+(extra?(' &middot; '+extra):'')+'</span></span></span>';
+}
+function renderFeedHealth(){
+  var el=$('#feedHealth');if(!el)return;
+  el.classList.toggle('hide',!FEEDOPEN);
+  if(!FEEDOPEN)return;
+  if(FEEDHEALTH===null){el.innerHTML='<div class="fhhd">Feed health<button class="fhx" id="fhClose">×</button></div><div style="color:var(--grey);font-weight:600;font-size:.84rem">Loading…</div>';wireFeedClose();return;}
+  var rows=FEEDHEALTH.map(function(f){
+    // stock should land daily regardless of store hours -> warn >28h, bad >48h
+    var stock=fhCell(f.stock_synced_at,28,48,null);
+    // consumption only lands on active days -> loose thresholds so weekends/holidays don't alarm
+    var lastDay=f.consumption_last_date?('thru '+new Date(f.consumption_last_date+'T00:00:00').toLocaleDateString([], {month:'short',day:'numeric'})):'';
+    var cons=fhCell(f.consumption_synced_at,72,168,lastDay);
+    return '<tr><td class="fhstore">'+esc(shortStore(f.store))+'</td><td>'+stock+'</td><td>'+cons+'</td></tr>';
+  }).join('');
+  el.innerHTML='<div class="fhhd">Feed health<button class="fhx" id="fhClose">×</button></div>'
+    +'<table class="fhtable"><thead><tr><th>Store</th><th>Stock synced</th><th>Consumption synced</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div class="fhfoot">Stock is a daily snapshot — it should refresh every day (amber after 28 h, red after 48 h). Consumption only lands on days a store had activity, so a quiet weekend or holiday is normal (amber only after 3 days).</div>';
+  wireFeedClose();
+}
+function wireFeedClose(){var b=$('#fhClose');if(b)b.onclick=function(){FEEDOPEN=false;renderFeedHealth();};}
+
 /* ---- Part Groups (table + read-only expander + edit modal) ---- */
 var GOPEN=null, MOPEN=null, GQ='', GFILTER={manufacturer:null,part_type:null,model:''}, FILTOPEN=false;
 var GMODAL={gid:null,byStore:{}}; /* per-store max overrides for the open edit modal */
@@ -1334,16 +1387,23 @@ async function init(){
     var r=await sb.from('groups').insert({id:ng.id,name:ng.name,max:ng.max,default_sku:null,position:GROUPS.length-1});
     if(r.error){alert('Could not create group — '+r.error.message);GROUPS=GROUPS.filter(function(x){return x.id!==ng.id;});if(MOPEN===ng.id)MOPEN=null;renderGroups();}
   });
+  $('#feedBtn').addEventListener('click',function(){
+    FEEDOPEN=!FEEDOPEN;
+    renderFeedHealth();
+    if(FEEDOPEN)loadFeedHealth();  // always pull fresh sync times on open
+  });
   $('#grpBtn').addEventListener('click',async function(){
     $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-groups').classList.remove('hide');
     $('#exportBtn').style.display='none';$('#viewTabs').style.visibility='hidden';
     $('#storePills').style.display='none';$('#day').style.display='none';$('#grpBtn').style.display='none';
+    $('#feedBtn').style.display='none';$('#freshLine').style.display='none';FEEDOPEN=false;renderFeedHealth();
     $('#appH1').style.display='none';$('#appSub').style.display='none';
     await Promise.all([loadManufacturers(),loadPartTypes()]);renderGroups();
   });
   $('#grpBack').addEventListener('click',function(){
     $('#view-groups').classList.add('hide');$('#viewTabs').style.visibility='';
     $('#storePills').style.display='';$('#day').style.display='';$('#grpBtn').style.display='';
+    $('#feedBtn').style.display='';$('#freshLine').style.display='';
     $('#appH1').style.display='';$('#appSub').style.display='';
     FILTOPEN=false;MOPEN=null;renderEditModal();
     var active=$('#viewTabs').querySelector('.tab.active').getAttribute('data-v');
