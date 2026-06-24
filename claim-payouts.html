@@ -521,6 +521,18 @@
     box-shadow: 0 1px 3px rgba(45,45,59,0.06);
   }
   .pcts-card.hidden { display: none; }
+  .pcts-modal { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .pcts-modal.hidden { display: none; }
+  .pcts-backdrop { position: absolute; inset: 0; background: rgba(45,45,59,0.5); }
+  .pcts-panel {
+    position: relative; background: var(--white); border-radius: 14px;
+    padding: 16px 20px 20px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(45,45,59,0.34); display: flex; flex-direction: column; gap: 13px;
+  }
+  .pcts-panel-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .pcts-panel-t { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 15px; color: var(--dark); }
+  .pcts-x { border: none; background: none; font-size: 24px; line-height: 1; color: var(--grey); cursor: pointer; padding: 0 4px; }
+  .pcts-x:hover { color: var(--dark); }
   .pcts-row {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   }
@@ -676,28 +688,37 @@
     </div>
   </div>
 
-  <!-- PERCENTAGES CARD -->
-  <div class="pcts-card hidden" id="pcts-card">
-    <div class="pcts-row pcts-row-tabs">
-      <div class="pcts-title">Settings for:</div>
-      <div class="filter-tabs" id="pcts-loc-tabs"><!-- populated dynamically --></div>
-      <button class="icon-btn small" id="pcts-reset" onclick="resetLocationSettings()">Reset to Default</button>
-      <span class="sync-status" id="sync-status"></span>
-    </div>
-    <div class="pcts-row">
-      <div class="pct-group"><span class="pct-group-label" style="color:var(--profit)">Profit</span><input type="number" class="pct-mini" id="pct-profit" value="20" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-      <div class="pct-group"><span class="pct-group-label" style="color:var(--owner)">Owner</span><input type="number" class="pct-mini" id="pct-owner" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-      <div class="pct-group"><span class="pct-group-label" style="color:var(--tax)">Tax</span><input type="number" class="pct-mini" id="pct-tax" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-      <div class="pct-group"><span class="pct-group-label" style="color:var(--opex)">OpEx</span><input type="number" class="pct-mini" id="pct-opex" value="60" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
-      <label class="reserve-toggle">
-        <input type="checkbox" id="pct-deduct-parts" onchange="onPctsChange()" />
-        <span>Deduct parts from base</span>
-      </label>
-      <label class="reserve-toggle">
-        <input type="checkbox" id="pct-reserve" onchange="onPctsChange()" />
-        <span>Reserve consigned parts</span>
-      </label>
-      <span class="config-help" id="pcts-status"></span>
+  <!-- PERCENTAGES MODAL -->
+  <div class="pcts-modal hidden" id="pcts-modal">
+    <div class="pcts-backdrop" onclick="togglePcts()"></div>
+    <div class="pcts-panel" role="dialog" aria-modal="true" aria-label="Profit First allocation">
+      <div class="pcts-panel-hd">
+        <span class="pcts-panel-t">Profit First allocation</span>
+        <button class="pcts-x" onclick="togglePcts()" aria-label="Close">&times;</button>
+      </div>
+      <div class="pcts-row pcts-row-tabs">
+        <div class="pcts-title">Settings for:</div>
+        <div class="filter-tabs" id="pcts-loc-tabs"><!-- populated dynamically --></div>
+        <button class="icon-btn small" id="pcts-reset" onclick="resetLocationSettings()">Reset to Default</button>
+        <span class="sync-status" id="sync-status"></span>
+      </div>
+      <div class="pcts-row">
+        <div class="pct-group"><span class="pct-group-label" style="color:var(--profit)">Profit</span><input type="number" class="pct-mini" id="pct-profit" value="20" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+        <div class="pct-group"><span class="pct-group-label" style="color:var(--owner)">Owner</span><input type="number" class="pct-mini" id="pct-owner" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+        <div class="pct-group"><span class="pct-group-label" style="color:var(--tax)">Tax</span><input type="number" class="pct-mini" id="pct-tax" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+        <div class="pct-group"><span class="pct-group-label" style="color:var(--opex)">OpEx</span><input type="number" class="pct-mini" id="pct-opex" value="60" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      </div>
+      <div class="pcts-row">
+        <label class="reserve-toggle">
+          <input type="checkbox" id="pct-deduct-parts" onchange="onPctsChange()" />
+          <span>Deduct parts from base</span>
+        </label>
+        <label class="reserve-toggle">
+          <input type="checkbox" id="pct-reserve" onchange="onPctsChange()" />
+          <span>Reserve consigned parts</span>
+        </label>
+        <span class="config-help" id="pcts-status"></span>
+      </div>
     </div>
   </div>
 
@@ -989,13 +1010,19 @@ function toast(msg, kind = '') {
 
 
 function togglePcts() {
-  const card = document.getElementById('pcts-card');
-  card.classList.toggle('hidden');
-  if (!card.classList.contains('hidden')) {
+  const modal = document.getElementById('pcts-modal');
+  modal.classList.toggle('hidden');
+  if (!modal.classList.contains('hidden')) {
     renderPctsLocTabs();
     loadPctsForEditing();
   }
 }
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('pcts-modal');
+    if (modal && !modal.classList.contains('hidden')) togglePcts();
+  }
+});
 
 // Render location selector tabs inside the settings card. Default option first,
 // then one tab per known location.
