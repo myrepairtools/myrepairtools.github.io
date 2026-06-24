@@ -174,7 +174,6 @@ td.r{text-align:right;white-space:nowrap}
   <!-- LOCATIONS TAB -->
   <section id="view-loc" class="hide">
     <div class="sect-h">Stores</div>
-    <p class="note" id="storesNote"></p>
     <div class="card"><table><thead><tr>
       <th>Display name (canonical)</th><th>RepairQ name</th><th class="r">Order</th><th>Status</th><th></th>
     </tr></thead><tbody id="storeRows"></tbody></table>
@@ -185,7 +184,6 @@ td.r{text-align:right;white-space:nowrap}
     <div class="sect-h" style="margin-top:22px">Registers &amp; safes
       <select id="regStore" style="width:auto;min-width:200px"></select>
     </div>
-    <p class="note">These are the till registers (<b>VCT1</b>…) and safes for the selected store, read by Cash Tracker &amp; Cash Admin. Deactivating keeps cash history intact.</p>
     <div class="card"><table><thead><tr>
       <th>Location</th><th class="r">Starting $</th><th class="r">Float $</th><th>Status</th><th></th>
     </tr></thead><tbody id="regRows"></tbody></table>
@@ -197,12 +195,10 @@ td.r{text-align:right;white-space:nowrap}
   <!-- NOTIFICATIONS TAB -->
   <section id="view-notif" class="hide">
     <div class="sect-h">Delivery channels</div>
-    <p class="note">Where alerts go — a Microsoft Teams channel email, or a Power Automate webhook. Route tool events to these below. <b>Sending is wired server-side</b> (config only for now).</p>
     <div id="channelCards"></div>
     <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addChannel">+ Add channel</button></div>
 
     <div class="sect-h" style="margin-top:22px">Events</div>
-    <p class="note">Turn an event on and pick which channel(s) it notifies — an event can fan out to several.</p>
     <div class="card"><table><thead><tr>
       <th>Event</th><th>Send to</th><th class="r">On</th>
     </tr></thead><tbody id="eventRows"></tbody></table>
@@ -212,13 +208,11 @@ td.r{text-align:right;white-space:nowrap}
 
   <!-- PAGE SETTINGS TAB -->
   <section id="view-pages" class="hide">
-    <p class="note">Per-tool configuration. Pick a tool to edit the lists and options it reads.</p>
     <div class="pgwrap" style="display:flex;gap:18px;align-items:flex-start">
       <div style="width:230px;flex:none">
         <div class="card" style="padding:6px">
           <button class="pgtool on" data-pgtool="damage">🔧 Tech Damage Tracker</button>
         </div>
-        <p class="note" style="margin-top:8px">More tools appear here as they gain settings.</p>
       </div>
       <div style="flex:1;min-width:0" id="pagePane"></div>
     </div>
@@ -233,7 +227,6 @@ td.r{text-align:right;white-space:nowrap}
 
     <!-- Roles sub-view -->
     <div id="rp-roles">
-      <p class="note">A <b>role</b> is a named bundle of permissions. <b>Owner</b>, <b>Admin</b> and <b>Team Member</b> ship built-in; add your own and tick exactly what each can do.</p>
       <div class="bar"><span class="spacer"></span><button class="btn" id="addRole">+ New role</button></div>
       <div class="card"><table><thead><tr>
         <th>Role</th><th>Description</th><th class="r">Permissions</th><th class="r">Used by</th><th></th>
@@ -244,7 +237,6 @@ td.r{text-align:right;white-space:nowrap}
 
     <!-- Permissions catalog sub-view -->
     <div id="rp-perms" class="hide">
-      <p class="note">The master list of capabilities the tools understand. Roles are built from these — this catalog is read-only for now.</p>
       <div class="card"><table><thead><tr>
         <th>Permission</th><th>Key</th><th>Page</th><th>In roles</th>
       </tr></thead><tbody id="permRows"></tbody></table></div>
@@ -465,9 +457,6 @@ function renderStaff(){
 }
 function renderLoc(){
   var owner=(AUTH&&AUTH.role==='owner');
-  $('#storesNote').innerHTML=owner
-    ? 'The two-name model: <b>Display name</b> is the canonical key every tool joins on; <b>RepairQ name</b> matches imported RepairQ data. Renaming the display key is a breaking change, so it’s fixed once created — edit the RepairQ name, order &amp; status freely.'
-    : 'Stores are owner-managed (read-only for managers). You can manage your store’s registers below.';
   $('#addStore').style.display=owner?'':'none';
   var sb1=$('#storeRows');sb1.innerHTML='';
   $('#storeEmpty').classList.toggle('hide',STORES.length>0);
@@ -570,8 +559,7 @@ function roleModalHtml(){
     +'<div class="modal-body">'+sysNote
       +'<div class="grid2"><div class="f"><label>Role name</label><input data-k="name" value="'+esc(d.name)+'" placeholder="e.g. Shift Lead"></div>'
       +'<div class="f"><label>Description</label><input data-k="description" value="'+esc(d.description)+'" placeholder="Short summary"></div></div>'
-      +'<div class="note" style="margin:16px 0 8px">Toggle a page <b>on</b> to grant access — it appears in that role\'s nav. Each page\'s finer permissions unlock once access is on.</div>'
-      +'<div>'+body+'</div>'
+      +'<div style="margin-top:16px">'+body+'</div>'
     +'</div>'
     +'<div class="modal-ft">'
       +((d.is_system||MOPEN.isNew)?'<span></span>':'<button class="btn alt sm" data-delrole style="color:var(--red);border-color:#F3C7C9">Delete role</button>')
@@ -893,8 +881,7 @@ function renderPages(){
   $all('#view-pages [data-pgtool]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-pgtool')===PGTOOL);});
   var pane=$('#pagePane');
   if(PGTOOL==='damage'){
-    pane.innerHTML='<p class="note" style="margin-top:0">These feed the New Report dropdowns in the Tech Damage Tracker. Deactivate to hide from the dropdown while keeping past reports intact.</p>'
-      +pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
+    pane.innerHTML=pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
   }
 }
 function pageListEditor(title,key,rows,mt){
