@@ -487,9 +487,11 @@ async function loadAll(){
 
 /* ---- login overlay ---- */
 function showLogin(){$('#loginOverlay').style.display='';$('#app').style.display='none';}
-async function defaultDay(){
+async function defaultDay(store){
   try{
-    var r=await sb.from('consumption_log').select('biz_date').order('biz_date',{ascending:false}).limit(1).maybeSingle();
+    var q=sb.from('consumption_log').select('biz_date').order('biz_date',{ascending:false}).limit(1);
+    if(store)q=q.eq('store',store);
+    var r=await q.maybeSingle();
     if(r.data&&r.data.biz_date)return r.data.biz_date;
   }catch(e){}
   return new Date().toISOString().slice(0,10);
@@ -498,7 +500,7 @@ async function afterLogin(){
   STATE.stores=allowedStores(STATE.me);
   STATE.store=(STATE.stores.indexOf(STATE.me.home_store)>=0)?STATE.me.home_store:STATE.stores[0];
   $('#loginOverlay').style.display='none';$('#app').style.display='';
-  if(!$('#day').value)$('#day').value=await defaultDay();
+  if(!$('#day').value)$('#day').value=await defaultDay(STATE.store);
   touchIdle();loadAll();
 }
 /* operational tool — no per-employee gate. store list from the stores table,
@@ -510,12 +512,42 @@ async function loadStores(){
   }catch(e){}
   return STORES.slice();
 }
+/* Make sure the shared (front-door) session is adopted by this client, so RLS
+   reads/writes run as the signed-in user — not anon (which can_see_store blocks). */
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+async function currentStaff(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(!s)return null;
+    var r=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
+    return r.data||null;
+  }catch(e){return null;}
+}
+function allowedFrom(stores,me){
+  if(!me||me.role==='owner')return stores.slice();
+  var set={}; if(me.home_store)set[me.home_store]=1; (me.authorized_stores||[]).forEach(function(s){set[s]=1;});
+  var a=stores.filter(function(s){return set[s];}); return a.length?a:stores.slice();
+}
 async function bootApp(){
-  STATE.stores=await loadStores();
+  var all=await loadStores();
+  await ensureSession();
+  STATE.me=await currentStaff();
+  STATE.stores=allowedFrom(all,STATE.me);
   var saved=null;try{saved=localStorage.getItem('cr_store');}catch(e){}
-  STATE.store=(saved&&STATE.stores.indexOf(saved)>=0)?saved:STATE.stores[0];
+  var home=STATE.me&&STATE.me.home_store;
+  STATE.store=(saved&&STATE.stores.indexOf(saved)>=0)?saved
+    :((home&&STATE.stores.indexOf(home)>=0)?home:STATE.stores[0]);
   $('#loginOverlay').style.display='none';$('#app').style.display='';
-  if(!$('#day').value)$('#day').value=await defaultDay();
+  if(!$('#day').value)$('#day').value=await defaultDay(STATE.store);
   touchIdle();loadAll();
 }
 function lovReady(){$('#lovGo').disabled=!($('#lovStore').value&&$('#lovUser').value&&$('#lovPin').value);}
@@ -816,7 +848,7 @@ async function exportOrder(){
 function pills(){
   var h='';STATE.stores.forEach(function(s){h+='<button class="sp'+(s===STATE.store?' active':'')+'" data-s="'+s+'">'+s.replace('CPR ','')+'</button>';});
   var el=$('#storePills');el.innerHTML=h;
-  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',function(){STATE.store=b.getAttribute('data-s');try{localStorage.setItem('cr_store',STATE.store);}catch(e){}ORDER=null;touchIdle();loadAll();});});
+  el.querySelectorAll('.sp').forEach(function(b){b.addEventListener('click',async function(){STATE.store=b.getAttribute('data-s');try{localStorage.setItem('cr_store',STATE.store);}catch(e){}ORDER=null;$('#day').value=await defaultDay(STATE.store);touchIdle();loadAll();});});
 }
 
 /* ---- Part Groups (table + read-only expander + edit modal) ---- */
