@@ -405,6 +405,7 @@
     // icon rail
     rail = document.createElement('nav'); rail.className = 'cpr-rail';
     rail.innerHTML = ''
+      + '<a class="cpr-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home"><svg viewBox="13 8 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>'
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
