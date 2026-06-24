@@ -274,7 +274,7 @@ function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast sho
 
 /* ===== state + data ===== */
 let AUTH=null, NAME2USER={};
-let ALL=[], EMPLOYEES=[], DMG_BYNAME={};
+let ALL=[], EMPLOYEES=[], DMG_BYNAME={}, DMG_BYID={};
 const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',catF:'all',sortNewest:true,empSearch:'',logRange:'all',dmgRange:'all',showArchived:false,mDetail:false};
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
@@ -371,22 +371,29 @@ function syncSel(e){if(!e){S.entryId=S.pipId=S.damageId=null;return;}
   const dmg=dmgFor(e);S.damageId=dmg[0]?dmg[0].id:null;}
 
 async function loadDamage(){
+  /* Tech Damage Tracker is migrated — read from the damage_reports table and
+     attribute to the employee by staff id (tech_id), with a name fallback. */
   try{
-    const u=DMG_URL+'?action=list';
-    const res=await fetch(u);const b=await res.json();
-    const rows=(b&&b.ok&&b.rows)?b.rows:[];
-    DMG_BYNAME={};
-    rows.forEach(row=>{const k=normName(row.tech);if(!k)return;
-      (DMG_BYNAME[k]=DMG_BYNAME[k]||[]).push({
-        id:row.id||('t'+(row.ticket||'')+'-'+(row.date||'')),date:isoOf(row.date),store:stripStore(row.store),
-        device:row.device||'',mfr:(row.manufacturer==='Other'&&row.mfrDetail)?('Other: '+row.mfrDetail):(row.manufacturer||''),
-        part:(row.part==='Other'&&row.partDetail)?('Other: '+row.partDetail):(row.part||''),
-        cost:Number(row.cost)||0,ticket:String(row.ticket||''),how:row.how||''});});
+    const r=await sb.from('damage_reports')
+      .select('id,report_date,tech_id,tech_name,store,manufacturer,part,device,cost_cents,ticket,how')
+      .order('report_date',{ascending:false});
+    const rows=r.error?[]:(r.data||[]);
+    DMG_BYNAME={};DMG_BYID={};
+    rows.forEach(row=>{
+      const rec={id:String(row.id),date:isoOf(row.report_date),store:stripStore(row.store),
+        device:row.device||'',mfr:row.manufacturer||'',part:row.part||'',
+        cost:(row.cost_cents||0)/100,ticket:String(row.ticket||''),how:row.how||''};
+      if(row.tech_id!=null)(DMG_BYID[row.tech_id]=DMG_BYID[row.tech_id]||[]).push(rec);
+      const k=normName(row.tech_name);if(k)(DMG_BYNAME[k]=DMG_BYNAME[k]||[]).push(rec);
+    });
     if(!$('#app').hasAttribute('hidden'))render();
-  }catch(e){DMG_BYNAME={};}
+  }catch(e){DMG_BYNAME={};DMG_BYID={};}
 }
 function normName(n){return String(n||'').trim().toLowerCase().replace(/\s+/g,' ');}
-function dmgFor(e){if(!e)return [];return (DMG_BYNAME[normName(e.name)]||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));}
+function dmgFor(e){if(!e)return [];
+  const byId=DMG_BYID[e.id];
+  const list=(byId&&byId.length)?byId:(DMG_BYNAME[normName(e.name)]||[]);
+  return list.slice().sort((a,b)=>b.date.localeCompare(a.date));}
 
 function sortedEntries(e){
   let ents=e.entries.slice();
