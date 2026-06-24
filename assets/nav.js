@@ -96,6 +96,12 @@
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
   var css = `
+  /* Smooth cross-document navigations (MPA) — cross-fade instead of a white flash.
+     Both the leaving and entering page opt in via this rule; nav.js is on every page.
+     Browsers without support just fall back to the normal instant navigation. */
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root),::view-transition-new(root){ animation-duration:.18s; }
+
   :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }
   .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:'Nunito','Nunito Sans',sans-serif; }
