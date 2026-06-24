@@ -279,8 +279,16 @@
     return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links + gear;
   }
 
+  // myRepairTools wordmark for the white menu pane (dark text + red), inlined
+  // with a tight viewBox so it sits flush-left and crisp.
+  function navLogo(){
+    return '<svg viewBox="0 0 308 64" width="150" height="31" style="display:block" xmlns="http://www.w3.org/2000/svg" fill="none" role="img" aria-label="myRepairTools">'
+      + '<path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>'
+      + '<text x="74" y="44" font-family="\'Nunito\',sans-serif" font-size="30" font-weight="800"><tspan fill="#2D2D3B">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
+      + '</svg>';
+  }
   function paneInner(area){
-    var hd = '<div class="cpr-pane-hd">myRepairTools</div>';
+    var hd = '<div class="cpr-pane-hd">' + navLogo() + '</div>';
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
