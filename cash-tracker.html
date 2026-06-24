@@ -172,12 +172,40 @@ function pref(k,v){try{if(v===undefined)return localStorage.getItem(k);localStor
 var DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l:'$20'},{k:'C10',v:10,l:'$10'},{k:'C5',v:5,l:'$5'},{k:'C1',v:1,l:'$1'},{k:'Q25',v:0.25,l:'25¢'},{k:'D10',v:0.10,l:'10¢'},{k:'N5',v:0.05,l:'5¢'},{k:'P1',v:0.01,l:'1¢'}];
 var EXPENSE='Cash Expenses';
 
-var STATE={store:null,vct:null,stores:[],staff:[],setup:[],entries:[]};
+var STATE={store:null,vct:null,stores:[],staff:[],setup:[],entries:[],me:null};
 
 /* Supabase row (snake_case) -> the field shape the render/compute code expects */
 function rowFromDb(r){return {Id:r.id,Date:r.biz_date,Period:r.period,Store:r.store,Employee:r.employee,Operation:r.operation,Location:r.location,ToLocation:r.to_location,Amount:r.amount,Counted:r.counted,C100:r.c100,C50:r.c50,C20:r.c20,C10:r.c10,C5:r.c5,C1:r.c1,Q25:r.q25,D10:r.d10,N5:r.n5,P1:r.p1,OpeningBalance:r.opening_balance,Payments:r.payments,Returns:r.returns,Payouts:r.payouts,TransferIn:r.transfer_in,TransferOut:r.transfer_out,Expected:r.expected,OverShort:r.over_short,Notes:r.notes};}
+/* Adopt the shared front-door session into this client so we can read the
+   signed-in user's own staff row (RLS: staff_self_read needs authenticated). */
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+async function currentStaff(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(!s)return null;
+    var r=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
+    return r.data||null;
+  }catch(e){return null;}
+}
+/* Lock the store switcher to the signed-in user's stores; owner sees all.
+   No session (e.g. not signed in as a person) -> leave the full list. */
+function allowedStores(stores,me){
+  if(!me||me.role==='owner')return stores.slice();
+  var set={}; if(me.home_store)set[me.home_store]=1; (me.authorized_stores||[]).forEach(function(s){set[s]=1;});
+  var a=stores.filter(function(s){return set[s];}); return a.length?a:stores.slice();
+}
 /* read registers/safes (cash_setup) + staff roster; derive the store list */
 async function loadBootstrap(){
+  await ensureSession();
   var s=await sb.from('cash_setup').select('store,location,starting_balance,float_target');
   if(s.error) throw s.error;
   STATE.setup=(s.data||[]).map(function(r){return {Store:r.store,Location:r.location,StartingBalance:r.starting_balance,FloatTarget:r.float_target};});
@@ -186,7 +214,9 @@ async function loadBootstrap(){
   STATE.staff=(st.error?[]:(st.data||[])).map(function(r){return {Name:r.display_name,Role:r.role,HomeStore:r.home_store,Authorized:r.authorized_stores||[],Active:r.active};});
   var seen={};STATE.setup.forEach(function(r){seen[r.Store]=1;});
   var stores=Object.keys(seen);
-  STATE.stores=window.CPRLocations?CPRLocations.sort(stores):stores.sort();
+  var sorted=window.CPRLocations?CPRLocations.sort(stores):stores.sort();
+  STATE.me=await currentStaff();
+  STATE.stores=allowedStores(sorted,STATE.me);
 }
 function fetchEntries(store,period){
   return sb.from('cash_entries').select('*').eq('store',store).eq('period',period).then(function(r){if(r.error)throw r.error;return (r.data||[]).map(rowFromDb);});
