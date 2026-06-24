@@ -14,26 +14,26 @@
   var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
   var SB_FN   = SB_URL + '/functions/v1/cpr-auth';
   var sbClient = null, sbReady = null;
-  var NAV_ROLE = null, NAV_NAME = '';
+  var NAV_ROLE = null, NAV_NAME = '', NAV_PERMS = null; // NAV_PERMS: Set of granted permission keys (null = not loaded yet)
   var HOME = 'index.html';
 
   var OPERATIONS = [
-    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵' },
-    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png' },
-    { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋' },
-    { label:'PO Converter',        url:'po-converter.html',        icon:'📦' },
-    { label:'Price Calculator',    url:'price-calculator.html',icon:'🧮' },
-    { label:'Price Guide',         url:'price-guide.html',         icon:'📱' },
-    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊' },
-    { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧' }
+    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵', acc:'cash.view' },
+    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' },
+    { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋', acc:'orders.jerryding' },
+    { label:'PO Converter',        url:'po-converter.html',        icon:'📦', acc:'orders.po' },
+    { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮', acc:'pricing.view' },
+    { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' },
+    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
+    { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
   ];
   var PRIVILEGED = [
-    { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin' },
-    { label:'Employee Records', url:'employee-records.html',      icon:'📁', minRole:'admin' },
-    { label:'Claim Ledger',     url:'claim-ledger.html',          icon:'📊', minRole:'owner' },
-    { label:'Commission',       url:'commission-calculator.html', icon:'🧾', minRole:'owner' },
-    { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner' },
-    { label:'Staff Management', url:'staff-management.html',      icon:'👥', minRole:'owner' }
+    { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
+    { label:'Employee Records', url:'employee-records.html',      icon:'📁', minRole:'admin', acc:'staff.view' },
+    { label:'Claim Ledger',     url:'claim-ledger.html',          icon:'📊', minRole:'owner', acc:'claims.view' },
+    { label:'Commission',       url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
+    { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' },
+    { label:'Staff Management', url:'staff-management.html',      icon:'👥', minRole:'owner', acc:'staff.manage' }
   ];
 
   var RANK = { none:0, employee:1, team_member:1, manager:2, admin:2, owner:3 };
@@ -58,7 +58,8 @@
   function rank(){ return RANK[NAV_ROLE] || 0; }
   function broadcastRole(){
     window.CPRNavRole = NAV_ROLE;
-    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:NAV_ROLE } })); } catch(_){}
+    window.CPRPerms = NAV_PERMS ? Array.from(NAV_PERMS) : null;
+    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:NAV_ROLE, perms:window.CPRPerms } })); } catch(_){}
   }
   // read the current role from the shared session, then re-render
   function refreshRole(){
@@ -70,7 +71,11 @@
         sb.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
           if (sr && sr.data){ NAV_ROLE = normRole(sr.data.role); NAV_NAME = sr.data.display_name || ''; }
           else { NAV_ROLE = null; NAV_NAME = ''; }
-          renderPriv();
+          // load the granted permission keys, then render once (so tools don't flash)
+          sb.rpc('my_permissions').then(function(pr){
+            NAV_PERMS = new Set((pr && pr.data) ? pr.data : []);
+            renderPriv();
+          }, function(){ NAV_PERMS = null; renderPriv(); });
         }, function(){ renderPriv(); });
       }, function(){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); });
     });
@@ -220,18 +225,11 @@
     return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+ic+'</span> '+esc(t.label)+tagHtml+'</a>';
   }
 
+  // a tool is visible if its access permission is granted (perms not yet loaded -> show, to avoid a flash)
+  function canSee(t){ if (!t || !t.acc) return true; if (NAV_PERMS === null) return true; return NAV_PERMS.has(t.acc); }
+
   function privilegedHtml(){
-    var r = rank();
-    if (r < RANK.admin){
-      if (NAV_NAME){   // signed in, but this account has no admin tools
-        return ''
-          + '<div class="cpr-grp">Admin &amp; Owner</div>'
-          + '<div class="cpr-lock">'
-          +   '<div class="hd"><span class="pad">🔒</span> No admin tools</div>'
-          +   '<p>Signed in as '+esc(NAV_NAME)+'. Your account doesn\'t have owner or manager tools.</p>'
-          +   '<button class="cpr-btn red" data-act="lock">Sign out</button>'
-          + '</div>';
-      }
+    if (!NAV_ROLE){   // no session (pin-gate normally prevents this) -> PIN unlock card
       return ''
         + '<div class="cpr-grp">Admin &amp; Owner</div>'
         + '<div class="cpr-lock">'
@@ -246,15 +244,23 @@
         +   '</div>'
         + '</div>';
     }
-    var name = NAV_NAME;
+    var vis = PRIVILEGED.filter(canSee);
+    if (!vis.length){   // signed in, but no admin/owner pages granted to this role
+      return ''
+        + '<div class="cpr-grp">Admin &amp; Owner</div>'
+        + '<div class="cpr-lock">'
+        +   '<div class="hd"><span class="pad">🔒</span> No admin tools</div>'
+        +   '<p>Signed in as '+esc(NAV_NAME||'you')+'. Your role doesn\'t include any owner or manager tools.</p>'
+        +   '<button class="cpr-btn red" data-act="lock">Sign out</button>'
+        + '</div>';
+    }
     var roleLabel = (currentRole()==='owner') ? 'Owner' : 'Admin';
-    var links = PRIVILEGED.filter(function(t){ return r >= RANK[t.minRole]; })
-      .map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
-    var gear = (currentRole()==='owner')
+    var links = vis.map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
+    var gear = canSee({ acc:'staff.manage' })
       ? '<div class="cpr-gear" data-act="settings"><span>⚙️</span> Settings</div>' : '';
     return ''
       + '<div class="cpr-grp" style="padding-bottom:6px">Admin &amp; Owner</div>'
-      + '<div class="cpr-unlocked-hd"><span class="cpr-pill"><span class="dot"></span> '+esc(roleLabel)+(name?(' · '+esc(name)):'')+'</span>'
+      + '<div class="cpr-unlocked-hd"><span class="cpr-pill"><span class="dot"></span> '+esc(roleLabel)+(NAV_NAME?(' · '+esc(NAV_NAME)):'')+'</span>'
       +   '<button class="cpr-lockbtn" data-act="lock">Lock</button></div>'
       + links + '<div class="cpr-spacer"></div>' + gear;
   }
@@ -263,18 +269,21 @@
   function flyoutLinksHtml(area){
     if (area === 'ops'){
       return '<div class="cpr-fly-hd">Operations</div>'
-        + OPERATIONS.map(function(t){ return linkHtml(t); }).join('');
+        + OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
     // admin area
-    var r = rank();
-    if (r < RANK.admin){
+    if (!NAV_ROLE){
       return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
         + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>Owner &amp; manager tools are locked. Unlock to access them.</div></div>'
         + '<div style="padding:2px 12px 8px"><button class="cpr-btn red" data-act="flyout-unlock">Unlock</button></div>';
     }
-    var links = PRIVILEGED.filter(function(t){ return r >= RANK[t.minRole]; })
-      .map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
-    var gear = (currentRole()==='owner')
+    var vis = PRIVILEGED.filter(canSee);
+    if (!vis.length){
+      return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
+        + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>No owner or manager tools for your role.</div></div>';
+    }
+    var links = vis.map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
+    var gear = canSee({ acc:'staff.manage' })
       ? '<a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>' : '';
     return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links + gear;
   }
@@ -293,7 +302,7 @@
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
-    var ops = OPERATIONS.map(function(t){ return linkHtml(t); }).join('');
+    var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     return hd
       + '<div class="cpr-grp">Operations</div>'
       + ops
@@ -309,7 +318,7 @@
   }
 
   function renderPriv(){
-    if (ACTIVE_AREA === 'admin' && pane){ pane.innerHTML = paneInner('admin'); wirePriv(); }
+    if (pane){ pane.innerHTML = paneInner(ACTIVE_AREA); wirePriv(); }
     broadcastRole();
     updateAvatar();
     // top bar role pill

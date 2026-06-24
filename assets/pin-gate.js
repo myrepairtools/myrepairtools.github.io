@@ -20,15 +20,20 @@
   var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
   var SB_FN   = SB_URL + '/functions/v1/cpr-auth';
 
-  // pages that need more than "any logged-in user" (mirrors nav.js PRIVILEGED)
-  var MINROLE = {
-    'cash-admin.html':'admin', 'employee-records.html':'admin',
-    'claim-ledger.html':'owner', 'commission-calculator.html':'owner',
-    'profit-first.html':'owner', 'staff-management.html':'owner', 'settings.html':'owner'
+  // each page's "Access <Page>" permission key (owner bypasses; pages absent here
+  // just need any valid session). Mirrors the permissions catalog / nav.js.
+  var PAGEACC = {
+    'cash-tracker.html':'cash.view', 'consumption-report.html':'consumption.view',
+    'damage-tracker.html':'damage.view', 'hyla-orders.html':'orders.hyla',
+    'jerry-ding-order.html':'orders.jerryding', 'po-converter.html':'orders.po',
+    'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
+    'cash-admin.html':'cash.admin', 'employee-records.html':'staff.view',
+    'settings.html':'staff.manage', 'staff-management.html':'staff.manage',
+    'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
+    'profit-first.html':'profit.view'
   };
-  var RANK = { none:0, team_member:1, employee:1, manager:2, admin:2, owner:3 };
   var file = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-  var NEED = RANK[MINROLE[file] || 'team_member'] || 1;
+  var NEED_PERM = PAGEACC[file] || null;
   var IDLE_MS = 5 * 60 * 1000;
 
   var sb = null, sbReady = null, idleTimer = null;
@@ -40,7 +45,6 @@
     return sbReady;
   }
   function device(){ try { var d = localStorage.getItem('cpr_device_id'); if (!d){ d = 'dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('cpr_device_id', d); } return d; } catch(_){ return 'dev-x'; } }
-  function rankOf(role){ return RANK[role === 'manager' ? 'admin' : role] || 0; }
 
   // full-screen cover, up immediately so page content never shows pre-auth
   var host = document.createElement('div');
@@ -125,10 +129,14 @@
       if (!sess){ gateForm(''); return; }
       c.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
         var role = sr && sr.data ? sr.data.role : null;
+        var nm = sr && sr.data ? sr.data.display_name : '';
         if (!role){ reveal(); return; }                       // valid session, role unknown -> let RLS govern
-        if (rankOf(role) < NEED){ noAccess(sr.data.display_name); return; }
-        reveal();
-      }, function(){ reveal(); });                            // role read failed -> fail open (data still RLS-protected)
+        if (role === 'owner' || !NEED_PERM){ reveal(); return; } // owner sees all; page has no access perm
+        c.rpc('my_permissions').then(function(pr){             // gate by the page's Access permission
+          var perms = (pr && pr.data) ? pr.data : [];
+          if (perms.indexOf(NEED_PERM) > -1) reveal(); else noAccess(nm);
+        }, function(){ reveal(); });                           // perm read failed -> fail open (data still RLS-protected)
+      }, function(){ reveal(); });                            // role read failed -> fail open
     }, function(){ gateForm(''); });
   });
 })();
