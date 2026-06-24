@@ -7,6 +7,9 @@ const admin = createClient(SB_URL, SERVICE, { auth: { persistSession: false } })
 
 const J = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { "Content-Type": "application/json" } });
 const num = (v: unknown) => { const n = parseInt(String(v ?? "").trim(), 10); return isNaN(n) ? 0 : n; };
+// money parser: claim dollar values arrive like "$357.44" / "$1,234.50" — strip
+// the $ and commas (parseInt/num would choke on the $ and return 0).
+const money = (v: unknown) => { const n = parseFloat(String(v ?? "").replace(/[$,\s]/g, "")); return isNaN(n) ? 0 : n; };
 const pick = (r: Record<string, unknown>, ...ks: string[]) => { for (const k of ks) if (r[k] != null && String(r[k]).trim() !== "") return String(r[k]).trim(); return ""; };
 // normalize a date string to YYYY-MM-DD (Looker sends ISO already; tolerate M/D/YYYY)
 const dnorm = (v: unknown) => {
@@ -94,25 +97,33 @@ Deno.serve(async (req) => {
 
     // ---------- CLAIMS: repairs (upsert by ticket; user `processed` flag preserved) ----------
     if (feed === "claim_repairs" || feed === "claims_repairs") {
+      // Looker doesn't send payout_date, but Claim Invoice # maps 1:1 to a payout
+      // date — build invoice -> payout_date from rows that already have one.
+      const invMap: Record<string, string> = {};
+      {
+        const { data: known } = await admin.from("claim_repairs").select("claim_invoice,payout_date").not("payout_date", "is", null);
+        (known ?? []).forEach((r: any) => { if (r.claim_invoice && r.payout_date && !invMap[r.claim_invoice]) invMap[r.claim_invoice] = r.payout_date; });
+      }
       const out: any[] = [];
       const seen = new Set<string>();
       for (const r of rows) {
         const ticket_id = pick(r, "RQ Ticket #", "Ticket ID", "ticket_id");
         if (!ticket_id || seen.has(ticket_id)) continue; seen.add(ticket_id);
+        const claim_invoice = pick(r, "Claim Invoice #");
         out.push({
           ticket_id,
-          payout_date: dnorm(pick(r, "payout_date", "Payout Date")),
+          payout_date: dnorm(pick(r, "payout_date", "Payout Date")) ?? (invMap[claim_invoice] ?? null),
           location: norm(pick(r, "Location", "Name")),
           provider: pick(r, "Provider"),
           program: pick(r, "Program", "Service Program Name"),
           device: pick(r, "Device", "Device Catalog Item Name", "Ticket Device Claim Model"),
           description: pick(r, "Description", "Device Description"),
           ticket_date: dnorm(pick(r, "Returned to Cust", "Ticket Picked Up Date")),
-          total: num(r["Total"] ?? r["Ticket Item All Net Repair Sale Total"]),
-          cogs: num(r["COGS"] ?? r["Ticket Item All Net COGS Total"]),
-          royalty: num(r["Royalty Due"] ?? r["Royalty"]),
-          gross_profit: num(r["Gross Profit"]),
-          claim_invoice: pick(r, "Claim Invoice #"),
+          total: money(r["Total"] ?? r["Ticket Item All Net Repair Sale Total"]),
+          cogs: money(r["COGS"] ?? r["Ticket Item All Net COGS Total"]),
+          royalty: money(r["Royalty Due"] ?? r["Royalty"]),
+          gross_profit: money(r["Gross Profit"]),
+          claim_invoice,
           tkt_status: pick(r, "Tkt Status"),
           updated_at: new Date().toISOString(),
         });
@@ -129,13 +140,18 @@ Deno.serve(async (req) => {
 
     // ---------- CLAIMS: parts (replace the parts of each ticket present) ----------
     if (feed === "claim_parts" || feed === "claims_parts") {
+      const invMap: Record<string, string> = {};
+      {
+        const { data: known } = await admin.from("claim_repairs").select("claim_invoice,payout_date").not("payout_date", "is", null);
+        (known ?? []).forEach((r: any) => { if (r.claim_invoice && r.payout_date && !invMap[r.claim_invoice]) invMap[r.claim_invoice] = r.payout_date; });
+      }
       const out: any[] = [];
       for (const r of rows) {
         const ticket_id = pick(r, "RQ Ticket #", "Ticket ID", "ticket_id");
         if (!ticket_id) continue;
         out.push({
           ticket_id,
-          payout_date: dnorm(pick(r, "payout_date", "Payout Date")),
+          payout_date: dnorm(pick(r, "payout_date", "Payout Date")) ?? (invMap[pick(r, "Claim Invoice #")] ?? null),
           location: norm(pick(r, "Location", "Name")),
           provider: pick(r, "Provider"),
           program: pick(r, "Program", "Service Program Name"),
@@ -143,7 +159,7 @@ Deno.serve(async (req) => {
           part_name: pick(r, "Name", "Part Name"),
           ticket_date: dnorm(pick(r, "Returned to Cust", "Ticket Picked Up Date")),
           consigned: pick(r, "Is Consigned", "Consigned (Yes / No)"),
-          part_cost: num(r["Part Cost"] ?? r["All Net COGS Total"]),
+          part_cost: money(r["Part Cost"] ?? r["All Net COGS Total"]),
         });
       }
       const tickets = [...new Set(out.map((x) => x.ticket_id))];
