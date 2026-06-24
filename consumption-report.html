@@ -123,7 +123,8 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .brk{font-size:.8rem;color:var(--dark-grey)}
 .brk b{font-family:'Nunito Sans',sans-serif}
 .flags{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
-.flags .stoptag,.flags .claimtag{margin-left:0}
+.flags .stoptag,.flags .claimtag,.flags .cflag{margin-left:0}
+.cflag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;border-radius:5px;padding:1px 6px;white-space:nowrap;vertical-align:middle}
 .claimtag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 6px;white-space:nowrap}
 .optcell{text-align:center;white-space:nowrap}
 .opt{background:none;border:1px solid var(--border);border-radius:7px;width:28px;height:28px;cursor:pointer;color:var(--dark-grey);font-size:1.05rem;font-weight:900;line-height:1;padding:0}
@@ -430,6 +431,7 @@ var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
+var FLAGTYPES=[],SKUFLAGS={},GROUPOVR={}; /* custom flag defs; per-store sku->[flag_key]; per-store group_id->max */
 /* kill-switch for the consignment-only flag. Set to true to instantly disable
    the action site-wide (it once coincided with a consumption_log wipe; root
    cause never confirmed, so this stays as a quick off-switch). */
@@ -474,7 +476,10 @@ async function loadAll(){
     sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
     sb.from('consumption_log').select('sku,units,name').eq('store',store).eq('biz_date',day),
     sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
-    loadGroups()
+    loadGroups(),
+    sb.from('flag_types').select('key,label,color,active,sort').eq('active',true).order('sort').order('id'),
+    sb.from('sku_flags').select('sku,flag_key').eq('store',store),
+    sb.from('group_max_overrides').select('group_id,value').eq('store',store)
   ]);
   var snap={};(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
@@ -482,6 +487,9 @@ async function loadAll(){
   var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
   var cons=[];var cnames={};(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units});if(r.name)cnames[r.sku]=r.name;});CONSUMPTION=cons;CNAMES=cnames;
   REPAIRSNOPARTS[store]=(res[5].data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
+  FLAGTYPES=res[7].error?[]:(res[7].data||[]);
+  var sf={};(res[8].data||[]).forEach(function(r){(sf[r.sku]||(sf[r.sku]=[])).push(r.flag_key);});SKUFLAGS[store]=sf;
+  var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   pills();render();renderStock();renderNoParts();
 }
 
@@ -600,10 +608,11 @@ function buildRows(){
     });
     var pref=g.def||(g.members[0]&&g.members[0].sku)||'';
     var blocked=stop.indexOf(pref)>-1;
+    var gmx=effGroupMax(g.id);
     rows.push({type:'group',gid:g.id,name:g.name,used:used2,
-      instock:instock,onorder:onorder,max:g.max,usedSkus:usedSkus,stop:blocked,
+      instock:instock,onorder:onorder,max:gmx,usedSkus:usedSkus,stop:blocked,
       claimElig:cElig,flagSku:pref,
-      suggest:blocked?0:Math.max(0,g.max-instock-onorder),orderSku:pref,members:members});
+      suggest:blocked?0:Math.max(0,gmx-instock-onorder),orderSku:pref,members:members});
   });
   var keyOf=function(r){return r.type==='group'?('g:'+r.gid):r.sku;};
   if(ORDER){
@@ -625,12 +634,25 @@ function toggleFlag(map,sku){var a=map[STATE.store]||(map[STATE.store]=[]);var i
 function openOptMenu(btn){
   var sku=btn.getAttribute('data-sku'), menu=$('#optMenu');
   var isStop=(STOPSTOCK[STATE.store]||[]).indexOf(sku)>-1;
-  menu.innerHTML='<div class="oih">'+sku+' · '+STATE.store+'</div>'
+  var assigned=(SKUFLAGS[STATE.store]||{})[sku]||[];
+  var html='<div class="oih">'+sku+' · '+STATE.store+'</div>'
     +'<div class="oi'+(isStop?' on':'')+'" data-f="stop"><span class="chk">✓</span> Consignment only</div>';
+  FLAGTYPES.forEach(function(f){
+    var on=assigned.indexOf(f.key)>-1;
+    html+='<div class="oi'+(on?' on':'')+'" data-flag="'+esc(f.key)+'"><span class="chk">✓</span> '+esc(f.label)+'</div>';
+  });
+  menu.innerHTML=html;
   menu.querySelectorAll('.oi').forEach(function(oi){oi.addEventListener('click',async function(){
     menu.classList.add('hide');
-    // TEMPORARILY DISABLED: a server-side trigger/cascade on consignment_only
-    // deletes consumption_log. Re-enable (remove this block) once the DB is fixed.
+    var fk=oi.getAttribute('data-flag');
+    if(fk){ // custom flag (sku_flags) — no fragile trigger, always live
+      var cur=((SKUFLAGS[STATE.store]||{})[sku]||[]).indexOf(fk)>-1;
+      if(cur){await sb.from('sku_flags').delete().eq('store',STATE.store).eq('sku',sku).eq('flag_key',fk);}
+      else{await sb.from('sku_flags').insert({store:STATE.store,sku:sku,flag_key:fk});}
+      await loadAll();return;
+    }
+    // consignment-only — TEMPORARILY DISABLED: a server-side trigger/cascade on
+    // consignment_only deletes consumption_log. Re-enable once the DB is fixed.
     if(CONSIGNMENT_DISABLED){alert('Consignment-only is temporarily disabled while a database issue is fixed.');return;}
     var on=(STOPSTOCK[STATE.store]||[]).indexOf(sku)>-1;
     if(on){await sb.from('consignment_only').delete().eq('store',STATE.store).eq('sku',sku);}
@@ -670,8 +692,28 @@ function renderNoParts(){
 function groupById(id){return GROUPS.filter(function(x){return x.id===id;})[0];}
 function effMax(sku){var o=OVERRIDE[STATE.store]||{};return o.hasOwnProperty(sku)?o[sku]:((SNAP[sku]&&SNAP[sku].max)||0);}
 function isOverridden(sku){return (OVERRIDE[STATE.store]||{}).hasOwnProperty(sku);}
+/* part groups are global; each store can override the group's max stock here */
+function effGroupMax(gid){var o=GROUPOVR[STATE.store]||{};if(o.hasOwnProperty(gid))return o[gid];var g=groupById(gid);return g?(g.max||0):0;}
+function isGroupOverridden(gid){return (GROUPOVR[STATE.store]||{}).hasOwnProperty(gid);}
+/* shared flag-cell renderer: CO tag + any custom flag badges assigned to flagSku */
+function flagTint(hex){
+  hex=String(hex||'#4FB0E3').replace('#','');if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');
+  var r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b)){r=79;g=176;b=227;}
+  return 'rgba('+r+','+g+','+b+',0.13)';
+}
+function flagsHtml(flagSku,isStop){
+  var h='<span class="flags">';
+  if(isStop)h+='<span class="stoptag" title="Consignment only">CO</span>';
+  var assigned=(SKUFLAGS[STATE.store]||{})[flagSku]||[];
+  FLAGTYPES.forEach(function(f){
+    if(assigned.indexOf(f.key)<0)return;
+    h+='<span class="cflag" style="background:'+flagTint(f.color)+';color:'+(f.color||'#4FB0E3')+'" title="'+esc(f.label)+'">'+esc(f.label)+'</span>';
+  });
+  return h+'</span>';
+}
 function maxCell(kind,key,val){
-  var ovr=(kind==='sku')&&isOverridden(key);
+  var ovr=(kind==='sku'&&isOverridden(key))||(kind==='gidstore'&&isGroupOverridden(key));
   // An override (incl. an explicit 0 = "don't stock") shows the number in blue.
   // A non-overridden 0 means no max set yet -> gray dash.
   var showNum=ovr||val>0;
@@ -690,6 +732,7 @@ function wireMaxEdit(scope){
       async function commit(save){if(done)return;done=true;
         if(save){var v=Math.max(0,parseInt(inp.value,10)||0);
           if(kind==='gid'){await sb.from('groups').update({max:v}).eq('id',key);}
+          else if(kind==='gidstore'){await sb.from('group_max_overrides').upsert({store:STATE.store,group_id:key,value:v});}
           else{await sb.from('max_overrides').upsert({store:STATE.store,sku:key,value:v});}}
         await loadAll();}
       var inp=document.createElement('input');inp.type='number';inp.min='0';inp.className='maxinput';inp.value=(cur==='—'?'':cur);
@@ -699,6 +742,11 @@ function wireMaxEdit(scope){
         var rb=document.createElement('button');rb.className='resetmax';rb.textContent='↺ RQ '+base;rb.title='Reset to RepairQ value';
         rb.addEventListener('mousedown',async function(ev){ev.preventDefault();done=true;await sb.from('max_overrides').delete().eq('store',STATE.store).eq('sku',key);await loadAll();});
         wrap.appendChild(rb);
+      } else if(kind==='gidstore'){
+        var gb=groupById(key);var gbase=gb?(gb.max||0):0;
+        var rb2=document.createElement('button');rb2.className='resetmax';rb2.textContent='↺ default '+gbase;rb2.title='Use the group’s default max';
+        rb2.addEventListener('mousedown',async function(ev){ev.preventDefault();done=true;await sb.from('group_max_overrides').delete().eq('store',STATE.store).eq('group_id',key);await loadAll();});
+        wrap.appendChild(rb2);
       }
       inp.focus();inp.select();
       inp.addEventListener('keydown',function(ev){if(ev.key==='Enter')commit(true);else if(ev.key==='Escape')commit(false);});
@@ -720,13 +768,13 @@ function renderStock(){
   });
   GROUPS.forEach(function(g){
     var instock=0,onorder=0,cElig=null;g.members.forEach(function(m){var s=SNAP[m.sku]||{instock:0,onorder:0};instock+=s.instock;onorder+=s.onorder;if(claimRep.hasOwnProperty(m.sku))cElig=(cElig||0)+claimRep[m.sku];});
-    list.push({type:'group',gid:g.id,name:g.name,instock:instock,onorder:onorder,max:g.max,members:g.members.length,claimElig:cElig,flagSku:(g.def||(g.members[0]&&g.members[0].sku)||'')});
+    list.push({type:'group',gid:g.id,name:g.name,instock:instock,onorder:onorder,max:effGroupMax(g.id),members:g.members.length,claimElig:cElig,flagSku:(g.def||(g.members[0]&&g.members[0].sku)||'')});
   });
   list=list.filter(function(r){return !q||((r.type==='group'?'':r.sku)+' '+r.name).toLowerCase().indexOf(q)>-1;});
   list.sort(function(a,b){return a.name.localeCompare(b.name);});
   list.forEach(function(r){
     var isStop=stop.indexOf(r.flagSku)>-1;
-    var flags='<span class="flags">'+(isStop?'<span class="stoptag" title="Consignment only">CO</span>':'')+'</span>';
+    var flags=flagsHtml(r.flagSku,isStop);
     var skuCell=r.type==='group'?'<span style="color:var(--grey)">pooled</span>':r.sku;
     var nameHtml=r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
     var tr=document.createElement('tr');
@@ -735,7 +783,7 @@ function renderStock(){
       +'<td class="num">'+r.instock+'</td>'
       +'<td class="num">'+claimPill(r.claimElig)+'</td>'
       +'<td class="num">'+r.onorder+'</td>'
-      +'<td class="num">'+maxCell(r.type==='group'?'gid':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
+      +'<td class="num">'+maxCell(r.type==='group'?'gidstore':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
       +'<td>'+flags+'</td>'
       +'<td class="optcell"><button class="opt" data-sku="'+r.flagSku+'" aria-label="Options">⋮</button></td>';
     tb.appendChild(tr);
@@ -760,9 +808,7 @@ function render(){
     var badges='';
     if(r.type==='group')badges+='<span class="poolbadge">⬡ Pool · '+r.members.length+'</span>';
     var nameHtml=(hasDetail?'<span class="chev">›</span> ':'')+r.name+badges;
-    var flags='<span class="flags">';
-    if(r.stop)flags+='<span class="stoptag" title="Consignment only">CO</span>';
-    flags+='</span>';
+    var flags=flagsHtml(r.flagSku,r.stop);
     var skuCell=(r.type==='group')
       ? (r.usedSkus.length?(r.usedSkus.length===1?r.usedSkus[0]:r.usedSkus[0]+' <span style="color:var(--grey)">+'+(r.usedSkus.length-1)+'</span>'):'<span style="color:var(--grey)">—</span>')
       : r.sku;
@@ -774,7 +820,7 @@ function render(){
       +'<td class="ctr">'+r.instock+'</td>'
       +'<td class="ctr">'+claimPill(r.claimElig)+'</td>'
       +'<td class="ctr">'+r.onorder+'</td>'
-      +'<td class="ctr">'+maxCell(r.type==='group'?'gid':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
+      +'<td class="ctr">'+maxCell(r.type==='group'?'gidstore':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
       +'<td class="ctr"><span class="sugg '+sCls+'">'+r.suggest+'</span></td>'
       +'<td class="ctr">'+orderCell+'</td>'
       +'<td>'+flags+'</td>'

@@ -82,6 +82,8 @@ td.r{text-align:right;white-space:nowrap}
 .pgname:hover{border-color:var(--border)}
 .pgname:focus{border-color:var(--blue);background:#fff;outline:none}
 .pgin{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'Nunito Sans',sans-serif;font-size:.86rem}
+.flagclr{flex:none;width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:7px;background:none;cursor:pointer}
+.flagbadge{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:6px;padding:2px 8px;min-width:64px;text-align:center}
 @media(max-width:760px){.pgwrap{flex-direction:column}.pgwrap>div:first-child{width:100%!important}}
 .note b{color:var(--dark-grey)}
 .avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem}
@@ -208,11 +210,13 @@ td.r{text-align:right;white-space:nowrap}
       <div style="width:230px;flex:none">
         <div class="card" style="padding:6px">
           <button class="pgtool on" data-pgtool="damage">🔧 Tech Damage Tracker</button>
+          <button class="pgtool" data-pgtool="consumption">📦 Consumption Report</button>
           <button class="pgtool" data-pgtool="cash">💵 Cash Tracker</button>
         </div>
       </div>
       <div style="flex:1;min-width:0">
         <div id="pagePane"></div>
+        <div id="pagePaneConsumption" class="hide"></div>
         <div id="pagePaneCash" class="hide">
           <div class="sect-h">Registers &amp; safes
             <select id="regStore" style="width:auto;min-width:200px"></select>
@@ -289,6 +293,7 @@ var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
 var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
 var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
 var PGTOOL='damage', DMFRS=[], DPARTS=[]; /* page settings: per-tool config (tech damage lists) */
+var PTYPES=[], FLAGS=[]; /* consumption page settings: part types + custom flags */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
 var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
@@ -395,9 +400,13 @@ async function loadPages(){
   var res=await Promise.all([
     sb.from('damage_manufacturers').select('id,name,active,sort').order('sort').order('id'),
     sb.from('damage_parts').select('id,name,active,sort').order('sort').order('id'),
+    sb.from('part_types').select('id,part_type,active').order('part_type'),
+    sb.from('flag_types').select('id,key,label,color,active,sort').order('sort').order('id'),
   ]);
   DMFRS=res[0].error?[]:(res[0].data||[]);
   DPARTS=res[1].error?[]:(res[1].data||[]);
+  PTYPES=res[2].error?[]:(res[2].data||[]);
+  FLAGS=res[3].error?[]:(res[3].data||[]);
 }
 async function load(){
   await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages()]);
@@ -891,13 +900,109 @@ function pgTbl(key){return key==='mfr'?'damage_manufacturers':'damage_parts';}
 function renderPages(){
   if(!$('#pagePane'))return;
   $all('#view-pages [data-pgtool]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-pgtool')===PGTOOL);});
-  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash';
+  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption';
   $('#pagePane').classList.toggle('hide',!damageOn);
   if($('#pagePaneCash'))$('#pagePaneCash').classList.toggle('hide',!cashOn);
+  if($('#pagePaneConsumption'))$('#pagePaneConsumption').classList.toggle('hide',!consOn);
   if(damageOn){
     $('#pagePane').innerHTML=pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
   }
+  if(consOn)renderConsumptionPage();
   renderRegs();
+}
+function renderConsumptionPage(){
+  var pane=$('#pagePaneConsumption');if(!pane)return;
+  // Part types — used by the Part Groups editor on the consumption report
+  var ptHtml='<div class="sect-h">Part types</div>'
+    +'<div class="card" style="padding:10px 12px">'
+    +(PTYPES.length?PTYPES.map(function(r){
+        return '<div class="lstrow"'+(r.active?'':' style="opacity:.5"')+'>'
+          +'<input class="pgname" data-ptname="'+r.id+'" value="'+esc(r.part_type)+'">'
+          +'<button class="toggle'+(r.active?' on':'')+'" data-ptactive="'+r.id+'" title="Available in dropdown"></button>'
+          +'<button class="ord del" data-ptdel="'+r.id+'" title="Delete">✕</button>'
+          +'</div>';
+      }).join(''):'<div class="empty" style="padding:14px">None yet.</div>')
+    +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-ptadd placeholder="Add part type…"><button class="btn alt sm" data-ptaddbtn>Add</button></div>'
+    +'</div>';
+  // Custom flags — badge name + color, shown on the consumption report rows
+  var flHtml='<div class="sect-h" style="margin-top:20px">Flags</div>'
+    +'<div class="note" style="margin:-4px 0 10px">Badges you can put on a SKU or part group from the report’s ⋮ menu.</div>'
+    +'<div class="card" style="padding:10px 12px">'
+    +(FLAGS.length?FLAGS.map(function(f){
+        return '<div class="lstrow"'+(f.active?'':' style="opacity:.5"')+'>'
+          +'<input type="color" class="flagclr" data-flagcolor="'+f.id+'" value="'+esc(f.color||'#4FB0E3')+'" title="Badge color">'
+          +'<span class="flagbadge" data-flagbadge="'+f.id+'" style="background:'+esc(tint(f.color))+';color:'+esc(f.color||'#4FB0E3')+'">'+esc(f.label)+'</span>'
+          +'<input class="pgname" data-flagname="'+f.id+'" value="'+esc(f.label)+'">'
+          +'<button class="toggle'+(f.active?' on':'')+'" data-flagactive="'+f.id+'" title="Active"></button>'
+          +'<button class="ord del" data-flagdel="'+f.id+'" title="Delete">✕</button>'
+          +'</div>';
+      }).join(''):'<div class="empty" style="padding:14px">No flags yet.</div>')
+    +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-flagadd placeholder="Add flag…"><button class="btn alt sm" data-flagaddbtn>Add</button></div>'
+    +'</div>';
+  pane.innerHTML=ptHtml+flHtml;
+}
+/* light wash of a badge color for its background */
+function tint(hex){
+  hex=String(hex||'#4FB0E3').replace('#','');if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');
+  var r=parseInt(hex.slice(0,2),16)||79,g=parseInt(hex.slice(2,4),16)||176,b=parseInt(hex.slice(4,6),16)||227;
+  return 'rgba('+r+','+g+','+b+',0.13)';
+}
+function slugKey(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||('flag_'+Date.now());}
+/* ---- part types ---- */
+async function ptAdd(){
+  var inp=$('#view-pages [data-ptadd]');var name=inp?inp.value.trim():'';if(!name)return;
+  var r=await sb.from('part_types').insert({part_type:name,active:true}).select().single();
+  if(r.error){toast(/duplicate|unique/i.test(r.error.message)?'That part type already exists':r.error.message,true);return;}
+  PTYPES.push(r.data);PTYPES.sort(function(a,b){return a.part_type.localeCompare(b.part_type);});renderConsumptionPage();
+}
+async function ptRename(id,name){
+  name=String(name).trim();var row=PTYPES.filter(function(x){return String(x.id)===String(id);})[0];
+  if(!row||!name||name===row.part_type){if(row&&!name)renderConsumptionPage();return;}
+  var r=await sb.from('part_types').update({part_type:name}).eq('id',id);
+  if(r.error){toast(/foreign key|violat/i.test(r.error.message)?'In use by a part group — can’t rename':(/duplicate|unique/i.test(r.error.message)?'That part type already exists':r.error.message),true);renderConsumptionPage();return;}
+  row.part_type=name;
+}
+async function ptToggle(id){
+  var row=PTYPES.filter(function(x){return String(x.id)===String(id);})[0];if(!row)return;
+  var nv=!row.active;var r=await sb.from('part_types').update({active:nv}).eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}row.active=nv;renderConsumptionPage();
+}
+async function ptDel(id){
+  if(!confirm('Delete this part type? Groups using it will need a new type.'))return;
+  var r=await sb.from('part_types').delete().eq('id',id);
+  if(r.error){toast(/foreign key|violat/i.test(r.error.message)?'In use by a part group — can’t delete':r.error.message,true);return;}
+  PTYPES=PTYPES.filter(function(x){return String(x.id)!==String(id);});renderConsumptionPage();
+}
+/* ---- custom flags ---- */
+async function flagAdd(){
+  var inp=$('#view-pages [data-flagadd]');var label=inp?inp.value.trim():'';if(!label)return;
+  var key=slugKey(label);var sort=FLAGS.length?Math.max.apply(null,FLAGS.map(function(x){return x.sort||0;}))+1:0;
+  var r=await sb.from('flag_types').insert({key:key,label:label,color:'#4FB0E3',active:true,sort:sort}).select().single();
+  if(r.error){toast(/duplicate|unique/i.test(r.error.message)?'That flag already exists':r.error.message,true);return;}
+  FLAGS.push(r.data);renderConsumptionPage();
+}
+async function flagRename(id,label){
+  label=String(label).trim();var row=FLAGS.filter(function(x){return String(x.id)===String(id);})[0];
+  if(!row||!label||label===row.label){if(row&&!label)renderConsumptionPage();return;}
+  var r=await sb.from('flag_types').update({label:label}).eq('id',id);
+  if(r.error){toast(r.error.message,true);renderConsumptionPage();return;}
+  row.label=label;renderConsumptionPage();
+}
+async function flagColor(id,color){
+  var row=FLAGS.filter(function(x){return String(x.id)===String(id);})[0];if(!row)return;
+  var r=await sb.from('flag_types').update({color:color}).eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}row.color=color;renderConsumptionPage();
+}
+async function flagToggle(id){
+  var row=FLAGS.filter(function(x){return String(x.id)===String(id);})[0];if(!row)return;
+  var nv=!row.active;var r=await sb.from('flag_types').update({active:nv}).eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}row.active=nv;renderConsumptionPage();
+}
+async function flagDel(id){
+  if(!confirm('Delete this flag? It will be removed from every SKU it’s on.'))return;
+  var r=await sb.from('flag_types').delete().eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}
+  FLAGS=FLAGS.filter(function(x){return String(x.id)!==String(id);});renderConsumptionPage();
 }
 function pageListEditor(title,key,rows,mt){
   var single=title.replace(/s$/,'').toLowerCase();
@@ -975,11 +1080,17 @@ function initUI(){
   $('#tabPages').onclick=function(){TAB='pages';SEARCH='';renderAll();};
   $('#tabRoles').onclick=function(){TAB='roles';SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
-    var t=e.target.closest('[data-pgtool],[data-pgadd],[data-pgactive],[data-pgdel]');if(!t)return;
+    var t=e.target.closest('[data-pgtool],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel]');if(!t)return;
     if(t.hasAttribute('data-pgtool')){PGTOOL=t.getAttribute('data-pgtool');renderPages();}
     else if(t.hasAttribute('data-pgadd'))pgAdd(t.getAttribute('data-pgadd'));
     else if(t.hasAttribute('data-pgactive')){var p2=t.getAttribute('data-pgactive').split('|');pgToggle(p2[0],p2[1]);}
     else if(t.hasAttribute('data-pgdel')){var p3=t.getAttribute('data-pgdel').split('|');pgDel(p3[0],p3[1]);}
+    else if(t.hasAttribute('data-ptaddbtn'))ptAdd();
+    else if(t.hasAttribute('data-ptactive'))ptToggle(t.getAttribute('data-ptactive'));
+    else if(t.hasAttribute('data-ptdel'))ptDel(t.getAttribute('data-ptdel'));
+    else if(t.hasAttribute('data-flagaddbtn'))flagAdd();
+    else if(t.hasAttribute('data-flagactive'))flagToggle(t.getAttribute('data-flagactive'));
+    else if(t.hasAttribute('data-flagdel'))flagDel(t.getAttribute('data-flagdel'));
   });
   // drag-and-drop reordering for page-settings lists (grip handle = drag source,
   // each row = drop target; before/after decided by cursor vs row midpoint)
@@ -1016,8 +1127,14 @@ function initUI(){
   $('#view-pages').addEventListener('dragend',function(){
     pgClearDrop();$all('#view-pages .lstrow.dragging').forEach(function(r){r.classList.remove('dragging');});PGDRAG=null;
   });
-  $('#view-pages').addEventListener('change',function(e){var t=e.target.closest('[data-pgname]');if(!t)return;var p=t.getAttribute('data-pgname').split('|');pgRename(p[0],p[1],t.value);});
-  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else t.blur();});
+  $('#view-pages').addEventListener('change',function(e){
+    var t=e.target;
+    if(t.closest('[data-pgname]')){var p=t.getAttribute('data-pgname').split('|');pgRename(p[0],p[1],t.value);}
+    else if(t.hasAttribute('data-ptname'))ptRename(t.getAttribute('data-ptname'),t.value);
+    else if(t.hasAttribute('data-flagname'))flagRename(t.getAttribute('data-flagname'),t.value);
+    else if(t.hasAttribute('data-flagcolor'))flagColor(t.getAttribute('data-flagcolor'),t.value);
+  });
+  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else t.blur();});
   $('#addChannel').onclick=openAddChannel;
   $('#view-notif').addEventListener('click',function(e){
     var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evch],[data-chedit]');if(!t)return;
