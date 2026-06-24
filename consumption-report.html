@@ -274,6 +274,16 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .empooled{display:flex;align-items:baseline;justify-content:space-between;margin:16px 0 0}
 .empooled .epl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
 .empooled .epn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--grey)}
+.emaxbox{flex:none;padding:14px 18px 0}
+.emaxbox .emaxhd{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.emaxbox .emaxsub{font-family:'Nunito Sans',sans-serif;font-size:.72rem;color:var(--grey);font-weight:600;margin:2px 0 8px}
+.smlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.smrow{display:flex;align-items:center;gap:10px}
+.smrow .smv{flex:1;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.86rem;color:var(--dark)}
+.smrow .sminput{width:72px;text-align:center;padding:7px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito',sans-serif;font-weight:800}
+.smrow .sminput:focus{border-color:var(--blue);outline:none}
+.smrow .smdef{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);min-width:78px}
+.smrow .smreset{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;border:none;background:none;color:var(--blue);cursor:pointer;min-width:78px;text-align:left;padding:0}
 .emodal-list{flex:1;min-height:60px;overflow:auto;padding:0 18px}
 .emodal-list .mlist{margin:0}
 .emodal-ft{flex:none;display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-top:1px solid var(--border)}
@@ -899,6 +909,15 @@ function pills(){
 
 /* ---- Part Groups (table + read-only expander + edit modal) ---- */
 var GOPEN=null, MOPEN=null, GQ='', GFILTER={manufacturer:null,part_type:null,model:''}, FILTOPEN=false;
+var GMODAL={gid:null,byStore:{}}; /* per-store max overrides for the open edit modal */
+function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
+async function loadGroupOverrides(gid){
+  GMODAL={gid:gid,byStore:{},ready:false};
+  var r=await sb.from('group_max_overrides').select('store,value').eq('group_id',gid);
+  (r.data||[]).forEach(function(x){GMODAL.byStore[x.store]=x.value;});
+  GMODAL.ready=true;
+  if(MOPEN===gid)renderEditModal();
+}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 async function persistGroups(){await saveGroups();await loadGroups();render();renderStock();}
 
@@ -1011,6 +1030,22 @@ function expanderRowHtml(g){
   if(!g.members.length)mh='<li class="rmrow" style="color:var(--grey);font-weight:700">No SKUs pooled yet — use Edit to add parts.</li>';
   return '<div class="rexp"><ul class="rmlist">'+mh+'</ul></div>';
 }
+/* per-location max stock overrides, edited inside the group modal */
+function storeMaxSectionHtml(g){
+  var stores=(STATE.stores&&STATE.stores.length)?STATE.stores:STORES;
+  var loaded=(GMODAL.gid===g.id&&GMODAL.ready);
+  var rows=stores.map(function(s){
+    var has=loaded&&GMODAL.byStore.hasOwnProperty(s);
+    return '<li class="smrow"><span class="smv">'+esc(shortStore(s))+'</span>'
+      +'<input type="number" min="0" class="sminput" data-gmaxstore="'+esc(s)+'" value="'+(has?GMODAL.byStore[s]:'')+'" placeholder="'+(g.max||0)+'">'
+      +(has?'<button class="smreset" data-gmaxreset="'+esc(s)+'" title="Use default">↺ default</button>':'<span class="smdef">default</span>')
+      +'</li>';
+  }).join('');
+  return '<div class="emaxbox">'
+    +'<div class="emaxhd">Max stock by location</div>'
+    +'<div class="emaxsub">'+(loaded?'Leave blank to use the default ('+(g.max||0)+').':'Loading…')+'</div>'
+    +'<ul class="smlist">'+rows+'</ul></div>';
+}
 /* centered edit modal — all editing happens here */
 function editModalHtml(g){
   var mem=g.members.slice().sort(function(a,b){return (b.sku===g.def?1:0)-(a.sku===g.def?1:0);});
@@ -1027,7 +1062,7 @@ function editModalHtml(g){
     +'<div class="emodal" role="dialog" aria-modal="true">'
       +'<div class="emodal-hd">'
         +'<input class="gname" value="'+esc(g.name)+'" data-gn placeholder="Group name">'
-        +'<label class="gmax">Max <input type="number" min="0" value="'+g.max+'" data-gm></label>'
+        +'<label class="gmax">Default max <input type="number" min="0" value="'+g.max+'" data-gm></label>'
         +'<button class="emodal-x" data-mclose title="Close">×</button>'
       +'</div>'
       +'<div class="emodal-top">'
@@ -1044,6 +1079,7 @@ function editModalHtml(g){
         +'</div>'
         +'<div class="empooled"><span class="epl">Pooled SKUs</span><span class="epn">'+g.members.length+'</span></div>'
       +'</div>'
+      +storeMaxSectionHtml(g)
       +'<div class="emodal-list"><ul class="mlist">'+mh+'</ul></div>'
       +'<div class="emodal-ft">'
         +'<button class="btn alt sm" data-delgrp>Delete group</button>'
@@ -1107,7 +1143,8 @@ function modalGroup(){return GROUPS.filter(function(x){return x.id===MOPEN;})[0]
 function renderEditModal(){
   var host=$('#editModalHost');if(!host)return;
   var g=modalGroup();
-  if(!MOPEN||!g){host.innerHTML='';return;}
+  if(!MOPEN||!g){host.innerHTML='';GMODAL={gid:null,byStore:{}};return;}
+  if(GMODAL.gid!==g.id)loadGroupOverrides(g.id); // async; re-renders when ready
   host.innerHTML=editModalHtml(g);
   wireEditModal(host,g);
 }
@@ -1129,6 +1166,28 @@ function wireEditModal(host,g){
   });});
   host.querySelectorAll('[data-def]').forEach(function(b){b.addEventListener('click',async function(){
     g.def=b.getAttribute('data-def').split('|')[1];await persistGroups();refreshModal();
+  });});
+  host.querySelectorAll('[data-gmaxstore]').forEach(function(inp){inp.addEventListener('change',async function(){
+    var store=inp.getAttribute('data-gmaxstore'), raw=inp.value.trim();
+    if(raw===''){ // blank -> clear override, fall back to default
+      await sb.from('group_max_overrides').delete().eq('store',store).eq('group_id',g.id);
+      delete GMODAL.byStore[store];
+      if(GROUPOVR[store])delete GROUPOVR[store][g.id];
+    } else {
+      var v=Math.max(0,parseInt(raw,10)||0);
+      var r=await sb.from('group_max_overrides').upsert({store:store,group_id:g.id,value:v});
+      if(r.error){alert('Could not save — '+r.error.message);return;}
+      GMODAL.byStore[store]=v;
+      (GROUPOVR[store]||(GROUPOVR[store]={}))[g.id]=v;
+    }
+    renderEditModal();render();renderStock();
+  });});
+  host.querySelectorAll('[data-gmaxreset]').forEach(function(b){b.addEventListener('click',async function(){
+    var store=b.getAttribute('data-gmaxreset');
+    await sb.from('group_max_overrides').delete().eq('store',store).eq('group_id',g.id);
+    delete GMODAL.byStore[store];
+    if(GROUPOVR[store])delete GROUPOVR[store][g.id];
+    renderEditModal();render();renderStock();
   });});
   wireCombo(host,g,'manufacturer');
   wireCombo(host,g,'model');
