@@ -1,7 +1,7 @@
 /* assets/locations.js — canonical store list for all CPR Oregon internal tools.
  *
  * ONE source of truth for: store names, short display labels, and display order.
- * Used by: cash-tracker, cash-admin, employee-records, claim-ledger, commission-calculator.
+ * Used by: cash-tracker, cash-admin, employee-records, claim-payouts, commission-calculator.
  *
  * IMPORTANT: `name` must match EXACTLY what RepairQ exports and what the Auth /
  * Setup sheets store, or store-matching breaks. To add, remove, or rename a store,

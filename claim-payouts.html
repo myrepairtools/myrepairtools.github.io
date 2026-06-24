@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claim Payouts</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #DC282E; --dark: #2D2D3B; --dark-grey: #4E4E50;
+    --blue: #4FB0E3; --grey: #B9BDCB; --light-grey: #F3F2F2;
+    --white: #FFFFFF; --border: #E0E2EA; --green: #10b981;
+    --profit: #8b5cf6; --owner: #DC282E; --tax: #f59e0b; --opex: #4FB0E3;
+    --royalty: #6b7280; --consignment: #0d9488;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--light-grey); font-family: 'Nunito Sans', sans-serif; min-height: 100vh; padding: 0 0 60px; }
+
+  #appWrapper { display: none; }
+  #appWrapper.visible { display: block; }
+
+  .site-bg { background: var(--bg); min-height: 100vh; }
+
+  .container { max-width: 1280px; margin: 28px auto; padding: 0 20px; }
+
+  .page-title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px; gap: 16px;
+  }
+  .page-title {
+    font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 24px;
+    color: var(--dark); letter-spacing: -0.4px;
+  }
+  .page-sub { font-size: 13px; color: var(--grey); font-weight: 600; margin-bottom: 20px; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toolbar-btn {
+    padding: 7px 12px; font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--white); color: var(--dark-grey);
+    border: 1.5px solid var(--border); border-radius: 6px;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .toolbar-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .toolbar-btn.spinning { opacity: 0.6; pointer-events: none; }
+
+  /* CONFIG CARD */
+  .config-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  .config-card.hidden { display: none; }
+  .config-title {
+    font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 800;
+    color: var(--dark); margin-bottom: 4px;
+  }
+  .config-sub {
+    font-family: 'Nunito Sans', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--grey); margin-bottom: 14px;
+  }
+  .config-field { margin-bottom: 12px; }
+  .config-label {
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
+    margin-bottom: 4px;
+  }
+  .config-input {
+    width: 100%; padding: 8px 12px; background: var(--light-grey);
+    border: 1.5px solid var(--border); border-radius: 6px;
+    font-family: 'Nunito Sans', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--dark);
+  }
+  .config-input:focus { outline: none; border-color: var(--blue); }
+  .config-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .btn-save {
+    padding: 8px 16px; font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--dark); color: var(--white);
+    border: none; border-radius: 6px; cursor: pointer;
+  }
+  .btn-save:hover { background: var(--dark-grey); }
+  .config-help {
+    font-family: 'Nunito Sans', sans-serif; font-size: 11px; font-weight: 600;
+    color: var(--grey); margin-left: 4px;
+  }
+
+  /* FILTER TABS */
+  .filter-row {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .filter-tabs {
+    display: flex; background: var(--white); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px;
+  }
+  .filter-tab {
+    padding: 7px 14px; font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--grey); background: transparent;
+    border: none; border-radius: 5px; cursor: pointer;
+    transition: all 0.18s;
+  }
+  .filter-tab.active { background: var(--dark); color: var(--white); }
+  .filter-tab:not(.active):hover { color: var(--dark-grey); }
+  .filter-count {
+    margin-left: 5px; padding: 1px 6px; border-radius: 8px;
+    background: rgba(255,255,255,0.18); font-size: 10px; font-weight: 800;
+  }
+  .filter-tab:not(.active) .filter-count {
+    background: var(--light-grey); color: var(--grey);
+  }
+  /* Location filter tabs — subdued blue accent to distinguish from status tabs */
+  .location-tabs .filter-tab.active { background: var(--blue); color: var(--white); }
+  .location-cell {
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    color: var(--dark); text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  /* Bulk-bar location label / mixed-locations warning */
+  .bulk-loc {
+    margin-left: 8px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.18); font-family: 'Nunito', sans-serif;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+  }
+  .bulk-loc-warn {
+    margin-left: 8px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,196,0,0.22); color: #ffcc33;
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    letter-spacing: 0.4px;
+  }
+
+  .data-status {
+    font-family: 'Nunito Sans', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--grey); margin-left: auto;
+  }
+  .data-status.error { color: var(--red); }
+
+  /* BULK ACTION BAR */
+  .bulk-bar {
+    background: var(--dark); color: var(--white); border-radius: 10px;
+    padding: 14px 20px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    box-shadow: 0 4px 12px rgba(45,45,59,0.18);
+  }
+  .bulk-bar.hidden { display: none; }
+  .bulk-count {
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    background: var(--red); padding: 4px 10px; border-radius: 5px;
+    white-space: nowrap;
+  }
+  /* When showing all-visible totals (nothing selected), use neutral pill */
+  .bulk-count.all-visible {
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.95);
+  }
+  .bulk-totals {
+    display: flex; gap: 14px; flex: 1; flex-wrap: wrap;
+  }
+  .bulk-total {
+    display: flex; flex-direction: column; gap: 1px;
+    cursor: pointer; padding: 4px 10px;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+    transition: all 0.15s; min-width: 100px;
+  }
+  .bulk-total:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); }
+  .bulk-total-label {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
+  }
+  .bulk-total-val {
+    font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 900;
+    color: var(--white);
+  }
+  .bulk-total.copied .bulk-total-val { color: var(--green); }
+  .bulk-actions { display: flex; gap: 8px; }
+  .btn-bulk {
+    padding: 8px 14px; font-family: 'Nunito', sans-serif;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--white); color: var(--dark);
+    border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .btn-bulk:hover { background: var(--light-grey); }
+  .btn-bulk.primary { background: var(--green); color: var(--white); }
+  .btn-bulk.primary:hover { background: #059669; }
+  .btn-bulk.spinning { opacity: 0.6; pointer-events: none; }
+
+  /* METRICS BAR — business stats, always reflects visible scope */
+  .metrics-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .metrics-bar.hidden { display: none; }
+  .metrics-row {
+    display: grid;
+    gap: 10px;
+  }
+  .metrics-row-totals   { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .metrics-row-averages { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 900px) {
+    .metrics-row-totals,
+    .metrics-row-averages {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .metric-tile {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: all 0.12s;
+    box-shadow: 0 1px 2px rgba(45,45,59,0.04);
+    min-width: 0;
+  }
+  .metric-tile[onclick] { cursor: pointer; }
+  .metric-tile[onclick]:hover {
+    border-color: var(--blue);
+    box-shadow: 0 2px 6px rgba(79,176,227,0.15);
+  }
+  .metric-tile.copied {
+    background: rgba(38,194,154,0.10);
+    border-color: var(--green);
+  }
+  .metric-label {
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.7px; color: var(--grey);
+  }
+  .metric-val {
+    font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 900;
+    color: var(--dark); line-height: 1.1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* Accent colors per category */
+  .metric-tile.sales .metric-val   { color: var(--dark); }
+  .metric-tile.cogs .metric-val    { color: var(--grey); }
+  .metric-tile.gross .metric-val   { color: var(--green); }
+  .metric-tile.royalty .metric-val { color: var(--royalty); }
+  .metric-tile.volume .metric-val  { color: var(--blue); }
+
+  /* SUMMARY TABLE */
+  .table-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  .empty-state {
+    padding: 60px 24px; text-align: center;
+    font-family: 'Nunito Sans', sans-serif; font-size: 13px; font-weight: 600;
+    color: var(--grey);
+  }
+  .empty-state strong {
+    display: block; font-family: 'Nunito', sans-serif; font-weight: 800;
+    font-size: 15px; color: var(--dark-grey); margin-bottom: 6px;
+  }
+
+  table.summary { width: 100%; border-collapse: collapse; }
+
+  table.summary thead th {
+    padding: 10px 12px; text-align: left;
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
+    background: #fafafa; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  table.summary thead th.num { text-align: right; }
+  table.summary thead th.center { text-align: center; }
+
+  table.summary tbody tr.batch-row {
+    border-bottom: 1px solid rgba(224,226,234,0.6);
+    transition: background 0.12s;
+  }
+  table.summary tbody tr.batch-row:hover { background: rgba(79,176,227,0.04); }
+  table.summary tbody tr.batch-row.selected { background: rgba(220,40,46,0.04); }
+  table.summary tbody tr.batch-row.processed { opacity: 0.6; }
+  table.summary tbody tr.batch-row.processed:hover { opacity: 0.85; }
+
+  table.summary tbody td { padding: 11px 12px; vertical-align: middle; }
+  table.summary tbody td.num {
+    text-align: right; font-family: 'Nunito', sans-serif; font-weight: 800;
+    color: var(--dark-grey); font-size: 13px; white-space: nowrap;
+  }
+  table.summary tbody td.num.val-profit      { color: var(--profit); }
+  table.summary tbody td.num.val-owner       { color: var(--owner); }
+  table.summary tbody td.num.val-tax         { color: var(--tax); }
+  table.summary tbody td.num.val-opex        { color: var(--opex); }
+  table.summary tbody td.num.val-consignment { color: var(--consignment); }
+  /* Override teal when the value is $0 — looks like a real number, not a non-action */
+  table.summary tbody td.num.val-consignment.zero,
+  table.tickets tbody td.num.reserve-cell.zero { color: var(--dark) !important; font-weight: 700; }
+
+  table.summary tbody td.center { text-align: center; }
+  .row-checkbox { cursor: pointer; transform: scale(1.2); accent-color: var(--red); }
+  .date-cell {
+    font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--dark);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .date-main { font-size: 14px; }
+  .date-sub {
+    font-size: 10px; font-weight: 700; color: var(--grey);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .deposits-cell {
+    font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 900;
+    color: var(--dark);
+  }
+
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .icon-btn {
+    padding: 5px 10px; font-family: 'Nunito', sans-serif;
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--light-grey); color: var(--dark-grey);
+    border: 1.5px solid var(--border); border-radius: 5px;
+    cursor: pointer; transition: all 0.12s; white-space: nowrap;
+  }
+  .icon-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .icon-btn.primary { background: var(--green); color: white; border-color: var(--green); }
+  .icon-btn.primary:hover { background: #059669; border-color: #059669; }
+  .icon-btn.danger { color: var(--red); }
+  .icon-btn.danger:hover { border-color: var(--red); }
+  .icon-btn.spinning { opacity: 0.5; pointer-events: none; }
+  .icon-btn.small {
+    padding: 4px 8px; font-size: 9px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .icon-btn.small .expand-chev { font-size: 9px; }
+
+  /* Detail-view toolbar (above tickets table) */
+  .tickets-toolbar {
+    display: flex; gap: 8px; justify-content: flex-end; align-items: center;
+    margin-bottom: 6px; min-height: 22px;
+  }
+
+  /* Tickets table totals row */
+  table.tickets tfoot tr.ticket-totals-row td {
+    border-top: 2px solid var(--border);
+    background: #f9fafb;
+    padding: 8px 10px;
+    font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 11px;
+    color: var(--dark);
+  }
+  table.tickets tfoot tr.ticket-totals-row td.totals-label {
+    color: var(--grey); text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px;
+  }
+  table.tickets tfoot tr.ticket-totals-row td.num.reserve-cell-total {
+    color: var(--consignment);
+  }
+
+  .status-pill {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    padding: 3px 8px; border-radius: 10px; white-space: nowrap;
+  }
+  .status-pill.pending { background: #fef3c7; color: #92400e; }
+  .status-pill.completed { background: #d1fae5; color: #065f46; }
+  .status-pill.partial { background: #e0e7ff; color: #3730a3; }
+  .status-pill.negative { background: #fee2e2; color: #991b1b; }
+
+  /* DETAIL ROW (expanded) */
+  tr.detail-row { background: #fafafa; }
+  tr.detail-row.hidden { display: none; }
+  tr.detail-row > td { padding: 0; }
+  .detail-wrap {
+    padding: 16px 20px; border-top: 1px dashed var(--border);
+  }
+  .detail-section {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px; margin-bottom: 16px;
+  }
+  .calc-box {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .calc-title {
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
+    margin-bottom: 8px;
+  }
+  .calc-line {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700;
+    color: var(--dark-grey); padding: 3px 0;
+  }
+  .calc-line.divider { border-top: 1px dashed var(--border); padding-top: 7px; margin-top: 4px; }
+  .calc-line.total {
+    border-top: 1.5px solid var(--border); padding-top: 7px; margin-top: 4px;
+    font-weight: 900; color: var(--dark); font-size: 13px;
+  }
+  .calc-label-row {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .calc-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .calc-dot.profit      { background: var(--profit); }
+  .calc-dot.owner       { background: var(--owner); }
+  .calc-dot.tax         { background: var(--tax); }
+  .calc-dot.opex        { background: var(--opex); }
+  .calc-dot.consignment { background: var(--consignment); }
+  .calc-dot.royalty     { background: var(--royalty); }
+
+  /* TICKETS TABLE (inside detail) */
+  .tickets-wrap { overflow-x: auto; }
+  table.tickets {
+    width: 100%; border-collapse: collapse; background: var(--white);
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  }
+  table.tickets thead th {
+    padding: 7px 10px; text-align: left;
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px; color: var(--grey);
+    background: #fafafa; border-bottom: 1px solid var(--border);
+  }
+  table.tickets thead th.num { text-align: right; }
+  table.tickets tbody td {
+    padding: 6px 10px;
+    font-family: 'Nunito Sans', sans-serif; font-size: 11px;
+    color: var(--dark-grey); border-bottom: 1px solid rgba(224,226,234,0.5);
+  }
+  table.tickets tbody tr:last-child td { border-bottom: none; }
+  table.tickets tbody td.num {
+    text-align: right; font-family: 'Nunito', sans-serif; font-weight: 700;
+  }
+  table.tickets tbody td.ticket-id {
+    font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--dark);
+  }
+
+  /* Nested parts under each ticket */
+  table.tickets tr.ticket-parts-row > td {
+    background: #fafbfc; padding: 0; border-bottom: 1px solid rgba(224,226,234,0.5);
+  }
+  .parts-nest {
+    padding: 6px 10px 8px 30px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .part-line {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Nunito Sans', sans-serif; font-size: 11px;
+    color: var(--dark-grey);
+  }
+  .part-branch {
+    color: var(--border); font-family: 'Nunito', sans-serif;
+    font-weight: 700; width: 16px; flex-shrink: 0;
+  }
+  .part-name {
+    flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .part-cost {
+    font-family: 'Nunito', sans-serif; font-weight: 800;
+    min-width: 70px; text-align: right;
+  }
+  .part-cost.consigned { color: var(--consignment); }
+  .part-cost.self-owned { color: var(--opex); }
+  .part-badge {
+    font-family: 'Nunito', sans-serif; font-size: 9px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 2px 7px; border-radius: 4px;
+    min-width: 165px; text-align: center;
+  }
+  .part-badge.consigned {
+    background: rgba(38,194,154,0.12); color: var(--consignment);
+  }
+  .part-badge.self-owned {
+    background: rgba(95,98,237,0.10); color: var(--opex);
+  }
+
+  /* Click-to-copy amount cells in main row */
+  td.copyable {
+    cursor: pointer; user-select: none;
+    transition: background 0.12s;
+  }
+  td.copyable:hover { background: rgba(79,176,227,0.08); }
+  td.copyable.copied { background: rgba(38,194,154,0.18); }
+
+  /* Parts column expand toggle on each ticket row */
+  td.parts-toggle {
+    cursor: pointer; user-select: none;
+    transition: background 0.12s;
+  }
+  td.parts-toggle:hover { background: rgba(38,194,154,0.08); }
+  .parts-summary {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: 'Nunito', sans-serif; font-size: 11px;
+  }
+  .expand-chev {
+    display: inline-block; margin-left: 4px;
+    font-size: 9px; color: var(--grey);
+    transition: transform 0.15s ease;
+  }
+  .expand-chev.open { transform: rotate(90deg); }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--dark); color: var(--white);
+    padding: 12px 18px; border-radius: 8px;
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    z-index: 100; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+
+  footer {
+    text-align: center; padding: 20px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px; color: var(--grey); text-transform: uppercase;
+  }
+
+  /* Compact percentage settings card */
+  .pcts-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
+    display: flex; flex-direction: column; gap: 10px;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  .pcts-card.hidden { display: none; }
+  .pcts-row {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .pcts-row-tabs { gap: 10px; }
+  .pcts-row-tabs .filter-tabs { padding: 2px; }
+  .pcts-row-tabs .filter-tab { padding: 5px 10px; font-size: 10px; }
+  .pcts-row-tabs .filter-tab.loc-tab.active { background: var(--blue); color: var(--white); }
+  .sync-status {
+    margin-left: auto;
+    font-family: 'Nunito Sans', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--grey);
+    min-width: 110px; text-align: right;
+  }
+  .pcts-title {
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px; color: var(--grey);
+  }
+  .pct-group { display: flex; align-items: center; gap: 6px; }
+  .pct-group-label {
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 800;
+    color: var(--dark-grey);
+  }
+  .pct-mini {
+    width: 46px; padding: 4px 6px; background: var(--light-grey);
+    border: 1.5px solid var(--border); border-radius: 4px;
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
+    color: var(--dark-grey); text-align: center;
+    -moz-appearance: textfield;
+  }
+  .pct-mini::-webkit-inner-spin-button,
+  .pct-mini::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .pct-mini:focus { outline: none; border-color: var(--blue); }
+  .pct-mini-sym { font-size: 11px; font-weight: 700; color: var(--grey); }
+  .reserve-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+    font-family: 'Nunito', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--dark-grey);
+    padding-left: 8px; border-left: 1px solid var(--border);
+  }
+  .reserve-toggle input { cursor: pointer; }
+
+  /* ============================================================
+   MOBILE (≤760px) — claims table becomes a stack of cards.
+   Desktop layout is untouched; applies only on small screens.
+   ============================================================ */
+@media (max-width: 760px) {
+
+  .container { padding: 0 12px; margin: 16px auto; }
+
+  /* Title + toolbar stack */
+  .page-title-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .toolbar { flex-wrap: wrap; }
+  .toolbar-btn { flex: 1; justify-content: center; }
+
+  /* Filter + status row */
+  .filter-row { gap: 10px; }
+  .data-status { margin-left: 0; width: 100%; }
+
+  /* Bulk-bar totals go two-up */
+  .bulk-totals { gap: 8px; }
+  .bulk-total { min-width: calc(50% - 4px); }
+
+  /* ---- Summary table → cards ---- */
+  .table-card { border: none; background: transparent; box-shadow: none; border-radius: 0; overflow: visible; }
+  table.summary, table.summary tbody, table.summary tr { display: block; width: 100%; }
+  table.summary thead { display: none; }
+
+  table.summary tbody tr.batch-row {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(45,45,59,0.06);
+  }
+  table.summary tbody tr.batch-row.selected { border-color: var(--red); }
+
+  table.summary tbody tr.batch-row td {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0; border: none; text-align: right; white-space: normal;
+  }
+
+  /* Labelled money / location rows */
+  table.summary tbody tr.batch-row td:nth-child(3)::before,
+  table.summary tbody tr.batch-row td:nth-child(4)::before,
+  table.summary tbody tr.batch-row td:nth-child(5)::before,
+  table.summary tbody tr.batch-row td:nth-child(6)::before,
+  table.summary tbody tr.batch-row td:nth-child(7)::before,
+  table.summary tbody tr.batch-row td:nth-child(8)::before,
+  table.summary tbody tr.batch-row td:nth-child(9)::before {
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.6px; color: var(--grey);
+    text-align: left; margin-right: 12px;
+  }
+  table.summary tbody tr.batch-row td:nth-child(3)::before { content: "Location"; }
+  table.summary tbody tr.batch-row td:nth-child(4)::before { content: "Deposits"; }
+  table.summary tbody tr.batch-row td:nth-child(5)::before { content: "Profit"; }
+  table.summary tbody tr.batch-row td:nth-child(6)::before { content: "Owner"; }
+  table.summary tbody tr.batch-row td:nth-child(7)::before { content: "Tax"; }
+  table.summary tbody tr.batch-row td:nth-child(8)::before { content: "OpEx"; }
+  table.summary tbody tr.batch-row td:nth-child(9)::before { content: "Reserve"; }
+
+  /* Checkbox row */
+  table.summary tbody tr.batch-row td:nth-child(1) { justify-content: flex-start; gap: 8px; padding: 2px 0 8px; }
+  table.summary tbody tr.batch-row td:nth-child(1)::before {
+    content: "Select"; order: 2;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.6px; color: var(--grey);
+  }
+
+  /* Date = card header */
+  table.summary tbody tr.batch-row td:nth-child(2) {
+    justify-content: flex-start; padding: 0 0 10px; margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.summary tbody tr.batch-row td:nth-child(2) .date-main { font-size: 16px; }
+
+  /* Status row */
+  table.summary tbody tr.batch-row td:nth-child(10) {
+    justify-content: flex-start; padding-top: 10px; margin-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Action buttons full-width */
+  table.summary tbody tr.batch-row td:nth-child(11) { padding-top: 10px; }
+  table.summary tbody tr.batch-row td:nth-child(11) .row-actions { width: 100%; gap: 8px; }
+  table.summary tbody tr.batch-row td:nth-child(11) .row-actions .icon-btn { flex: 1; text-align: center; padding: 11px 8px; font-size: 11px; }
+
+  /* Expanded detail flows under its card */
+  table.summary tbody tr.detail-row { margin: -6px 0 10px; }
+  table.summary tbody tr.detail-row > td { display: block; padding: 0; }
+  .detail-wrap { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+ 
+<div id="appWrapper">
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
+
+<div class="container">
+  <div class="page-title-row">
+    <div>
+      <div class="page-title">Claim Payouts</div>
+      <div class="page-sub">Track weekly claim payouts, anticipated consignment, and Profit First allocations</div>
+    </div>
+    <div class="toolbar">
+      <button class="toolbar-btn" id="btn-pcts" onclick="togglePcts()">⚙ Pcts</button>
+      <button class="toolbar-btn" id="btn-refresh" onclick="loadData()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- PERCENTAGES CARD -->
+  <div class="pcts-card hidden" id="pcts-card">
+    <div class="pcts-row pcts-row-tabs">
+      <div class="pcts-title">Settings for:</div>
+      <div class="filter-tabs" id="pcts-loc-tabs"><!-- populated dynamically --></div>
+      <button class="icon-btn small" id="pcts-reset" onclick="resetLocationSettings()">Reset to Default</button>
+      <span class="sync-status" id="sync-status"></span>
+    </div>
+    <div class="pcts-row">
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--profit)">Profit</span><input type="number" class="pct-mini" id="pct-profit" value="20" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--owner)">Owner</span><input type="number" class="pct-mini" id="pct-owner" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--tax)">Tax</span><input type="number" class="pct-mini" id="pct-tax" value="10" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <div class="pct-group"><span class="pct-group-label" style="color:var(--opex)">OpEx</span><input type="number" class="pct-mini" id="pct-opex" value="60" min="0" max="100" step="0.1" oninput="onPctsChange()" /><span class="pct-mini-sym">%</span></div>
+      <label class="reserve-toggle">
+        <input type="checkbox" id="pct-deduct-parts" onchange="onPctsChange()" />
+        <span>Deduct parts from base</span>
+      </label>
+      <label class="reserve-toggle">
+        <input type="checkbox" id="pct-reserve" onchange="onPctsChange()" />
+        <span>Reserve consigned parts</span>
+      </label>
+      <span class="config-help" id="pcts-status"></span>
+    </div>
+  </div>
+
+  <!-- FILTER + STATUS ROW -->
+  <div class="filter-row">
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-filter="pending" onclick="setFilter('pending')">Pending <span class="filter-count" id="count-pending">0</span></button>
+      <button class="filter-tab" data-filter="completed" onclick="setFilter('completed')">Completed <span class="filter-count" id="count-completed">0</span></button>
+      <button class="filter-tab" data-filter="all" onclick="setFilter('all')">All <span class="filter-count" id="count-all">0</span></button>
+    </div>
+    <div class="filter-tabs location-tabs" id="location-tabs">
+      <!-- populated dynamically based on data -->
+    </div>
+    <div class="data-status" id="data-status">Not loaded</div>
+  </div>
+
+  <!-- BULK ACTION BAR -->
+  <div class="bulk-bar hidden" id="bulk-bar">
+    <div class="bulk-count" id="bulk-count">0 selected</div>
+    <div class="bulk-totals">
+      <div class="bulk-total" onclick="copyBulk('profit', this)"><div class="bulk-total-label">Profit</div><div class="bulk-total-val" id="bulk-profit">$0.00</div></div>
+      <div class="bulk-total" onclick="copyBulk('owner', this)"><div class="bulk-total-label">Owner</div><div class="bulk-total-val" id="bulk-owner">$0.00</div></div>
+      <div class="bulk-total" onclick="copyBulk('tax', this)"><div class="bulk-total-label">Tax</div><div class="bulk-total-val" id="bulk-tax">$0.00</div></div>
+      <div class="bulk-total" onclick="copyBulk('opex', this)"><div class="bulk-total-label">OpEx</div><div class="bulk-total-val" id="bulk-opex">$0.00</div></div>
+      <div class="bulk-total" onclick="copyBulk('reserve', this)"><div class="bulk-total-label">Reserve</div><div class="bulk-total-val" id="bulk-reserve">$0.00</div></div>
+    </div>
+    <div class="bulk-actions">
+      <button class="btn-bulk primary" id="btn-mark-processed" onclick="markSelectedProcessed()">Mark Processed</button>
+    </div>
+  </div>
+
+  <!-- METRICS BAR (business stats — always reflects current visible scope) -->
+  <div class="metrics-bar hidden" id="metrics-bar">
+    <div class="metrics-row metrics-row-totals">
+      <div class="metric-tile sales" onclick="copyMetric('sales', this)">
+        <div class="metric-label">Sales</div>
+        <div class="metric-val" id="m-sales">$0.00</div>
+      </div>
+      <div class="metric-tile cogs" onclick="copyMetric('cogs', this)">
+        <div class="metric-label">COGS</div>
+        <div class="metric-val" id="m-cogs">$0.00</div>
+      </div>
+      <div class="metric-tile gross" onclick="copyMetric('gross', this)">
+        <div class="metric-label">Gross Profit</div>
+        <div class="metric-val" id="m-gross">$0.00</div>
+      </div>
+      <div class="metric-tile royalty" onclick="copyMetric('royalty', this)">
+        <div class="metric-label">Royalty</div>
+        <div class="metric-val" id="m-royalty">$0.00</div>
+      </div>
+      <div class="metric-tile volume">
+        <div class="metric-label">Claims</div>
+        <div class="metric-val" id="m-claims">0</div>
+      </div>
+      <div class="metric-tile volume">
+        <div class="metric-label">Parts</div>
+        <div class="metric-val" id="m-parts">0</div>
+      </div>
+    </div>
+    <div class="metrics-row metrics-row-averages">
+      <div class="metric-tile" onclick="copyMetric('avg_price', this)">
+        <div class="metric-label">Avg Price</div>
+        <div class="metric-val" id="m-avg-price">$0.00</div>
+      </div>
+      <div class="metric-tile" onclick="copyMetric('avg_cost', this)">
+        <div class="metric-label">Avg Cost</div>
+        <div class="metric-val" id="m-avg-cost">$0.00</div>
+      </div>
+      <div class="metric-tile" onclick="copyMetric('avg_margin_pct', this)">
+        <div class="metric-label">Avg Margin</div>
+        <div class="metric-val" id="m-avg-margin">0%</div>
+      </div>
+      <div class="metric-tile" onclick="copyMetric('avg_royalty', this)">
+        <div class="metric-label">Avg Royalty</div>
+        <div class="metric-val" id="m-avg-royalty">$0.00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <table class="summary" id="summary-table">
+      <thead>
+        <tr>
+          <th class="center" style="width:36px;"><input type="checkbox" class="row-checkbox" id="select-all" onchange="toggleAll(this)" /></th>
+          <th style="width:130px;">Payout Date</th>
+          <th style="width:110px;">Location</th>
+          <th class="num">Deposits</th>
+          <th class="num val-profit">Profit</th>
+          <th class="num val-owner">Owner</th>
+          <th class="num val-tax">Tax</th>
+          <th class="num val-opex">OpEx</th>
+          <th class="num val-consignment">Reserve</th>
+          <th class="center">Status</th>
+          <th style="width:160px;"></th>
+        </tr>
+      </thead>
+      <tbody id="summary-body">
+        <tr><td colspan="11" class="empty-state"><strong>Loading…</strong>Configure Setup if this is your first time.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>CPR Cell Phone Repair — Oregon · Admin · Claim Payouts</footer>
+
+</div><!-- end appWrapper -->
+
+<script>
+// ============================================================================
+// SUPABASE — Claim Payouts data + settings live in Supabase (claims.view RLS).
+// ============================================================================
+const SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+let SB = null;
+const SB_READY = import('https://esm.sh/@supabase/supabase-js@2')
+  .then(m => { SB = m.createClient(SB_URL, SB_ANON);
+    return SB.auth.getSession().then(() => SB, () => SB); }) // restore shared PIN session before first query
+  .catch(() => { SB = null; return null; });
+
+// ============================================================================
+// SETTINGS (Pcts / Profit First) — cached in localStorage, synced to Supabase
+// ============================================================================
+const PCT_KEY = 'cl_pcts';
+const DEFAULT_PCTS = { profit: 20, owner: 10, tax: 10, opex: 60 };
+
+let pcts = (() => {
+  try { return { ...DEFAULT_PCTS, ...JSON.parse(localStorage.getItem(PCT_KEY) || '{}') }; }
+  catch { return { ...DEFAULT_PCTS }; }
+})();
+
+// Per-location settings: { "Salem": {pcts: {...}, reserve: false}, ... }
+// Locations not present here fall back to global `pcts` + reserve=true (default behavior).
+const LOC_SETTINGS_KEY = 'cl_location_settings';
+let locationSettings = (() => {
+  try { return JSON.parse(localStorage.getItem(LOC_SETTINGS_KEY) || '{}'); }
+  catch { return {}; }
+})();
+
+// Which location is currently being edited in the settings card. '__default'
+// means we're editing the global default (the `pcts` object + always-reserve).
+let editingLocation = '__default';
+
+// ============================================================================
+// SETTINGS CLOUD SYNC
+// ============================================================================
+// Settings (default PF % + per-location overrides) sync via Apps Script's
+// PropertiesService so the same Britt-on-laptop-A and Britt-on-laptop-B see
+// the same config. localStorage acts as the immediate cache; cloud is
+// authoritative on page load (overwrites local cache if newer).
+
+async function loadSettingsFromCloud() {
+  try {
+    const sb = await SB_READY; if (!sb) return null;
+    const { data, error } = await sb.from('claim_settings').select('default_pcts,locations').eq('id', 1).maybeSingle();
+    if (error || !data) return null;
+    return { default_pcts: data.default_pcts, locations: data.locations };
+  } catch (err) {
+    console.warn('Could not load cloud settings:', err);
+    return null;
+  }
+}
+
+async function saveSettingsToCloud() {
+  try {
+    const sb = await SB_READY; if (!sb) return false;
+    const { error } = await sb.from('claim_settings')
+      .update({ default_pcts: pcts, locations: locationSettings, updated_at: new Date().toISOString() })
+      .eq('id', 1);
+    return !error;
+  } catch (err) {
+    console.warn('Could not save cloud settings:', err);
+    return false;
+  }
+}
+
+function applyCloudSettings(s) {
+  if (!s) return false;
+  let changed = false;
+  if (s.default_pcts) {
+    pcts = { ...DEFAULT_PCTS, ...s.default_pcts };
+    localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
+    changed = true;
+  }
+  if (s.locations && typeof s.locations === 'object') {
+    locationSettings = s.locations;
+    localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
+    changed = true;
+  }
+  return changed;
+}
+
+// Debounced cloud save — so rapid input changes only fire one network request
+let _cloudSaveTimer = null;
+function queueCloudSave() {
+  clearTimeout(_cloudSaveTimer);
+  setSyncStatus('saving');
+  _cloudSaveTimer = setTimeout(async () => {
+    const ok = await saveSettingsToCloud();
+    setSyncStatus(ok ? 'synced' : 'local');
+  }, 600);
+}
+
+function setSyncStatus(state) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (state === 'saving') el.textContent = '⟳ Saving…';
+  else if (state === 'synced') el.textContent = '✓ Synced';
+  else if (state === 'local') el.textContent = '⚠ Saved locally only';
+  else el.textContent = '';
+}
+
+// Get the effective settings for a given location: explicit override, or
+// fall back to the global default (`pcts` + reserve=true + deductParts=true).
+function getLocationSettings(loc) {
+  const explicit = locationSettings[loc];
+  if (explicit) return {
+    pcts: { ...DEFAULT_PCTS, ...pcts, ...explicit.pcts },
+    reserve: explicit.reserve !== false,           // default true unless explicitly false
+    deductParts: explicit.deductParts !== false    // default true unless explicitly false
+  };
+  return { pcts: { ...pcts }, reserve: true, deductParts: true };
+}
+
+// State
+let rawTickets = [];          // raw ticket rows from Repairs tab
+let rawParts = [];            // raw part rows from Parts tab
+let partsByTicket = new Map(); // ticket_id (string) → array of part rows
+let batches = [];             // grouped by (location, payout_date)
+let allLocations = [];        // unique list of locations discovered from data
+let selected = new Set();     // set of batch keys
+let currentFilter = 'pending';
+let currentLocationFilter = 'all';
+let expandedBatches = new Set();
+let expandedTickets = new Set(); // ticket IDs whose parts sub-row is open
+
+// Normalize a Looker location string to a short display name.
+// "CPR Clackamas OR" → "Clackamas"; idempotent for already-short names.
+function shortLocation(loc) {
+  if (!loc) return '(unknown)';
+  return String(loc)
+    .replace(/^CPR\s+/i, '')
+    .replace(/\s+OR$/i, '')
+    .trim() || '(unknown)';
+}
+
+// Compound key for a batch: location + payout_date.
+function batchKey(location, payout_date) {
+  return `${location}|${payout_date}`;
+}
+
+// ============================================================================
+// FORMATTING / UTIL
+// ============================================================================
+function fmt(n) {
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtPct(v) { return (v || 0).toFixed(1) + '%'; }
+function fmtDate(d) {
+  if (!d) return '';
+  // Expect YYYY-MM-DD; format as e.g. "May 15"
+  const parts = String(d).split('-');
+  if (parts.length !== 3) return d;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  return `${months[monthIdx]} ${parseInt(parts[2], 10)}, ${parts[0]}`;
+}
+function dowOf(d) {
+  // Get day-of-week label for a YYYY-MM-DD string, treating it as local date
+  const parts = String(d).split('-');
+  if (parts.length !== 3) return '';
+  const dt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+}
+function toast(msg, kind = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + kind;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = 'toast ' + kind; }, 2400);
+}
+
+// ============================================================================
+// CONFIG UI
+// ============================================================================
+
+
+function togglePcts() {
+  const card = document.getElementById('pcts-card');
+  card.classList.toggle('hidden');
+  if (!card.classList.contains('hidden')) {
+    renderPctsLocTabs();
+    loadPctsForEditing();
+  }
+}
+
+// Render location selector tabs inside the settings card. Default option first,
+// then one tab per known location.
+function renderPctsLocTabs() {
+  const container = document.getElementById('pcts-loc-tabs');
+  if (!container) return;
+  const locs = ['__default'].concat(allLocations);
+  container.innerHTML = locs.map(loc => {
+    const label = loc === '__default' ? 'Default' : loc;
+    const overridden = loc !== '__default' && locationSettings[loc];
+    const dot = overridden ? '<span style="color:var(--blue);">•</span> ' : '';
+    return `<button class="filter-tab loc-tab ${editingLocation === loc ? 'active' : ''}" onclick="setEditingLocation('${loc}')">${dot}${label}</button>`;
+  }).join('');
+}
+
+function setEditingLocation(loc) {
+  editingLocation = loc;
+  renderPctsLocTabs();
+  loadPctsForEditing();
+}
+
+// Pull current settings for the editingLocation into the form inputs.
+function loadPctsForEditing() {
+  let p, reserve, deductParts;
+  if (editingLocation === '__default') {
+    p = { ...pcts };
+    reserve = true;
+    deductParts = true;
+  } else {
+    const cfg = getLocationSettings(editingLocation);
+    p = cfg.pcts;
+    reserve = cfg.reserve;
+    deductParts = cfg.deductParts;
+  }
+  document.getElementById('pct-profit').value = p.profit;
+  document.getElementById('pct-owner').value  = p.owner;
+  document.getElementById('pct-tax').value    = p.tax;
+  document.getElementById('pct-opex').value   = p.opex;
+
+  const deductEl = document.getElementById('pct-deduct-parts');
+  const reserveEl = document.getElementById('pct-reserve');
+  deductEl.checked = deductParts;
+  reserveEl.checked = reserve && deductParts;
+
+  // Toggles only meaningful for specific locations, not the global default
+  const isDefault = editingLocation === '__default';
+  deductEl.disabled = isDefault;
+  deductEl.parentElement.style.opacity = isDefault ? '0.4' : '1';
+  // Reserve disabled if either: editing default, OR deductParts is off
+  reserveEl.disabled = isDefault || !deductParts;
+  reserveEl.parentElement.style.opacity = (isDefault || !deductParts) ? '0.4' : '1';
+  updatePctsStatus();
+}
+
+function onPctsChange() {
+  const newPcts = {
+    profit: parseFloat(document.getElementById('pct-profit').value) || 0,
+    owner:  parseFloat(document.getElementById('pct-owner').value)  || 0,
+    tax:    parseFloat(document.getElementById('pct-tax').value)    || 0,
+    opex:   parseFloat(document.getElementById('pct-opex').value)   || 0
+  };
+  const deductEl = document.getElementById('pct-deduct-parts');
+  const reserveEl = document.getElementById('pct-reserve');
+  const deductParts = deductEl.checked;
+  // Reserve requires deductParts — force reserve off if deductParts is off
+  if (!deductParts) reserveEl.checked = false;
+  reserveEl.disabled = !deductParts || editingLocation === '__default';
+  reserveEl.parentElement.style.opacity = (!deductParts || editingLocation === '__default') ? '0.4' : '1';
+  const reserve = reserveEl.checked;
+
+  if (editingLocation === '__default') {
+    pcts = newPcts;
+    localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
+  } else {
+    locationSettings[editingLocation] = { pcts: newPcts, reserve, deductParts };
+    localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
+    renderPctsLocTabs(); // update the dot indicator
+  }
+  updatePctsStatus();
+  queueCloudSave();
+  recomputeAndRender();
+}
+
+function resetLocationSettings() {
+  if (editingLocation === '__default') {
+    pcts = { ...DEFAULT_PCTS };
+    localStorage.setItem(PCT_KEY, JSON.stringify(pcts));
+  } else {
+    delete locationSettings[editingLocation];
+    localStorage.setItem(LOC_SETTINGS_KEY, JSON.stringify(locationSettings));
+  }
+  loadPctsForEditing();
+  renderPctsLocTabs();
+  queueCloudSave();
+  recomputeAndRender();
+}
+
+function updatePctsStatus() {
+  const total = (parseFloat(document.getElementById('pct-profit').value) || 0)
+              + (parseFloat(document.getElementById('pct-owner').value)  || 0)
+              + (parseFloat(document.getElementById('pct-tax').value)    || 0)
+              + (parseFloat(document.getElementById('pct-opex').value)   || 0);
+  const statusEl = document.getElementById('pcts-status');
+  if (Math.abs(total - 100) < 0.01) statusEl.textContent = '✓ 100%';
+  else statusEl.textContent = `⚠ ${total.toFixed(1)}%`;
+}
+
+// ============================================================================
+// CSV PARSING
+// ============================================================================
+
+// Map Looker's native column headers to our canonical schema names.
+// Lets the user paste Looker output raw without renaming columns.
+// First-occurrence-with-content wins (handles cases like Looker exporting
+// both "Service Program Name" and "Program" — we want the more specific one).
+const HEADER_ALIASES = {
+  // Ticket ID
+  'rq ticket #':                              'ticket_id',
+  'ticket id':                                'ticket_id',
+  // Ticket date (when device was returned to customer)
+  'returned to cust':                         'ticket_date',
+  'ticket picked up date':                    'ticket_date',
+  // Device
+  'device catalog item name':                 'device',
+  'ticket device claim model':                'device',
+  // Description (color/variant)
+  'device description':                       'description',
+  // Money (Repairs tab)
+  'ticket item all net repair sale total':    'total',
+  'ticket item all net cogs total':           'cogs',
+  'royalty due':                              'royalty',
+  // Program / warranty provider
+  'service program name':                     'program',
+  // Processed date (tolerant aliases — accept either "Processed Date" or "processed_date")
+  'processed date':                           'processed_date',
+  // Parts tab — part-level fields
+  'name':                                     'part_name',
+  'is consigned':                             'consigned',
+  'consigned (yes / no)':                     'consigned',
+  'part cost':                                'part_cost',
+  'all net cogs total':                       'part_cost'   // fallback if measure not renamed
+};
+function normalizeHeader(h) {
+  const cleaned = String(h).trim().toLowerCase();
+  return HEADER_ALIASES[cleaned] || cleaned;
+}
+
+function parseCSV(text) {
+  // Handles quoted fields, doubled quotes, CRLF/LF
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function rowsToObjects(rows) {
+  if (!rows.length) return [];
+  const headers = rows[0].map(normalizeHeader);
+  return rows.slice(1)
+    .map(r => {
+      const o = {};
+      headers.forEach((h, i) => {
+        const v = (r[i] || '').trim();
+        // First non-empty value for a given canonical key wins (handles
+        // duplicated columns like two payout_date cols, or Service Program
+        // Name vs Program).
+        if (!o[h] && v) o[h] = v;
+      });
+      return o;
+    })
+    // Drop totals/footer rows and blank rows (no ticket_id)
+    .filter(o => o.ticket_id && String(o.ticket_id).trim());
+}
+
+function num(v) {
+  if (v == null) return 0;
+  const cleaned = String(v).replace(/[$,\s]/g, '');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
+function bool(v) {
+  if (v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === 'true' || s === 'yes' || s === '1' || s === 'y';
+}
+
+// ============================================================================
+// DATA LOAD
+// ============================================================================
+async function loadData() {
+  const statusEl = document.getElementById('data-status');
+  statusEl.classList.remove('error');
+  statusEl.textContent = 'Loading…';
+  document.getElementById('btn-refresh').classList.add('spinning');
+
+  try {
+    const sb = await SB_READY;
+    if (!sb) throw new Error('Could not reach the server.');
+    // Pull all repairs + parts. DB column names already match the canonical
+    // field names the rest of the app uses, so no row mapping is needed.
+    const [rep, par] = await Promise.all([
+      sb.from('claim_repairs').select('*'),
+      sb.from('claim_parts').select('*')
+    ]);
+    if (rep.error) throw new Error(rep.error.message);
+    rawTickets = (rep.data || []);
+
+    rawParts = par.error ? [] : (par.data || []);
+    partsByTicket = new Map();
+    for (const p of rawParts) {
+      const tid = String(p.ticket_id || '').trim();
+      if (!tid) continue;
+      if (!partsByTicket.has(tid)) partsByTicket.set(tid, []);
+      partsByTicket.get(tid).push(p);
+    }
+    const partsNote = par.error ? ', parts unavailable' : `, ${rawParts.length} parts`;
+
+    statusEl.textContent = `${rawTickets.length} tickets${partsNote} · updated ${new Date().toLocaleTimeString()}`;
+    recomputeAndRender();
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.classList.add('error');
+    renderEmpty('Could not load claim data.');
+  } finally {
+    document.getElementById('btn-refresh').classList.remove('spinning');
+  }
+}
+
+// ============================================================================
+// GROUPING + PF MATH
+// ============================================================================
+function recomputeAndRender() {
+  // Normalize location on every ticket (short form) and collect unique set.
+  // Falls back to looking up the ticket's parts (Parts CSV has Location) if
+  // the Repairs row doesn't carry a Location column.
+  const locSet = new Set();
+  for (const t of rawTickets) {
+    let loc = t.location;
+    if (!loc) {
+      const tid = String(t.ticket_id || '').trim();
+      const parts = partsByTicket.get(tid);
+      if (parts && parts.length && parts[0].location) loc = parts[0].location;
+    }
+    t.location_short = shortLocation(loc);
+    locSet.add(t.location_short);
+  }
+  allLocations = Array.from(locSet).sort();
+  batches = groupByBatch(rawTickets);
+  batches.forEach(b => Object.assign(b, computePF(b)));
+  // Compute batch-level processed_date (max across processed tickets)
+  batches.forEach(b => {
+    const dates = b.tickets
+      .filter(t => bool(t.processed) && t.processed_date)
+      .map(t => String(t.processed_date));
+    b.processed_date = dates.length ? dates.sort().pop() : '';
+  });
+  updateFilterCounts();
+  renderLocationTabs();
+  render();
+  renderBulkBar();
+  renderMetricsBar();
+}
+
+function groupByBatch(tickets) {
+  const map = new Map();
+  for (const t of tickets) {
+    const loc = t.location_short || '(unknown)';
+    const date = t.payout_date || '(unknown)';
+    const key = batchKey(loc, date);
+    if (!map.has(key)) map.set(key, { key, location: loc, payout_date: date, tickets: [] });
+    map.get(key).tickets.push(t);
+  }
+  // Sort: newest date first, then location alphabetical
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.payout_date !== b.payout_date) return a.payout_date < b.payout_date ? 1 : -1;
+    return a.location < b.location ? -1 : 1;
+  });
+}
+
+// Per-ticket reserve: sum of consigned parts' costs. If the ticket has no
+// parts data at all (legacy May rows, or before Parts pipeline ran), fall
+// back to the ticket-level COGS as the conservative reserve.
+// Also returns:
+//   nonConsigned = cost of self-owned parts on this ticket (already-paid inventory)
+//   consignedCount / nonConsignedCount = how many parts in each bucket
+function ticketReserveInfo(t) {
+  const tid = String(t.ticket_id || '').trim();
+  const parts = partsByTicket.get(tid);
+  if (parts && parts.length) {
+    let consignedCost = 0, nonConsignedCost = 0, cC = 0, nC = 0;
+    for (const p of parts) {
+      const c = num(p.part_cost);
+      if (bool(p.consigned)) { consignedCost    += c; cC++; }
+      else                    { nonConsignedCost += c; nC++; }
+    }
+    return {
+      reserve: consignedCost,
+      nonConsigned: nonConsignedCost,
+      partsCogs: consignedCost + nonConsignedCost,
+      source: 'parts',
+      partsCount: parts.length,
+      consignedCount: cC,
+      nonConsignedCount: nC
+    };
+  }
+  // Fallback: no parts data — full COGS goes to reserve (conservative).
+  // Non-consigned is 0 because we don't know what's what.
+  return {
+    reserve: num(t.cogs),
+    nonConsigned: 0,
+    partsCogs: num(t.cogs),
+    source: 'fallback',
+    partsCount: 0,
+    consignedCount: 0,
+    nonConsignedCount: 0
+  };
+}
+
+function computePF(batch) {
+  const locCfg = getLocationSettings(batch.location);
+  const locPcts = locCfg.pcts;
+  const useReserve = locCfg.reserve;
+  const deductParts = locCfg.deductParts;
+
+  let total = 0, cogs = 0, royalty = 0;
+  let rawConsigned = 0, rawNonConsigned = 0;
+  let consignedCount = 0, nonConsignedCount = 0;
+  let processedCount = 0;
+  let anyFallback = false;
+  for (const t of batch.tickets) {
+    total   += num(t.total);
+    cogs    += num(t.cogs);
+    royalty += num(t.royalty);
+    const info = ticketReserveInfo(t);
+    // Per-ticket display values respect the toggles:
+    // - deductParts OFF → nothing comes off the ticket, parts handled outside
+    // - reserve OFF (but deduct ON) → all parts flow through OpEx
+    // - both ON → consigned reserves, non-consigned to OpEx
+    if (!deductParts) {
+      t._reserve = 0;
+      t._nonConsigned = 0;
+    } else if (!useReserve) {
+      t._reserve = 0;
+      t._nonConsigned = info.reserve + info.nonConsigned;
+    } else {
+      t._reserve = info.reserve;
+      t._nonConsigned = info.nonConsigned;
+    }
+    t._partsCogs = info.partsCogs;
+    t._reserveSource = info.source;
+    t._partsCount = info.partsCount;
+    t._consignedCount = info.consignedCount;
+    t._nonConsignedCount = info.nonConsignedCount;
+    rawConsigned += info.reserve;
+    rawNonConsigned += info.nonConsigned;
+    consignedCount += info.consignedCount;
+    nonConsignedCount += info.nonConsignedCount;
+    if (info.source === 'fallback') anyFallback = true;
+    if (bool(t.processed)) processedCount++;
+  }
+
+  // Batch-level deductions follow the toggle logic
+  let reserve, nonConsigned;
+  if (!deductParts) {
+    reserve = 0;
+    nonConsigned = 0;
+  } else if (!useReserve) {
+    reserve = 0;
+    nonConsigned = rawConsigned + rawNonConsigned;
+  } else {
+    reserve = rawConsigned;
+    nonConsigned = rawNonConsigned;
+  }
+
+  const base = total - royalty - reserve - nonConsigned;
+  const negative = base < 0;
+  const profit = negative ? 0 : base * locPcts.profit / 100;
+  const owner  = negative ? 0 : base * locPcts.owner  / 100;
+  const tax    = negative ? 0 : base * locPcts.tax    / 100;
+  const opexPF = negative ? 0 : base * locPcts.opex   / 100;
+  const opex   = negative ? 0 : opexPF + royalty + nonConsigned;
+  const distributed = profit + owner + tax + opex + (negative ? 0 : reserve);
+
+  let status = 'pending';
+  if (processedCount === batch.tickets.length) status = 'completed';
+  else if (processedCount > 0) status = 'partial';
+
+  return {
+    total, cogs, royalty, reserve, nonConsigned, base, negative,
+    consignedCount, nonConsignedCount,
+    profit, owner, tax, opex, opexPF, distributed,
+    processedCount, status, anyFallback,
+    locPcts, useReserve
+  };
+}
+
+// ============================================================================
+// FILTERING
+// ============================================================================
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(tab => {
+    if (tab.dataset.filter) tab.classList.toggle('active', tab.dataset.filter === f);
+  });
+  // Clear selection on filter change to avoid hidden selected rows
+  selected.clear();
+  render();
+  renderBulkBar();
+  renderMetricsBar();
+}
+
+function setLocationFilter(loc) {
+  currentLocationFilter = loc;
+  document.querySelectorAll('.loc-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.location === loc);
+  });
+  selected.clear();
+  render();
+  renderBulkBar();
+  renderMetricsBar();
+}
+
+function visibleBatches() {
+  let list = batches;
+  if (currentLocationFilter !== 'all') {
+    list = list.filter(b => b.location === currentLocationFilter);
+  }
+  if (currentFilter === 'all') return list;
+  if (currentFilter === 'pending') return list.filter(b => b.status !== 'completed');
+  return list.filter(b => b.status === 'completed');
+}
+
+function locationScopedBatches() {
+  // Status-filter-agnostic but location-filter-aware. Used for status counts.
+  if (currentLocationFilter === 'all') return batches;
+  return batches.filter(b => b.location === currentLocationFilter);
+}
+
+function updateFilterCounts() {
+  const scoped = locationScopedBatches();
+  document.getElementById('count-all').textContent = scoped.length;
+  document.getElementById('count-pending').textContent = scoped.filter(b => b.status !== 'completed').length;
+  document.getElementById('count-completed').textContent = scoped.filter(b => b.status === 'completed').length;
+}
+
+function renderLocationTabs() {
+  const container = document.getElementById('location-tabs');
+  if (!container) return;
+  // Only render tabs if we have more than one location (otherwise pointless UI)
+  if (allLocations.length <= 1) {
+    container.innerHTML = '';
+    currentLocationFilter = 'all';
+    return;
+  }
+  // If current filter is for a location that no longer exists in data, reset
+  if (currentLocationFilter !== 'all' && !allLocations.includes(currentLocationFilter)) {
+    currentLocationFilter = 'all';
+  }
+  const tabs = [`<button class="filter-tab loc-tab ${currentLocationFilter === 'all' ? 'active' : ''}" data-location="all" onclick="setLocationFilter('all')">All Locations</button>`]
+    .concat(allLocations.map(loc => {
+      const count = batches.filter(b => b.location === loc).length;
+      return `<button class="filter-tab loc-tab ${currentLocationFilter === loc ? 'active' : ''}" data-location="${loc}" onclick="setLocationFilter('${loc}')">${loc} <span class="filter-count">${count}</span></button>`;
+    }));
+  container.innerHTML = tabs.join('');
+}
+
+// ============================================================================
+// RENDER
+// ============================================================================
+function renderEmpty(msg) {
+  document.getElementById('summary-body').innerHTML =
+    `<tr><td colspan="11" class="empty-state"><strong>No data</strong>${msg}</td></tr>`;
+}
+
+function render() {
+  const body = document.getElementById('summary-body');
+  const list = visibleBatches();
+
+  if (!list.length) {
+    const msg = currentFilter === 'pending' ? 'Nothing pending. Nice.' :
+                currentFilter === 'completed' ? 'No completed batches yet.' :
+                'No batches loaded.';
+    body.innerHTML = `<tr><td colspan="11" class="empty-state"><strong>—</strong>${msg}</td></tr>`;
+    document.getElementById('select-all').checked = false;
+    return;
+  }
+
+  const html = list.map(b => renderBatchRow(b)).join('');
+  body.innerHTML = html;
+  syncSelectAll();
+}
+
+function renderBatchRow(b) {
+  const isSelected = selected.has(b.key);
+  const isExpanded = expandedBatches.has(b.key);
+  const isProcessed = b.status === 'completed';
+
+  const completedLabel = b.processed_date ? `Completed ${fmtDate(b.processed_date)}` : 'Completed';
+  const statusHtml = b.negative
+    ? '<span class="status-pill negative">Net Negative</span>'
+    : b.status === 'completed' ? `<span class="status-pill completed">${completedLabel}</span>`
+    : b.status === 'partial'   ? `<span class="status-pill partial">${b.processedCount}/${b.tickets.length}</span>`
+    : '<span class="status-pill pending">Pending</span>';
+
+  const markBtn = isProcessed
+    ? `<button class="icon-btn danger" onclick="markBatchProcessed('${b.key}', false, this)">Reopen</button>`
+    : `<button class="icon-btn primary" onclick="markBatchProcessed('${b.key}', true, this)">Mark Done</button>`;
+
+  return `
+    <tr class="batch-row ${isSelected ? 'selected' : ''} ${isProcessed ? 'processed' : ''}" data-key="${b.key}">
+      <td class="center"><input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${b.key}', this.checked)" /></td>
+      <td>
+        <div class="date-cell">
+          <div class="date-main">${fmtDate(b.payout_date)}</div>
+          <div class="date-sub">${dowOf(b.payout_date)} · ${b.tickets.length} tickets</div>
+        </div>
+      </td>
+      <td><div class="location-cell">${b.location}</div></td>
+      <td class="num copyable" title="Click to copy" onclick="copyCell(${b.total}, this)"><div class="deposits-cell">${fmt(b.total)}</div></td>
+      <td class="num val-profit copyable" title="Click to copy" onclick="copyCell(${b.profit}, this)">${fmt(b.profit)}</td>
+      <td class="num val-owner copyable" title="Click to copy" onclick="copyCell(${b.owner}, this)">${fmt(b.owner)}</td>
+      <td class="num val-tax copyable" title="Click to copy" onclick="copyCell(${b.tax}, this)">${fmt(b.tax)}</td>
+      <td class="num val-opex copyable" title="Click to copy" onclick="copyCell(${b.opex}, this)">${fmt(b.opex)}</td>
+      <td class="num val-consignment ${b.reserve < 0.005 ? 'zero' : ''} copyable" title="Click to copy" onclick="copyCell(${b.reserve}, this)">${fmt(b.reserve)}</td>
+      <td class="center">${statusHtml}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" onclick="toggleExpand('${b.key}')">${isExpanded ? '− Details' : '+ Details'}</button>
+          ${markBtn}
+        </div>
+      </td>
+    </tr>
+    ${isExpanded ? renderDetailRow(b) : ''}
+  `;
+}
+
+function renderDetailRow(b) {
+  // Build ticket rows + nested parts sub-rows
+  const ticketsHtml = b.tickets.map(t => {
+    const isProc = bool(t.processed);
+    const procIcon = isProc
+      ? (t.processed_date
+          ? `<span title="Processed ${t.processed_date}" style="color:var(--green);">✓</span>`
+          : '<span style="color:var(--green);">✓</span>')
+      : '○';
+    const reserve = t._reserve || 0;
+    const fallback = t._reserveSource === 'fallback';
+    const tid = String(t.ticket_id || '').trim();
+    const parts = partsByTicket.get(tid) || [];
+    const cC = t._consignedCount || 0;
+    const isOpen = expandedTickets.has(tid);
+
+    let partsCell;
+    let clickAttr = '';
+    if (fallback) {
+      partsCell = '<span style="color:var(--grey);font-size:10px;">no parts data</span>';
+    } else if (parts.length === 0) {
+      partsCell = '—';
+    } else {
+      partsCell = `<span class="parts-summary">
+        <span style="color:var(--consignment);font-weight:800;">${cC}</span>
+        <span style="color:var(--grey);">/</span>
+        <span style="color:var(--dark);font-weight:800;">${parts.length}</span>
+        <span class="expand-chev ${isOpen ? 'open' : ''}">▸</span>
+      </span>`;
+      clickAttr = `class="parts-toggle" onclick="toggleTicketExpand('${tid}')"`;
+    }
+
+    const ticketRow = `
+      <tr class="ticket-main-row">
+        <td>${procIcon}</td>
+        <td class="ticket-id">${t.ticket_id || ''}</td>
+        <td>${t.ticket_date || ''}</td>
+        <td>${t.device || ''} ${t.description ? '· ' + t.description : ''}</td>
+        <td>${t.program || ''}</td>
+        <td class="num">${fmt(num(t.total))}</td>
+        <td class="num">${fmt(num(t.cogs))}</td>
+        <td class="num">${fmt(num(t.royalty))}</td>
+        <td class="num">${fmt(num(t.total) - num(t.royalty))}</td>
+        <td class="num reserve-cell ${reserve < 0.005 ? 'zero' : ''}" style="${reserve >= 0.005 ? 'color:var(--consignment);' : ''}font-weight:900;">${fmt(reserve)}</td>
+        <td ${clickAttr}>${partsCell}</td>
+      </tr>
+    `;
+
+    // Nested parts sub-row — only if parts exist AND ticket is expanded
+    let partsRow = '';
+    if (parts.length && isOpen) {
+      const partLines = parts.map((p, i) => {
+        const isC = bool(p.consigned);
+        const isLast = i === parts.length - 1;
+        const branch = isLast ? '└─' : '├─';
+        const cost = num(p.part_cost);
+        const badge = isC
+          ? '<span class="part-badge consigned">CONSIGNED → reserve</span>'
+          : '<span class="part-badge self-owned">self-owned → OpEx</span>';
+        return `
+          <div class="part-line">
+            <span class="part-branch">${branch}</span>
+            <span class="part-name">${p.part_name || ''}</span>
+            <span class="part-cost ${isC ? 'consigned' : 'self-owned'}">${fmt(cost)}</span>
+            ${badge}
+          </div>
+        `;
+      }).join('');
+      partsRow = `
+        <tr class="ticket-parts-row">
+          <td colspan="11">
+            <div class="parts-nest">${partLines}</div>
+          </td>
+        </tr>
+      `;
+    }
+    return ticketRow + partsRow;
+  }).join('');
+
+  const fallbackNote = b.anyFallback ? `
+    <div class="calc-line"><span style="color:var(--grey);font-size:10px;">⚠ some tickets use COGS fallback (no parts data)</span><span></span></div>
+  ` : '';
+
+  // Expand-all-parts state: count tickets in this batch with parts, check if all are open
+  const eligibleTids = b.tickets
+    .map(t => String(t.ticket_id || '').trim())
+    .filter(tid => (partsByTicket.get(tid) || []).length > 0);
+  const eligiblePartsCount = eligibleTids.length;
+  const allPartsOpen = eligiblePartsCount > 0 && eligibleTids.every(tid => expandedTickets.has(tid));
+
+  return `
+    <tr class="detail-row" data-key-detail="${b.key}">
+      <td colspan="11">
+        <div class="detail-wrap">
+          <div class="detail-section">
+            <div class="calc-box">
+              <div class="calc-title">Allocation Math</div>
+              <div class="calc-line"><span>Deposits</span><span>${fmt(b.total)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot royalty"></span>Royalty</span><span>−${fmt(b.royalty)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Reserve (consigned)</span><span>−${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot opex"></span>Self-owned parts</span><span>−${fmt(b.nonConsigned)}</span></div>
+              <div class="calc-line total"><span>Allocation Base</span><span style="${b.negative ? 'color:var(--red);' : ''}">${fmt(b.base)}</span></div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-title">Profit First (${b.locPcts.profit}/${b.locPcts.owner}/${b.locPcts.tax}/${b.locPcts.opex})${b.useReserve ? '' : ' · no reserve'}</div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot profit"></span>Profit</span><span>${fmt(b.profit)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot owner"></span>Owner</span><span>${fmt(b.owner)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot tax"></span>Tax</span><span>${fmt(b.tax)}</span></div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot opex"></span>OpEx PF</span><span>${fmt(b.opexPF)}</span></div>
+              <div class="calc-line divider"><span style="color:var(--grey)">+ Royalty into OpEx</span><span>${fmt(b.royalty)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">+ Self-owned parts into OpEx</span><span>${fmt(b.nonConsigned)}</span></div>
+              <div class="calc-line total"><span>OpEx Transfer</span><span>${fmt(b.opex)}</span></div>
+            </div>
+            <div class="calc-box">
+              <div class="calc-title">Parts Cost Breakdown</div>
+              <div class="calc-line"><span class="calc-label-row"><span class="calc-dot consignment"></span>Consigned (→ Reserve)</span><span>${fmt(b.reserve)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">Consigned parts count</span><span>${b.consignedCount}</span></div>
+              <div class="calc-line divider"><span class="calc-label-row"><span class="calc-dot opex"></span>Self-owned (→ OpEx)</span><span>${fmt(b.nonConsigned)}</span></div>
+              <div class="calc-line"><span style="color:var(--grey)">Self-owned parts count</span><span>${b.nonConsignedCount}</span></div>
+              <div class="calc-line total"><span>Total Parts COGS</span><span>${fmt(b.reserve + b.nonConsigned)}</span></div>
+              ${fallbackNote}
+            </div>
+          </div>
+          <div class="tickets-toolbar">
+            ${eligiblePartsCount > 0 ? `
+              <button class="icon-btn small" onclick="toggleAllPartsInBatch('${b.key}')">
+                <span class="expand-chev ${allPartsOpen ? 'open' : ''}">▸</span>
+                ${allPartsOpen ? 'Collapse all parts' : `Expand all parts (${eligiblePartsCount})`}
+              </button>
+            ` : ''}
+          </div>
+          <div class="tickets-wrap">
+            <table class="tickets">
+              <thead>
+                <tr>
+                  <th style="width:20px;"></th>
+                  <th>Ticket #</th>
+                  <th>Date</th>
+                  <th>Device</th>
+                  <th>Program</th>
+                  <th class="num">Total</th>
+                  <th class="num">COGS</th>
+                  <th class="num">Royalty</th>
+                  <th class="num" title="Total minus Royalty — net kept after franchise royalty">Profit</th>
+                  <th class="num">Reserve</th>
+                  <th>Parts</th>
+                </tr>
+              </thead>
+              <tbody>${ticketsHtml}</tbody>
+              <tfoot>
+                <tr class="ticket-totals-row">
+                  <td colspan="5" class="totals-label">Totals · ${b.tickets.length} ticket${b.tickets.length === 1 ? '' : 's'}</td>
+                  <td class="num">${fmt(b.total)}</td>
+                  <td class="num">${fmt(b.cogs)}</td>
+                  <td class="num">${fmt(b.royalty)}</td>
+                  <td class="num">${fmt(b.total - b.royalty)}</td>
+                  <td class="num ${b.reserve < 0.005 ? '' : 'reserve-cell-total'}">${fmt(b.reserve)}</td>
+                  <td><span style="font-family:'Nunito';font-weight:800;font-size:11px;"><span style="color:var(--consignment);">${b.consignedCount}</span> / ${b.consignedCount + b.nonConsignedCount}</span></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function toggleExpand(key) {
+  if (expandedBatches.has(key)) expandedBatches.delete(key);
+  else expandedBatches.add(key);
+  render();
+}
+
+function toggleTicketExpand(tid) {
+  if (expandedTickets.has(tid)) expandedTickets.delete(tid);
+  else expandedTickets.add(tid);
+  render();
+}
+
+function toggleAllPartsInBatch(batchKey) {
+  const batch = batches.find(b => b.key === batchKey);
+  if (!batch) return;
+  const eligibleTids = batch.tickets
+    .map(t => String(t.ticket_id || '').trim())
+    .filter(tid => (partsByTicket.get(tid) || []).length > 0);
+  if (!eligibleTids.length) return;
+  const allOpen = eligibleTids.every(tid => expandedTickets.has(tid));
+  if (allOpen) {
+    eligibleTids.forEach(tid => expandedTickets.delete(tid));
+  } else {
+    eligibleTids.forEach(tid => expandedTickets.add(tid));
+  }
+  render();
+}
+
+// ============================================================================
+// SELECTION
+// ============================================================================
+function toggleSelect(key, checked) {
+  if (checked) selected.add(key); else selected.delete(key);
+  // Update only the affected row's class without full re-render
+  const tr = document.querySelector(`tr.batch-row[data-key="${key}"]`);
+  if (tr) tr.classList.toggle('selected', checked);
+  syncSelectAll();
+  renderBulkBar();
+}
+
+function toggleAll(masterCheckbox) {
+  const vis = visibleBatches();
+  if (masterCheckbox.checked) {
+    vis.forEach(b => selected.add(b.key));
+  } else {
+    vis.forEach(b => selected.delete(b.key));
+  }
+  render();
+  renderBulkBar();
+}
+
+function syncSelectAll() {
+  const vis = visibleBatches();
+  const masterCheckbox = document.getElementById('select-all');
+  if (!vis.length) { masterCheckbox.checked = false; return; }
+  masterCheckbox.checked = vis.every(b => selected.has(b.key));
+}
+
+// ============================================================================
+// BULK BAR
+// ============================================================================
+function renderBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const vis = visibleBatches();
+
+  // Hide entirely if there's nothing visible at all
+  if (!vis.length) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+
+  const usingSelected = selected.size > 0;
+  const scope = usingSelected ? batches.filter(b => selected.has(b.key)) : vis;
+  const totals = scope.reduce((acc, b) => ({
+    profit: acc.profit + b.profit,
+    owner:  acc.owner  + b.owner,
+    tax:    acc.tax    + b.tax,
+    opex:   acc.opex   + b.opex,
+    reserve:acc.reserve+ b.reserve
+  }), { profit: 0, owner: 0, tax: 0, opex: 0, reserve: 0 });
+
+  // Label + scope-aware location indicator (only meaningful for selection)
+  let label;
+  if (usingSelected) {
+    const locSet = new Set(scope.map(b => b.location));
+    const locTag = locSet.size > 1
+      ? `<span class="bulk-loc-warn">⚠ ${locSet.size} locations — different bank accounts</span>`
+      : (locSet.size === 1 ? `<span class="bulk-loc">${[...locSet][0]}</span>` : '');
+    label = `${scope.length} selected ${locTag}`;
+  } else {
+    const filterDesc = currentFilter === 'pending' ? 'pending' : currentFilter === 'completed' ? 'completed' : 'all';
+    const locDesc = currentLocationFilter !== 'all' ? ` · ${currentLocationFilter}` : '';
+    label = `<span class="bulk-allvis">All ${filterDesc}${locDesc} · ${scope.length} batch${scope.length === 1 ? '' : 'es'}</span>`;
+  }
+
+  document.getElementById('bulk-count').innerHTML = label;
+  document.getElementById('bulk-count').classList.toggle('all-visible', !usingSelected);
+  document.getElementById('bulk-profit').textContent  = fmt(totals.profit);
+  document.getElementById('bulk-owner').textContent   = fmt(totals.owner);
+  document.getElementById('bulk-tax').textContent     = fmt(totals.tax);
+  document.getElementById('bulk-opex').textContent    = fmt(totals.opex);
+  document.getElementById('bulk-reserve').textContent = fmt(totals.reserve);
+
+  // Mark Processed only makes sense for an explicit selection — too dangerous
+  // to fire across all-visible. Hide the button when nothing is selected.
+  const btn = document.getElementById('btn-mark-processed');
+  if (btn) btn.style.display = usingSelected ? '' : 'none';
+}
+
+function copyBulk(field, el) {
+  // Same scope rule as the display — selection if any, otherwise all-visible
+  const scope = selected.size > 0
+    ? batches.filter(b => selected.has(b.key))
+    : visibleBatches();
+  const total = scope.reduce((s, b) => s + (b[field] || 0), 0);
+  copyText(total.toFixed(2));
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1200);
+}
+
+function copyText(txt) {
+  navigator.clipboard.writeText(txt).then(() => toast('Copied: ' + txt, 'success'));
+}
+
+// Copy a raw numeric amount from a clicked cell (used in main batch rows)
+function copyCell(amount, el) {
+  copyText(Number(amount).toFixed(2));
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1200);
+}
+
+// Cache for metrics values keyed by metric name (so copyMetric can format the right way)
+let _metricsCache = {};
+
+function renderMetricsBar() {
+  const bar = document.getElementById('metrics-bar');
+  const vis = visibleBatches();
+  if (!vis.length) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+
+  let sales = 0, cogs = 0, royalty = 0;
+  let claims = 0, parts = 0;
+  for (const b of vis) {
+    sales   += b.total;
+    cogs    += b.cogs;
+    royalty += b.royalty;
+    claims  += b.tickets.length;
+    parts   += (b.consignedCount || 0) + (b.nonConsignedCount || 0);
+  }
+  const gross = sales - cogs;
+  const avgPrice    = claims ? sales / claims : 0;
+  const avgCost     = claims ? cogs / claims : 0;
+  const avgRoyalty  = claims ? royalty / claims : 0;
+  const avgMarginPct = sales > 0 ? (gross / sales) * 100 : 0;
+
+  _metricsCache = { sales, cogs, gross, royalty, avg_price: avgPrice, avg_cost: avgCost, avg_royalty: avgRoyalty, avg_margin_pct: avgMarginPct };
+
+  document.getElementById('m-sales').textContent      = fmt(sales);
+  document.getElementById('m-cogs').textContent       = fmt(cogs);
+  document.getElementById('m-gross').textContent      = fmt(gross);
+  document.getElementById('m-royalty').textContent    = fmt(royalty);
+  document.getElementById('m-claims').textContent     = claims.toLocaleString();
+  document.getElementById('m-parts').textContent      = parts.toLocaleString();
+  document.getElementById('m-avg-price').textContent  = fmt(avgPrice);
+  document.getElementById('m-avg-cost').textContent   = fmt(avgCost);
+  document.getElementById('m-avg-margin').textContent = avgMarginPct.toFixed(1) + '%';
+  document.getElementById('m-avg-royalty').textContent= fmt(avgRoyalty);
+}
+
+function copyMetric(field, el) {
+  const v = _metricsCache[field];
+  if (v == null) return;
+  // Percent metric formats differently; everything else is a dollar number
+  const txt = field === 'avg_margin_pct' ? Number(v).toFixed(1) + '%' : Number(v).toFixed(2);
+  copyText(txt);
+  el.classList.add('copied');
+  setTimeout(() => el.classList.remove('copied'), 1200);
+}
+
+// ============================================================================
+// MARK PROCESSED (Apps Script writeback)
+// ============================================================================
+async function markBatchProcessed(batchKey, value, btn) {
+  const batch = batches.find(b => b.key === batchKey);
+  if (!batch) return;
+  const ticketIds = batch.tickets.map(t => t.ticket_id);
+  await markTickets(ticketIds, value, btn);
+}
+
+async function markSelectedProcessed() {
+  const sel = batches.filter(b => selected.has(b.key));
+  if (!sel.length) return;
+  const ticketIds = sel.flatMap(b => b.tickets.map(t => t.ticket_id));
+  await markTickets(ticketIds, true, document.getElementById('btn-mark-processed'));
+}
+
+async function markTickets(ticketIds, value, btn) {
+  if (!ticketIds.length) return;
+  btn && btn.classList.add('spinning');
+  try {
+    const sb = await SB_READY;
+    if (!sb) throw new Error('Could not reach the server.');
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const ids = ticketIds.map(String);
+    const { error } = await sb.from('claim_repairs')
+      .update({ processed: value, processed_date: value ? todayIso : null, updated_at: new Date().toISOString() })
+      .in('ticket_id', ids);
+    if (error) throw new Error(error.message);
+    toast(`Updated ${ids.length} ticket${ids.length === 1 ? '' : 's'}`, 'success');
+    // Optimistic UI update so rows move tabs immediately.
+    const idSet = new Set(ids);
+    for (const t of rawTickets) {
+      if (idSet.has(String(t.ticket_id))) {
+        t.processed = value;
+        t.processed_date = value ? todayIso : '';
+      }
+    }
+    selected.clear();
+    recomputeAndRender();
+  } catch (err) {
+    console.error(err);
+    toast('Update failed: ' + err.message, 'error');
+  } finally {
+    btn && btn.classList.remove('spinning');
+  }
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+function initPctsUI() {
+  // Default to editing the global Default; tabs + form load when card opens
+  editingLocation = '__default';
+  loadPctsForEditing();
+}
+
+function initApp() {
+  document.getElementById('appWrapper').classList.add('visible');
+  initPctsUI();
+  (async () => {
+    const cloud = await loadSettingsFromCloud();
+    if (cloud) {
+      applyCloudSettings(cloud);
+      initPctsUI();
+      setSyncStatus('synced');
+    }
+    loadData();
+  })();
+}
+
+// pin-gate.js covers the page until a valid PIN session exists; once it reveals
+// the page we just initialize. (Data access is governed by Supabase RLS.)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+else initApp();
+</script>
+</body>
+</html>

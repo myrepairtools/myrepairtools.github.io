@@ -29,7 +29,7 @@
     'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
     'cash-admin.html':'cash.admin', 'employee-records.html':'staff.view',
     'settings.html':'staff.manage',
-    'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
+    'claim-payouts.html':'claims.view', 'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
     'profit-first.html':'profit.view'
   };
   var file = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
