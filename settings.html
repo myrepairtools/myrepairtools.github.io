@@ -314,11 +314,13 @@ function initialsOf(m){var a=(m.first_name||'').trim(),b=(m.last_name||'').trim(
 function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 /* ===== state ===== */
-var TAB='staff', SEARCH='', ROSTER='active', RP='roles';
+function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
 var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
 var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
-var PGTOOL='damage', PGOPT='mfr', DMFRS=[], DPARTS=[]; /* page settings: per-tool config (tech damage lists) */
+var PGTOOL=lsGet('cprSetPgtool','damage'), PGOPT=lsGet('cprSetPgopt','mfr'), DMFRS=[], DPARTS=[]; /* page settings: per-tool config (tech damage lists) */
 /* 3-pane page-settings model: Page > Option > Settings */
 var PG_PAGES=[
   {key:'damage',label:'Tech Damage Tracker',dot:'#D8E8F5',options:[{key:'mfr',label:'Manufacturers'},{key:'part',label:'Parts'}]},
@@ -1225,15 +1227,15 @@ function renderModal(){
 
 /* ===== wiring ===== */
 function initUI(){
-  $('#tabStaff').onclick=function(){TAB='staff';SEARCH='';$('#staffSearch').value='';renderAll();};
-  $('#tabLoc').onclick=function(){TAB='loc';SEARCH='';renderAll();};
-  $('#tabNotif').onclick=function(){TAB='notif';SEARCH='';renderAll();};
-  $('#tabPages').onclick=function(){TAB='pages';SEARCH='';renderAll();};
-  $('#tabRoles').onclick=function(){TAB='roles';SEARCH='';renderAll();};
+  $('#tabStaff').onclick=function(){TAB='staff';lsSet('cprSetTab',TAB);SEARCH='';$('#staffSearch').value='';renderAll();};
+  $('#tabLoc').onclick=function(){TAB='loc';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#tabNotif').onclick=function(){TAB='notif';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#tabPages').onclick=function(){TAB='pages';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#tabRoles').onclick=function(){TAB='roles';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
     var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel]');if(!t)return;
-    if(t.hasAttribute('data-pgtool')){PGTOOL=t.getAttribute('data-pgtool');PGOPT='';renderPages();}
-    else if(t.hasAttribute('data-pgopt')){PGOPT=t.getAttribute('data-pgopt');renderPages();}
+    if(t.hasAttribute('data-pgtool')){PGTOOL=t.getAttribute('data-pgtool');PGOPT='';renderPages();lsSet('cprSetPgtool',PGTOOL);lsSet('cprSetPgopt',PGOPT);}
+    else if(t.hasAttribute('data-pgopt')){PGOPT=t.getAttribute('data-pgopt');renderPages();lsSet('cprSetPgopt',PGOPT);}
     else if(t.hasAttribute('data-pgadd'))pgAdd(t.getAttribute('data-pgadd'));
     else if(t.hasAttribute('data-pgactive')){var p2=t.getAttribute('data-pgactive').split('|');pgToggle(p2[0],p2[1]);}
     else if(t.hasAttribute('data-pgdel')){var p3=t.getAttribute('data-pgdel').split('|');pgDel(p3[0],p3[1]);}
