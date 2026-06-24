@@ -50,6 +50,14 @@
   (function(){ var st=document.createElement('style'); st.textContent='#cpr-pingate input::placeholder{color:rgba(255,255,255,.45)}#cpr-pingate input:focus{border-color:#4FB0E3 !important;background:rgba(255,255,255,.10) !important}'; (document.head||document.documentElement).appendChild(st); })();
   (document.body || document.documentElement).appendChild(host);
 
+  // myRepairTools wordmark, inlined with a tight viewBox so the art centers
+  // (the source SVG's 0 0 372 64 box has ~80px of empty space on the right).
+  function logoSvg(w, mb){
+    return '<svg viewBox="0 0 308 64" width="'+w+'" style="max-width:100%;height:auto;display:block;margin:0 auto '+mb+'px" xmlns="http://www.w3.org/2000/svg" fill="none" role="img" aria-label="myRepairTools">'
+      + '<path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>'
+      + '<text x="74" y="44" font-family="&#39;Nunito&#39;,&#39;Trebuchet MS&#39;,sans-serif" font-size="30" font-weight="800"><tspan fill="#FFFFFF">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
+      + '</svg>';
+  }
   function reveal(){ if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
   function armIdle(){ ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){ window.addEventListener(ev, bumpIdle, { passive:true }); }); bumpIdle(); }
   function bumpIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(signOutReload, IDLE_MS); }
@@ -58,7 +66,7 @@
   function gateForm(msg){
     host.innerHTML = ''
       + '<div style="width:300px;max-width:calc(100% - 40px);text-align:center">'
-      +   '<img src="assets/images/myrepairtools-logo-dark.svg" alt="myRepairTools" style="width:236px;max-width:100%;height:auto;display:block;margin:0 auto 28px">'
+      +   logoSvg(236, 28)
       +   '<input id="cpr-pg-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="Enter PIN" style="width:100%;font-family:Nunito Sans,system-ui;font-size:1.05rem;text-align:center;letter-spacing:4px;padding:13px;border:1.5px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(255,255,255,.06);color:#fff;outline:none">'
       +   '<button id="cpr-pg-go" style="width:100%;font-family:Nunito,system-ui;font-weight:800;font-size:.95rem;border:none;border-radius:11px;padding:13px;margin-top:11px;background:#DC282E;color:#fff;cursor:pointer">Sign in</button>'
       +   '<div id="cpr-pg-err" style="color:#F7A6A8;font-size:.78rem;font-weight:700;margin-top:11px;min-height:1em">'+(msg||'')+'</div>'
@@ -93,7 +101,7 @@
   function noAccess(name){
     host.innerHTML = ''
       + '<div style="width:330px;max-width:calc(100% - 40px);text-align:center;color:#fff">'
-      +   '<img src="assets/images/myrepairtools-logo-dark.svg" alt="myRepairTools" style="width:196px;max-width:80%;height:auto;display:block;margin:0 auto 24px;opacity:.95">'
+      +   logoSvg(196, 24)
       +   '<div style="font-family:Nunito,system-ui;font-weight:900;font-size:1.05rem">No access to this tool</div>'
       +   '<div style="font-size:.82rem;color:rgba(255,255,255,.6);font-weight:600;margin:7px 0 18px">Signed in as '+(name||'you')+'. This tool needs a higher access level.</div>'
       +   '<button id="cpr-pg-home" style="font-family:Nunito,system-ui;font-weight:800;font-size:.82rem;border:none;border-radius:9px;padding:10px 16px;background:#DC282E;color:#fff;cursor:pointer;margin-right:8px">Home</button>'
