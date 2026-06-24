@@ -86,6 +86,11 @@ When changing a tool's data layer, check which generation it uses first — they
 - Keep a tool's CSS/JS inline in its own file; don't extract to shared assets unless it is
   genuinely cross-tool (the bar for adding to `assets/` is high).
 - Reuse `CPRLocations` for any store dropdown/normalization rather than re-listing stores.
+- **Persist view state across refresh.** Any tool with tabs / sub-views / a selected
+  page-or-option should remember the active one in `localStorage` (e.g. `cprSetTab`,
+  `cprSetPgtool`/`cprSetPgopt` in `settings.html`) and restore it on load, so a refresh
+  returns the user to where they were instead of a default tab. Add this to new tabbed
+  tools and when touching existing ones.
 - Endpoint URLs, API tokens, and the Supabase anon key are committed in the source on
   purpose (this is a deterrent-level internal tool on public hosting). `robots.txt`
   disallows all crawlers.
