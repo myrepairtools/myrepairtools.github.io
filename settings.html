@@ -36,7 +36,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .app{display:none}.app.show{display:block}
 /* tabs */
 .tabs{display:inline-flex;gap:3px;background:var(--dark);border-radius:11px;padding:3px;margin-bottom:20px}
-.tab{display:inline-flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:8px 16px;border-radius:8px;background:none;border:none;color:#9AA0AE;cursor:pointer}
+.tab{display:inline-flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:8px 16px;border-radius:8px;background:none;border:none;color:#D5D8E0;cursor:pointer}
 .tab.active{background:#fff;color:var(--dark);font-weight:900}
 .tab .ct{display:none}
 /* toolbar */
@@ -86,6 +86,13 @@ td.r{text-align:right;white-space:nowrap}
 .hlbl{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
 .flagclr{flex:none;width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:7px;background:none;cursor:pointer}
 .flagbadge{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:6px;padding:2px 8px;min-width:64px;text-align:center}
+.pggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;align-items:start}
+.pgcard{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden}
+.pgcard-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--light-grey)}
+.pgcard-t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.68rem;letter-spacing:.5px;text-transform:uppercase;color:var(--dark-grey)}
+.pgcard-n{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--grey);white-space:nowrap;flex:none}
+.pgadd{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.pgcard-body{max-height:300px;overflow:auto;padding:2px 12px 4px}
 @media(max-width:760px){.pgwrap{flex-direction:column}.pgwrap>div:first-child{width:100%!important}}
 .note b{color:var(--dark-grey)}
 .avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem}
@@ -98,6 +105,10 @@ td.r{text-align:right;white-space:nowrap}
 .badge.ok{color:var(--green);background:#E9F6EE;border:1px solid #CFE9D8}.badge.ok .dot{background:var(--green)}
 .badge.warn{color:#8A5A00;background:#FCF1DD;border:1px solid #F2D7A8}.badge.warn .dot{background:var(--amber)}
 .badge.off{color:var(--dark-grey);background:var(--light-grey);border:1px solid var(--border)}
+.grouphdr td{background:var(--light-grey);font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;letter-spacing:.5px;text-transform:uppercase;color:var(--dark-grey);padding:7px 16px}
+tbody tr.pinrow{background:#FCFBFA}
+tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.pinchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;letter-spacing:.4px;text-transform:uppercase;color:var(--red);background:#FBE9EA;border:1px solid #F3C7C9;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
 .lnk{color:var(--blue);font-weight:800;cursor:pointer;text-decoration:none}
 /* modal (Part Groups shell) */
 .modal-back{position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:880}
@@ -448,6 +459,34 @@ function renderTabs(){
   $('#view-pages').classList.toggle('hide',TAB!=='pages');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
 }
+function staffStoreRank(name){
+  for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
+  return 9999;
+}
+/* hard-coded role hierarchy for in-group ordering (highest first); unknown/custom roles fall to the bottom, then alphabetical */
+function roleRank(role){
+  var r=String(role||'').toLowerCase();
+  var R={owner:0,'district manager':1,admin:2,manager:2,'store manager':3,'assistant manager':4,'shift lead':5,'lead technician':6,technician:7,team_member:8,employee:8,csr:9};
+  return (r in R)?R[r]:50;
+}
+function staffRow(m,pinned){
+  var chips=(m.authorized_stores||[]).map(function(s){return '<span class="chip">'+esc(shortStore(s))+'</span>';}).join('');
+  var badge=m.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Terminated</span>';
+  var act=m.active
+    ? '<button class="btn alt sm" data-edit="'+m.id+'">Edit</button>'
+    : '<button class="btn alt sm" data-reinstate="'+m.id+'">Reinstate</button>';
+  var pin=pinned?'<span class="pinchip" title="Pinned to top">Pinned</span>':'';
+  var tr=document.createElement('tr');
+  if(pinned)tr.className='pinrow';
+  tr.innerHTML='<td><div class="who"><span class="avatar" style="background:'+avatarBg(m.id)+'">'+esc(initialsOf(m))+'</span>'
+      +'<span><span class="nm">'+esc(m.display_name||'Unnamed')+pin+'</span><span class="un">'+(m.username?('@'+esc(m.username)):'—')+'</span></span></div></td>'
+    +'<td class="muted">'+esc(roleLabel(m.role))+'</td>'
+    +'<td style="font-weight:700">'+esc(shortStore(m.home_store)||'—')+'</td>'
+    +'<td>'+(chips||'<span class="muted">—</span>')+'</td>'
+    +'<td>'+badge+'</td>'
+    +'<td class="r">'+act+'</td>';
+  return tr;
+}
 function renderStaff(){
   var q=SEARCH.trim().toLowerCase();
   var rosterAll=STAFF.filter(function(m){return m.active;});
@@ -462,22 +501,31 @@ function renderStaff(){
   var tb=$('#staffRows');tb.innerHTML='';
   $('#staffEmpty').classList.toggle('hide',list.length>0);
   $('#staffEmpty').textContent=ROSTER==='archived'?'No archived members.':(q?'No matching team members.':'No team members yet.');
-  list.forEach(function(m){
-    var chips=(m.authorized_stores||[]).map(function(s){return '<span class="chip">'+esc(shortStore(s))+'</span>';}).join('');
-    var badge=m.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Terminated</span>';
-    var act=m.active
-      ? '<button class="btn alt sm" data-edit="'+m.id+'">Edit</button>'
-      : '<button class="btn alt sm" data-reinstate="'+m.id+'">Reinstate</button>';
-    var tr=document.createElement('tr');
-    tr.innerHTML='<td><div class="who"><span class="avatar" style="background:'+avatarBg(m.id)+'">'+esc(initialsOf(m))+'</span>'
-        +'<span><span class="nm">'+esc(m.display_name||'Unnamed')+'</span><span class="un">'+(m.username?('@'+esc(m.username)):'—')+'</span></span></div></td>'
-      +'<td class="muted">'+esc(roleLabel(m.role))+'</td>'
-      +'<td style="font-weight:700">'+esc(shortStore(m.home_store)||'—')+'</td>'
-      +'<td>'+(chips||'<span class="muted">—</span>')+'</td>'
-      +'<td>'+badge+'</td>'
-      +'<td class="r">'+act+'</td>';
-    tb.appendChild(tr);
+
+  var byName=function(a,b){return String(a.display_name||'').localeCompare(String(b.display_name||''));};
+  var meName=(AUTH&&AUTH.name)||'';
+  /* owner(s) always pinned to the top — the signed-in owner first */
+  var pinned=list.filter(function(m){return String(m.role||'').toLowerCase()==='owner';}).sort(function(a,b){
+    var am=(a.display_name===meName)?0:1, bm=(b.display_name===meName)?0:1;
+    return (am-bm)||byName(a,b);
   });
+  var rest=list.filter(function(m){return String(m.role||'').toLowerCase()!=='owner';});
+  pinned.forEach(function(m){tb.appendChild(staffRow(m,true));});
+
+  /* group by home store, ordered by Locations settings; role rank then name within each */
+  rest.sort(function(a,b){
+    return staffStoreRank(a.home_store)-staffStoreRank(b.home_store)
+      || String(shortStore(a.home_store)||'').localeCompare(String(shortStore(b.home_store)||''))
+      || roleRank(a.role)-roleRank(b.role)
+      || byName(a,b);
+  });
+  var cur=null;
+  rest.forEach(function(m){
+    var s=m.home_store||'';
+    if(s!==cur){cur=s;var hr=document.createElement('tr');hr.className='grouphdr';hr.innerHTML='<td colspan="6">'+esc(shortStore(s)||'No home store')+'</td>';tb.appendChild(hr);}
+    tb.appendChild(staffRow(m,false));
+  });
+
   tb.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){openMember(b.getAttribute('data-edit'));};});
   tb.querySelectorAll('[data-reinstate]').forEach(function(b){b.onclick=async function(){
     var r=await authFn({action:'update_staff',staff_id:b.getAttribute('data-reinstate'),active:true});
@@ -916,7 +964,7 @@ function renderPages(){
   if($('#pagePaneConsumption'))$('#pagePaneConsumption').classList.toggle('hide',!consOn);
   if($('#pagePaneHyla'))$('#pagePaneHyla').classList.toggle('hide',!hylaOn);
   if(damageOn){
-    $('#pagePane').innerHTML=pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
+    $('#pagePane').innerHTML='<div class="pggrid">'+pageListEditor('Manufacturers','mfr',DMFRS)+pageListEditor('Parts','part',DPARTS)+'</div>';
   }
   if(consOn)renderConsumptionPage();
   if(hylaOn)renderHylaPage();
@@ -978,22 +1026,20 @@ async function hylaKV(key,val){
 function renderConsumptionPage(){
   var pane=$('#pagePaneConsumption');if(!pane)return;
   // Part types — used by the Part Groups editor on the consumption report
-  var ptHtml='<div class="sect-h">Part types</div>'
-    +'<div class="card" style="padding:10px 12px">'
-    +(PTYPES.length?PTYPES.map(function(r){
+  var ptA=PTYPES.filter(function(r){return r.active;}).length, ptT=PTYPES.length;
+  var ptBody=PTYPES.length?PTYPES.map(function(r){
         return '<div class="lstrow"'+(r.active?'':' style="opacity:.5"')+'>'
           +'<input class="pgname" data-ptname="'+r.id+'" value="'+esc(r.part_type)+'">'
           +'<button class="toggle'+(r.active?' on':'')+'" data-ptactive="'+r.id+'" title="Available in dropdown"></button>'
           +'<button class="ord del" data-ptdel="'+r.id+'" title="Delete">✕</button>'
           +'</div>';
-      }).join(''):'<div class="empty" style="padding:14px">None yet.</div>')
-    +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-ptadd placeholder="Add part type…"><button class="btn alt sm" data-ptaddbtn>Add</button></div>'
-    +'</div>';
+      }).join(''):'<div class="empty" style="padding:14px">None yet.</div>';
+  var ptHtml='<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">Part types</span><span class="pgcard-n" title="active / total">'+ptA+' / '+ptT+'</span></div>'
+    +'<div class="pgadd"><input class="pgin" data-ptadd placeholder="Add part type…"><button class="btn alt sm" data-ptaddbtn>Add</button></div>'
+    +'<div class="pgcard-body">'+ptBody+'</div></div>';
   // Custom flags — badge name + color, shown on the consumption report rows
-  var flHtml='<div class="sect-h" style="margin-top:20px">Flags</div>'
-    +'<div class="note" style="margin:-4px 0 10px">Badges you can put on a SKU or part group from the report’s ⋮ menu.</div>'
-    +'<div class="card" style="padding:10px 12px">'
-    +(FLAGS.length?FLAGS.map(function(f){
+  var flA=FLAGS.filter(function(f){return f.active;}).length, flT=FLAGS.length;
+  var flBody=FLAGS.length?FLAGS.map(function(f){
         return '<div class="lstrow"'+(f.active?'':' style="opacity:.5"')+'>'
           +'<input type="color" class="flagclr" data-flagcolor="'+f.id+'" value="'+esc(f.color||'#4FB0E3')+'" title="Badge color">'
           +'<span class="flagbadge" data-flagbadge="'+f.id+'" style="background:'+esc(tint(f.color))+';color:'+esc(f.color||'#4FB0E3')+'">'+esc(f.label)+'</span>'
@@ -1001,10 +1047,11 @@ function renderConsumptionPage(){
           +'<button class="toggle'+(f.active?' on':'')+'" data-flagactive="'+f.id+'" title="Active"></button>'
           +'<button class="ord del" data-flagdel="'+f.id+'" title="Delete">✕</button>'
           +'</div>';
-      }).join(''):'<div class="empty" style="padding:14px">No flags yet.</div>')
-    +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-flagadd placeholder="Add flag…"><button class="btn alt sm" data-flagaddbtn>Add</button></div>'
-    +'</div>';
-  pane.innerHTML=ptHtml+flHtml;
+      }).join(''):'<div class="empty" style="padding:14px">No flags yet.</div>';
+  var flHtml='<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">Flags</span><span class="pgcard-n" title="active / total">'+flA+' / '+flT+'</span></div>'
+    +'<div class="pgadd"><input class="pgin" data-flagadd placeholder="Add flag…"><button class="btn alt sm" data-flagaddbtn>Add</button></div>'
+    +'<div class="pgcard-body">'+flBody+'</div></div>';
+  pane.innerHTML='<div class="note" style="margin:0 0 12px">Flags are badges you can add to a SKU or part group from the report’s ⋮ menu.</div><div class="pggrid">'+ptHtml+flHtml+'</div>';
 }
 /* light wash of a badge color for its background */
 function tint(hex){
@@ -1069,12 +1116,14 @@ async function flagDel(id){
   if(r.error){toast(r.error.message,true);return;}
   FLAGS=FLAGS.filter(function(x){return String(x.id)!==String(id);});renderConsumptionPage();
 }
-function pageListEditor(title,key,rows,mt){
+function pageListEditor(title,key,rows){
   var single=title.replace(/s$/,'').toLowerCase();
-  return '<div class="sect-h"'+(mt?' style="margin-top:20px"':'')+'>'+title+'</div>'
-    +'<div class="card" style="padding:10px 12px">'
-    +(rows.length?rows.map(function(r,i){return pgRowHtml(key,r,i,rows.length);}).join(''):'<div class="empty" style="padding:14px">None yet.</div>')
-    +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-pgaddinput="'+key+'" placeholder="Add '+single+'…"><button class="btn alt sm" data-pgadd="'+key+'">Add</button></div>'
+  var nA=rows.filter(function(r){return r.active;}).length, nT=rows.length;
+  var body=rows.length?rows.map(function(r,i){return pgRowHtml(key,r,i,rows.length);}).join(''):'<div class="empty" style="padding:14px">None yet.</div>';
+  return '<div class="pgcard">'
+    +'<div class="pgcard-hd"><span class="pgcard-t">'+esc(title)+'</span><span class="pgcard-n" title="active / total">'+nA+' / '+nT+'</span></div>'
+    +'<div class="pgadd"><input class="pgin" data-pgaddinput="'+key+'" placeholder="Add '+single+'…"><button class="btn alt sm" data-pgadd="'+key+'">Add</button></div>'
+    +'<div class="pgcard-body">'+body+'</div>'
     +'</div>';
 }
 function pgRowHtml(key,r,i,n){
