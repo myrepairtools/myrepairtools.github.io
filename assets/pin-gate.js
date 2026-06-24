@@ -89,8 +89,15 @@
                               : (d.error || 'Could not sign in.');
               return;
             }
-            c.auth.setSession({ access_token:d.access_token, refresh_token:d.refresh_token })
-              .then(function(){ location.reload(); }, function(){ go.disabled = false; err.textContent = 'Could not start session.'; });
+            // Tokens are valid; setSession persists them to storage. Its promise
+            // can reject/hang on lock contention from the other Supabase clients
+            // on the page, so reload regardless once it settles (or after a
+            // backstop) — the reloaded page picks up the saved session.
+            var reloaded = false;
+            function proceed(){ if (reloaded) return; reloaded = true; location.reload(); }
+            try { c.auth.setSession({ access_token:d.access_token, refresh_token:d.refresh_token }).then(proceed, proceed); }
+            catch (e) { proceed(); }
+            setTimeout(proceed, 2000);
           }, function(){ go.disabled = false; err.textContent = 'Could not reach the server.'; });
       });
     }
