@@ -45,8 +45,9 @@
   // full-screen cover, up immediately so page content never shows pre-auth
   var host = document.createElement('div');
   host.id = 'cpr-pingate';
-  host.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;background:#F3F2F2;display:flex;align-items:center;justify-content:center;font-family:Nunito Sans,system-ui,sans-serif');
-  host.innerHTML = '<div style="color:#B9BDCB;font-weight:700;font-family:Nunito,system-ui">…</div>';
+  host.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;background:#2D2D3B;display:flex;align-items:center;justify-content:center;font-family:Nunito Sans,system-ui,sans-serif;padding:24px');
+  host.innerHTML = '<div style="color:rgba(255,255,255,.45);font-weight:700;font-family:Nunito,system-ui">…</div>';
+  (function(){ var st=document.createElement('style'); st.textContent='#cpr-pingate input::placeholder{color:rgba(255,255,255,.45)}#cpr-pingate input:focus{border-color:#4FB0E3 !important;background:rgba(255,255,255,.10) !important}'; (document.head||document.documentElement).appendChild(st); })();
   (document.body || document.documentElement).appendChild(host);
 
   function reveal(){ if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
@@ -54,16 +55,13 @@
   function bumpIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(signOutReload, IDLE_MS); }
   function signOutReload(){ loadSB().then(function(c){ if (c) c.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); }); else location.reload(); }); }
 
-  var CARD = 'width:320px;max-width:calc(100% - 32px);background:#fff;border:1px solid #E0E2EA;border-radius:14px;box-shadow:0 8px 30px rgba(45,45,59,.12);padding:26px 24px;text-align:center';
   function gateForm(msg){
     host.innerHTML = ''
-      + '<div style="'+CARD+'">'
-      +   '<div style="width:46px;height:46px;border-radius:12px;background:#DC282E;color:#fff;font-family:Nunito;font-weight:900;font-size:1.3rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">+</div>'
-      +   '<div style="font-family:Nunito;font-weight:900;font-size:1.15rem;color:#2D2D3B">CPR Oregon</div>'
-      +   '<div style="font-size:.82rem;color:#4E4E50;font-weight:600;margin:3px 0 16px">Enter your PIN to sign in</div>'
-      +   '<input id="cpr-pg-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="width:100%;font-family:Nunito Sans;font-size:1.05rem;text-align:center;letter-spacing:3px;padding:11px;border:1.5px solid #E0E2EA;border-radius:9px;outline:none">'
-      +   '<button id="cpr-pg-go" style="width:100%;font-family:Nunito;font-weight:800;font-size:.92rem;border:none;border-radius:9px;padding:11px;margin-top:10px;background:#DC282E;color:#fff;cursor:pointer">Sign in</button>'
-      +   '<div id="cpr-pg-err" style="color:#DC282E;font-size:.75rem;font-weight:700;margin-top:9px;min-height:1em">'+(msg||'')+'</div>'
+      + '<div style="width:300px;max-width:calc(100% - 40px);text-align:center">'
+      +   '<img src="assets/images/myrepairtools-logo-dark.svg" alt="myRepairTools" style="width:236px;max-width:100%;height:auto;display:block;margin:0 auto 28px">'
+      +   '<input id="cpr-pg-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="Enter PIN" style="width:100%;font-family:Nunito Sans,system-ui;font-size:1.05rem;text-align:center;letter-spacing:4px;padding:13px;border:1.5px solid rgba(255,255,255,.18);border-radius:11px;background:rgba(255,255,255,.06);color:#fff;outline:none">'
+      +   '<button id="cpr-pg-go" style="width:100%;font-family:Nunito,system-ui;font-weight:800;font-size:.95rem;border:none;border-radius:11px;padding:13px;margin-top:11px;background:#DC282E;color:#fff;cursor:pointer">Sign in</button>'
+      +   '<div id="cpr-pg-err" style="color:#F7A6A8;font-size:.78rem;font-weight:700;margin-top:11px;min-height:1em">'+(msg||'')+'</div>'
       + '</div>';
     var pin = host.querySelector('#cpr-pg-pin'), go = host.querySelector('#cpr-pg-go'), err = host.querySelector('#cpr-pg-err');
     if (pin) pin.focus();
@@ -94,12 +92,12 @@
 
   function noAccess(name){
     host.innerHTML = ''
-      + '<div style="'+CARD+'">'
-      +   '<div style="font-size:1.6rem;margin-bottom:6px">🔒</div>'
-      +   '<div style="font-family:Nunito;font-weight:900;font-size:1.05rem;color:#2D2D3B">No access to this tool</div>'
-      +   '<div style="font-size:.82rem;color:#4E4E50;font-weight:600;margin:6px 0 16px">Signed in as '+(name||'you')+'. This tool needs a higher access level.</div>'
-      +   '<button id="cpr-pg-home" style="font-family:Nunito;font-weight:800;font-size:.82rem;border:none;border-radius:9px;padding:10px 16px;background:#DC282E;color:#fff;cursor:pointer;margin-right:8px">Home</button>'
-      +   '<button id="cpr-pg-switch" style="font-family:Nunito;font-weight:800;font-size:.82rem;border:1.5px solid #E0E2EA;border-radius:9px;padding:10px 16px;background:#fff;color:#4E4E50;cursor:pointer">Switch user</button>'
+      + '<div style="width:330px;max-width:calc(100% - 40px);text-align:center;color:#fff">'
+      +   '<img src="assets/images/myrepairtools-logo-dark.svg" alt="myRepairTools" style="width:196px;max-width:80%;height:auto;display:block;margin:0 auto 24px;opacity:.95">'
+      +   '<div style="font-family:Nunito,system-ui;font-weight:900;font-size:1.05rem">No access to this tool</div>'
+      +   '<div style="font-size:.82rem;color:rgba(255,255,255,.6);font-weight:600;margin:7px 0 18px">Signed in as '+(name||'you')+'. This tool needs a higher access level.</div>'
+      +   '<button id="cpr-pg-home" style="font-family:Nunito,system-ui;font-weight:800;font-size:.82rem;border:none;border-radius:9px;padding:10px 16px;background:#DC282E;color:#fff;cursor:pointer;margin-right:8px">Home</button>'
+      +   '<button id="cpr-pg-switch" style="font-family:Nunito,system-ui;font-weight:800;font-size:.82rem;border:1.5px solid rgba(255,255,255,.22);border-radius:9px;padding:10px 16px;background:transparent;color:#fff;cursor:pointer">Switch user</button>'
       + '</div>';
     host.querySelector('#cpr-pg-home').onclick = function(){ location.href = 'index.html'; };
     host.querySelector('#cpr-pg-switch').onclick = signOutReload;

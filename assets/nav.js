@@ -75,12 +75,15 @@
       }, function(){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); });
     });
   }
-  function doSignOut(){
+  // sign out -> back to the front door (pin-gate re-gates on load)
+  function signOutThen(go){
     loadSB().then(function(sb){
-      function done(){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); }
+      function done(){ go(); }
       if (sb && sb.auth) sb.auth.signOut().then(done, done); else done();
     });
   }
+  function doSignOut(){ signOutThen(function(){ window.location.href = HOME; }); }     // sign out -> Home
+  function doSwitchUser(){ signOutThen(function(){ window.location.reload(); }); }      // re-PIN here
 
   // Which area is the current page in?
   var inAdmin = PRIVILEGED.some(function(t){ return t.url.toLowerCase() === currentFile; });
@@ -106,7 +109,18 @@
   .cpr-rail .cpr-areabtn.active{ background:var(--cpr-blue); color:#fff; }
   .cpr-rail .cpr-railsp{ flex:1; }
   .cpr-rail .cpr-raildiv{ width:28px; height:1px; background:rgba(255,255,255,.16); margin:3px 0; }
-  .cpr-rail .cpr-avatar{ width:38px; height:38px; border-radius:50%; background:var(--cpr-red); color:#fff; font-weight:900; font-size:.82rem; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .cpr-rail .cpr-avatar{ width:38px; height:38px; border:none; cursor:pointer; border-radius:50%; background:var(--cpr-red); color:#fff; font-family:'Nunito'; font-weight:900; font-size:.78rem; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .cpr-rail .cpr-avatar:hover{ box-shadow:0 0 0 3px rgba(220,40,46,.28); }
+  .cpr-usermenu{ position:fixed; left:calc(var(--cpr-rail-w) + 8px); bottom:12px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
+  .cpr-usermenu.show{ display:block; }
+  .cpr-usermenu .who{ padding:9px 10px 8px; }
+  .cpr-usermenu .who .nm{ font-family:'Nunito'; font-weight:800; font-size:.86rem; color:#2D2D3B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cpr-usermenu .who .rl{ font-size:.62rem; font-weight:800; color:#4FB0E3; text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
+  .cpr-usermenu .umdiv{ height:1px; background:#E0E2EA; margin:4px 6px 5px; }
+  .cpr-usermenu button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; font-family:'Nunito'; font-weight:700; font-size:.82rem; color:#4E4E50; padding:9px 10px; border-radius:8px; cursor:pointer; }
+  .cpr-usermenu button .umic{ width:16px; text-align:center; flex:none; opacity:.85; }
+  .cpr-usermenu button:hover{ background:#F3F2F2; color:#2D2D3B; }
+  .cpr-usermenu button.danger:hover{ color:#DC282E; background:#FFF1F1; }
   .cpr-rail .cpr-collapse{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:6px; opacity:.7; }
   .cpr-rail .cpr-collapse:hover{ background:rgba(255,255,255,.12); opacity:1; }
 
@@ -278,7 +292,7 @@
       + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
 
-  var rail, pane, scrim, top;
+  var rail, pane, scrim, top, usermenu;
   function setArea(area){
     ACTIVE_AREA = area;
     rail.querySelectorAll('.cpr-areabtn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-area')===area); });
@@ -289,8 +303,18 @@
   function renderPriv(){
     if (ACTIVE_AREA === 'admin' && pane){ pane.innerHTML = paneInner('admin'); wirePriv(); }
     broadcastRole();
+    updateAvatar();
     // top bar role pill
     if (top){ var rp = top.querySelector('[data-roleslot]'); if (rp) rp.innerHTML = roleSlotHtml(); wireTop(); }
+  }
+  function roleText(){ var r = currentRole(); return r === 'owner' ? 'Owner' : (rank() >= RANK.admin ? 'Admin' : (r ? 'Team Member' : 'Not signed in')); }
+  function updateAvatar(){
+    var av = rail && rail.querySelector('.cpr-avatar');
+    if (av) av.textContent = avatarInitials();
+    if (usermenu){
+      var nm = usermenu.querySelector('[data-um-name]'); if (nm) nm.textContent = NAV_NAME || 'Signed in';
+      var rl = usermenu.querySelector('[data-um-role]'); if (rl) rl.textContent = roleText();
+    }
   }
 
   function wirePriv(){
@@ -380,7 +404,7 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
-      + '<div class="cpr-avatar">'+avatarInitials()+'</div>';
+      + '<button class="cpr-avatar" title="Account" aria-label="Account">'+avatarInitials()+'</button>';
     document.body.insertBefore(rail, document.body.firstChild);
 
     // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
@@ -401,6 +425,22 @@
     document.body.classList.toggle('cpr-nav-collapsed', collapsed);
     updateCollapseBtn();
     if (collapseBtn) collapseBtn.onclick = function(){ setCollapsed(!collapsed); };
+
+    // ── account menu (avatar) : Switch user / Sign out ──────────────────
+    usermenu = document.createElement('div'); usermenu.className = 'cpr-usermenu';
+    usermenu.innerHTML = ''
+      + '<div class="who"><div class="nm" data-um-name>Signed in</div><div class="rl" data-um-role></div></div>'
+      + '<div class="umdiv"></div>'
+      + '<button data-um="switch"><span class="umic">⇄</span> Switch user</button>'
+      + '<button class="danger" data-um="signout"><span class="umic">⏏</span> Sign out</button>';
+    document.body.appendChild(usermenu);
+    usermenu.querySelector('[data-um="switch"]').onclick = function(){ usermenu.classList.remove('show'); doSwitchUser(); };
+    usermenu.querySelector('[data-um="signout"]').onclick = function(){ usermenu.classList.remove('show'); doSignOut(); };
+    var avBtn = rail.querySelector('.cpr-avatar');
+    if (avBtn) avBtn.onclick = function(e){ e.stopPropagation(); updateAvatar(); usermenu.classList.toggle('show'); };
+    document.addEventListener('click', function(e){
+      if (usermenu.classList.contains('show') && !usermenu.contains(e.target) && !(avBtn && avBtn.contains(e.target))) usermenu.classList.remove('show');
+    });
 
     // ── collapsed flyout: hover an area icon to reach its tools ──────────
     var flyout = document.createElement('div'); flyout.className = 'cpr-flyout';
