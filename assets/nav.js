@@ -317,10 +317,23 @@
     wirePriv();
   }
 
+  // true if this user has any owner/manager tool (or Settings). Drives whether
+  // the admin (lock) rail icon shows at all. Perms unknown -> fall back to role
+  // rank so admins aren't hidden on a slow/failed permissions read.
+  function hasAdminArea(){
+    if (NAV_PERMS === null) return rank() >= RANK.admin;
+    return PRIVILEGED.some(canSee) || canSee({ acc:'staff.manage' });
+  }
+  function updateAdminIcon(){
+    var b = rail && rail.querySelector('.cpr-areabtn[data-area="admin"]');
+    if (b) b.style.display = hasAdminArea() ? '' : 'none';
+  }
+
   function renderPriv(){
     if (pane){ pane.innerHTML = paneInner(ACTIVE_AREA); wirePriv(); }
     broadcastRole();
     updateAvatar();
+    updateAdminIcon();
     // top bar role pill
     if (top){ var rp = top.querySelector('[data-roleslot]'); if (rp) rp.innerHTML = roleSlotHtml(); wireTop(); }
   }
@@ -419,7 +432,7 @@
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner">'+railIcon('lock')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
       + '<button class="cpr-avatar" title="Account" aria-label="Account">'+avatarInitials()+'</button>';
