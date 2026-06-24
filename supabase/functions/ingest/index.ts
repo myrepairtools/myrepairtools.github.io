@@ -34,13 +34,21 @@ Deno.serve(async (req) => {
   try {
     const u = new URL(req.url);
     const tok = (u.searchParams.get("token") ?? "").trim();
-    if (!INGEST_SECRET.trim() || tok !== INGEST_SECRET.trim()) return J({ ok: false, reason: "bad token" });
     const feed = u.searchParams.get("feed") ?? "";
+    if (!INGEST_SECRET.trim() || tok !== INGEST_SECRET.trim()) {
+      // TEMP diagnostic: record bad-token hits that carry a feed param so we can
+      // see whether a claims delivery is arriving with the wrong/no token.
+      if (feed) { try { await admin.from("ingest_debug").insert({ feed: "badtoken:" + feed, payload: { qs: u.search, has_token: !!tok } }); } catch (_) {} }
+      return J({ ok: false, reason: "bad token" });
+    }
 
     let body: any = null;
     try { body = await req.json(); } catch { try { body = { raw: await req.text() }; } catch { body = null; } }
     const rows = extractRows(body);
     if (!rows) { await admin.from("ingest_debug").insert({ feed, payload: body }); return J({ ok: false, reason: "could not parse rows; saved to ingest_debug" }); }
+    // TEMP diagnostic: log a breadcrumb for claims feeds so we can confirm
+    // arrival, row count, and the column names being sent.
+    if (feed.startsWith("claim")) { try { await admin.from("ingest_debug").insert({ feed: "dbg:" + feed, payload: { rows: rows.length, keys: rows[0] ? Object.keys(rows[0]) : [], sample: rows[0] ?? null } }); } catch (_) {} }
 
     const sm = await storeMap();
     const norm = (x: string) => sm[x] ?? x;
