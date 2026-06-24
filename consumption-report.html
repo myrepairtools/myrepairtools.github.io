@@ -473,6 +473,16 @@ async function saveGroups(){
     if(g.members.length){await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));}
   }
 }
+/* save ONE group instead of re-writing all of them — keeps modal edits snappy */
+async function saveGroupRow(g){
+  var i=GROUPS.indexOf(g);
+  return sb.from('groups').upsert({id:g.id,name:g.name,max:g.max,default_sku:g.def||null,position:i<0?GROUPS.length:i});
+}
+async function saveGroupMembers(g){
+  await saveGroupRow(g);
+  await sb.from('group_members').delete().eq('group_id',g.id);
+  if(g.members.length)await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));
+}
 async function fetchAllStock(store){
   var all=[],from=0,size=1000;
   while(true){
@@ -1179,8 +1189,8 @@ function refreshModal(){renderEditModal();renderTable();}
 function closeModal(){MOPEN=null;renderEditModal();}
 function wireEditModal(host,g){
   host.querySelectorAll('[data-mclose],[data-mdone]').forEach(function(b){b.addEventListener('click',closeModal);});
-  host.querySelector('[data-gn]').addEventListener('change',async function(){g.name=this.value;await persistGroups();refreshModal();});
-  host.querySelector('[data-gm]').addEventListener('change',async function(){g.max=+this.value||0;await persistGroups();refreshModal();});
+  host.querySelector('[data-gn]').addEventListener('change',async function(){g.name=this.value;await saveGroupRow(g);refreshModal();render();renderStock();});
+  host.querySelector('[data-gm]').addEventListener('change',async function(){g.max=+this.value||0;await saveGroupRow(g);refreshModal();render();renderStock();});
   host.querySelector('[data-delgrp]').addEventListener('click',async function(){
     if(!confirm('Delete this part group?'))return;
     // Actually delete from the DB — saveGroups() only upserts, so without this
@@ -1195,10 +1205,10 @@ function wireEditModal(host,g){
   host.querySelectorAll('[data-del]').forEach(function(b){b.addEventListener('click',async function(){
     var p=b.getAttribute('data-del').split('|');var rm=g.members.splice(+p[1],1)[0];
     if(rm&&rm.sku===g.def)g.def=(g.members[0]&&g.members[0].sku)||'';
-    await persistGroups();refreshModal();
+    await saveGroupMembers(g);refreshModal();render();renderStock();
   });});
   host.querySelectorAll('[data-def]').forEach(function(b){b.addEventListener('click',async function(){
-    g.def=b.getAttribute('data-def').split('|')[1];await persistGroups();refreshModal();
+    g.def=b.getAttribute('data-def').split('|')[1];await saveGroupRow(g);refreshModal();render();renderStock();
   });});
   host.querySelectorAll('[data-gmaxstore]').forEach(function(inp){inp.addEventListener('change',async function(){
     var store=inp.getAttribute('data-gmaxstore'), raw=inp.value.trim();
@@ -1267,7 +1277,7 @@ function wireMsTypeahead(er,g){
     sku=(sku||'').trim(); if(!sku)return;
     g.members.push({sku:sku,name:(name||sku)}); if(!g.def)g.def=sku;   // same add-member path the old button used
     close(); inp.value='';
-    persistGroups().then(refreshModal);
+    saveGroupMembers(g).then(function(){refreshModal();render();renderStock();});
   }
   function pick(i){var it=items[i];if(it)addMember(it.sku,it.name);}
   function renderDrop(q){
@@ -1315,7 +1325,15 @@ function wireMsTypeahead(er,g){
 async function init(){
   $('#exportBtn').addEventListener('click',exportOrder);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
-  $('#addGrp').addEventListener('click',async function(){var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null,part_type:null};GROUPS.push(ng);MOPEN=ng.id;await persistGroups();renderGroups();});
+  $('#addGrp').addEventListener('click',async function(){
+    var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null,part_type:null};
+    GROUPS.push(ng);MOPEN=ng.id;renderGroups();   // open the modal immediately
+    // Insert ONLY the new row — saveGroups() re-writes every group (upsert +
+    // delete/re-insert all members), which is dozens of round-trips and made
+    // the modal take seconds to appear.
+    var r=await sb.from('groups').insert({id:ng.id,name:ng.name,max:ng.max,default_sku:null,position:GROUPS.length-1});
+    if(r.error){alert('Could not create group — '+r.error.message);GROUPS=GROUPS.filter(function(x){return x.id!==ng.id;});if(MOPEN===ng.id)MOPEN=null;renderGroups();}
+  });
   $('#grpBtn').addEventListener('click',async function(){
     $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-groups').classList.remove('hide');
     $('#exportBtn').style.display='none';$('#viewTabs').style.visibility='hidden';
