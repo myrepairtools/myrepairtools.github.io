@@ -65,7 +65,7 @@ td.r{text-align:right;white-space:nowrap}
 .chchip.on{background:#EAF6FD;border-color:#CDEAF8;color:#1E7AA8}
 .pgtool{display:block;width:100%;text-align:left;border:none;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;padding:10px 12px;border-radius:8px;cursor:pointer;color:var(--dark-grey)}
 .pgtool.on{background:var(--light-grey);color:var(--dark)}
-.pg3{display:flex;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.06);overflow:hidden;min-height:470px}
+.pg3{display:flex;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.06);overflow:hidden;height:calc(100vh - 200px);min-height:470px}
 .pg3rail{flex:none;padding:10px 8px;overflow:auto}
 .pg3item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;border-left:3px solid transparent;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:9px 11px;border-radius:0 8px 8px 0;cursor:pointer;color:var(--dark-grey);margin-bottom:2px}
 .pg3item.on{background:#E9F4FB;color:var(--dark);border-left-color:var(--red)}
@@ -99,7 +99,7 @@ td.r{text-align:right;white-space:nowrap}
 .pgcard-t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.68rem;letter-spacing:.5px;text-transform:uppercase;color:var(--dark-grey)}
 .pgcard-n{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--grey);white-space:nowrap;flex:none}
 .pgadd{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
-.pgcard-body{max-height:300px;overflow:auto;padding:2px 12px 4px}
+.pgcard-body{padding:2px 12px 4px}
 @media(max-width:760px){.pgwrap{flex-direction:column}.pgwrap>div:first-child{width:100%!important}}
 .note b{color:var(--dark-grey)}
 .avatar{width:34px;height:34px;flex:none;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem}
@@ -237,8 +237,8 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
   <!-- PAGE SETTINGS TAB -->
   <section id="view-pages" class="hide">
     <div class="pg3">
-      <div class="pg3rail" style="width:208px;border-right:1px solid var(--border);background:#FBFBFC" id="pgPages"></div>
-      <div class="pg3rail" style="width:198px;border-right:1px solid var(--border)" id="pgOptions"></div>
+      <div class="pg3rail" style="width:240px;border-right:1px solid var(--border);background:#FBFBFC" id="pgPages"></div>
+      <div class="pg3rail" style="width:226px;border-right:1px solid var(--border)" id="pgOptions"></div>
       <div class="pg3pane">
         <div id="pagePane"></div>
         <div id="pagePaneConsumption" class="hide"></div>
@@ -346,11 +346,23 @@ async function sessionToken(){
   return ANON;
 }
 /* CRUD calls carry the authenticated session bearer token */
+function callFn(body,tok){
+  return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)})
+    .then(function(r){return r.json().catch(function(){return {};}).then(function(d){return {status:r.status,data:d};});});
+}
 async function authFn(body){
   var tok=await sessionToken();
-  var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)});
-  var d=await r.json().catch(function(){return {};});
-  return {status:r.status,data:d};
+  var res=await callFn(body,tok);
+  // A 403 usually means the token is stale (multiple Supabase clients can let
+  // the shared session token expire without refreshing) — refresh once + retry.
+  if(res.status===403){
+    try{
+      var rs=await sb.auth.refreshSession();
+      var nt=rs&&rs.data&&rs.data.session&&rs.data.session.access_token;
+      if(nt&&nt!==tok) res=await callFn(body,nt);
+    }catch(e){}
+  }
+  return res;
 }
 function lockErr(t){var e=$('#lkErr');if(e)e.textContent=t||'';}
 function showLock(){$('#app').classList.remove('show');var lk=$('#lockScreen');if(lk)lk.classList.remove('hide');var pin=$('#lkPin');if(pin)pin.value='';}
