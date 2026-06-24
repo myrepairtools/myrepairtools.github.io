@@ -384,10 +384,12 @@
 const ROYALTY_RATE = 0.058; // 5.8% for non-capped stores
 let storeType = 'capped'; // 'capped' | 'noncapped'
 
-// reveal page once admin gate unlocks
-document.addEventListener('cpr-unlocked', function(){
-  document.getElementById('appWrapper').classList.add('visible');
-});
+// pin-gate.js covers the page until a valid PIN session exists; once it
+// reveals the page we just show the app (access is governed by the front-door
+// PIN + nav role — profit.view).
+function revealApp(){ document.getElementById('appWrapper').classList.add('visible'); }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', revealApp);
+else revealApp();
 
 function fmt(n) {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -482,6 +484,5 @@ function clearAll() {
 
 calculate();
 </script>
-<script src="assets/admin-gate.js"></script>
 </body>
 </html>
