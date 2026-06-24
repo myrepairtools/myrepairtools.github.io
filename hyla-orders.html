@@ -223,7 +223,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
     <div class="headtools">
       <button class="guidebtn" onclick="show('guide')">&#128203; Testing Guide</button>
       <div class="searchwrap"><input id="imeiSearch" placeholder="Search IMEI…" oninput="searchImei(this.value)"></div>
-      <button class="gearbtn" title="Settings" onclick="openSettings()">&#9881;</button>
+      <button class="gearbtn" title="Settings (in Settings → Page Settings → Hyla Orders)" onclick="location.href='settings.html'">&#9881;</button>
       <button class="btn red" onclick="openUpload()">&uarr; Upload IMEI List</button>
     </div>
   </div>
@@ -341,45 +341,6 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
     <ul id="guideList" style="margin:0;padding-left:22px;font-size:.92rem;line-height:2;font-weight:700;list-style:disc"></ul>
     <div style="height:14px"></div>
     <button class="btn red" style="width:100%" onclick="hide('guide')">Got it</button>
-  </div>
-</div>
-
-<!-- SETTINGS -->
-<div class="modal-bg hide" id="settings">
-  <div class="modal" style="max-width:480px">
-    <span class="mclose" onclick="hide('settings')">&times;</span>
-    <div id="setMenu">
-      <h2>&#9881; Settings</h2>
-      <p class="help">Pick a setting to edit.</p>
-      <button class="setrow" onclick="openSet('label')"><span>&#127991; Label checklist</span><span class="setsub" id="subLabel"></span><span class="chev2">&#8250;</span></button>
-      <button class="setrow" onclick="openSet('guide')"><span>&#128203; Testing guide</span><span class="setsub" id="subGuide"></span><span class="chev2">&#8250;</span></button>
-      <button class="setrow" onclick="openSet('form')"><span>&#128196; RMA form defaults</span><span class="setsub" id="subForm"></span><span class="chev2">&#8250;</span></button>
-      <button class="setrow" onclick="openSet('notify')"><span>&#128231; Notifications</span><span class="setsub" id="subNotify"></span><span class="chev2">&#8250;</span></button>
-    </div>
-    <div id="setEdit" class="hide">
-      <h2><span class="backbtn" onclick="backSet()">&#8249;</span> <span id="setTitle"></span></h2>
-      <p class="help" id="setHelp"></p>
-      <div id="setListWrap">
-        <ul class="setlist" id="setList"></ul>
-        <input type="text" id="setAdd" placeholder="Add item + Enter">
-      </div>
-      <div id="setFormWrap" class="hide">
-        <label>Hyla sales rep (form D8)</label>
-        <input id="setSalesRep" placeholder="Rep name">
-        <label>Credit or Return (form D9)</label>
-        <select id="setCreditReturn"><option>Credit</option><option>Return</option></select>
-      </div>
-      <div id="setNotifyWrap" class="hide">
-        <label>Teams channel email (RMA alerts)</label>
-        <input id="setTeams" placeholder="channel@…teams.ms">
-        <label>Digest email (daily deadline warnings)</label>
-        <input id="setDigest" placeholder="leave blank to use Teams email">
-        <label>RMA aging warning (days)</label>
-        <input id="setWarn" inputmode="numeric" placeholder="3">
-      </div>
-      <div style="height:14px"></div>
-      <button class="btn red" style="width:100%" onclick="backSet()">Done</button>
-    </div>
   </div>
 </div>
 
@@ -939,7 +900,6 @@ document.addEventListener('DOMContentLoaded', function(){
     fileChosen(e.dataTransfer.files);
   });
 
-  $('setAdd').addEventListener('keydown', function(e){ if(e.key==='Enter'&&this.value.trim()&&CUR_SET&&SET_PAGES[CUR_SET].arr){ SET_PAGES[CUR_SET].arr.push(this.value.trim()); this.value=''; renderSetList(); } });
   boot();
 });
 function fileChosen(files){
@@ -1282,76 +1242,6 @@ function printLabels(oid){
 
 /* ================= TESTING GUIDE / SETTINGS ================= */
 function renderGuide(){ $('guideList').innerHTML = guideSteps().map(function(c){return '<li>'+esc(c)+'</li>';}).join(''); }
-var SET_PAGES = {};
-var CUR_SET = null, DRAG = null;
-function openSettings(){
-  SET_PAGES = {
-    label:{ arr: labelItems(), title:'Label checklist', help:'Items print as check-off boxes on every device label (Dymo 30334). Drag to reorder.' },
-    guide:{ arr: guideSteps(), title:'Testing guide', help:'The step list shown to techs in the Testing Guide popup. Drag to reorder.' },
-    form:{ title:'RMA form defaults', help:'Filled into the Hyla claim form header when you generate it.' },
-    notify:{ title:'Notifications', help:'Where RMA alerts and the daily deadline digest go.' }
-  };
-  $('subLabel').textContent = SET_PAGES.label.arr.length+' items';
-  $('subGuide').textContent = SET_PAGES.guide.arr.length+' steps';
-  $('subForm').textContent = SETTINGS.rmaSalesRep || '—';
-  $('subNotify').textContent = SETTINGS.teamsEmail ? 'on' : 'off';
-  $('setMenu').classList.remove('hide'); $('setEdit').classList.add('hide');
-  show('settings');
-}
-function openSet(key){
-  CUR_SET=key;
-  $('setMenu').classList.add('hide'); $('setEdit').classList.remove('hide');
-  $('setTitle').textContent=SET_PAGES[key].title;
-  $('setHelp').textContent=SET_PAGES[key].help;
-  $('setListWrap').classList.toggle('hide', !SET_PAGES[key].arr);
-  $('setFormWrap').classList.toggle('hide', key!=='form');
-  $('setNotifyWrap').classList.toggle('hide', key!=='notify');
-  if (key==='form'){ $('setSalesRep').value=SETTINGS.rmaSalesRep||''; $('setCreditReturn').value=SETTINGS.rmaCreditReturn||'Credit'; }
-  if (key==='notify'){ $('setTeams').value=SETTINGS.teamsEmail||''; $('setDigest').value=SETTINGS.digestEmail||''; $('setWarn').value=SETTINGS.rmaWarnDays||'3'; }
-  if (SET_PAGES[key].arr) renderSetList();
-}
-function backSet(){
-  // persist whichever page we were on
-  var save = {};
-  if (CUR_SET==='label') save.labelItems = JSON.stringify(SET_PAGES.label.arr);
-  if (CUR_SET==='guide') save.guideSteps = JSON.stringify(SET_PAGES.guide.arr);
-  if (CUR_SET==='form'){ save.rmaSalesRep=$('setSalesRep').value.trim(); save.rmaCreditReturn=$('setCreditReturn').value; }
-  if (CUR_SET==='notify'){ save.teamsEmail=$('setTeams').value.trim(); save.digestEmail=$('setDigest').value.trim(); save.rmaWarnDays=$('setWarn').value.trim()||'3'; }
-  if (Object.keys(save).length){
-    api('settingsSet', save).then(function(){
-      for (var k in save) SETTINGS[k]=save[k];
-      renderGuide(); toast('Saved');
-    }).catch(function(e){ toast('Save failed: '+e.message); });
-  }
-  CUR_SET=null;
-  $('setEdit').classList.add('hide'); $('setMenu').classList.remove('hide');
-  $('subLabel').textContent = SET_PAGES.label.arr.length+' items';
-  $('subGuide').textContent = SET_PAGES.guide.arr.length+' steps';
-}
-function renderSetList(){
-  var arr=SET_PAGES[CUR_SET].arr;
-  var ul=$('setList');
-  ul.innerHTML=arr.map(function(c,i){
-    return '<li draggable="true" data-i="'+i+'"><span class="handle">&#8942;&#8942;</span>'+esc(c)+'<span class="x" data-x="'+i+'">&times;</span></li>';
-  }).join('');
-  ul.querySelectorAll('.x').forEach(function(x){
-    x.addEventListener('click', function(){ arr.splice(+x.dataset.x,1); renderSetList(); });
-  });
-  ul.querySelectorAll('li').forEach(function(li){
-    li.addEventListener('dragstart',function(){ DRAG=+li.dataset.i; li.classList.add('dragging'); });
-    li.addEventListener('dragend',function(){ li.classList.remove('dragging'); });
-    li.addEventListener('dragover',function(e){ e.preventDefault(); });
-    li.addEventListener('drop',function(e){
-      e.preventDefault();
-      var to=+li.dataset.i;
-      if (DRAG===null||DRAG===to) return;
-      var item=arr.splice(DRAG,1)[0];
-      arr.splice(to,0,item);
-      DRAG=null; renderSetList();
-    });
-  });
-}
-
 /* ================= REPORTS ================= */
 function inRange(dateStr){
   if (RANGE==='all') return true;

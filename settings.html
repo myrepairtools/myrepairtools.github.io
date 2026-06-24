@@ -82,6 +82,8 @@ td.r{text-align:right;white-space:nowrap}
 .pgname:hover{border-color:var(--border)}
 .pgname:focus{border-color:var(--blue);background:#fff;outline:none}
 .pgin{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'Nunito Sans',sans-serif;font-size:.86rem}
+.pgin.hfull{flex:none;width:100%;display:block}
+.hlbl{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
 .flagclr{flex:none;width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:7px;background:none;cursor:pointer}
 .flagbadge{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:6px;padding:2px 8px;min-width:64px;text-align:center}
 @media(max-width:760px){.pgwrap{flex-direction:column}.pgwrap>div:first-child{width:100%!important}}
@@ -211,12 +213,14 @@ td.r{text-align:right;white-space:nowrap}
         <div class="card" style="padding:6px">
           <button class="pgtool on" data-pgtool="damage">🔧 Tech Damage Tracker</button>
           <button class="pgtool" data-pgtool="consumption">📦 Consumption Report</button>
+          <button class="pgtool" data-pgtool="hyla">♻️ Hyla Orders</button>
           <button class="pgtool" data-pgtool="cash">💵 Cash Tracker</button>
         </div>
       </div>
       <div style="flex:1;min-width:0">
         <div id="pagePane"></div>
         <div id="pagePaneConsumption" class="hide"></div>
+        <div id="pagePaneHyla" class="hide"></div>
         <div id="pagePaneCash" class="hide">
           <div class="sect-h">Registers &amp; safes
             <select id="regStore" style="width:auto;min-width:200px"></select>
@@ -294,6 +298,7 @@ var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
 var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
 var PGTOOL='damage', DMFRS=[], DPARTS=[]; /* page settings: per-tool config (tech damage lists) */
 var PTYPES=[], FLAGS=[]; /* consumption page settings: part types + custom flags */
+var HYLA_SET={}, HYLA_LABEL=[], HYLA_GUIDE=[]; /* hyla page settings (hyla_settings kv) */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
 var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
@@ -402,12 +407,17 @@ async function loadPages(){
     sb.from('damage_parts').select('id,name,active,sort').order('sort').order('id'),
     sb.from('part_types').select('id,part_type,active').order('part_type'),
     sb.from('flag_types').select('id,key,label,color,active,sort').order('sort').order('id'),
+    sb.from('hyla_settings').select('key,value'),
   ]);
   DMFRS=res[0].error?[]:(res[0].data||[]);
   DPARTS=res[1].error?[]:(res[1].data||[]);
   PTYPES=res[2].error?[]:(res[2].data||[]);
   FLAGS=res[3].error?[]:(res[3].data||[]);
+  HYLA_SET={};(res[4].error?[]:(res[4].data||[])).forEach(function(r){HYLA_SET[r.key]=r.value;});
+  HYLA_LABEL=hylaParse(HYLA_SET.labelItems,['Battery life','All functions','Audio test','Cleaned']);
+  HYLA_GUIDE=hylaParse(HYLA_SET.guideSteps,[]);
 }
+function hylaParse(v,def){ try{ var a=JSON.parse(v||'[]'); return a.length?a:def; }catch(e){ return def; } }
 async function load(){
   await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
@@ -900,15 +910,70 @@ function pgTbl(key){return key==='mfr'?'damage_manufacturers':'damage_parts';}
 function renderPages(){
   if(!$('#pagePane'))return;
   $all('#view-pages [data-pgtool]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-pgtool')===PGTOOL);});
-  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption';
+  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption', hylaOn=PGTOOL==='hyla';
   $('#pagePane').classList.toggle('hide',!damageOn);
   if($('#pagePaneCash'))$('#pagePaneCash').classList.toggle('hide',!cashOn);
   if($('#pagePaneConsumption'))$('#pagePaneConsumption').classList.toggle('hide',!consOn);
+  if($('#pagePaneHyla'))$('#pagePaneHyla').classList.toggle('hide',!hylaOn);
   if(damageOn){
     $('#pagePane').innerHTML=pageListEditor('Manufacturers','mfr',DMFRS,false)+pageListEditor('Parts','part',DPARTS,true);
   }
   if(consOn)renderConsumptionPage();
+  if(hylaOn)renderHylaPage();
   renderRegs();
+}
+/* ===== Hyla Orders page settings (writes to hyla_settings kv) ===== */
+function hylaArr(k){return k==='label'?HYLA_LABEL:HYLA_GUIDE;}
+function hylaJsonKey(k){return k==='label'?'labelItems':'guideSteps';}
+function hylaRowsHtml(k,arr){
+  return arr.length?arr.map(function(s,i){
+    return '<div class="lstrow" data-hrow="'+k+'|'+i+'">'
+      +'<span class="grip" draggable="true" data-hgrip="'+k+'|'+i+'" title="Drag to reorder">⠿</span>'
+      +'<input class="pgname" data-hname="'+k+'|'+i+'" value="'+esc(s)+'">'
+      +'<button class="ord del" data-hdel="'+k+'|'+i+'" title="Delete">✕</button>'
+      +'</div>';
+  }).join(''):'<div class="empty" style="padding:14px">None yet.</div>';
+}
+function renderHylaPage(){
+  var pane=$('#pagePaneHyla');if(!pane)return;
+  var sel=function(v){return (HYLA_SET.rmaCreditReturn||'Credit')===v?' selected':'';};
+  pane.innerHTML=''
+    +'<div class="sect-h">Label checklist</div>'
+    +'<div class="note" style="margin:-4px 0 10px">Items print as check-off boxes on every device label.</div>'
+    +'<div class="card" style="padding:10px 12px">'+hylaRowsHtml('label',HYLA_LABEL)
+      +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-hadd="label" placeholder="Add item…"><button class="btn alt sm" data-haddbtn="label">Add</button></div></div>'
+    +'<div class="sect-h" style="margin-top:20px">Testing guide</div>'
+    +'<div class="note" style="margin:-4px 0 10px">Steps shown to techs in the Testing Guide popup.</div>'
+    +'<div class="card" style="padding:10px 12px">'+hylaRowsHtml('guide',HYLA_GUIDE)
+      +'<div style="display:flex;gap:8px;margin-top:10px"><input class="pgin" data-hadd="guide" placeholder="Add step…"><button class="btn alt sm" data-haddbtn="guide">Add</button></div></div>'
+    +'<div class="sect-h" style="margin-top:20px">RMA form defaults</div>'
+    +'<div class="card" style="padding:14px 16px">'
+      +'<label class="hlbl">Hyla sales rep (form D8)</label><input class="pgin hfull" data-hkv="rmaSalesRep" value="'+esc(HYLA_SET.rmaSalesRep||'')+'" placeholder="Rep name">'
+      +'<label class="hlbl" style="margin-top:12px">Credit or Return (form D9)</label><select class="pgin hfull" data-hkv="rmaCreditReturn"><option'+sel('Credit')+'>Credit</option><option'+sel('Return')+'>Return</option></select>'
+    +'</div>'
+    +'<div class="sect-h" style="margin-top:20px">Notifications</div>'
+    +'<div class="card" style="padding:14px 16px">'
+      +'<label class="hlbl">Teams channel email (RMA alerts)</label><input class="pgin hfull" data-hkv="teamsEmail" value="'+esc(HYLA_SET.teamsEmail||'')+'" placeholder="channel@…teams.ms">'
+      +'<label class="hlbl" style="margin-top:12px">Digest email (daily deadline warnings)</label><input class="pgin hfull" data-hkv="digestEmail" value="'+esc(HYLA_SET.digestEmail||'')+'" placeholder="leave blank to use Teams email">'
+      +'<label class="hlbl" style="margin-top:12px">RMA aging warning (days)</label><input class="pgin" style="width:120px" data-hkv="rmaWarnDays" inputmode="numeric" value="'+esc(HYLA_SET.rmaWarnDays||'3')+'" placeholder="3">'
+    +'</div>';
+}
+async function hylaSaveList(k){
+  var r=await sb.from('hyla_settings').upsert({key:hylaJsonKey(k),value:JSON.stringify(hylaArr(k))});
+  if(r.error)toast(r.error.message,true);
+}
+async function hylaAdd(k){
+  var inp=$('#pagePaneHyla [data-hadd="'+k+'"]');var v=inp?inp.value.trim():'';if(!v)return;
+  hylaArr(k).push(v);renderHylaPage();await hylaSaveList(k);
+}
+async function hylaDel(k,i){ hylaArr(k).splice(i,1);renderHylaPage();await hylaSaveList(k); }
+async function hylaRename(k,i,v){ v=String(v).trim();var a=hylaArr(k);if(!v){renderHylaPage();return;}a[i]=v;await hylaSaveList(k); }
+async function hylaMove(k,from,to){ var a=hylaArr(k);if(from===to||from<0||to<0||from>=a.length||to>=a.length)return;var it=a.splice(from,1)[0];a.splice(to,0,it);renderHylaPage();await hylaSaveList(k); }
+async function hylaKV(key,val){
+  if(key==='rmaWarnDays')val=String(val).trim()||'3';
+  HYLA_SET[key]=val;
+  var r=await sb.from('hyla_settings').upsert({key:key,value:val==null?'':String(val)});
+  if(r.error)toast(r.error.message,true);else toast('Saved');
 }
 function renderConsumptionPage(){
   var pane=$('#pagePaneConsumption');if(!pane)return;
@@ -1080,7 +1145,7 @@ function initUI(){
   $('#tabPages').onclick=function(){TAB='pages';SEARCH='';renderAll();};
   $('#tabRoles').onclick=function(){TAB='roles';SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
-    var t=e.target.closest('[data-pgtool],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel]');if(!t)return;
+    var t=e.target.closest('[data-pgtool],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel]');if(!t)return;
     if(t.hasAttribute('data-pgtool')){PGTOOL=t.getAttribute('data-pgtool');renderPages();}
     else if(t.hasAttribute('data-pgadd'))pgAdd(t.getAttribute('data-pgadd'));
     else if(t.hasAttribute('data-pgactive')){var p2=t.getAttribute('data-pgactive').split('|');pgToggle(p2[0],p2[1]);}
@@ -1091,7 +1156,31 @@ function initUI(){
     else if(t.hasAttribute('data-flagaddbtn'))flagAdd();
     else if(t.hasAttribute('data-flagactive'))flagToggle(t.getAttribute('data-flagactive'));
     else if(t.hasAttribute('data-flagdel'))flagDel(t.getAttribute('data-flagdel'));
+    else if(t.hasAttribute('data-haddbtn'))hylaAdd(t.getAttribute('data-haddbtn'));
+    else if(t.hasAttribute('data-hdel')){var h1=t.getAttribute('data-hdel').split('|');hylaDel(h1[0],+h1[1]);}
   });
+  // hyla list drag-reorder (parallels the damage-list DnD; index-based)
+  var HDRAG=null;
+  function hClearDrop(){$all('#pagePaneHyla .lstrow.drop-before,#pagePaneHyla .lstrow.drop-after').forEach(function(r){r.classList.remove('drop-before','drop-after');});}
+  $('#view-pages').addEventListener('dragstart',function(e){
+    var g=e.target.closest('[data-hgrip]');if(!g)return;
+    var p=g.getAttribute('data-hgrip').split('|');HDRAG={key:p[0],i:+p[1]};
+    var row=g.closest('.lstrow');if(row)row.classList.add('dragging');
+    if(e.dataTransfer){e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',p[1]);}catch(_){}}
+  });
+  $('#view-pages').addEventListener('dragover',function(e){
+    if(!HDRAG)return;var row=e.target.closest('.lstrow[data-hrow]');if(!row)return;
+    var p=row.getAttribute('data-hrow').split('|');if(p[0]!==HDRAG.key)return;
+    e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='move';
+    hClearDrop();var rc=row.getBoundingClientRect();row.classList.add(e.clientY>rc.top+rc.height/2?'drop-after':'drop-before');
+  });
+  $('#view-pages').addEventListener('drop',function(e){
+    if(!HDRAG)return;var row=e.target.closest('.lstrow[data-hrow]');
+    if(row){var p=row.getAttribute('data-hrow').split('|');if(p[0]===HDRAG.key){e.preventDefault();
+      var rc=row.getBoundingClientRect();var after=e.clientY>rc.top+rc.height/2;var to=(+p[1])+(after?1:0);var from=HDRAG.i;if(from<to)to--;hylaMove(HDRAG.key,from,to);}}
+    hClearDrop();HDRAG=null;
+  });
+  $('#view-pages').addEventListener('dragend',function(){hClearDrop();$all('#pagePaneHyla .lstrow.dragging').forEach(function(r){r.classList.remove('dragging');});HDRAG=null;});
   // drag-and-drop reordering for page-settings lists (grip handle = drag source,
   // each row = drop target; before/after decided by cursor vs row midpoint)
   var PGDRAG=null;
@@ -1133,8 +1222,10 @@ function initUI(){
     else if(t.hasAttribute('data-ptname'))ptRename(t.getAttribute('data-ptname'),t.value);
     else if(t.hasAttribute('data-flagname'))flagRename(t.getAttribute('data-flagname'),t.value);
     else if(t.hasAttribute('data-flagcolor'))flagColor(t.getAttribute('data-flagcolor'),t.value);
+    else if(t.hasAttribute('data-hname')){var h=t.getAttribute('data-hname').split('|');hylaRename(h[0],+h[1],t.value);}
+    else if(t.hasAttribute('data-hkv'))hylaKV(t.getAttribute('data-hkv'),t.value);
   });
-  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else t.blur();});
+  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd],[data-hname],[data-hadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else if(t.hasAttribute('data-hadd'))hylaAdd(t.getAttribute('data-hadd'));else t.blur();});
   $('#addChannel').onclick=openAddChannel;
   $('#view-notif').addEventListener('click',function(e){
     var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evch],[data-chedit]');if(!t)return;
