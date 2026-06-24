@@ -22,7 +22,7 @@
     { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋', acc:'orders.jerryding' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦', acc:'orders.po' },
-    { label:'Price Calculator',    url:'price-calc-and-guide.html',icon:'🧮', acc:'pricing.view' },
+    { label:'Price Calculator',    url:'price-calculator.html',    icon:'🧮', acc:'pricing.view' },
     { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' },
     { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
