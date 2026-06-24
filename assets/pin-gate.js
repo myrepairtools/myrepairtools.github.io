@@ -26,7 +26,7 @@
     'cash-tracker.html':'cash.view', 'consumption-report.html':'consumption.view',
     'damage-tracker.html':'damage.view', 'hyla-orders.html':'orders.hyla',
     'jerry-ding-order.html':'orders.jerryding', 'po-converter.html':'orders.po',
-    'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
+    'price-calculator.html':'pricing.view', 'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
     'cash-admin.html':'cash.admin', 'employee-records.html':'staff.view',
     'settings.html':'staff.manage',
     'claim-payouts.html':'claims.view', 'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
