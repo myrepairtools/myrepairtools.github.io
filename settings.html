@@ -492,7 +492,7 @@ async function initAuth(){
 
 /* ===== data ===== */
 async function loadStores(){
-  var r=await sb.from('stores').select('store,rq_name,display_order,active').order('display_order');
+  var r=await sb.from('stores').select('store,rq_name,display_order,active,color').order('display_order');
   STORES=r.error?[]:(r.data||[]);
 }
 async function loadStaff(){
@@ -863,7 +863,8 @@ function renderLoc(){
   STORES.forEach(function(s){
     var badge=s.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Inactive</span>';
     var tr=document.createElement('tr');
-    tr.innerHTML='<td style="font-weight:800">'+esc(s.store)+'</td>'
+    var swatch='<span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:'+esc(s.color||'#4FB0E3')+';margin-right:8px;vertical-align:middle"></span>';
+    tr.innerHTML='<td style="font-weight:800">'+swatch+esc(s.store)+'</td>'
       +'<td class="muted">'+esc(s.rq_name||'—')+'</td>'
       +'<td class="r">'+(s.display_order==null?'—':s.display_order)+'</td>'
       +'<td>'+badge+'</td>'
@@ -1222,10 +1223,10 @@ async function saveMember(){
 /* ===== store modal (owner only) ===== */
 function openStore(store){
   var s=STORES.filter(function(x){return x.store===store;})[0];if(!s)return;
-  MOPEN={type:'store',isNew:false,draft:{store:s.store,rq_name:s.rq_name||'',display_order:s.display_order==null?0:s.display_order,active:!!s.active}};
+  MOPEN={type:'store',isNew:false,draft:{store:s.store,rq_name:s.rq_name||'',display_order:s.display_order==null?0:s.display_order,active:!!s.active,color:s.color||'#4FB0E3'}};
   renderModal();
 }
-function openAddStore(){MOPEN={type:'store',isNew:true,draft:{store:'',rq_name:'',display_order:(STORES.length?Math.max.apply(null,STORES.map(function(s){return s.display_order||0;}))+1:1),active:true}};renderModal();}
+function openAddStore(){MOPEN={type:'store',isNew:true,draft:{store:'',rq_name:'',display_order:(STORES.length?Math.max.apply(null,STORES.map(function(s){return s.display_order||0;}))+1:1),active:true,color:'#4FB0E3'}};renderModal();}
 function storeModalHtml(){
   var d=MOPEN.draft;
   return '<div class="modal-back" data-close></div><div class="modal sm"><div class="modal-hd"><div class="t">'+(MOPEN.isNew?'New store':'Edit '+esc(d.store))+'</div><button class="modal-x" data-close>×</button></div>'
@@ -1235,6 +1236,7 @@ function storeModalHtml(){
      +'<div class="f"><label>RepairQ name</label><input data-k="rq_name" value="'+esc(d.rq_name)+'" placeholder="CPR Beaverton OR"></div>'
      +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Display order</label><input type="number" data-k="display_order" value="'+(d.display_order)+'"></div>'
        +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Inactive</option></select></div></div>'
+     +'<div class="f" style="margin-top:12px"><label>Schedule color</label><div style="display:flex;align-items:center;gap:10px"><input type="color" data-k="color" value="'+esc(d.color||'#4FB0E3')+'" style="width:48px;height:38px;padding:2px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;background:#fff"><span class="note" style="margin:0">Used for this store on the schedule grid &amp; legend.</span></div></div>'
    +'</div><div class="modal-ft"><span></span><button class="btn blue" data-save>'+(MOPEN.isNew?'Create store':'Done')+'</button></div></div>';
 }
 function wireStore(host){
@@ -1248,8 +1250,8 @@ async function saveStore(){
   if(!String(d.store).trim()){toast('Display name is required',true);return;}
   var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
   var r;
-  if(MOPEN.isNew) r=await sb.from('stores').insert({store:String(d.store).trim(),rq_name:d.rq_name||null,display_order:d.display_order,active:d.active});
-  else r=await sb.from('stores').update({rq_name:d.rq_name||null,display_order:d.display_order,active:d.active}).eq('store',d.store);
+  if(MOPEN.isNew) r=await sb.from('stores').insert({store:String(d.store).trim(),rq_name:d.rq_name||null,display_order:d.display_order,active:d.active,color:d.color||null});
+  else r=await sb.from('stores').update({rq_name:d.rq_name||null,display_order:d.display_order,active:d.active,color:d.color||null}).eq('store',d.store);
   if(r.error){toast(r.error.message||'Save failed (owner-only?)',true);if(btn)btn.disabled=false;return;}
   toast('Store saved'); MOPEN=null; await loadStores(); renderAll();
 }
