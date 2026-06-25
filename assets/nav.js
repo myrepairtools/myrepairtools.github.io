@@ -25,6 +25,7 @@
     { label:'Price Calculator',    url:'price-calculator.html',    icon:'🧮', acc:'pricing.view' },
     { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' },
     { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
+    { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
   ];
   var PRIVILEGED = [

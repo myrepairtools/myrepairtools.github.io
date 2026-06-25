@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Commission — CPR</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="assets/commission-engine.js"></script>
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;--purple:#7c3aed;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 80px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;line-height:1.05}
+.sub{color:var(--dark-grey);font-size:.82rem;font-weight:600;margin-top:2px}
+.hide{display:none!important}
+.muted{color:var(--grey);font-weight:600}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+input,select{font-family:'Nunito Sans',sans-serif;font-size:.86rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--dark)}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.row2{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.tabs{display:inline-flex;gap:3px;background:var(--dark);border-radius:11px;padding:3px}
+.tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;padding:8px 16px;border-radius:8px;background:none;border:none;color:#D5D8E0;cursor:pointer}
+.tab.on{background:#fff;color:var(--dark);font-weight:900}
+.status{margin-left:auto;font-size:.74rem;color:var(--grey);font-weight:700}
+/* cards */
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);margin-bottom:16px;overflow:hidden}
+.card-hd{display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid var(--border)}
+.card-hd::before{content:'';width:4px;height:18px;border-radius:2px;background:var(--accent,var(--red))}
+.card-t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.96rem}
+.card-bd{padding:16px 18px}
+.acc-red{--accent:var(--red)}.acc-blue{--accent:var(--blue)}.acc-green{--accent:var(--green)}.acc-dark{--accent:var(--dark)}.acc-amber{--accent:var(--amber)}
+/* KPI stat grid */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.kpi .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)}
+.kpi .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.8rem;line-height:1.1;margin-top:4px}
+.kpi .s{font-size:.72rem;color:var(--dark-grey);font-weight:600;margin-top:3px}
+.kpi.hero{background:linear-gradient(135deg,#2E9E5B,#1f7d45);border:none;color:#fff}
+.kpi.hero .l{color:rgba(255,255,255,.85)}.kpi.hero .v{color:#fff}.kpi.hero .s{color:rgba(255,255,255,.9)}
+/* badges */
+.badges{display:flex;flex-wrap:wrap;gap:9px}
+.badge{display:flex;flex-direction:column;gap:1px;border-radius:11px;padding:9px 13px;min-width:120px;border:1.5px solid var(--border);background:#fff}
+.badge.on{border-color:transparent;background:#EAF7EF}
+.badge .bt{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;color:var(--dark)}
+.badge .bp{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem}
+.badge.on .bp{color:var(--green)}.badge.off .bp{color:var(--grey)}
+.badge .bs{font-size:.64rem;font-weight:700;color:var(--grey)}
+.badge .chk{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.badge.on .chk{color:var(--green)}.badge.off .chk{color:var(--grey)}
+/* breakdown rows */
+.bd-stream{padding:12px 0;border-bottom:1px solid var(--border)}
+.bd-stream:last-child{border-bottom:none}
+.bd-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.bd-name{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
+.bd-amt{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.bd-rows{margin-top:6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px}
+.bd-row{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--dark-grey);padding:2px 0}
+.bd-row .rv{font-weight:700;white-space:nowrap}
+/* services list */
+.svc{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)}
+.svc:last-child{border-bottom:none}
+.svc .sn{font-weight:700;font-size:.86rem;color:var(--dark-grey)}
+.svc .sc{font-size:.74rem;color:var(--grey);font-weight:600}
+.svc .sp{font-family:'Nunito',sans-serif;font-weight:900;color:var(--green)}
+/* how it works */
+.hw-tier{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.hw-tier:last-child{border-bottom:none}
+.hw-when{font-size:.85rem;color:var(--dark-grey);font-weight:600}
+.hw-earn{font-family:'Nunito',sans-serif;font-weight:900;color:var(--dark)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--light-grey);color:var(--grey);font-family:'Nunito';font-weight:800;z-index:50}
+</style>
+</head>
+<body>
+<main id="app" class="hide">
+  <div class="head">
+    <div>
+      <h1>My Commission</h1>
+      <div class="sub" id="who">This month so far</div>
+    </div>
+    <select id="viewAs" class="hide" style="min-width:180px"></select>
+  </div>
+
+  <div class="row2">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-t="overview">Overview</button>
+      <button class="tab" data-t="how">How it works</button>
+    </div>
+    <span class="status" id="status"></span>
+  </div>
+
+  <section id="view-overview"></section>
+  <section id="view-how" class="hide"></section>
+</main>
+
+<div id="loading">Loading…</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const E=window.CommissionEngine, money=E.money, pct=E.pct;
+const money0=n=>'$'+Math.round(Number(n)||0).toLocaleString('en-US');
+
+const $=s=>document.querySelector(s), $all=s=>Array.prototype.slice.call(document.querySelectorAll(s));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
+function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+
+const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
+const normRole=r=>ROLE_ALIAS[r]||r;
+const MGR=r=>r==='owner'||r==='admin'||r==='manager';
+
+const STATE={me:null,target:null,tab:'overview',
+  rates:{},rateLabels:{},storeRates:{},rules:{},roleEarns:{},roleOver:{},
+  staffById:{},rosterById:{},staffList:[],tips:{}};
+
+/* ---- session ---- */
+async function ensureSession(){
+  try{let s=(await sb.auth.getSession()).data.session;if(s)return s;
+    const raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token');if(!raw)return null;
+    const o=JSON.parse(raw);
+    const at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    const rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+async function currentStaff(){
+  try{const s=(await sb.auth.getSession()).data.session;if(!s)return null;
+    const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
+    return r.data||null;
+  }catch(e){return null;}
+}
+
+/* ---- config (shared with the calculator) ---- */
+async function loadConfig(){
+  const [rt,rl,rs,st,rr,pm,rp,ro]=await Promise.all([
+    sb.from('commission_rates').select('*').order('sort'),
+    sb.from('commission_rules').select('*'),
+    sb.from('commission_roster').select('*'),
+    sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores'),
+    sb.from('roles').select('id,key'),
+    sb.from('permissions').select('id,key').like('key','commission.earn.%'),
+    sb.from('role_permissions').select('role_id,permission_id'),
+    sb.from('commission_role_overrides').select('*')
+  ]);
+  STATE.rates={};STATE.rateLabels={};
+  (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=(r.tiers&&r.tiers.goal)?{goal:Number(r.tiers.goal)||0,lo:Number(r.tiers.lo)||0,hi:Number(r.tiers.hi)||0}:(Number(r.amount)||0);STATE.rateLabels[r.sku]=r.label||r.sku;});
+  STATE.rules={};STATE.storeRates={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};STATE.storeRates[r.store]=r.rates||{};});
+  STATE.staffById={};STATE.staffList=[];(st.data||[]).forEach(s=>{STATE.staffById[s.id]=s;if(s.active!==false)STATE.staffList.push(s);});
+  STATE.staffList.sort((a,b)=>(a.display_name||'')<(b.display_name||'')?-1:1);
+  STATE.rosterById={};(rs.data||[]).forEach(r=>{STATE.rosterById[r.staff_id]=r;});
+  const roleKeyById={};(rr.data||[]).forEach(r=>{roleKeyById[r.id]=r.key;});
+  const permStream={};(pm.data||[]).forEach(p=>{permStream[p.id]=p.key.split('.').pop();});
+  STATE.roleEarns={};(rr.data||[]).forEach(r=>{STATE.roleEarns[r.key]={accessory:false,device:false,services:false};});
+  (rp.data||[]).forEach(x=>{const rk=roleKeyById[x.role_id],s=permStream[x.permission_id];if(rk&&s&&STATE.roleEarns[rk])STATE.roleEarns[rk][s]=true;});
+  STATE.roleOver={};(ro.data||[]).forEach(x=>{const rk=roleKeyById[x.role_id];if(rk)STATE.roleOver[rk]={rules:x.rules||{},rates:x.rates||{}};});
+}
+
+/* ---- month range ---- */
+function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function monthInfo(){const n=new Date(),y=n.getFullYear(),m=n.getMonth();
+  return {start:iso(new Date(y,m,1)),end:iso(n),period:y+'-'+('0'+(m+1)).slice(-2),
+    dayOfMonth:n.getDate(),daysInMonth:new Date(y,m+1,0).getDate(),
+    label:n.toLocaleString('en-US',{month:'long',year:'numeric'})};}
+
+function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,services:{}};}
+function addInto(t,r){
+  t.Tickets+=Number(r.tickets)||0;t.AccyUnits+=Number(r.accy_units)||0;t.NetAccySales+=Number(r.accy_net)||0;t.AccyGP+=Number(r.accy_gp)||0;
+  t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;
+  const sv=r.services||{};for(const k in sv){t.services[k]=(t.services[k]||0)+(Number(sv[k])||0);}
+}
+
+/* effective config for one staff member: Store(home) -> Role -> Person */
+function effFor(staff){
+  const roleKey=normRole(staff.role);
+  const roleE=STATE.roleEarns[roleKey]||{accessory:true,device:true,services:true};
+  const ros=STATE.rosterById[staff.id]||null;
+  const earns=E.resolveEarns(roleE, ros&&ros.earns_override);
+  const roleOver=STATE.roleOver[roleKey]||null;
+  const home=staff.home_store;
+  const rules=E.mergeRules(STATE.rules[home], roleOver&&roleOver.rules, ros&&ros.rules_override);
+  const rates=E.mergeRates(STATE.rates, STATE.storeRates[home], roleOver&&roleOver.rates, ros&&ros.rates_override);
+  const goal=ros?Number(ros.accy_goal)||0:0;
+  return {earns,rules,rates,goal};
+}
+
+/* tip share for a name from loaded commission_tips (hours/total * pool, summed over stores) */
+function tipFor(name){let total=0;for(const store in STATE.tips){const d=STATE.tips[store]||{},pool=+d.pool||0,hrs=d.hours||{};if(!pool)continue;
+  let totHrs=0;for(const nm in hrs){const h=hrs[nm]||{};totHrs+=(+h.pp1||0)+(+h.pp2||0);}
+  const h=hrs[name]||{},my=(+h.pp1||0)+(+h.pp2||0);if(totHrs>0&&my>0)total+=(my/totHrs)*pool;}
+  return total;}
+
+/* ---- load + compute for the current target ---- */
+async function loadTarget(){
+  const mi=monthInfo(), t=STATE.target;
+  $('#status').textContent='Loading…';
+  const sales=await sb.from('commission_sales').select('*').eq('staff_id',t.id).gte('biz_date',mi.start).lte('biz_date',mi.end);
+  const totals=blankTotals();(sales.data||[]).forEach(r=>addInto(totals,r));
+  const tp=await sb.from('commission_tips').select('*').eq('period',mi.period);
+  STATE.tips={};(tp.data||[]).forEach(x=>{STATE.tips[x.store]={hours:x.hours||{},pool:Number(x.pool)||0};});
+  const cfg=effFor(t);
+  const c=E.computeCommission(totals,{accessoryGoal:cfg.goal,accDeviceUnits:'',rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
+  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi};
+  $('#status').textContent=mi.label;
+  $('#who').textContent=(STATE.me&&STATE.me.id===t.id?'Your numbers':esc(t.display_name))+' · '+mi.label+' (month to date)';
+  render();
+}
+
+/* ---- render ---- */
+function render(){
+  $all('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.t===STATE.tab));
+  $('#view-overview').classList.toggle('hide',STATE.tab!=='overview');
+  $('#view-how').classList.toggle('hide',STATE.tab!=='how');
+  if(STATE.tab==='overview')renderOverview();else renderHow();
+}
+
+function renderOverview(){
+  const {totals:t,cfg,c,tip,mi}=STATE.calc, R=c.rules, earns=c.earns;
+  const retail=(t.NetAccySales||0)+(t.DeviceRev||0);
+  const proj=mi.dayOfMonth>0?c.total/mi.dayOfMonth*mi.daysInMonth:c.total;
+  // left on the table: accessory bonuses not yet earned on GP already generated
+  const maxAccy=(R.accyPct1||0)+(R.accyGoalPct||0)+(R.accyPct2||0);
+  const curAccy=(c.tiers.t25||0)+(c.tiers.goal||0)+(c.tiers.t50||0);
+  const upside=earns.accessory?Math.max(0,(maxAccy-curAccy))*(c.accyGP||0):0;
+
+  const kpis='<div class="kpis">'
+    +'<div class="kpi hero"><div class="l">Earned this month</div><div class="v">'+money(c.total)+'</div><div class="s">commission so far'+(tip>0?' · +'+money(tip)+' tips':'')+'</div></div>'
+    +'<div class="kpi"><div class="l">On pace for</div><div class="v" style="color:var(--dark)">'+money0(proj)+'</div><div class="s">projected month-end</div></div>'
+    +'<div class="kpi"><div class="l">Left on the table</div><div class="v" style="color:var(--amber)">'+money0(upside)+'</div><div class="s">still unlockable on sales you’ve made</div></div>'
+    +'<div class="kpi"><div class="l">Retail sold</div><div class="v" style="color:var(--blue)">'+money0(retail)+'</div><div class="s">accessories + devices</div></div>'
+    +'</div>';
+
+  // unlocked badges
+  const badge=(on,name,pctv,req)=>'<div class="badge '+(on?'on':'off')+'"><div class="bt">'+name+'</div><div class="bp">+'+pct(pctv)+'</div><div class="bs">'+esc(req)+'</div><div class="chk">'+(on?'✓ unlocked':'locked')+'</div></div>';
+  let bd='';
+  if(earns.accessory){bd+=badge(c.tiers.t25>0,'Attach tier 1',R.accyPct1,pct(R.accyAttach1)+' attach')
+    +badge(c.tiers.goal>0,'Accessory goal',R.accyGoalPct,'hit $'+(cfg.goal||0)+' goal')
+    +badge(c.tiers.t50>0,'Attach tier 2',R.accyPct2,pct(R.accyAttach2)+' attach');}
+  if(earns.device){bd+=badge(c.gateMet,'Devices',R.dev1Pct,R.dev1Count+'+ net devices')
+    +badge(c.tiers.devAttach>0,'Device attach',R.devAttachPct,pct(R.devAttachReq)+' attach')
+    +badge(c.tiers.dev2024>0,R.dev2Min+'–'+R.dev2Max+' devices',R.dev2Pct,'+ attach held')
+    +badge(c.tiers.dev25>0,R.dev3Count+'+ devices',R.dev3Pct,'+ attach held');}
+  const badges=bd?('<div class="card acc-green"><div class="card-hd"><span class="card-t">What you’ve unlocked</span></div><div class="card-bd"><div class="badges">'+bd+'</div></div></div>'):'';
+
+  // breakdown
+  const attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
+  const row=(l,v)=>'<div class="bd-row"><span>'+l+'</span><span class="rv">'+v+'</span></div>';
+  let streams='';
+  if(earns.accessory||earns.device){
+    streams+='<div class="bd-stream"><div class="bd-top"><span class="bd-name">Accessories</span><span class="bd-amt" style="color:var(--blue)">'+money(c.accyComm)+'</span></div>'
+      +'<div class="bd-rows">'+row('Attach rate',t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(attach))+row('Net accessory $',money(t.NetAccySales))+row('Accessory GP',money(t.AccyGP))+row('Goal',cfg.goal?money(cfg.goal):'—')+'</div></div>';
+    streams+='<div class="bd-stream"><div class="bd-top"><span class="bd-name">Devices</span><span class="bd-amt" style="color:var(--red)">'+money(c.devComm)+'</span></div>'
+      +'<div class="bd-rows">'+row('Devices sold',t.DeviceUnits+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' = '+c.netDev+' net':' net'))+row('Device GP',money(t.DeviceGP))+row('Gate',c.gateMet?'✓ '+R.dev1Count+'+ met':'✗ below '+R.dev1Count)+'</div></div>';
+  }
+  streams+='<div class="bd-stream"><div class="bd-top"><span class="bd-name">Services</span><span class="bd-amt" style="color:var(--green)">'+money(c.repairComm)+'</span></div>'
+    +'<div class="bd-rows">'+row('Items',c.svcUnits)+'</div></div>';
+  const breakdown='<div class="card acc-dark"><div class="card-hd"><span class="card-t">Commission breakdown</span></div><div class="card-bd">'+streams+'</div></div>';
+
+  // services
+  let svc='';for(const sku in c.svc){const s=c.svc[sku];if(s.count<=0&&!s.rate)continue;
+    svc+='<div class="svc"><div><div class="sn">'+esc(STATE.rateLabels[sku]||sku)+'</div><div class="sc">'+s.count+' × '+money(s.rate)+(s.goal?' (goal '+s.goal+(s.hitGoal?' ✓':'')+')':'')+'</div></div><div class="sp">'+money(s.pay)+'</div></div>';}
+  const services=svc?('<div class="card acc-green"><div class="card-hd"><span class="card-t">Commissionable services</span></div><div class="card-bd">'+svc+'</div></div>'):'';
+
+  const tips=tip>0?('<div class="card acc-amber"><div class="card-hd"><span class="card-t">Tips</span></div><div class="card-bd"><div class="svc"><div class="sn">Your tip share this period</div><div class="sp" style="color:var(--amber)">'+money(tip)+'</div></div></div></div>'):'';
+
+  $('#view-overview').innerHTML=kpis+badges+breakdown+services+tips;
+}
+
+function renderHow(){
+  const {cfg,c}=STATE.calc, R=c.rules, earns=c.earns;
+  const tier=(when,earnTxt)=>'<div class="hw-tier"><span class="hw-when">'+when+'</span><span class="hw-earn">'+earnTxt+'</span></div>';
+  const card=(cls,title,sub,rows)=>'<div class="card '+cls+'"><div class="card-hd"><span class="card-t">'+title+'</span></div><div class="card-bd">'+(sub?'<div class="sub" style="margin:0 0 8px">'+sub+'</div>':'')+rows+'</div></div>';
+  let html='';
+  const earnList=[earns.accessory?'accessory %':null,earns.device?'device %':null,earns.services?'service payouts':null].filter(Boolean).join(' · ')||'services only';
+  html+=card('acc-dark','How your commission works','You earn: '+earnList+'. Paid on gross profit; tiers stack.','');
+  if(earns.accessory){
+    html+=card('acc-blue','Accessories','Paid on accessory gross profit.',
+      tier('Attach rate reaches '+pct(R.accyAttach1),'+ '+pct(R.accyPct1))
+      +tier('Hit your accessory $ goal'+(cfg.goal?' ($'+cfg.goal+')':''),'+ '+pct(R.accyGoalPct))
+      +tier('Attach rate reaches '+pct(R.accyAttach2)+' (stretch)','+ '+pct(R.accyPct2)));
+  }
+  if(earns.device){
+    html+=card('acc-dark','Devices','Paid on device gross profit, net of returns.',
+      tier('Sell '+R.dev1Count+'+ net devices (the floor)','+ '+pct(R.dev1Pct))
+      +tier('Reach '+pct(R.devAttachReq)+' accessory attach on device tickets','+ '+pct(R.devAttachPct))
+      +tier('Sell '+R.dev2Min+'–'+R.dev2Max+' net devices, attach held','+ '+pct(R.dev2Pct))
+      +tier('Sell '+R.dev3Count+'+ net devices, attach held','+ '+pct(R.dev3Pct)));
+  }
+  if(earns.services){
+    let rows='';for(const sku in cfg.rates){const r=cfg.rates[sku];const lbl=STATE.rateLabels[sku]||sku;
+      const txt=(r&&typeof r==='object')?('$'+(r.lo||0)+' under '+r.goal+', $'+(r.hi||0)+' at '+r.goal+'+'):('$'+(Number(r)||0)+' each');
+      rows+=tier(esc(lbl),txt);}
+    html+=card('acc-green','Service payouts','Flat $ per commissionable service.',rows||'<div class="muted">No services configured.</div>');
+  }
+  $('#view-how').innerHTML=html;
+}
+
+/* ---- view-as (managers) ---- */
+function setupViewAs(){
+  if(!MGR(normRole(STATE.me.role))){$('#viewAs').classList.add('hide');return;}
+  const sel=$('#viewAs');sel.classList.remove('hide');
+  sel.innerHTML=STATE.staffList.map(s=>'<option value="'+s.id+'"'+(s.id===STATE.target.id?' selected':'')+'>'+esc(s.display_name)+(s.id===STATE.me.id?' (you)':'')+'</option>').join('');
+  sel.onchange=()=>{STATE.target=STATE.staffById[+sel.value]||STATE.me;loadTarget();};
+}
+
+/* ---- boot ---- */
+async function boot(){
+  await ensureSession();
+  STATE.me=await currentStaff();
+  if(!STATE.me){$('#loading').textContent='Sign in from the menu to see your commission.';return;}
+  await loadConfig();
+  // make sure self is resolvable from the staff map
+  if(!STATE.staffById[STATE.me.id])STATE.staffById[STATE.me.id]=STATE.me;
+  STATE.target=STATE.staffById[STATE.me.id]||STATE.me;
+  $('#loading').classList.add('hide');$('#app').classList.remove('hide');
+  $all('#tabs .tab').forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.t;render();});
+  setupViewAs();
+  await loadTarget();
+}
+boot().catch(e=>{$('#loading').textContent='Could not load: '+(e&&e.message||e);});
+</script>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="operations"></script>
+</body>
+</html>
