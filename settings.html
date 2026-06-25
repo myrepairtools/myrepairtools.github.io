@@ -676,12 +676,13 @@ function renderCommission(){
     +row('Hits their accessory $ goal','earn '+inp('accyGoalPct','%'),'Pays regardless of attach rate.')
     +row('Attach rate reaches '+inp('accyAttach2','%')+' (stretch)','earn '+inp('accyPct2','%'))
     +'<div class="commtier-max">Max if every tier is met: '+maxPct('accyPct1','accyGoalPct','accyPct2')+'</div></div>';
+  var devMax=function(){return Math.round((eff('dev1Pct')+eff('devAttachPct')+Math.max(eff('dev2Pct'),eff('dev3Pct')))*100)+'%';};
   var devCard=hd('Devices','Paid on device gross profit · net of returns','var(--dark)')
-    +row('Sells '+inp('dev1Count','')+'+ net devices','earn '+inp('dev1Pct','%'))
+    +row('Gate: sells '+inp('dev1Count','')+'+ net devices','earn '+inp('dev1Pct','%'),'Below this, no device commission at all — gates every tier below.')
     +row('Reaches '+inp('devAttachReq','%')+' accessory attach on device tickets','earn '+inp('devAttachPct','%'))
-    +row('Sells '+inp('dev2Min','')+'–'+inp('dev2Max','')+' net devices, full attach','earn '+inp('dev2Pct','%'))
-    +row('Sells '+inp('dev3Count','')+'+ net devices','earn '+inp('dev3Pct','%'))
-    +'<div class="commtier-max">Max if every tier is met: '+maxPct('dev1Pct','devAttachPct','dev2Pct','dev3Pct')+'</div></div>';
+    +row('Sells '+inp('dev2Min','')+'–'+inp('dev2Max','')+' net devices + attach held','earn '+inp('dev2Pct','%'))
+    +row('Sells '+inp('dev3Count','')+'+ net devices + attach held','earn '+inp('dev3Pct','%'),'Replaces the 20–24 band (not on top of it).')
+    +'<div class="commtier-max">Max if every tier is met: '+devMax()+'</div></div>';
   $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+'</div>';
   $all('[data-crule]').forEach(function(input){input.onchange=function(){
     var key=input.getAttribute('data-crule'),unit=input.getAttribute('data-unit');

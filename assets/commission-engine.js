@@ -104,13 +104,20 @@
     var accyComm = (t25 + goal + t50) * accyGP;
 
     // ----- Devices (net of returns) -----
+    // The device gate (dev1Count) is a hard floor: below it, NO device commission
+    // pays — not the base tier, not the attach bonus, not the volume bonus. Clear the
+    // gate and the base tier (dev1Pct) pays. The attach bonus and BOTH volume bands
+    // additionally require the accessory-attach requirement to be met. The 20–24 and
+    // 25+ bands are mutually exclusive (a count lands in one or neither), so device
+    // commission tops out at base + attach + 25% band.
     var netDev = (t.DeviceUnits || 0) - (t.DeviceReturns || 0);
-    var dev5 = netDev >= R.dev1Count ? R.dev1Pct : 0;
+    var gateMet = netDev >= R.dev1Count;
     var entered = !(cfg.accDeviceUnits === '' || cfg.accDeviceUnits === null || cfg.accDeviceUnits === undefined);
     var attachMet = entered ? (netDev > 0 && (Number(cfg.accDeviceUnits) / netDev) >= R.devAttachReq) : true;
-    var devAttach = attachMet ? R.devAttachPct : 0;
-    var dev2024 = (netDev >= R.dev2Min && netDev <= R.dev2Max && devAttach > 0) ? R.dev2Pct : 0;
-    var dev25 = (netDev >= R.dev3Count && dev5 > 0) ? R.dev3Pct : 0;
+    var dev5 = gateMet ? R.dev1Pct : 0;
+    var devAttach = (gateMet && attachMet) ? R.devAttachPct : 0;
+    var dev2024 = (gateMet && attachMet && netDev >= R.dev2Min && netDev <= R.dev2Max) ? R.dev2Pct : 0;
+    var dev25 = (gateMet && attachMet && netDev >= R.dev3Count) ? R.dev3Pct : 0;
     var devComm = (dev5 + devAttach + dev2024 + dev25) * (t.DeviceGP || 0);
 
     // ----- Services (SKU-driven) -----
@@ -134,7 +141,7 @@
     var exempt = !earnAcc && !earnDev;   // no accessory/device % (lead-style)
     return {
       attach: attach, netAccy: netAccy, accyGP: accyGP, assumed: !entered, rules: R,
-      netDev: netDev, svcUnits: svcUnits, svc: svc,
+      netDev: netDev, gateMet: gateMet, svcUnits: svcUnits, svc: svc,
       tiers: { t25: t25, goal: goal, t50: t50, dev5: dev5, devAttach: devAttach, dev2024: dev2024, dev25: dev25 },
       earns: { accessory: earnAcc, device: earnDev, services: earnSvc },
       accyComm: earnAcc ? accyComm : 0,
