@@ -196,10 +196,10 @@ async function loadConfig(){
 }
 
 /* ---- run report: aggregate commission_sales over the range, per employee ---- */
-function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,services:{}};}
+function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,DeviceAttach:0,services:{}};}
 function addInto(t,r){
   t.Tickets+=Number(r.tickets)||0;t.AccyUnits+=Number(r.accy_units)||0;t.NetAccySales+=Number(r.accy_net)||0;t.AccyGP+=Number(r.accy_gp)||0;
-  t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;
+  t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;t.DeviceAttach+=Number(r.device_attach)||0;
   const sv=r.services||{};for(const k in sv){t.services[k]=(t.services[k]||0)+(Number(sv[k])||0);}
 }
 async function runReport(){
@@ -239,9 +239,6 @@ async function runReport(){
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
       earns:earns, rules:rules, rates:rates, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
   });
-  const pk=start+'|'+end;STATE.manual={};
-  const mn=await sb.from('commission_manual').select('*').eq('period_key',pk);
-  (mn.data||[]).forEach(m=>{STATE.manual[m.employee]=m.acc_device_units;});
   if(!STATE.tipsPeriod)STATE.tipsPeriod=start.slice(0,7);
   await loadTips();
   STATE.loaded=true;
@@ -251,7 +248,7 @@ async function runReport(){
 
 function calc(r){
   return E.computeCommission(r.totals,{accessoryGoal:r.goal,
-    accDeviceUnits:(STATE.manual[r.name]!=null?STATE.manual[r.name]:''),
+    accDeviceUnits:(r.totals.DeviceAttach!=null?r.totals.DeviceAttach:''),
     rates:r.rates,earns:r.earns,rules:r.rules});
 }
 function inScope(){const all=STATE.store==='all';return STATE.report.filter(r=>all||r.store===STATE.store||r.stores.indexOf(STATE.store)>=0)
@@ -332,6 +329,7 @@ function renderCommissions(){
         {title:'Device',amt:c.devComm,rows:[
           {label:'Devices',value:t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' = '+c.netDev+' net':''),color:'var(--dark-grey)'},
           {label:'Device GP',value:money(t.DeviceGP),color:'var(--dark-grey)'},
+          {label:'Accessories on device tickets',value:(t.DeviceAttach||0)+' acc'+(c.netDev>0?' ÷ '+c.netDev+' dev = '+pct((t.DeviceAttach||0)/c.netDev)+' attach':''),color:'var(--dark-grey)'},
           {label:'Gate: '+R2.dev1Count+'+ devices (+'+pct(R2.dev1Pct)+')',value:c.gateMet?tt(c.tiers.dev5):'✗ below gate — $0',color:c.gateMet?tc(c.tiers.dev5):'var(--red)'},
           {label:pct(R2.devAttachReq)+' attach (+'+pct(R2.devAttachPct)+')',value:c.tiers.devAttach>0?(c.assumed?'+'+pct(R2.devAttachPct)+' (assumed)':'+'+pct(R2.devAttachPct)):'—',color:tc(c.tiers.devAttach)},
           {label:R2.dev2Min+'–'+R2.dev2Max+' devices + attach (+'+pct(R2.dev2Pct)+')',value:tt(c.tiers.dev2024),color:tc(c.tiers.dev2024)},
@@ -339,21 +337,13 @@ function renderCommissions(){
         {title:'Services',amt:c.repairComm,rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:'',color:'var(--green)'}]}];
     }
     const charge=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>({store:p.store,amt:money(p.amt)})):[];
-    // device-attach units: shown inline on the row (only when they earn device % and sold devices)
-    const showManual=!c.exempt&&r.earns&&r.earns.device&&c.netDev>0;
-    const manualInline=showManual
-      ? '<div style="display:flex;align-items:center;gap:5px;margin-left:auto;font-family:Nunito;font-weight:700;font-size:.66rem;color:var(--grey)">'
-        +'<span>Acc on device</span>'
-        +'<input type="number" placeholder="auto" value="'+(STATE.manual[r.name]!=null?STATE.manual[r.name]:'')+'" data-manual="'+esc(r.name)+'" style="width:48px;text-align:right;padding:2px 5px;font-size:.7rem;border:1px solid var(--border);border-radius:5px">'
-        +'<span>/ '+c.netDev+'</span></div>'
-      : '';
     const detail=open?('<div class="det">'
       +'<div class="detgrid">'+groups.map(g=>'<div><div class="detg-t" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span>'+esc(g.title)+'</span>'+(g.amt!=null?'<span style="color:var(--green);font-family:Nunito;font-weight:900;font-size:.96rem">'+money(g.amt)+'</span>':'')+'</div>'
         +g.rows.map(d=>'<div class="detrow"><span>'+esc(d.label)+'</span><span class="rv" style="color:'+d.color+'">'+esc(d.value)+'</span></div>').join('')+'</div>').join('')+'</div>'
       +(charge.length?('<div class="chargebox"><div class="h">Charge to store</div>'+charge.map(p=>'<div style="display:flex;justify-content:space-between;font-size:.88rem;padding:3px 0"><span style="font-weight:600">'+esc(shortStore(p.store))+'</span><span style="font-family:Nunito;font-weight:800">'+esc(p.amt)+'</span></div>').join('')+'</div>'):'')
       +'</div>'):'';
     return '<div class="crow"><div class="cgrid">'
-      +'<div class="nm" style="display:flex;align-items:center;gap:10px"><span>'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠</span>')+'</span>'+manualInline+'</div>'
+      +'<div class="nm" style="display:flex;align-items:center;gap:10px"><span>'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠</span>')+'</span></div>'
       +'<div class="v" style="color:'+(c.accyComm>0?'var(--blue)':'var(--grey)')+'">'+money(c.accyComm)+'</div>'
       +'<div class="v" style="color:'+(c.devComm>0?'var(--red)':'var(--grey)')+'">'+money(c.devComm)+'</div>'
       +'<div class="v" style="color:var(--dark-grey)">'+money(c.repairComm)+'</div>'
@@ -371,15 +361,6 @@ function renderCommissions(){
   $('#view-commissions').innerHTML='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Commission detail · '+(STATE.store==='all'?'All locations':esc(STATE.store))+'</span></div>'
     +'<div class="card-bd" style="overflow-x:auto"><div style="min-width:640px">'+head+(body||'<div class="muted" style="padding:22px 6px">No data for this range.</div>')+foot+'</div></div></div>';
   $all('[data-toggle]').forEach(b=>b.onclick=()=>{const n=b.getAttribute('data-toggle');STATE.expanded[n]=!STATE.expanded[n];renderCommissions();});
-  $all('[data-manual]').forEach(inp=>inp.onchange=()=>{
-    const n=inp.getAttribute('data-manual');const v=inp.value===''?'':Number(inp.value);
-    STATE.manual[n]=v;saveManual(n,v);renderCommissions();});
-}
-async function saveManual(name,val){
-  const pk=STATE.start+'|'+STATE.end;const r=STATE.report.find(x=>x.name===name);
-  const row={period_key:pk,store:(r&&r.store)||'',employee:name,acc_device_units:(val===''?null:val)};
-  const {error}=await sb.from('commission_manual').upsert(row,{onConflict:'period_key,store,employee'});
-  if(error)toast(error.message,true);
 }
 
 /* ---- tips ---- */

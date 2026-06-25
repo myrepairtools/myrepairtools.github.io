@@ -229,10 +229,10 @@ function monthInfo(){const n=new Date(),y=n.getFullYear(),m=n.getMonth();
     dayOfMonth:n.getDate(),daysInMonth:new Date(y,m+1,0).getDate(),
     label:n.toLocaleString('en-US',{month:'long',year:'numeric'})};}
 
-function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,ServiceNet:0,services:{},categories:{}};}
+function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,DeviceAttach:0,ServiceNet:0,services:{},categories:{}};}
 function addInto(t,r){
   t.Tickets+=Number(r.tickets)||0;t.AccyUnits+=Number(r.accy_units)||0;t.NetAccySales+=Number(r.accy_net)||0;t.AccyGP+=Number(r.accy_gp)||0;
-  t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;
+  t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;t.DeviceAttach+=Number(r.device_attach)||0;
   t.ServiceNet+=Number(r.service_net)||0;
   const sv=r.services||{};for(const k in sv){t.services[k]=(t.services[k]||0)+(Number(sv[k])||0);}
   const ct=r.categories||{};for(const k in ct){t.categories[k]=(t.categories[k]||0)+(Number(ct[k])||0);}
@@ -269,13 +269,13 @@ async function loadTarget(){
   const tp=await sb.from('commission_tips').select('*').eq('period',mi.period);
   STATE.tips={};(tp.data||[]).forEach(x=>{STATE.tips[x.store]={hours:x.hours||{},pool:Number(x.pool)||0};});
   const cfg=effFor(t);
-  const c=E.computeCommission(totals,{accessoryGoal:cfg.goal,accDeviceUnits:'',rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
+  const c=E.computeCommission(totals,{accessoryGoal:cfg.goal,accDeviceUnits:totals.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
   // trailing 12 months: aggregate per month, run the engine with current config
   const h0=new Date();h0.setDate(1);h0.setMonth(h0.getMonth()-11);
   const hist=await sb.from('commission_sales').select('*').eq('staff_id',t.id).gte('biz_date',iso(h0)).lte('biz_date',mi.end);
   const byMon={};(hist.data||[]).forEach(r=>{const k=String(r.biz_date).slice(0,7);(byMon[k]=byMon[k]||blankTotals());addInto(byMon[k],r);});
   const months=[];for(let i=0;i<12;i++){const d=new Date(h0.getFullYear(),h0.getMonth()+i,1);const k=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
-    const tt=byMon[k]||blankTotals();const cc=E.computeCommission(tt,{accessoryGoal:cfg.goal,accDeviceUnits:'',rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
+    const tt=byMon[k]||blankTotals();const cc=E.computeCommission(tt,{accessoryGoal:cfg.goal,accDeviceUnits:tt.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
     months.push({key:k,label:d.toLocaleString('en-US',{month:'short'}),total:cc.total});}
   STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months};
   $('#status').textContent='';
@@ -336,7 +336,7 @@ function renderOverview(){
       +pill(c.tiers.dev25>0,R.dev3Count+'+ · +'+pct(R.dev3Pct));}
     unlocked='<div class="unlockwrap"><div class="unlockcol">'
       +(earns.accessory?'<div class="unlockgrp"><div class="gh">Accessories <span>· '+pct(attach)+' attach</span></div><div class="pills2">'+accP+'</div></div>':'')
-      +(earns.device?'<div class="unlockgrp"><div class="gh">Devices <span>· '+t.DeviceUnits+' sold</span></div><div class="pills2">'+devP+'</div></div>':'')
+      +(earns.device?'<div class="unlockgrp"><div class="gh">Devices <span>· '+t.DeviceUnits+' sold · '+pct(c.netDev>0?(t.DeviceAttach||0)/c.netDev:0)+' attach</span></div><div class="pills2">'+devP+'</div></div>':'')
       +'</div>'
       +'<div class="lott"><div class="lt">Left on the table</div><div class="lv">'+money0(upside)+'</div><div class="ls">Commission you can still unlock on sales you’ve <b>already made</b> — clear the next threshold and it’s yours.</div></div></div>';
   }else{
@@ -478,6 +478,9 @@ function renderGoals(){
   if(earns.accessory)goals+=goalRow('Attach rate',Math.round(attach*100),Math.round(R.accyAttach2*100),pct(attach)+' / Goal '+pct(R.accyAttach2),(attach>=R.accyAttach2?'Top attach tier unlocked.':(attach>=R.accyAttach1?'Past tier 1 — push to '+pct(R.accyAttach2)+' for the stretch bonus.':'Reach '+pct(R.accyAttach1)+' to start earning accessory %.')),'var(--blue)');
   if(earns.accessory&&cfg.goal>0)goals+=goalRow('Accessory sales',t.NetAccySales||0,cfg.goal,money0(t.NetAccySales||0)+' / Goal '+money0(cfg.goal),(t.NetAccySales>=cfg.goal?'Goal hit — nice work.':money0(cfg.goal-(t.NetAccySales||0))+' to go to unlock the goal bonus.'),'var(--green)');
   if(earns.device)goals+=goalRow('Devices sold',c.netDev,R.dev3Count,c.netDev+' / Goal '+R.dev3Count,(c.netDev>=R.dev3Count?'Top device tier unlocked.':(c.gateMet?(R.dev3Count-c.netDev)+' more devices unlocks the next tier (+'+pct(R.dev3Pct)+')':'Sell '+Math.max(0,R.dev1Count-c.netDev)+' more to clear the '+R.dev1Count+'-device gate.')),'var(--red)');
+  if(earns.device&&c.netDev>0){const have=t.DeviceAttach||0,need=Math.ceil(c.netDev*R.devAttachReq),gap=Math.max(0,need-have),devAtt=have/c.netDev;
+    goals+=goalRow('Device attach',have,need,have+' / '+need+' acc · '+pct(devAtt)+' attach',
+      (c.gateMet?(gap<=0?'Attach requirement met — your device bonus (+'+pct(R.devAttachPct)+' and the volume tiers) is unlocked.':'Sell '+gap+' more accessor'+(gap===1?'y':'ies')+' on device tickets to hit '+pct(R.devAttachReq)+' attach and unlock +'+pct(R.devAttachPct)+'.'):'Clear the '+R.dev1Count+'-device gate first — then '+need+' accessor'+(need===1?'y':'ies')+' on device tickets unlocks the attach bonus.'),'var(--red)');}
   if(earns.services){const svcGoal=20,svcRate=(function(){for(const k in cfg.rates){const r=cfg.rates[k];return (r&&typeof r==='object')?(r.lo||r.hi||0):(Number(r)||0);}return 10;})();
     goals+=goalRow('Services',c.svcUnits,svcGoal,c.svcUnits+' / Goal '+svcGoal,(c.svcUnits>=svcGoal?'Service goal hit.':Math.max(0,svcGoal-c.svcUnits)+' more services ≈ +'+money0(Math.max(0,svcGoal-c.svcUnits)*svcRate)),'var(--purple)');}
   if(goals)body+='<div class="card acc-green"><div class="card-hd"><span class="card-t">Your goals this month</span></div><div class="card-bd" style="display:flex;flex-direction:column;gap:16px">'+goals+'</div></div>';
@@ -499,7 +502,7 @@ async function loadBoard(){
   const techs=[];
   for(const sid in byStaff){const st=STATE.staffById[sid];if(!st||EXCLUDE(st))continue;
     const cfg=effFor(st),tot=byStaff[sid];
-    const c=E.computeCommission(tot,{accessoryGoal:cfg.goal,accDeviceUnits:'',rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
+    const c=E.computeCommission(tot,{accessoryGoal:cfg.goal,accDeviceUnits:tot.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
     techs.push({id:+sid,name:st.display_name,store:st.home_store||'—',tot,c,
       attach:tot.Tickets>0?tot.AccyUnits/tot.Tickets:0,tickets:tot.Tickets,
       accySales:tot.NetAccySales||0,deviceRev:tot.DeviceRev||0,deviceUnits:tot.DeviceUnits||0,
