@@ -487,7 +487,21 @@ function renderGoals(){
   let goals='';const attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
   if(earns.accessory)goals+=goalRow('Attach rate',Math.round(attach*100),Math.round(R.accyAttach2*100),pct(attach)+' / Goal '+pct(R.accyAttach2),(attach>=R.accyAttach2?'Top attach tier unlocked.':(attach>=R.accyAttach1?'Past tier 1 — push to '+pct(R.accyAttach2)+' for the stretch bonus.':'Reach '+pct(R.accyAttach1)+' to start earning accessory %.')),'var(--blue)');
   if(earns.accessory&&cfg.goal>0)goals+=goalRow('Accessory sales',t.NetAccySales||0,cfg.goal,money0(t.NetAccySales||0)+' / Goal '+money0(cfg.goal),(t.NetAccySales>=cfg.goal?'Goal hit — nice work.':money0(cfg.goal-(t.NetAccySales||0))+' to go to unlock the goal bonus.'),'var(--green)');
-  if(earns.device)goals+=goalRow('Devices sold',c.netDev,R.dev3Count,c.netDev+' / Goal '+R.dev3Count,(c.netDev>=R.dev3Count?'Top device tier unlocked.':(c.gateMet?(R.dev3Count-c.netDev)+' more devices unlocks the next tier (+'+pct(R.dev3Pct)+')':'Sell '+Math.max(0,R.dev1Count-c.netDev)+' more to clear the '+R.dev1Count+'-device gate.')),'var(--red)');
+  if(earns.device){const nd=c.netDev,total=Math.max(R.dev3Count,1);
+    const segs=[{from:0,to:R.dev1Count,name:R.dev1Count+' gate',pay:R.dev1Pct,on:c.gateMet},
+      {from:R.dev1Count,to:R.dev2Min,name:R.dev2Min+'–'+R.dev2Max,pay:R.dev2Pct,on:c.tiers.dev2024>0},
+      {from:R.dev2Min,to:R.dev3Count,name:R.dev3Count+'+',pay:R.dev3Pct,on:c.tiers.dev25>0}];
+    const bars=segs.map(s=>{const range=Math.max(1,s.to-s.from),w=Math.round(range/total*100);
+      const fp=Math.max(0,Math.min(100,Math.round((nd-s.from)/range*100))),reached=nd>=s.to;
+      const col=s.on?'var(--green)':(reached?'var(--amber)':(fp>0?'var(--red)':'var(--light-grey)'));
+      return '<div style="width:'+w+'%;padding-right:3px;box-sizing:border-box">'
+        +'<div style="height:11px;border-radius:5px;background:var(--light-grey);overflow:hidden"><div style="height:100%;width:'+fp+'%;background:'+col+';border-radius:5px"></div></div>'
+        +'<div style="font-size:.6rem;font-weight:800;margin-top:4px;white-space:nowrap;color:'+(s.on?'var(--green)':'var(--dark-grey)')+'">'+s.name+' <span style="color:var(--grey)">+'+pct(s.pay)+'</span>'+(s.on?' ✓':'')+'</div></div>';}).join('');
+    const nudge=nd>=R.dev3Count?'Top tier — every device pays +'+pct(R.dev3Pct)+' GP.':(c.gateMet?(nd<R.dev2Min?(R.dev2Min-nd)+' more reaches the '+R.dev2Min+'–'+R.dev2Max+' band (+'+pct(R.dev2Pct)+'); '+(R.dev3Count-nd)+' to the top tier.':(R.dev3Count-nd)+' more to the top tier (+'+pct(R.dev3Pct)+').'):'Sell '+Math.max(0,R.dev1Count-nd)+' more to clear the '+R.dev1Count+'-device gate.');
+    const attachWarn=(c.gateMet&&!(c.tiers.devAttach>0))?' <b style="color:var(--amber)">Bonus tiers need your attach requirement met.</b>':'';
+    goals+='<div><div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px"><span style="font-family:Nunito;font-weight:800;font-size:.95rem">Devices sold</span><span style="font-size:.82rem;font-weight:700;color:var(--dark-grey)"><b style="color:var(--dark);font-family:Nunito">'+nd+'</b> net</span></div>'
+      +'<div style="display:flex">'+bars+'</div>'
+      +'<div style="font-size:.78rem;color:var(--dark-grey);margin-top:8px">'+nudge+attachWarn+'</div></div>';}
   if(earns.device&&c.netDev>0){const have=t.DeviceAttach||0,need=Math.ceil(c.netDev*R.devAttachReq),gap=Math.max(0,need-have),devAtt=have/c.netDev;
     goals+=goalRow('Device attach',have,need,have+' / '+need+' acc · '+pct(devAtt)+' attach',
       (c.gateMet?(gap<=0?'Attach requirement met — your device bonus (+'+pct(R.devAttachPct)+' and the volume tiers) is unlocked.':'Sell '+gap+' more accessor'+(gap===1?'y':'ies')+' on device tickets to hit '+pct(R.devAttachReq)+' attach and unlock +'+pct(R.devAttachPct)+'.'):'Clear the '+R.dev1Count+'-device gate first — then '+need+' accessor'+(need===1?'y':'ies')+' on device tickets unlocks the attach bonus.'),'var(--red)');}
