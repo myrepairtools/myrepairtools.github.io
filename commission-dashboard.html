@@ -229,10 +229,11 @@ function monthInfo(){const n=new Date(),y=n.getFullYear(),m=n.getMonth();
     dayOfMonth:n.getDate(),daysInMonth:new Date(y,m+1,0).getDate(),
     label:n.toLocaleString('en-US',{month:'long',year:'numeric'})};}
 
-function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,services:{},categories:{}};}
+function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,ServiceNet:0,services:{},categories:{}};}
 function addInto(t,r){
   t.Tickets+=Number(r.tickets)||0;t.AccyUnits+=Number(r.accy_units)||0;t.NetAccySales+=Number(r.accy_net)||0;t.AccyGP+=Number(r.accy_gp)||0;
   t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;
+  t.ServiceNet+=Number(r.service_net)||0;
   const sv=r.services||{};for(const k in sv){t.services[k]=(t.services[k]||0)+(Number(sv[k])||0);}
   const ct=r.categories||{};for(const k in ct){t.categories[k]=(t.categories[k]||0)+(Number(ct[k])||0);}
 }
@@ -502,7 +503,7 @@ async function loadBoard(){
     techs.push({id:+sid,name:st.display_name,store:st.home_store||'—',tot,c,
       attach:tot.Tickets>0?tot.AccyUnits/tot.Tickets:0,tickets:tot.Tickets,
       accySales:tot.NetAccySales||0,deviceRev:tot.DeviceRev||0,deviceUnits:tot.DeviceUnits||0,
-      svcCount:c.svcUnits,retail:(tot.NetAccySales||0)+(tot.DeviceRev||0),ranked:!!(cfg.earns.accessory||cfg.earns.device)});
+      svcCount:c.svcUnits,svcNet:tot.ServiceNet||0,retail:(tot.NetAccySales||0)+(tot.DeviceRev||0),ranked:!!(cfg.earns.accessory||cfg.earns.device)});
   }
   techs.sort((a,b)=>b.c.total-a.c.total);
   STATE.board={techs,mi};return STATE.board;
@@ -544,10 +545,12 @@ function renderBoard(){
   const byStore={};techs.forEach(t=>{(byStore[t.store]=byStore[t.store]||[]).push(t);});
   const medalBg=i=>i===0?'#C9820B':i===1?'#9aa0ad':i===2?'#b07a43':'var(--light-grey)';
   const medalTx=i=>i<3?'#fff':'var(--dark-grey)';
+  const haveSvcNet=techs.some(t=>t.svcNet>0);
   const LBM={
     accessory:{label:'Accessories',units:t=>t.tot.AccyUnits||0,dollars:t=>t.accySales||0,note:'ranked by accessory sales $'},
     device:{label:'Devices',units:t=>t.deviceUnits||0,dollars:t=>t.deviceRev||0,note:'ranked by device units'},
-    service:{label:'Services',units:t=>t.svcCount||0,dollars:t=>t.c.repairComm||0,note:'ranked by service units · $ shown is payout (no per-service revenue in the feed)'}
+    service:{label:'Services',units:t=>t.svcCount||0,dollars:t=>haveSvcNet?(t.svcNet||0):(t.c.repairComm||0),
+      note:haveSvcNet?'ranked by service units':'ranked by service units · $ shown is payout until service sales land in the feed'}
   };
   const M=LBM[STATE.lbMetric]?STATE.lbMetric:'accessory', mc=LBM[M];
   const sortKey=M==='accessory'?(t=>mc.dollars(t)):(t=>mc.units(t)); // accessory by $, device/service by units

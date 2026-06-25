@@ -286,6 +286,9 @@ Deno.serve(async (req) => {
         "Malware/Virus Removal - Phone": "malware", "Malware/Virus Removal": "malware", "Virus Removal": "malware", "Malware": "malware",
       };
       const SVC_DIM = new Set(["location", "name", "store", "employee", "full name", "accounted on date", "date"]);
+      // Service revenue (sales $) column(s) — routed to service_net, NOT counted as a service unit.
+      const SVC_REV = new Set(["net", "net sales", "service net", "services net", "service sales", "services sales",
+        "service revenue", "service total", "service $", "services $", "sales", "revenue", "amount"]);
       const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
       const resolve = await staffResolver();
       const out: any[] = [];
@@ -295,14 +298,16 @@ Deno.serve(async (req) => {
         const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
         if (!store || !employee || !biz_date) continue;
         const services: Record<string, number> = {};
+        let service_net = 0;
         for (const k in r) {
           const kl = k.trim();
           if (!kl || /^\d+$/.test(kl) || SVC_DIM.has(kl.toLowerCase())) continue; // skip dimensions / index col
+          if (SVC_REV.has(kl.toLowerCase())) { service_net += money(r[k]); continue; }  // service sales $
           const c = num(r[k]); if (!c) continue;                                  // only numeric service counts
           const key = SVC_MAP[kl] || slug(kl);
           if (key) services[key] = (services[key] ?? 0) + c;
         }
-        out.push({ biz_date, store, employee, staff_id: resolve(employee), services });
+        out.push({ biz_date, store, employee, staff_id: resolve(employee), services, service_net });
       }
       if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
       return J({ ok: true, feed, rows_written: out.length });
