@@ -29,3 +29,12 @@ returns void language sql security definer set search_path=public as $$
 $$;
 revoke all on function set_my_avatar(text,text) from public;
 grant execute on function set_my_avatar(text,text) to authenticated;
+
+-- 4. Shift presets are managed in Settings → Page Settings → Schedule. Admins may
+--    add/edit/delete presets for stores they administer (read stays open).
+drop policy if exists shift_presets_ins on shift_presets;
+create policy shift_presets_ins on shift_presets for insert to authenticated with check (is_admin(store));
+drop policy if exists shift_presets_upd on shift_presets;
+create policy shift_presets_upd on shift_presets for update to authenticated using (is_admin(store)) with check (is_admin(store));
+drop policy if exists shift_presets_del on shift_presets;
+create policy shift_presets_del on shift_presets for delete to authenticated using (is_admin(store));

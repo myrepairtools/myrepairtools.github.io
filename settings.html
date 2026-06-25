@@ -302,6 +302,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
       <div class="pg3rail" style="width:226px;border-right:1px solid var(--border)" id="pgOptions"></div>
       <div class="pg3pane">
         <div id="pagePane"></div>
+        <div id="pagePaneSchedule" class="hide"></div>
         <div id="pagePaneConsumption" class="hide"></div>
         <div id="pagePaneHyla" class="hide"></div>
         <div id="pagePaneCash" class="hide">
@@ -405,9 +406,10 @@ var PG_PAGES=[
   {key:'damage',label:'Tech Damage Tracker',dot:'#D8E8F5',options:[{key:'mfr',label:'Manufacturers'},{key:'part',label:'Parts'}]},
   {key:'consumption',label:'Consumption Report',dot:'#FCE3D6',options:[{key:'ptype',label:'Part types'},{key:'flag',label:'Flags'}]},
   {key:'hyla',label:'Hyla Orders',dot:'#EDE3F7',options:[{key:'label',label:'Label checklist'},{key:'guide',label:'Testing guide'},{key:'rma',label:'RMA defaults'}]},
-  {key:'cash',label:'Cash Tracker',dot:'#E3F0D8',options:[{key:'reg',label:'Registers & safes'}]}
+  {key:'cash',label:'Cash Tracker',dot:'#E3F0D8',options:[{key:'reg',label:'Registers & safes'}]},
+  {key:'schedule',label:'Schedule',dot:'#D8E8F5',options:[{key:'shifts',label:'Shift presets'}]}
 ];
-var PTYPES=[], FLAGS=[]; /* consumption page settings: part types + custom flags */
+var PTYPES=[], FLAGS=[], SHIFTS=[]; /* consumption page settings: part types + custom flags; schedule: shift presets */
 var HYLA_SET={}, HYLA_LABEL=[], HYLA_GUIDE=[]; /* hyla page settings (hyla_settings kv) */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
@@ -530,11 +532,13 @@ async function loadPages(){
     sb.from('part_types').select('id,part_type,active').order('part_type'),
     sb.from('flag_types').select('id,key,label,color,active,sort').order('sort').order('id'),
     sb.from('hyla_settings').select('key,value'),
+    sb.from('shift_presets').select('id,store,label,start_min,end_min,color,sort').order('sort'),
   ]);
   DMFRS=res[0].error?[]:(res[0].data||[]);
   DPARTS=res[1].error?[]:(res[1].data||[]);
   PTYPES=res[2].error?[]:(res[2].data||[]);
   FLAGS=res[3].error?[]:(res[3].data||[]);
+  SHIFTS=res[5].error?[]:(res[5].data||[]);
   HYLA_SET={};(res[4].error?[]:(res[4].data||[])).forEach(function(r){HYLA_SET[r.key]=r.value;});
   HYLA_LABEL=hylaParse(HYLA_SET.labelItems,['Battery life','All functions','Audio test','Cleaned']);
   HYLA_GUIDE=hylaParse(HYLA_SET.guideSteps,[]);
@@ -1388,6 +1392,7 @@ function pgOptCount(pageKey,optKey){
   if(pageKey==='damage')return ct(optKey==='mfr'?DMFRS:DPARTS);
   if(pageKey==='consumption')return ct(optKey==='ptype'?PTYPES:FLAGS);
   if(pageKey==='hyla'){if(optKey==='label')return String(HYLA_LABEL.length);if(optKey==='guide')return String(HYLA_GUIDE.length);return '';}
+  if(pageKey==='schedule')return String(SHIFTS.length);
   if(pageKey==='cash')return ct(REGS);
   return '';
 }
@@ -1410,16 +1415,18 @@ function renderPages(){
   PGTOOL=page.key;
   if(!page.options.some(function(o){return o.key===PGOPT;}))PGOPT=page.options[0].key;
   pgRenderNav();
-  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption', hylaOn=PGTOOL==='hyla';
+  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption', hylaOn=PGTOOL==='hyla', schedOn=PGTOOL==='schedule';
   $('#pagePane').classList.toggle('hide',!damageOn);
   if($('#pagePaneCash'))$('#pagePaneCash').classList.toggle('hide',!cashOn);
   if($('#pagePaneConsumption'))$('#pagePaneConsumption').classList.toggle('hide',!consOn);
   if($('#pagePaneHyla'))$('#pagePaneHyla').classList.toggle('hide',!hylaOn);
+  if($('#pagePaneSchedule'))$('#pagePaneSchedule').classList.toggle('hide',!schedOn);
   if(damageOn){
     $('#pagePane').innerHTML=(PGOPT==='part')?pageListEditor('Parts','part',DPARTS):pageListEditor('Manufacturers','mfr',DMFRS);
   }
   if(consOn)renderConsumptionPage();
   if(hylaOn)renderHylaPage();
+  if(schedOn)renderSchedulePage();
   renderRegs();
 }
 /* ===== Hyla Orders page settings (writes to hyla_settings kv) ===== */
@@ -1467,6 +1474,61 @@ async function hylaKV(key,val){
   var r=await sb.from('hyla_settings').upsert({key:key,value:val==null?'':String(val)});
   if(r.error)toast(r.error.message,true);else toast('Saved');
 }
+/* ===== Schedule page settings: shift presets per location (writes shift_presets) ===== */
+function shortStoreS(s){return String(s||'').replace(/^CPR\s*/,'');}
+function storeColorS(store){var s=STORES.filter(function(x){return x.store===store;})[0];return (s&&s.color)||'#4FB0E3';}
+function canStoreS(store){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores||[]).indexOf(store)>-1||AUTH.home_store===store);}
+function shTime(label){ /* "9:00AM - 7:00PM" -> [startMin,endMin] for sorting */
+  function tmin(s){var m=/(\d+):(\d+)\s*([AP]M)/i.exec(s);if(!m)return null;var h=(+m[1])%12;if(/pm/i.test(m[3]))h+=12;return h*60+(+m[2]);}
+  var parts=String(label).split(/\s*-\s*/);if(parts.length!==2)return [null,null];return [tmin(parts[0]),tmin(parts[1])];
+}
+function shCard(store){
+  var list=SHIFTS.filter(function(p){return p.store===store;}).sort(function(a,b){return (a.start_min||0)-(b.start_min||0)||(a.end_min||0)-(b.end_min||0);});
+  var rows=list.length?list.map(function(p){
+    return '<div class="lstrow">'
+      +'<input type="color" class="flagclr" data-shcolor="'+p.id+'" value="'+esc(p.color||storeColorS(store))+'" title="Shift color on the grid">'
+      +'<input class="pgname" data-shname="'+p.id+'" value="'+esc(p.label)+'">'
+      +'<button class="ord del" data-shdel="'+p.id+'" title="Delete">✕</button>'
+      +'</div>';
+  }).join(''):'<div class="empty" style="padding:14px">No shifts yet.</div>';
+  return '<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:'+esc(storeColorS(store))+';margin-right:7px;vertical-align:middle"></span>'+esc(shortStoreS(store))+'</span><span class="pgcard-n">'+list.length+'</span></div>'
+    +'<div class="pgadd"><input class="pgin" data-shadd="'+esc(store)+'" placeholder="9:00AM - 7:00PM"><button class="btn alt sm" data-shaddbtn="'+esc(store)+'">Add</button></div>'
+    +'<div class="pgcard-body">'+rows+'</div></div>';
+}
+function renderSchedulePage(){
+  var pane=$('#pagePaneSchedule');if(!pane)return;
+  var stores=STORES.filter(function(s){return s.active!==false&&canStoreS(s.store);});
+  pane.innerHTML=stores.length?(stores.map(function(s){return shCard(s.store);}).join('')
+    +'<div class="note" style="margin-top:10px">These options appear per store in the Schedule tool. The color shows on the schedule grid; enter times like <b>9:00AM - 7:00PM</b> and they sort earliest first.</div>')
+    :'<div class="empty" style="padding:20px">No stores you can manage.</div>';
+}
+function shFind(id){return SHIFTS.filter(function(x){return String(x.id)===String(id);})[0];}
+async function shAdd(store){
+  var inp=$('#pagePaneSchedule [data-shadd="'+store+'"]');var label=inp?inp.value.trim():'';if(!label)return;
+  var tm=shTime(label);
+  var r=await sb.from('shift_presets').insert({store:store,label:label,start_min:tm[0],end_min:tm[1],color:storeColorS(store),sort:tm[0]||0}).select().single();
+  if(r.error){toast(/duplicate|unique/i.test(r.error.message)?'That shift already exists for this store':r.error.message,true);return;}
+  SHIFTS.push(r.data);renderSchedulePage();pgRenderNav();
+}
+async function shRename(id,label){
+  label=String(label).trim();var row=shFind(id);if(!row)return;
+  if(!label){renderSchedulePage();return;}
+  var tm=shTime(label);
+  var r=await sb.from('shift_presets').update({label:label,start_min:tm[0],end_min:tm[1],sort:tm[0]||0}).eq('id',id);
+  if(r.error){toast(/duplicate|unique/i.test(r.error.message)?'That shift already exists':r.error.message,true);renderSchedulePage();return;}
+  row.label=label;row.start_min=tm[0];row.end_min=tm[1];renderSchedulePage();
+}
+async function shColor(id,color){
+  var row=shFind(id);if(!row)return;
+  var r=await sb.from('shift_presets').update({color:color}).eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}row.color=color;
+}
+async function shDel(id){
+  var r=await sb.from('shift_presets').delete().eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}
+  SHIFTS=SHIFTS.filter(function(x){return String(x.id)!==String(id);});renderSchedulePage();pgRenderNav();
+}
+
 function renderConsumptionPage(){
   var pane=$('#pagePaneConsumption');if(!pane)return;
   if(PGOPT==='flag'){
@@ -1655,7 +1717,7 @@ function initUI(){
   $('#resetRules').onclick=resetRules;
   $('#tabRoles').onclick=function(){TAB='roles';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
-    var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel]');if(!t)return;
+    var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel],[data-shaddbtn],[data-shdel]');if(!t)return;
     if(t.hasAttribute('data-pgtool')){PGTOOL=t.getAttribute('data-pgtool');PGOPT='';renderPages();lsSet('cprSetPgtool',PGTOOL);lsSet('cprSetPgopt',PGOPT);}
     else if(t.hasAttribute('data-pgopt')){PGOPT=t.getAttribute('data-pgopt');renderPages();lsSet('cprSetPgopt',PGOPT);}
     else if(t.hasAttribute('data-pgadd'))pgAdd(t.getAttribute('data-pgadd'));
@@ -1669,6 +1731,8 @@ function initUI(){
     else if(t.hasAttribute('data-flagdel'))flagDel(t.getAttribute('data-flagdel'));
     else if(t.hasAttribute('data-haddbtn'))hylaAdd(t.getAttribute('data-haddbtn'));
     else if(t.hasAttribute('data-hdel')){var h1=t.getAttribute('data-hdel').split('|');hylaDel(h1[0],+h1[1]);}
+    else if(t.hasAttribute('data-shaddbtn'))shAdd(t.getAttribute('data-shaddbtn'));
+    else if(t.hasAttribute('data-shdel'))shDel(t.getAttribute('data-shdel'));
   });
   // hyla list drag-reorder (parallels the damage-list DnD; index-based)
   var HDRAG=null;
@@ -1735,8 +1799,10 @@ function initUI(){
     else if(t.hasAttribute('data-flagcolor'))flagColor(t.getAttribute('data-flagcolor'),t.value);
     else if(t.hasAttribute('data-hname')){var h=t.getAttribute('data-hname').split('|');hylaRename(h[0],+h[1],t.value);}
     else if(t.hasAttribute('data-hkv'))hylaKV(t.getAttribute('data-hkv'),t.value);
+    else if(t.hasAttribute('data-shname'))shRename(t.getAttribute('data-shname'),t.value);
+    else if(t.hasAttribute('data-shcolor'))shColor(t.getAttribute('data-shcolor'),t.value);
   });
-  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd],[data-hname],[data-hadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else if(t.hasAttribute('data-hadd'))hylaAdd(t.getAttribute('data-hadd'));else t.blur();});
+  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd],[data-hname],[data-hadd],[data-shname],[data-shadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else if(t.hasAttribute('data-hadd'))hylaAdd(t.getAttribute('data-hadd'));else if(t.hasAttribute('data-shadd'))shAdd(t.getAttribute('data-shadd'));else t.blur();});
   $('#addChannel').onclick=openAddChannel;
   $('#view-notif').addEventListener('click',function(e){
     var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evch],[data-chedit]');if(!t)return;
