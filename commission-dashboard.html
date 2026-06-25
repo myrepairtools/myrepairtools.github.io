@@ -127,6 +127,18 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--light-grey);color:var(--grey);font-family:'Nunito';font-weight:800;z-index:50}
+.avpick-back{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px}
+.avpick{background:#fff;border-radius:16px;padding:18px 20px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.avpick-hd{display:flex;align-items:center;justify-content:space-between;font-family:'Nunito';font-size:1rem}
+.avpick-x{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--grey);line-height:1}
+.avpick-sub{font-size:.78rem;color:var(--grey);font-weight:600;margin:2px 0 12px}
+.avc-row{display:flex;gap:8px;margin-bottom:12px}
+.avc{width:28px;height:28px;border-radius:8px;border:2px solid transparent;cursor:pointer}
+.avc.on{border-color:var(--dark)}
+.ave-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.ave{font-size:1.25rem;background:var(--light-grey);border:none;border-radius:9px;padding:6px 0;cursor:pointer;line-height:1}
+.ave:hover{background:#E4EEF5}
+.avpick-ft{margin-top:14px;display:flex;justify-content:flex-end}
 </style>
 </head>
 <body>
@@ -190,7 +202,7 @@ async function ensureSession(){
 }
 async function currentStaff(){
   try{const s=(await sb.auth.getSession()).data.session;if(!s)return null;
-    const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
+    const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores,avatar,avatar_color').eq('auth_uid',s.user.id).maybeSingle();
     return r.data||null;
   }catch(e){return null;}
 }
@@ -201,7 +213,7 @@ async function loadConfig(){
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
-    sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores'),
+    sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores,avatar,avatar_color'),
     sb.from('roles').select('id,key'),
     sb.from('permissions').select('id,key').like('key','commission.earn.%'),
     sb.from('role_permissions').select('role_id,permission_id'),
@@ -663,6 +675,35 @@ function renderBoard(){
   $all('#view-board [data-lbm]').forEach(b=>b.onclick=()=>{STATE.lbMetric=b.getAttribute('data-lbm');renderBoard();});
 }
 
+/* ---- avatar personalization (employee sets their own emoji + color) ---- */
+const AV_EMOJIS=['😀','😎','🤓','🥳','🤠','😺','🦊','🐯','🦁','🐼','🐧','🦄','🐲','⚡','🔥','⭐','💎','🚀','🎯','🏆','👑','🎸','🎮','📱','🔧','💪','🧠','🦅','🐺','🌮','🍕','☕'];
+const AV_COLORS=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
+async function saveAvatar(emoji,color){
+  const {error}=await sb.rpc('set_my_avatar',{p_avatar:emoji,p_color:color});
+  if(error){toast(error.message,true);return;}
+  const apply=o=>{if(o){o.avatar=emoji;o.avatar_color=color;}};
+  apply(STATE.me);apply(STATE.staffById[STATE.me.id]);if(STATE.target&&STATE.target.id===STATE.me.id)apply(STATE.target);
+  toast(emoji?'Avatar updated':'Back to initials');renderHeader();
+}
+function openAvatarPicker(){
+  const me=STATE.me; let color=me.avatar_color||AV_COLORS[0];
+  const back=document.createElement('div');back.className='avpick-back';
+  const colorRow=()=>AV_COLORS.map(c=>'<button class="avc'+(c===color?' on':'')+'" data-c="'+c+'" style="background:'+c+'"></button>').join('');
+  back.innerHTML='<div class="avpick" role="dialog">'
+    +'<div class="avpick-hd"><b>Personalize your avatar</b><button class="avpick-x" data-x>×</button></div>'
+    +'<div class="avpick-sub">Pick a color, then tap an emoji.</div>'
+    +'<div class="avc-row">'+colorRow()+'</div>'
+    +'<div class="ave-grid">'+AV_EMOJIS.map(e=>'<button class="ave" data-e="'+e+'">'+e+'</button>').join('')+'</div>'
+    +'<div class="avpick-ft"><button data-clear style="font-family:Nunito;font-weight:800;font-size:.78rem;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:8px;padding:8px 14px;cursor:pointer">Use initials</button></div></div>';
+  document.body.appendChild(back);
+  const close=()=>back.remove();
+  back.addEventListener('click',ev=>{if(ev.target===back)close();});
+  back.querySelector('[data-x]').onclick=close;
+  back.querySelector('[data-clear]').onclick=()=>{saveAvatar(null,color);close();};
+  back.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{color=b.getAttribute('data-c');back.querySelectorAll('.avc').forEach(x=>x.classList.toggle('on',x===b));});
+  back.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{saveAvatar(b.getAttribute('data-e'),color);close();});
+}
+
 /* ---- header (manager bar + profile) ---- */
 function boardRank(id){if(!STATE.board)return null;const ranked=STATE.board.techs.filter(t=>t.ranked);const i=ranked.findIndex(t=>t.id===id);return i>=0?{n:i+1,of:ranked.length}:null;}
 function renderHeader(){
@@ -676,11 +717,14 @@ function renderHeader(){
   const ini=(t.display_name||'?').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'?';
   const rk=normRole(t.role), roleLabel=rk==='team_member'?'Tech':(rk==='admin'?'Manager':(rk==='owner'?'Owner':(t.role||'')));
   const mi=calc&&calc.mi, rank=boardRank(t.id);
-  $('#profilehd').innerHTML='<div class="profilehd"><div class="av">'+esc(ini)+'</div>'
-    +'<div style="flex:1;min-width:0"><div class="pn">'+esc(t.display_name)+'</div>'
+  const own=t.id===me.id, face=t.avatar?esc(t.avatar):esc(ini);
+  const avStyle=(t.avatar_color?'background:'+esc(t.avatar_color)+';':'')+(t.avatar?'font-size:1.65rem;':'')+(own?'cursor:pointer':'');
+  $('#profilehd').innerHTML='<div class="profilehd"><div class="av"'+(own?' id="myAv" title="Personalize your avatar"':'')+(avStyle?' style="'+avStyle+'"':'')+'>'+face+'</div>'
+    +'<div style="flex:1;min-width:0"><div class="pn">'+esc(t.display_name)+(own?' <span style="font-size:.62rem;font-weight:800;color:var(--blue);cursor:pointer;vertical-align:middle" id="myAvLink">✎ avatar</span>':'')+'</div>'
     +'<div class="pm">'+esc(shortStore(t.home_store))+' · '+esc(roleLabel)+(mi?' · '+esc(mi.label)+' · Day '+mi.dayOfMonth+' of '+mi.daysInMonth:'')+'</div></div>'
     +'<div><div class="pl">Commission · MTD</div><div class="pc">'+money(calc?calc.c.total:0)+'</div></div>'
     +(rank?'<div class="pr">RANK #'+rank.n+' / '+rank.of+'</div>':'')+'</div>';
+  if(own){const a=$('#myAv');if(a)a.onclick=openAvatarPicker;const l=$('#myAvLink');if(l)l.onclick=openAvatarPicker;}
 }
 
 /* ---- boot ---- */
