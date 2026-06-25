@@ -175,7 +175,7 @@ async function loadConfig(){
     sb.from('commission_role_overrides').select('*')
   ]);
   STATE.rates={};STATE.rateLabels={};
-  (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=Number(r.amount)||0;STATE.rateLabels[r.sku]=r.label||r.sku;});
+  (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=(r.tiers&&r.tiers.goal)?{goal:Number(r.tiers.goal)||0,lo:Number(r.tiers.lo)||0,hi:Number(r.tiers.hi)||0}:(Number(r.amount)||0);STATE.rateLabels[r.sku]=r.label||r.sku;});
   STATE.rules={};STATE.storeRates={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};STATE.storeRates[r.store]=r.rates||{};});
   STATE.staffById={};(st.data||[]).forEach(s=>{STATE.staffById[s.id]=s;});
   STATE.rosterById={};(rs.data||[]).forEach(r=>{STATE.rosterById[r.staff_id]=r;});

@@ -52,9 +52,26 @@
     return out;
   }
   // Layered service-rate resolution: base rates <- partial $ overrides (store/role/person).
+  // A rate value is either a flat number ($/unit) or a tiered object {goal, lo, hi}.
+  // Each layer replaces the whole value for a SKU (we don't merge goal/lo/hi across layers).
   function mergeRates() {
-    var out = {}; for (var i = 0; i < arguments.length; i++) { var o = arguments[i]; if (o) for (var k in o) if (o[k] != null && o[k] !== '') out[k] = Number(o[k]) || 0; }
+    var out = {};
+    for (var i = 0; i < arguments.length; i++) { var o = arguments[i]; if (o) for (var k in o) {
+      var v = o[k]; if (v == null || v === '') continue;
+      out[k] = (typeof v === 'object') ? v : (Number(v) || 0);
+    } }
     return out;
+  }
+
+  // Resolve $/unit for one rate spec given the units sold. Flat number = same rate
+  // always. Tiered {goal, lo, hi} = `lo` below the goal count, `hi` at/above it
+  // (retroactive: every unit pays the higher rate once the goal is met).
+  function ratePerUnit(rt, count) {
+    if (rt && typeof rt === 'object') {
+      var g = Number(rt.goal) || 0;
+      return (g > 0 && count >= g) ? (Number(rt.hi) || 0) : (Number(rt.lo) || 0);
+    }
+    return Number(rt) || 0;
   }
 
   // Pull per-service counts off a totals row. Supports either an explicit
@@ -100,8 +117,10 @@
     var counts = serviceCounts(t), svc = {}, repairComm = 0, svcUnits = 0;
     for (var sku in rates) {
       var cnt = Number(counts[sku]) || 0;
-      var pay = cnt * rates[sku];
-      svc[sku] = { count: cnt, rate: rates[sku], pay: pay };
+      var spec = rates[sku], perUnit = ratePerUnit(spec, cnt);
+      var goal = (spec && typeof spec === 'object') ? (Number(spec.goal) || 0) : 0;
+      var pay = cnt * perUnit;
+      svc[sku] = { count: cnt, rate: perUnit, pay: pay, goal: goal, hitGoal: goal > 0 && cnt >= goal };
       repairComm += pay; svcUnits += cnt;
     }
 
@@ -137,7 +156,7 @@
       var b = byStore[s] || {};
       var gpShare = totalGP > 0 ? ((+b.AccyGP || 0) + (+b.DeviceGP || 0)) / totalGP : 1 / stores.length;
       var counts = serviceCounts(b), svc = 0;
-      for (var sku in rates) svc += (Number(counts[sku]) || 0) * rates[sku];
+      for (var sku in rates) { var c2 = Number(counts[sku]) || 0; svc += c2 * ratePerUnit(rates[sku], c2); }
       return { store: s, amt: adComm * gpShare + svc };
     }).sort(function (a, b) { return b.amt - a.amt; });
   }
@@ -161,6 +180,7 @@
     rulesFor: rulesFor,
     mergeRules: mergeRules,
     mergeRates: mergeRates,
+    ratePerUnit: ratePerUnit,
     computeCommission: computeCommission,
     splitCharge: splitCharge,
     serviceCounts: serviceCounts,
