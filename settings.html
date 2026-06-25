@@ -1063,9 +1063,14 @@ function commOverridesHtml(d){
     var ph=unit==='%'?Math.round((inh.rules[key]||0)*100):(inh.rules[key]||0);
     return '<input type="number" data-prule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
   var pr=function(label,e){return '<div class="commtier-row"><div class="when">'+label+'</div><div class="earn">'+e+'</div></div>';};
-  var sec=function(title,accent,rows){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div></div>'+rows+'</div>';};
-  var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'+ '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','+ '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'+ '+pinp('accyPct2','%')));
-  var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')));
+  var roleE=roleEarnsFor(d.role),eov=d.earns_override||{};
+  var earnSel=function(key){var cur=(eov[key]===true?'yes':(eov[key]===false?'no':''));var def=roleE[key]?'Yes':'No';
+    return '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)">Earns</span>'
+      +'<select data-earn="'+key+'" style="font-size:.74rem;padding:2px 6px;min-width:116px"><option value=""'+(cur===''?' selected':'')+'>Role default ('+def+')</option>'
+      +'<option value="yes"'+(cur==='yes'?' selected':'')+'>Yes</option><option value="no"'+(cur==='no'?' selected':'')+'>No</option></select></div>';};
+  var sec=function(title,accent,rows,hr){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div>'+(hr||'')+'</div>'+rows+'</div>';};
+  var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'+ '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','+ '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'+ '+pinp('accyPct2','%')),earnSel('accessory'));
+  var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')),earnSel('device'));
   var pbox=function(lbl,inner,off){return '<div class="ratebox'+(off?' off':'')+'"><label>'+lbl+'</label><span class="in">'+inner+'</span></div>';};
   var pfld=function(attr,val,ph,money,dis){return (money?'$':'')+'<input type="number" '+attr+' value="'+(val!=null&&val!==''?val:'')+'" placeholder="'+(ph||'')+'" class="crin"'+(dis?' disabled':'')+'>';};
   var rtsRows=CRATES.map(function(rt){var sku=rt.sku,v=ovRt[sku],tiered=(v&&typeof v==='object');
@@ -1076,18 +1081,10 @@ function commOverridesHtml(d){
     var tgl='<a class="rtiertgl" data-ptgl="'+esc(sku)+'">'+(tiered?'flat':'tier')+'</a>';
     return '<div class="ratecell"><div class="ratehd"><div>'+esc(rt.label||humanize(sku))+'</div></div><div class="ratebody">'
       +pbox('Payout',payout,false)+pbox('Goal',goal,!tiered)+pbox('If met',met,!tiered)+tgl+'</div></div>';}).join('');
-  return acc+dev+sec('Service payouts','var(--green)',rtsRows);
+  return acc+dev+sec('Service payouts','var(--green)',rtsRows,earnSel('services'));
 }
 function memberCommPageHtml(d){
   var nm=(d.first_name+' '+d.last_name).trim()||'this tech';
-  var earns=[['accessory','Accessory %'],['device','Device %'],['services','Service payouts']].map(function(s){
-    var key=s[0],ov=d.earns_override||{},cur=(ov[key]===true?'yes':(ov[key]===false?'no':''));
-    var def=roleEarnsFor(d.role)[key]?'Yes':'No';
-    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">'
-      +'<span style="font-size:.86rem;font-weight:600;color:var(--dark-grey)">'+s[1]+'</span>'
-      +'<select data-earn="'+key+'" style="width:170px"><option value=""'+(cur===''?' selected':'')+'>Role default ('+def+')</option>'
-      +'<option value="yes"'+(cur==='yes'?' selected':'')+'>Yes</option><option value="no"'+(cur==='no'?' selected':'')+'>No</option></select></div>';
-  }).join('');
   return '<div class="modal-back" data-close></div>'
    +'<div class="modal"><div class="modal-hd">'
      +'<button class="modal-x" data-backmain title="Back" style="font-size:1.25rem">←</button>'
@@ -1095,8 +1092,7 @@ function memberCommPageHtml(d){
      +'<button class="modal-x" data-close>×</button></div>'
    +'<div class="modal-body">'
      +'<div class="grid2"><div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div><div class="f"></div></div>'
-     +'<label style="margin-top:12px">Earns (default from their role)</label>'+earns
-     +'<label style="margin-top:16px">Per-tier &amp; service overrides</label>'
+     +'<label style="margin-top:14px">Commission &amp; overrides <span style="font-weight:600;color:var(--grey);font-size:.72rem">· the “Earns” dropdown in each section sets eligibility (blank = role default)</span></label>'
      +commOverridesHtml(d)
    +'</div>'
    +'<div class="modal-ft"><button class="btn alt sm" data-backmain>← Back</button><button class="btn blue" data-save>Done</button></div></div>';

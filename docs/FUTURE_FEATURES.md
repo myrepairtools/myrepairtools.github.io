@@ -53,3 +53,10 @@ commission overrides: store ← role ← person).
   tab reads it for targets; the engine reads the spiff side when computing payout.
 - The Goals tab's "Monthly goal review / lock in next month's targets" modal is the
   natural place for an employee/manager to set or accept these.
+- **Where each is set (decided 2026-06-25):** store + role goals live in **commission
+  settings** (the scoped settings tile); **individual** goals live in the person's
+  **Commission setup** sub-page (Team Member → Commission), beside their other overrides.
+  Settable at any level, layered store ← role ← person like the rest of the config.
+- **Manual vs. formula toggle:** each person's category goal has an on/off switch. When
+  **off**, the dashboard falls back to the current **calculated/derived** target (the
+  accessory $ goal spread across the category mix); when **on**, the hand-set number wins.

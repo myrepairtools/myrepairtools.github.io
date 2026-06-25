@@ -254,14 +254,15 @@ Deno.serve(async (req) => {
 
     // ---------- COMMISSION: devices (units/returns/net/GP) ----------
     if (feed === "commission_device" || feed === "commission_devices") {
-      if (!rows.some((r) => ("Device Sales" in r) || ("Device Net Sales" in r) || ("Device Gross Profit" in r))) {
+      if (!rows.some((r) => ("Device Sales" in r) || ("Device Sale Count" in r) || ("Device Net Sales" in r) || ("Device Net Sale Price" in r) || ("Device Gross Profit" in r))) {
         await admin.from("ingest_debug").insert({ feed: "reject:commission_device", payload: { reason: "no device columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
         return J({ ok: false, reason: "not a device report; refused" });
       }
-      // The report is per ticket-item (one row per device, with a model Name + ticket ID),
+      // The report is per ticket-item (one row per device, with a model + ticket number),
       // so SUM rows per employee/day — otherwise multiple devices in a day would
-      // overwrite each other on upsert. Ticket IDs are collected for reference.
-      // NOTE: "Name" is the device MODEL here, so it is NOT a store fallback.
+      // overwrite each other on upsert. Ticket numbers are collected for reference, and
+      // the per-ticket Accessory Count (paid attach) is summed once per ticket.
+      // NOTE: "Device" is the device MODEL here, so it is NOT a store fallback.
       const resolve = await staffResolver();
       const agg: Record<string, any> = {};
       for (const r of rows) {
@@ -271,12 +272,16 @@ Deno.serve(async (req) => {
         if (!store || !employee || !biz_date) continue;        // skips the grand-total row
         const k = biz_date + "" + store + "" + employee;
         const a = agg[k] || (agg[k] = { biz_date, store, employee, staff_id: resolve(employee),
-          device_units: 0, device_returns: 0, device_net: 0, device_gp: 0, device_tickets: [] as string[] });
-        a.device_units   += num(r["Device Sales"] ?? r["Device Units"]);
-        a.device_returns += num(r["Device Returns"]);
-        a.device_net     += money(r["Device Net Sales"] ?? r["Device Rev"]);
-        a.device_gp      += money(r["Device Gross Profit"] ?? r["Device GP"]);
-        const id = pick(r, "ID", "Ticket ID", "Ticket", "Ticket #"); if (id && a.device_tickets.indexOf(id) < 0) a.device_tickets.push(id);
+          device_units: 0, device_returns: 0, device_net: 0, device_gp: 0, device_attach: 0, device_tickets: [] as string[] });
+        a.device_units   += num(pick(r, "Device Sale Count", "Device Sales", "Device Units"));
+        a.device_returns += num(pick(r, "Device Return Count", "Device Returns"));
+        a.device_net     += money(pick(r, "Device Net Sale Price", "Device Net Sales", "Device Rev"));
+        a.device_gp      += money(pick(r, "Device Gross Profit", "Device GP"));
+        // Accessory Count is per TICKET ($0 giveaways already filtered out in Looker via
+        // the Net Sale > 0 dimension). Attribute it once per ticket — a 2-device ticket
+        // repeats the same count on both rows, so guard on first sight of the ticket.
+        const id = pick(r, "Ticket Number", "ID", "Ticket ID", "Ticket", "Ticket #");
+        if (id && a.device_tickets.indexOf(id) < 0) { a.device_tickets.push(id); a.device_attach += num(pick(r, "Accessory Count", "Accessories on Ticket", "Ticket Item All Sale Count")); }
       }
       const out = Object.values(agg);
       if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
