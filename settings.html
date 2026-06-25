@@ -168,6 +168,14 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .ruleedit:hover{border-color:var(--blue);background:rgba(79,176,227,.08);color:var(--dark)}
 .ruleedit.ovr{color:var(--dark)}
 .ruleedit.editing{padding:0;border:none;background:none;min-width:0}
+.optrow{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;background:var(--light-grey);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;cursor:pointer;font-family:inherit}
+.optrow:hover{border-color:var(--blue)}
+.optrow.open{border-color:var(--blue);background:rgba(79,176,227,.06)}
+.optrow-l{display:flex;flex-direction:column;gap:2px}
+.optrow-t{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:var(--dark)}
+.optrow-n{display:inline-block;background:var(--blue);color:#fff;font-size:.64rem;font-weight:800;padding:1px 7px;border-radius:20px;margin-left:7px;vertical-align:middle}
+.optrow-s{font-size:.72rem;color:var(--grey);font-weight:600}
+.optrow-x{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--blue);white-space:nowrap}
 .commtier-max{margin-top:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);background:var(--light-grey);border-radius:8px;padding:9px 12px;text-align:right}
 .commrates-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0 28px;padding-top:4px}
 .commrates-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -1098,11 +1106,12 @@ function memberModalHtml(){
        +'</div>'
      +(function(){
         var ovR=d.rules_override||{}, ovRt=d.rates_override||{}, n=Object.keys(ovR).length+Object.keys(ovRt).length;
-        var head='<div class="row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">'
-          +'<div data-customtoggle style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">'
-            +'<label style="margin:0;cursor:pointer">Custom commission rules'+(n?' <span style="color:var(--blue)">('+n+')</span>':'')+'</label>'
-            +'<span style="color:var(--grey);font-family:Nunito;font-weight:800;font-size:.72rem">'+(d._customOpen?'▾ hide':'▸ override')+'</span></div>';
-        if(!d._customOpen)return head+'<div class="note" style="margin-top:4px">Blank = inherit this tech’s store + role. Open to set per-person exceptions.</div></div>';
+        var head='<div class="row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">'
+          +'<button type="button" data-customtoggle class="optrow'+(d._customOpen?' open':'')+'">'
+            +'<span class="optrow-l"><span class="optrow-t">Custom commission rules'+(n?'<span class="optrow-n">'+n+'</span>':'')+'</span>'
+            +'<span class="optrow-s">Per-person overrides — blank inherits this tech’s store + role</span></span>'
+            +'<span class="optrow-x">'+(d._customOpen?'Hide ▾':'Set up ▸')+'</span></button>';
+        if(!d._customOpen)return head+'</div>';
         var inh=personInherited(d);
         var pinp=function(key,unit){var has=ovR[key]!=null;var val=has?(unit==='%'?Math.round(ovR[key]*100):ovR[key]):'';
           var ph=unit==='%'?Math.round((inh.rules[key]||0)*100):(inh.rules[key]||0);
@@ -1111,8 +1120,17 @@ function memberModalHtml(){
         var sec=function(title,accent,rows){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div></div>'+rows+'</div>';};
         var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'earn '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','earn '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'earn '+pinp('accyPct2','%')));
         var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')));
-        var prt=function(sku,ph){var v=ovRt[sku],has=(v!=null&&typeof v!=='object');return '$<input type="number" data-prate="'+esc(sku)+'" value="'+(has?v:'')+'" placeholder="'+esc(ph)+'" class="crin" style="width:64px">';};
-        var rts=sec('Service payouts','var(--green)',CRATES.map(function(rt){var ph=rateHint(inh.rates[rt.sku]!=null?inh.rates[rt.sku]:(rt.tiers||rt.amount)).replace(/^\$/,'');return '<div class="commtier-row"><div class="when">'+esc(rt.label||rt.sku)+'</div><div class="earn">'+prt(rt.sku,ph)+'</div></div>';}).join(''));
+        var pbox=function(lbl,inner,off){return '<div class="ratebox'+(off?' off':'')+'"><label>'+lbl+'</label><span class="in">'+inner+'</span></div>';};
+        var pfld=function(attr,val,ph,money,dis){return (money?'$':'')+'<input type="number" '+attr+' value="'+(val!=null&&val!==''?val:'')+'" placeholder="'+(ph||'')+'" class="crin"'+(dis?' disabled':'')+'>';};
+        var rtsRows=CRATES.map(function(rt){var sku=rt.sku,v=ovRt[sku],tiered=(v&&typeof v==='object');
+          var inhSpec=(inh.rates[sku]!=null?inh.rates[sku]:(rt.tiers||rt.amount)),basePh=(typeof inhSpec==='object')?(inhSpec.lo||0):(Number(inhSpec)||0);
+          var payout=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="lo"':'data-prate="'+esc(sku)+'"', tiered?v.lo:(v!=null?v:''), basePh, true, false);
+          var goal=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="goal"':'', tiered?v.goal:'', '0', false, !tiered);
+          var met=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="hi"':'', tiered?v.hi:'', '0', true, !tiered);
+          var tgl='<a class="rtiertgl" data-ptgl="'+esc(sku)+'">'+(tiered?'flat':'tier')+'</a>';
+          return '<div class="ratecell"><div class="ratehd"><div>'+esc(rt.label||humanize(sku))+'</div></div><div class="ratebody">'
+            +pbox('Payout',payout,false)+pbox('Goal',goal,!tiered)+pbox('If met',met,!tiered)+tgl+'</div></div>';}).join('');
+        var rts=sec('Service payouts','var(--green)',rtsRows);
         return head+acc+dev+rts+'</div>';
       })()
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
@@ -1154,6 +1172,13 @@ function wireMember(host){
   host.querySelectorAll('[data-prate]').forEach(function(input){input.onchange=function(){
     var sku=input.getAttribute('data-prate');d.rates_override=d.rates_override||{};
     if(input.value==='')delete d.rates_override[sku];else d.rates_override[sku]=+input.value||0;};});
+  host.querySelectorAll('[data-prt]').forEach(function(input){input.onchange=function(){
+    var sku=input.getAttribute('data-prt'),k=input.getAttribute('data-ptk');d.rates_override=d.rates_override||{};
+    if(!d.rates_override[sku]||typeof d.rates_override[sku]!=='object')d.rates_override[sku]={};
+    d.rates_override[sku][k]=(input.value===''?'':(+input.value||0));};});
+  host.querySelectorAll('[data-ptgl]').forEach(function(a){a.onclick=function(e){e.preventDefault();var sku=a.getAttribute('data-ptgl');d.rates_override=d.rates_override||{};var v=d.rates_override[sku];
+    if(v&&typeof v==='object'){if(v.lo!=null&&v.lo!=='')d.rates_override[sku]=+v.lo||0;else delete d.rates_override[sku];}
+    else d.rates_override[sku]={goal:'',lo:(v!=null?v:''),hi:''};renderModal();};});
   var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
   var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
   host.querySelector('[data-save]').onclick=saveMember;
@@ -1181,7 +1206,7 @@ async function saveMember(){
     if(sid){
       var nn=function(o){return (o&&Object.keys(o).length)?o:null;};
       var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,
-        earns_override:nn(d.earns_override),rules_override:nn(d.rules_override),rates_override:nn(d.rates_override)},{onConflict:'staff_id'});
+        earns_override:nn(d.earns_override),rules_override:nn(d.rules_override),rates_override:nn(rateMapClean(d.rates_override||{}))},{onConflict:'staff_id'});
       if(cr.error)toast('Saved, but commission settings failed: '+cr.error.message,true);
     }
     MOPEN=null; await loadStaff(); await loadCommission(); renderAll();
