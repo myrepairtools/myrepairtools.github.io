@@ -299,6 +299,40 @@ Deno.serve(async (req) => {
       return J({ ok: true, feed, rows_written: out.length });
     }
 
+    // ---------- COMMISSION: accessory categories (per-category unit counts) ----------
+    if (feed === "commission_category" || feed === "commission_categories") {
+      // RepairQ category column label -> short category key used by the dashboard.
+      const CAT_MAP: Record<string, string> = {
+        "Accessory - Case": "Case", "Case": "Case",
+        "Accessory - Screen Protector": "Screen Protector", "Screen Protector": "Screen Protector",
+        "Accessory - Power": "Power", "Power": "Power",
+        "Accessory - Misc": "Misc", "Misc": "Misc",
+        "Accessory - Other": "Other", "Other": "Other",
+      };
+      if (!rows.some((r) => Object.keys(r).some((k) => k.trim() in CAT_MAP))) {
+        await admin.from("ingest_debug").insert({ feed: "reject:commission_category", payload: { reason: "no category columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a category report; refused" });
+      }
+      const resolve = await staffResolver();
+      const out: any[] = []; let undated = 0;
+      for (const r of rows) {
+        const store = norm(pick(r, "Location", "Name", "Store"));
+        const employee = pick(r, "Employee", "Full Name");
+        const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
+        if (!store || !employee) continue;
+        if (!biz_date) { undated++; continue; } // needs a date dimension to merge per-day
+        const categories: Record<string, number> = {};
+        for (const k in r) { const cat = CAT_MAP[k.trim()]; if (cat) { const c = num(r[k]); if (c) categories[cat] = (categories[cat] ?? 0) + c; } }
+        out.push({ biz_date, store, employee, staff_id: resolve(employee), categories });
+      }
+      if (undated && !out.length) {
+        await admin.from("ingest_debug").insert({ feed: "reject:commission_category", payload: { reason: "category rows have no date column — add 'Accounted on Date' to the report", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "category report has no date column; add 'Accounted on Date' to match the other feeds", undated });
+      }
+      if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
+      return J({ ok: true, feed, rows_written: out.length, undated });
+    }
+
     await admin.from("ingest_debug").insert({ feed, payload: body });
     return J({ ok: false, reason: "unknown feed; saved to ingest_debug" });
   } catch (e) { return J({ ok: false, crash: String(e) }); }
