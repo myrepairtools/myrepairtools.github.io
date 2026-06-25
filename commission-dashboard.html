@@ -348,15 +348,10 @@ function renderOverview(){
 
   // mini tiles
   const mini=(l,v)=>'<div class="minicard"><div class="ml">'+l+'</div><div class="mv">'+v+'</div></div>';
-  const svcGoal=20,svcPct=Math.min(100,Math.round(c.svcUnits/svcGoal*100));
-  const svcTile='<div class="minicard"><div class="ml">Services sold</div>'
-    +'<div class="mv">'+c.svcUnits+' <span style="font-size:.8rem;color:var(--green);font-weight:800">'+money(c.repairComm)+'</span></div>'
-    +'<div style="height:5px;border-radius:3px;background:var(--light-grey);overflow:hidden;margin-top:7px"><div style="height:100%;width:'+svcPct+'%;background:var(--purple);border-radius:3px"></div></div>'
-    +'<div style="font-size:.62rem;color:var(--grey);font-weight:800;margin-top:3px">'+c.svcUnits+' / '+svcGoal+' goal · '+svcPct+'%</div></div>';
   const minis='<div class="minigrid">'
     +mini('Attach rate',pct(attach))
     +mini('Avg accessory $',money(avgAccy))
-    +svcTile
+    +mini('Services sold',c.svcUnits+' <span style="font-size:.8rem;color:var(--green);font-weight:800">'+money(c.repairComm)+'</span>')
     +mini('Devices sold',(t.DeviceUnits||0)+' <span style="font-size:.8rem;color:var(--blue);font-weight:800">+'+(t.DeviceAttach||0)+' acc</span>')
     +'</div>';
 
@@ -385,7 +380,15 @@ function renderOverview(){
   // services
   let svc='';for(const sku in c.svc){const s=c.svc[sku];
     const rateDisp=(s.goal?'$'+(s.rate)+'/ea @'+s.goal:money(s.rate)+'/ea');
-    svc+='<div class="svc"><div><div class="sn">'+esc(STATE.rateLabels[sku]||sku)+'</div><div class="sc">'+esc(sku)+' · '+rateDisp+(s.goal&&s.hitGoal?' ✓':'')+'</div></div><div style="display:flex;gap:14px;align-items:baseline"><span style="font-family:Nunito;font-weight:800">'+s.count+'</span><span class="sp" style="min-width:58px;text-align:right">'+money(s.pay)+'</span></div></div>';}
+    const gpct=s.goal?Math.min(100,Math.round(s.count/s.goal*100)):0;
+    svc+='<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">'
+        +'<div><div class="sn">'+esc(STATE.rateLabels[sku]||sku)+'</div><div class="sc">'+esc(sku)+' · '+rateDisp+(s.goal&&s.hitGoal?' ✓':'')+'</div></div>'
+        +'<div style="display:flex;gap:14px;align-items:baseline"><span style="font-family:Nunito;font-weight:800">'+s.count+'</span><span class="sp" style="min-width:58px;text-align:right">'+money(s.pay)+'</span></div>'
+      +'</div>'
+      +(s.goal?'<div style="margin-top:7px"><div style="height:6px;border-radius:3px;background:var(--light-grey);overflow:hidden"><div style="height:100%;width:'+gpct+'%;background:'+(s.hitGoal?'var(--green)':'var(--blue)')+';border-radius:3px"></div></div>'
+        +'<div style="font-size:.66rem;font-weight:800;margin-top:3px;color:'+(s.hitGoal?'var(--green)':'var(--grey)')+'">'+s.count+' / '+s.goal+' goal · '+(s.hitGoal?'hit ✓':(s.goal-s.count)+' to go')+'</div></div>':'')
+      +'</div>';}
   const svcCard='<div class="card acc-green"><div class="card-hd"><span class="card-t">Commissionable services</span></div><div class="card-bd">'
     +(svc||'<div class="muted" style="font-size:.84rem">No services configured.</div>')
     +'<div class="svc" style="border-bottom:none"><span style="font-family:Nunito;font-weight:900;text-transform:uppercase;font-size:.72rem;letter-spacing:.5px;color:var(--dark-grey)">Total payout</span><span class="sp" style="font-size:1.1rem">'+money(c.repairComm)+'</span></div></div></div>';
