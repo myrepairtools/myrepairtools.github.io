@@ -33,6 +33,27 @@ async function storeMap() {
   return m;
 }
 
+// Best-effort RepairQ-name -> staff.id resolver. Exact display_name first, then
+// same last name + first-name prefix match (so "Josh Kirk" -> "Joshua Kirk").
+// Returns null when there is no unambiguous match (caller stores the raw name).
+async function staffResolver() {
+  const { data } = await admin.from("staff").select("id, display_name").eq("active", true);
+  const exact: Record<string, number> = {};
+  const list = (data ?? []).map((s: any) => {
+    const dn = String(s.display_name ?? "").trim().toLowerCase();
+    exact[dn] = s.id;
+    const p = dn.split(/\s+/);
+    return { id: s.id as number, first: p[0] ?? "", last: p[p.length - 1] ?? "" };
+  });
+  return (name: string): number | null => {
+    const n = String(name ?? "").trim().toLowerCase(); if (!n) return null;
+    if (exact[n] != null) return exact[n];
+    const p = n.split(/\s+/); const first = p[0] ?? "", last = p[p.length - 1] ?? "";
+    const hit = list.filter((s) => s.last === last && s.first && first && (s.first.startsWith(first) || first.startsWith(s.first)));
+    return hit.length === 1 ? hit[0].id : null;
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     const u = new URL(req.url);
@@ -51,7 +72,7 @@ Deno.serve(async (req) => {
     if (!rows) { await admin.from("ingest_debug").insert({ feed, payload: body }); return J({ ok: false, reason: "could not parse rows; saved to ingest_debug" }); }
     // TEMP diagnostic: log a breadcrumb for claims feeds so we can confirm
     // arrival, row count, and the column names being sent.
-    if (feed.startsWith("claim")) { try { await admin.from("ingest_debug").insert({ feed: "dbg:" + feed, payload: { rows: rows.length, keys: rows[0] ? Object.keys(rows[0]) : [], sample: rows[0] ?? null } }); } catch (_) {} }
+    if (feed.startsWith("claim") || feed.startsWith("commission")) { try { await admin.from("ingest_debug").insert({ feed: "dbg:" + feed, payload: { rows: rows.length, keys: rows[0] ? Object.keys(rows[0]) : [], sample: rows[0] ?? null } }); } catch (_) {} }
 
     const sm = await storeMap();
     const norm = (x: string) => sm[x] ?? x;
@@ -206,6 +227,76 @@ Deno.serve(async (req) => {
         if (error) return J({ ok: false, table: "stock", error: error.message });
       }
       return J({ ok: true, feed, stores, rows_written: out.length });
+    }
+
+    // ---------- COMMISSION: accessories (tickets + accessory $/units/GP) ----------
+    if (feed === "commission_accessory" || feed === "commission_accy") {
+      if (!rows.some((r) => ("Accy Tkt #" in r) || ("Accy Count" in r) || ("Accy GP" in r))) {
+        await admin.from("ingest_debug").insert({ feed: "reject:commission_accessory", payload: { reason: "no accessory columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not an accessory report; refused" });
+      }
+      const resolve = await staffResolver();
+      const out: any[] = [];
+      for (const r of rows) {
+        const store = norm(pick(r, "Location", "Store", "Name"));
+        const employee = pick(r, "Employee", "Full Name");
+        const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
+        if (!store || !employee || !biz_date) continue; // skips the grand-total row
+        out.push({ biz_date, store, employee, staff_id: resolve(employee),
+          tickets: num(r["Accy Tkt #"] ?? r["Tickets"]),
+          accy_units: num(r["Accy Count"] ?? r["Accy Units"]),
+          accy_net: money(r["Accy Total"] ?? r["Net Accy Sales"]),
+          accy_gp: money(r["Accy GP"]) });
+      }
+      if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
+      return J({ ok: true, feed, rows_written: out.length });
+    }
+
+    // ---------- COMMISSION: devices (units/returns/net/GP) ----------
+    if (feed === "commission_device" || feed === "commission_devices") {
+      if (!rows.some((r) => ("Device Sales" in r) || ("Device Net Sales" in r) || ("Device Gross Profit" in r))) {
+        await admin.from("ingest_debug").insert({ feed: "reject:commission_device", payload: { reason: "no device columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a device report; refused" });
+      }
+      const resolve = await staffResolver();
+      const out: any[] = [];
+      for (const r of rows) {
+        const store = norm(pick(r, "Location", "Store", "Name"));
+        const employee = pick(r, "Employee", "Full Name");
+        const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
+        if (!store || !employee || !biz_date) continue;
+        out.push({ biz_date, store, employee, staff_id: resolve(employee),
+          device_units: num(r["Device Sales"] ?? r["Device Units"]),
+          device_returns: num(r["Device Returns"]),
+          device_net: money(r["Device Net Sales"] ?? r["Device Rev"]),
+          device_gp: money(r["Device Gross Profit"] ?? r["Device GP"]) });
+      }
+      if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
+      return J({ ok: true, feed, rows_written: out.length });
+    }
+
+    // ---------- COMMISSION: services (per-SKU daily counts -> services jsonb) ----------
+    if (feed === "commission_service" || feed === "commission_services") {
+      // Map RepairQ service column label -> engine SKU key. Add variants as the
+      // real Looker JSON field names are confirmed from the debug breadcrumb.
+      const SVC_MAP: Record<string, string> = {
+        "Device Cleaning Fee": "cleaning", "Device Cleaning": "cleaning", "Cleaning": "cleaning",
+        "Express Repair Service": "express", "Express Repair": "express", "Express Fee": "express", "Express": "express",
+        "Malware/Virus Removal - Phone": "malware", "Malware/Virus Removal": "malware", "Virus Removal": "malware", "Malware": "malware",
+      };
+      const resolve = await staffResolver();
+      const out: any[] = [];
+      for (const r of rows) {
+        const store = norm(pick(r, "Location", "Name", "Store"));
+        const employee = pick(r, "Employee", "Full Name");
+        const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
+        if (!store || !employee || !biz_date) continue;
+        const services: Record<string, number> = {};
+        for (const k in r) { const sku = SVC_MAP[k.trim()]; if (sku) { const c = num(r[k]); if (c) services[sku] = (services[sku] ?? 0) + c; } }
+        out.push({ biz_date, store, employee, staff_id: resolve(employee), services });
+      }
+      if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
+      return J({ ok: true, feed, rows_written: out.length });
     }
 
     await admin.from("ingest_debug").insert({ feed, payload: body });
