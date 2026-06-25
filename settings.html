@@ -1056,8 +1056,54 @@ function personInherited(d){
   var E=window.CommissionEngine;
   return {rules:E?E.mergeRules(CRULES[d.home_store],roleO.rules):{}, rates:E?E.mergeRates(ratesBase(),CSTORERATES[d.home_store],roleO.rates):{}};
 }
+function commOverridesHtml(d){
+  var ovR=d.rules_override||{}, ovRt=d.rates_override||{};
+  var inh=personInherited(d);
+  var pinp=function(key,unit){var has=ovR[key]!=null;var val=has?(unit==='%'?Math.round(ovR[key]*100):ovR[key]):'';
+    var ph=unit==='%'?Math.round((inh.rules[key]||0)*100):(inh.rules[key]||0);
+    return '<input type="number" data-prule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
+  var pr=function(label,e){return '<div class="commtier-row"><div class="when">'+label+'</div><div class="earn">'+e+'</div></div>';};
+  var sec=function(title,accent,rows){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div></div>'+rows+'</div>';};
+  var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'earn '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','earn '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'earn '+pinp('accyPct2','%')));
+  var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')));
+  var pbox=function(lbl,inner,off){return '<div class="ratebox'+(off?' off':'')+'"><label>'+lbl+'</label><span class="in">'+inner+'</span></div>';};
+  var pfld=function(attr,val,ph,money,dis){return (money?'$':'')+'<input type="number" '+attr+' value="'+(val!=null&&val!==''?val:'')+'" placeholder="'+(ph||'')+'" class="crin"'+(dis?' disabled':'')+'>';};
+  var rtsRows=CRATES.map(function(rt){var sku=rt.sku,v=ovRt[sku],tiered=(v&&typeof v==='object');
+    var inhSpec=(inh.rates[sku]!=null?inh.rates[sku]:(rt.tiers||rt.amount)),basePh=(typeof inhSpec==='object')?(inhSpec.lo||0):(Number(inhSpec)||0);
+    var payout=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="lo"':'data-prate="'+esc(sku)+'"', tiered?v.lo:(v!=null?v:''), basePh, true, false);
+    var goal=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="goal"':'', tiered?v.goal:'', '0', false, !tiered);
+    var met=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="hi"':'', tiered?v.hi:'', '0', true, !tiered);
+    var tgl='<a class="rtiertgl" data-ptgl="'+esc(sku)+'">'+(tiered?'flat':'tier')+'</a>';
+    return '<div class="ratecell"><div class="ratehd"><div>'+esc(rt.label||humanize(sku))+'</div></div><div class="ratebody">'
+      +pbox('Payout',payout,false)+pbox('Goal',goal,!tiered)+pbox('If met',met,!tiered)+tgl+'</div></div>';}).join('');
+  return acc+dev+sec('Service payouts','var(--green)',rtsRows);
+}
+function memberCommPageHtml(d){
+  var nm=(d.first_name+' '+d.last_name).trim()||'this tech';
+  var earns=[['accessory','Accessory %'],['device','Device %'],['services','Service payouts']].map(function(s){
+    var key=s[0],ov=d.earns_override||{},cur=(ov[key]===true?'yes':(ov[key]===false?'no':''));
+    var def=roleEarnsFor(d.role)[key]?'Yes':'No';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">'
+      +'<span style="font-size:.86rem;font-weight:600;color:var(--dark-grey)">'+s[1]+'</span>'
+      +'<select data-earn="'+key+'" style="width:170px"><option value=""'+(cur===''?' selected':'')+'>Role default ('+def+')</option>'
+      +'<option value="yes"'+(cur==='yes'?' selected':'')+'>Yes</option><option value="no"'+(cur==='no'?' selected':'')+'>No</option></select></div>';
+  }).join('');
+  return '<div class="modal-back" data-close></div>'
+   +'<div class="modal"><div class="modal-hd">'
+     +'<button class="modal-x" data-backmain title="Back" style="font-size:1.25rem">←</button>'
+     +'<div class="t">Commission<div class="s">'+esc(nm)+' · blank inherits store + role</div></div>'
+     +'<button class="modal-x" data-close>×</button></div>'
+   +'<div class="modal-body">'
+     +'<div class="grid2"><div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div><div class="f"></div></div>'
+     +'<label style="margin-top:12px">Earns (default from their role)</label>'+earns
+     +'<label style="margin-top:16px">Per-tier &amp; service overrides</label>'
+     +commOverridesHtml(d)
+   +'</div>'
+   +'<div class="modal-ft"><button class="btn alt sm" data-backmain>← Back</button><button class="btn blue" data-save>Done</button></div></div>';
+}
 function memberModalHtml(){
   var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
+  if(d._page==='commission')return memberCommPageHtml(d);
   var roleSet=owner?ROLES:['team_member'];
   var roleOpts=roleSet.map(function(r){return '<option value="'+r+'"'+(r===d.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('');
   var home=d.home_store;
@@ -1086,53 +1132,16 @@ function memberModalHtml(){
        +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Terminated</option></select></div>'
      +'</div>'
      +'<div class="row" style="margin-top:14px"><label>Authorized locations</label><div class="authwrap">'+pills+'</div></div>'
-     +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px"><label>Commission</label>'
-       +'<div class="grid2">'
-         +'<div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div>'
-         +'<div class="f"></div>'
-       +'</div>'
-       +'<label style="margin-top:12px">Earns (default from their role)</label>'
-       +[['accessory','Accessory %'],['device','Device %'],['services','Service payouts']].map(function(s){
-          var key=s[0],ov=d.earns_override||{},cur=(ov[key]===true?'yes':(ov[key]===false?'no':''));
-          var def=roleEarnsFor(d.role)[key]?'Yes':'No';
-          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">'
-            +'<span style="font-size:.86rem;font-weight:600;color:var(--dark-grey)">'+s[1]+'</span>'
-            +'<select data-earn="'+key+'" style="width:170px">'
-              +'<option value=""'+(cur===''?' selected':'')+'>Role default ('+def+')</option>'
-              +'<option value="yes"'+(cur==='yes'?' selected':'')+'>Yes</option>'
-              +'<option value="no"'+(cur==='no'?' selected':'')+'>No</option>'
-            +'</select></div>';
-        }).join('')
-       +'</div>'
+     +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">'
      +(function(){
-        var ovR=d.rules_override||{}, ovRt=d.rates_override||{}, n=Object.keys(ovR).length+Object.keys(ovRt).length;
-        var head='<div class="row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">'
-          +'<button type="button" data-customtoggle class="optrow'+(d._customOpen?' open':'')+'">'
-            +'<span class="optrow-l"><span class="optrow-t">Custom commission rules'+(n?'<span class="optrow-n">'+n+'</span>':'')+'</span>'
-            +'<span class="optrow-s">Per-person overrides — blank inherits this tech’s store + role</span></span>'
-            +'<span class="optrow-x">'+(d._customOpen?'Hide ▾':'Set up ▸')+'</span></button>';
-        if(!d._customOpen)return head+'</div>';
-        var inh=personInherited(d);
-        var pinp=function(key,unit){var has=ovR[key]!=null;var val=has?(unit==='%'?Math.round(ovR[key]*100):ovR[key]):'';
-          var ph=unit==='%'?Math.round((inh.rules[key]||0)*100):(inh.rules[key]||0);
-          return '<input type="number" data-prule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
-        var pr=function(label,e){return '<div class="commtier-row"><div class="when">'+label+'</div><div class="earn">'+e+'</div></div>';};
-        var sec=function(title,accent,rows){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div></div>'+rows+'</div>';};
-        var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'earn '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','earn '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'earn '+pinp('accyPct2','%')));
-        var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')));
-        var pbox=function(lbl,inner,off){return '<div class="ratebox'+(off?' off':'')+'"><label>'+lbl+'</label><span class="in">'+inner+'</span></div>';};
-        var pfld=function(attr,val,ph,money,dis){return (money?'$':'')+'<input type="number" '+attr+' value="'+(val!=null&&val!==''?val:'')+'" placeholder="'+(ph||'')+'" class="crin"'+(dis?' disabled':'')+'>';};
-        var rtsRows=CRATES.map(function(rt){var sku=rt.sku,v=ovRt[sku],tiered=(v&&typeof v==='object');
-          var inhSpec=(inh.rates[sku]!=null?inh.rates[sku]:(rt.tiers||rt.amount)),basePh=(typeof inhSpec==='object')?(inhSpec.lo||0):(Number(inhSpec)||0);
-          var payout=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="lo"':'data-prate="'+esc(sku)+'"', tiered?v.lo:(v!=null?v:''), basePh, true, false);
-          var goal=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="goal"':'', tiered?v.goal:'', '0', false, !tiered);
-          var met=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="hi"':'', tiered?v.hi:'', '0', true, !tiered);
-          var tgl='<a class="rtiertgl" data-ptgl="'+esc(sku)+'">'+(tiered?'flat':'tier')+'</a>';
-          return '<div class="ratecell"><div class="ratehd"><div>'+esc(rt.label||humanize(sku))+'</div></div><div class="ratebody">'
-            +pbox('Payout',payout,false)+pbox('Goal',goal,!tiered)+pbox('If met',met,!tiered)+tgl+'</div></div>';}).join('');
-        var rts=sec('Service payouts','var(--green)',rtsRows);
-        return head+acc+dev+rts+'</div>';
+        var n=Object.keys(d.rules_override||{}).length+Object.keys(d.rates_override||{}).length+Object.keys(d.earns_override||{}).length;
+        var sub='Goal $'+(Number(d.comm_goal)||0)+(n?' · '+n+' override'+(n>1?'s':''):' · no overrides');
+        return '<button type="button" data-commpage class="optrow">'
+          +'<span class="optrow-l"><span class="optrow-t">Commission'+(n?'<span class="optrow-n">'+n+'</span>':'')+'</span>'
+          +'<span class="optrow-s">'+esc(sub)+'</span></span>'
+          +'<span class="optrow-x">Set up ▸</span></button>';
       })()
+     +'</div>'
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
        +'<div class="h">'+pinHint+'</div>'
        +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
@@ -1165,7 +1174,8 @@ function wireMember(host){
   host.querySelectorAll('[data-earn]').forEach(function(sel){sel.onchange=function(){
     var k=sel.getAttribute('data-earn'),v=sel.value;d.earns_override=d.earns_override||{};
     if(v==='')delete d.earns_override[k];else d.earns_override[k]=(v==='yes');};});
-  var ct=host.querySelector('[data-customtoggle]');if(ct)ct.onclick=function(){d._customOpen=!d._customOpen;renderModal();};
+  host.querySelectorAll('[data-commpage]').forEach(function(b){b.onclick=function(){d._page='commission';renderModal();};});
+  host.querySelectorAll('[data-backmain]').forEach(function(b){b.onclick=function(){d._page='main';renderModal();};});
   host.querySelectorAll('[data-prule]').forEach(function(input){input.onchange=function(){
     var key=input.getAttribute('data-prule'),unit=input.getAttribute('data-unit');d.rules_override=d.rules_override||{};
     if(input.value==='')delete d.rules_override[key];else d.rules_override[key]=(unit==='%'?((+input.value||0)/100):(+input.value||0));};});
