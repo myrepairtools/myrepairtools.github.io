@@ -188,20 +188,26 @@ function avatarHtml(e){
   var fs=e.avatar?';font-size:1rem':'';
   return '<span class="av" style="background:'+bg+fs+'">'+face+'</span>';
 }
+function byMgrThenName(a,b){
+  var ra=mgrRank(a.role),rb=mgrRank(b.role);if(ra!==rb)return ra-rb;
+  return (a.display_name||'')<(b.display_name||'')?-1:1;
+}
 function render(){
-  var emps=STAFF.filter(canManage).sort(function(a,b){
-    var ra=mgrRank(a.role),rb=mgrRank(b.role);if(ra!==rb)return ra-rb;
-    return (a.display_name||'')<(b.display_name||'')?-1:1;});
-  if(!emps.length){$('#grid').innerHTML='<div class="note">No employees you can edit.</div>';return;}
-  var legend=visibleStores().map(function(s){
-    return '<span class="lg"><span class="lg-dot" style="background:'+esc(storeColor(s.store))+'"></span>'+esc(shortStore(s.store))+'</span>';
-  }).join('');
+  /* One card PER store (separated by location). Each employee is listed under their
+     HOME store; the per-day dropdown can still assign a shift at ANY store, so a tech
+     working elsewhere on a day shows that store's tag/color right in their home card. */
   var head='<div class="ch emp">Employee</div>'+DAYS.map(function(d){return '<div class="ch">'+d+'</div>';}).join('');
-  var rows=emps.map(function(e){
-    var cells=DAYS.map(function(d,i){return '<div class="cell">'+cellSelect(e.id,i,dayRec(e.id,i))+'</div>';}).join('');
-    return '<div class="emp-name">'+avatarHtml(e)+esc(e.display_name)+'</div>'+cells;
+  var html=visibleStores().map(function(s){
+    var emps=STAFF.filter(function(e){return e.home_store===s.store;}).filter(canManage).sort(byMgrThenName);
+    if(!emps.length)return '';
+    var rows=emps.map(function(e){
+      var cells=DAYS.map(function(d,i){return '<div class="cell">'+cellSelect(e.id,i,dayRec(e.id,i))+'</div>';}).join('');
+      return '<div class="emp-name">'+avatarHtml(e)+esc(e.display_name)+'</div>'+cells;
+    }).join('');
+    return '<div class="store-card"><div class="store-hd"><span class="dot" style="background:'+esc(storeColor(s.store))+'"></span><h2>'+esc(shortStore(s.store))+'</h2></div>'
+      +'<div class="sgrid">'+head+rows+'</div></div>';
   }).join('');
-  $('#grid').innerHTML='<div class="legend">'+legend+'</div><div class="store-card"><div class="sgrid">'+head+rows+'</div></div>';
+  $('#grid').innerHTML=html||'<div class="note">No stores you can edit.</div>';
   paintAll();
   document.querySelectorAll('#grid select').forEach(function(sel){sel.onchange=function(){onEdit(sel);};});
 }
