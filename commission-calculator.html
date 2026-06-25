@@ -209,9 +209,12 @@ async function runReport(){
   });
   STATE.report=Object.keys(byEmp).map(k=>{
     const e=byEmp[k];const ros=e.staff_id!=null?STATE.rosterById[e.staff_id]:null;
+    const sf=e.staff_id!=null?STATE.staffById[e.staff_id]:null;
     const home=e.home||[...e.stores][0]||null;
+    // "In roster" = linked to an active team member. A commission_roster row only
+    // customizes goal/exempt; active staff are in the roster by default.
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
-      active:ros?ros.commission_active!==false:true, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!ros};
+      active:ros?ros.commission_active!==false:true, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
   });
   const pk=start+'|'+end;STATE.manual={};
   const mn=await sb.from('commission_manual').select('*').eq('period_key',pk);
@@ -264,7 +267,7 @@ function renderSummary(){
     +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th></tr></thead>'
     +'<tbody>'+(body||'<tr><td colspan="3" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
     +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+money(grand)+'</td></tr></tfoot></table>'
-    +(unrostered.length?'<div class="warn">'+unrostered.length+' employee(s) have sales but aren’t in the roster: '+esc(unrostered.join(', '))+'. Add them in Settings.</div>':'')
+    +(unrostered.length?'<div class="warn">'+unrostered.length+' with sales aren’t active team members (terminated or one-off): '+esc(unrostered.join(', '))+'. Their commission still totals here; add them in Settings → Team Members if they should be on the roster.</div>':'')
     +'</div></div>';
   const pb=$('#payroll');if(pb)pb.onclick=()=>downloadPayroll(rows);
 }
