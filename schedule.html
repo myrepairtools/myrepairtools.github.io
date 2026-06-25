@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule — CPR</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 70px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
+.sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
+.hide{display:none}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;border:none;border-radius:8px;padding:9px 15px;cursor:pointer;background:var(--red);color:#fff}
+.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+/* lock */
+.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000}
+.lock.hide{display:none}
+.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
+.lock-box .ic{font-size:30px;margin-bottom:14px}
+.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
+.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
+.lock-box input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px;text-align:center;letter-spacing:4px}
+.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
+.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
+.app{display:none}.app.show{display:block}
+/* schedule grid */
+.store-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:6px 6px 10px;margin-bottom:18px;overflow-x:auto}
+.store-hd{display:flex;align-items:center;gap:10px;padding:12px 12px 10px}
+.store-hd .dot{width:11px;height:24px;border-radius:5px;background:var(--blue)}
+.store-hd h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.sgrid{display:grid;grid-template-columns:170px repeat(7,minmax(118px,1fr));gap:5px;min-width:1000px;padding:0 8px}
+.sgrid .ch{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding:4px 6px;text-align:center}
+.sgrid .ch.emp{text-align:left}
+.sgrid .emp-name{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.86rem;padding:8px 6px}
+.sgrid .av{width:26px;height:26px;border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;display:flex;align-items:center;justify-content:center;flex:none}
+.cell select{width:100%;border:1.5px solid transparent;border-radius:8px;padding:7px 6px;font-family:'Nunito Sans',sans-serif;font-size:.74rem;font-weight:700;cursor:pointer;appearance:none;text-align:center;text-align-last:center;color:#fff}
+.cell select:focus{outline:none;box-shadow:0 0 0 3px rgba(79,176,227,.3)}
+.cell select.off{background:var(--light-grey);color:var(--grey)}
+.cell select.blank{background:#fff;color:var(--grey);border-color:var(--border)}
+.cell select.cross{background:#7c3aed}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:11px 20px;border-radius:10px;font-weight:700;font-size:.84rem;opacity:0;pointer-events:none;transition:.2s;z-index:3000}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.note{font-size:.74rem;color:var(--grey);font-weight:600;padding:2px 14px 6px}
+</style>
+</head>
+<body>
+<div id="lockScreen" class="lock">
+  <div class="lock-box">
+    <div class="ic">🗓️</div>
+    <h2>Schedule</h2>
+    <p>Enter your admin PIN to manage shifts.</p>
+    <input id="lkPin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <button id="lkGo">Unlock</button>
+    <div id="lkErr" class="lock-err"></div>
+  </div>
+</div>
+
+<div id="app" class="app">
+  <main>
+    <h1>Weekly Schedule</h1>
+    <div class="sub" id="sub">Recurring weekly shifts · admins edit their stores</div>
+    <div id="grid"></div>
+    <div class="note">Shifts come from each store's preset list (managed in Settings). “Off” and “In &lt;store&gt;” are always available. Changes save automatically and feed each tech's work-day pace.</div>
+  </main>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var FN=SB_URL+'/functions/v1/cpr-auth';
+var sb=createClient(SB_URL,ANON);
+var AUTH=null, DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
+var $=function(s){return document.querySelector(s);};
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2400);}
+function shortStore(s){return String(s||'').replace(/^CPR\s*/,'');}
+var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var AVATARS=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
+function avatarBg(id){var h=0,s=String(id||'');for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AVATARS[h%AVATARS.length];}
+function initials(n){var p=String(n||'?').trim().split(/\s+/);return ((p[0]||'')[0]||'')+((p[1]||'')[0]||'')||'?';}
+
+/* ===== auth (PIN lock, mirrors settings) ===== */
+var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0;
+function fn(body,tok){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
+function lockErr(t){$('#lkErr').textContent=t||'';}
+function showLock(){$('#app').classList.remove('show');$('#lockScreen').classList.remove('hide');$('#lkPin').value='';}
+function resetIdle(){var now=Date.now();clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('schedule_last_active',String(now));}}
+function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;showLock();}
+function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
+function isAdminRole(r){return ['admin','manager','owner'].indexOf(r)>-1;}
+async function doLogin(){
+  var pin=$('#lkPin').value||'';if(!pin){lockErr('Enter your PIN');return;}
+  $('#lkGo').disabled=true;lockErr('Signing in…');
+  try{
+    var r=await fn({action:'login',pin:pin,device_id:DEVICE_ID});
+    if(r.status!==200){var d=r.data||{};lockErr(d.error==='invalid'?('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'')):(d.error||'Login failed.'));$('#lkGo').disabled=false;return;}
+    var st=r.data.staff||{};
+    if(!isAdminRole(st.role)){lockErr('That account doesn\'t have admin access.');$('#lkGo').disabled=false;return;}
+    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+    AUTH={name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
+    $('#lkGo').disabled=false;lockErr('');unlockUI();
+  }catch(e){$('#lkGo').disabled=false;lockErr(String(e&&e.message||e));}
+}
+async function initAuth(){
+  $('#lkGo').onclick=doLogin;
+  $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});$('#lkPin').focus();
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
+  var sess=(await sb.auth.getSession()).data.session;
+  if(sess){var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data&&isAdminRole(sr.data.role)){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}}
+  showLock();
+}
+
+/* ===== data + render ===== */
+var STAFF=[], STORES=[], PRESETS={}, SCHED={}; /* SCHED[staff_id]={shifts,store} */
+function canSee(store){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores||[]).indexOf(store)>-1||AUTH.home_store===store);}
+async function load(){
+  var [st,so,pr,sc]=await Promise.all([
+    sb.from('staff').select('id,display_name,home_store,active,role').eq('active',true),
+    sb.from('stores').select('store,display_order,active').order('display_order'),
+    sb.from('shift_presets').select('store,label,color,sort').order('sort'),
+    sb.from('staff_schedule').select('staff_id,store,shifts')
+  ]);
+  STAFF=(st.data||[]).filter(function(s){return !/^\s*britt\s+bay\s*$/i.test(s.display_name||'');});
+  STORES=(so.data||[]).filter(function(s){return s.active!==false;});
+  PRESETS={};(pr.data||[]).forEach(function(p){(PRESETS[p.store]=PRESETS[p.store]||[]).push(p);});
+  SCHED={};(sc.data||[]).forEach(function(r){SCHED[r.staff_id]={shifts:r.shifts||{},store:r.store};});
+  render();
+}
+function colorFor(store,label){
+  if(!label||label==='')return null;
+  if(label==='Off')return 'off';
+  if(/^In /.test(label))return 'cross';
+  var ps=(PRESETS[store]||[]).filter(function(p){return p.label===label;})[0];
+  return ps?ps.color:'#4FB0E3';
+}
+function optsFor(store){
+  var o=['','Off'];
+  (PRESETS[store]||[]).forEach(function(p){o.push(p.label);});
+  STORES.forEach(function(s){if(s.store!==store)o.push('In '+shortStore(s.store));});
+  return o;
+}
+function render(){
+  var stores=STORES.filter(function(s){return canSee(s.store);});
+  var html=stores.map(function(s){
+    var emps=STAFF.filter(function(e){return e.home_store===s.store;}).sort(function(a,b){return (a.display_name||'')<(b.display_name||'')?-1:1;});
+    if(!emps.length)return '';
+    var opts=optsFor(s.store);
+    var head='<div class="ch emp">Employee</div>'+DAYS.map(function(d){return '<div class="ch">'+d+'</div>';}).join('');
+    var rows=emps.map(function(e){
+      var sh=(SCHED[e.id]&&SCHED[e.id].shifts)||{};
+      var cells=DAYS.map(function(d,i){
+        var val=sh[String(i)]||'';
+        var sel=opts.map(function(o){return '<option'+(o===val?' selected':'')+'>'+esc(o||'—')+'</option>';}).join('');
+        return '<div class="cell"><select data-emp="'+e.id+'" data-day="'+i+'">'+sel+'</select></div>';
+      }).join('');
+      return '<div class="emp-name"><span class="av" style="background:'+avatarBg(e.id)+'">'+esc(initials(e.display_name))+'</span>'+esc(e.display_name)+'</div>'+cells;
+    }).join('');
+    return '<div class="store-card"><div class="store-hd"><span class="dot"></span><h2>'+esc(shortStore(s.store))+'</h2></div>'
+      +'<div class="sgrid">'+head+rows+'</div></div>';
+  }).join('');
+  $('#grid').innerHTML=html||'<div class="note">No stores you can edit.</div>';
+  paintAll();
+  document.querySelectorAll('#grid select').forEach(function(sel){sel.onchange=function(){onEdit(sel);};});
+}
+function paint(sel){
+  var v=sel.value==='—'?'':sel.value, emp=sel.getAttribute('data-emp'), store=(SCHED[emp]&&SCHED[emp].store)||STAFF.filter(function(e){return String(e.id)===emp;})[0].home_store;
+  var c=colorFor(store,v);sel.classList.remove('off','cross','blank');
+  if(c==='off')sel.classList.add('off');else if(c==='cross')sel.classList.add('cross');
+  else if(!c){sel.classList.add('blank');sel.style.background='';}
+  else sel.style.background=c;
+  if(c==='off'||c==='cross'||!c)sel.style.background='';
+}
+function paintAll(){document.querySelectorAll('#grid select').forEach(paint);}
+async function onEdit(sel){
+  paint(sel);
+  var emp=Number(sel.getAttribute('data-emp')), day=sel.getAttribute('data-day'), val=sel.value==='—'?'':sel.value;
+  var e=STAFF.filter(function(x){return x.id===emp;})[0]; var store=e.home_store;
+  var rec=SCHED[emp]||(SCHED[emp]={shifts:{},store:store}); rec.store=rec.store||store;
+  rec.shifts[String(day)]=val;
+  var wd=[];for(var d=0;d<7;d++){var l=rec.shifts[String(d)];if(l&&l!=='Off')wd.push(d);}
+  var {error}=await sb.from('staff_schedule').upsert({staff_id:emp,store:rec.store,shifts:rec.shifts,work_days:wd},{onConflict:'staff_id'});
+  if(error)toast(error.message,true);else toast('Saved '+e.display_name.split(' ')[0]+' · '+DAYS[day]);
+}
+
+initAuth();
+</script>
+</body>
+</html>

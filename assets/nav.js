@@ -34,6 +34,7 @@
   var PRIVILEGED = [
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
     { label:'Employee Records', url:'employee-records.html',      icon:'📁', minRole:'admin', acc:'staff.view' },
+    { label:'Schedule',         url:'schedule.html',              icon:'🗓️', minRole:'admin' },
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
     { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' }
