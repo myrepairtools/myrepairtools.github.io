@@ -134,7 +134,7 @@ function monthStart(){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getM
 const STATE={me:null,stores:[],store:lsGet('cc_store','all'),tab:lsGet('cc_tab','summary'),
   start:lsGet('cc_start',monthStart()),end:lsGet('cc_end',isoToday()),
   rates:{},rateLabels:{},rules:{},staffById:{},rosterById:{},
-  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',tipsPool:0,loaded:false};
+  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',loaded:false};
 
 /* ---- session: adopt the shared front-door session so RLS sees the owner ---- */
 async function ensureSession(){
@@ -241,6 +241,8 @@ async function runReport(){
   const pk=start+'|'+end;STATE.manual={};
   const mn=await sb.from('commission_manual').select('*').eq('period_key',pk);
   (mn.data||[]).forEach(m=>{STATE.manual[m.employee]=m.acc_device_units;});
+  if(!STATE.tipsPeriod)STATE.tipsPeriod=start.slice(0,7);
+  await loadTips();
   STATE.loaded=true;
   $('#status').textContent=STATE.report.length+' employees · '+start+' → '+end;
   render();
@@ -271,24 +273,29 @@ function renderPills(){
   $all('#pills .pill').forEach(b=>b.onclick=()=>{STATE.store=b.dataset.s;lsSet('cc_store',STATE.store);render();});
 }
 function renderSummary(){
-  const all=STATE.store==='all',rows=inScope();let grand=0;
-  const body=rows.map(r=>{const c=calc(r);grand+=c.total;
+  const all=STATE.store==='all',rows=inScope();const onlyStore=all?null:STATE.store;
+  let grandC=0,grandT=0,grandG=0;
+  const body=rows.map(r=>{const c=calc(r);const tip=tipFor(r.name,onlyStore);const tot=c.total+tip;
+    grandC+=c.total;grandT+=tip;grandG+=tot;
     const multi=r.stores.length>1;
     const split=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>shortStore(p.store)+' '+money(p.amt)).join(' · '):'';
     return '<tr><td class="nm">'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠ not in roster</span>')+'</td>'
       +'<td class="r split">'+esc(split)+'</td>'
-      +'<td class="r gt">'+money(c.total)+'</td></tr>';}).join('');
+      +'<td class="r">'+money(c.total)+'</td>'
+      +'<td class="r" style="color:'+(tip>0?'var(--green)':'var(--grey)')+'">'+(tip>0?money(tip):'—')+'</td>'
+      +'<td class="r gt">'+money(tot)+'</td></tr>';}).join('');
   const unrostered=rows.filter(r=>!r.inRoster).map(r=>r.name);
   $('#view-summary').innerHTML=
     '<div class="card acc-red"><div class="card-hd"><span class="card-t">'+(all?'All locations':esc(STATE.store))+'</span></div><div class="card-bd">'
     +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">'
-      +'<div class="sub">'+esc(STATE.start)+' → '+esc(STATE.end)+' · '+rows.length+' employees</div>'
-      +'<div style="margin-left:auto;text-align:right"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)">'+(all?'Company commissions':'Store commissions')+'</div>'
-        +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grand)+'</div></div>'
+      +'<div class="sub">'+esc(STATE.start)+' → '+esc(STATE.end)+' · '+rows.length+' employees · tips '+esc(STATE.tipsPeriod)+'</div>'
+      +'<div style="margin-left:auto;text-align:right"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)">'+(all?'Company total':'Store total')+' (comm + tips)</div>'
+        +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grandG)+'</div>'
+        +'<div class="sub" style="margin-top:2px">'+money(grandC)+' commission · '+money(grandT)+' tips</div></div>'
       +'<button class="btn alt sm" id="payroll">⬇ Payroll summary</button></div>'
-    +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th></tr></thead>'
-    +'<tbody>'+(body||'<tr><td colspan="3" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
-    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+money(grand)+'</td></tr></tfoot></table>'
+    +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead>'
+    +'<tbody>'+(body||'<tr><td colspan="5" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
+    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+money(grandC)+'</td><td class="r">'+money(grandT)+'</td><td class="r">'+money(grandG)+'</td></tr></tfoot></table>'
     +(unrostered.length?'<div class="warn">'+unrostered.length+' with sales aren’t active team members (terminated or one-off): '+esc(unrostered.join(', '))+'. Their commission still totals here; add them in Settings → Team Members if they should be on the roster.</div>':'')
     +'</div></div>';
   const pb=$('#payroll');if(pb)pb.onclick=()=>downloadPayroll(rows);
@@ -358,12 +365,33 @@ async function saveManual(name,val){
 }
 
 /* ---- tips ---- */
+/* load saved tip pools + hours for the active pay period, keyed per store */
+async function loadTips(){
+  STATE.tips={};
+  const period=STATE.tipsPeriod||STATE.start.slice(0,7);
+  const {data}=await sb.from('commission_tips').select('*').eq('period',period);
+  (data||[]).forEach(t=>{STATE.tips[t.store]={hours:t.hours||{},pool:Number(t.pool)||0};});
+}
+/* one employee's tip share = sum over stores of (their hrs / store hrs) * store pool.
+   onlyStore limits it to a single store (used when the summary is filtered to one). */
+function tipFor(name,onlyStore){
+  let total=0;
+  for(const store in STATE.tips){
+    if(onlyStore&&store!==onlyStore)continue;
+    const d=STATE.tips[store]||{},pool=+d.pool||0,hrs=d.hours||{};
+    if(!pool)continue;
+    let totHrs=0;for(const nm in hrs){const h=hrs[nm]||{};totHrs+=(+h.pp1||0)+(+h.pp2||0);}
+    const h=hrs[name]||{},my=(+h.pp1||0)+(+h.pp2||0);
+    if(totHrs>0&&my>0)total+=(my/totHrs)*pool;
+  }
+  return total;
+}
 function renderTips(){
   const store=STATE.store==='all'?(STATE.stores[0]||''):STATE.store;
   const emps=STATE.report.filter(r=>r.stores.indexOf(store)>=0||r.store===store);
   const data=STATE.tips[store]||{hours:{},pool:0};
   let totalHrs=0;emps.forEach(e=>{const h=data.hours[e.name]||{};totalHrs+=(+h.pp1||0)+(+h.pp2||0);});
-  const pool=+STATE.tipsPool||0;
+  const pool=+data.pool||0;
   const rows=emps.map(e=>{const h=data.hours[e.name]||{};const tot=(+h.pp1||0)+(+h.pp2||0);const tip=totalHrs>0?(tot/totalHrs)*pool:0;
     return '<tr><td class="nm">'+esc(e.name)+'</td>'
       +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" data-pp="pp1" value="'+(h.pp1!=null?h.pp1:'')+'" style="width:74px;text-align:right"></td>'
@@ -372,38 +400,41 @@ function renderTips(){
   $('#view-tips').innerHTML='<div class="card acc-green"><div class="card-hd"><span class="card-t">Tips · '+esc(shortStore(store)||'—')+'</span></div><div class="card-bd">'
     +'<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px">'
       +'<div class="field"><label>Pay period</label><input type="text" id="tipsPeriod" value="'+esc(STATE.tipsPeriod)+'" placeholder="e.g. 2026-06" style="width:140px"></div>'
-      +'<div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" value="'+esc(STATE.tipsPool)+'" step="0.01" style="width:140px;text-align:right"></div>'
+      +'<div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" value="'+(pool||'')+'" step="0.01" style="width:140px;text-align:right"></div>'
       +'<button class="btn sm" id="saveTips">Save this store</button></div>'
     +'<table><thead><tr><th>Employee</th><th class="r">PP1 Hrs</th><th class="r">PP2 Hrs</th><th class="r">Total</th><th class="r">Tips</th></tr></thead>'
     +'<tbody>'+(rows||'<tr><td colspan="5" class="muted" style="padding:18px 6px">Run a report first.</td></tr>')+'</tbody></table>'
-    +'<div class="sub" style="margin-top:10px">Tips split by hours across the store pool for the pay period.</div>'
+    +'<div class="sub" style="margin-top:10px">Tips split by hours across each store’s pool for the pay period. Per-store pools roll up into the Summary tab’s Tips column.</div>'
     +'</div></div>';
-  const setH=(name,pp,val)=>{const d=Object.assign({hours:{},pool:pool},STATE.tips[store]);d.hours=Object.assign({},d.hours);d.hours[name]=Object.assign({},d.hours[name],{[pp]:val});STATE.tips[store]=d;renderTips();};
+  const ensure=()=>{const d=STATE.tips[store]||{hours:{},pool:0};d.hours=Object.assign({},d.hours);STATE.tips[store]=d;return d;};
+  const setH=(name,pp,val)=>{const d=ensure();d.hours[name]=Object.assign({},d.hours[name],{[pp]:val});renderTips();};
   $all('[data-tip]').forEach(inp=>inp.onchange=()=>setH(inp.getAttribute('data-tip'),inp.getAttribute('data-pp'),+inp.value));
-  const tp=$('#tipsPeriod');if(tp)tp.onchange=()=>{STATE.tipsPeriod=tp.value;};
-  const tpl=$('#tipsPool');if(tpl)tpl.onchange=()=>{STATE.tipsPool=+tpl.value;renderTips();};
+  const tp=$('#tipsPeriod');if(tp)tp.onchange=async()=>{STATE.tipsPeriod=tp.value;await loadTips();render();};
+  const tpl=$('#tipsPool');if(tpl)tpl.onchange=()=>{ensure().pool=+tpl.value||0;renderTips();};
   const sv=$('#saveTips');if(sv)sv.onclick=()=>saveTips(store);
 }
 async function saveTips(store){
-  const d=STATE.tips[store]||{hours:{}};
-  const row={store,period:STATE.tipsPeriod||STATE.start.slice(0,7),pool:+STATE.tipsPool||0,hours:d.hours||{}};
+  const d=STATE.tips[store]||{hours:{},pool:0};
+  const row={store,period:STATE.tipsPeriod||STATE.start.slice(0,7),pool:+d.pool||0,hours:d.hours||{}};
   const {error}=await sb.from('commission_tips').upsert(row,{onConflict:'store,period'});
   if(error)toast(error.message,true);else toast('Tips saved');
 }
 
 /* ---- payroll print ---- */
 function downloadPayroll(rows){
-  const byHome={};let grand=0;
-  rows.forEach(r=>{const c=calc(r);grand+=c.total;(byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,lead:!(r.earns&&(r.earns.accessory||r.earns.device)),c});});
+  const all=STATE.store==='all',onlyStore=all?null:STATE.store;
+  const byHome={};let grandC=0,grandT=0,grandG=0;
+  rows.forEach(r=>{const c=calc(r);const tip=tipFor(r.name,onlyStore);grandC+=c.total;grandT+=tip;grandG+=c.total+tip;
+    (byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,lead:!(r.earns&&(r.earns.accessory||r.earns.device)),c,tip});});
   const w=window.open('','_blank');if(!w){toast('Allow pop-ups to download',true);return;}
   let body='';
-  Object.keys(byHome).sort().forEach(home=>{let sub=0;
-    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Total</th></tr></thead><tbody>';
-    byHome[home].slice().sort((a,b)=>a.emp<b.emp?-1:1).forEach(x=>{sub+=x.c.total;
-      body+='<tr><td>'+esc(x.emp)+(x.lead?' (lead)':'')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r"><b>'+money(x.c.total)+'</b></td></tr>';});
-    body+='<tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r">'+money(sub)+'</td></tr></tbody></table>';});
+  Object.keys(byHome).sort().forEach(home=>{let subC=0,subT=0;
+    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead><tbody>';
+    byHome[home].slice().sort((a,b)=>a.emp<b.emp?-1:1).forEach(x=>{subC+=x.c.total;subT+=x.tip;
+      body+='<tr><td>'+esc(x.emp)+(x.lead?' (lead)':'')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r">'+money(x.c.total)+'</td><td class="r">'+(x.tip>0?money(x.tip):'—')+'</td><td class="r"><b>'+money(x.c.total+x.tip)+'</b></td></tr>';});
+    body+='<tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r">'+money(subC)+'</td><td class="r">'+money(subT)+'</td><td class="r">'+money(subC+subT)+'</td></tr></tbody></table>';});
   const css='<style>body{font-family:Arial,sans-serif;color:#1a1a1a;margin:32px}h1{font-size:20px;margin:0 0 2px;color:#DC282E}h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #DC282E;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f2f2}td.r,th.r{text-align:right}tr.sub td{font-weight:bold;background:#faf7f7}.grand{font-size:14px;font-weight:bold;margin-top:10px}@media print{body{margin:12mm}}</style>';
-  w.document.write('<html><head><title>Payroll summary '+esc(STATE.start)+' to '+esc(STATE.end)+'</title>'+css+'</head><body><h1>Commission payroll summary</h1><div style="color:#555;font-size:12px;margin-bottom:6px">'+esc(STATE.start)+' → '+esc(STATE.end)+'</div>'+body+'<div class="grand">Grand total: '+money(grand)+'</div></body></html>');
+  w.document.write('<html><head><title>Payroll summary '+esc(STATE.start)+' to '+esc(STATE.end)+'</title>'+css+'</head><body><h1>Commission payroll summary</h1><div style="color:#555;font-size:12px;margin-bottom:6px">'+esc(STATE.start)+' → '+esc(STATE.end)+' · tips '+esc(STATE.tipsPeriod)+'</div>'+body+'<div class="grand">Grand total: '+money(grandG)+' &nbsp;<span style="font-weight:normal;color:#555">('+money(grandC)+' commission + '+money(grandT)+' tips)</span></div></body></html>');
   w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch(e){}},500);
 }
 
