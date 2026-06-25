@@ -321,14 +321,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <div class="card" style="padding:4px 16px 14px" id="cruleCard"></div>
     <div class="bar"><button class="btn alt sm" id="resetRules">Reset to defaults</button><span class="spacer"></span><button class="btn" id="saveRules">Save rules</button></div>
 
-    <div class="sect-h" style="margin-top:22px">Roster &amp; accessory goals</div>
-    <div class="note">Goals &amp; commission settings per active team member (from Team Members). Untick <b>Earns %</b> for leads/managers — they still earn service payouts but no accessory/device %.</div>
-    <div class="card"><table><thead><tr>
-      <th>Employee</th><th>Home store</th><th>Commission role</th><th class="r">Accy goal $</th><th class="r">Earns %</th>
-    </tr></thead><tbody id="crosterRows"></tbody></table>
-      <div class="empty hide" id="crosterEmpty">No active team members.</div>
-    </div>
-    <div class="bar"><span class="spacer"></span><button class="btn" id="saveRoster">Save roster</button></div>
+    <div class="note" style="margin-top:20px">Per-person <b>accessory goals</b>, <b>commission role</b>, and <b>exempt</b> status live on each person’s profile — open <b>Team Members → Edit</b>.</div>
   </section>
 </main>
 </div>
@@ -583,26 +576,6 @@ function renderCommission(){
     var key=inp.getAttribute('data-crule'),unit=inp.getAttribute('data-unit');
     var v=unit==='%'?((+inp.value||0)/100):(+inp.value||0);
     if(!CRULES[CRULESTORE])CRULES[CRULESTORE]={};CRULES[CRULESTORE][key]=v;};});
-
-  /* --- roster (active staff) --- */
-  var active=STAFF.filter(function(m){return m.active;}).slice().sort(function(a,b){
-    return (shortStore(a.home_store)||'').localeCompare(shortStore(b.home_store)||'')||(a.display_name||'').localeCompare(b.display_name||'');});
-  $('#crosterEmpty').classList.toggle('hide',active.length>0);
-  $('#crosterRows').innerHTML=active.map(function(m){
-    var c=CROSTER[m.id]||{accy_goal:0,commission_active:true,commission_role:''};
-    var opts=['Tech','Manager','Bookkeeper'].map(function(o){return '<option'+(c.commission_role===o?' selected':'')+'>'+o+'</option>';}).join('');
-    return '<tr><td class="nm">'+esc(m.display_name||((m.first_name||'')+' '+(m.last_name||'')))+'</td>'
-      +'<td>'+esc(shortStore(m.home_store)||'—')+'</td>'
-      +'<td><select data-cro="role" data-id="'+m.id+'"><option value="">—</option>'+opts+'</select></td>'
-      +'<td class="r"><input type="number" value="'+(c.accy_goal||0)+'" data-cro="goal" data-id="'+m.id+'" style="width:96px;text-align:right"></td>'
-      +'<td class="r"><input type="checkbox" '+(c.commission_active!==false?'checked':'')+' data-cro="active" data-id="'+m.id+'" style="width:17px;height:17px;cursor:pointer"></td></tr>';
-  }).join('');
-  $all('[data-cro]').forEach(function(el){el.onchange=function(){
-    var id=el.getAttribute('data-id'),k=el.getAttribute('data-cro');
-    if(!CROSTER[id])CROSTER[id]={accy_goal:0,commission_active:true,commission_role:''};
-    if(k==='goal')CROSTER[id].accy_goal=+el.value||0;
-    else if(k==='active')CROSTER[id].commission_active=el.checked;
-    else if(k==='role')CROSTER[id].commission_role=el.value;};});
 }
 async function saveRates(){
   var rows=CRATES.filter(function(r){return (r.sku||'').trim();}).map(function(r,i){return {sku:r.sku.trim(),label:r.label,amount:r.amount,sort:i+1};});
@@ -621,13 +594,6 @@ async function resetRules(){
   delete CRULES[CRULESTORE];
   var r=await sb.from('commission_rules').delete().eq('store',CRULESTORE);
   if(r.error)toast(r.error.message,true);else{toast('Reset to defaults');renderCommission();}
-}
-async function saveRoster(){
-  var active=STAFF.filter(function(m){return m.active;});
-  var rows=active.map(function(m){var c=CROSTER[m.id]||{};return {staff_id:m.id,accy_goal:c.accy_goal||0,commission_active:c.commission_active!==false,commission_role:c.commission_role||null,override:c.override||null};});
-  if(!rows.length){toast('No active members');return;}
-  var r=await sb.from('commission_roster').upsert(rows,{onConflict:'staff_id'});
-  if(r.error)toast(r.error.message,true);else{toast('Roster saved');await loadCommission();}
 }
 function staffStoreRank(name){
   for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
@@ -873,12 +839,15 @@ function genPin(){var s='';for(var i=0;i<4;i++)s+=Math.floor(Math.random()*10);r
 function openMember(id){
   var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
   if(!m)return;
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:''}};
+  var ros=CROSTER[m.id]||{};
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:'',
+    comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),comm_role:ros.commission_role||'',comm_active:(ros.commission_active!==false)}};
   renderModal();
 }
 function openAddMember(){
   var home=(activeStores()[0]||{}).store||'';
-  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin()}};
+  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin(),
+    comm_goal:0,comm_role:'',comm_active:true}};
   renderModal();
 }
 function memberModalHtml(){
@@ -912,6 +881,15 @@ function memberModalHtml(){
      +'</div>'
      +'<div class="row" style="margin-top:14px"><label>Authorized locations</label><div class="authwrap">'+pills+'</div>'
        +'<div class="note" style="margin-top:6px">Home store is always authorized. Other tools use this list to decide where this person can clock in.</div></div>'
+     +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px"><label>Commission</label>'
+       +'<div class="grid2">'
+         +'<div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div>'
+         +'<div class="f"><label>Commission role</label><select data-k="comm_role"><option value="">—</option>'
+           +['Tech','Manager','Bookkeeper'].map(function(o){return '<option'+(d.comm_role===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div>'
+       +'</div>'
+       +'<label style="display:flex;align-items:center;gap:9px;margin-top:11px;text-transform:none;letter-spacing:0;font-size:.84rem;font-weight:700;color:var(--dark);cursor:pointer">'
+         +'<input type="checkbox" data-commactive '+(d.comm_active!==false?'checked':'')+' style="width:17px;height:17px;cursor:pointer">Earns accessory &amp; device % <span style="color:var(--grey);font-weight:600">(untick for leads — services only)</span></label>'
+       +'<div class="note" style="margin-top:6px">Drives this person’s commission in the calculator &amp; dashboard. Goal $0 = no accessory-goal bonus.</div></div>'
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
        +'<div class="h">'+pinHint+'</div>'
        +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
@@ -940,6 +918,7 @@ function wireMember(host){
     if(i>-1)d.authorized_stores.splice(i,1);else d.authorized_stores.push(s);
     renderModal();
   };});
+  var ca=host.querySelector('[data-commactive]');if(ca)ca.onchange=function(){d.comm_active=ca.checked;};
   var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
   var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
   host.querySelector('[data-save]').onclick=saveMember;
@@ -962,7 +941,13 @@ async function saveMember(){
         if(p.status===200&&p.data.ok)toast('Saved · new PIN '+d.pin); else toast((p.data&&p.data.error)||'Saved, but PIN reset failed',true);
       } else toast('Saved');
     }
-    MOPEN=null; await loadStaff(); renderAll();
+    // commission profile (goal / role / exempt) -> commission_roster, keyed to staff
+    var sid=d.staff_id||(c&&c.data&&(c.data.staff_id||c.data.id||(c.data.staff&&c.data.staff.id)));
+    if(sid){
+      var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,commission_active:d.comm_active!==false,commission_role:d.comm_role||null},{onConflict:'staff_id'});
+      if(cr.error)toast('Saved, but commission settings failed: '+cr.error.message,true);
+    }
+    MOPEN=null; await loadStaff(); await loadCommission(); renderAll();
   }catch(e){toast(String(e&&e.message||e),true);if(btn)btn.disabled=false;}
 }
 
@@ -1387,7 +1372,6 @@ function initUI(){
   $('#cruleStore').onchange=function(){CRULESTORE=$('#cruleStore').value;renderCommission();};
   $('#saveRules').onclick=saveRules;
   $('#resetRules').onclick=resetRules;
-  $('#saveRoster').onclick=saveRoster;
   $('#tabRoles').onclick=function(){TAB='roles';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
     var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel]');if(!t)return;
