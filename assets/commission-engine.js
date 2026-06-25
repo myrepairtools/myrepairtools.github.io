@@ -125,10 +125,12 @@
     for (var sku in rates) {
       var cnt = Number(counts[sku]) || 0;
       var spec = rates[sku], perUnit = ratePerUnit(spec, cnt);
-      var goal = (spec && typeof spec === 'object') ? (Number(spec.goal) || 0) : 0;
+      // NB: distinct name from the accessory `goal` above — both are function-scoped
+      // `var`s, so reusing `goal` here would clobber the accessory goal-bonus tier.
+      var svcGoal = (spec && typeof spec === 'object') ? (Number(spec.goal) || 0) : 0;
       var pay = cnt * perUnit;
       var _tiered = (spec && typeof spec === 'object');
-      svc[sku] = { count: cnt, rate: perUnit, pay: pay, goal: goal, hitGoal: goal > 0 && cnt >= goal,
+      svc[sku] = { count: cnt, rate: perUnit, pay: pay, goal: svcGoal, hitGoal: svcGoal > 0 && cnt >= svcGoal,
         lo: _tiered ? (Number(spec.lo) || 0) : perUnit, hi: _tiered ? (Number(spec.hi) || 0) : perUnit };
       repairComm += pay; svcUnits += cnt;
     }
