@@ -308,6 +308,10 @@ Deno.serve(async (req) => {
         const employee = pick(r, "Employee", "Sold By Full Name", "Full Name");
         const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
         if (!store || !employee || !biz_date) continue;
+        // Skip EXCHANGES — a device returned AND re-sold on the same ticket (Sale Count > 0,
+        // net ~$0). The sold side is already in the sales report; counting the return here
+        // would wrongly cancel that legit sale. Pure returns have Device Sale Count = 0.
+        if (num(pick(r, "Device Sale Count", "Device Sales", "Device Units")) > 0) continue;
         const k = biz_date + "" + store + "" + employee;
         const a = agg[k] || (agg[k] = { biz_date, store, employee, staff_id: resolve(employee),
           device_returns: 0, device_return_net: 0, device_return_gp: 0, device_attach_return: 0, _tix: [] as string[] });
