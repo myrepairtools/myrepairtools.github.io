@@ -164,6 +164,10 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .crin{width:48px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;padding:6px 4px;border:1.5px solid var(--border);border-radius:7px;background:#fff}
 .crin:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
 .crpct{font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);width:12px;display:inline-block}
+.ruleedit{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:3px 8px;margin:0 1px;border-radius:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;color:var(--grey);cursor:pointer;border:1.5px dashed transparent;transition:background .12s,border-color .12s,color .12s}
+.ruleedit:hover{border-color:var(--blue);background:rgba(79,176,227,.08);color:var(--dark)}
+.ruleedit.ovr{color:var(--dark)}
+.ruleedit.editing{padding:0;border:none;background:none;min-width:0}
 .commtier-max{margin-top:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);background:var(--light-grey);border-radius:8px;padding:9px 12px;text-align:right}
 .commrates-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0 28px;padding-top:4px}
 .commrates-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -172,9 +176,10 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .ratehd input,.ratehd>div{font-size:.85rem;font-weight:600;width:190px}
 .ratebody{display:flex;align-items:flex-end;gap:12px;margin-top:8px;flex-wrap:wrap}
 .ratebox{display:flex;flex-direction:column;gap:3px}
-.ratebox label{font-family:'Nunito',sans-serif;font-size:.54rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)}
-.ratebox .in{display:flex;align-items:center;gap:3px;font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);font-size:.82rem}
+.ratebox label{font-family:'Nunito',sans-serif;font-size:.54rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);text-align:center}
+.ratebox .in{display:flex;align-items:center;justify-content:center;gap:3px;font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);font-size:.82rem}
 .ratebox.off{opacity:.35}
+.ratebody .rtiertgl{align-self:flex-end;margin-bottom:1px}
 .rtiertgl{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--blue);cursor:pointer;text-decoration:none;border:1.5px solid var(--border);border-radius:6px;padding:3px 7px}
 .rtiertgl:hover{border-color:var(--blue);background:rgba(79,176,227,.08)}
 .authwrap{display:flex;flex-wrap:wrap;gap:7px}
@@ -645,8 +650,8 @@ function renderRates(){
       met=fld(tiered?'data-crt="'+esc(sku)+'" data-tk="hi"':'', tiered?v.hi:'', '0', true, !tiered);
     }
     var tgl='<a class="rtiertgl" data-'+(isDef?'def':'ov')+'tgl="'+(isDef?i:esc(sku))+'">'+(tiered?'flat':'tier')+'</a>';
-    return '<div class="ratecell"><div class="ratehd">'+nm+tgl+'</div><div class="ratebody">'
-      +box('Payout',payout,false)+box('Goal',goal,!tiered)+box('If met',met,!tiered)
+    return '<div class="ratecell"><div class="ratehd">'+nm+'</div><div class="ratebody">'
+      +box('Payout',payout,false)+box('Goal',goal,!tiered)+box('If met',met,!tiered)+tgl
       +'</div></div>';
   }).join('');
   $('#crateCard').innerHTML=head+'<div class="commrates-grid">'+rows+'</div></div>';
@@ -673,10 +678,11 @@ function renderCommission(){
   ).join('');
   var sc=crScope(), ov=sc.rules;
   var eff=function(key){return ov[key]!=null?ov[key]:(DEF[key]||0);};
+  /* click-to-edit inline number (like the consumption report max-stock cells).
+     Shows the effective value: solid when overridden for this scope, faded when inherited. */
   var inp=function(key,unit){var has=ov[key]!=null;
-    var val=has?(unit==='%'?Math.round(ov[key]*100):ov[key]):'';
-    var ph=unit==='%'?Math.round((DEF[key]||0)*100):(DEF[key]||0);
-    return '<input type="number" data-crule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
+    var shown=unit==='%'?Math.round(eff(key)*100):eff(key);
+    return '<span class="ruleedit'+(has?' ovr':'')+'" data-crule="'+key+'" data-unit="'+unit+'" tabindex="0" role="button" title="Click to edit">'+shown+'</span>'+(unit==='%'?'<span class="crpct">%</span>':'');};
   var row=function(when,earn,sub){return '<div class="commtier-row"><div class="when">'+when+(sub?'<div class="sub">'+sub+'</div>':'')+'</div><div class="earn">'+earn+'</div></div>';};
   var maxPct=function(){var a=[].slice.call(arguments).reduce(function(s,k){return s+eff(k);},0);return Math.round(a*100)+'%';};
   var hd=function(title,sub,accent){return '<div class="commtier" style="border-top:3px solid '+accent+'"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">'+title+'</div>'+(sub?'<div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">'+sub+'</div>':'')+'</div>'
@@ -694,10 +700,20 @@ function renderCommission(){
     +row('Sells '+inp('dev3Count','')+'+ net devices, attach held','+ '+inp('dev3Pct','%'))
     +'<div class="commtier-max">Max if every tier is met: '+devMax()+'</div></div>';
   $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+'</div>';
-  $all('[data-crule]').forEach(function(input){input.onchange=function(){
-    var key=input.getAttribute('data-crule'),unit=input.getAttribute('data-unit');
-    if(input.value==='')delete ov[key];else ov[key]=(unit==='%'?((+input.value||0)/100):(+input.value||0));
-    renderCommission();};});
+  $all('#cruleCard .ruleedit').forEach(function(el){el.onclick=function(){
+    if(el.querySelector('input'))return;
+    var key=el.getAttribute('data-crule'),unit=el.getAttribute('data-unit'),has=ov[key]!=null;
+    var cur=has?(unit==='%'?Math.round(ov[key]*100):ov[key]):'';
+    var ph=unit==='%'?Math.round((DEF[key]||0)*100):(DEF[key]||0);
+    var done=false;
+    var commit=function(save){if(done)return;done=true;
+      if(save){var raw=String(box.value).trim();if(raw==='')delete ov[key];else ov[key]=(unit==='%'?((+raw||0)/100):(+raw||0));}
+      renderCommission();};
+    var box=document.createElement('input');box.type='number';box.className='crin';box.value=cur;box.placeholder=ph;
+    el.textContent='';el.classList.add('editing');el.appendChild(box);box.focus();box.select();
+    box.addEventListener('keydown',function(ev){if(ev.key==='Enter')commit(true);else if(ev.key==='Escape')commit(false);});
+    box.addEventListener('blur',function(){commit(true);});
+  };});
 }
 /* tier spec for save: needs a goal to count as tiered, else null (flat) */
 function tierClean(t){if(!t||!t.goal)return null;return {goal:Number(t.goal)||0,lo:Number(t.lo)||0,hi:Number(t.hi)||0};}
