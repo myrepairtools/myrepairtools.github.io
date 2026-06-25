@@ -277,13 +277,16 @@ Deno.serve(async (req) => {
 
     // ---------- COMMISSION: services (per-SKU daily counts -> services jsonb) ----------
     if (feed === "commission_service" || feed === "commission_services") {
-      // Map RepairQ service column label -> engine SKU key. Add variants as the
-      // real Looker JSON field names are confirmed from the debug breadcrumb.
+      // Known RepairQ service labels -> stable short SKU (back-compat). ANY other
+      // service column passes through as a slug of its name, so new commissionable
+      // services surface automatically and the Settings payout list stays in sync.
       const SVC_MAP: Record<string, string> = {
         "Device Cleaning Fee": "cleaning", "Device Cleaning": "cleaning", "Cleaning": "cleaning",
         "Express Repair Service": "express", "Express Repair": "express", "Express Fee": "express", "Express": "express",
         "Malware/Virus Removal - Phone": "malware", "Malware/Virus Removal": "malware", "Virus Removal": "malware", "Malware": "malware",
       };
+      const SVC_DIM = new Set(["location", "name", "store", "employee", "full name", "accounted on date", "date"]);
+      const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
       const resolve = await staffResolver();
       const out: any[] = [];
       for (const r of rows) {
@@ -292,7 +295,13 @@ Deno.serve(async (req) => {
         const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
         if (!store || !employee || !biz_date) continue;
         const services: Record<string, number> = {};
-        for (const k in r) { const sku = SVC_MAP[k.trim()]; if (sku) { const c = num(r[k]); if (c) services[sku] = (services[sku] ?? 0) + c; } }
+        for (const k in r) {
+          const kl = k.trim();
+          if (!kl || /^\d+$/.test(kl) || SVC_DIM.has(kl.toLowerCase())) continue; // skip dimensions / index col
+          const c = num(r[k]); if (!c) continue;                                  // only numeric service counts
+          const key = SVC_MAP[kl] || slug(kl);
+          if (key) services[key] = (services[key] ?? 0) + c;
+        }
         out.push({ biz_date, store, employee, staff_id: resolve(employee), services });
       }
       if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }

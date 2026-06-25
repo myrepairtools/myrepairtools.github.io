@@ -209,7 +209,6 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 <script src="assets/nav.js" data-section="admin"></script>
 <main>
   <h1>Settings</h1>
-  <p class="sub">Global configuration for every CPR tool &middot; the master team roster and store list other tools read from.</p>
 
   <div class="tabs">
     <button class="tab active" data-tab="staff" id="tabStaff">Team Members <span class="ct" id="ctStaff">0</span></button>
@@ -325,21 +324,20 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
   <!-- COMMISSION TAB -->
   <section id="view-commission" class="hide">
     <div class="sect-h">Service payouts</div>
-    <div class="note">Flat $ per commissionable service. Add a SKU to expand — it flows into the Commission Calculator and the employee dashboard automatically.</div>
+    <div class="note">Flat $ per commissionable service. The list comes straight from your <b>RepairQ services feed</b>, so SKUs always match — just set each payout. New services appear automatically.</div>
     <div class="card" style="padding:14px 16px">
       <div id="crateRows"></div>
-      <div class="bar" style="margin-top:10px"><button class="btn alt sm" id="addRate">+ Add service</button><span class="spacer"></span><button class="btn" id="saveRates">Save payouts</button></div>
+      <div class="bar" style="margin-top:10px"><span class="spacer"></span><button class="btn" id="saveRates">Save payouts</button></div>
     </div>
 
     <div class="sect-h" style="margin-top:22px">Commission rules
       <span class="seg" id="cruleScope"><button data-sc="store" class="on">By store</button><button data-sc="role">By role</button></span>
       <select id="cruleSel" style="width:auto;min-width:170px"></select>
     </div>
-    <div class="note">Overrides stack: <b>store → role → person</b>. Blank = inherit the layer beneath (shown as a faded placeholder). Set only what differs; per-person overrides live on each profile.</div>
+    <div class="note">Edit rules by <b>store</b> or <b>role</b>. A blank field inherits the value beneath it (shown faded) — fill in only what differs. Per-person tweaks live on each profile.</div>
     <div id="cruleCard"></div>
     <div class="bar"><button class="btn alt sm" id="resetRules">Clear this scope</button><span class="spacer"></span><button class="btn" id="saveRules">Save</button></div>
 
-    <div class="note" style="margin-top:20px">Per-person <b>accessory goals</b>, <b>commission role</b>, and <b>exempt</b> status live on each person’s profile — open <b>Team Members → Edit</b>.</div>
   </section>
 </main>
 </div>
@@ -560,9 +558,15 @@ async function loadCommission(){
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
-    sb.from('commission_role_overrides').select('*')
+    sb.from('commission_role_overrides').select('*'),
+    sb.rpc('commission_service_keys')
   ]);
-  CRATES=res[0].error?[]:(res[0].data||[]).map(function(r){return {sku:r.sku,label:r.label||'',amount:Number(r.amount)||0};});
+  // Service list is DERIVED from the RepairQ feed (commission_sales) so SKUs always
+  // match what's ingested; saved label/$ from commission_rates are layered on.
+  var byKey={};
+  (res[0].error?[]:(res[0].data||[])).forEach(function(r){byKey[r.sku]={sku:r.sku,label:r.label||'',amount:Number(r.amount)||0,count:0};});
+  (res[4].error?[]:(res[4].data||[])).forEach(function(d){if(!byKey[d.sku])byKey[d.sku]={sku:d.sku,label:'',amount:0,count:0};byKey[d.sku].count=Number(d.total)||0;});
+  CRATES=Object.keys(byKey).map(function(k){return byKey[k];}).sort(function(a,b){return (b.count-a.count)||a.sku.localeCompare(b.sku);});
   CRULES={};(res[1].error?[]:(res[1].data||[])).forEach(function(r){CRULES[r.store]=r.rules||{};});
   CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,earns_override:r.earns_override||null,rules_override:r.rules_override||null,rates_override:r.rates_override||null};});
   CROLEOVER={};(res[3].error?[]:(res[3].data||[])).forEach(function(x){CROLEOVER[x.role_id]={rules:x.rules||{},rates:x.rates||{}};});
@@ -577,17 +581,19 @@ function crScope(){
   CRULES[CRSEL]=CRULES[CRSEL]||{};
   return {kind:'store',rules:CRULES[CRSEL],rates:null,label:shortStore(CRSEL)};
 }
+function humanize(s){return String(s||'').replace(/[_-]+/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
 function renderCommission(){
-  /* --- service payouts --- */
-  $('#crateRows').innerHTML=CRATES.length?CRATES.map(function(r,i){
-    return '<div style="display:grid;grid-template-columns:1fr 150px 110px 30px;gap:10px;align-items:center;margin-bottom:8px;max-width:580px">'
-      +'<input value="'+esc(r.label)+'" data-cr="label" data-i="'+i+'" placeholder="Service name">'
-      +'<input value="'+esc(r.sku)+'" data-cr="sku" data-i="'+i+'" placeholder="SKU" style="font-family:Nunito;font-weight:700">'
-      +'<div style="display:flex;align-items:center;gap:6px"><span style="font-family:Nunito;font-weight:800;color:var(--grey)">$</span><input type="number" value="'+r.amount+'" data-cr="amount" data-i="'+i+'" style="text-align:right"></div>'
-      +'<button class="ord del" data-crdel="'+i+'" title="Remove">&times;</button></div>';
-  }).join(''):'<div class="muted" style="padding:6px 0">No services yet.</div>';
+  /* --- service payouts (SKUs derived from the RepairQ feed; set the $ per service) --- */
+  $('#crateRows').innerHTML=CRATES.length?
+    '<div style="display:grid;grid-template-columns:1fr 200px 110px;gap:10px;max-width:620px;font-family:Nunito;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding-bottom:4px"><div>Label</div><div>RepairQ service (SKU)</div><div style="text-align:right">Payout $</div></div>'
+    +CRATES.map(function(r,i){
+    return '<div style="display:grid;grid-template-columns:1fr 200px 110px;gap:10px;align-items:center;margin-bottom:8px;max-width:620px">'
+      +'<input value="'+esc(r.label)+'" data-cr="label" data-i="'+i+'" placeholder="'+esc(humanize(r.sku))+'">'
+      +'<div style="font-family:Nunito;font-weight:700;font-size:.82rem;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.sku)+(r.count?' <span style="color:var(--grey);font-weight:600;font-size:.72rem">· '+r.count+' sold</span>':' <span style="color:var(--amber);font-weight:600;font-size:.72rem">· not in feed yet</span>')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px"><span style="font-family:Nunito;font-weight:800;color:var(--grey)">$</span><input type="number" value="'+(r.amount||'')+'" data-cr="amount" data-i="'+i+'" placeholder="0" style="text-align:right"></div>'
+      +'</div>';
+  }).join(''):'<div class="muted" style="padding:6px 0">No services yet — they appear here automatically once the RepairQ services feed runs.</div>';
   $all('[data-cr]').forEach(function(inp){inp.onchange=function(){var i=+inp.getAttribute('data-i'),k=inp.getAttribute('data-cr');CRATES[i][k]=(k==='amount')?(+inp.value||0):inp.value;};});
-  $all('[data-crdel]').forEach(function(b){b.onclick=function(){CRATES.splice(+b.getAttribute('data-crdel'),1);renderCommission();};});
 
   /* --- rules (scope: store or role; blank = inherit, placeholder = inherited value) --- */
   var DEF=(window.CommissionEngine?CommissionEngine.ruleDefaults:{});
@@ -635,11 +641,9 @@ function renderCommission(){
     if(input.value==='')delete rr[sku];else rr[sku]=+input.value||0;};});
 }
 async function saveRates(){
-  var rows=CRATES.filter(function(r){return (r.sku||'').trim();}).map(function(r,i){return {sku:r.sku.trim(),label:r.label,amount:r.amount,sort:i+1};});
-  var keep={};rows.forEach(function(r){keep[r.sku]=1;});
-  var ex=await sb.from('commission_rates').select('sku');
-  var del=(ex.data||[]).map(function(r){return r.sku;}).filter(function(s){return !keep[s];});
-  if(del.length)await sb.from('commission_rates').delete().in('sku',del);
+  /* SKUs are feed-derived (read-only); persist the label + $ for each. */
+  var rows=CRATES.map(function(r,i){return {sku:r.sku,label:r.label||null,amount:Number(r.amount)||0,sort:i+1};});
+  if(!rows.length){toast('No services yet');return;}
   var r=await sb.from('commission_rates').upsert(rows,{onConflict:'sku'});
   if(r.error)toast(r.error.message,true);else{toast('Payouts saved');await loadCommission();renderCommission();}
 }
@@ -1497,7 +1501,6 @@ function initUI(){
   $('#tabNotif').onclick=function(){TAB='notif';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabPages').onclick=function(){TAB='pages';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabCommission').onclick=function(){TAB='commission';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
-  $('#addRate').onclick=function(){var have={};CRATES.forEach(function(r){have[r.sku]=1;});var n=1,k='SKU'+n;while(have[k]){n++;k='SKU'+n;}CRATES.push({sku:k,label:'New service',amount:10});renderCommission();};
   $('#saveRates').onclick=saveRates;
   $('#cruleSel').onchange=function(){CRSEL=$('#cruleSel').value;renderCommission();};
   $all('#cruleScope button').forEach(function(b){b.onclick=function(){
