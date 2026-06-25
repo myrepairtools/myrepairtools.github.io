@@ -348,11 +348,16 @@ function renderOverview(){
 
   // mini tiles
   const mini=(l,v)=>'<div class="minicard"><div class="ml">'+l+'</div><div class="mv">'+v+'</div></div>';
+  const svcGoal=20,svcPct=Math.min(100,Math.round(c.svcUnits/svcGoal*100));
+  const svcTile='<div class="minicard"><div class="ml">Services sold</div>'
+    +'<div class="mv">'+c.svcUnits+' <span style="font-size:.8rem;color:var(--green);font-weight:800">'+money(c.repairComm)+'</span></div>'
+    +'<div style="height:5px;border-radius:3px;background:var(--light-grey);overflow:hidden;margin-top:7px"><div style="height:100%;width:'+svcPct+'%;background:var(--purple);border-radius:3px"></div></div>'
+    +'<div style="font-size:.62rem;color:var(--grey);font-weight:800;margin-top:3px">'+c.svcUnits+' / '+svcGoal+' goal · '+svcPct+'%</div></div>';
   const minis='<div class="minigrid">'
     +mini('Attach rate',pct(attach))
     +mini('Avg accessory $',money(avgAccy))
-    +mini('Services sold',c.svcUnits+' <span style="font-size:.8rem;color:var(--green);font-weight:800">'+money(c.repairComm)+'</span>')
-    +mini('Devices sold',String(t.DeviceUnits||0))
+    +svcTile
+    +mini('Devices sold',(t.DeviceUnits||0)+' <span style="font-size:.8rem;color:var(--blue);font-weight:800">+'+(t.DeviceAttach||0)+' acc</span>')
     +'</div>';
 
   // category card (units real; per-category $ estimated at your avg accessory price)
@@ -360,19 +365,21 @@ function renderOverview(){
   const cats=CAT_ORDER.filter(k=>(t.categories[k]||0)>0);
   const catDollar=k=>Math.round((t.categories[k]||0)*avgAccyP);
   const maxD=Math.max(1,...cats.map(catDollar));
-  const cH='width:140px;flex:none',cU='width:54px;text-align:right;flex:none',cM='width:84px;text-align:right;flex:none';
+  const cH='width:140px;flex:none',cU='width:54px;text-align:right;flex:none',cP='width:62px;text-align:right;flex:none',cM='width:84px;text-align:right;flex:none';
+  const grandT=(t.NetAccySales||0)+(t.DeviceRev||0);const shr=d=>grandT>0?pct(d/grandT):'—';
   let catRows=cats.map(k=>{const u=t.categories[k]||0,col=CAT_COLOR[k],d=catDollar(k);
     return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">'
       +'<div style="'+cH+';display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:3px;background:'+col+';flex:none"></span><span style="font-weight:600;font-size:.86rem">'+esc(k)+'</span></div>'
       +'<div style="flex:1;min-width:0"><div style="height:16px;border-radius:5px;background:var(--light-grey);overflow:hidden"><div style="height:100%;width:'+Math.round(d/maxD*100)+'%;background:'+col+';border-radius:5px"></div></div></div>'
       +'<div style="'+cU+';font-family:Nunito;font-weight:800;font-size:.84rem">'+u+'</div>'
+      +'<div style="'+cP+';font-family:Nunito;font-weight:700;font-size:.8rem;color:var(--dark-grey)">'+shr(d)+'</div>'
       +'<div style="'+cM+';font-family:Nunito;font-weight:900;font-size:.86rem">'+money0(d)+'</div></div>';}).join('');
   if(!catRows)catRows='<div class="muted" style="padding:10px 0;font-size:.84rem">No category data this month.</div>';
   const catCard='<div class="card acc-dark"><div class="card-hd"><span class="card-t">Sales by category</span></div><div class="card-bd">'
-    +'<div style="display:flex;align-items:center;gap:12px;padding-bottom:7px;border-bottom:1px solid var(--border);font-family:Nunito;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)"><span style="'+cH+'">Category</span><span style="flex:1">Net sales</span><span style="'+cU+'">Units</span><span style="'+cM+'">$</span></div>'
+    +'<div style="display:flex;align-items:center;gap:12px;padding-bottom:7px;border-bottom:1px solid var(--border);font-family:Nunito;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)"><span style="'+cH+'">Category</span><span style="flex:1">Net sales</span><span style="'+cU+'">Units</span><span style="'+cP+'">% of sales</span><span style="'+cM+'">$</span></div>'
     +catRows
-    +'<div style="display:flex;align-items:center;gap:12px;padding:9px 0 2px"><div style="'+cH+';font-family:Nunito;font-weight:900;font-size:.84rem">Accessories</div><div style="flex:1;color:var(--grey);font-size:.78rem">subtotal</div><div style="'+cU+';font-family:Nunito;font-weight:900;font-size:.84rem">'+(t.AccyUnits||0)+'</div><div style="'+cM+';font-family:Nunito;font-weight:900;font-size:.86rem">'+money0(t.NetAccySales)+'</div></div>'
-    +'<div style="display:flex;align-items:center;gap:12px;padding:10px 0 0;border-top:1px dashed var(--border);margin-top:4px"><div style="'+cH+';display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:3px;background:var(--red);flex:none"></span><span style="font-family:Nunito;font-weight:800;font-size:.86rem">Devices</span></div><div style="flex:1;color:var(--dark-grey);font-size:.8rem">phones &amp; tablets</div><div style="'+cU+';font-family:Nunito;font-weight:800;font-size:.84rem">'+(t.DeviceUnits||0)+'</div><div style="'+cM+';font-family:Nunito;font-weight:900;font-size:.86rem;color:var(--red)">'+money0(t.DeviceRev)+'</div></div>'
+    +'<div style="display:flex;align-items:center;gap:12px;padding:9px 0 2px"><div style="'+cH+';font-family:Nunito;font-weight:900;font-size:.84rem">Accessories</div><div style="flex:1;color:var(--grey);font-size:.78rem">subtotal</div><div style="'+cU+';font-family:Nunito;font-weight:900;font-size:.84rem">'+(t.AccyUnits||0)+'</div><div style="'+cP+';font-family:Nunito;font-weight:800;font-size:.8rem;color:var(--dark-grey)">'+shr(t.NetAccySales)+'</div><div style="'+cM+';font-family:Nunito;font-weight:900;font-size:.86rem">'+money0(t.NetAccySales)+'</div></div>'
+    +'<div style="display:flex;align-items:center;gap:12px;padding:10px 0 0;border-top:1px dashed var(--border);margin-top:4px"><div style="'+cH+';display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:3px;background:var(--red);flex:none"></span><span style="font-family:Nunito;font-weight:800;font-size:.86rem">Devices</span></div><div style="flex:1;color:var(--dark-grey);font-size:.8rem">phones &amp; tablets</div><div style="'+cU+';font-family:Nunito;font-weight:800;font-size:.84rem">'+(t.DeviceUnits||0)+'</div><div style="'+cP+';font-family:Nunito;font-weight:800;font-size:.8rem;color:var(--dark-grey)">'+shr(t.DeviceRev)+'</div><div style="'+cM+';font-family:Nunito;font-weight:900;font-size:.86rem;color:var(--red)">'+money0(t.DeviceRev)+'</div></div>'
     +'</div></div>';
 
   // services
