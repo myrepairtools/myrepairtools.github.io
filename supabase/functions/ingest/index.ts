@@ -286,10 +286,16 @@ Deno.serve(async (req) => {
         "Malware/Virus Removal - Phone": "malware", "Malware/Virus Removal": "malware", "Virus Removal": "malware", "Malware": "malware",
       };
       const SVC_DIM = new Set(["location", "name", "store", "employee", "full name", "accounted on date", "date"]);
-      // Service revenue (sales $) column(s) — routed to service_net, NOT counted as a service unit.
-      const SVC_REV = new Set(["net", "net sales", "service net", "services net", "service sales", "services sales",
-        "service revenue", "service total", "service $", "services $", "sales", "revenue", "amount"]);
       const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      // The report is a pivot: each service has a COUNT column and a NET TOTAL ($)
+      // column, so column keys carry a measure word. Detect the measure regardless
+      // of how the service name is concatenated; strip it to recover the service.
+      const isRev = (s: string) => /(net\s*sale|net\s*total|sale\s*total|net\s*sales|\bnet\b|revenue|amount|\$)/i.test(s) && !/count|qty|unit/i.test(s);
+      const isCount = (s: string) => /(sale\s*count|all\s*sale\s*count|\bcount\b|\bqty\b|\bunits?\b)/i.test(s);
+      const stripMeasure = (s: string) => s
+        .replace(/\s*[-|.–]\s*(all\s*)?(net\s*)?(sale\s*)?(count|total|qty|units?|revenue|amount|sales?)\s*$/i, "")
+        .replace(/^\s*(all\s*)?(net\s*)?(sale\s*)?(count|total|qty|units?)\s*[-|.–]\s*/i, "").trim();
+      const isMeasureOnly = (s: string) => !s || /^(all\s*)?(net\s*)?(sale\s*)?(count|total|qty|units?|sales?|revenue|amount)$/i.test(s);
       const resolve = await staffResolver();
       const out: any[] = [];
       for (const r of rows) {
@@ -300,11 +306,13 @@ Deno.serve(async (req) => {
         const services: Record<string, number> = {};
         let service_net = 0;
         for (const k in r) {
-          const kl = k.trim();
-          if (!kl || /^\d+$/.test(kl) || SVC_DIM.has(kl.toLowerCase())) continue; // skip dimensions / index col
-          if (SVC_REV.has(kl.toLowerCase())) { service_net += money(r[k]); continue; }  // service sales $
-          const c = num(r[k]); if (!c) continue;                                  // only numeric service counts
-          const key = SVC_MAP[kl] || slug(kl);
+          const kl = k.trim(); const low = kl.toLowerCase();
+          if (!kl || /^\d+$/.test(kl) || SVC_DIM.has(low)) continue;             // skip dimensions / index col
+          if (isRev(low)) { service_net += money(r[k]); continue; }              // service sales $ -> service_net
+          const c = num(r[k]); if (!c) continue;                                 // only numeric service counts
+          const svcName = isCount(low) ? stripMeasure(kl) : kl;                  // recover the service name
+          if (isMeasureOnly(svcName)) continue;                                  // a bare "Count"/"Total" col, no service
+          const key = SVC_MAP[svcName] || SVC_MAP[kl] || slug(svcName);
           if (key) services[key] = (services[key] ?? 0) + c;
         }
         out.push({ biz_date, store, employee, staff_id: resolve(employee), services, service_net });
