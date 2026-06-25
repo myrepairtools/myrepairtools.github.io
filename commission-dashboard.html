@@ -441,13 +441,30 @@ function renderGoals(){
       +'<div class="statusbar" style="color:'+(onPace?'var(--green)':'var(--amber)')+'">'+(cfg.goal?(onPace?'On pace — keep it up and you’ll clear your goal.':'A little behind — '+money0(perDay)+'/day gets you there.'):'No accessory goal set yet — ask your manager to set one.')+'</div>'
       +'<div style="margin-top:8px;font-size:.74rem;color:var(--grey)">Pace is by calendar day for now; shift-based pacing comes with the schedule feature.</div></div></div>';
   }
-  const bar=(label,cur,target,disp)=>{const w=target>0?Math.min(100,Math.round(cur/target*100)):0;
-    return '<div class="goalbar"><div class="gt"><span>'+label+'</span><span>'+disp+'</span></div><div class="gtrack"><div class="gfill" style="width:'+w+'%"></div></div></div>';};
-  let bars='';const attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
-  if(earns.accessory&&cfg.goal>0)bars+=bar('Accessory $ goal',t.NetAccySales||0,cfg.goal,money0(t.NetAccySales||0)+' / '+money0(cfg.goal));
-  if(earns.accessory)bars+=bar('Attach to top tier ('+pct(R.accyAttach2)+')',attach,R.accyAttach2,pct(attach));
-  if(earns.device)bars+=bar('Devices to '+R.dev3Count+'+ tier',c.netDev,R.dev3Count,c.netDev+' / '+R.dev3Count);
-  if(bars)body+='<div class="card acc-green"><div class="card-hd"><span class="card-t">Goal progress</span></div><div class="card-bd">'+bars+'</div></div>';
+  // sales by category vs target (target = accessory goal in units, spread by your mix)
+  if(earns.accessory){
+    const avgAccy=t.AccyUnits>0?t.NetAccySales/t.AccyUnits:0;
+    const unitGoal=avgAccy>0?(cfg.goal||0)/avgAccy:0;
+    const myTot=CAT_ORDER.reduce((a,k)=>a+(t.categories[k]||0),0);
+    const catCards=CAT_ORDER.map(k=>{const u=t.categories[k]||0,share=myTot>0?u/myTot:0.2,target=Math.max(1,Math.round(unitGoal*share));
+      const w=Math.min(100,Math.round(u/target*100)),over=u>=target;
+      return '<div style="border:1px solid var(--border);border-radius:11px;padding:13px 14px;display:flex;flex-direction:column;gap:7px">'
+        +'<div style="display:flex;align-items:center;gap:7px"><span style="width:10px;height:10px;border-radius:3px;background:'+CAT_COLOR[k]+';flex:none"></span><span style="font-family:Nunito;font-weight:800;font-size:.82rem">'+esc(k)+'</span></div>'
+        +'<div style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Nunito;font-weight:900;font-size:1.7rem;line-height:1">'+u+'</span><span style="font-size:.78rem;color:var(--grey);font-weight:700">/ '+target+' units</span></div>'
+        +'<div style="display:flex;align-items:center;justify-content:space-between"><span style="font-family:Nunito;font-weight:800;font-size:.72rem;padding:2px 9px;border-radius:999px;background:'+(over?'#EAF7EF':'var(--light-grey)')+';color:'+(over?'#1f7d45':'var(--dark-grey)')+'">'+w+'%</span><span style="font-size:.72rem;color:var(--grey);font-weight:700">'+(over?'on target':(target-u)+' to go')+'</span></div></div>';}).join('');
+    body+='<div class="card acc-dark"><div class="card-hd"><span class="card-t">Sales by category — units vs target</span></div><div class="card-bd"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px">'+catCards+'</div>'
+      +'<div style="font-size:.74rem;color:var(--grey);margin-top:12px;line-height:1.45">Targets total ~<b style="color:var(--dark)">'+Math.round(unitGoal)+' units</b> — your '+money0(cfg.goal||0)+' accessory goal at your average price, spread across your category mix.</div></div></div>';
+  }
+  // your goals this month
+  const goalRow=(label,cur,target,disp,nudge,color)=>{const w=target>0?Math.min(100,Math.round(cur/target*100)):0;
+    return '<div><div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px"><span style="font-family:Nunito;font-weight:800;font-size:.95rem">'+label+'</span><span style="font-size:.82rem;font-weight:700;color:var(--dark-grey)"><b style="color:var(--dark);font-family:Nunito">'+disp+'</b></span></div>'
+      +'<div style="height:11px;border-radius:6px;background:var(--light-grey);overflow:hidden"><div style="height:100%;border-radius:6px;width:'+w+'%;background:'+color+'"></div></div>'
+      +'<div style="font-size:.78rem;color:var(--dark-grey);margin-top:6px">'+nudge+'</div></div>';};
+  let goals='';const attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
+  if(earns.accessory&&cfg.goal>0)goals+=goalRow('Accessory sales',t.NetAccySales||0,cfg.goal,money0(t.NetAccySales||0)+' / '+money0(cfg.goal),(t.NetAccySales>=cfg.goal?'Goal hit — nice work.':money0(cfg.goal-(t.NetAccySales||0))+' more to unlock the goal bonus.'),'var(--blue)');
+  if(earns.accessory)goals+=goalRow('Attach rate',Math.round(attach*100),Math.round(R.accyAttach2*100),pct(attach)+' / '+pct(R.accyAttach2)+' tier',(attach>=R.accyAttach2?'Top attach tier unlocked.':(attach>=R.accyAttach1?'Past tier 1 — push to '+pct(R.accyAttach2)+' for the stretch bonus.':'Reach '+pct(R.accyAttach1)+' to start earning accessory %.')),'var(--green)');
+  if(earns.device)goals+=goalRow('Devices (net)',c.netDev,R.dev3Count,c.netDev+' / '+R.dev3Count,(c.netDev>=R.dev3Count?'Top device tier unlocked.':(c.gateMet?(R.dev3Count-c.netDev)+' more to the '+pct(R.dev3Pct)+' tier.':'Sell '+Math.max(0,R.dev1Count-c.netDev)+' more to clear the '+R.dev1Count+'-device gate.')),'var(--red)');
+  if(goals)body+='<div class="card acc-green"><div class="card-hd"><span class="card-t">Your goals this month</span></div><div class="card-bd" style="display:flex;flex-direction:column;gap:16px">'+goals+'</div></div>';
   $('#view-goals').innerHTML=body;
 }
 
@@ -457,37 +474,104 @@ async function loadBoard(){
   const mi=monthInfo();
   const sales=await sb.from('commission_sales').select('*').gte('biz_date',mi.start).lte('biz_date',mi.end);
   const byStaff={};(sales.data||[]).forEach(r=>{if(r.staff_id==null)return;(byStaff[r.staff_id]=byStaff[r.staff_id]||blankTotals());addInto(byStaff[r.staff_id],r);});
-  const techs=[],storeTot={};
+  const techs=[];
   for(const sid in byStaff){const st=STATE.staffById[sid];if(!st||EXCLUDE(st))continue;
     const cfg=effFor(st),tot=byStaff[sid];
     const c=E.computeCommission(tot,{accessoryGoal:cfg.goal,accDeviceUnits:'',rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
-    const attach=tot.Tickets>0?tot.AccyUnits/tot.Tickets:0;
-    techs.push({id:+sid,name:st.display_name,store:st.home_store,total:c.total,attach,tickets:tot.Tickets,ranked:!!(cfg.earns.accessory||cfg.earns.device)});
-    const s=st.home_store||'—';storeTot[s]=(storeTot[s]||0)+c.total;
+    techs.push({id:+sid,name:st.display_name,store:st.home_store||'—',tot,c,
+      attach:tot.Tickets>0?tot.AccyUnits/tot.Tickets:0,tickets:tot.Tickets,
+      accySales:tot.NetAccySales||0,deviceRev:tot.DeviceRev||0,deviceUnits:tot.DeviceUnits||0,
+      svcCount:c.svcUnits,retail:(tot.NetAccySales||0)+(tot.DeviceRev||0),ranked:!!(cfg.earns.accessory||cfg.earns.device)});
   }
-  techs.sort((a,b)=>b.total-a.total);
-  STATE.board={techs,storeTot};return STATE.board;
+  techs.sort((a,b)=>b.c.total-a.c.total);
+  STATE.board={techs,mi};return STATE.board;
 }
 function renderBoard(){
   if(!STATE.board){$('#view-board').innerHTML='<div class="card"><div class="card-bd muted">Loading the leaderboard…</div></div>';
     loadBoard().then(()=>{if(STATE.tab==='board')renderBoard();});return;}
-  const {techs,storeTot}=STATE.board, meId=STATE.target.id;
+  const {techs,mi}=STATE.board, meId=STATE.target.id, me=STATE.target;
   const ranked=techs.filter(t=>t.ranked);
   const myRank=ranked.findIndex(t=>t.id===meId), meRow=techs.find(t=>t.id===meId);
-  const rankTxt=myRank>=0?('#'+(myRank+1)+' of '+ranked.length):'Not ranked';
-  const hero='<div class="kpis" style="grid-template-columns:repeat(3,1fr)">'
-    +'<div class="kpi k-blue"><div class="l">Your rank</div><div class="v">'+rankTxt+'</div><div class="s">by commission this month</div></div>'
-    +'<div class="kpi k-total"><div class="l">Your commission</div><div class="v">'+money0(meRow?meRow.total:0)+'</div><div class="s">month to date</div></div>'
-    +'<div class="kpi k-amber"><div class="l">Leader</div><div class="v">'+(ranked[0]?money0(ranked[0].total):'—')+'</div><div class="s">'+(ranked[0]?esc(ranked[0].name.split(' ')[0]):'—')+'</div></div></div>';
+  const myTotal=meRow?meRow.c.total:0;
+  const ahead=myRank>0?ranked[myRank-1]:null;
+  const heroChip=myRank===0?'🏆 Leading the board':(myRank>0?money0(ahead.c.total-myTotal)+' to catch #'+myRank:'Not ranked yet');
+
+  // ---- rank hero (dark radial) ----
+  const hero='<div style="background:radial-gradient(120% 140% at 100% 0%,#3a3a4d 0%,#2D2D3B 55%);border-radius:16px;padding:24px 26px;color:#fff;margin-bottom:16px">'
+    +'<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+      +'<div style="width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none">'
+        +'<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.8px;opacity:.7;font-weight:800">Rank</div>'
+        +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;line-height:1">'+(myRank>=0?'#'+(myRank+1):'—')+'</div></div>'
+      +'<div style="flex:1;min-width:160px"><div style="font-family:Nunito;font-weight:900;font-size:1.5rem;line-height:1.1">'+esc(me.display_name)+'</div>'
+        +'<div style="font-size:.82rem;opacity:.8;font-weight:600">'+esc(shortStore(me.home_store))+' · '+esc(mi.label)+(myRank>=0?' · #'+(myRank+1)+' of '+ranked.length:'')+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;opacity:.7;font-weight:800">Commission</div>'
+        +'<div style="font-family:Nunito;font-weight:900;font-size:2.4rem;line-height:1;color:#6fe6a0">'+money0(myTotal)+'</div></div></div>'
+    +'<div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">'
+      +'<div style="background:rgba(79,176,227,.18);border:1px solid rgba(79,176,227,.4);border-radius:999px;padding:6px 14px;font-size:.82rem;font-weight:800;font-family:Nunito">'+heroChip+'</div>'
+      +(meRow?'<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 14px;font-size:.82rem;font-weight:800;font-family:Nunito">'+pct(meRow.attach)+' attach rate</div>':'')+'</div></div>';
+
+  // ---- top performer bonus ----
   const elig=ranked.filter(t=>t.tickets>=20).sort((a,b)=>b.attach-a.attach), winner=elig[0];
-  const bonus=winner?('<div class="card acc-amber"><div class="card-hd"><span class="card-t">Top Performer Bonus · $50</span></div><div class="card-bd"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div style="font-size:.88rem;color:var(--dark-grey)">Highest attach rate among techs with 20+ tickets wins $50 — a rate, so a slower store can still take it.</div><div style="text-align:right"><div style="font-family:Nunito;font-weight:900;font-size:1.1rem">'+esc(winner.name.split(' ')[0])+' · '+pct(winner.attach)+'</div><div style="font-size:.72rem;color:var(--grey)">current leader</div></div></div></div></div>'):'';
-  const medal=i=>i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1);
-  const lb=ranked.map((t,i)=>'<div class="lbrow'+(t.id===meId?' me':'')+'"><div class="lbrank medal">'+medal(i)+'</div><div class="lbname">'+esc(t.name)+(t.id===meId?' (you)':'')+'</div><div class="lbatt">'+pct(t.attach)+' attach</div><div class="lbamt">'+money0(t.total)+'</div></div>').join('');
-  const board='<div class="card acc-dark"><div class="card-hd"><span class="card-t">Tech leaderboard</span></div><div class="card-bd">'+(lb||'<div class="muted">No ranked techs yet this month.</div>')+'</div></div>';
-  const stores=Object.keys(storeTot).sort((a,b)=>storeTot[b]-storeTot[a]);
-  const ss=stores.map((s,i)=>'<div class="lbrow"><div class="lbrank">'+(i+1)+'</div><div class="lbname">'+esc(shortStore(s))+'</div><div class="lbamt">'+money0(storeTot[s])+'</div></div>').join('');
-  const standings=stores.length>1?('<div class="card acc-blue"><div class="card-hd"><span class="card-t">Store standings</span></div><div class="card-bd">'+ss+'</div></div>'):'';
-  $('#view-board').innerHTML=hero+bonus+board+standings;
+  const bonus=winner?('<div class="card acc-red"><div class="card-hd"><span class="card-t">Top performer bonus · '+esc(mi.label)+'</span></div><div class="card-bd">'
+    +'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
+    +'<div style="text-align:center;flex:none;padding-right:20px;border-right:1px solid var(--border)"><div style="font-family:Nunito;font-weight:900;font-size:2.2rem;color:var(--red);line-height:1">$50</div><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800;margin-top:2px">Monthly bonus</div></div>'
+    +'<div style="flex:1;min-width:240px"><div style="font-family:Nunito;font-weight:900;font-size:1.05rem">Highest attach rate wins — 20+ tickets</div>'
+    +'<div style="font-size:.82rem;color:var(--dark-grey);margin-top:3px;line-height:1.45">A rate, not a volume — <b>any tech at a slow or busy store can win it.</b> Current leader: <b style="color:var(--dark)">'+esc(winner.name.split(' ')[0])+'</b> at '+pct(winner.attach)+'.'+(meRow&&meRow.tickets>=20?' You’re at '+pct(meRow.attach)+'.':'')+'</div></div></div>'
+    +'<div style="margin-top:12px;font-size:.74rem;color:var(--grey);border-top:1px solid var(--border);padding-top:10px">A one-time bonus for this month — the owner can roll it forward or end it anytime in settings.</div></div></div>'):'';
+
+  // ---- store leaderboards (grouped, ranked by retail) ----
+  const byStore={};techs.forEach(t=>{(byStore[t.store]=byStore[t.store]||[]).push(t);});
+  const medalBg=i=>i===0?'#C9820B':i===1?'#9aa0ad':i===2?'#b07a43':'var(--light-grey)';
+  const medalTx=i=>i<3?'#fff':'var(--dark-grey)';
+  const storeCards=Object.keys(byStore).sort().map(s=>{const list=byStore[s].slice().sort((a,b)=>b.retail-a.retail);
+    const youHere=list.some(t=>t.id===meId);
+    const rows=list.map((t,i)=>'<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-top:1px solid var(--border);background:'+(t.id===meId?'#EAF6FD':'#fff')+'">'
+      +'<div style="width:22px;height:22px;border-radius:999px;background:'+medalBg(i)+';color:'+medalTx(i)+';display:flex;align-items:center;justify-content:center;font-family:Nunito;font-weight:900;font-size:.72rem;flex:none">'+(i+1)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.86rem;line-height:1.1">'+esc(t.name)+(t.id===meId?'<span style="font-weight:700;font-size:.62rem;color:var(--blue);margin-left:6px">YOU</span>':'')+'</div>'
+      +'<div style="font-size:.66rem;color:var(--grey);font-weight:700">'+pct(t.attach)+' attach · '+t.deviceUnits+' dev · '+t.svcCount+' svc</div></div>'
+      +'<div style="font-family:Nunito;font-weight:900;font-size:.9rem;color:var(--green);flex:none">'+money0(t.retail)+'</div></div>').join('');
+    return '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden"><div style="padding:10px 13px;background:var(--light-grey);display:flex;align-items:center;justify-content:space-between;gap:8px">'
+      +'<span style="font-family:Nunito;font-weight:900;font-size:.9rem">'+esc(shortStore(s))+'</span>'+(youHere?'<span style="font-size:.58rem;font-weight:800;color:var(--blue);letter-spacing:.4px">YOUR STORE</span>':'')+'</div>'+rows+'</div>';}).join('');
+  const storeBoards='<div class="card acc-dark"><div class="card-hd"><span class="card-t">Store leaderboards</span></div><div class="card-bd">'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px">'+storeCards+'</div>'
+    +'<div style="font-size:.72rem;color:var(--grey);margin-top:10px">Each store’s techs ranked by total retail sales (accessories + devices).</div></div></div>';
+
+  // ---- units by category (this store), column leaders green ----
+  const myStore=me.home_store, mates=techs.filter(t=>t.store===myStore).sort((a,b)=>(b.tot.AccyUnits||0)-(a.tot.AccyUnits||0));
+  const svcSkus=Object.keys(STATE.rateLabels);
+  const colMax={};CAT_ORDER.forEach(k=>colMax[k]=Math.max(0,...mates.map(t=>t.tot.categories[k]||0)));
+  const svcMax={};svcSkus.forEach(k=>svcMax[k]=Math.max(0,...mates.map(t=>t.tot.services[k]||0)));
+  const cell=(v,isMax,w)=>'<span style="width:'+w+'px;text-align:right;flex:none;font-family:Nunito;font-weight:'+(isMax&&v>0?'900':'700')+';font-size:.86rem;color:'+(isMax&&v>0?'var(--green)':'var(--dark)')+'">'+v+'</span>';
+  const catHead='<div style="display:flex;align-items:center;gap:8px;padding:0 4px 8px;font-family:Nunito;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);border-bottom:1px solid var(--border)">'
+    +'<span style="flex:1;min-width:110px">Employee</span>'+CAT_ORDER.map(k=>'<span style="width:52px;text-align:right;flex:none">'+esc(k.split(' ')[0])+'</span>').join('')+'<span style="width:52px;text-align:right;flex:none">Total</span>'
+    +svcSkus.map(k=>'<span style="width:60px;text-align:right;flex:none">'+esc((STATE.rateLabels[k]||k).split(' ')[0])+'</span>').join('')+'</div>';
+  const catRows=mates.map(t=>{const tot=CAT_ORDER.reduce((a,k)=>a+(t.tot.categories[k]||0),0);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 4px;border-radius:8px;background:'+(t.id===meId?'#EAF6FD':'#fff')+'">'
+      +'<span style="flex:1;min-width:110px;font-family:Nunito;font-weight:800;font-size:.88rem">'+esc(t.name)+(t.id===meId?'<span style="font-weight:700;font-size:.66rem;color:var(--blue);margin-left:6px">YOU</span>':'')+'</span>'
+      +CAT_ORDER.map(k=>cell(t.tot.categories[k]||0,(t.tot.categories[k]||0)===colMax[k],52)).join('')
+      +'<span style="width:52px;text-align:right;flex:none;font-family:Nunito;font-weight:900;font-size:.9rem">'+tot+'</span>'
+      +svcSkus.map(k=>cell(t.tot.services[k]||0,(t.tot.services[k]||0)===svcMax[k],60)).join('')+'</div>';}).join('');
+  const catTable=mates.length?('<div class="card acc-green"><div class="card-hd"><span class="card-t">Units by category · '+esc(shortStore(myStore))+'</span></div><div class="card-bd"><div style="overflow-x:auto"><div style="min-width:'+(220+CAT_ORDER.length*52+52+svcSkus.length*60)+'px">'+catHead+catRows
+    +'<div style="font-size:.72rem;color:var(--grey);margin-top:8px">Green = column leader · sorted by total accessory units.</div></div></div></div></div>'):'';
+
+  // ---- store standings tiles ----
+  const stores={};techs.forEach(t=>{const s=(stores[t.store]=stores[t.store]||{accy:0,dev:0,svc:0,units:0,tickets:0,top:null});
+    s.accy+=t.accySales;s.dev+=t.deviceRev;s.svc+=t.c.repairComm;s.units+=t.tot.AccyUnits||0;s.tickets+=t.tickets;if(!s.top||t.retail>s.top.retail)s.top=t;});
+  const storeRank=Object.keys(stores).sort((a,b)=>stores[b].accy-stores[a].accy);
+  const tiles=storeRank.map((s,i)=>{const d=stores[s];const att=d.tickets>0?d.units/d.tickets:0;const you=s===myStore;
+    return '<div style="border:1px solid '+(you?'#CDEAF8':'var(--border)')+';background:'+(you?'#F5FBFE':'#fff')+';border-radius:12px;padding:14px 15px;display:flex;flex-direction:column;gap:10px">'
+      +'<div style="display:flex;align-items:center;gap:9px"><div style="width:26px;height:26px;border-radius:999px;background:'+medalBg(i)+';color:'+medalTx(i)+';display:flex;align-items:center;justify-content:center;font-family:Nunito;font-weight:900;font-size:.85rem;flex:none">'+(i+1)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.92rem;line-height:1.1">'+esc(shortStore(s))+'</div>'+(you?'<div style="font-size:.62rem;font-weight:800;color:var(--blue);letter-spacing:.4px">YOUR STORE</div>':'')+'</div></div>'
+      +'<div><div style="font-family:Nunito;font-weight:900;font-size:1.35rem;line-height:1.05">'+money0(d.accy)+'</div><div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--blue);font-weight:800">Accessory sales</div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 12px;border-top:1px solid var(--border);padding-top:9px">'
+        +'<div style="display:flex;justify-content:space-between"><span style="font-size:.72rem;color:var(--dark-grey)">Dev $</span><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:var(--red)">'+money0(d.dev)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between"><span style="font-size:.72rem;color:var(--dark-grey)">Svc</span><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:var(--green)">'+money0(d.svc)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between"><span style="font-size:.72rem;color:var(--dark-grey)">Attach</span><span style="font-family:Nunito;font-weight:800;font-size:.78rem">'+pct(att)+'</span></div></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:8px"><span style="font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);font-weight:800">Top tech</span><span style="font-family:Nunito;font-weight:800;font-size:.82rem">'+esc(d.top?d.top.name.split(' ')[0]:'—')+'</span></div></div>';}).join('');
+  const standings=storeRank.length>1?('<div class="card acc-blue"><div class="card-hd"><span class="card-t">Store standings</span></div><div class="card-bd"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">'+tiles+'</div>'
+    +'<div style="font-size:.72rem;color:var(--grey);margin-top:10px">Comparing accessory $, device $, and services across stores.</div></div></div>'):'';
+
+  $('#view-board').innerHTML=hero+bonus+storeBoards+catTable+standings;
 }
 
 /* ---- view-as (managers) ---- */
