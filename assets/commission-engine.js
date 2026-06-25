@@ -13,9 +13,7 @@
   'use strict';
 
   // Per-store commission rule defaults. A store with no override inherits these.
-  // Set accyGate to 0 to disable the minimum-attach gate.
   var ruleDefaults = {
-    accyGate: 0,        // minimum attach to qualify for ANY accessory % (0 = off)
     accyAttach1: 0.25,  // attach gate for tier 1
     accyPct1: 0.10,     // tier 1 reward
     accyGoalPct: 0.05,  // reward for hitting accessory $ goal
@@ -23,7 +21,8 @@
     accyPct2: 0.05,     // tier 2 reward
     dev1Count: 5,       // devices for the base device tier
     dev1Pct: 0.05,
-    devAttachPct: 0.05, // reward for 100% accessory attach on device tickets
+    devAttachReq: 1,    // accessory-attach fraction required for the device-attach bonus (1 = 100%)
+    devAttachPct: 0.05, // reward for meeting the accessory-attach requirement on device tickets
     dev2Min: 20,        // 20–24 device band
     dev2Max: 24,
     dev2Pct: 0.05,
@@ -69,17 +68,16 @@
     // ----- Accessories -----
     var attach = t.Tickets > 0 ? t.AccyUnits / t.Tickets : 0;
     var netAccy = t.NetAccySales || 0, accyGP = t.AccyGP || 0;
-    var gated = (R.accyGate > 0 && attach < R.accyGate);            // hard minimum-attach gate
     var t25 = attach >= R.accyAttach1 ? R.accyPct1 : 0;
-    var goal = (cfg.accessoryGoal > 0 && netAccy >= cfg.accessoryGoal) ? R.accyGoalPct : 0;
+    var goal = (cfg.accessoryGoal > 0 && netAccy >= cfg.accessoryGoal) ? R.accyGoalPct : 0;  // pays at any attach
     var t50 = attach >= R.accyAttach2 ? R.accyPct2 : 0;
-    var accyComm = gated ? 0 : (t25 + goal + t50) * accyGP;
+    var accyComm = (t25 + goal + t50) * accyGP;
 
     // ----- Devices (net of returns) -----
     var netDev = (t.DeviceUnits || 0) - (t.DeviceReturns || 0);
     var dev5 = netDev >= R.dev1Count ? R.dev1Pct : 0;
     var entered = !(cfg.accDeviceUnits === '' || cfg.accDeviceUnits === null || cfg.accDeviceUnits === undefined);
-    var attachMet = entered ? (netDev > 0 && (Number(cfg.accDeviceUnits) / netDev) >= 1) : true;
+    var attachMet = entered ? (netDev > 0 && (Number(cfg.accDeviceUnits) / netDev) >= R.devAttachReq) : true;
     var devAttach = attachMet ? R.devAttachPct : 0;
     var dev2024 = (netDev >= R.dev2Min && netDev <= R.dev2Max && devAttach > 0) ? R.dev2Pct : 0;
     var dev25 = (netDev >= R.dev3Count && dev5 > 0) ? R.dev3Pct : 0;
@@ -94,15 +92,23 @@
       repairComm += pay; svcUnits += cnt;
     }
 
-    var exempt = (cfg.active === false);
+    // Per-stream eligibility. cfg.earns {accessory,device,services} (role-derived,
+    // with per-person overrides) wins when present; else fall back to the legacy
+    // cfg.active flag (active:false = services only).
+    var earns = cfg.earns || null;
+    var earnAcc = earns ? !!earns.accessory : (cfg.active !== false);
+    var earnDev = earns ? !!earns.device   : (cfg.active !== false);
+    var earnSvc = earns ? !!earns.services : true;
+    var exempt = !earnAcc && !earnDev;   // no accessory/device % (lead-style)
     return {
-      attach: attach, netAccy: netAccy, accyGP: accyGP, assumed: !entered, gated: gated, rules: R,
+      attach: attach, netAccy: netAccy, accyGP: accyGP, assumed: !entered, rules: R,
       netDev: netDev, svcUnits: svcUnits, svc: svc,
       tiers: { t25: t25, goal: goal, t50: t50, dev5: dev5, devAttach: devAttach, dev2024: dev2024, dev25: dev25 },
-      accyComm: exempt ? 0 : accyComm,
-      devComm: exempt ? 0 : devComm,
-      repairComm: repairComm, exempt: exempt,
-      total: (exempt ? 0 : accyComm) + (exempt ? 0 : devComm) + repairComm
+      earns: { accessory: earnAcc, device: earnDev, services: earnSvc },
+      accyComm: earnAcc ? accyComm : 0,
+      devComm: earnDev ? devComm : 0,
+      repairComm: earnSvc ? repairComm : 0, exempt: exempt,
+      total: (earnAcc ? accyComm : 0) + (earnDev ? devComm : 0) + (earnSvc ? repairComm : 0)
     };
   }
 
@@ -126,6 +132,15 @@
   function money(n) { return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function pct(n) { return (Number(n) * 100).toFixed(1) + '%'; }
 
+  // Merge a role's earning defaults with a per-person override into the {accessory,
+  // device, services} flags that computeCommission expects. An override key that is
+  // null/undefined inherits the role; an explicit true/false wins.
+  function resolveEarns(roleEarns, override) {
+    roleEarns = roleEarns || {}; override = override || {};
+    function pick(k) { return (override[k] === true || override[k] === false) ? override[k] : !!roleEarns[k]; }
+    return { accessory: pick('accessory'), device: pick('device'), services: pick('services') };
+  }
+
   var API = {
     ruleDefaults: ruleDefaults,
     rateDefaults: rateDefaults,
@@ -134,6 +149,7 @@
     computeCommission: computeCommission,
     splitCharge: splitCharge,
     serviceCounts: serviceCounts,
+    resolveEarns: resolveEarns,
     money: money,
     pct: pct
   };

@@ -161,18 +161,28 @@ function allowedStores(all,me){
 }
 
 /* ---- config (rates / rules / roster + staff) ---- */
+const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
+const normRole=r=>ROLE_ALIAS[r]||r;
 async function loadConfig(){
-  const [rt,rl,rs,st]=await Promise.all([
+  const [rt,rl,rs,st,rr,pm,rp]=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
-    sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores')
+    sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores'),
+    sb.from('roles').select('id,key'),
+    sb.from('permissions').select('id,key').like('key','commission.earn.%'),
+    sb.from('role_permissions').select('role_id,permission_id')
   ]);
   STATE.rates={};STATE.rateLabels={};
   (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=Number(r.amount)||0;STATE.rateLabels[r.sku]=r.label||r.sku;});
   STATE.rules={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};});
   STATE.staffById={};(st.data||[]).forEach(s=>{STATE.staffById[s.id]=s;});
   STATE.rosterById={};(rs.data||[]).forEach(r=>{STATE.rosterById[r.staff_id]=r;});
+  // role -> {accessory,device,services} earning eligibility (from role_permissions)
+  const roleKeyById={};(rr.data||[]).forEach(r=>{roleKeyById[r.id]=r.key;});
+  const permStream={};(pm.data||[]).forEach(p=>{permStream[p.id]=p.key.split('.').pop();});
+  STATE.roleEarns={};(rr.data||[]).forEach(r=>{STATE.roleEarns[r.key]={accessory:false,device:false,services:false};});
+  (rp.data||[]).forEach(x=>{const rk=roleKeyById[x.role_id],s=permStream[x.permission_id];if(rk&&s&&STATE.roleEarns[rk])STATE.roleEarns[rk][s]=true;});
   // store universe = stores staff belong to (DB-normalized names, e.g. "CPR Clackamas").
   const sset={};(st.data||[]).forEach(s=>{if(s.home_store)sset[s.home_store]=1;(s.authorized_stores||[]).forEach(x=>{if(x)sset[x]=1;});});
   let allStores=Object.keys(sset);
@@ -211,10 +221,15 @@ async function runReport(){
     const e=byEmp[k];const ros=e.staff_id!=null?STATE.rosterById[e.staff_id]:null;
     const sf=e.staff_id!=null?STATE.staffById[e.staff_id]:null;
     const home=e.home||[...e.stores][0]||null;
-    // "In roster" = linked to an active team member. A commission_roster row only
-    // customizes goal/exempt; active staff are in the roster by default.
+    // earning eligibility: role defaults (via ROLE_ALIAS) merged with per-person override.
+    // Unknown role falls back to earning everything so we never silently zero a payout.
+    const roleKey=sf?normRole(sf.role):null;
+    const roleE=(roleKey&&STATE.roleEarns[roleKey])?STATE.roleEarns[roleKey]:{accessory:true,device:true,services:true};
+    const earns=E.resolveEarns(roleE, ros&&ros.earns_override);
+    // "In roster" = linked to an active team member; a commission_roster row only
+    // customizes goal/earnings. Active staff are in the roster by default.
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
-      active:ros?ros.commission_active!==false:true, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
+      earns:earns, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
   });
   const pk=start+'|'+end;STATE.manual={};
   const mn=await sb.from('commission_manual').select('*').eq('period_key',pk);
@@ -227,7 +242,7 @@ async function runReport(){
 function calc(r){
   return E.computeCommission(r.totals,{accessoryGoal:r.goal,
     accDeviceUnits:(STATE.manual[r.name]!=null?STATE.manual[r.name]:''),
-    rates:STATE.rates,active:r.active,rules:E.rulesFor(STATE.rules,r.store)});
+    rates:STATE.rates,earns:r.earns,rules:E.rulesFor(STATE.rules,r.store)});
 }
 function inScope(){const all=STATE.store==='all';return STATE.report.filter(r=>all||r.store===STATE.store||r.stores.indexOf(STATE.store)>=0)
   .slice().sort((a,b)=>a.name<b.name?-1:1);}
@@ -286,11 +301,9 @@ function renderCommissions(){
         {label:'Commission',value:'exempt — lead',color:'var(--grey)'}]},
         {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
     }else{
-      const gate=[];if(R2.accyGate>0)gate.push({label:'Min-attach gate ('+pct(R2.accyGate)+')',value:c.gated?'below — accessory $0':'cleared',color:c.gated?'var(--grey)':'var(--green)'});
       groups=[
         {title:'Accessory',rows:[
           {label:'Attach rate',value:t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach),color:'var(--dark-grey)'},
-          ...gate,
           {label:'Net accessory $ (goal '+money(r.goal)+')',value:money(c.netAccy),color:'var(--dark-grey)'},
           {label:'Accessory GP',value:money(c.accyGP),color:'var(--dark-grey)'},
           {label:pct(R2.accyAttach1)+' attach (+'+pct(R2.accyPct1)+')',value:tt(c.tiers.t25),color:tc(c.tiers.t25)},
@@ -300,14 +313,14 @@ function renderCommissions(){
           {label:'Devices',value:t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' = '+c.netDev+' net':''),color:'var(--dark-grey)'},
           {label:'Device GP',value:money(t.DeviceGP),color:'var(--dark-grey)'},
           {label:R2.dev1Count+'+ devices (+'+pct(R2.dev1Pct)+')',value:tt(c.tiers.dev5),color:tc(c.tiers.dev5)},
-          {label:'100% attach (+'+pct(R2.devAttachPct)+')',value:c.tiers.devAttach>0?(c.assumed?'+'+pct(R2.devAttachPct)+' (assumed)':'+'+pct(R2.devAttachPct)):'—',color:tc(c.tiers.devAttach)},
+          {label:pct(R2.devAttachReq)+' attach (+'+pct(R2.devAttachPct)+')',value:c.tiers.devAttach>0?(c.assumed?'+'+pct(R2.devAttachPct)+' (assumed)':'+'+pct(R2.devAttachPct)):'—',color:tc(c.tiers.devAttach)},
           {label:R2.dev2Min+'–'+R2.dev2Max+' devices (+'+pct(R2.dev2Pct)+')',value:tt(c.tiers.dev2024),color:tc(c.tiers.dev2024)},
           {label:R2.dev3Count+'+ devices (+'+pct(R2.dev3Pct)+')',value:tt(c.tiers.dev25),color:tc(c.tiers.dev25)}]},
         {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
     }
     const charge=multi?E.splitCharge(r.byStore,c,STATE.rates).map(p=>({store:p.store,amt:money(p.amt)})):[];
     const detail=open?('<div class="det">'
-      +(r.active!==false?('<div class="manual"><span style="font-family:Nunito;font-weight:700;font-size:.78rem;color:var(--dark-grey)">Accessories on device tickets</span>'
+      +(r.earns&&r.earns.device?('<div class="manual"><span style="font-family:Nunito;font-weight:700;font-size:.78rem;color:var(--dark-grey)">Accessories on device tickets</span>'
         +'<input type="number" placeholder="assumed met" value="'+(STATE.manual[r.name]!=null?STATE.manual[r.name]:'')+'" data-manual="'+esc(r.name)+'" style="width:110px;text-align:right">'
         +'<span style="font-size:.78rem;color:var(--grey)">of '+c.netDev+' net devices</span></div>'):'')
       +'<div class="detgrid">'+groups.map(g=>'<div><div class="detg-t">'+esc(g.title)+'</div>'
@@ -374,13 +387,13 @@ async function saveTips(store){
 /* ---- payroll print ---- */
 function downloadPayroll(rows){
   const byHome={};let grand=0;
-  rows.forEach(r=>{const c=calc(r);grand+=c.total;(byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,active:r.active,c});});
+  rows.forEach(r=>{const c=calc(r);grand+=c.total;(byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,lead:!(r.earns&&(r.earns.accessory||r.earns.device)),c});});
   const w=window.open('','_blank');if(!w){toast('Allow pop-ups to download',true);return;}
   let body='';
   Object.keys(byHome).sort().forEach(home=>{let sub=0;
     body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Total</th></tr></thead><tbody>';
     byHome[home].slice().sort((a,b)=>a.emp<b.emp?-1:1).forEach(x=>{sub+=x.c.total;
-      body+='<tr><td>'+esc(x.emp)+(x.active?'':' (lead)')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r"><b>'+money(x.c.total)+'</b></td></tr>';});
+      body+='<tr><td>'+esc(x.emp)+(x.lead?' (lead)':'')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r"><b>'+money(x.c.total)+'</b></td></tr>';});
     body+='<tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r">'+money(sub)+'</td></tr></tbody></table>';});
   const css='<style>body{font-family:Arial,sans-serif;color:#1a1a1a;margin:32px}h1{font-size:20px;margin:0 0 2px;color:#DC282E}h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #DC282E;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f2f2}td.r,th.r{text-align:right}tr.sub td{font-weight:bold;background:#faf7f7}.grand{font-size:14px;font-weight:bold;margin-top:10px}@media print{body{margin:12mm}}</style>';
   w.document.write('<html><head><title>Payroll summary '+esc(STATE.start)+' to '+esc(STATE.end)+'</title>'+css+'</head><body><h1>Commission payroll summary</h1><div style="color:#555;font-size:12px;margin-bottom:6px">'+esc(STATE.start)+' → '+esc(STATE.end)+'</div>'+body+'<div class="grand">Grand total: '+money(grand)+'</div></body></html>');

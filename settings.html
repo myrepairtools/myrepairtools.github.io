@@ -151,6 +151,17 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .f+.f,.row+.row{margin-top:12px}
 .grid2 .f{margin-top:0}  /* grid gap handles spacing; don't let .f+.f offset the right column */
+.commgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;align-items:start}
+.commtier{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:2px 16px 14px}
+.commtier-hd{padding:12px 0 10px;border-bottom:1px solid var(--border)}
+.commtier-cols{display:flex;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding:9px 0 2px}
+.commtier-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.commtier-row .when{flex:1;min-width:0;font-size:.84rem;font-weight:600;color:var(--dark-grey);line-height:1.9}
+.commtier-row .earn{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;color:var(--dark);white-space:nowrap;line-height:1.9}
+.commtier-row .sub{font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px}
+.crin{width:50px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px}
+.crpct{font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);margin-left:2px}
+.commtier-max{margin-top:11px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);background:var(--light-grey);border-radius:8px;padding:8px 11px;text-align:right}
 .authwrap{display:flex;flex-wrap:wrap;gap:7px}
 .authpill{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.76rem;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
 .authpill.on{font-weight:800;border-color:var(--blue);background:#EAF6FD;color:#1E7AA8}
@@ -318,8 +329,8 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <div class="sect-h" style="margin-top:22px">Commission rules
       <select id="cruleStore" style="width:auto;min-width:200px"></select>
     </div>
-    <div class="note">Per store. Someone who works multiple stores is scored on their <b>home store's</b> rules. Set the min-attach gate to 0% to turn it off.</div>
-    <div class="card" style="padding:4px 16px 14px" id="cruleCard"></div>
+    <div class="note">Per store. Someone who works multiple stores is scored on their <b>home store's</b> rules. Rewards stack — the footer shows the max if every tier is met.</div>
+    <div id="cruleCard"></div>
     <div class="bar"><button class="btn alt sm" id="resetRules">Reset to defaults</button><span class="spacer"></span><button class="btn" id="saveRules">Save rules</button></div>
 
     <div class="note" style="margin-top:20px">Per-person <b>accessory goals</b>, <b>commission role</b>, and <b>exempt</b> status live on each person’s profile — open <b>Team Members → Edit</b>.</div>
@@ -546,7 +557,7 @@ async function loadCommission(){
   ]);
   CRATES=res[0].error?[]:(res[0].data||[]).map(function(r){return {sku:r.sku,label:r.label||'',amount:Number(r.amount)||0};});
   CRULES={};(res[1].error?[]:(res[1].data||[])).forEach(function(r){CRULES[r.store]=r.rules||{};});
-  CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,commission_active:r.commission_active!==false,commission_role:r.commission_role||'',override:r.override||null};});
+  CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,earns_override:r.earns_override||null};});
   if(!CRULESTORE){var act=STORES.filter(function(s){return s.active!==false;});CRULESTORE=(act[0]&&act[0].store)||(STORES[0]&&STORES[0].store)||null;}
 }
 function renderCommission(){
@@ -564,19 +575,29 @@ function renderCommission(){
   /* --- rules --- */
   $('#cruleStore').innerHTML=STORES.filter(function(s){return s.active!==false;}).map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===CRULESTORE?' selected':'')+'>'+esc(shortStore(s.store))+'</option>';}).join('');
   var R=(window.CommissionEngine?CommissionEngine.rulesFor(CRULES,CRULESTORE):{});
-  var pf=function(k,l){return {k:k,l:l,v:Math.round((R[k]||0)*100),u:'%'};};
-  var nf=function(k,l){return {k:k,l:l,v:R[k]||0,u:''};};
-  var secs=[
-    {t:'Accessories — % of accessory GP',rows:[pf('accyGate','Minimum attach to qualify'),pf('accyAttach1','Tier 1 — attach gate'),pf('accyPct1','Tier 1 — reward'),pf('accyGoalPct','Hit accessory $ goal — reward'),pf('accyAttach2','Tier 2 — attach gate'),pf('accyPct2','Tier 2 — reward')]},
-    {t:'Devices — % of device GP',rows:[nf('dev1Count','Tier 1 — min devices'),pf('dev1Pct','Tier 1 — reward'),pf('devAttachPct','100% device attach — reward'),nf('dev2Min','Tier 2 — band min'),nf('dev2Max','Tier 2 — band max'),pf('dev2Pct','Tier 2 — reward'),nf('dev3Count','Tier 3 — min devices'),pf('dev3Pct','Tier 3 — reward')]}
-  ];
-  $('#cruleCard').innerHTML=secs.map(function(s){return '<div style="font-family:Nunito;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.7px;color:var(--blue);margin:14px 0 4px;padding-bottom:5px;border-bottom:1px solid var(--border)">'+esc(s.t)+'</div>'
-    +s.rows.map(function(r){return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.86rem;font-weight:600;color:var(--dark-grey)">'+esc(r.l)+'</span>'
-      +'<div style="display:flex;align-items:center;gap:4px"><input type="number" value="'+r.v+'" data-crule="'+r.k+'" data-unit="'+r.u+'" style="width:64px;text-align:center;font-family:Nunito;font-weight:800"><span style="font-family:Nunito;font-weight:800;color:var(--grey);width:14px">'+r.u+'</span></div></div>';}).join('');}).join('');
-  $all('[data-crule]').forEach(function(inp){inp.onchange=function(){
-    var key=inp.getAttribute('data-crule'),unit=inp.getAttribute('data-unit');
-    var v=unit==='%'?((+inp.value||0)/100):(+inp.value||0);
-    if(!CRULES[CRULESTORE])CRULES[CRULESTORE]={};CRULES[CRULESTORE][key]=v;};});
+  var inp=function(key,unit){var v=unit==='%'?Math.round((R[key]||0)*100):(R[key]||0);
+    return '<input type="number" data-crule="'+key+'" data-unit="'+unit+'" value="'+v+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
+  var row=function(when,earn,sub){return '<div class="commtier-row"><div class="when">'+when+(sub?'<div class="sub">'+sub+'</div>':'')+'</div><div class="earn">'+earn+'</div></div>';};
+  var maxPct=function(){var a=[].slice.call(arguments).reduce(function(s,k){return s+(R[k]||0);},0);return Math.round(a*100)+'%';};
+  var hd=function(title,sub){return '<div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">'+title+'</div><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">'+sub+'</div></div>'
+    +'<div class="commtier-cols"><span>When a tech…</span><span>They earn</span></div>';};
+  var accCard='<div class="commtier" style="border-top:3px solid var(--blue)">'+hd('Accessories','Paid on accessory gross profit')
+    +row('Attach rate reaches '+inp('accyAttach1','%')+' on their tickets','earn '+inp('accyPct1','%'))
+    +row('Hits their accessory $ goal','earn '+inp('accyGoalPct','%'),'Pays regardless of attach rate.')
+    +row('Attach rate reaches '+inp('accyAttach2','%')+' (stretch)','earn '+inp('accyPct2','%'))
+    +'<div class="commtier-max">Max if every tier is met: '+maxPct('accyPct1','accyGoalPct','accyPct2')+'</div></div>';
+  var devCard='<div class="commtier" style="border-top:3px solid var(--dark)">'+hd('Devices','Paid on device gross profit · net of returns')
+    +row('Sells '+inp('dev1Count','')+'+ net devices','earn '+inp('dev1Pct','%'))
+    +row('Reaches '+inp('devAttachReq','%')+' accessory attach on device tickets','earn '+inp('devAttachPct','%'))
+    +row('Sells '+inp('dev2Min','')+'–'+inp('dev2Max','')+' net devices, full attach','earn '+inp('dev2Pct','%'))
+    +row('Sells '+inp('dev3Count','')+'+ net devices','earn '+inp('dev3Pct','%'))
+    +'<div class="commtier-max">Max if every tier is met: '+maxPct('dev1Pct','devAttachPct','dev2Pct','dev3Pct')+'</div></div>';
+  $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+'</div>';
+  $all('[data-crule]').forEach(function(input){input.onchange=function(){
+    var key=input.getAttribute('data-crule'),unit=input.getAttribute('data-unit');
+    var v=unit==='%'?((+input.value||0)/100):(+input.value||0);
+    if(!CRULES[CRULESTORE])CRULES[CRULESTORE]={};CRULES[CRULESTORE][key]=v;
+    renderCommission(); /* refresh the live "max if every tier" footers */};});
 }
 async function saveRates(){
   var rows=CRATES.filter(function(r){return (r.sku||'').trim();}).map(function(r,i){return {sku:r.sku.trim(),label:r.label,amount:r.amount,sort:i+1};});
@@ -588,6 +609,7 @@ async function saveRates(){
   if(r.error)toast(r.error.message,true);else{toast('Payouts saved');await loadCommission();renderCommission();}
 }
 async function saveRules(){
+  if(CRULES[CRULESTORE])delete CRULES[CRULESTORE].accyGate; /* gate removed from the model */
   var r=await sb.from('commission_rules').upsert({store:CRULESTORE,rules:CRULES[CRULESTORE]||{}},{onConflict:'store'});
   if(r.error)toast(r.error.message,true);else toast('Rules saved');
 }
@@ -842,14 +864,24 @@ function openMember(id){
   if(!m)return;
   var ros=CROSTER[m.id]||{};
   MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:'',
-    comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),comm_role:ros.commission_role||'',comm_active:(ros.commission_active!==false)}};
+    comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{})}};
   renderModal();
 }
 function openAddMember(){
   var home=(activeStores()[0]||{}).store||'';
   MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin(),
-    comm_goal:0,comm_role:'',comm_active:true}};
+    comm_goal:0,earns_override:{}}};
   renderModal();
+}
+/* role -> {accessory,device,services} earning eligibility (from RBAC perms) */
+function commPermStreams(){var m={};RBPERMS.forEach(function(p){if(String(p.key).indexOf('commission.earn.')===0)m[p.id]=p.key.split('.').pop();});return m;}
+function roleEarnsFor(roleKey){
+  var rk=ROLE_ALIAS[roleKey]||roleKey;
+  var role=RBROLES.filter(function(r){return r.key===rk;})[0];
+  if(!role)return {accessory:true,device:true,services:true};
+  var pm=commPermStreams(),out={accessory:false,device:false,services:false};
+  RBROLEPERMS.forEach(function(x){if(x.role_id===role.id&&pm[x.permission_id])out[pm[x.permission_id]]=true;});
+  return out;
 }
 function memberModalHtml(){
   var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
@@ -884,11 +916,20 @@ function memberModalHtml(){
      +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px"><label>Commission</label>'
        +'<div class="grid2">'
          +'<div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div>'
-         +'<div class="f"><label>Commission role</label><select data-k="comm_role"><option value="">—</option>'
-           +['Tech','Manager','Bookkeeper'].map(function(o){return '<option'+(d.comm_role===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div>'
+         +'<div class="f"></div>'
        +'</div>'
-       +'<label style="display:flex;align-items:center;gap:9px;margin-top:11px;text-transform:none;letter-spacing:0;font-size:.84rem;font-weight:700;color:var(--dark);cursor:pointer">'
-         +'<input type="checkbox" data-commactive '+(d.comm_active!==false?'checked':'')+' style="width:17px;height:17px;cursor:pointer">Earns accessory &amp; device %</label>'
+       +'<label style="margin-top:12px">Earns (defaults from '+esc(roleLabel(d.role))+' role)</label>'
+       +[['accessory','Accessory %'],['device','Device %'],['services','Service payouts']].map(function(s){
+          var key=s[0],ov=d.earns_override||{},cur=(ov[key]===true?'yes':(ov[key]===false?'no':''));
+          var def=roleEarnsFor(d.role)[key]?'Yes':'No';
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">'
+            +'<span style="font-size:.86rem;font-weight:600;color:var(--dark-grey)">'+s[1]+'</span>'
+            +'<select data-earn="'+key+'" style="width:170px">'
+              +'<option value=""'+(cur===''?' selected':'')+'>Role default ('+def+')</option>'
+              +'<option value="yes"'+(cur==='yes'?' selected':'')+'>Yes</option>'
+              +'<option value="no"'+(cur==='no'?' selected':'')+'>No</option>'
+            +'</select></div>';
+        }).join('')
        +'</div>'
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
        +'<div class="h">'+pinHint+'</div>'
@@ -909,6 +950,7 @@ function wireMember(host){
       if(k==='active'){d.active=(v==='1');return;}
       d[k]=v;
       if(k==='home_store'){ if((d.authorized_stores||[]).indexOf(v)<0)d.authorized_stores.push(v); renderModal(); }
+      if(k==='role')renderModal(); /* refresh the 'defaults from <role>' earnings labels */
     };
   });
   host.querySelectorAll('[data-auth]').forEach(function(b){b.onclick=function(){
@@ -918,7 +960,9 @@ function wireMember(host){
     if(i>-1)d.authorized_stores.splice(i,1);else d.authorized_stores.push(s);
     renderModal();
   };});
-  var ca=host.querySelector('[data-commactive]');if(ca)ca.onchange=function(){d.comm_active=ca.checked;};
+  host.querySelectorAll('[data-earn]').forEach(function(sel){sel.onchange=function(){
+    var k=sel.getAttribute('data-earn'),v=sel.value;d.earns_override=d.earns_override||{};
+    if(v==='')delete d.earns_override[k];else d.earns_override[k]=(v==='yes');};});
   var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
   var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
   host.querySelector('[data-save]').onclick=saveMember;
@@ -944,7 +988,8 @@ async function saveMember(){
     // commission profile (goal / role / exempt) -> commission_roster, keyed to staff
     var sid=d.staff_id||(c&&c.data&&(c.data.staff_id||c.data.id||(c.data.staff&&c.data.staff.id)));
     if(sid){
-      var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,commission_active:d.comm_active!==false,commission_role:d.comm_role||null},{onConflict:'staff_id'});
+      var ov=(d.earns_override&&Object.keys(d.earns_override).length)?d.earns_override:null;
+      var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,earns_override:ov},{onConflict:'staff_id'});
       if(cr.error)toast('Saved, but commission settings failed: '+cr.error.message,true);
     }
     MOPEN=null; await loadStaff(); await loadCommission(); renderAll();
