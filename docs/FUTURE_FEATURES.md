@@ -32,3 +32,24 @@ plan) that temporarily replaces the normal commission setup to push performance.
   managed right where the rest of that person's commission config lives.
 - Auto-expiry handled purely by date range (no cron needed) since payouts are
   computed per period.
+
+## Category / custom goals + spiffs
+
+Let the owner set **per-category accessory goals** (Cases, Screen Protectors,
+Power, Misc, Other) — and goals on other values too — scoped at three levels:
+**store**, **role**, and **individual employee** (same layered model as the
+commission overrides: store ← role ← person).
+
+- Today the dashboard's "Sales by category — units vs target" derives targets by
+  spreading the accessory $ goal across the category mix. This feature makes those
+  targets **real and owner-set per category**, not derived.
+- Then: **attach commission or spiffs to a goal/value** — e.g. "$5 spiff per
+  screen protector over the monthly target," or "+1% accessory rate if you hit the
+  Cases goal." So goals aren't just motivational bars — clearing one can pay.
+- Ties into the **commission improvement plan** idea above (a plan could bundle a
+  set of category goals + their spiffs for a date range).
+- Storage: a `commission_category_goals` table (scope = store/role/staff, category,
+  target, optional spiff payout/rate, period or date range). The dashboard Goals
+  tab reads it for targets; the engine reads the spiff side when computing payout.
+- The Goals tab's "Monthly goal review / lock in next month's targets" modal is the
+  natural place for an employee/manager to set or accept these.
