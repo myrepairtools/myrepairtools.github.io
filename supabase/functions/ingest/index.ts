@@ -272,9 +272,11 @@ Deno.serve(async (req) => {
         if (!store || !employee || !biz_date) continue;        // skips the grand-total row
         const k = biz_date + "" + store + "" + employee;
         const a = agg[k] || (agg[k] = { biz_date, store, employee, staff_id: resolve(employee),
-          device_units: 0, device_returns: 0, device_net: 0, device_gp: 0, device_attach: 0, device_tickets: [] as string[] });
+          device_units: 0, device_net: 0, device_gp: 0, device_attach: 0, device_tickets: [] as string[] });
+        // device_returns / device_return_* are owned by the commission_device_return feed
+        // (disjoint columns), so a sales post and a returns post for the same daily row
+        // never clobber each other. The sales report is returns-free (filtered to sales).
         a.device_units   += num(pick(r, "Device Sale Count", "Device Sales", "Device Units"));
-        a.device_returns += num(pick(r, "Device Return Count", "Device Returns"));
         a.device_net     += money(pick(r, "Device Net Sale Price", "Device Net Sales", "Device Rev"));
         a.device_gp      += money(pick(r, "Device Gross Profit", "Device GP"));
         // Accessory Count is per TICKET ($0 giveaways already filtered out in Looker via
@@ -284,6 +286,39 @@ Deno.serve(async (req) => {
         if (id && a.device_tickets.indexOf(id) < 0) { a.device_tickets.push(id); a.device_attach += num(pick(r, "Accessory Count", "Accessories on Ticket", "Ticket Item All Sale Count")); }
       }
       const out = Object.values(agg);
+      if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
+      return J({ ok: true, feed, rows_written: out.length });
+    }
+
+    // ---------- COMMISSION: device RETURNS (clawback count/net/GP + returned attach) ----------
+    // Mirror of commission_device, filtered to returns. Lands in DISJOINT columns so a sales
+    // post and a returns post for the same (date, store, employee) never overwrite each other.
+    // Looker sends returns as: Return Count positive; Net Sale Price / Gross Profit negative.
+    // The engine nets these out downstream (count off netDev, GP off device GP, returned
+    // accessories off the attach numerator).
+    if (feed === "commission_device_return" || feed === "commission_device_returns") {
+      if (!rows.some((r) => ("Device Return Count" in r) || ("Accessories Returned" in r))) {
+        await admin.from("ingest_debug").insert({ feed: "reject:commission_device_return", payload: { reason: "no return columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a device-return report; refused" });
+      }
+      const resolve = await staffResolver();
+      const agg: Record<string, any> = {};
+      for (const r of rows) {
+        const store = norm(pick(r, "Location", "Store"));
+        const employee = pick(r, "Employee", "Sold By Full Name", "Full Name");
+        const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
+        if (!store || !employee || !biz_date) continue;
+        const k = biz_date + "" + store + "" + employee;
+        const a = agg[k] || (agg[k] = { biz_date, store, employee, staff_id: resolve(employee),
+          device_returns: 0, device_return_net: 0, device_return_gp: 0, device_attach_return: 0, _tix: [] as string[] });
+        a.device_returns    += num(pick(r, "Device Return Count", "Device Returns", "Return Count"));
+        a.device_return_net += money(pick(r, "Device Net Sale Price", "Device Return Net", "Device Net Sales"));
+        a.device_return_gp  += money(pick(r, "Device Gross Profit", "Device Return GP", "Device GP"));
+        // Accessories Returned is per ticket — count once per ticket (a 2-device return repeats it).
+        const id = pick(r, "Ticket Number", "ID", "Ticket ID", "Ticket", "Ticket #");
+        if (id && a._tix.indexOf(id) < 0) { a._tix.push(id); a.device_attach_return += num(pick(r, "Accessories Returned", "Accessory Return Count", "Accessory Count")); }
+      }
+      const out = Object.values(agg).map((a: any) => { const { _tix, ...rest } = a; return rest; });
       if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
       return J({ ok: true, feed, rows_written: out.length });
     }
