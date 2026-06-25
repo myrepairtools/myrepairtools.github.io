@@ -164,14 +164,15 @@ function allowedStores(all,me){
 const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
 const normRole=r=>ROLE_ALIAS[r]||r;
 async function loadConfig(){
-  const [rt,rl,rs,st,rr,pm,rp]=await Promise.all([
+  const [rt,rl,rs,st,rr,pm,rp,ro]=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
     sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores'),
     sb.from('roles').select('id,key'),
     sb.from('permissions').select('id,key').like('key','commission.earn.%'),
-    sb.from('role_permissions').select('role_id,permission_id')
+    sb.from('role_permissions').select('role_id,permission_id'),
+    sb.from('commission_role_overrides').select('*')
   ]);
   STATE.rates={};STATE.rateLabels={};
   (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=Number(r.amount)||0;STATE.rateLabels[r.sku]=r.label||r.sku;});
@@ -183,6 +184,8 @@ async function loadConfig(){
   const permStream={};(pm.data||[]).forEach(p=>{permStream[p.id]=p.key.split('.').pop();});
   STATE.roleEarns={};(rr.data||[]).forEach(r=>{STATE.roleEarns[r.key]={accessory:false,device:false,services:false};});
   (rp.data||[]).forEach(x=>{const rk=roleKeyById[x.role_id],s=permStream[x.permission_id];if(rk&&s&&STATE.roleEarns[rk])STATE.roleEarns[rk][s]=true;});
+  // role-level rule/rate overrides (Store -> Role -> Person layering)
+  STATE.roleOver={};(ro.data||[]).forEach(x=>{const rk=roleKeyById[x.role_id];if(rk)STATE.roleOver[rk]={rules:x.rules||{},rates:x.rates||{}};});
   // store universe = stores staff belong to (DB-normalized names, e.g. "CPR Clackamas").
   const sset={};(st.data||[]).forEach(s=>{if(s.home_store)sset[s.home_store]=1;(s.authorized_stores||[]).forEach(x=>{if(x)sset[x]=1;});});
   let allStores=Object.keys(sset);
@@ -226,10 +229,14 @@ async function runReport(){
     const roleKey=sf?normRole(sf.role):null;
     const roleE=(roleKey&&STATE.roleEarns[roleKey])?STATE.roleEarns[roleKey]:{accessory:true,device:true,services:true};
     const earns=E.resolveEarns(roleE, ros&&ros.earns_override);
+    // layered effective rules & rates: Store(home) -> Role -> Person
+    const roleOver=roleKey?STATE.roleOver[roleKey]:null;
+    const rules=E.mergeRules(STATE.rules[home], roleOver&&roleOver.rules, ros&&ros.rules_override);
+    const rates=E.mergeRates(STATE.rates, roleOver&&roleOver.rates, ros&&ros.rates_override);
     // "In roster" = linked to an active team member; a commission_roster row only
-    // customizes goal/earnings. Active staff are in the roster by default.
+    // customizes goal/earnings/rules. Active staff are in the roster by default.
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
-      earns:earns, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
+      earns:earns, rules:rules, rates:rates, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
   });
   const pk=start+'|'+end;STATE.manual={};
   const mn=await sb.from('commission_manual').select('*').eq('period_key',pk);
@@ -242,7 +249,7 @@ async function runReport(){
 function calc(r){
   return E.computeCommission(r.totals,{accessoryGoal:r.goal,
     accDeviceUnits:(STATE.manual[r.name]!=null?STATE.manual[r.name]:''),
-    rates:STATE.rates,earns:r.earns,rules:E.rulesFor(STATE.rules,r.store)});
+    rates:r.rates,earns:r.earns,rules:r.rules});
 }
 function inScope(){const all=STATE.store==='all';return STATE.report.filter(r=>all||r.store===STATE.store||r.stores.indexOf(STATE.store)>=0)
   .slice().sort((a,b)=>a.name<b.name?-1:1);}
@@ -267,7 +274,7 @@ function renderSummary(){
   const all=STATE.store==='all',rows=inScope();let grand=0;
   const body=rows.map(r=>{const c=calc(r);grand+=c.total;
     const multi=r.stores.length>1;
-    const split=multi?E.splitCharge(r.byStore,c,STATE.rates).map(p=>shortStore(p.store)+' '+money(p.amt)).join(' · '):'';
+    const split=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>shortStore(p.store)+' '+money(p.amt)).join(' · '):'';
     return '<tr><td class="nm">'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠ not in roster</span>')+'</td>'
       +'<td class="r split">'+esc(split)+'</td>'
       +'<td class="r gt">'+money(c.total)+'</td></tr>';}).join('');
@@ -318,7 +325,7 @@ function renderCommissions(){
           {label:R2.dev3Count+'+ devices (+'+pct(R2.dev3Pct)+')',value:tt(c.tiers.dev25),color:tc(c.tiers.dev25)}]},
         {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
     }
-    const charge=multi?E.splitCharge(r.byStore,c,STATE.rates).map(p=>({store:p.store,amt:money(p.amt)})):[];
+    const charge=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>({store:p.store,amt:money(p.amt)})):[];
     const detail=open?('<div class="det">'
       +(r.earns&&r.earns.device?('<div class="manual"><span style="font-family:Nunito;font-weight:700;font-size:.78rem;color:var(--dark-grey)">Accessories on device tickets</span>'
         +'<input type="number" placeholder="assumed met" value="'+(STATE.manual[r.name]!=null?STATE.manual[r.name]:'')+'" data-manual="'+esc(r.name)+'" style="width:110px;text-align:right">'

@@ -44,6 +44,19 @@
     return r;
   }
 
+  // Layered rule resolution: ruleDefaults <- partial overrides (store, role, person),
+  // later layers win, per field. Pass partials in precedence order (least -> most).
+  function mergeRules() {
+    var out = {}; for (var k in ruleDefaults) out[k] = ruleDefaults[k];
+    for (var i = 0; i < arguments.length; i++) { var o = arguments[i]; if (o) for (var key in o) if (o[key] != null) out[key] = o[key]; }
+    return out;
+  }
+  // Layered service-rate resolution: base rates <- partial $ overrides (store/role/person).
+  function mergeRates() {
+    var out = {}; for (var i = 0; i < arguments.length; i++) { var o = arguments[i]; if (o) for (var k in o) if (o[k] != null && o[k] !== '') out[k] = Number(o[k]) || 0; }
+    return out;
+  }
+
   // Pull per-service counts off a totals row. Supports either an explicit
   // services map (t.services = {sku:count}) or the legacy fixed fields.
   function serviceCounts(t) {
@@ -146,6 +159,8 @@
     rateDefaults: rateDefaults,
     serviceLabels: serviceLabels,
     rulesFor: rulesFor,
+    mergeRules: mergeRules,
+    mergeRates: mergeRates,
     computeCommission: computeCommission,
     splitCharge: splitCharge,
     serviceCounts: serviceCounts,
