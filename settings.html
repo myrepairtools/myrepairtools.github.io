@@ -327,11 +327,12 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     </div>
 
     <div class="sect-h" style="margin-top:22px">Commission rules
-      <select id="cruleStore" style="width:auto;min-width:200px"></select>
+      <span class="seg" id="cruleScope"><button data-sc="store" class="on">By store</button><button data-sc="role">By role</button></span>
+      <select id="cruleSel" style="width:auto;min-width:170px"></select>
     </div>
-    <div class="note">Per store. Someone who works multiple stores is scored on their <b>home store's</b> rules. Rewards stack — the footer shows the max if every tier is met.</div>
+    <div class="note">Overrides stack: <b>store → role → person</b>. Blank = inherit the layer beneath (shown as a faded placeholder). Set only what differs; per-person overrides live on each profile.</div>
     <div id="cruleCard"></div>
-    <div class="bar"><button class="btn alt sm" id="resetRules">Reset to defaults</button><span class="spacer"></span><button class="btn" id="saveRules">Save rules</button></div>
+    <div class="bar"><button class="btn alt sm" id="resetRules">Clear this scope</button><span class="spacer"></span><button class="btn" id="saveRules">Save</button></div>
 
     <div class="note" style="margin-top:20px">Per-person <b>accessory goals</b>, <b>commission role</b>, and <b>exempt</b> status live on each person’s profile — open <b>Team Members → Edit</b>.</div>
   </section>
@@ -548,17 +549,28 @@ function renderTabs(){
 }
 
 /* ===================== COMMISSION SETTINGS ===================== */
-var CRATES=[], CRULES={}, CRULESTORE=null, CROSTER={};
+var CRATES=[], CRULES={}, CROSTER={}, CROLEOVER={}, CRSCOPE='store', CRSEL=null;
 async function loadCommission(){
   var res=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
-    sb.from('commission_roster').select('*')
+    sb.from('commission_roster').select('*'),
+    sb.from('commission_role_overrides').select('*')
   ]);
   CRATES=res[0].error?[]:(res[0].data||[]).map(function(r){return {sku:r.sku,label:r.label||'',amount:Number(r.amount)||0};});
   CRULES={};(res[1].error?[]:(res[1].data||[])).forEach(function(r){CRULES[r.store]=r.rules||{};});
-  CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,earns_override:r.earns_override||null};});
-  if(!CRULESTORE){var act=STORES.filter(function(s){return s.active!==false;});CRULESTORE=(act[0]&&act[0].store)||(STORES[0]&&STORES[0].store)||null;}
+  CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,earns_override:r.earns_override||null,rules_override:r.rules_override||null,rates_override:r.rates_override||null};});
+  CROLEOVER={};(res[3].error?[]:(res[3].data||[])).forEach(function(x){CROLEOVER[x.role_id]={rules:x.rules||{},rates:x.rates||{}};});
+  if(CRSCOPE==='store'&&!CRSEL){var act=STORES.filter(function(s){return s.active!==false;});CRSEL=(act[0]&&act[0].store)||(STORES[0]&&STORES[0].store)||null;}
+}
+/* current scope's override maps: {rules, rates, label}. store -> commission_rules; role -> commission_role_overrides */
+function crScope(){
+  if(CRSCOPE==='role'){
+    var role=RBROLES.filter(function(r){return String(r.id)===String(CRSEL);})[0];
+    if(role){CROLEOVER[role.id]=CROLEOVER[role.id]||{rules:{},rates:{}};return {kind:'role',rules:CROLEOVER[role.id].rules,rates:CROLEOVER[role.id].rates,label:role.name};}
+  }
+  CRULES[CRSEL]=CRULES[CRSEL]||{};
+  return {kind:'store',rules:CRULES[CRSEL],rates:null,label:shortStore(CRSEL)};
 }
 function renderCommission(){
   /* --- service payouts --- */
@@ -572,32 +584,51 @@ function renderCommission(){
   $all('[data-cr]').forEach(function(inp){inp.onchange=function(){var i=+inp.getAttribute('data-i'),k=inp.getAttribute('data-cr');CRATES[i][k]=(k==='amount')?(+inp.value||0):inp.value;};});
   $all('[data-crdel]').forEach(function(b){b.onclick=function(){CRATES.splice(+b.getAttribute('data-crdel'),1);renderCommission();};});
 
-  /* --- rules --- */
-  $('#cruleStore').innerHTML=STORES.filter(function(s){return s.active!==false;}).map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===CRULESTORE?' selected':'')+'>'+esc(shortStore(s.store))+'</option>';}).join('');
-  var R=(window.CommissionEngine?CommissionEngine.rulesFor(CRULES,CRULESTORE):{});
-  var inp=function(key,unit){var v=unit==='%'?Math.round((R[key]||0)*100):(R[key]||0);
-    return '<input type="number" data-crule="'+key+'" data-unit="'+unit+'" value="'+v+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
+  /* --- rules (scope: store or role; blank = inherit, placeholder = inherited value) --- */
+  var DEF=(window.CommissionEngine?CommissionEngine.ruleDefaults:{});
+  $all('#cruleScope button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-sc')===CRSCOPE);});
+  $('#cruleSel').innerHTML=(CRSCOPE==='role'
+    ? RBROLES.map(function(r){return '<option value="'+r.id+'"'+(String(r.id)===String(CRSEL)?' selected':'')+'>'+esc(r.name)+'</option>';})
+    : STORES.filter(function(s){return s.active!==false;}).map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===CRSEL?' selected':'')+'>'+esc(shortStore(s.store))+'</option>';})
+  ).join('');
+  var sc=crScope(), ov=sc.rules;
+  var eff=function(key){return ov[key]!=null?ov[key]:(DEF[key]||0);};
+  var inp=function(key,unit){var has=ov[key]!=null;
+    var val=has?(unit==='%'?Math.round(ov[key]*100):ov[key]):'';
+    var ph=unit==='%'?Math.round((DEF[key]||0)*100):(DEF[key]||0);
+    return '<input type="number" data-crule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
   var row=function(when,earn,sub){return '<div class="commtier-row"><div class="when">'+when+(sub?'<div class="sub">'+sub+'</div>':'')+'</div><div class="earn">'+earn+'</div></div>';};
-  var maxPct=function(){var a=[].slice.call(arguments).reduce(function(s,k){return s+(R[k]||0);},0);return Math.round(a*100)+'%';};
-  var hd=function(title,sub){return '<div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">'+title+'</div><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">'+sub+'</div></div>'
+  var maxPct=function(){var a=[].slice.call(arguments).reduce(function(s,k){return s+eff(k);},0);return Math.round(a*100)+'%';};
+  var hd=function(title,sub,accent){return '<div class="commtier" style="border-top:3px solid '+accent+'"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">'+title+'</div><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">'+sub+'</div></div>'
     +'<div class="commtier-cols"><span>When a tech…</span><span>They earn</span></div>';};
-  var accCard='<div class="commtier" style="border-top:3px solid var(--blue)">'+hd('Accessories','Paid on accessory gross profit')
+  var accCard=hd('Accessories','Paid on accessory gross profit','var(--blue)')
     +row('Attach rate reaches '+inp('accyAttach1','%')+' on their tickets','earn '+inp('accyPct1','%'))
     +row('Hits their accessory $ goal','earn '+inp('accyGoalPct','%'),'Pays regardless of attach rate.')
     +row('Attach rate reaches '+inp('accyAttach2','%')+' (stretch)','earn '+inp('accyPct2','%'))
     +'<div class="commtier-max">Max if every tier is met: '+maxPct('accyPct1','accyGoalPct','accyPct2')+'</div></div>';
-  var devCard='<div class="commtier" style="border-top:3px solid var(--dark)">'+hd('Devices','Paid on device gross profit · net of returns')
+  var devCard=hd('Devices','Paid on device gross profit · net of returns','var(--dark)')
     +row('Sells '+inp('dev1Count','')+'+ net devices','earn '+inp('dev1Pct','%'))
     +row('Reaches '+inp('devAttachReq','%')+' accessory attach on device tickets','earn '+inp('devAttachPct','%'))
     +row('Sells '+inp('dev2Min','')+'–'+inp('dev2Max','')+' net devices, full attach','earn '+inp('dev2Pct','%'))
     +row('Sells '+inp('dev3Count','')+'+ net devices','earn '+inp('dev3Pct','%'))
     +'<div class="commtier-max">Max if every tier is met: '+maxPct('dev1Pct','devAttachPct','dev2Pct','dev3Pct')+'</div></div>';
-  $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+'</div>';
+  var rateCard='';
+  if(sc.rates){ /* role scope: per-role service payout overrides (blank = global rate) */
+    rateCard=hd('Service payouts','Override the flat $ per service for this role','var(--green)')
+      +(CRATES.length?CRATES.map(function(rt){var has=sc.rates[rt.sku]!=null;
+        return '<div class="commtier-row"><div class="when">'+esc(rt.label||rt.sku)+' <span style="color:var(--grey);font-size:.7rem">'+esc(rt.sku)+'</span></div>'
+          +'<div class="earn">$<input type="number" data-crate="'+esc(rt.sku)+'" value="'+(has?sc.rates[rt.sku]:'')+'" placeholder="'+rt.amount+'" class="crin" style="width:60px;margin-left:2px"></div></div>';}).join('')
+        :'<div class="muted" style="padding:8px 0">No services defined.</div>')
+      +'</div>';
+  }
+  $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+rateCard+'</div>';
   $all('[data-crule]').forEach(function(input){input.onchange=function(){
     var key=input.getAttribute('data-crule'),unit=input.getAttribute('data-unit');
-    var v=unit==='%'?((+input.value||0)/100):(+input.value||0);
-    if(!CRULES[CRULESTORE])CRULES[CRULESTORE]={};CRULES[CRULESTORE][key]=v;
-    renderCommission(); /* refresh the live "max if every tier" footers */};});
+    if(input.value==='')delete ov[key];else ov[key]=(unit==='%'?((+input.value||0)/100):(+input.value||0));
+    renderCommission();};});
+  $all('[data-crate]').forEach(function(input){input.onchange=function(){
+    var rr=crScope().rates;if(!rr)return;var sku=input.getAttribute('data-crate');
+    if(input.value==='')delete rr[sku];else rr[sku]=+input.value||0;};});
 }
 async function saveRates(){
   var rows=CRATES.filter(function(r){return (r.sku||'').trim();}).map(function(r,i){return {sku:r.sku.trim(),label:r.label,amount:r.amount,sort:i+1};});
@@ -609,14 +640,28 @@ async function saveRates(){
   if(r.error)toast(r.error.message,true);else{toast('Payouts saved');await loadCommission();renderCommission();}
 }
 async function saveRules(){
-  if(CRULES[CRULESTORE])delete CRULES[CRULESTORE].accyGate; /* gate removed from the model */
-  var r=await sb.from('commission_rules').upsert({store:CRULESTORE,rules:CRULES[CRULESTORE]||{}},{onConflict:'store'});
-  if(r.error)toast(r.error.message,true);else toast('Rules saved');
+  if(CRSCOPE==='role'){
+    var role=RBROLES.filter(function(r){return String(r.id)===String(CRSEL);})[0];if(!role)return;
+    var o=CROLEOVER[role.id]||{rules:{},rates:{}};
+    var r=await sb.from('commission_role_overrides').upsert({role_id:role.id,rules:o.rules||{},rates:o.rates||{}},{onConflict:'role_id'});
+    if(r.error)toast(r.error.message,true);else toast(role.name+' overrides saved');
+  }else{
+    if(CRSEL&&CRULES[CRSEL])delete CRULES[CRSEL].accyGate; /* gate removed from the model */
+    var r2=await sb.from('commission_rules').upsert({store:CRSEL,rules:CRULES[CRSEL]||{}},{onConflict:'store'});
+    if(r2.error)toast(r2.error.message,true);else toast(shortStore(CRSEL)+' rules saved');
+  }
 }
 async function resetRules(){
-  delete CRULES[CRULESTORE];
-  var r=await sb.from('commission_rules').delete().eq('store',CRULESTORE);
-  if(r.error)toast(r.error.message,true);else{toast('Reset to defaults');renderCommission();}
+  if(CRSCOPE==='role'){
+    var role=RBROLES.filter(function(r){return String(r.id)===String(CRSEL);})[0];if(!role)return;
+    CROLEOVER[role.id]={rules:{},rates:{}};
+    var r=await sb.from('commission_role_overrides').delete().eq('role_id',role.id);
+    if(r.error)toast(r.error.message,true);else{toast('Cleared '+role.name);renderCommission();}
+  }else{
+    CRULES[CRSEL]={};
+    var r2=await sb.from('commission_rules').delete().eq('store',CRSEL);
+    if(r2.error)toast(r2.error.message,true);else{toast('Cleared '+shortStore(CRSEL));renderCommission();}
+  }
 }
 function staffStoreRank(name){
   for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
@@ -864,13 +909,14 @@ function openMember(id){
   if(!m)return;
   var ros=CROSTER[m.id]||{};
   MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:'',
-    comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{})}};
+    comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{}),
+    rules_override:Object.assign({},ros.rules_override||{}),rates_override:Object.assign({},ros.rates_override||{})}};
   renderModal();
 }
 function openAddMember(){
   var home=(activeStores()[0]||{}).store||'';
   MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin(),
-    comm_goal:0,earns_override:{}}};
+    comm_goal:0,earns_override:{},rules_override:{},rates_override:{}}};
   renderModal();
 }
 /* role -> {accessory,device,services} earning eligibility (from RBAC perms) */
@@ -882,6 +928,14 @@ function roleEarnsFor(roleKey){
   var pm=commPermStreams(),out={accessory:false,device:false,services:false};
   RBROLEPERMS.forEach(function(x){if(x.role_id===role.id&&pm[x.permission_id])out[pm[x.permission_id]]=true;});
   return out;
+}
+/* a person's inherited (store + role) effective rules & rates — used as modal placeholders */
+function ratesBase(){var b={};CRATES.forEach(function(r){b[r.sku]=r.amount;});return b;}
+function personInherited(d){
+  var rk=ROLE_ALIAS[d.role]||d.role, role=RBROLES.filter(function(r){return r.key===rk;})[0];
+  var roleO=(role&&CROLEOVER[role.id])?CROLEOVER[role.id]:{rules:{},rates:{}};
+  var E=window.CommissionEngine;
+  return {rules:E?E.mergeRules(CRULES[d.home_store],roleO.rules):{}, rates:E?E.mergeRates(ratesBase(),roleO.rates):{}};
 }
 function memberModalHtml(){
   var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
@@ -931,6 +985,25 @@ function memberModalHtml(){
             +'</select></div>';
         }).join('')
        +'</div>'
+     +(function(){
+        var ovR=d.rules_override||{}, ovRt=d.rates_override||{}, n=Object.keys(ovR).length+Object.keys(ovRt).length;
+        var head='<div class="row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">'
+          +'<div data-customtoggle style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">'
+            +'<label style="margin:0;cursor:pointer">Custom commission rules'+(n?' <span style="color:var(--blue)">('+n+')</span>':'')+'</label>'
+            +'<span style="color:var(--grey);font-family:Nunito;font-weight:800;font-size:.72rem">'+(d._customOpen?'▾ hide':'▸ override')+'</span></div>';
+        if(!d._customOpen)return head+'<div class="note" style="margin-top:4px">Blank = inherit this tech’s store + role. Open to set per-person exceptions.</div></div>';
+        var inh=personInherited(d);
+        var pinp=function(key,unit){var has=ovR[key]!=null;var val=has?(unit==='%'?Math.round(ovR[key]*100):ovR[key]):'';
+          var ph=unit==='%'?Math.round((inh.rules[key]||0)*100):(inh.rules[key]||0);
+          return '<input type="number" data-prule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
+        var pr=function(label,e){return '<div class="commtier-row"><div class="when">'+label+'</div><div class="earn">'+e+'</div></div>';};
+        var sec=function(title,accent,rows){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div></div>'+rows+'</div>';};
+        var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'earn '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','earn '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'earn '+pinp('accyPct2','%')));
+        var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')));
+        var prt=function(sku,amt){var has=ovRt[sku]!=null;return '$<input type="number" data-prate="'+esc(sku)+'" value="'+(has?ovRt[sku]:'')+'" placeholder="'+amt+'" class="crin" style="width:58px">';};
+        var rts=sec('Service payouts','var(--green)',CRATES.map(function(rt){return '<div class="commtier-row"><div class="when">'+esc(rt.label||rt.sku)+'</div><div class="earn">'+prt(rt.sku,rt.amount)+'</div></div>';}).join(''));
+        return head+acc+dev+rts+'</div>';
+      })()
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
        +'<div class="h">'+pinHint+'</div>'
        +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
@@ -963,6 +1036,13 @@ function wireMember(host){
   host.querySelectorAll('[data-earn]').forEach(function(sel){sel.onchange=function(){
     var k=sel.getAttribute('data-earn'),v=sel.value;d.earns_override=d.earns_override||{};
     if(v==='')delete d.earns_override[k];else d.earns_override[k]=(v==='yes');};});
+  var ct=host.querySelector('[data-customtoggle]');if(ct)ct.onclick=function(){d._customOpen=!d._customOpen;renderModal();};
+  host.querySelectorAll('[data-prule]').forEach(function(input){input.onchange=function(){
+    var key=input.getAttribute('data-prule'),unit=input.getAttribute('data-unit');d.rules_override=d.rules_override||{};
+    if(input.value==='')delete d.rules_override[key];else d.rules_override[key]=(unit==='%'?((+input.value||0)/100):(+input.value||0));};});
+  host.querySelectorAll('[data-prate]').forEach(function(input){input.onchange=function(){
+    var sku=input.getAttribute('data-prate');d.rates_override=d.rates_override||{};
+    if(input.value==='')delete d.rates_override[sku];else d.rates_override[sku]=+input.value||0;};});
   var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
   var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
   host.querySelector('[data-save]').onclick=saveMember;
@@ -988,8 +1068,9 @@ async function saveMember(){
     // commission profile (goal / role / exempt) -> commission_roster, keyed to staff
     var sid=d.staff_id||(c&&c.data&&(c.data.staff_id||c.data.id||(c.data.staff&&c.data.staff.id)));
     if(sid){
-      var ov=(d.earns_override&&Object.keys(d.earns_override).length)?d.earns_override:null;
-      var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,earns_override:ov},{onConflict:'staff_id'});
+      var nn=function(o){return (o&&Object.keys(o).length)?o:null;};
+      var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,
+        earns_override:nn(d.earns_override),rules_override:nn(d.rules_override),rates_override:nn(d.rates_override)},{onConflict:'staff_id'});
       if(cr.error)toast('Saved, but commission settings failed: '+cr.error.message,true);
     }
     MOPEN=null; await loadStaff(); await loadCommission(); renderAll();
@@ -1414,7 +1495,12 @@ function initUI(){
   $('#tabCommission').onclick=function(){TAB='commission';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#addRate').onclick=function(){var have={};CRATES.forEach(function(r){have[r.sku]=1;});var n=1,k='SKU'+n;while(have[k]){n++;k='SKU'+n;}CRATES.push({sku:k,label:'New service',amount:10});renderCommission();};
   $('#saveRates').onclick=saveRates;
-  $('#cruleStore').onchange=function(){CRULESTORE=$('#cruleStore').value;renderCommission();};
+  $('#cruleSel').onchange=function(){CRSEL=$('#cruleSel').value;renderCommission();};
+  $all('#cruleScope button').forEach(function(b){b.onclick=function(){
+    CRSCOPE=b.getAttribute('data-sc');
+    if(CRSCOPE==='role'){CRSEL=(RBROLES[0]&&RBROLES[0].id)||null;}
+    else{var act=STORES.filter(function(s){return s.active!==false;});CRSEL=(act[0]&&act[0].store)||null;}
+    renderCommission();};});
   $('#saveRules').onclick=saveRules;
   $('#resetRules').onclick=resetRules;
   $('#tabRoles').onclick=function(){TAB='roles';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
