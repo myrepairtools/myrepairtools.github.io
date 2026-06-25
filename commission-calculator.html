@@ -309,32 +309,34 @@ function tc(v){return v>0?'var(--green)':'var(--grey)';}
 function renderCommissions(){
   const rows=inScope();
   const head='<div class="chead"><div>Employee</div><div class="v">Accessory</div><div class="v">Device</div><div class="v">Services</div><div class="v">Total</div><div></div></div>';
+  let sumA=0,sumD=0,sumS=0,sumT=0;
   const body=rows.map(r=>{
     const c=calc(r),R2=c.rules,t=r.totals,open=!!STATE.expanded[r.name],multi=r.stores.length>1;
+    sumA+=c.accyComm;sumD+=c.devComm;sumS+=c.repairComm;sumT+=c.total;
     let groups;
     if(c.exempt){
-      groups=[{title:'Accessory & device',rows:[
+      groups=[{title:'Accessory & device',amt:c.accyComm+c.devComm,rows:[
         {label:'Attach',value:t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach),color:'var(--dark-grey)'},
         {label:'Net accessory $',value:money(t.NetAccySales),color:'var(--dark-grey)'},
         {label:'Commission',value:'exempt — lead',color:'var(--grey)'}]},
-        {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
+        {title:'Services',amt:c.repairComm,rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:'',color:'var(--green)'}]}];
     }else{
       groups=[
-        {title:'Accessory',rows:[
+        {title:'Accessory',amt:c.accyComm,rows:[
           {label:'Attach rate',value:t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach),color:'var(--dark-grey)'},
           {label:'Net accessory $ (goal '+money(r.goal)+')',value:money(c.netAccy),color:'var(--dark-grey)'},
           {label:'Accessory GP',value:money(c.accyGP),color:'var(--dark-grey)'},
           {label:pct(R2.accyAttach1)+' attach (+'+pct(R2.accyPct1)+')',value:tt(c.tiers.t25),color:tc(c.tiers.t25)},
           {label:'Goal met (+'+pct(R2.accyGoalPct)+')',value:tt(c.tiers.goal),color:tc(c.tiers.goal)},
           {label:pct(R2.accyAttach2)+'+ attach (+'+pct(R2.accyPct2)+')',value:tt(c.tiers.t50),color:tc(c.tiers.t50)}]},
-        {title:'Device',rows:[
+        {title:'Device',amt:c.devComm,rows:[
           {label:'Devices',value:t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' = '+c.netDev+' net':''),color:'var(--dark-grey)'},
           {label:'Device GP',value:money(t.DeviceGP),color:'var(--dark-grey)'},
           {label:'Gate: '+R2.dev1Count+'+ devices (+'+pct(R2.dev1Pct)+')',value:c.gateMet?tt(c.tiers.dev5):'✗ below gate — $0',color:c.gateMet?tc(c.tiers.dev5):'var(--red)'},
           {label:pct(R2.devAttachReq)+' attach (+'+pct(R2.devAttachPct)+')',value:c.tiers.devAttach>0?(c.assumed?'+'+pct(R2.devAttachPct)+' (assumed)':'+'+pct(R2.devAttachPct)):'—',color:tc(c.tiers.devAttach)},
           {label:R2.dev2Min+'–'+R2.dev2Max+' devices + attach (+'+pct(R2.dev2Pct)+')',value:tt(c.tiers.dev2024),color:tc(c.tiers.dev2024)},
           {label:R2.dev3Count+'+ devices + attach (+'+pct(R2.dev3Pct)+')',value:tt(c.tiers.dev25),color:tc(c.tiers.dev25)}]},
-        {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
+        {title:'Services',amt:c.repairComm,rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:'',color:'var(--green)'}]}];
     }
     const charge=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>({store:p.store,amt:money(p.amt)})):[];
     // device-attach units: shown inline on the row (only when they earn device % and sold devices)
@@ -346,7 +348,7 @@ function renderCommissions(){
         +'<span>/ '+c.netDev+'</span></div>'
       : '';
     const detail=open?('<div class="det">'
-      +'<div class="detgrid">'+groups.map(g=>'<div><div class="detg-t">'+esc(g.title)+'</div>'
+      +'<div class="detgrid">'+groups.map(g=>'<div><div class="detg-t" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span>'+esc(g.title)+'</span>'+(g.amt!=null?'<span style="color:var(--green);font-family:Nunito;font-weight:900;font-size:.96rem">'+money(g.amt)+'</span>':'')+'</div>'
         +g.rows.map(d=>'<div class="detrow"><span>'+esc(d.label)+'</span><span class="rv" style="color:'+d.color+'">'+esc(d.value)+'</span></div>').join('')+'</div>').join('')+'</div>'
       +(charge.length?('<div class="chargebox"><div class="h">Charge to store</div>'+charge.map(p=>'<div style="display:flex;justify-content:space-between;font-size:.88rem;padding:3px 0"><span style="font-weight:600">'+esc(shortStore(p.store))+'</span><span style="font-family:Nunito;font-weight:800">'+esc(p.amt)+'</span></div>').join('')+'</div>'):'')
       +'</div>'):'';
@@ -359,8 +361,15 @@ function renderCommissions(){
       +'<div style="text-align:right"><button class="detbtn" data-toggle="'+esc(r.name)+'">'+(open?'− Details':'+ Details')+'</button></div>'
       +'</div>'+detail+'</div>';
   }).join('');
+  const foot=rows.length?('<div class="cgrid" style="border-top:2px solid var(--border);font-family:Nunito;font-weight:900">'
+    +'<div class="nm">Total</div>'
+    +'<div class="v" style="color:var(--blue)">'+money(sumA)+'</div>'
+    +'<div class="v" style="color:var(--red)">'+money(sumD)+'</div>'
+    +'<div class="v" style="color:var(--dark-grey)">'+money(sumS)+'</div>'
+    +'<div class="v tot">'+money(sumT)+'</div>'
+    +'<div></div></div>'):'';
   $('#view-commissions').innerHTML='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Commission detail · '+(STATE.store==='all'?'All locations':esc(STATE.store))+'</span></div>'
-    +'<div class="card-bd" style="overflow-x:auto"><div style="min-width:640px">'+head+(body||'<div class="muted" style="padding:22px 6px">No data for this range.</div>')+'</div></div></div>';
+    +'<div class="card-bd" style="overflow-x:auto"><div style="min-width:640px">'+head+(body||'<div class="muted" style="padding:22px 6px">No data for this range.</div>')+foot+'</div></div></div>';
   $all('[data-toggle]').forEach(b=>b.onclick=()=>{const n=b.getAttribute('data-toggle');STATE.expanded[n]=!STATE.expanded[n];renderCommissions();});
   $all('[data-manual]').forEach(inp=>inp.onchange=()=>{
     const n=inp.getAttribute('data-manual');const v=inp.value===''?'':Number(inp.value);
