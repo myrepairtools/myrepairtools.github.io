@@ -162,6 +162,7 @@ const $=s=>document.querySelector(s), $all=s=>Array.prototype.slice.call(documen
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+function storeIdx(s){return (STATE.storeOrder&&STATE.storeOrder[s]!=null)?STATE.storeOrder[s]:9999;}
 
 const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
 const normRole=r=>ROLE_ALIAS[r]||r;
@@ -193,7 +194,7 @@ async function currentStaff(){
 
 /* ---- config (shared with the calculator) ---- */
 async function loadConfig(){
-  const [rt,rl,rs,st,rr,pm,rp,ro]=await Promise.all([
+  const [rt,rl,rs,st,rr,pm,rp,ro,so]=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
@@ -201,8 +202,10 @@ async function loadConfig(){
     sb.from('roles').select('id,key'),
     sb.from('permissions').select('id,key').like('key','commission.earn.%'),
     sb.from('role_permissions').select('role_id,permission_id'),
-    sb.from('commission_role_overrides').select('*')
+    sb.from('commission_role_overrides').select('*'),
+    sb.from('stores').select('store,display_order')
   ]);
+  STATE.storeOrder={};(so&&so.data||[]).forEach(s=>{STATE.storeOrder[s.store]=s.display_order==null?9990:s.display_order;});
   STATE.rates={};STATE.rateLabels={};
   (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=(r.tiers&&r.tiers.goal)?{goal:Number(r.tiers.goal)||0,lo:Number(r.tiers.lo)||0,hi:Number(r.tiers.hi)||0}:(Number(r.amount)||0);STATE.rateLabels[r.sku]=r.label||r.sku;});
   STATE.rules={};STATE.storeRates={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};STATE.storeRates[r.store]=r.rates||{};});
@@ -538,7 +541,7 @@ function renderBoard(){
   const byStore={};techs.forEach(t=>{(byStore[t.store]=byStore[t.store]||[]).push(t);});
   const medalBg=i=>i===0?'#C9820B':i===1?'#9aa0ad':i===2?'#b07a43':'var(--light-grey)';
   const medalTx=i=>i<3?'#fff':'var(--dark-grey)';
-  const storeCards=Object.keys(byStore).sort().map(s=>{const list=byStore[s].slice().sort((a,b)=>b.retail-a.retail);
+  const storeCards=Object.keys(byStore).sort((a,b)=>storeIdx(a)-storeIdx(b)).map(s=>{const list=byStore[s].slice().sort((a,b)=>b.retail-a.retail);
     const youHere=list.some(t=>t.id===meId);
     const rows=list.map((t,i)=>'<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-top:1px solid var(--border);background:'+(t.id===meId?'#EAF6FD':'#fff')+'">'
       +'<div style="width:22px;height:22px;border-radius:999px;background:'+medalBg(i)+';color:'+medalTx(i)+';display:flex;align-items:center;justify-content:center;font-family:Nunito;font-weight:900;font-size:.72rem;flex:none">'+(i+1)+'</div>'
@@ -576,7 +579,7 @@ function renderBoard(){
   // ---- store standings tiles ----
   const stores={};techs.forEach(t=>{const s=(stores[t.store]=stores[t.store]||{accy:0,dev:0,svc:0,units:0,tickets:0,top:null});
     s.accy+=t.accySales;s.dev+=t.deviceRev;s.svc+=t.c.repairComm;s.units+=t.tot.AccyUnits||0;s.tickets+=t.tickets;if(!s.top||t.retail>s.top.retail)s.top=t;});
-  const storeRank=Object.keys(stores).sort((a,b)=>stores[b].accy-stores[a].accy);
+  const storeRank=Object.keys(stores).sort((a,b)=>storeIdx(a)-storeIdx(b));
   const tiles=storeRank.map((s,i)=>{const d=stores[s];const att=d.tickets>0?d.units/d.tickets:0;const you=s===myStore;
     return '<div style="border:1px solid '+(you?'#CDEAF8':'var(--border)')+';background:'+(you?'#F5FBFE':'#fff')+';border-radius:12px;padding:14px 15px;display:flex;flex-direction:column;gap:10px">'
       +'<div style="display:flex;align-items:center;gap:9px"><div style="width:26px;height:26px;border-radius:999px;background:'+medalBg(i)+';color:'+medalTx(i)+';display:flex;align-items:center;justify-content:center;font-family:Nunito;font-weight:900;font-size:.85rem;flex:none">'+(i+1)+'</div>'
