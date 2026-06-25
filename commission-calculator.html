@@ -3,742 +3,411 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Commission Calculator — CPR Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Commission Calculator — CPR</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="assets/commission-engine.js"></script>
 <style>
-:root{--red:#DC282E;--light-red:#F15F5E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;
-  --grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;}
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;--purple:#7c3aed;}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito Sans',sans-serif;background:var(--light-grey);color:var(--dark);line-height:1.5}
-#appWrapper{display:none}
-#appWrapper.visible{display:block}
-main{max-width:1180px;margin:0 auto;padding:24px 18px 70px}
-h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin-bottom:3px}
-.sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
-.page-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-.toolbar{display:flex;align-items:center;gap:8px;flex:none}
-.toolbar-btn{padding:8px 14px;font-family:'Nunito',sans-serif;font-size:.69rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;background:var(--white);color:var(--dark-grey);border:1.5px solid var(--border);border-radius:7px;cursor:pointer;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.toolbar-btn:hover{border-color:var(--blue);color:var(--blue)}
-.toolbar-btn.on{background:var(--dark);color:#fff;border-color:var(--dark)}
-.filter-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
-.filter-tabs{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px}
-.filter-tab{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer;transition:all .18s;white-space:nowrap}
-.filter-tab.active{background:var(--dark);color:#fff}
-.filter-tab:not(.active):hover{color:var(--dark-grey)}
-.filter-count{margin-left:5px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.18);font-size:.62rem;font-weight:800}
-.filter-tab:not(.active) .filter-count{background:var(--light-grey);color:var(--grey)}
-.location-tabs .filter-tab.active{background:var(--blue);color:#fff}
-.data-status{font-family:'Nunito Sans',sans-serif;font-size:.74rem;font-weight:600;color:var(--grey);margin-left:auto}
-.ctrlbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.ctrlbar input,.ctrlbar select{padding:7px 10px;font-size:.84rem;border-radius:8px}
-.ctrlbar input[type=date]{width:auto}
-.todash{color:var(--grey);font-weight:800;font-family:'Nunito',sans-serif}
-.ctrllbl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
-.btn.sm{padding:7px 16px;font-size:.82rem;border-radius:8px}
-.card{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
-.card h2{font-family:'Nunito',sans-serif;font-weight:800;font-size:1.1rem;margin-bottom:14px}
-details.acc{padding:0;overflow:hidden}
-details.acc>summary{list-style:none;cursor:pointer;padding:18px 20px;font-family:'Nunito',sans-serif;font-weight:800;font-size:1.1rem;display:flex;align-items:center;justify-content:space-between;user-select:none}
-details.acc>summary::-webkit-details-marker{display:none}
-details.acc>summary::after{content:'';width:9px;height:9px;border-right:2px solid var(--grey);border-bottom:2px solid var(--grey);transform:rotate(-45deg);transition:transform .18s ease;margin-left:12px;flex:none}
-details.acc[open]>summary::after{transform:rotate(45deg)}
-details.acc>summary:hover{color:var(--accent)}
-details.acc>summary:hover::after{border-color:var(--accent)}
-details.acc .acc-body{padding:0 20px 20px}
-details.acc[open]>summary{border-bottom:1px solid var(--border);margin-bottom:16px}
-.row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px}
-.field{display:flex;flex-direction:column;gap:4px}
-.field label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.74rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
-input,select{font-family:'Nunito Sans',sans-serif;font-size:.92rem;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--dark)}
-input:focus,select:focus{outline:none;border-color:var(--accent)}
-input[type=number]{width:120px;text-align:right}
-.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;background:var(--accent);color:#fff}
-.btn:hover{filter:brightness(.95)}
-.btn.alt{background:var(--white);color:var(--dark);border:1px solid var(--border)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.tbl-wrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:.86rem}
-th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
-thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);background:var(--light-grey)}
-tbody td input{width:84px;padding:6px 7px;font-size:.84rem}
-.emp-name{font-family:'Nunito',sans-serif;font-weight:800}
-.rcard{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;box-shadow:0 1px 2px rgba(45,45,59,.04)}
-.sumhead{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.sumtitle{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.2rem}
-.sumtotal{margin-left:auto;text-align:right}
-.sumtotal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1}
-.sumtable{width:100%;border-collapse:collapse;margin-top:12px;table-layout:fixed}
-.sumtable col.s-emp{width:180px}
-.sumtable col.s-flag{width:150px}
-.sumtable col.s-comm{width:130px}
-.sumtable col.s-tips{width:120px}
-.sumtable thead th{padding:8px 0;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);border-bottom:1px solid var(--border)}
-.sumtable thead th.num{text-align:right}
-.sumtable tfoot td{padding:9px 0;border-top:2px solid var(--border);font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
-.sumtable tfoot td:first-child{text-transform:uppercase;letter-spacing:.5px;font-size:.7rem;color:var(--grey)}
-.sumtable tfoot td.num{text-align:right}
-.sumtotal .big.tips{color:var(--blue);font-size:1.2rem;cursor:pointer}
-.sumtotal .big.tips:hover{text-decoration:underline}
-.sumtotal .big.copysum{cursor:pointer}.sumtotal .big.copysum:hover{text-decoration:underline}
-.sumtable td{padding:7px 0;border-bottom:1px solid var(--border);font-size:.9rem}
-.sumtable td.s-name{font-family:'Nunito',sans-serif;font-weight:700}
-.sumtable td.sumcell,.sumtable td.s-tipcell{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
-.sumtable td.sumcell{padding-right:16px}
-.sumtable tfoot td.sf-comm{padding-right:16px}
-.sumtable .copysum{cursor:pointer}
-.sumtable .copysum:hover{color:var(--blue);text-decoration:underline}
-.sumtable td.s-split{text-align:right;font-size:.74rem;color:#5b3fb0;font-weight:600;font-family:'Nunito Sans',sans-serif;white-space:nowrap;padding-right:16px}
-.sumtable th:first-child,.sumtable td:first-child{padding-left:14px}
-.sumtable th:last-child,.sumtable td:last-child{padding-right:14px}
-.manualline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:0}
-.manualline label{font-family:'Nunito',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey)}
-.manualline input{width:120px}
-.table-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.06)}
-table.ctable{width:100%;border-collapse:collapse;table-layout:fixed}
-table.ctable col.c-emp{width:200px}
-table.ctable col.c-flag{width:140px}
-table.ctable col.c-num{width:96px}
-table.ctable col.c-act{width:100px}
-table.ctable thead th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border);white-space:nowrap}
-table.ctable thead th.num{text-align:right}
-table.ctable tbody tr.erow{border-bottom:1px solid rgba(224,226,234,.6);transition:background .12s}
-table.ctable tbody tr.erow:hover{background:rgba(79,176,227,.045)}
-table.ctable tbody td{padding:9px 12px;vertical-align:middle}
-table.ctable td.num{text-align:right;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark-grey);white-space:nowrap}
-table.ctable td.num.acc{color:var(--blue)}
-table.ctable td.num.dev{color:var(--red)}
-table.ctable td.num.tot{color:var(--green);font-size:.98rem;font-weight:900}
-table.ctable td.num.z{color:var(--grey)}
-.ecell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.enm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark)}
-.ebadges{display:flex;gap:5px;flex-wrap:wrap}
-.csplit{display:inline;font-size:.72rem;color:#5b3fb0;font-weight:600;margin-right:12px;font-family:'Nunito Sans',sans-serif;white-space:nowrap;vertical-align:middle}
-tr.exrow.hide{display:none}
-tr.exrow>td{padding:0;background:#fafbfc;border-bottom:1px solid var(--border)}
-tr.exrow .dwrap{padding:14px 16px;display:flex;flex-direction:column;gap:0}
-tr.exrow .dwrap .detail:first-child{border-top:none;margin-top:0;padding-top:0}
-.icon-btn{padding:5px 11px;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;background:var(--light-grey);color:var(--dark-grey);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;transition:all .12s;white-space:nowrap}
-.icon-btn:hover{border-color:var(--blue);color:var(--blue)}
-.detail{column-count:2;column-gap:44px;border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
-.dgroup{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin-bottom:13px}
-.dgh{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark);font-size:.8rem;margin-bottom:3px;border-bottom:1px solid var(--border);padding-bottom:3px}
-.drow{display:flex;justify-content:space-between;font-size:.82rem;color:var(--dark-grey);padding:2px 0;gap:18px}
-.drow span:first-child{flex:1;min-width:0}
-.drow .v{font-weight:700;white-space:nowrap}.drow .hit{color:var(--green)}.drow .miss{color:var(--grey)}.drow .assumed{color:var(--blue)}
-@media(max-width:640px){.detail{column-count:1}}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 22px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 80px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;line-height:1.05}
+.sub{color:var(--dark-grey);font-size:.82rem;font-weight:600;margin-top:2px}
+.hide{display:none!important}
+.muted{color:var(--grey);font-weight:600}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:none;border-radius:9px;padding:9px 16px;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap}
+.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+.btn.alt:hover{border-color:var(--blue);color:var(--blue)}
+.btn.sm{padding:7px 13px;font-size:.74rem}
+.btn:disabled{opacity:.5;cursor:default}
+a.btnlink{text-decoration:none}
+input,select{font-family:'Nunito Sans',sans-serif;font-size:.86rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--dark)}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+/* toolbar */
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.arrow{font-family:'Nunito';font-weight:800;color:var(--grey)}
+/* tabs + pills */
+.row2{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.tabs{display:inline-flex;gap:3px;background:var(--dark);border-radius:11px;padding:3px}
+.tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;padding:8px 16px;border-radius:8px;background:none;border:none;color:#D5D8E0;cursor:pointer}
+.tab.on{background:#fff;color:var(--dark);font-weight:900}
+.pills{display:inline-flex;gap:6px;flex-wrap:wrap}
+.pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1.5px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+.pill.on{background:#EAF6FD;border-color:#CDEAF8;color:#1E7AA8}
+.status{margin-left:auto;font-size:.74rem;color:var(--grey);font-weight:700}
+/* card */
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);margin-bottom:16px;overflow:hidden}
+.card-hd{display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid var(--border)}
+.card-hd::before{content:'';width:4px;height:18px;border-radius:2px;background:var(--accent,var(--red))}
+.card-t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.96rem}
+.card-bd{padding:16px 18px}
+.acc-red{--accent:var(--red)}.acc-blue{--accent:var(--blue)}.acc-green{--accent:var(--green)}.acc-dark{--accent:var(--dark)}
+/* summary table */
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);text-align:left;padding:8px 6px;border-bottom:1px solid var(--border)}
+thead th.r{text-align:right}
+tbody td{padding:9px 6px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+td.r{text-align:right;white-space:nowrap}
+.nm{font-family:'Nunito',sans-serif;font-weight:800}
+.flag{font-family:'Nunito';font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:999px;background:#FFF4E5;color:#8a5a00}
+.split{font-size:.74rem;color:#5b3fb0;font-weight:700}
+.gt{font-family:'Nunito';font-weight:900}
+.tfoot td{border-top:2px solid var(--border);padding-top:10px;font-family:'Nunito';font-weight:900}
+.warn{margin-top:12px;background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:11px 14px;border-radius:9px;font-size:.84rem}
+/* commission detail */
+.crow{border-bottom:1px solid rgba(224,226,234,.7)}
+.crow:last-child{border-bottom:none}
+.cgrid{display:grid;grid-template-columns:1.6fr 96px 96px 96px 112px 92px;gap:8px;align-items:center;padding:11px 6px}
+.chead{display:grid;grid-template-columns:1.6fr 96px 96px 96px 112px 92px;gap:8px;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding:0 6px 8px;border-bottom:1px solid var(--border)}
+.cgrid .v{text-align:right;font-family:'Nunito';font-weight:800;font-size:.86rem}
+.cgrid .tot{font-weight:900;font-size:.98rem;color:var(--green)}
+.detbtn{font-family:'Nunito';font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;background:var(--light-grey);color:var(--dark-grey);border:1.5px solid var(--border);border-radius:6px;padding:5px 9px;cursor:pointer}
+.det{background:#fafbfc;padding:14px 16px;border-top:1px solid var(--border)}
+.detgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:22px}
+.detg-t{font-family:'Nunito';font-weight:800;font-size:.78rem;border-bottom:1px solid var(--border);padding-bottom:3px;margin-bottom:5px}
+.detrow{display:flex;justify-content:space-between;gap:14px;font-size:.8rem;color:var(--dark-grey);padding:2px 0}
+.detrow .rv{font-weight:700;white-space:nowrap}
+.manual{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.chargebox{margin-top:14px;background:#F6F4FB;border:1px solid #E6E0F4;border-radius:9px;padding:11px 13px}
+.chargebox .h{font-family:'Nunito';font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:#5b3fb0;margin-bottom:6px}
+.field>label{display:block;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin-bottom:4px}
+/* toast + loading */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
-.banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:18px}
-.banner.setup{margin-bottom:18px}
-.hide{display:none}.muted{color:var(--dark-grey);font-size:.85rem}.hint{font-size:.78rem;color:var(--dark-grey);margin-top:4px}
-.badge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:999px;vertical-align:middle}
-.badge.lead{background:#EAF6FD;color:#1b6fa3}.badge.warn{background:#FFF4E5;color:#8a5a00}.badge.multi{background:#EFEAFB;color:#5b3fb0}
-.charge{margin-top:14px;background:#F6F4FB;border:1px solid #E6E0F4;border-radius:10px;padding:12px 14px}
-.charge .clbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;color:#5b3fb0;margin-bottom:6px}
-.charge .crow{display:flex;justify-content:space-between;font-size:.92rem;padding:3px 0}
-.charge .crow span:first-child{font-weight:600}
-.charge .crow span:last-child{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
-.charge .crow.only{padding:0}.charge .crow.only span:last-child{font-size:1rem}
-.settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
-.settings-title{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem;color:var(--dark)}
-.settings-sub{font-size:.82rem;color:var(--grey);font-weight:600;margin-top:2px}
-.rsec-h{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.9px;color:var(--blue);margin:20px 0 6px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.rsec-h:first-child{margin-top:0}
-.rrow{display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:9px 12px;border-radius:9px;font-family:'Nunito Sans',sans-serif;font-size:.92rem;color:var(--dark-grey);line-height:1.9}
-.rrow:hover{background:var(--light-grey)}
-.rrow .rt{white-space:nowrap}
-.rrow .rt.lead{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
-.rinp{width:58px;text-align:center;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:var(--dark)}
-.rinp:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 3px rgba(79,176,227,.15)}
-.rpct{font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);margin-left:-1px}
-.rhint{font-size:.74rem;color:var(--grey);font-style:italic}
-.cfg-row{display:grid;grid-template-columns:1fr 1.4fr 120px 70px 36px;gap:8px;align-items:center;margin-bottom:6px}
-.cfg-row.head{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;color:var(--dark-grey)}
-.rate-row{display:grid;grid-template-columns:1fr 140px;gap:10px;align-items:center;margin-bottom:8px;max-width:420px}
-.x{cursor:pointer;color:var(--red);font-weight:900;text-align:center}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--light-grey);color:var(--grey);font-family:'Nunito';font-weight:800;z-index:50}
 </style>
 </head>
 <body>
-<div id="appWrapper">
-<script src="assets/pin-gate.js"></script>
-<script src="assets/nav.js" data-section="admin"></script>
-<script src="assets/locations.js"></script>
-<main>
-  <div class="page-title-row">
+<main id="app" class="hide">
+  <div class="head">
     <div>
       <h1>Commission Calculator</h1>
-      <p class="sub">Daily RepairQ reports flow in automatically — pick a range, switch stores instantly.</p>
+      <div class="sub">Daily RepairQ reports flow in automatically — pick a range, switch stores instantly.</div>
     </div>
-    <div class="toolbar">
-      <button class="toolbar-btn" id="btnSettings">⚙ Settings</button>
-    </div>
+    <a class="btnlink" href="settings.html"><button class="btn alt sm">⚙ Settings</button></a>
   </div>
 
-  <!-- SETTINGS (toggled by the top-right button) -->
-  <section id="tab-settings" class="hide">
-    <div class="settings-head"><div><h2 class="settings-title">Settings</h2><p class="settings-sub">Commission rules, service payouts, roster &amp; connection.</p></div><button class="toolbar-btn" id="settingsBack">← Back to reports</button></div>
-    <details class="card acc"><summary>Database connection</summary>
-      <div class="acc-body">
-      <p class="muted">Connected to the Sales Database web app (configured in the page — works on any computer, nothing stored locally).</p>
-      <div style="margin-top:12px"><button class="btn" id="testConn">Test connection</button></div>
-      <p id="connStatus" class="muted" style="margin-top:10px"></p>
-      </div>
-    </details>
-    <details class="card acc"><summary>Service payouts</summary>
-      <div class="acc-body">
-      <p class="hint" style="margin-top:0;margin-bottom:12px">Flat $ per service. Change here and every report recalculates.</p>
-      <div id="rateList"></div>
-      <div style="margin-top:10px"><button class="btn" id="saveRates">Save payouts</button></div>
-      </div>
-    </details>
-    <details class="card acc"><summary>Commission rules</summary>
-      <div class="acc-body">
-      <p class="hint" style="margin-top:0;margin-bottom:12px">Per store. A person who works multiple stores is scored on their <b>home store&rsquo;s</b> rules. Set the min-attach gate to 0% to turn it off.</p>
-      <div class="field" style="max-width:280px;margin-bottom:14px"><label>Store</label><select id="rulesStore"></select></div>
-      <div id="rulesForm"></div>
-      <div style="margin-top:14px"><button class="btn" id="saveTierRules">Save rules</button></div>
-      </div>
-    </details>
-    <details class="card acc"><summary>Stores</summary>
-      <div class="acc-body">
-      <div id="storeList"></div>
-      <div class="row" style="margin-top:8px"><input type="text" id="newStore" placeholder="Add a store…"><button class="btn alt" id="addStore">Add</button></div>
-      </div>
-    </details>
-    <details class="card acc"><summary>Roster &amp; accessory goals</summary>
-      <div class="acc-body">
-      <div class="cfg-row head"><div>Store</div><div>Employee</div><div>Accy Goal $</div><div>Active</div><div></div></div>
-      <div id="cfgList"></div>
-      <p class="hint">Untick <b>Active</b> for leads/managers — they still earn service payouts but no accessory/device %.</p>
-      <div style="margin-top:10px"><button class="btn alt" id="addEmp">+ Add employee</button></div>
-      <div style="margin-top:14px"><button class="btn" id="saveConfig">Save roster &amp; stores</button></div>
-      </div>
-    </details>
-  </section>
-
-  <!-- DATE CONTROLS (summary + commissions) -->
-  <div class="ctrlbar" id="repControls">
-    <input type="date" id="repStart"><span class="todash">→</span><input type="date" id="repEnd">
-    <select id="repQuick"><option value="">Quick range…</option><option value="mtd">Month to date</option><option value="lastmonth">Last month</option></select>
-    <button class="btn sm" id="runReport">Run</button>
+  <div class="bar">
+    <input type="date" id="start">
+    <span class="arrow">→</span>
+    <input type="date" id="end">
+    <select id="quick"><option value="">Quick range…</option><option value="mtd">Month to date</option><option value="lastmonth">Last month</option></select>
+    <button class="btn sm" id="run">Run</button>
   </div>
 
-  <!-- TIPS CONTROLS (tips tab only) -->
-  <div class="ctrlbar hide" id="tipsControls">
-    <span class="ctrllbl">Pay period</span>
-    <input type="text" id="tipsPeriod" placeholder="e.g. 2026-06" style="width:130px" list="tipPeriods" autocomplete="off"><datalist id="tipPeriods"></datalist>
-    <button class="btn sm alt" id="loadTips" title="Pull previously saved hours for this period from the database">↻ Reload saved</button>
-    <span class="muted" style="font-size:.74rem">Staff load automatically per store — switch stores with the tabs below.</span>
-  </div>
-
-  <!-- FILTER ROW: main pills + location tabs -->
-  <div class="filter-row" id="filterRow">
-    <div class="filter-tabs" id="mainTabs">
-      <button class="filter-tab active" data-tab="summary">Summary</button>
-      <button class="filter-tab" data-tab="commissions">Commissions</button>
-      <button class="filter-tab" data-tab="tips">Tips</button>
+  <div class="row2">
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-t="summary">Summary</button>
+      <button class="tab" data-t="commissions">Commissions</button>
+      <button class="tab" data-t="tips">Tips</button>
     </div>
-    <div class="filter-tabs location-tabs" id="locationTabs"></div>
-    <div class="data-status" id="dataStatus"></div>
+    <div class="pills" id="pills"></div>
+    <span class="status" id="status"></span>
   </div>
 
-  <!-- SUMMARY -->
-  <section id="tab-summary"><div id="summaryOut"></div></section>
-
-  <!-- COMMISSIONS -->
-  <section id="tab-commissions" class="hide"><div id="commOut"></div></section>
-
-  <!-- TIPS -->
-  <section id="tab-tips" class="hide">
-    <div class="card"><div class="sumhead"><div><div class="sumtitle" id="tipsTitle">Tips</div><div class="muted" id="tipsSub">Load a pay period to begin.</div></div>
-      <div class="field" style="margin-left:auto"><label>Store tip pool $</label><input type="number" id="tipsPool" step="0.01"></div>
-      <button class="btn" id="saveTips">Save this store →</button></div>
-      <div class="tbl-wrap" style="margin-top:14px"><table id="tipsTable">
-        <thead><tr><th>Employee</th><th>PP1 Hours</th><th>PP2 Hours</th><th>Total Hrs</th><th>Tips Earned</th></tr></thead><tbody></tbody>
-      </table></div>
-      <div class="row" style="margin-top:12px"><div class="field"><label>Add someone who worked this store</label><select id="tipsAddSel"></select></div><button class="btn alt" id="tipsAdd">+ Add to pool</button></div>
-      <p class="hint" style="margin-top:6px">For staff based at another store who picked up shifts here.</p>
-    </div>
-  </section>
+  <section id="view-summary"></section>
+  <section id="view-commissions" class="hide"></section>
+  <section id="view-tips" class="hide"></section>
 </main>
-</div><!-- end appWrapper -->
-<div id="toast" class="toast"></div>
 
-<script>
-// Web app URL is baked in so the tool works on any computer with no per-browser setup.
-var API_URL='https://script.google.com/macros/s/AKfycbxdttWdvszxq-uF4fL9h1ys-Lz1-aWVm3_ZJtfBW43vHgItv8V-sXiwl9NhLEDQClk8/exec';
-var API_TOKEN='cf0768497c724de253311352396ed5cb55ae3194d60c36f6';
-var STATE={api:API_URL,stores:[],config:[],rates:{cleaning:10,express:10,malware:10},
-  rules:{}, ruleDefaults:{accyGate:0,accyAttach1:0.25,accyPct1:0.10,accyGoalPct:0.05,accyAttach2:0.50,accyPct2:0.05,
-    dev1Count:5,dev1Pct:0.05,devAttachPct:0.05,dev2Min:20,dev2Max:24,dev2Pct:0.05,dev3Count:25,dev3Pct:0.10}};
-function rulesFor(store){var d=STATE.ruleDefaults||{},o=(STATE.rules&&STATE.rules[store])||{},r={};for(var k in d)r[k]=(o[k]!=null?o[k]:d[k]);return r;}
-var REP=null;
+<div id="loading">Loading…</div>
+<div class="toast" id="toast"></div>
 
-// ---------- engine ----------
-function computeCommission(t, cfg){
-  var rates=cfg.rates||STATE.rates;
-  var R=cfg.rules||STATE.ruleDefaults;
-  var attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
-  var netAccy=t.NetAccySales||0, accyGP=t.AccyGP||0;
-  var gated=(R.accyGate>0 && attach<R.accyGate);                       // hard minimum-attach gate
-  var t25=attach>=R.accyAttach1?R.accyPct1:0, goal=netAccy>=cfg.accessoryGoal?R.accyGoalPct:0, t50=attach>=R.accyAttach2?R.accyPct2:0;
-  var accyComm=gated?0:(t25+goal+t50)*accyGP;
-  var netDev=(t.DeviceUnits||0)-(t.DeviceReturns||0);                  // returns reduce net device units
-  var dev5=netDev>=R.dev1Count?R.dev1Pct:0;
-  // Acc/Device attach: blank manual value = ASSUMED MET; a number = actual. Denominator is NET devices.
-  var entered=!(cfg.accDeviceUnits===''||cfg.accDeviceUnits===null||cfg.accDeviceUnits===undefined);
-  var attachMet=entered?(netDev>0&&(Number(cfg.accDeviceUnits)/netDev)>=1):true;
-  var devAttach=attachMet?R.devAttachPct:0;
-  var dev2024=(netDev>=R.dev2Min&&netDev<=R.dev2Max&&devAttach>0)?R.dev2Pct:0;
-  var dev25=(netDev>=R.dev3Count&&dev5>0)?R.dev3Pct:0;
-  var devComm=(dev5+devAttach+dev2024+dev25)*(t.DeviceGP||0);
-  var clean=(t.Cleanings||0)*rates.cleaning, exp=(t.ExpressRepairs||0)*rates.express, mal=(t.Malware||0)*rates.malware;
-  var repairComm=clean+exp+mal;
-  var exempt=(cfg.active===false);
-  return {attach:attach,netAccy:netAccy,accyGP:accyGP,assumed:!entered,gated:gated,rules:R,netDev:netDev,
-    tiers:{t25:t25,goal:goal,t50:t50,dev5:dev5,devAttach:devAttach,dev2024:dev2024,dev25:dev25},
-    accyComm:exempt?0:accyComm,devComm:exempt?0:devComm,clean:clean,exp:exp,mal:mal,repairComm:repairComm,exempt:exempt,
-    total:(exempt?0:accyComm)+(exempt?0:devComm)+repairComm};
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const E=window.CommissionEngine, money=E.money, pct=E.pct;
+
+const $=s=>document.querySelector(s), $all=s=>Array.prototype.slice.call(document.querySelectorAll(s));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+function isoToday(){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function monthStart(){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-01';}
+
+const STATE={me:null,stores:[],store:lsGet('cc_store','all'),tab:lsGet('cc_tab','summary'),
+  start:lsGet('cc_start',monthStart()),end:lsGet('cc_end',isoToday()),
+  rates:{},rateLabels:{},rules:{},staffById:{},rosterById:{},
+  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',tipsPool:0,loaded:false};
+
+/* ---- session: adopt the shared front-door session so RLS sees the owner ---- */
+async function ensureSession(){
+  try{
+    let s=(await sb.auth.getSession()).data.session; if(s)return s;
+    const raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    const o=JSON.parse(raw);
+    const at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    const rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+async function currentStaff(){
+  try{const s=(await sb.auth.getSession()).data.session;if(!s)return null;
+    const r=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
+    return r.data||null;
+  }catch(e){return null;}
+}
+function allowedStores(all,me){
+  if(!me||me.role==='owner')return all.slice();
+  const set={};if(me.home_store)set[me.home_store]=1;(me.authorized_stores||[]).forEach(s=>set[s]=1);
+  const a=all.filter(s=>set[s]);return a.length?a:all.slice();
 }
 
-// ---------- API ----------
-function api(action,params){ if(!STATE.api) return Promise.reject('No API URL configured.');
-  var url=STATE.api+'?action='+encodeURIComponent(action)+'&token='+encodeURIComponent(API_TOKEN);
-  for(var k in (params||{})) url+='&'+k+'='+encodeURIComponent(params[k]);
-  return fetch(url).then(function(r){return r.json();}); }
-function apiPost(body){ if(!STATE.api) return Promise.reject('No API URL configured.');
-  body.token=API_TOKEN;
-  return fetch(STATE.api,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}}).then(function(r){return r.json();}); }
-
-// ---------- helpers ----------
-function $(s){return document.querySelector(s);} function $all(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
-function money(n){return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function pct(n){return (Number(n)*100).toFixed(1)+'%';}
-function toast(m,e){var t=$('#toast');t.textContent=m;t.className='toast show'+(e?' err':'');setTimeout(function(){t.className='toast'+(e?' err':'');},2600);}
-function todayStr(){return new Date().toISOString().slice(0,10);}
-function empsFor(store){return STATE.config.filter(function(c){return c.Store===store;});}
-function fillStoreSelect(sel){sel.innerHTML=STATE.stores.map(function(s){return '<option>'+s+'</option>';}).join('');}
-
-var ACTIVE_TAB='summary';
-$all('#mainTabs .filter-tab').forEach(function(tab){tab.addEventListener('click',function(){
-  ACTIVE_TAB=tab.dataset.tab;
-  $all('#mainTabs .filter-tab').forEach(function(t){t.classList.toggle('active',t===tab);});
-  $('#tab-summary').classList.toggle('hide',ACTIVE_TAB!=='summary');
-  $('#tab-commissions').classList.toggle('hide',ACTIVE_TAB!=='commissions');
-  $('#tab-tips').classList.toggle('hide',ACTIVE_TAB!=='tips');
-  $('#repControls').classList.toggle('hide',ACTIVE_TAB==='tips');
-  $('#tipsControls').classList.toggle('hide',ACTIVE_TAB!=='tips');
-  if(ACTIVE_TAB==='summary'&&REP){paintSummary();refreshTotals();}
-  if(ACTIVE_TAB==='tips'&&!TIPALL){loadTipsAll();}
-  renderLocationTabs();
-});});
-function showSettings(open){
-  $('#tab-settings').classList.toggle('hide',!open);
-  $('#btnSettings').classList.toggle('on',open);
-  $('#filterRow').classList.toggle('hide',open);
-  $('#repControls').classList.toggle('hide',open||ACTIVE_TAB==='tips');
-  $('#tipsControls').classList.toggle('hide',open||ACTIVE_TAB!=='tips');
-  ['summary','commissions','tips'].forEach(function(n){$('#tab-'+n).classList.toggle('hide',open||ACTIVE_TAB!==n);});
-  if(open) window.scrollTo(0,0);
+/* ---- config (rates / rules / roster + staff) ---- */
+async function loadConfig(){
+  const [rt,rl,rs,st]=await Promise.all([
+    sb.from('commission_rates').select('*').order('sort'),
+    sb.from('commission_rules').select('*'),
+    sb.from('commission_roster').select('*'),
+    sb.from('staff').select('id,display_name,home_store,role,active,authorized_stores')
+  ]);
+  STATE.rates={};STATE.rateLabels={};
+  (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=Number(r.amount)||0;STATE.rateLabels[r.sku]=r.label||r.sku;});
+  STATE.rules={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};});
+  STATE.staffById={};(st.data||[]).forEach(s=>{STATE.staffById[s.id]=s;});
+  STATE.rosterById={};(rs.data||[]).forEach(r=>{STATE.rosterById[r.staff_id]=r;});
+  const allStores=window.CPRLocations?CPRLocations.names.slice():[...new Set((st.data||[]).map(s=>s.home_store).filter(Boolean))];
+  STATE.stores=allowedStores(allStores,STATE.me);
+  if(STATE.store!=='all'&&STATE.stores.indexOf(STATE.store)<0)STATE.store='all';
 }
-function bindSettingsBtn(){$('#btnSettings').addEventListener('click',function(){
-  showSettings($('#tab-settings').classList.contains('hide'));});
-  var b=$('#settingsBack'); if(b) b.onclick=function(){showSettings(false);};}
-function shortStore(s){return (window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,''));}
 
-// ---------- REPORT ----------
-function applyQuick(){var v=$('#repQuick').value,now=new Date(),y=now.getFullYear(),m=now.getMonth();
-  function iso(d){return d.toISOString().slice(0,10);}
-  if(v==='mtd'){$('#repStart').value=iso(new Date(y,m,1));$('#repEnd').value=todayStr();}
-  else if(v==='lastmonth'){$('#repStart').value=iso(new Date(y,m-1,1));$('#repEnd').value=iso(new Date(y,m,0));}}
-var SUMCOLS=['AccyUnits','NetAccySales','AccyGP','Tickets','DeviceUnits','DeviceReturns','DeviceRev','DeviceGP','Cleanings','ExpressRepairs','Malware'];
-var REPALL=null;
-function runReport(){
-  var start=$('#repStart').value,end=$('#repEnd').value;
+/* ---- run report: aggregate commission_sales over the range, per employee ---- */
+function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,services:{}};}
+function addInto(t,r){
+  t.Tickets+=Number(r.tickets)||0;t.AccyUnits+=Number(r.accy_units)||0;t.NetAccySales+=Number(r.accy_net)||0;t.AccyGP+=Number(r.accy_gp)||0;
+  t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;t.DeviceRev+=Number(r.device_net)||0;t.DeviceGP+=Number(r.device_gp)||0;
+  const sv=r.services||{};for(const k in sv){t.services[k]=(t.services[k]||0)+(Number(sv[k])||0);}
+}
+async function runReport(){
+  const {start,end}=STATE;
   if(!start||!end){toast('Pick a date range',true);return;}
-  var periodKey=start+'|'+end; $('#runReport').disabled=true;
-  Promise.all([api('report',{store:'ALL',start:start,end:end}),api('manual',{periodKey:periodKey})])
-  .then(function(res){$('#runReport').disabled=false;
-    var rep=res[0],man=res[1]; if(!rep.ok){toast(rep.error||'Report failed',true);return;}
-    var dataByEmp={}; (rep.rows||[]).forEach(function(r){dataByEmp[r.Employee]=r;});
-    var emps={};
-    // seed every rostered employee (so they show under their home store even with zero sales)
-    STATE.config.forEach(function(c){ if(!c.Employee||emps[c.Employee])return; var t={};SUMCOLS.forEach(function(k){t[k]=0;});
-      emps[c.Employee]={t:t,home:c.Store,stores:[],byStore:{},rostered:true,active:c.Active!==false,goal:Number(c.AccessoryGoal)||0}; });
-    // overlay actual data
-    Object.keys(dataByEmp).forEach(function(name){var r=dataByEmp[name],cf=STATE.config.filter(function(c){return c.Employee===name;})[0];
-      var t={};SUMCOLS.forEach(function(k){t[k]=Number(r[k])||0;});
-      emps[name]={t:t,home:(cf?cf.Store:(r.HomeStore||'')),stores:r.Stores||[],byStore:r.byStore||{},rostered:!!cf,active:cf?cf.Active!==false:true,goal:cf?Number(cf.AccessoryGoal)||0:0}; });
-    var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]={accDevice:(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits)};});
-    var present={}; Object.keys(emps).forEach(function(n){if(emps[n].home)present[emps[n].home]=true;});
-    var homeStores=STATE.stores.filter(function(s){return present[s];});
-    Object.keys(present).forEach(function(s){if(homeStores.indexOf(s)<0)homeStores.push(s);});
-    REPALL={start:start,end:end,periodKey:periodKey,emps:emps,manual:manual,homeStores:homeStores};
-    var keep=(REP&&REP.store&&(REP.store==='all'||homeStores.indexOf(REP.store)>=0))?REP.store:homeStores[0];
-    selectStore(keep||'');
-  }).catch(function(err){$('#runReport').disabled=false;toast(String(err),true);});
-}
-function selectStore(store){
-  if(!REPALL)return;
-  var all=store==='all';
-  var names=Object.keys(REPALL.emps).filter(function(n){return all||REPALL.emps[n].home===store;});
-  var totals={},stores={},byStore={},meta={};
-  names.forEach(function(n){var e=REPALL.emps[n];totals[n]=e.t;stores[n]=e.stores;byStore[n]=e.byStore;
-    meta[n]={rostered:e.rostered,active:e.active,goal:e.goal,home:e.home};});
-  REP={store:store,all:all,start:REPALL.start,end:REPALL.end,periodKey:REPALL.periodKey,totals:totals,
-    names:names.sort(function(a,b){return a<b?1:(a>b?-1:0);}),manual:REPALL.manual,stores:stores,byStore:byStore,meta:meta};
-  renderLocationTabs(); buildEmp(); paintSummary(); paintCommissions(); refreshTotals();
-}
-function buildEmp(){
-  REP.emp=REP.names.map(function(name,i){var mt=REP.meta[name]||{};var sw=(REP.stores&&REP.stores[name])||[];
-    return {i:i,name:name,t:REP.totals[name],home:mt.home||'',rostered:!!mt.rostered,active:mt.active!==false,goal:Number(mt.goal)||0,stores:sw,multi:sw.length>1};});
-}
-function renderLocationTabs(){
-  var box=$('#locationTabs'); if(!box) return;
-  if(ACTIVE_TAB==='tips'){
-    if(!TIPALL){box.innerHTML='';return;}
-    box.innerHTML=TIPALL.stores.map(function(s){
-      var cnt=Object.keys((TIPALL.byStore[s]||{hours:{}}).hours||{}).length;
-      return '<button class="filter-tab loc-tab'+(s===TIPALL.store?' active':'')+'" data-loc="'+s+'">'+shortStore(s)+' <span class="filter-count">'+cnt+'</span></button>';}).join('');
-    $all('#locationTabs .loc-tab').forEach(function(b){b.onclick=function(){selectTipStore(b.dataset.loc);};});
-    return;
-  }
-  if(!REPALL){box.innerHTML='';return;}
-  var tabs=['<button class="filter-tab loc-tab'+(REP&&REP.all?' active':'')+'" data-loc="all">All</button>'];
-  REPALL.homeStores.forEach(function(s){
-    var cnt=Object.keys(REPALL.emps).filter(function(n){return REPALL.emps[n].home===s;}).length;
-    tabs.push('<button class="filter-tab loc-tab'+(REP&&!REP.all&&REP.store===s?' active':'')+'" data-loc="'+s+'">'+shortStore(s)+' <span class="filter-count">'+cnt+'</span></button>');});
-  box.innerHTML=tabs.join('');
-  $all('#locationTabs .loc-tab').forEach(function(b){b.onclick=function(){selectStore(b.dataset.loc);};});
-}
-function calc(e){var m=REP.manual[e.name]||{accDevice:''},t=e.t;
-  return computeCommission({AccyUnits:t.AccyUnits,Tickets:t.Tickets,NetAccySales:t.NetAccySales,AccyGP:t.AccyGP,
-    DeviceUnits:t.DeviceUnits,DeviceReturns:t.DeviceReturns,DeviceGP:t.DeviceGP,Cleanings:t.Cleanings,ExpressRepairs:t.ExpressRepairs,Malware:t.Malware},
-    {accessoryGoal:e.goal,accDeviceUnits:m.accDevice,rates:STATE.rates,active:e.active,rules:rulesFor(e.home||REP.store)});}
-function setText(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
-// Split a person's commission across the stores they worked: accessory+device by GP share, services charged exactly.
-function splitCharge(bs,c){ bs=bs||{}; var stores=Object.keys(bs); if(!stores.length) return [];
-  var rates=STATE.rates, adComm=c.accyComm+c.devComm, totalGP=0;
-  stores.forEach(function(s){var b=bs[s]||{};totalGP+=(+b.AccyGP||0)+(+b.DeviceGP||0);});
-  return stores.map(function(s){var b=bs[s]||{};
-    var gpShare=totalGP>0?((+b.AccyGP||0)+(+b.DeviceGP||0))/totalGP:1/stores.length;
-    var svc=(+b.Cleanings||0)*rates.cleaning+(+b.Express||0)*rates.express+(+b.Malware||0)*rates.malware;
-    return {store:s, amt:adComm*gpShare+svc};
-  }).sort(function(a,b){return b.amt-a.amt;});
-}
-function chargeSplit(e,c){var parts=splitCharge((REP.byStore&&REP.byStore[e.name])||{}, c); return parts.length?parts:[{store:REP.store,amt:c.total}];}
-function chargeHTML(e,c){
-  var parts=chargeSplit(e,c);
-  if(parts.length<=1) return '<div class="charge"><div class="clbl">Charge to '+(parts[0]?parts[0].store:REP.store)+'</div><div class="crow only"><span></span><span>'+money(parts[0]?parts[0].amt:c.total)+'</span></div></div>';
-  return '<div class="charge"><div class="clbl">Charge to store</div>'+parts.map(function(p){
-    return '<div class="crow"><span>'+p.store+'</span><span>'+money(p.amt)+'</span></div>';}).join('')+'</div>';
-}
-function drow(l,v,cls){return '<div class="drow"><span>'+l+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>';}
-function detailHTML(e,c){var t=e.t,R=c.rules;
-  function tt(v){return v>0?'+'+pct(v):'—';} function tc(v){return v>0?'hit':'miss';}
-  function grp(title,rows){return '<div class="dgroup"><div class="dgh">'+title+'</div>'+rows+'</div>';}
-  if(!e.active) return grp('Accessory & device',
-      drow('Attach', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+
-      drow('Net accessory $', money(t.NetAccySales))+drow('Devices sold', t.DeviceUnits+' (GP '+money(t.DeviceGP)+')')+
-      drow('Commission','exempt — lead','miss'))+
-    grp('Services', drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm)));
-  var da=c.tiers.devAttach>0?(c.assumed?'+'+pct(R.devAttachPct)+' (assumed)':'+'+pct(R.devAttachPct)):'—', dac=c.tiers.devAttach>0?(c.assumed?'assumed':'hit'):'miss';
-  var gateRow = R.accyGate>0 ? drow('Min-attach gate ('+pct(R.accyGate)+')', c.gated?'below — accessory $0':'cleared', c.gated?'miss':'hit') : '';
-  return grp('Accessory',
-      drow('Attach rate', t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach))+gateRow+
-      drow('Net accessory $ (goal '+money(e.goal)+')', money(c.netAccy))+drow('Accessory GP', money(c.accyGP))+
-      drow(pct(R.accyAttach1)+' attach gate (+'+pct(R.accyPct1)+')', tt(c.tiers.t25), tc(c.tiers.t25))+
-      drow('Accy goal met (+'+pct(R.accyGoalPct)+')', tt(c.tiers.goal), tc(c.tiers.goal))+
-      drow(pct(R.accyAttach2)+'+ attach (+'+pct(R.accyPct2)+')', tt(c.tiers.t50), tc(c.tiers.t50)))+
-    grp('Device',
-      drow('Devices', t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' returned = '+c.netDev+' net':''))+
-      drow('Device net sales', money(t.DeviceRev))+drow('Device GP', money(t.DeviceGP))+
-      drow(R.dev1Count+'+ devices (+'+pct(R.dev1Pct)+')', tt(c.tiers.dev5), tc(c.tiers.dev5))+
-      drow('100% accy attach (+'+pct(R.devAttachPct)+')', da, dac)+
-      drow(R.dev2Min+'–'+R.dev2Max+' devices (+'+pct(R.dev2Pct)+')', tt(c.tiers.dev2024), tc(c.tiers.dev2024))+
-      drow(R.dev3Count+'+ devices (+'+pct(R.dev3Pct)+')', tt(c.tiers.dev25), tc(c.tiers.dev25)))+
-    grp('Services',
-      drow('Cleanings '+t.Cleanings+' · Express '+t.ExpressRepairs+' · Malware '+t.Malware, money(c.repairComm)));
-}
-function refreshTotals(){var grand=0;
-  REP.emp.forEach(function(e){var c=calc(e);grand+=c.total;
-    var s=document.getElementById('sum'+e.i); if(s){s.textContent=money(c.total);s.dataset.amt=c.total.toFixed(2);}
-    setText('tot'+e.i,money(c.total));
-    setText('acc'+e.i,money(c.accyComm));setText('dev'+e.i,money(c.devComm));setText('svc'+e.i,money(c.repairComm));
-    if(e.multi){var split=summaryChargeHTML(chargeSplit(e,c));
-      var sub=document.getElementById('substore'+e.i); if(sub) sub.innerHTML=split;
-      var cs=document.getElementById('csplit'+e.i); if(cs) cs.innerHTML=split;}
-    var ch=document.getElementById('chg'+e.i); if(ch) ch.innerHTML=chargeHTML(e,c);
-    var d=document.getElementById('det'+e.i); if(d) d.innerHTML=detailHTML(e,c);});
-  var g=money(grand),ga=grand.toFixed(2);
-  var gh=document.getElementById('grand'); if(gh){gh.textContent=g;gh.dataset.amt=ga;}
-  var gf=document.getElementById('grandFoot'); if(gf){gf.textContent=g;gf.dataset.amt=ga;}}
-function summaryChargeHTML(parts){return parts.map(function(p){return p.store.replace(/^CPR\s*/,'')+' <b>'+money(p.amt)+'</b>';}).join(' · ');}
-function copyText(txt){ if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(txt);
-  return new Promise(function(res){var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(ta);res();}); }
-// Total tip share per employee across all stores in the loaded pay period.
-function tipsByEmp(){var out={}; if(!TIPALL) return out;
-  Object.keys(TIPALL.byStore).forEach(function(s){var d=TIPALL.byStore[s],pool=Number(d.pool)||0,total=0,hrs={};
-    Object.keys(d.hours||{}).forEach(function(e){var h=(Number(d.hours[e].PP1Hours)||0)+(Number(d.hours[e].PP2Hours)||0);hrs[e]=h;total+=h;});
-    if(total>0&&pool>0)Object.keys(hrs).forEach(function(e){out[e]=(out[e]||0)+(hrs[e]/total)*pool;});});
-  return out;}
-function paintSummary(){
-  if(!REP){$('#summaryOut').innerHTML='';return;}
-  if(!REP.emp) buildEmp();
-  $('#dataStatus').textContent=REP.names.length?(REP.emp.length+' employees · '+REP.start+' → '+REP.end):'No data';
-  if(!REP.names.length){$('#summaryOut').innerHTML='<div class="rcard"><p class="muted">No data in this range. Check the dates, and that the Store name matches RepairQ exactly (e.g., "CPR Eugene").</p></div>';return;}
-  var tips=tipsByEmp(), haveTips=!!TIPALL, tipsTotal=0;
-  var unrostered=REP.emp.filter(function(e){return !e.rostered;}).map(function(e){return e.name;});
-  var sumRows=REP.emp.map(function(e){
-    var bdg=(e.rostered?'':'<span class="badge warn">⚠ not in roster</span>');
-    var amt='<span class="copysum" id="sum'+e.i+'" data-i="'+e.i+'" title="Click to copy"></span>';
-    var sub=e.multi?'<span id="substore'+e.i+'"></span>':'';
-    var tv=tips[e.name]||0; tipsTotal+=tv;
-    var tipCell=haveTips?'<span class="copysum" data-amt="'+tv.toFixed(2)+'" title="Click to copy">'+money(tv)+'</span>':'<span class="muted">—</span>';
-    return '<tr><td class="s-name">'+e.name+'</td><td class="s-flag">'+bdg+'</td><td class="s-split">'+sub+'</td><td class="sumcell">'+amt+'</td><td class="s-tipcell">'+tipCell+'</td></tr>';}).join('');
-  var html='';
-  if(unrostered.length) html+='<div class="banner">'+unrostered.length+' employee(s) have sales but aren\u2019t in the roster: <b>'+unrostered.join(', ')+'</b>. Add them in Settings.</div>';
-  var title=REP.all?'All locations':REP.store;
-  var tipsHeadVal=haveTips?'<span class="big tips copysum" id="grandTips" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'<span class="big tips" style="cursor:default">—</span>';
-  var foot='<tfoot><tr><td>Total</td><td></td><td></td><td class="num sf-comm"><span class="copysum" id="grandFoot" title="Click to copy"></span></td><td class="num">'+(haveTips?'<span class="copysum" data-amt="'+tipsTotal.toFixed(2)+'" title="Click to copy">'+money(tipsTotal)+'</span>':'—')+'</td></tr></tfoot>';
-  html+='<div class="rcard summary"><div class="sumhead"><div><div class="sumtitle">'+title+'</div><div class="muted">'+REP.start+' → '+REP.end+' · '+REP.emp.length+' employees'+(haveTips?' · tips: '+TIPALL.period:' · load a period in Tips for tip totals')+'</div></div>'+
-    '<div class="sumtotal"><div class="muted">'+(REP.all?'Company commissions':'Store commissions')+'</div><div class="big copysum" id="grand" title="Click to copy"></div>'+
-    '<div class="muted" style="margin-top:6px">Tips</div>'+tipsHeadVal+'</div>'+
-    '<button class="btn alt" id="dlPayroll">⬇ Payroll summary (all stores)</button></div>'+
-    '<table class="sumtable"><colgroup><col class="s-emp"><col class="s-flag"><col><col class="s-comm"><col class="s-tips"></colgroup><thead><tr><th>Employee</th><th></th><th class="num">Store split</th><th class="num">Commissions</th><th class="num">Tips</th></tr></thead><tbody>'+sumRows+'</tbody>'+foot+'</table></div>';
-  $('#summaryOut').innerHTML=html;
-  $all('#summaryOut .copysum').forEach(function(td){td.addEventListener('click',function(){var amt=td.dataset.amt||'';copyText(amt).then(function(){toast('Copied $'+amt);});});});
-  if($('#dlPayroll')) $('#dlPayroll').onclick=downloadPayroll;
-}
-function paintCommissions(){
-  if(!REP){$('#commOut').innerHTML='';return;}
-  if(!REP.emp) buildEmp();
-  if(!REP.names.length){$('#commOut').innerHTML='<div class="rcard"><p class="muted">No data in this range.</p></div>';return;}
-  var rows=REP.emp.map(function(e){var t=e.t,m=REP.manual[e.name]||{accDevice:''};
-    var badges='';
-    if(!e.rostered) badges+='<span class="badge warn">⚠ not in roster</span>';
-    var z=e.active?'':' z';
-    var net=(t.DeviceUnits||0)-(t.DeviceReturns||0);
-    var manual=e.active?'<div class="manualline"><label>Accessories on device tickets</label><input type="number" placeholder="assumed met" data-i="'+e.i+'" value="'+(m.accDevice===''?'':m.accDevice)+'"><span class="muted">of '+net+' net device'+(net===1?'':'s')+((t.DeviceReturns||0)>0?' ('+t.DeviceUnits+'−'+t.DeviceReturns+')':'')+'</span></div>':'';
-    var chg=e.multi?'<div id="chg'+e.i+'"></div>':'';
-    return '<tr class="erow" data-i="'+e.i+'">'+
-        '<td class="c-name"><span class="enm">'+e.name+'</span></td>'+
-        '<td class="c-flag">'+badges+'</td>'+
-        '<td class="num acc'+z+'" id="acc'+e.i+'"></td>'+
-        '<td class="num dev'+z+'" id="dev'+e.i+'"></td>'+
-        '<td class="num" id="svc'+e.i+'"></td>'+
-        '<td class="num tot">'+(e.multi?'<span class="csplit" id="csplit'+e.i+'"></span>':'')+'<span id="tot'+e.i+'"></span></td>'+
-        '<td class="num"><button class="icon-btn" data-det="'+e.i+'">+ Details</button></td>'+
-      '</tr>'+
-      '<tr class="exrow hide" id="exrow'+e.i+'"><td colspan="7"><div class="dwrap">'+manual+'<div class="detail" id="det'+e.i+'"></div>'+chg+'</div></td></tr>';
-  }).join('');
-  $('#commOut').innerHTML='<div class="table-card"><table class="ctable"><colgroup><col class="c-emp"><col class="c-flag"><col class="c-num"><col class="c-num"><col class="c-num"><col><col class="c-act"></colgroup><thead><tr>'+
-    '<th>Employee</th><th></th><th class="num">Accessory</th><th class="num">Device</th><th class="num">Services</th><th class="num">Total</th><th></th>'+
-    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
-  $all('#commOut .manualline input[data-i]').forEach(function(inp){
-    inp.addEventListener('input',function(){var e=REP.emp[Number(inp.dataset.i)];REP.manual[e.name]={accDevice:inp.value===''?'':Number(inp.value)};refreshTotals();});
-    inp.addEventListener('change',function(){var e=REP.emp[Number(inp.dataset.i)];saveManualOne(e.name);});});
-  $all('#commOut .icon-btn[data-det]').forEach(function(btn){
-    btn.addEventListener('click',function(){var d=document.getElementById('exrow'+btn.dataset.det);
-      var hidden=d.classList.toggle('hide');btn.textContent=hidden?'+ Details':'− Details';});});
-}
-function saveManualOne(name){var m=REP.manual[name]||{accDevice:''};
-  apiPost({action:'saveManual',periodKey:REP.periodKey,store:REP.store,rows:[{Employee:name,AccDeviceUnits:m.accDevice}]}).then(function(res){
-    if(res.ok) toast('Saved'); else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});
-}
-// Printable payroll summary across ALL stores, opened in a new window for Save-as-PDF.
-function downloadPayroll(){
-  var start=$('#repStart').value,end=$('#repEnd').value;
-  if(!start||!end){toast('Pick a date range first',true);return;}
-  var pk=start+'|'+end; toast('Building payroll summary…');
-  Promise.all([api('report',{store:'ALL',start:start,end:end}),api('manual',{periodKey:pk})]).then(function(res){
-    var rep=res[0],man=res[1]; if(!rep.ok){toast('Failed to load',true);return;}
-    var manual={}; (man.rows||[]).forEach(function(m){manual[m.Employee]=(m.AccDeviceUnits===''||m.AccDeviceUnits==null)?'':Number(m.AccDeviceUnits);});
-    var byHome={}, storeCharge={};
-    (rep.rows||[]).forEach(function(r){
-      var cf=STATE.config.filter(function(c){return c.Employee===r.Employee;})[0];
-      var active=cf?cf.Active!==false:true, goal=cf?Number(cf.AccessoryGoal)||0:0, home=r.HomeStore||'(unrostered)';
-      var c=computeCommission({AccyUnits:r.AccyUnits,Tickets:r.Tickets,NetAccySales:r.NetAccySales,AccyGP:r.AccyGP,DeviceUnits:r.DeviceUnits,DeviceReturns:r.DeviceReturns,DeviceGP:r.DeviceGP,Cleanings:r.Cleanings,ExpressRepairs:r.ExpressRepairs,Malware:r.Malware},
-        {accessoryGoal:goal,accDeviceUnits:(manual[r.Employee]!=null?manual[r.Employee]:''),rates:STATE.rates,active:active,rules:rulesFor(home)});
-      var parts=splitCharge(r.byStore||{},c); if(!parts.length)parts=[{store:home,amt:c.total}];
-      parts.forEach(function(p){storeCharge[p.store]=(storeCharge[p.store]||0)+p.amt;});
-      (byHome[home]=byHome[home]||[]).push({emp:r.Employee,active:active,c:c,parts:parts,multi:(r.Stores||[]).length>1});
-    });
-    var w=window.open('','_blank'); if(!w){toast('Allow pop-ups to download the summary',true);return;}
-    w.document.write(buildPayrollDoc(start,end,byHome,storeCharge)); w.document.close();
-    setTimeout(function(){try{w.focus();w.print();}catch(_){}},500);
-  }).catch(function(err){toast(String(err),true);});
-}
-function buildPayrollDoc(start,end,byHome,storeCharge){
-  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');};
-  var css='<style>body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:32px}h1{font-size:20px;margin:0 0 2px;color:#DC282E}h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #DC282E;padding-bottom:3px}.sub{color:#555;font-size:12px;margin-bottom:6px}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f2f2}td.r,th.r{text-align:right}tr.sub td{font-weight:bold;background:#faf7f7}.split{color:#5b3fb0;font-size:11px}.charge{max-width:380px}.grand{font-size:14px;font-weight:bold;margin-top:10px}@media print{body{margin:12mm}}</style>';
-  var grand=0, body='';
-  Object.keys(byHome).sort().forEach(function(home){
-    var emps=byHome[home].slice().sort(function(a,b){return a.emp<b.emp?-1:1;}), sub=0;
-    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Total</th></tr></thead><tbody>';
-    emps.forEach(function(x){ sub+=x.c.total; grand+=x.c.total;
-      body+='<tr><td>'+esc(x.emp)+(x.active?'':' (lead)')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r"><b>'+money(x.c.total)+'</b></td></tr>';
-      if(x.multi) body+='<tr><td colspan="5" class="split">charged to: '+x.parts.map(function(p){return esc(p.store)+' '+money(p.amt);}).join(' · ')+'</td></tr>';
-    });
-    body+='<tr class="sub"><td>Subtotal</td><td class="r" colspan="3"></td><td class="r">'+money(sub)+'</td></tr></tbody></table>';
+  $('#status').textContent='Loading…';
+  const {data,error}=await sb.from('commission_sales').select('*').gte('biz_date',start).lte('biz_date',end);
+  if(error){$('#status').textContent='Error';toast(error.message,true);return;}
+  const byEmp={};
+  (data||[]).forEach(r=>{
+    const key=r.staff_id!=null?('sid:'+r.staff_id):('nm:'+r.employee);
+    let e=byEmp[key];
+    if(!e){const sf=r.staff_id!=null?STATE.staffById[r.staff_id]:null;
+      e=byEmp[key]={staff_id:r.staff_id,name:(sf&&sf.display_name)||r.employee,home:(sf&&sf.home_store)||null,
+        totals:blankTotals(),byStore:{},stores:new Set()};}
+    addInto(e.totals,r);
+    if(!e.byStore[r.store])e.byStore[r.store]={AccyGP:0,DeviceGP:0,services:{}};
+    const b=e.byStore[r.store];b.AccyGP+=Number(r.accy_gp)||0;b.DeviceGP+=Number(r.device_gp)||0;
+    const sv=r.services||{};for(const k in sv)b.services[k]=(b.services[k]||0)+(Number(sv[k])||0);
+    e.stores.add(r.store);
   });
-  var ct='<h2>Commission cost charged to each store</h2><table class="charge"><tbody>';
-  Object.keys(storeCharge).sort().forEach(function(s){ct+='<tr><td>'+esc(s)+'</td><td class="r">'+money(storeCharge[s])+'</td></tr>';});
-  ct+='</tbody></table>';
-  return '<!doctype html><html><head><meta charset="utf-8"><title>CPR Payroll '+start+' to '+end+'</title>'+css+'</head><body>'+
-    '<h1>CPR Commission — Payroll Summary</h1><div class="sub">Pay period: '+start+' to '+end+' &nbsp;·&nbsp; generated '+new Date().toLocaleString()+'</div>'+
-    body+ct+'<div class="grand">Total commission, all stores: '+money(grand)+'</div></body></html>';
+  STATE.report=Object.keys(byEmp).map(k=>{
+    const e=byEmp[k];const ros=e.staff_id!=null?STATE.rosterById[e.staff_id]:null;
+    const home=e.home||[...e.stores][0]||null;
+    return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
+      active:ros?ros.commission_active!==false:true, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!ros};
+  });
+  const pk=start+'|'+end;STATE.manual={};
+  const mn=await sb.from('commission_manual').select('*').eq('period_key',pk);
+  (mn.data||[]).forEach(m=>{STATE.manual[m.employee]=m.acc_device_units;});
+  STATE.loaded=true;
+  $('#status').textContent=STATE.report.length+' employees · '+start+' → '+end;
+  render();
 }
 
-// ---------- TIPS (load all stores once, switch without losing input) ----------
-var TIPALL=null;
-function tipRowHTML(name,removable){return '<tr><td class="emp-name">'+name+(removable?' <span class="x tipx" title="Remove">×</span>':'')+'</td><td><input type="number" step="0.01" data-emp="'+name+'" data-col="PP1Hours"></td><td><input type="number" step="0.01" data-emp="'+name+'" data-col="PP2Hours"></td><td class="thrs">0</td><td class="ttip">$0.00</td></tr>';}
-function tipsHasEmp(name){return Array.prototype.some.call($('#tipsTable tbody').querySelectorAll('input[data-col="PP1Hours"]'),function(i){return i.dataset.emp===name;});}
-function fillTipsAddSel(){var sel=$('#tipsAddSel');if(!sel)return;
-  var names=[];STATE.config.forEach(function(c){if(c.Employee&&names.indexOf(c.Employee)<0)names.push(c.Employee);});names.sort();
-  sel.innerHTML=names.map(function(n){return '<option>'+n+'</option>';}).join('');}
-function recalcTips(){var pool=Number($('#tipsPool').value)||0,rows=[],total=0;
-  $all('#tipsTable tbody tr').forEach(function(tr){var ins=tr.querySelectorAll('input');if(!ins.length)return;
-    var h=(Number(ins[0].value)||0)+(Number(ins[1].value)||0);tr.querySelector('.thrs').textContent=h.toFixed(2);total+=h;rows.push({tr:tr,h:h});});
-  rows.forEach(function(r){r.tr.querySelector('.ttip').textContent=money(total>0?(r.h/total)*pool:0);});}
-// write the visible table + pool back into TIPALL for the currently-selected store
-function captureTips(){if(!TIPALL||!TIPALL.store)return;var d=TIPALL.byStore[TIPALL.store];if(!d)return;
-  d.pool=Number($('#tipsPool').value)||0;
-  $all('#tipsTable input').forEach(function(inp){var e=inp.dataset.emp;d.hours[e]=d.hours[e]||{};d.hours[e][inp.dataset.col]=inp.value===''?'':Number(inp.value);});}
-function defaultPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
-function loadTipsAll(){var period=$('#tipsPeriod').value;
-  if(!period){period=defaultPeriod();$('#tipsPeriod').value=period;}
-  $('#loadTips').disabled=true;
-  api('tips',{store:'ALL',period:period}).then(function(res){$('#loadTips').disabled=false;
-    if(!res.ok){toast(res.error||'Load failed',true);return;}
-    if(res.periods){var dl=$('#tipPeriods');if(dl)dl.innerHTML=res.periods.sort().reverse().map(function(p){return '<option value="'+p+'">';}).join('');}
-    var byStore={}; STATE.stores.forEach(function(s){byStore[s]={pool:0,hours:{}};});
-    (res.rows||[]).forEach(function(r){var s=r.Store;if(!byStore[s])byStore[s]={pool:0,hours:{}};
-      if(r.Pool)byStore[s].pool=Number(r.Pool)||0;
-      byStore[s].hours[r.Employee]={PP1Hours:r.PP1Hours===''||r.PP1Hours==null?'':Number(r.PP1Hours),PP2Hours:r.PP2Hours===''||r.PP2Hours==null?'':Number(r.PP2Hours)};});
-    // seed each store's roster so they show even with no saved hours
-    STATE.config.forEach(function(c){if(!c.Employee)return;var s=c.Store;if(!byStore[s])byStore[s]={pool:0,hours:{}};
-      if(!byStore[s].hours[c.Employee])byStore[s].hours[c.Employee]={PP1Hours:'',PP2Hours:''};});
-    var stores=STATE.stores.filter(function(s){return byStore[s];});
-    Object.keys(byStore).forEach(function(s){if(stores.indexOf(s)<0)stores.push(s);});
-    var keep=(TIPALL&&TIPALL.store&&stores.indexOf(TIPALL.store)>=0)?TIPALL.store:stores[0];
-    TIPALL={period:period,byStore:byStore,stores:stores,store:null};
-    selectTipStore(keep);
-    toast('Loaded '+period);
-  }).catch(function(err){$('#loadTips').disabled=false;toast(String(err),true);});}
-function selectTipStore(store){
-  if(!TIPALL)return; captureTips(); TIPALL.store=store;
-  var d=TIPALL.byStore[store]||{pool:0,hours:{}};
-  var roster=empsFor(store).map(function(c){return c.Employee;});
-  var names=roster.slice(); Object.keys(d.hours).forEach(function(n){if(names.indexOf(n)<0)names.push(n);});
-  $('#tipsTitle').textContent=shortStore(store);
-  $('#tipsSub').textContent=TIPALL.period+' · '+names.length+' in pool · share = hours ÷ total × pool';
-  $('#tipsPool').value=d.pool||'';
-  var tb=$('#tipsTable tbody');
-  tb.innerHTML=names.length?names.map(function(n){return tipRowHTML(n,roster.indexOf(n)<0);}).join(''):'<tr><td colspan="5" class="muted">No employees for this store.</td></tr>';
-  $all('#tipsTable input').forEach(function(inp){var h=d.hours[inp.dataset.emp]||{};var v=h[inp.dataset.col];inp.value=(v===''||v==null)?'':v;});
-  $all('#tipsTable tbody tr').forEach(function(tr){var x=tr.querySelector('.tipx');if(x)x.onclick=function(){
-    var pp=tr.querySelector('input[data-col="PP1Hours"]');if(pp&&d.hours[pp.dataset.emp])delete d.hours[pp.dataset.emp];
-    tr.remove();recalcTips();};});
-  renderLocationTabs(); recalcTips(); fillTipsAddSel();}
-function addTipRow(name){if(!name||!TIPALL||!TIPALL.store||tipsHasEmp(name))return;
-  var d=TIPALL.byStore[TIPALL.store]; d.hours[name]=d.hours[name]||{PP1Hours:'',PP2Hours:''};
-  var tb=$('#tipsTable tbody'); if(tb.querySelector('td[colspan]'))tb.innerHTML='';
-  tb.insertAdjacentHTML('beforeend',tipRowHTML(name,true));
-  var tr=tb.lastElementChild,x=tr.querySelector('.tipx'); if(x)x.onclick=function(){delete d.hours[name];tr.remove();recalcTips();};
-  recalcTips();}
-function saveTips(){if(!TIPALL||!TIPALL.store){toast('Load a period first',true);return;}
-  captureTips(); var store=TIPALL.store,period=TIPALL.period,d=TIPALL.byStore[store]||{hours:{}},pool=Number(d.pool)||0;
-  var rows=Object.keys(d.hours).map(function(e){return {Employee:e,PP1Hours:Number(d.hours[e].PP1Hours)||0,PP2Hours:Number(d.hours[e].PP2Hours)||0};});
-  $('#saveTips').disabled=true;
-  apiPost({action:'saveTips',store:store,period:period,pool:pool,rows:rows}).then(function(res){$('#saveTips').disabled=false;
-    if(res.ok)toast('Tips saved · '+shortStore(store)+' '+period);else toast(res.error||'Save failed',true);}).catch(function(err){$('#saveTips').disabled=false;toast(String(err),true);});}
+function calc(r){
+  return E.computeCommission(r.totals,{accessoryGoal:r.goal,
+    accDeviceUnits:(STATE.manual[r.name]!=null?STATE.manual[r.name]:''),
+    rates:STATE.rates,active:r.active,rules:E.rulesFor(STATE.rules,r.store)});
+}
+function inScope(){const all=STATE.store==='all';return STATE.report.filter(r=>all||r.store===STATE.store||r.stores.indexOf(STATE.store)>=0)
+  .slice().sort((a,b)=>a.name<b.name?-1:1);}
 
-// ---------- SETTINGS ----------
-function renderRates(){var defs=[['cleaning','Device Cleaning'],['express','Express Repair'],['malware','Malware/Virus Removal']];
-  $('#rateList').innerHTML=defs.map(function(d){return '<div class="rate-row"><label style="font-family:Nunito;font-weight:700">'+d[1]+'</label><input type="number" step="0.01" data-rate="'+d[0]+'" value="'+(STATE.rates[d[0]]!=null?STATE.rates[d[0]]:0)+'"></div>';}).join('');
-  $all('#rateList input[data-rate]').forEach(function(inp){inp.onchange=function(){STATE.rates[inp.dataset.rate]=Number(inp.value)||0;};});}
-function renderStoreList(){$('#storeList').innerHTML=STATE.stores.map(function(s,i){return '<div class="cfg-row" style="grid-template-columns:1fr 36px"><div>'+s+'</div><div class="x" data-i="'+i+'">×</div></div>';}).join('');
-  $all('#storeList .x').forEach(function(x){x.onclick=function(){STATE.stores.splice(Number(x.dataset.i),1);renderStoreList();};});}
-function renderCfgList(){$('#cfgList').innerHTML=STATE.config.map(function(c,i){
-  var opts=STATE.stores.map(function(s){return '<option'+(s===c.Store?' selected':'')+'>'+s+'</option>';}).join('');
-  return '<div class="cfg-row"><select data-i="'+i+'" data-f="Store">'+opts+'</select><input data-i="'+i+'" data-f="Employee" value="'+(c.Employee||'')+'"><input type="number" data-i="'+i+'" data-f="AccessoryGoal" value="'+(c.AccessoryGoal||0)+'"><input type="checkbox" data-i="'+i+'" data-f="Active" '+(c.Active!==false?'checked':'')+'><div class="x" data-del="'+i+'">×</div></div>';}).join('');
-  $all('#cfgList [data-f]').forEach(function(el){el.onchange=function(){var c=STATE.config[Number(el.dataset.i)],f=el.dataset.f;c[f]=f==='Active'?el.checked:(f==='AccessoryGoal'?Number(el.value):el.value);};});
-  $all('#cfgList [data-del]').forEach(function(x){x.onclick=function(){STATE.config.splice(Number(x.dataset.del),1);renderCfgList();};});}
-function testConnection(){$('#connStatus').textContent='Testing…';
-  api('bootstrap').then(function(res){if(res.ok){$('#connStatus').textContent='✓ Connected. '+res.stores.length+' stores, '+res.config.length+' employees.';applyBootstrap(res);}else $('#connStatus').textContent='✗ '+(res.error||'Error');}).catch(function(err){$('#connStatus').textContent='✗ '+err;});}
-function saveRates(){var rows=[['cleaning','Device Cleaning'],['express','Express Repair'],['malware','Malware/Virus Removal']].map(function(d){return {Key:d[0],Label:d[1],Amount:STATE.rates[d[0]]||0};});
-  apiPost({action:'saveRates',rates:rows}).then(function(res){if(res.ok)toast('Payouts saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
-function saveConfig(){apiPost({action:'saveConfig',stores:STATE.stores,config:STATE.config}).then(function(res){if(res.ok){toast('Roster saved');refreshSelects();}else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
-
-// per-store commission rules editor
-var RULE_LAYOUT=[
-  {sec:'Accessory'},
-  {row:[t('Must hit '),k('accyGate','%'),t(' attach to earn '),tl('any'),t(' accessory commission'),h('0 = always on')]},
-  {row:[tl('Tier 1'),t(' — attach ≥ '),k('accyAttach1','%'),t('  →  +'),k('accyPct1','%'),t(' of accessory GP')]},
-  {row:[tl('Goal'),t(' — hit accessory goal  →  +'),k('accyGoalPct','%'),t(' of accessory GP')]},
-  {row:[tl('Tier 2'),t(' — attach ≥ '),k('accyAttach2','%'),t('  →  +'),k('accyPct2','%'),t(' of accessory GP')]},
-  {sec:'Device'},
-  {row:[tl('Tier 1'),t(' — '),k('dev1Count'),t('+ devices  →  +'),k('dev1Pct','%'),t(' of device GP')]},
-  {row:[tl('Attach'),t(' — 100% accessory-attach on devices  →  +'),k('devAttachPct','%'),t(' of device GP')]},
-  {row:[tl('Tier 2'),t(' — '),k('dev2Min'),t(' to '),k('dev2Max'),t(' devices  →  +'),k('dev2Pct','%'),t(' of device GP')]},
-  {row:[tl('Tier 3'),t(' — '),k('dev3Count'),t('+ devices  →  +'),k('dev3Pct','%'),t(' of device GP')]}
-];
-function t(s){return {t:s};} function tl(s){return {t:s,lead:true};} function h(s){return {hint:s};}
-function k(key,pct){return {k:key,pct:pct==='%'};}
-function fillRulesStore(){var sel=$('#rulesStore');if(!sel)return;var cur=sel.value;
-  sel.innerHTML=STATE.stores.map(function(s){return '<option'+(s===cur?' selected':'')+'>'+s+'</option>';}).join('');
-  if(!sel.value&&STATE.stores.length)sel.value=STATE.stores[0];}
-function renderRulesForm(){var sel=$('#rulesStore');if(!sel)return;var store=sel.value||STATE.stores[0];if(!store){$('#rulesForm').innerHTML='<p class="muted">Add a store first.</p>';return;}
-  if(!STATE.rules[store])STATE.rules[store]=rulesFor(store);
-  var R=STATE.rules[store];
-  $('#rulesForm').innerHTML=RULE_LAYOUT.map(function(item){
-    if(item.sec) return '<div class="rsec-h">'+item.sec+'</div>';
-    return '<div class="rrow">'+item.row.map(function(s){
-      if(s.hint) return '<span class="rhint">'+s.hint+'</span>';
-      if(s.t!=null) return '<span class="rt'+(s.lead?' lead':'')+'">'+s.t+'</span>';
-      var val=s.pct?(R[s.k]*100):R[s.k];
-      return '<input class="rinp" type="number" step="'+(s.pct?'0.5':'1')+'" data-k="'+s.k+'" data-pct="'+(s.pct?1:0)+'" value="'+(val!=null?val:0)+'">'+(s.pct?'<span class="rpct">%</span>':'');
-    }).join('')+'</div>';
+/* ---- renderers ---- */
+function render(){
+  $all('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.t===STATE.tab));
+  $('#view-summary').classList.toggle('hide',STATE.tab!=='summary');
+  $('#view-commissions').classList.toggle('hide',STATE.tab!=='commissions');
+  $('#view-tips').classList.toggle('hide',STATE.tab!=='tips');
+  renderPills();
+  if(STATE.tab==='summary')renderSummary();
+  else if(STATE.tab==='commissions')renderCommissions();
+  else renderTips();
+}
+function renderPills(){
+  const list=['all'].concat(STATE.stores);
+  $('#pills').innerHTML=list.map(s=>'<button class="pill'+(s===STATE.store?' on':'')+'" data-s="'+esc(s)+'">'+(s==='all'?'All':esc(shortStore(s)))+'</button>').join('');
+  $all('#pills .pill').forEach(b=>b.onclick=()=>{STATE.store=b.dataset.s;lsSet('cc_store',STATE.store);render();});
+}
+function renderSummary(){
+  const all=STATE.store==='all',rows=inScope();let grand=0;
+  const body=rows.map(r=>{const c=calc(r);grand+=c.total;
+    const multi=r.stores.length>1;
+    const split=multi?E.splitCharge(r.byStore,c,STATE.rates).map(p=>shortStore(p.store)+' '+money(p.amt)).join(' · '):'';
+    return '<tr><td class="nm">'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠ not in roster</span>')+'</td>'
+      +'<td class="r split">'+esc(split)+'</td>'
+      +'<td class="r gt">'+money(c.total)+'</td></tr>';}).join('');
+  const unrostered=rows.filter(r=>!r.inRoster).map(r=>r.name);
+  $('#view-summary').innerHTML=
+    '<div class="card acc-red"><div class="card-hd"><span class="card-t">'+(all?'All locations':esc(STATE.store))+'</span></div><div class="card-bd">'
+    +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">'
+      +'<div class="sub">'+esc(STATE.start)+' → '+esc(STATE.end)+' · '+rows.length+' employees</div>'
+      +'<div style="margin-left:auto;text-align:right"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)">'+(all?'Company commissions':'Store commissions')+'</div>'
+        +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grand)+'</div></div>'
+      +'<button class="btn alt sm" id="payroll">⬇ Payroll summary</button></div>'
+    +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th></tr></thead>'
+    +'<tbody>'+(body||'<tr><td colspan="3" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
+    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+money(grand)+'</td></tr></tfoot></table>'
+    +(unrostered.length?'<div class="warn">'+unrostered.length+' employee(s) have sales but aren’t in the roster: '+esc(unrostered.join(', '))+'. Add them in Settings.</div>':'')
+    +'</div></div>';
+  const pb=$('#payroll');if(pb)pb.onclick=()=>downloadPayroll(rows);
+}
+function tt(v){return v>0?'+'+pct(v):'—';}
+function tc(v){return v>0?'var(--green)':'var(--grey)';}
+function renderCommissions(){
+  const rows=inScope();
+  const head='<div class="chead"><div>Employee</div><div class="v">Accessory</div><div class="v">Device</div><div class="v">Services</div><div class="v">Total</div><div></div></div>';
+  const body=rows.map(r=>{
+    const c=calc(r),R2=c.rules,t=r.totals,open=!!STATE.expanded[r.name],multi=r.stores.length>1;
+    let groups;
+    if(c.exempt){
+      groups=[{title:'Accessory & device',rows:[
+        {label:'Attach',value:t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach),color:'var(--dark-grey)'},
+        {label:'Net accessory $',value:money(t.NetAccySales),color:'var(--dark-grey)'},
+        {label:'Commission',value:'exempt — lead',color:'var(--grey)'}]},
+        {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
+    }else{
+      const gate=[];if(R2.accyGate>0)gate.push({label:'Min-attach gate ('+pct(R2.accyGate)+')',value:c.gated?'below — accessory $0':'cleared',color:c.gated?'var(--grey)':'var(--green)'});
+      groups=[
+        {title:'Accessory',rows:[
+          {label:'Attach rate',value:t.AccyUnits+' ÷ '+t.Tickets+' = '+pct(c.attach),color:'var(--dark-grey)'},
+          ...gate,
+          {label:'Net accessory $ (goal '+money(r.goal)+')',value:money(c.netAccy),color:'var(--dark-grey)'},
+          {label:'Accessory GP',value:money(c.accyGP),color:'var(--dark-grey)'},
+          {label:pct(R2.accyAttach1)+' attach (+'+pct(R2.accyPct1)+')',value:tt(c.tiers.t25),color:tc(c.tiers.t25)},
+          {label:'Goal met (+'+pct(R2.accyGoalPct)+')',value:tt(c.tiers.goal),color:tc(c.tiers.goal)},
+          {label:pct(R2.accyAttach2)+'+ attach (+'+pct(R2.accyPct2)+')',value:tt(c.tiers.t50),color:tc(c.tiers.t50)}]},
+        {title:'Device',rows:[
+          {label:'Devices',value:t.DeviceUnits+' sold'+((t.DeviceReturns||0)>0?' − '+t.DeviceReturns+' = '+c.netDev+' net':''),color:'var(--dark-grey)'},
+          {label:'Device GP',value:money(t.DeviceGP),color:'var(--dark-grey)'},
+          {label:R2.dev1Count+'+ devices (+'+pct(R2.dev1Pct)+')',value:tt(c.tiers.dev5),color:tc(c.tiers.dev5)},
+          {label:'100% attach (+'+pct(R2.devAttachPct)+')',value:c.tiers.devAttach>0?(c.assumed?'+'+pct(R2.devAttachPct)+' (assumed)':'+'+pct(R2.devAttachPct)):'—',color:tc(c.tiers.devAttach)},
+          {label:R2.dev2Min+'–'+R2.dev2Max+' devices (+'+pct(R2.dev2Pct)+')',value:tt(c.tiers.dev2024),color:tc(c.tiers.dev2024)},
+          {label:R2.dev3Count+'+ devices (+'+pct(R2.dev3Pct)+')',value:tt(c.tiers.dev25),color:tc(c.tiers.dev25)}]},
+        {title:'Services',rows:[{label:'Cleanings '+(t.services.cleaning||0)+' · Express '+(t.services.express||0)+' · Virus '+(t.services.malware||0),value:money(c.repairComm),color:'var(--green)'}]}];
+    }
+    const charge=multi?E.splitCharge(r.byStore,c,STATE.rates).map(p=>({store:p.store,amt:money(p.amt)})):[];
+    const detail=open?('<div class="det">'
+      +(r.active!==false?('<div class="manual"><span style="font-family:Nunito;font-weight:700;font-size:.78rem;color:var(--dark-grey)">Accessories on device tickets</span>'
+        +'<input type="number" placeholder="assumed met" value="'+(STATE.manual[r.name]!=null?STATE.manual[r.name]:'')+'" data-manual="'+esc(r.name)+'" style="width:110px;text-align:right">'
+        +'<span style="font-size:.78rem;color:var(--grey)">of '+c.netDev+' net devices</span></div>'):'')
+      +'<div class="detgrid">'+groups.map(g=>'<div><div class="detg-t">'+esc(g.title)+'</div>'
+        +g.rows.map(d=>'<div class="detrow"><span>'+esc(d.label)+'</span><span class="rv" style="color:'+d.color+'">'+esc(d.value)+'</span></div>').join('')+'</div>').join('')+'</div>'
+      +(charge.length?('<div class="chargebox"><div class="h">Charge to store</div>'+charge.map(p=>'<div style="display:flex;justify-content:space-between;font-size:.88rem;padding:3px 0"><span style="font-weight:600">'+esc(shortStore(p.store))+'</span><span style="font-family:Nunito;font-weight:800">'+esc(p.amt)+'</span></div>').join('')+'</div>'):'')
+      +'</div>'):'';
+    return '<div class="crow"><div class="cgrid">'
+      +'<div class="nm">'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠</span>')+'</div>'
+      +'<div class="v" style="color:'+(c.accyComm>0?'var(--blue)':'var(--grey)')+'">'+money(c.accyComm)+'</div>'
+      +'<div class="v" style="color:'+(c.devComm>0?'var(--red)':'var(--grey)')+'">'+money(c.devComm)+'</div>'
+      +'<div class="v" style="color:var(--dark-grey)">'+money(c.repairComm)+'</div>'
+      +'<div class="v tot">'+money(c.total)+'</div>'
+      +'<div style="text-align:right"><button class="detbtn" data-toggle="'+esc(r.name)+'">'+(open?'− Details':'+ Details')+'</button></div>'
+      +'</div>'+detail+'</div>';
   }).join('');
-  $all('#rulesForm input[data-k]').forEach(function(inp){inp.onchange=function(){
-    var v=Number(inp.value)||0; STATE.rules[store][inp.dataset.k]=inp.dataset.pct==='1'?v/100:v;};});}
-function saveTierRules(){apiPost({action:'saveTierRules',rules:STATE.rules}).then(function(res){if(res.ok)toast('Commission rules saved');else toast(res.error||'Save failed',true);}).catch(function(err){toast(String(err),true);});}
-
-// ---------- bootstrap ----------
-function applyBootstrap(res){STATE.stores=(window.CPRLocations?CPRLocations.sort(res.stores&&res.stores.length?res.stores:STATE.stores):(res.stores&&res.stores.length?res.stores:STATE.stores));
-  if(res.config){STATE.config=res.config;STATE.config.forEach(function(c){c.Active=!(c.Active===false||String(c.Active).toUpperCase()==='FALSE');});}
-  if(res.rates)STATE.rates=res.rates;
-  if(res.ruleDefaults)STATE.ruleDefaults=res.ruleDefaults;
-  if(res.rules)STATE.rules=res.rules;
-  refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();}
-function refreshSelects(){fillTipsAddSel();}
-function init(){
-  STATE.stores=(window.CPRLocations?CPRLocations.names():['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR']);
-  STATE.config=[{Store:'CPR Eugene',Employee:'Vince Amador',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Nick Moxley',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Joshua Kirk',AccessoryGoal:2400,Active:true},{Store:'CPR Eugene',Employee:'Ben Wyborney',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Jose Vargas',AccessoryGoal:0,Active:false},{Store:'CPR Salem Northeast',Employee:'Travis Wright',AccessoryGoal:2400,Active:true},{Store:'CPR Salem Northeast',Employee:'Austin Robledo',AccessoryGoal:1920,Active:true},{Store:'CPR Clackamas OR',Employee:'Kade Farnworth',AccessoryGoal:0,Active:false}];
-  refreshSelects();renderStoreList();renderCfgList();renderRates();fillRulesStore();renderRulesForm();
-  api('bootstrap').then(function(res){if(res.ok)applyBootstrap(res);}).catch(function(){});
-  $('#repQuick').onchange=applyQuick;$('#runReport').onclick=runReport;
-  bindSettingsBtn();
-  $('#tipsTable').addEventListener('input',function(){recalcTips();captureTips();});
-  $('#tipsPool').addEventListener('input',function(){recalcTips();captureTips();});
-  if(!$('#tipsPeriod').value) $('#tipsPeriod').value=defaultPeriod();
-  $('#tipsPeriod').addEventListener('change',function(){loadTipsAll();});
-  $('#loadTips').onclick=loadTipsAll;$('#saveTips').onclick=saveTips;
-  $('#tipsAdd').onclick=function(){addTipRow($('#tipsAddSel').value);};
-  $('#testConn').onclick=testConnection;$('#saveRates').onclick=saveRates;$('#saveConfig').onclick=saveConfig;
-  $('#saveTierRules').onclick=saveTierRules; $('#rulesStore').onchange=renderRulesForm;
-  $('#addStore').onclick=function(){var v=$('#newStore').value.trim();if(v){STATE.stores.push(v);$('#newStore').value='';renderStoreList();renderCfgList();fillRulesStore();renderRulesForm();}};
-  $('#addEmp').onclick=function(){STATE.config.push({Store:STATE.stores[0]||'',Employee:'',AccessoryGoal:2400,Active:true});renderCfgList();};
+  $('#view-commissions').innerHTML='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Commission detail · '+(STATE.store==='all'?'All locations':esc(STATE.store))+'</span></div>'
+    +'<div class="card-bd" style="overflow-x:auto"><div style="min-width:640px">'+head+(body||'<div class="muted" style="padding:22px 6px">No data for this range.</div>')+'</div></div></div>';
+  $all('[data-toggle]').forEach(b=>b.onclick=()=>{const n=b.getAttribute('data-toggle');STATE.expanded[n]=!STATE.expanded[n];renderCommissions();});
+  $all('[data-manual]').forEach(inp=>inp.onchange=()=>{
+    const n=inp.getAttribute('data-manual');const v=inp.value===''?'':Number(inp.value);
+    STATE.manual[n]=v;saveManual(n,v);renderCommissions();});
+}
+async function saveManual(name,val){
+  const pk=STATE.start+'|'+STATE.end;const r=STATE.report.find(x=>x.name===name);
+  const row={period_key:pk,store:(r&&r.store)||'',employee:name,acc_device_units:(val===''?null:val)};
+  const {error}=await sb.from('commission_manual').upsert(row,{onConflict:'period_key,store,employee'});
+  if(error)toast(error.message,true);
 }
 
-// Reveal + initialize once the admin gate unlocks
-document.addEventListener('cpr-unlocked', function(){
-  document.getElementById('appWrapper').classList.add('visible');
-  init();
-});
+/* ---- tips ---- */
+function renderTips(){
+  const store=STATE.store==='all'?(STATE.stores[0]||''):STATE.store;
+  const emps=STATE.report.filter(r=>r.stores.indexOf(store)>=0||r.store===store);
+  const data=STATE.tips[store]||{hours:{},pool:0};
+  let totalHrs=0;emps.forEach(e=>{const h=data.hours[e.name]||{};totalHrs+=(+h.pp1||0)+(+h.pp2||0);});
+  const pool=+STATE.tipsPool||0;
+  const rows=emps.map(e=>{const h=data.hours[e.name]||{};const tot=(+h.pp1||0)+(+h.pp2||0);const tip=totalHrs>0?(tot/totalHrs)*pool:0;
+    return '<tr><td class="nm">'+esc(e.name)+'</td>'
+      +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" data-pp="pp1" value="'+(h.pp1!=null?h.pp1:'')+'" style="width:74px;text-align:right"></td>'
+      +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" data-pp="pp2" value="'+(h.pp2!=null?h.pp2:'')+'" style="width:74px;text-align:right"></td>'
+      +'<td class="r gt">'+tot+'</td><td class="r gt" style="color:var(--green)">'+money(tip)+'</td></tr>';}).join('');
+  $('#view-tips').innerHTML='<div class="card acc-green"><div class="card-hd"><span class="card-t">Tips · '+esc(shortStore(store)||'—')+'</span></div><div class="card-bd">'
+    +'<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px">'
+      +'<div class="field"><label>Pay period</label><input type="text" id="tipsPeriod" value="'+esc(STATE.tipsPeriod)+'" placeholder="e.g. 2026-06" style="width:140px"></div>'
+      +'<div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" value="'+esc(STATE.tipsPool)+'" step="0.01" style="width:140px;text-align:right"></div>'
+      +'<button class="btn sm" id="saveTips">Save this store</button></div>'
+    +'<table><thead><tr><th>Employee</th><th class="r">PP1 Hrs</th><th class="r">PP2 Hrs</th><th class="r">Total</th><th class="r">Tips</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="5" class="muted" style="padding:18px 6px">Run a report first.</td></tr>')+'</tbody></table>'
+    +'<div class="sub" style="margin-top:10px">Tips split by hours across the store pool for the pay period.</div>'
+    +'</div></div>';
+  const setH=(name,pp,val)=>{const d=Object.assign({hours:{},pool:pool},STATE.tips[store]);d.hours=Object.assign({},d.hours);d.hours[name]=Object.assign({},d.hours[name],{[pp]:val});STATE.tips[store]=d;renderTips();};
+  $all('[data-tip]').forEach(inp=>inp.onchange=()=>setH(inp.getAttribute('data-tip'),inp.getAttribute('data-pp'),+inp.value));
+  const tp=$('#tipsPeriod');if(tp)tp.onchange=()=>{STATE.tipsPeriod=tp.value;};
+  const tpl=$('#tipsPool');if(tpl)tpl.onchange=()=>{STATE.tipsPool=+tpl.value;renderTips();};
+  const sv=$('#saveTips');if(sv)sv.onclick=()=>saveTips(store);
+}
+async function saveTips(store){
+  const d=STATE.tips[store]||{hours:{}};
+  const row={store,period:STATE.tipsPeriod||STATE.start.slice(0,7),pool:+STATE.tipsPool||0,hours:d.hours||{}};
+  const {error}=await sb.from('commission_tips').upsert(row,{onConflict:'store,period'});
+  if(error)toast(error.message,true);else toast('Tips saved');
+}
+
+/* ---- payroll print ---- */
+function downloadPayroll(rows){
+  const byHome={};let grand=0;
+  rows.forEach(r=>{const c=calc(r);grand+=c.total;(byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,active:r.active,c});});
+  const w=window.open('','_blank');if(!w){toast('Allow pop-ups to download',true);return;}
+  let body='';
+  Object.keys(byHome).sort().forEach(home=>{let sub=0;
+    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Total</th></tr></thead><tbody>';
+    byHome[home].slice().sort((a,b)=>a.emp<b.emp?-1:1).forEach(x=>{sub+=x.c.total;
+      body+='<tr><td>'+esc(x.emp)+(x.active?'':' (lead)')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r"><b>'+money(x.c.total)+'</b></td></tr>';});
+    body+='<tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r">'+money(sub)+'</td></tr></tbody></table>';});
+  const css='<style>body{font-family:Arial,sans-serif;color:#1a1a1a;margin:32px}h1{font-size:20px;margin:0 0 2px;color:#DC282E}h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #DC282E;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f2f2}td.r,th.r{text-align:right}tr.sub td{font-weight:bold;background:#faf7f7}.grand{font-size:14px;font-weight:bold;margin-top:10px}@media print{body{margin:12mm}}</style>';
+  w.document.write('<html><head><title>Payroll summary '+esc(STATE.start)+' to '+esc(STATE.end)+'</title>'+css+'</head><body><h1>Commission payroll summary</h1><div style="color:#555;font-size:12px;margin-bottom:6px">'+esc(STATE.start)+' → '+esc(STATE.end)+'</div>'+body+'<div class="grand">Grand total: '+money(grand)+'</div></body></html>');
+  w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch(e){}},500);
+}
+
+/* ---- wiring ---- */
+function wire(){
+  $('#start').value=STATE.start;$('#end').value=STATE.end;
+  $('#start').onchange=e=>{STATE.start=e.target.value;lsSet('cc_start',STATE.start);};
+  $('#end').onchange=e=>{STATE.end=e.target.value;lsSet('cc_end',STATE.end);};
+  $('#quick').onchange=e=>{const v=e.target.value,now=new Date(),y=now.getFullYear(),m=now.getMonth();
+    const iso=d=>d.toISOString().slice(0,10);
+    if(v==='mtd'){STATE.start=iso(new Date(y,m,1));STATE.end=iso(new Date());}
+    else if(v==='lastmonth'){STATE.start=iso(new Date(y,m-1,1));STATE.end=iso(new Date(y,m,0));}
+    if(v){$('#start').value=STATE.start;$('#end').value=STATE.end;lsSet('cc_start',STATE.start);lsSet('cc_end',STATE.end);runReport();}};
+  $('#run').onclick=()=>runReport();
+  $all('#tabs .tab').forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.t;lsSet('cc_tab',STATE.tab);render();});
+}
+
+async function boot(){
+  await ensureSession();
+  STATE.me=await currentStaff();
+  await loadConfig();
+  STATE.tipsPeriod=STATE.start.slice(0,7);
+  $('#loading').classList.add('hide');$('#app').classList.remove('hide');
+  wire();render();await runReport();
+}
+boot().catch(e=>{$('#loading').textContent='Could not load: '+(e&&e.message||e);});
 </script>
-<script src="assets/admin-gate.js"></script>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
 </body>
 </html>
