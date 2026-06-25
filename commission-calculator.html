@@ -176,7 +176,7 @@ async function loadConfig(){
   ]);
   STATE.rates={};STATE.rateLabels={};
   (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=Number(r.amount)||0;STATE.rateLabels[r.sku]=r.label||r.sku;});
-  STATE.rules={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};});
+  STATE.rules={};STATE.storeRates={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};STATE.storeRates[r.store]=r.rates||{};});
   STATE.staffById={};(st.data||[]).forEach(s=>{STATE.staffById[s.id]=s;});
   STATE.rosterById={};(rs.data||[]).forEach(r=>{STATE.rosterById[r.staff_id]=r;});
   // role -> {accessory,device,services} earning eligibility (from role_permissions)
@@ -232,7 +232,7 @@ async function runReport(){
     // layered effective rules & rates: Store(home) -> Role -> Person
     const roleOver=roleKey?STATE.roleOver[roleKey]:null;
     const rules=E.mergeRules(STATE.rules[home], roleOver&&roleOver.rules, ros&&ros.rules_override);
-    const rates=E.mergeRates(STATE.rates, roleOver&&roleOver.rates, ros&&ros.rates_override);
+    const rates=E.mergeRates(STATE.rates, STATE.storeRates[home], roleOver&&roleOver.rates, ros&&ros.rates_override);
     // "In roster" = linked to an active team member; a commission_roster row only
     // customizes goal/earnings/rules. Active staff are in the roster by default.
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,

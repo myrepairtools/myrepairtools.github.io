@@ -552,7 +552,7 @@ function renderTabs(){
 }
 
 /* ===================== COMMISSION SETTINGS ===================== */
-var CRATES=[], CRULES={}, CROSTER={}, CROLEOVER={}, CRSCOPE='store', CRSEL=null;
+var CRATES=[], CRULES={}, CSTORERATES={}, CROSTER={}, CROLEOVER={}, CRSCOPE='store', CRSEL=null;
 async function loadCommission(){
   var res=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
@@ -567,7 +567,7 @@ async function loadCommission(){
   (res[0].error?[]:(res[0].data||[])).forEach(function(r){byKey[r.sku]={sku:r.sku,label:r.label||'',amount:Number(r.amount)||0,count:0};});
   (res[4].error?[]:(res[4].data||[])).forEach(function(d){if(!byKey[d.sku])byKey[d.sku]={sku:d.sku,label:'',amount:0,count:0};byKey[d.sku].count=Number(d.total)||0;});
   CRATES=Object.keys(byKey).map(function(k){return byKey[k];}).sort(function(a,b){return (b.count-a.count)||a.sku.localeCompare(b.sku);});
-  CRULES={};(res[1].error?[]:(res[1].data||[])).forEach(function(r){CRULES[r.store]=r.rules||{};});
+  CRULES={};CSTORERATES={};(res[1].error?[]:(res[1].data||[])).forEach(function(r){CRULES[r.store]=r.rules||{};CSTORERATES[r.store]=r.rates||{};});
   CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,earns_override:r.earns_override||null,rules_override:r.rules_override||null,rates_override:r.rates_override||null};});
   CROLEOVER={};(res[3].error?[]:(res[3].data||[])).forEach(function(x){CROLEOVER[x.role_id]={rules:x.rules||{},rates:x.rates||{}};});
   if(CRSCOPE==='store'&&!CRSEL){var act=STORES.filter(function(s){return s.active!==false;});CRSEL=(act[0]&&act[0].store)||(STORES[0]&&STORES[0].store)||null;}
@@ -578,8 +578,8 @@ function crScope(){
     var role=RBROLES.filter(function(r){return String(r.id)===String(CRSEL);})[0];
     if(role){CROLEOVER[role.id]=CROLEOVER[role.id]||{rules:{},rates:{}};return {kind:'role',rules:CROLEOVER[role.id].rules,rates:CROLEOVER[role.id].rates,label:role.name};}
   }
-  CRULES[CRSEL]=CRULES[CRSEL]||{};
-  return {kind:'store',rules:CRULES[CRSEL],rates:null,label:shortStore(CRSEL)};
+  CRULES[CRSEL]=CRULES[CRSEL]||{};CSTORERATES[CRSEL]=CSTORERATES[CRSEL]||{};
+  return {kind:'store',rules:CRULES[CRSEL],rates:CSTORERATES[CRSEL],label:shortStore(CRSEL)};
 }
 function humanize(s){return String(s||'').replace(/[_-]+/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
 function renderCommission(){
@@ -625,7 +625,7 @@ function renderCommission(){
     +'<div class="commtier-max">Max if every tier is met: '+maxPct('dev1Pct','devAttachPct','dev2Pct','dev3Pct')+'</div></div>';
   var rateCard='';
   if(sc.rates){ /* role scope: per-role service payout overrides (full width, blank = global rate) */
-    rateCard='<div class="commtier" style="border-top:3px solid var(--green);margin-top:14px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">Service payouts</div><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">Override the flat $ per service for this role · blank = global rate</div></div>'
+    rateCard='<div class="commtier" style="border-top:3px solid var(--green);margin-top:14px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">Service payouts</div><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">Override the flat $ per service for '+esc(sc.label)+' · blank = inherit</div></div>'
       +(CRATES.length?'<div class="commrates-grid">'+CRATES.map(function(rt){var has=sc.rates[rt.sku]!=null;
         return '<div class="commrates-row"><span style="font-size:.85rem;font-weight:600;color:var(--dark-grey)">'+esc(rt.label||rt.sku)+'</span><span style="white-space:nowrap;font-family:Nunito;font-weight:800;color:var(--grey)">$ <input type="number" data-crate="'+esc(rt.sku)+'" value="'+(has?sc.rates[rt.sku]:'')+'" placeholder="'+rt.amount+'" class="crin"></span></div>';}).join('')+'</div>'
         :'<div class="muted" style="padding:8px 0">No services defined.</div>')
@@ -655,7 +655,7 @@ async function saveRules(){
     if(r.error)toast(r.error.message,true);else toast(role.name+' overrides saved');
   }else{
     if(CRSEL&&CRULES[CRSEL])delete CRULES[CRSEL].accyGate; /* gate removed from the model */
-    var r2=await sb.from('commission_rules').upsert({store:CRSEL,rules:CRULES[CRSEL]||{}},{onConflict:'store'});
+    var r2=await sb.from('commission_rules').upsert({store:CRSEL,rules:CRULES[CRSEL]||{},rates:CSTORERATES[CRSEL]||{}},{onConflict:'store'});
     if(r2.error)toast(r2.error.message,true);else toast(shortStore(CRSEL)+' rules saved');
   }
 }
@@ -666,7 +666,7 @@ async function resetRules(){
     var r=await sb.from('commission_role_overrides').delete().eq('role_id',role.id);
     if(r.error)toast(r.error.message,true);else{toast('Cleared '+role.name);renderCommission();}
   }else{
-    CRULES[CRSEL]={};
+    CRULES[CRSEL]={};CSTORERATES[CRSEL]={};
     var r2=await sb.from('commission_rules').delete().eq('store',CRSEL);
     if(r2.error)toast(r2.error.message,true);else{toast('Cleared '+shortStore(CRSEL));renderCommission();}
   }
@@ -943,7 +943,7 @@ function personInherited(d){
   var rk=ROLE_ALIAS[d.role]||d.role, role=RBROLES.filter(function(r){return r.key===rk;})[0];
   var roleO=(role&&CROLEOVER[role.id])?CROLEOVER[role.id]:{rules:{},rates:{}};
   var E=window.CommissionEngine;
-  return {rules:E?E.mergeRules(CRULES[d.home_store],roleO.rules):{}, rates:E?E.mergeRates(ratesBase(),roleO.rates):{}};
+  return {rules:E?E.mergeRules(CRULES[d.home_store],roleO.rules):{}, rates:E?E.mergeRates(ratesBase(),CSTORERATES[d.home_store],roleO.rates):{}};
 }
 function memberModalHtml(){
   var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
