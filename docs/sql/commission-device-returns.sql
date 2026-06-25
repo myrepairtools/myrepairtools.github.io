@@ -18,12 +18,13 @@
 --   DeviceRev   = device_net    + device_return_net  (return net is negative)
 --   DeviceAttach= device_attach - device_attach_return
 --
--- The returns feed SKIPS exchanges — rows where a device was returned AND re-sold on
--- the same ticket (Device Sale Count > 0, net ~$0). The sold side is already in the
--- sales report, so counting the return would wrongly cancel a legit sale. Only pure
--- returns (Device Sale Count = 0) are processed.
+-- The returns feed only counts rows where money was actually refunded (Device Net Sale
+-- Price < 0). This skips EXCHANGES (device returned AND re-sold on the same ticket, net
+-- ~$0 — the sold side is already in the sales report) and $0-refund warranty/RMA
+-- "returns" that move no money but carry a GP entry (e.g. RQ refund-bug manual
+-- corrections). Neither should touch commission.
 --
--- Deployed in ingest v33 (returns feed) / v34 (exchange guard).
+-- Deployed in ingest v33 (returns feed) / v34 (exchange guard) / v35 (Net Sale < 0).
 
 alter table commission_sales add column if not exists device_return_gp     numeric not null default 0;
 alter table commission_sales add column if not exists device_return_net    numeric not null default 0;
