@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Settings — CPR</title>
+<script src="assets/commission-engine.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
@@ -198,6 +199,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <button class="tab" data-tab="loc" id="tabLoc">Locations <span class="ct" id="ctLoc">0</span></button>
     <button class="tab" data-tab="notif" id="tabNotif">Notifications <span class="ct" id="ctNotif">0</span></button>
     <button class="tab" data-tab="pages" id="tabPages">Page Settings</button>
+    <button class="tab" data-tab="commission" id="tabCommission">Commission</button>
     <button class="tab hide" data-tab="roles" id="tabRoles">Roles &amp; Permissions <span class="ct" id="ctRoles">0</span></button>
   </div>
 
@@ -301,6 +303,32 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
         <th>Permission</th><th>Key</th><th>Page</th><th>In roles</th>
       </tr></thead><tbody id="permRows"></tbody></table></div>
     </div>
+  </section>
+
+  <!-- COMMISSION TAB -->
+  <section id="view-commission" class="hide">
+    <div class="sect-h">Service payouts</div>
+    <div class="note">Flat $ per commissionable service. Add a SKU to expand — it flows into the Commission Calculator and the employee dashboard automatically.</div>
+    <div class="card" style="padding:14px 16px">
+      <div id="crateRows"></div>
+      <div class="bar" style="margin-top:10px"><button class="btn alt sm" id="addRate">+ Add service</button><span class="spacer"></span><button class="btn" id="saveRates">Save payouts</button></div>
+    </div>
+
+    <div class="sect-h" style="margin-top:22px">Commission rules
+      <select id="cruleStore" style="width:auto;min-width:200px"></select>
+    </div>
+    <div class="note">Per store. Someone who works multiple stores is scored on their <b>home store's</b> rules. Set the min-attach gate to 0% to turn it off.</div>
+    <div class="card" style="padding:4px 16px 14px" id="cruleCard"></div>
+    <div class="bar"><button class="btn alt sm" id="resetRules">Reset to defaults</button><span class="spacer"></span><button class="btn" id="saveRules">Save rules</button></div>
+
+    <div class="sect-h" style="margin-top:22px">Roster &amp; accessory goals</div>
+    <div class="note">Goals &amp; commission settings per active team member (from Team Members). Untick <b>Earns %</b> for leads/managers — they still earn service payouts but no accessory/device %.</div>
+    <div class="card"><table><thead><tr>
+      <th>Employee</th><th>Home store</th><th>Commission role</th><th class="r">Accy goal $</th><th class="r">Earns %</th>
+    </tr></thead><tbody id="crosterRows"></tbody></table>
+      <div class="empty hide" id="crosterEmpty">No active team members.</div>
+    </div>
+    <div class="bar"><span class="spacer"></span><button class="btn" id="saveRoster">Save roster</button></div>
   </section>
 </main>
 </div>
@@ -482,7 +510,7 @@ async function loadPages(){
 }
 function hylaParse(v,def){ try{ var a=JSON.parse(v||'[]'); return a.length?a:def; }catch(e){ return def; } }
 async function load(){
-  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages()]);
+  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
   await loadRegs();
   renderAll();
@@ -491,7 +519,7 @@ async function load(){
 /* ===== render ===== */
 function activeStores(){return STORES.filter(function(s){return s.active;});}
 function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
-function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderRoles();renderModal();}
+function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderCommission();renderRoles();renderModal();}
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
   $('#ctStaff').textContent=STAFF.length;
@@ -504,12 +532,102 @@ function renderTabs(){
   $('#tabLoc').classList.toggle('active',TAB==='loc');
   $('#tabNotif').classList.toggle('active',TAB==='notif');
   $('#tabPages').classList.toggle('active',TAB==='pages');
+  $('#tabCommission').classList.toggle('active',TAB==='commission');
   $('#tabRoles').classList.toggle('active',TAB==='roles');
   $('#view-staff').classList.toggle('hide',TAB!=='staff');
   $('#view-loc').classList.toggle('hide',TAB!=='loc');
   $('#view-notif').classList.toggle('hide',TAB!=='notif');
   $('#view-pages').classList.toggle('hide',TAB!=='pages');
+  $('#view-commission').classList.toggle('hide',TAB!=='commission');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
+}
+
+/* ===================== COMMISSION SETTINGS ===================== */
+var CRATES=[], CRULES={}, CRULESTORE=null, CROSTER={};
+async function loadCommission(){
+  var res=await Promise.all([
+    sb.from('commission_rates').select('*').order('sort'),
+    sb.from('commission_rules').select('*'),
+    sb.from('commission_roster').select('*')
+  ]);
+  CRATES=res[0].error?[]:(res[0].data||[]).map(function(r){return {sku:r.sku,label:r.label||'',amount:Number(r.amount)||0};});
+  CRULES={};(res[1].error?[]:(res[1].data||[])).forEach(function(r){CRULES[r.store]=r.rules||{};});
+  CROSTER={};(res[2].error?[]:(res[2].data||[])).forEach(function(r){CROSTER[r.staff_id]={accy_goal:Number(r.accy_goal)||0,commission_active:r.commission_active!==false,commission_role:r.commission_role||'',override:r.override||null};});
+  if(!CRULESTORE){var act=STORES.filter(function(s){return s.active!==false;});CRULESTORE=(act[0]&&act[0].store)||(STORES[0]&&STORES[0].store)||null;}
+}
+function renderCommission(){
+  /* --- service payouts --- */
+  $('#crateRows').innerHTML=CRATES.length?CRATES.map(function(r,i){
+    return '<div style="display:grid;grid-template-columns:1fr 150px 110px 30px;gap:10px;align-items:center;margin-bottom:8px;max-width:580px">'
+      +'<input value="'+esc(r.label)+'" data-cr="label" data-i="'+i+'" placeholder="Service name">'
+      +'<input value="'+esc(r.sku)+'" data-cr="sku" data-i="'+i+'" placeholder="SKU" style="font-family:Nunito;font-weight:700">'
+      +'<div style="display:flex;align-items:center;gap:6px"><span style="font-family:Nunito;font-weight:800;color:var(--grey)">$</span><input type="number" value="'+r.amount+'" data-cr="amount" data-i="'+i+'" style="text-align:right"></div>'
+      +'<button class="ord del" data-crdel="'+i+'" title="Remove">&times;</button></div>';
+  }).join(''):'<div class="muted" style="padding:6px 0">No services yet.</div>';
+  $all('[data-cr]').forEach(function(inp){inp.onchange=function(){var i=+inp.getAttribute('data-i'),k=inp.getAttribute('data-cr');CRATES[i][k]=(k==='amount')?(+inp.value||0):inp.value;};});
+  $all('[data-crdel]').forEach(function(b){b.onclick=function(){CRATES.splice(+b.getAttribute('data-crdel'),1);renderCommission();};});
+
+  /* --- rules --- */
+  $('#cruleStore').innerHTML=STORES.filter(function(s){return s.active!==false;}).map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===CRULESTORE?' selected':'')+'>'+esc(shortStore(s.store))+'</option>';}).join('');
+  var R=(window.CommissionEngine?CommissionEngine.rulesFor(CRULES,CRULESTORE):{});
+  var pf=function(k,l){return {k:k,l:l,v:Math.round((R[k]||0)*100),u:'%'};};
+  var nf=function(k,l){return {k:k,l:l,v:R[k]||0,u:''};};
+  var secs=[
+    {t:'Accessories — % of accessory GP',rows:[pf('accyGate','Minimum attach to qualify'),pf('accyAttach1','Tier 1 — attach gate'),pf('accyPct1','Tier 1 — reward'),pf('accyGoalPct','Hit accessory $ goal — reward'),pf('accyAttach2','Tier 2 — attach gate'),pf('accyPct2','Tier 2 — reward')]},
+    {t:'Devices — % of device GP',rows:[nf('dev1Count','Tier 1 — min devices'),pf('dev1Pct','Tier 1 — reward'),pf('devAttachPct','100% device attach — reward'),nf('dev2Min','Tier 2 — band min'),nf('dev2Max','Tier 2 — band max'),pf('dev2Pct','Tier 2 — reward'),nf('dev3Count','Tier 3 — min devices'),pf('dev3Pct','Tier 3 — reward')]}
+  ];
+  $('#cruleCard').innerHTML=secs.map(function(s){return '<div style="font-family:Nunito;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.7px;color:var(--blue);margin:14px 0 4px;padding-bottom:5px;border-bottom:1px solid var(--border)">'+esc(s.t)+'</div>'
+    +s.rows.map(function(r){return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.86rem;font-weight:600;color:var(--dark-grey)">'+esc(r.l)+'</span>'
+      +'<div style="display:flex;align-items:center;gap:4px"><input type="number" value="'+r.v+'" data-crule="'+r.k+'" data-unit="'+r.u+'" style="width:64px;text-align:center;font-family:Nunito;font-weight:800"><span style="font-family:Nunito;font-weight:800;color:var(--grey);width:14px">'+r.u+'</span></div></div>';}).join('');}).join('');
+  $all('[data-crule]').forEach(function(inp){inp.onchange=function(){
+    var key=inp.getAttribute('data-crule'),unit=inp.getAttribute('data-unit');
+    var v=unit==='%'?((+inp.value||0)/100):(+inp.value||0);
+    if(!CRULES[CRULESTORE])CRULES[CRULESTORE]={};CRULES[CRULESTORE][key]=v;};});
+
+  /* --- roster (active staff) --- */
+  var active=STAFF.filter(function(m){return m.active;}).slice().sort(function(a,b){
+    return (shortStore(a.home_store)||'').localeCompare(shortStore(b.home_store)||'')||(a.display_name||'').localeCompare(b.display_name||'');});
+  $('#crosterEmpty').classList.toggle('hide',active.length>0);
+  $('#crosterRows').innerHTML=active.map(function(m){
+    var c=CROSTER[m.id]||{accy_goal:0,commission_active:true,commission_role:''};
+    var opts=['Tech','Manager','Bookkeeper'].map(function(o){return '<option'+(c.commission_role===o?' selected':'')+'>'+o+'</option>';}).join('');
+    return '<tr><td class="nm">'+esc(m.display_name||((m.first_name||'')+' '+(m.last_name||'')))+'</td>'
+      +'<td>'+esc(shortStore(m.home_store)||'—')+'</td>'
+      +'<td><select data-cro="role" data-id="'+m.id+'"><option value="">—</option>'+opts+'</select></td>'
+      +'<td class="r"><input type="number" value="'+(c.accy_goal||0)+'" data-cro="goal" data-id="'+m.id+'" style="width:96px;text-align:right"></td>'
+      +'<td class="r"><input type="checkbox" '+(c.commission_active!==false?'checked':'')+' data-cro="active" data-id="'+m.id+'" style="width:17px;height:17px;cursor:pointer"></td></tr>';
+  }).join('');
+  $all('[data-cro]').forEach(function(el){el.onchange=function(){
+    var id=el.getAttribute('data-id'),k=el.getAttribute('data-cro');
+    if(!CROSTER[id])CROSTER[id]={accy_goal:0,commission_active:true,commission_role:''};
+    if(k==='goal')CROSTER[id].accy_goal=+el.value||0;
+    else if(k==='active')CROSTER[id].commission_active=el.checked;
+    else if(k==='role')CROSTER[id].commission_role=el.value;};});
+}
+async function saveRates(){
+  var rows=CRATES.filter(function(r){return (r.sku||'').trim();}).map(function(r,i){return {sku:r.sku.trim(),label:r.label,amount:r.amount,sort:i+1};});
+  var keep={};rows.forEach(function(r){keep[r.sku]=1;});
+  var ex=await sb.from('commission_rates').select('sku');
+  var del=(ex.data||[]).map(function(r){return r.sku;}).filter(function(s){return !keep[s];});
+  if(del.length)await sb.from('commission_rates').delete().in('sku',del);
+  var r=await sb.from('commission_rates').upsert(rows,{onConflict:'sku'});
+  if(r.error)toast(r.error.message,true);else{toast('Payouts saved');await loadCommission();renderCommission();}
+}
+async function saveRules(){
+  var r=await sb.from('commission_rules').upsert({store:CRULESTORE,rules:CRULES[CRULESTORE]||{}},{onConflict:'store'});
+  if(r.error)toast(r.error.message,true);else toast('Rules saved');
+}
+async function resetRules(){
+  delete CRULES[CRULESTORE];
+  var r=await sb.from('commission_rules').delete().eq('store',CRULESTORE);
+  if(r.error)toast(r.error.message,true);else{toast('Reset to defaults');renderCommission();}
+}
+async function saveRoster(){
+  var active=STAFF.filter(function(m){return m.active;});
+  var rows=active.map(function(m){var c=CROSTER[m.id]||{};return {staff_id:m.id,accy_goal:c.accy_goal||0,commission_active:c.commission_active!==false,commission_role:c.commission_role||null,override:c.override||null};});
+  if(!rows.length){toast('No active members');return;}
+  var r=await sb.from('commission_roster').upsert(rows,{onConflict:'staff_id'});
+  if(r.error)toast(r.error.message,true);else{toast('Roster saved');await loadCommission();}
 }
 function staffStoreRank(name){
   for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
@@ -1263,6 +1381,13 @@ function initUI(){
   $('#tabLoc').onclick=function(){TAB='loc';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabNotif').onclick=function(){TAB='notif';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabPages').onclick=function(){TAB='pages';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#tabCommission').onclick=function(){TAB='commission';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#addRate').onclick=function(){var have={};CRATES.forEach(function(r){have[r.sku]=1;});var n=1,k='SKU'+n;while(have[k]){n++;k='SKU'+n;}CRATES.push({sku:k,label:'New service',amount:10});renderCommission();};
+  $('#saveRates').onclick=saveRates;
+  $('#cruleStore').onchange=function(){CRULESTORE=$('#cruleStore').value;renderCommission();};
+  $('#saveRules').onclick=saveRules;
+  $('#resetRules').onclick=resetRules;
+  $('#saveRoster').onclick=saveRoster;
   $('#tabRoles').onclick=function(){TAB='roles';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
     var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel]');if(!t)return;
