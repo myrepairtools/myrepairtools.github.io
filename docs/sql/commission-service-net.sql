@@ -10,3 +10,8 @@ alter table commission_sales add column if not exists service_net numeric not nu
 -- Service Revenue · Service Total · Service $ · Sales · Revenue · Amount
 -- into service_net via the money() parser. All other numeric columns stay as
 -- per-service unit counts in the services jsonb. Deployed in ingest v28.
+
+-- Device report is per ticket-item (one row per device, with model Name + ticket ID).
+-- The ingest commission_device feed now SUMS rows per (biz_date, store, employee)
+-- before upsert, and collects the ticket IDs:
+alter table commission_sales add column if not exists device_tickets jsonb not null default '[]'::jsonb;

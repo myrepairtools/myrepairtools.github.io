@@ -258,19 +258,27 @@ Deno.serve(async (req) => {
         await admin.from("ingest_debug").insert({ feed: "reject:commission_device", payload: { reason: "no device columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
         return J({ ok: false, reason: "not a device report; refused" });
       }
+      // The report is per ticket-item (one row per device, with a model Name + ticket ID),
+      // so SUM rows per employee/day — otherwise multiple devices in a day would
+      // overwrite each other on upsert. Ticket IDs are collected for reference.
+      // NOTE: "Name" is the device MODEL here, so it is NOT a store fallback.
       const resolve = await staffResolver();
-      const out: any[] = [];
+      const agg: Record<string, any> = {};
       for (const r of rows) {
-        const store = norm(pick(r, "Location", "Store", "Name"));
+        const store = norm(pick(r, "Location", "Store"));
         const employee = pick(r, "Employee", "Full Name");
         const biz_date = dnorm(pick(r, "Accounted on Date", "Date"));
-        if (!store || !employee || !biz_date) continue;
-        out.push({ biz_date, store, employee, staff_id: resolve(employee),
-          device_units: num(r["Device Sales"] ?? r["Device Units"]),
-          device_returns: num(r["Device Returns"]),
-          device_net: money(r["Device Net Sales"] ?? r["Device Rev"]),
-          device_gp: money(r["Device Gross Profit"] ?? r["Device GP"]) });
+        if (!store || !employee || !biz_date) continue;        // skips the grand-total row
+        const k = biz_date + "" + store + "" + employee;
+        const a = agg[k] || (agg[k] = { biz_date, store, employee, staff_id: resolve(employee),
+          device_units: 0, device_returns: 0, device_net: 0, device_gp: 0, device_tickets: [] as string[] });
+        a.device_units   += num(r["Device Sales"] ?? r["Device Units"]);
+        a.device_returns += num(r["Device Returns"]);
+        a.device_net     += money(r["Device Net Sales"] ?? r["Device Rev"]);
+        a.device_gp      += money(r["Device Gross Profit"] ?? r["Device GP"]);
+        const id = pick(r, "ID", "Ticket ID", "Ticket", "Ticket #"); if (id && a.device_tickets.indexOf(id) < 0) a.device_tickets.push(id);
       }
+      const out = Object.values(agg);
       if (out.length) { const { error } = await admin.from("commission_sales").upsert(out as any, { onConflict: "biz_date,store,employee" }); if (error) return J({ ok: false, table: "commission_sales", error: error.message }); }
       return J({ ok: true, feed, rows_written: out.length });
     }
