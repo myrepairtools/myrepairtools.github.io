@@ -25,8 +25,11 @@
     { label:'Price Calculator',    url:'price-calculator.html',    icon:'🧮', acc:'pricing.view' },
     { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' },
     { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
-    { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
+  ];
+  // Employee-facing self-service area ("My Hub"): a tech's own stuff.
+  var HUB = [
+    { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' }
   ];
   var PRIVILEGED = [
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
@@ -92,7 +95,8 @@
 
   // Which area is the current page in?
   var inAdmin = PRIVILEGED.some(function(t){ return t.url.toLowerCase() === currentFile; });
-  var ACTIVE_AREA = inAdmin ? 'admin' : 'ops';   // default ops (incl. home)
+  var inHub   = HUB.some(function(t){ return t.url.toLowerCase() === currentFile; });
+  var ACTIVE_AREA = inHub ? 'hub' : (inAdmin ? 'admin' : 'ops');   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -211,6 +215,7 @@
   var RAIL_ICONS = {
     home:  'M3 10.6 12 3l9 7.6M5.5 9.2V20h13V9.2',
     tools: 'M14.6 6.4a3.8 3.8 0 0 0-5 4.9L3.5 17.4V20.5H6.6l6.1-6.1a3.8 3.8 0 0 0 4.9-5l-2.4 2.4-2-2 2.4-2.4Z',
+    user:  'M12 12.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4ZM5.6 20v-.4c0-3 2.9-4.8 6.4-4.8s6.4 1.8 6.4 4.8V20',
     lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5'
   };
   function railIcon(name){
@@ -277,6 +282,10 @@
       return '<div class="cpr-fly-hd">Operations</div>'
         + OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
+    if (area === 'hub'){
+      return '<div class="cpr-fly-hd">My Hub</div>'
+        + HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    }
     // admin area
     if (!NAV_ROLE){
       return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
@@ -306,6 +315,13 @@
     var hd = '<div class="cpr-pane-hd">' + navLogo() + '</div>';
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
+    if (area === 'hub'){
+      var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      return hd
+        + '<div class="cpr-grp">My Hub</div>'
+        + (hub || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -438,6 +454,7 @@
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
@@ -489,7 +506,7 @@
     }
     function showFlyout(area, btn){
       if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
-      if (area !== 'ops' && area !== 'admin') return;
+      if (area !== 'ops' && area !== 'hub' && area !== 'admin') return;
       clearTimeout(flyHideT);
       flyout.innerHTML = flyoutLinksHtml(area);
       flyout.classList.add('show');
