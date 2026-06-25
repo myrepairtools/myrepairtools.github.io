@@ -161,6 +161,8 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .commtier-row .when{flex:1;min-width:0;font-size:.85rem;font-weight:600;color:var(--dark-grey);line-height:2}
 .commtier-row .earn{flex:none;display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;min-width:128px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark)}
 .commtier-row .sub{font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px;line-height:1.4}
+.commtier-row.commgate{background:rgba(220,40,46,.05);border:1.5px solid rgba(220,40,46,.25);border-radius:10px;padding:11px 12px;margin-bottom:4px}
+.gatebadge{display:inline-block;background:var(--red);color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:.56rem;letter-spacing:.6px;padding:3px 7px;border-radius:6px;vertical-align:middle;margin-right:7px}
 .crin{width:48px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;padding:6px 4px;border:1.5px solid var(--border);border-radius:7px;background:#fff}
 .crin:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
 .crpct{font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);width:12px;display:inline-block}
@@ -620,6 +622,14 @@ function renderRates(){
     +'<div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">Service payouts · '+esc(sc.label)+'</div>'
     +'<div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">'+(isDef?'Base $ per service — flat, or tiered by volume.':'Override for '+esc(sc.label)+' · blank = inherit the base.')+'</div></div>';
   if(!CRATES.length){$('#crateCard').innerHTML=head+'<div class="muted" style="padding:8px 0">No services yet — they appear here automatically once the RepairQ services feed runs.</div></div>';return;}
+  var tl=function(t){return '<span style="font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--grey)">'+t+'</span>';};
+  /* one tiered cluster: goal N · under $X · at/over $Y. attrs differ for base vs override. */
+  var tierCluster=function(g,lo,hi,attr){
+    return '<span style="display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap">'
+      +tl('goal')+'<input type="number" '+attr('goal')+' value="'+(g!=null?g:'')+'" class="crin" style="width:44px">'
+      +tl('under&nbsp;$')+'<input type="number" '+attr('lo')+' value="'+(lo!=null?lo:'')+'" class="crin" style="width:48px">'
+      +tl('at/over&nbsp;$')+'<input type="number" '+attr('hi')+' value="'+(hi!=null?hi:'')+'" class="crin" style="width:48px"></span>';
+  };
   var rows=CRATES.map(function(rt,i){
     var sku=rt.sku;
     var left, value, tiered, tgl;
@@ -628,7 +638,7 @@ function renderRates(){
       left='<div style="min-width:0;flex:1"><input value="'+esc(rt.label)+'" data-cr="label" data-i="'+i+'" placeholder="'+esc(humanize(sku))+'" style="font-size:.85rem;font-weight:600;width:100%;max-width:190px">'
         +'<div style="font-family:Nunito;font-weight:700;font-size:.66rem;color:var(--grey);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sku)+(rt.count?' · '+rt.count+' sold':' · <span style="color:var(--amber)">not in feed yet</span>')+'</div></div>';
       value=tiered
-        ? 'goal <input type="number" data-ct="goal" data-i="'+i+'" value="'+(rt.tiers.goal!=null?rt.tiers.goal:'')+'" class="crin" style="width:46px"> · &lt; $<input type="number" data-ct="lo" data-i="'+i+'" value="'+(rt.tiers.lo!=null?rt.tiers.lo:'')+'" class="crin" style="width:48px"> · ≥ $<input type="number" data-ct="hi" data-i="'+i+'" value="'+(rt.tiers.hi!=null?rt.tiers.hi:'')+'" class="crin" style="width:48px">'
+        ? tierCluster(rt.tiers.goal,rt.tiers.lo,rt.tiers.hi,function(k){return 'data-ct="'+k+'" data-i="'+i+'"';})
         : '$ <input type="number" data-cr="amount" data-i="'+i+'" value="'+(rt.amount||'')+'" placeholder="0" class="crin">';
       tgl='<a class="rtiertgl" data-deftgl="'+i+'">'+(tiered?'flat':'tier')+'</a>';
     }else{
@@ -636,12 +646,12 @@ function renderRates(){
       left='<div style="min-width:0"><div style="font-size:.85rem;font-weight:600;color:var(--dark-grey)">'+esc(rt.label||humanize(sku))+'</div>'
         +'<div style="font-size:.66rem;color:var(--grey);font-weight:600">'+esc(sku)+' · base '+rateHint(rt.tiers||rt.amount)+'</div></div>';
       value=tiered
-        ? 'goal <input type="number" data-crt="'+esc(sku)+'" data-tk="goal" value="'+(v.goal!=null?v.goal:'')+'" class="crin" style="width:46px"> · &lt; $<input type="number" data-crt="'+esc(sku)+'" data-tk="lo" value="'+(v.lo!=null?v.lo:'')+'" class="crin" style="width:48px"> · ≥ $<input type="number" data-crt="'+esc(sku)+'" data-tk="hi" value="'+(v.hi!=null?v.hi:'')+'" class="crin" style="width:48px">'
+        ? tierCluster(v.goal,v.lo,v.hi,function(k){return 'data-crt="'+esc(sku)+'" data-tk="'+k+'"';})
         : '$ <input type="number" data-crate="'+esc(sku)+'" value="'+(v!=null?v:'')+'" placeholder="'+(Number(rt.amount)||(rt.tiers&&rt.tiers.lo)||0)+'" class="crin">';
       tgl='<a class="rtiertgl" data-ovtgl="'+esc(sku)+'">'+(tiered?'flat':'tier')+'</a>';
     }
-    return '<div class="commrates-row" style="gap:10px">'+left
-      +'<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-family:Nunito;font-weight:800;color:var(--grey)">'+value+tgl+'</div></div>';
+    return '<div class="commrates-row" style="gap:10px'+(tiered?';grid-column:1/-1':'')+'">'+left
+      +'<div style="display:flex;align-items:center;gap:8px;font-family:Nunito;font-weight:800;color:var(--grey)">'+value+tgl+'</div></div>';
   }).join('');
   $('#crateCard').innerHTML=head+'<div class="commrates-grid">'+rows+'</div></div>';
   /* wiring */
@@ -677,11 +687,14 @@ function renderCommission(){
     +row('Attach rate reaches '+inp('accyAttach2','%')+' (stretch)','earn '+inp('accyPct2','%'))
     +'<div class="commtier-max">Max if every tier is met: '+maxPct('accyPct1','accyGoalPct','accyPct2')+'</div></div>';
   var devMax=function(){return Math.round((eff('dev1Pct')+eff('devAttachPct')+Math.max(eff('dev2Pct'),eff('dev3Pct')))*100)+'%';};
+  var gateRow='<div class="commtier-row commgate"><div class="when"><span class="gatebadge">GATE</span>Must sell '+inp('dev1Count','')+'+ net devices to earn anything'
+    +'<div class="sub">Below this, device commission is $0 — this floor gates every tier below. Editable per store / role.</div></div>'
+    +'<div class="earn">earn '+inp('dev1Pct','%')+'</div></div>';
   var devCard=hd('Devices','Paid on device gross profit · net of returns','var(--dark)')
-    +row('Gate: sells '+inp('dev1Count','')+'+ net devices','earn '+inp('dev1Pct','%'),'Below this, no device commission at all — gates every tier below.')
-    +row('Reaches '+inp('devAttachReq','%')+' accessory attach on device tickets','earn '+inp('devAttachPct','%'))
-    +row('Sells '+inp('dev2Min','')+'–'+inp('dev2Max','')+' net devices + attach held','earn '+inp('dev2Pct','%'))
-    +row('Sells '+inp('dev3Count','')+'+ net devices + attach held','earn '+inp('dev3Pct','%'),'Replaces the 20–24 band (not on top of it).')
+    +gateRow
+    +row('Then reaches '+inp('devAttachReq','%')+' accessory attach on device tickets','+ '+inp('devAttachPct','%'))
+    +row('Sells '+inp('dev2Min','')+'–'+inp('dev2Max','')+' net devices, attach held','+ '+inp('dev2Pct','%'))
+    +row('Sells '+inp('dev3Count','')+'+ net devices, attach held','+ '+inp('dev3Pct','%'),'Replaces the 20–24 band (not added on top).')
     +'<div class="commtier-max">Max if every tier is met: '+devMax()+'</div></div>';
   $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+'</div>';
   $all('[data-crule]').forEach(function(input){input.onchange=function(){
