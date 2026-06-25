@@ -151,17 +151,22 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .f+.f,.row+.row{margin-top:12px}
 .grid2 .f{margin-top:0}  /* grid gap handles spacing; don't let .f+.f offset the right column */
-.commgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;align-items:start}
-.commtier{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:2px 16px 14px}
-.commtier-hd{padding:12px 0 10px;border-bottom:1px solid var(--border)}
-.commtier-cols{display:flex;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding:9px 0 2px}
-.commtier-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
-.commtier-row .when{flex:1;min-width:0;font-size:.84rem;font-weight:600;color:var(--dark-grey);line-height:1.9}
-.commtier-row .earn{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;color:var(--dark);white-space:nowrap;line-height:1.9}
-.commtier-row .sub{font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px}
-.crin{width:50px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;padding:5px 4px;border:1.5px solid var(--border);border-radius:7px}
-.crpct{font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);margin-left:2px}
-.commtier-max{margin-top:11px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);background:var(--light-grey);border-radius:8px;padding:8px 11px;text-align:right}
+.commgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+@media(max-width:820px){.commgrid{grid-template-columns:1fr}}
+.commtier{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:2px 18px 16px;display:flex;flex-direction:column}
+.commtier-hd{padding:13px 0 10px;border-bottom:1px solid var(--border)}
+.commtier-cols{display:flex;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding:10px 0 2px}
+.commtier-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.commtier-row:last-of-type{border-bottom:none}
+.commtier-row .when{flex:1;min-width:0;font-size:.85rem;font-weight:600;color:var(--dark-grey);line-height:2}
+.commtier-row .earn{flex:none;display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;min-width:128px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark)}
+.commtier-row .sub{font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px;line-height:1.4}
+.crin{width:48px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;padding:6px 4px;border:1.5px solid var(--border);border-radius:7px;background:#fff}
+.crin:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.crpct{font-family:'Nunito',sans-serif;font-weight:800;color:var(--grey);width:12px;display:inline-block}
+.commtier-max{margin-top:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);background:var(--light-grey);border-radius:8px;padding:9px 12px;text-align:right}
+.commrates-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 28px;padding-top:4px}
+.commrates-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .authwrap{display:flex;flex-wrap:wrap;gap:7px}
 .authpill{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.76rem;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
 .authpill.on{font-weight:800;border-color:var(--blue);background:#EAF6FD;color:#1E7AA8}
@@ -613,15 +618,14 @@ function renderCommission(){
     +row('Sells '+inp('dev3Count','')+'+ net devices','earn '+inp('dev3Pct','%'))
     +'<div class="commtier-max">Max if every tier is met: '+maxPct('dev1Pct','devAttachPct','dev2Pct','dev3Pct')+'</div></div>';
   var rateCard='';
-  if(sc.rates){ /* role scope: per-role service payout overrides (blank = global rate) */
-    rateCard=hd('Service payouts','Override the flat $ per service for this role','var(--green)')
-      +(CRATES.length?CRATES.map(function(rt){var has=sc.rates[rt.sku]!=null;
-        return '<div class="commtier-row"><div class="when">'+esc(rt.label||rt.sku)+' <span style="color:var(--grey);font-size:.7rem">'+esc(rt.sku)+'</span></div>'
-          +'<div class="earn">$<input type="number" data-crate="'+esc(rt.sku)+'" value="'+(has?sc.rates[rt.sku]:'')+'" placeholder="'+rt.amount+'" class="crin" style="width:60px;margin-left:2px"></div></div>';}).join('')
+  if(sc.rates){ /* role scope: per-role service payout overrides (full width, blank = global rate) */
+    rateCard='<div class="commtier" style="border-top:3px solid var(--green);margin-top:14px"><div class="commtier-hd"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;letter-spacing:.3px">Service payouts</div><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:1px">Override the flat $ per service for this role · blank = global rate</div></div>'
+      +(CRATES.length?'<div class="commrates-grid">'+CRATES.map(function(rt){var has=sc.rates[rt.sku]!=null;
+        return '<div class="commrates-row"><span style="font-size:.85rem;font-weight:600;color:var(--dark-grey)">'+esc(rt.label||rt.sku)+'</span><span style="white-space:nowrap;font-family:Nunito;font-weight:800;color:var(--grey)">$ <input type="number" data-crate="'+esc(rt.sku)+'" value="'+(has?sc.rates[rt.sku]:'')+'" placeholder="'+rt.amount+'" class="crin"></span></div>';}).join('')+'</div>'
         :'<div class="muted" style="padding:8px 0">No services defined.</div>')
       +'</div>';
   }
-  $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+rateCard+'</div>';
+  $('#cruleCard').innerHTML='<div class="commgrid">'+accCard+devCard+'</div>'+rateCard;
   $all('[data-crule]').forEach(function(input){input.onchange=function(){
     var key=input.getAttribute('data-crule'),unit=input.getAttribute('data-unit');
     if(input.value==='')delete ov[key];else ov[key]=(unit==='%'?((+input.value||0)/100):(+input.value||0));
@@ -972,7 +976,7 @@ function memberModalHtml(){
          +'<div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div>'
          +'<div class="f"></div>'
        +'</div>'
-       +'<label style="margin-top:12px">Earns (defaults from '+esc(roleLabel(d.role))+' role)</label>'
+       +'<label style="margin-top:12px">Earns (default from their role)</label>'
        +[['accessory','Accessory %'],['device','Device %'],['services','Service payouts']].map(function(s){
           var key=s[0],ov=d.earns_override||{},cur=(ov[key]===true?'yes':(ov[key]===false?'no':''));
           var def=roleEarnsFor(d.role)[key]?'Yes':'No';
