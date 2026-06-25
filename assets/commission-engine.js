@@ -127,7 +127,9 @@
       var spec = rates[sku], perUnit = ratePerUnit(spec, cnt);
       var goal = (spec && typeof spec === 'object') ? (Number(spec.goal) || 0) : 0;
       var pay = cnt * perUnit;
-      svc[sku] = { count: cnt, rate: perUnit, pay: pay, goal: goal, hitGoal: goal > 0 && cnt >= goal };
+      var _tiered = (spec && typeof spec === 'object');
+      svc[sku] = { count: cnt, rate: perUnit, pay: pay, goal: goal, hitGoal: goal > 0 && cnt >= goal,
+        lo: _tiered ? (Number(spec.lo) || 0) : perUnit, hi: _tiered ? (Number(spec.hi) || 0) : perUnit };
       repairComm += pay; svcUnits += cnt;
     }
 
