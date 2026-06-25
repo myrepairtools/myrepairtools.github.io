@@ -26,6 +26,9 @@ plan) that temporarily replaces the normal commission setup to push performance.
 - The calculator/dashboard should clearly badge when a payout came from a plan vs.
   normal settings, and show the plan's date range.
 - Storage: a `commission_plans` table (assignee, start/end, the full rule+rate+earns
-  payload) that the engine checks first when a biz_date falls in range.
+  payload) that the engine checks first when a biz_date falls in range. **The plan
+  lives on the employee's record** — surfaced in the Team Member modal (e.g. an
+  "Improvement plan" section/row showing the active plan + its date range), so it's
+  managed right where the rest of that person's commission config lives.
 - Auto-expiry handled purely by date range (no cron needed) since payouts are
   computed per period.
