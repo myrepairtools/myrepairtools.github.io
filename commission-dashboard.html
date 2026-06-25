@@ -197,7 +197,7 @@ async function currentStaff(){
 
 /* ---- config (shared with the calculator) ---- */
 async function loadConfig(){
-  const [rt,rl,rs,st,rr,pm,rp,ro,so]=await Promise.all([
+  const [rt,rl,rs,st,rr,pm,rp,ro,so,sch]=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
@@ -206,9 +206,11 @@ async function loadConfig(){
     sb.from('permissions').select('id,key').like('key','commission.earn.%'),
     sb.from('role_permissions').select('role_id,permission_id'),
     sb.from('commission_role_overrides').select('*'),
-    sb.from('stores').select('store,display_order')
+    sb.from('stores').select('store,display_order'),
+    sb.from('staff_schedule').select('staff_id,work_days')
   ]);
   STATE.storeOrder={};(so&&so.data||[]).forEach(s=>{STATE.storeOrder[s.store]=s.display_order==null?9990:s.display_order;});
+  STATE.schedule={};(sch&&sch.data||[]).forEach(r=>{STATE.schedule[r.staff_id]=Array.isArray(r.work_days)?r.work_days:[];});
   STATE.rates={};STATE.rateLabels={};
   (rt.data||[]).forEach(r=>{STATE.rates[r.sku]=(r.tiers&&r.tiers.goal)?{goal:Number(r.tiers.goal)||0,lo:Number(r.tiers.lo)||0,hi:Number(r.tiers.hi)||0}:(Number(r.amount)||0);STATE.rateLabels[r.sku]=r.label||r.sku;});
   STATE.rules={};STATE.storeRates={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};STATE.storeRates[r.store]=r.rates||{};});
@@ -228,6 +230,17 @@ function monthInfo(){const n=new Date(),y=n.getFullYear(),m=n.getMonth();
   return {start:iso(new Date(y,m,1)),end:iso(n),period:y+'-'+('0'+(m+1)).slice(-2),
     dayOfMonth:n.getDate(),daysInMonth:new Date(y,m+1,0).getDate(),
     label:n.toLocaleString('en-US',{month:'long',year:'numeric'})};}
+
+/* work-day pace: an employee's scheduled work days elapsed vs total this month.
+   work_days = weekday ints [0..6] (0=Sun). Falls back to calendar days if unset. */
+function workDayInfo(staffId){
+  const arr=(STATE.schedule&&STATE.schedule[staffId])||null;
+  const n=new Date(),y=n.getFullYear(),m=n.getMonth(),today=n.getDate(),dim=new Date(y,m+1,0).getDate();
+  if(!arr||!arr.length)return {elapsed:today,total:dim,left:Math.max(0,dim-today),sched:false};
+  const set=new Set(arr);let el=0,tot=0;
+  for(let d=1;d<=dim;d++){const wd=new Date(y,m,d).getDay();if(set.has(wd)){tot++;if(d<=today)el++;}}
+  return {elapsed:el,total:tot,left:Math.max(0,tot-el),sched:true};
+}
 
 function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,DeviceAttach:0,ServiceNet:0,services:{},categories:{}};}
 function addInto(t,r){
@@ -280,7 +293,7 @@ async function loadTarget(){
   const months=[];for(let i=0;i<12;i++){const d=new Date(h0.getFullYear(),h0.getMonth()+i,1);const k=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
     const tt=byMon[k]||blankTotals();const cc=E.computeCommission(tt,{accessoryGoal:cfg.goal,accDeviceUnits:tt.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
     months.push({key:k,label:d.toLocaleString('en-US',{month:'short'}),total:cc.total});}
-  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months};
+  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months,wd:workDayInfo(t.id)};
   $('#status').textContent='';
   renderHeader();render();
 }
@@ -309,8 +322,8 @@ function trendSvg(months){
     +'<polyline points="'+pts+'" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>'+dots+'</svg>';
 }
 function renderOverview(){
-  const {totals:t,cfg,c,tip,mi,months}=STATE.calc, R=c.rules, earns=c.earns;
-  const proj=mi.dayOfMonth>0?c.total/mi.dayOfMonth*mi.daysInMonth:c.total;
+  const {totals:t,cfg,c,tip,mi,months,wd}=STATE.calc, R=c.rules, earns=c.earns;
+  const proj=wd.elapsed>0?c.total/wd.elapsed*wd.total:c.total;
   const attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
   const avgAccy=t.AccyUnits>0?t.NetAccySales/t.AccyUnits:0;
   const maxAccy=(R.accyPct1||0)+(R.accyGoalPct||0)+(R.accyPct2||0);
@@ -443,10 +456,10 @@ function renderHow(){
 
 /* ---- Goals ---- */
 function renderGoals(){
-  const {totals:t,cfg,c,mi}=STATE.calc, R=c.rules, earns=c.earns;
+  const {totals:t,cfg,c,mi,wd}=STATE.calc, R=c.rules, earns=c.earns;
   const first=(STATE.target.display_name||'You').split(' ')[0];
-  const proj=mi.dayOfMonth>0?c.total/mi.dayOfMonth*mi.daysInMonth:c.total;
-  const pf=mi.dayOfMonth>0?mi.daysInMonth/mi.dayOfMonth:1;
+  const proj=wd.elapsed>0?c.total/wd.elapsed*wd.total:c.total;
+  const pf=wd.elapsed>0?wd.total/wd.elapsed:1;
   const maxAccy=(R.accyPct1||0)+(R.accyGoalPct||0)+(R.accyPct2||0);
   const curAccy=(c.tiers.t25||0)+(c.tiers.goal||0)+(c.tiers.t50||0);
   const upside=earns.accessory?Math.max(0,(maxAccy-curAccy))*(c.accyGP||0):0;
@@ -462,18 +475,18 @@ function renderGoals(){
 
   if(earns.accessory){
     body+='<div class="callout"><div class="cn">'+money0(upside)+'</div><div class="ct">in <b style="color:var(--dark)">unclaimed commission</b> on accessories you’ve <b>already sold</b> this month — clear the next attach/goal threshold and it’s yours.</div></div>';
-    const daysLeft=Math.max(0,mi.daysInMonth-mi.dayOfMonth);
+    const daysLeft=wd.left;
     const need=Math.max(0,(cfg.goal||0)-(t.NetAccySales||0));
     const perDay=daysLeft>0?need/daysLeft:need;
-    const avgDay=mi.dayOfMonth>0?(t.NetAccySales||0)/mi.dayOfMonth:0;
-    const onPace=avgDay*mi.daysInMonth>=(cfg.goal||0);
+    const avgDay=wd.elapsed>0?(t.NetAccySales||0)/wd.elapsed:0;
+    const onPace=avgDay*wd.total>=(cfg.goal||0);
     body+='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Pace to your accessory goal</span></div><div class="card-bd"><div class="pace">'
       +'<div><div class="pl">Still to sell</div><div class="pv" style="color:var(--amber)">'+money0(need)+'</div><div class="ps">to your '+money0(cfg.goal||0)+' goal</div></div>'
-      +'<div><div class="pl">Days left</div><div class="pv">'+daysLeft+'</div><div class="ps">of '+mi.daysInMonth+' this month</div></div>'
-      +'<div><div class="pl">Per day to finish</div><div class="pv" style="color:var(--blue)">'+money0(perDay)+'</div><div class="ps">in accessories</div></div>'
-      +'<div><div class="pl">Your avg / day</div><div class="pv">'+money0(avgDay)+'</div><div class="ps">so far this month</div></div></div>'
-      +'<div class="statusbar" style="color:'+(onPace?'var(--green)':'var(--amber)')+'">'+(cfg.goal?(onPace?'On pace — keep it up and you’ll clear your goal.':'A little behind — '+money0(perDay)+'/day gets you there.'):'No accessory goal set yet — ask your manager to set one.')+'</div>'
-      +'<div style="margin-top:8px;font-size:.74rem;color:var(--grey)">Pace is by calendar day for now; shift-based pacing comes with the schedule feature.</div></div></div>';
+      +'<div><div class="pl">Work days left</div><div class="pv">'+daysLeft+'</div><div class="ps">of '+wd.total+(wd.sched?' scheduled':'')+' this month</div></div>'
+      +'<div><div class="pl">Per work day to finish</div><div class="pv" style="color:var(--blue)">'+money0(perDay)+'</div><div class="ps">in accessories</div></div>'
+      +'<div><div class="pl">Your avg / work day</div><div class="pv">'+money0(avgDay)+'</div><div class="ps">so far this month</div></div></div>'
+      +'<div class="statusbar" style="color:'+(onPace?'var(--green)':'var(--amber)')+'">'+(cfg.goal?(onPace?'On pace — keep it up and you’ll clear your goal.':'A little behind — '+money0(perDay)+'/work day gets you there.'):'No accessory goal set yet — ask your manager to set one.')+'</div>'
+      +(wd.sched?'':'<div style="margin-top:8px;font-size:.74rem;color:var(--grey)">No schedule set for you yet — pace is by calendar day until your manager adds your shifts.</div>')+'</div></div>';
   }
   // sales by category vs target (target = accessory goal in units, spread by your mix)
   if(earns.accessory){
