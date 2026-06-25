@@ -173,7 +173,10 @@ async function loadConfig(){
   STATE.rules={};(rl.data||[]).forEach(r=>{STATE.rules[r.store]=r.rules||{};});
   STATE.staffById={};(st.data||[]).forEach(s=>{STATE.staffById[s.id]=s;});
   STATE.rosterById={};(rs.data||[]).forEach(r=>{STATE.rosterById[r.staff_id]=r;});
-  const allStores=window.CPRLocations?CPRLocations.names.slice():[...new Set((st.data||[]).map(s=>s.home_store).filter(Boolean))];
+  // store universe = stores staff belong to (DB-normalized names, e.g. "CPR Clackamas").
+  const sset={};(st.data||[]).forEach(s=>{if(s.home_store)sset[s.home_store]=1;(s.authorized_stores||[]).forEach(x=>{if(x)sset[x]=1;});});
+  let allStores=Object.keys(sset);
+  if(window.CPRLocations&&CPRLocations.sort)allStores=CPRLocations.sort(allStores);
   STATE.stores=allowedStores(allStores,STATE.me);
   if(STATE.store!=='all'&&STATE.stores.indexOf(STATE.store)<0)STATE.store='all';
 }
