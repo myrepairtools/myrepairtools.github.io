@@ -232,7 +232,19 @@ function dayRec(staffId,wd){
   var sid=v.shift_id;
   if(sid==null&&v.label){var m=Object.values(SHIFT_BY_ID).filter(function(s){return s.name===v.label;})[0];if(m)sid=m.id;}
   if(sid==null)return {none:true};
-  return {shift_id:sid,store:v.store||(SCHED[staffId]&&SCHED[staffId].store)};
+  return {shift_id:sid,store:v.store||(SCHED[staffId]&&SCHED[staffId].store),label:v.label};
+}
+function parseLabel(label){var m=String(label||'').split(/\s*-\s*/);if(m.length!==2)return null;
+  function t(s){var x=/(\d+):(\d+)\s*([AP]M)/i.exec(s);if(!x)return null;var h=(+x[1])%12;if(/pm/i.test(x[3]))h+=12;return h*60+(+x[2]);}
+  var a=t(m[0]),b=t(m[1]);return (a==null||b==null)?null:[a,b];}
+/* Resolve a day's chip — name/color/time. Falls back to the label's hours when the
+   assigned shift was deleted (orphaned shift_id), so cells never show a bare "Shift". */
+function shiftView(r,wd){
+  var s=SHIFT_BY_ID[r.shift_id];
+  if(s){var rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);
+    return {name:s.name,color:s.color||'#4FB0E3',time:tm,warn:rd.offered===false||!!rd.closed};}
+  var pm=parseLabel(r.label);
+  return {name:pm?rangeMin(pm[0],pm[1]):(r.label||'Shift'),color:'#C9820B',time:'shift removed',warn:true};
 }
 function weekStart(d){var x=new Date(d);x.setDate(x.getDate()-x.getDay());x.setHours(0,0,0,0);return x;}
 function myStores(){
@@ -311,9 +323,8 @@ function renderMe(){
     else{
       var r=dayRec(ME.id,wd);
       if(r.none||r.off)body='<span class="shift-nm muted">Day off</span>';
-      else{var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);
-        var pend=pendingOn(ME.id,di);
-        body='<div class="shift-nm"><span class="dot" style="background:'+esc(s?s.color:'#4FB0E3')+'"></span>'+esc(s?s.name:'Shift')+'</div><div class="shift-tm">'+esc(tm)+' · '+esc(shortStore(r.store))+'</div>'
+      else{var v=shiftView(r,wd);var pend=pendingOn(ME.id,di);
+        body='<div class="shift-nm"><span class="dot" style="background:'+esc(v.color)+'"></span>'+esc(v.name)+(v.warn?' ⚠️':'')+'</div><div class="shift-tm">'+esc(v.time)+' · '+esc(shortStore(r.store))+'</div>'
           +(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">YOUR TIME OFF — PENDING</span>':'');}
     }
     return '<div class="dcard'+(isToday?' today':'')+'">'+rail+'<div class="dvr"></div><div class="dbody">'+body+'</div></div>';
@@ -329,8 +340,8 @@ function renderStore(){
     STAFF.forEach(function(e){
       var ap=approvedOn(e.id,di);if(ap)return;
       var r=dayRec(e.id,wd);if(r.none||r.off||r.store!==store)return;
-      var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,store,wd);
-      working.push({e:e,name:e.display_name,tm:rd.offered===false?'':rd.closed?'':rangeMin(rd.start,rd.end),start:rd.start||0,me:e.id===ME.id});
+      var v=shiftView(r,wd),rd=resolve(r.shift_id,store,wd);
+      working.push({e:e,name:e.display_name,tm:v.time,start:rd.start||0,me:e.id===ME.id});
     });
     working.sort(function(a,b){return a.start-b.start;});
     var rows=working.length?working.map(function(w){
@@ -401,8 +412,8 @@ function weekShiftCell(staffId,wd,di,cardStore){
   if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(c,0.13)+';border-left:2px solid '+c+'"><div class="n" style="color:'+c+'">Off</div><div class="t">'+esc(ap.type)+'</div></div>';}
   var r=dayRec(staffId,wd);
   if(r.none||r.off||(cardStore&&r.store!==cardStore))return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
-  var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'':rd.closed?'':rangeMin(rd.start,rd.end);
-  return '<div class="wchip" style="background:'+hexA(s?s.color:'#4FB0E3',0.12)+';border-left:2px solid '+esc(s?s.color:'#4FB0E3')+'"><div class="n">'+esc(s?s.name:'Shift')+'</div><div class="t">'+esc(tm)+'</div></div>';
+  var v=shiftView(r,wd);
+  return '<div class="wchip" style="background:'+hexA(v.color,0.12)+';border-left:2px solid '+esc(v.color)+'"><div class="n">'+esc(v.name)+(v.warn?' ⚠️':'')+'</div><div class="t">'+esc(v.time)+'</div></div>';
 }
 function renderWeb(){
   var todayIso=iso(new Date());
