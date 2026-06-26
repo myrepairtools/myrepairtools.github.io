@@ -60,3 +60,41 @@ commission overrides: store ← role ← person).
 - **Manual vs. formula toggle:** each person's category goal has an on/off switch. When
   **off**, the dashboard falls back to the current **calculated/derived** target (the
   accessory $ goal spread across the category mix); when **on**, the hand-set number wins.
+
+## My Hub — employee snapshot dashboard ("widgets")
+
+A read-only **employee landing page** with glanceable **snapshot cards**, each linking
+into the full tool. Scoped as *snapshots*, NOT a full customizable widget engine (that's
+the bigger version below).
+
+**First-cut cards**
+- **Schedule** — "my week": this/next week's shifts (store, shift name, derived times)
+  from `staff_schedule` + `shifts`/`shift_hours`. **Data ready now.** → Schedule tool.
+- **Commission** — MTD earned, on-pace projection, **$ to goal**, attach %, board rank.
+  Reuses the commission engine + queries verbatim. **Logic ready now.** → commission dash.
+- **Alerts** — start **derived** (free): "you're $X behind pace," "leading the attach
+  bonus," "schedule updated" — straight from existing data. Add one owner-set
+  **announcement** (a small settings value). A real alerts *feed* (manager messages,
+  time-off approved/denied) needs an `alerts` table and ties into the notifications work.
+- **Checklist** — needs a small table. **Decide:** *personal* to-dos (simplest) vs a
+  *store opening/closing* checklist the owner defines once (reuse the "list managed in
+  Settings" pattern, like Hyla) with per-person/day check-off (more operational value).
+
+**Build notes**
+- Lives at `my-hub.html` (the employee landing), rides the existing employee auth
+  session; each card deep-links into its tool. No drag/customize in the first cut.
+- Two cards (schedule + commission) and derived alerts are essentially free; only the
+  checklist (and a real alerts feed) need new schema.
+
+**Later — customizable widgets (the bigger version)**
+- **Tier 0:** a "Customize" mode that lets each employee **show/hide + reorder** the
+  cards they already have; persist a per-user `{order, hidden}` JSON via an
+  `auth.uid()`-scoped RPC (same pattern as `set_my_avatar` → `save_my_dashboard`).
+- **Tier 1:** a few genuinely new widgets + two sizes (small/large) + a `user_prefs`
+  table (or `staff.dashboard` jsonb) with own-row RLS.
+- **Tier 2 (likely overkill for ~7 staff):** a generic widget registry + freeform
+  **resizable** grid. Resize is the hard 20% in vanilla — would need careful CSS-grid +
+  drag math or an `esm.sh` grid lib (Gridstack/Muuri). Avoid building a generic engine;
+  a simple `WIDGETS = {key: renderFn}` registry beats an abstraction.
+- Gut check: ship Tier-0 snapshots first and see if people actually customize before
+  investing past it.
