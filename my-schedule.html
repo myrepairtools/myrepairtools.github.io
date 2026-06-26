@@ -11,7 +11,7 @@
 body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
 main{max-width:680px;margin:0 auto;padding:18px 16px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:-.4px}
-.hide{display:none}
+.hide{display:none!important}
 /* lock (mirrors schedule.html) */
 .lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;z-index:2000}
 .lock.hide{display:none}
@@ -167,6 +167,7 @@ function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String
 var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 var DAYL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
 var TYPES={Vacation:'#4FB0E3',Personal:'#8B5CF6',Sick:'#DC282E'};
 var AVPAL=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
 function avatarBg(id){var h=0,s=String(id||'');for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AVPAL[h%AVPAL.length];}
@@ -234,17 +235,26 @@ function dayRec(staffId,wd){
   if(sid==null)return {none:true};
   return {shift_id:sid,store:v.store||(SCHED[staffId]&&SCHED[staffId].store),label:v.label};
 }
-function parseLabel(label){var m=String(label||'').split(/\s*-\s*/);if(m.length!==2)return null;
-  function t(s){var x=/(\d+):(\d+)\s*([AP]M)/i.exec(s);if(!x)return null;var h=(+x[1])%12;if(/pm/i.test(x[3]))h+=12;return h*60+(+x[2]);}
+function parseLabel(label){var m=String(label||'').split(/\s*[-–]\s*/);if(m.length!==2)return null;
+  function t(s){var x=/(\d+)(?::(\d+))?\s*([AP]M)?/i.exec(String(s).trim());if(!x)return null;var h=(+x[1])%12;if(/pm/i.test(x[3]||''))h+=12;return h*60+(+(x[2]||0));}
   var a=t(m[0]),b=t(m[1]);return (a==null||b==null)?null:[a,b];}
-/* Resolve a day's chip — name/color/time. Falls back to the label's hours when the
-   assigned shift was deleted (orphaned shift_id), so cells never show a bare "Shift". */
+/* Map a label that is itself a shift NAME (e.g. "Opener") to its definition. */
+function labelToShift(label){var n=String(label||'').trim().toLowerCase();if(!n)return null;
+  return Object.keys(SHIFT_BY_ID).map(function(k){return SHIFT_BY_ID[k];}).filter(function(s){return String(s.name||'').trim().toLowerCase()===n;})[0]||null;}
+/* Resolve a day's chip — every scheduled day renders cleanly. A named shift shows its
+   name + resolved hours; a day stored with explicit hours (e.g. "11:30AM - 7:30PM")
+   shows that time range. Ordinary scheduled hours are never flagged as errors. */
 function shiftView(r,wd){
-  var s=SHIFT_BY_ID[r.shift_id];
-  if(s){var rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);
-    return {name:s.name,color:s.color||'#4FB0E3',time:tm,warn:rd.offered===false||!!rd.closed};}
+  var s=SHIFT_BY_ID[r.shift_id]||labelToShift(r.label);
+  if(s){var rd=resolve(s.id,r.store,wd);
+    if(rd.start!=null)return {name:s.name,color:s.color||'#4FB0E3',time:rangeMin(rd.start,rd.end),warn:false};
+    var pm0=parseLabel(r.label);
+    if(pm0)return {name:s.name,color:s.color||'#4FB0E3',time:rangeMin(pm0[0],pm0[1]),warn:false};
+    return {name:s.name,color:s.color||'#4FB0E3',time:rd.closed?'closed':'',warn:false};}
   var pm=parseLabel(r.label);
-  return {name:pm?rangeMin(pm[0],pm[1]):(r.label||'Shift'),color:'#C9820B',time:'shift removed',warn:true};
+  if(pm)return {name:rangeMin(pm[0],pm[1]),color:'#4FB0E3',time:'',warn:false};
+  if(r.label&&r.label!=='Off')return {name:r.label,color:'#4FB0E3',time:'',warn:false};
+  return {name:'Scheduled',color:'#B9BDCB',time:'',warn:false};
 }
 function weekStart(d){var x=new Date(d);x.setDate(x.getDate()-x.getDay());x.setHours(0,0,0,0);return x;}
 function myStores(){
@@ -324,7 +334,7 @@ function renderMe(){
       var r=dayRec(ME.id,wd);
       if(r.none||r.off)body='<span class="shift-nm muted">Day off</span>';
       else{var v=shiftView(r,wd);var pend=pendingOn(ME.id,di);
-        body='<div class="shift-nm"><span class="dot" style="background:'+esc(v.color)+'"></span>'+esc(v.name)+(v.warn?' ⚠️':'')+'</div><div class="shift-tm">'+esc(v.time)+' · '+esc(shortStore(r.store))+'</div>'
+        body='<div class="shift-nm"><span class="dot" style="background:'+esc(v.color)+'"></span>'+esc(v.name)+'</div><div class="shift-tm">'+(v.time?esc(v.time)+' · ':'')+esc(shortStore(r.store))+'</div>'
           +(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">YOUR TIME OFF — PENDING</span>':'');}
     }
     return '<div class="dcard'+(isToday?' today':'')+'">'+rail+'<div class="dvr"></div><div class="dbody">'+body+'</div></div>';
@@ -340,8 +350,9 @@ function renderStore(){
     STAFF.forEach(function(e){
       var ap=approvedOn(e.id,di);if(ap)return;
       var r=dayRec(e.id,wd);if(r.none||r.off||r.store!==store)return;
-      var v=shiftView(r,wd),rd=resolve(r.shift_id,store,wd);
-      working.push({e:e,name:e.display_name,tm:v.time,start:rd.start||0,me:e.id===ME.id});
+      var v=shiftView(r,wd),rd=resolve(r.shift_id,store,wd),pl=parseLabel(r.label);
+      var startMin=rd.start!=null?rd.start:(pl?pl[0]:9999);
+      working.push({e:e,name:e.display_name,tm:v.time||v.name,start:startMin,me:e.id===ME.id});
     });
     working.sort(function(a,b){return a.start-b.start;});
     var rows=working.length?working.map(function(w){
@@ -426,8 +437,8 @@ function renderWeb(){
     if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div style="border-radius:8px;padding:8px;background:'+hexA(c,0.12)+';border-left:3px solid '+c+'"><div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+c+'">Time off</div><div style="font-size:.68rem;color:#9aa0b0;font-weight:700">'+esc(ap.type)+'</div></div>';}
     else{var r=dayRec(ME.id,wd);
       if(r.none||r.off)body='<div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:#cfd2dd">Off</div>';
-      else{var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);var pend=pendingOn(ME.id,di);
-        body='<div style="border-radius:9px;padding:8px 9px;flex:1;background:'+hexA(s?s.color:'#4FB0E3',0.1)+';border-left:3px solid '+esc(s?s.color:'#4FB0E3')+'"><div style="font-family:Nunito;font-weight:800;font-size:.8rem">'+esc(s?s.name:'Shift')+'</div><div style="font-size:.7rem;color:#6b7180;font-weight:700;margin-top:1px">'+esc(tm)+'</div><div style="display:flex;align-items:center;gap:4px;margin-top:4px"><span class="dot" style="width:8px;height:8px;background:'+esc(storeColor(r.store))+'"></span><span style="font-family:Nunito;font-weight:800;font-size:.6rem;color:#9aa0b0">'+esc(shortStore(r.store))+'</span></div>'+(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">REQUESTED OFF</span>':'')+'</div>';}}
+      else{var v=shiftView(r,wd);var pend=pendingOn(ME.id,di);
+        body='<div style="border-radius:9px;padding:8px 9px;flex:1;background:'+hexA(v.color,0.1)+';border-left:3px solid '+esc(v.color)+'"><div style="font-family:Nunito;font-weight:800;font-size:.8rem">'+esc(v.name)+'</div>'+(v.time?'<div style="font-size:.7rem;color:#6b7180;font-weight:700;margin-top:1px">'+esc(v.time)+'</div>':'')+'<div style="display:flex;align-items:center;gap:4px;margin-top:4px"><span class="dot" style="width:8px;height:8px;background:'+esc(storeColor(r.store))+'"></span><span style="font-family:Nunito;font-weight:800;font-size:.6rem;color:#9aa0b0">'+esc(shortStore(r.store))+'</span></div>'+(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">REQUESTED OFF</span>':'')+'</div>';}}
     return '<div class="wkcol'+(isT?' today':'')+'"><div class="dh"><span class="d">'+dy+'</span><span class="n"'+(isT?' style="color:var(--red)"':'')+'>'+dt.getDate()+'</span>'+(isT?'<span class="pill" style="margin:0;color:#fff;background:var(--red);font-size:.46rem">TODAY</span>':'')+'</div>'+body+'</div>';
   }).join('');
   /* who's on boards */

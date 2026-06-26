@@ -288,14 +288,25 @@ function filterPillsHtml(){
 }
 function filterStores(){var vs=visibleStores();return FILTER==='All'?vs:vs.filter(function(s){return s.store===FILTER;});}
 function legendHtml(){return '<div class="legend"><span class="lgt">Shifts</span>'+SHIFTS.filter(function(s){return s.active;}).map(function(s){return '<span class="lg"><span class="av" style="width:10px;height:10px;background:'+esc(s.color||'#4FB0E3')+';border-radius:50%"></span>'+esc(s.name)+'</span>';}).join('')+'</div>';}
-function parseLabel(label){var m=String(label||'').split(/\s*-\s*/);if(m.length!==2)return null;
-  function t(s){var x=/(\d+):(\d+)\s*([AP]M)/i.exec(s);if(!x)return null;var h=(+x[1])%12;if(/pm/i.test(x[3]))h+=12;return h*60+(+x[2]);}
+function parseLabel(label){var m=String(label||'').split(/\s*[-–]\s*/);if(m.length!==2)return null;
+  function t(s){var x=/(\d+)(?::(\d+))?\s*([AP]M)?/i.exec(String(s).trim());if(!x)return null;var h=(+x[1])%12;if(/pm/i.test(x[3]||''))h+=12;return h*60+(+(x[2]||0));}
   var a=t(m[0]),b=t(m[1]);return (a==null||b==null)?null:[a,b];}
-/* Resolve a cell's chip; falls back to the label's hours when the shift was deleted. */
+/* Map a label that is itself a shift NAME (e.g. "Opener") to its definition. */
+function labelToShift(label){var n=String(label||'').trim().toLowerCase();if(!n)return null;
+  return SHIFTS.filter(function(s){return String(s.name||'').trim().toLowerCase()===n;})[0]||null;}
+/* Resolve a cell's chip — every scheduled day renders cleanly. Named shift → name + hours;
+   a day stored with explicit hours (e.g. "11:30AM - 7:30PM") → that time range. No errors. */
 function shiftMeta(a,wd){
-  var sh=shiftById(a.id);
-  if(sh){var rd=resolve(a.id,a.store,wd);return {name:sh.name,color:sh.color||'#4FB0E3',tm:rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end),warn:rd.offered===false||!!rd.closed};}
-  var pm=parseLabel(a.label);return {name:pm?rangeMin(pm[0],pm[1]):(a.label||'Shift'),color:'#C9820B',tm:'shift removed',warn:true};
+  var sh=shiftById(a.id)||labelToShift(a.label);
+  if(sh){var rd=resolve(sh.id,a.store,wd);
+    if(rd.start!=null)return {name:sh.name,color:sh.color||'#4FB0E3',tm:rangeMin(rd.start,rd.end),warn:false};
+    var pm0=parseLabel(a.label);
+    if(pm0)return {name:sh.name,color:sh.color||'#4FB0E3',tm:rangeMin(pm0[0],pm0[1]),warn:false};
+    return {name:sh.name,color:sh.color||'#4FB0E3',tm:rd.closed?'closed':'',warn:false};}
+  var pm=parseLabel(a.label);
+  if(pm)return {name:rangeMin(pm[0],pm[1]),color:'#4FB0E3',tm:'',warn:false};
+  if(a.label&&a.label!=='Off')return {name:a.label,color:'#4FB0E3',tm:'',warn:false};
+  return {name:'Scheduled',color:'#B9BDCB',tm:'',warn:false};
 }
 function cellShift(a,store,wd){
   var m=shiftMeta(a,wd);
