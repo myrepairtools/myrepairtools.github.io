@@ -84,6 +84,41 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
 .empty{font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.8rem;color:var(--grey);padding:2px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:11px 18px;border-radius:11px;font-weight:800;font-size:.84rem;opacity:0;pointer-events:none;transition:.2s;z-index:3000;font-family:'Nunito',sans-serif}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
+/* ===== web (desktop) layout ===== */
+body.web main{max-width:1180px;padding:24px 28px 60px}
+.webtop{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.wkstrip{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden;margin-bottom:20px}
+.wkstrip-hd{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--dark)}
+.wkstrip-hd .h{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;letter-spacing:.3px;text-transform:uppercase;color:#fff}
+.wkstrip-hd .s{font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.76rem;color:rgba(255,255,255,.65)}
+.wkgrid{display:grid;grid-template-columns:repeat(7,1fr)}
+.wkcol{display:flex;flex-direction:column;padding:11px 12px;border-left:1px solid #F5F6F8;min-height:120px}
+.wkcol.today{background:#FFFBFB}
+.wkcol .dh{display:flex;align-items:baseline;gap:6px;margin-bottom:8px}
+.wkcol .dh .d{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey)}
+.wkcol .dh .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem}
+.twocol{display:grid;grid-template-columns:1fr 330px;gap:20px;align-items:start}
+.wsect{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;margin-bottom:4px}
+.wboard{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden}
+.wboard-hd{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--dark)}
+.wboard-hd .nm{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;letter-spacing:.3px;text-transform:uppercase;color:#fff}
+.wbt{width:100%;border-collapse:collapse;table-layout:fixed}
+.wbt th{padding:8px 6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey);border-bottom:1px solid #EEF0F4;border-left:1px solid #F5F6F8;text-align:center}
+.wbt th.p{width:130px;text-align:left;padding:8px 14px;border-left:none}
+.wbt td.p{padding:7px 14px;border-bottom:1px solid #F5F6F8}
+.wbt td.c{padding:4px 5px;border-bottom:1px solid #F5F6F8;border-left:1px solid #F5F6F8;vertical-align:middle;height:46px}
+.wchip{border-radius:6px;padding:4px 6px}
+.wchip .n{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wchip .t{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.58rem;color:#6b7180}
+.side{display:flex;flex-direction:column;gap:16px;position:sticky;top:24px}
+/* planner modal */
+.pl-back{position:fixed;inset:0;z-index:90;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;padding:24px}
+.pl{position:relative;width:600px;max-width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.32)}
+.pl-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);background:var(--dark)}
+.pl-hd .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;color:#fff}
+.pl-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.pl-cell{min-height:60px;padding:7px 8px;text-align:left;border:none;border-top:1px solid #F0F1F4;border-left:1px solid #F0F1F4;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between}
+.pl-ft{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;border-top:1px solid #EEF0F4;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -255,10 +290,17 @@ function renderWknav(){
   $('#wknav').innerHTML='<div class="wknav"><button data-wk="-1">‹</button><div><div class="lbl">'+label+'</div><div class="sub">'+(thisWk?'This week':'')+'</div></div><button data-wk="1">›</button></div>';
   $('#wknav').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
 }
+function isWeb(){return window.innerWidth>=980;}
 function render(){
+  var web=isWeb();
+  document.body.classList.toggle('web',web);
+  $('#tabs').classList.toggle('hide',web);
+  $('#wknav').classList.toggle('hide',web);
+  if(web){renderWeb();return;}
   renderWknav();
   if(TAB==='me')renderMe();else if(TAB==='store')renderStore();else renderTimeoff();
 }
+var _rz=null;window.addEventListener('resize',function(){clearTimeout(_rz);_rz=setTimeout(function(){if(ME)render();},150);});
 function renderMe(){
   var todayIso=iso(new Date());
   var html=DAYS.map(function(dy,wd){
@@ -350,6 +392,120 @@ async function cancelRequest(id){
   var r=await sb.from('time_off_requests').delete().eq('id',id);
   if(r.error){toast(r.error.message,true);return;}
   REQS=REQS.filter(function(x){return x.id!==id;});toast('Request canceled');renderHeader();render();
+}
+
+/* ===== web (desktop) layout ===== */
+var PMON=null, PSTART=null, PEND=null;
+function weekShiftCell(staffId,wd,di,cardStore){
+  var ap=approvedOn(staffId,di);
+  if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(c,0.13)+';border-left:2px solid '+c+'"><div class="n" style="color:'+c+'">Off</div><div class="t">'+esc(ap.type)+'</div></div>';}
+  var r=dayRec(staffId,wd);
+  if(r.none||r.off||(cardStore&&r.store!==cardStore))return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
+  var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'':rd.closed?'':rangeMin(rd.start,rd.end);
+  return '<div class="wchip" style="background:'+hexA(s?s.color:'#4FB0E3',0.12)+';border-left:2px solid '+esc(s?s.color:'#4FB0E3')+'"><div class="n">'+esc(s?s.name:'Shift')+'</div><div class="t">'+esc(tm)+'</div></div>';
+}
+function renderWeb(){
+  var todayIso=iso(new Date());
+  var end=new Date(WK);end.setDate(end.getDate()+6);
+  var wlabel=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate()+', '+end.getFullYear();
+  /* my-week strip */
+  var strip=DAYS.map(function(dy,wd){
+    var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isT=di===todayIso;
+    var ap=approvedOn(ME.id,di),body;
+    if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div style="border-radius:8px;padding:8px;background:'+hexA(c,0.12)+';border-left:3px solid '+c+'"><div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+c+'">Time off</div><div style="font-size:.68rem;color:#9aa0b0;font-weight:700">'+esc(ap.type)+'</div></div>';}
+    else{var r=dayRec(ME.id,wd);
+      if(r.none||r.off)body='<div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:#cfd2dd">Off</div>';
+      else{var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);var pend=pendingOn(ME.id,di);
+        body='<div style="border-radius:9px;padding:8px 9px;flex:1;background:'+hexA(s?s.color:'#4FB0E3',0.1)+';border-left:3px solid '+esc(s?s.color:'#4FB0E3')+'"><div style="font-family:Nunito;font-weight:800;font-size:.8rem">'+esc(s?s.name:'Shift')+'</div><div style="font-size:.7rem;color:#6b7180;font-weight:700;margin-top:1px">'+esc(tm)+'</div><div style="display:flex;align-items:center;gap:4px;margin-top:4px"><span class="dot" style="width:8px;height:8px;background:'+esc(storeColor(r.store))+'"></span><span style="font-family:Nunito;font-weight:800;font-size:.6rem;color:#9aa0b0">'+esc(shortStore(r.store))+'</span></div>'+(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">REQUESTED OFF</span>':'')+'</div>';}}
+    return '<div class="wkcol'+(isT?' today':'')+'"><div class="dh"><span class="d">'+dy+'</span><span class="n"'+(isT?' style="color:var(--red)"':'')+'>'+dt.getDate()+'</span>'+(isT?'<span class="pill" style="margin:0;color:#fff;background:var(--red);font-size:.46rem">TODAY</span>':'')+'</div>'+body+'</div>';
+  }).join('');
+  /* who's on boards */
+  var boards=myStores().map(function(store){
+    var head='<th class="p">Person</th>'+DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);return '<th>'+d+'<div style="font-weight:700;font-size:.62rem;color:#cfd2dd">'+dt.getDate()+'</div></th>';}).join('');
+    var crew=STAFF.filter(function(e){var any=false;for(var wd=0;wd<7;wd++){var r=dayRec(e.id,wd);if(!r.none&&!r.off&&r.store===store){any=true;break;}}return any||e.home_store===store;});
+    crew.sort(function(a,b){var ra=isMgrRole(a.role)?0:1,rb=isMgrRole(b.role)?0:1;if(ra!==rb)return ra-rb;return (a.display_name||'')<(b.display_name||'')?-1:1;});
+    var rows=crew.map(function(e){
+      var cells=DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);return '<td class="c">'+weekShiftCell(e.id,wd,iso(dt),store)+'</td>';}).join('');
+      var me=e.id===ME.id;
+      return '<tr'+(me?' style="background:#F4FAFE"':'')+'><td class="p"><div style="display:flex;align-items:center;gap:8px">'+avFor(e)+'<span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+(me?'#1E7AA8':'var(--dark)')+'">'+esc(e.display_name)+(me?' <span style="font-size:.5rem;color:#1E7AA8;background:#E3F0F7;padding:1px 4px;border-radius:999px">YOU</span>':'')+'</span></div></td>'+cells+'</tr>';
+    }).join('');
+    return '<div class="wboard"><div class="wboard-hd"><span class="dot" style="width:11px;height:18px;border-radius:4px;background:'+esc(storeColor(store))+'"></span><span class="nm">'+esc(shortStore(store))+'</span></div><table class="wbt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }).join('');
+  /* sidebar */
+  var side=timeoffPanelHtml(true);
+  $('#view').innerHTML='<div class="webtop"><div></div><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div><div class="lbl">'+wlabel+'</div><div class="sub">'+(iso(weekStart(new Date()))===iso(WK)?'This week':'')+'</div></div><button data-wk="1">›</button></div></div>'
+    +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span></div><div class="wkgrid">'+strip+'</div></div>'
+    +'<div class="twocol"><div style="min-width:0;display:flex;flex-direction:column;gap:18px"><div class="wsect">Who\'s on with me</div>'+boards+'</div><aside class="side">'+side+'</aside></div>';
+  $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+  wireTimeoffPanel();
+  if($('#openPlanner'))$('#openPlanner').onclick=openPlanner;
+}
+function isMgrRole(r){return ['owner','admin','manager'].indexOf(r)>-1;}
+/* shared time-off panel (web sidebar + reused logic) */
+function timeoffPanelHtml(web){
+  var f=FORM;if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
+  var myStoreNames=myStores();
+  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
+  var conflicts=REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=f.end&&r.end_date>=f.start;});
+  var conflictTxt=conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');
+  var actions=REQUESTING?'':'<div style="display:flex;flex-direction:column;gap:8px"><button class="btn btn-red" id="openReq">+ Request time off</button>'+(web?'<button class="btn" id="openPlanner" style="width:100%;padding:11px;display:flex;align-items:center;justify-content:center;gap:7px">📅 Find open dates</button>':'')+'</div>';
+  var form=REQUESTING?(
+    '<div class="card"><div style="font-family:Nunito;font-weight:900;font-size:.92rem;margin-bottom:11px">Request time off</div>'
+    +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:11px">'+['Vacation','Personal','Sick'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:11px"><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div>'
+    +(conflicts.length?'<div class="warnbox"><span>⚠️</span><div>Overlaps '+esc(conflictTxt)+'. You can still submit.</div></div>':'')
+    +'<div style="display:flex;gap:8px"><button class="btn" id="fCancel" style="flex:1;padding:10px">Cancel</button><button class="btn btn-red" id="fSubmit" style="flex:1.3;width:auto;padding:10px">Submit</button></div></div>'
+  ):'';
+  var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
+  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'" title="Tap to cancel"':'')+'>'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
+  var today=iso(new Date());
+  var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
+  var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};return '<div style="display:flex;align-items:center;gap:9px"><span class="me-av" style="width:26px;height:26px;font-size:.6rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.76rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No upcoming team time off.</div>';
+  return actions+form+'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">My requests</div><div style="display:flex;flex-direction:column;gap:8px">'+mineHtml+'</div></div>'
+    +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem">Team time off</div><div style="font-family:Nunito Sans;font-weight:600;font-size:.68rem;color:var(--grey);margin-bottom:9px">All locations</div><div style="display:flex;flex-direction:column;gap:9px">'+teamHtml+'</div></div>';
+}
+function wireTimeoffPanel(){
+  if($('#openReq'))$('#openReq').onclick=function(){REQUESTING=true;render();};
+  if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
+  $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
+  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;render();};
+  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;render();};
+  if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
+  $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
+}
+/* find-open-dates planner */
+function openPlanner(){PMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1);PSTART=null;PEND=null;renderPlanner();}
+function closePlanner(){var b=document.getElementById('plback');if(b)b.remove();}
+function renderPlanner(){
+  closePlanner();
+  var today=iso(new Date());
+  var Y=PMON.getFullYear(),M=PMON.getMonth(),first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
+  var myStoreNames=myStores();
+  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
+  function loadOn(di){return REQS.filter(function(r){return r.status!=='denied'&&teammates.indexOf(r.staff_id)>-1&&r.start_date<=di&&r.end_date>=di;}).length;}
+  var selStart=PSTART,selEnd=PEND||PSTART;
+  var cells='';
+  for(var i=0;i<first;i++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
+  for(var d=1;d<=dim;d++){var di=iso(new Date(Y,M,d));var past=di<today;var n=loadOn(di);
+    var selected=selStart&&di>=selStart&&di<=selEnd;var isEnd=selStart&&(di===selStart||di===selEnd);
+    var bg=past?'#FBFBFC':selected?(isEnd?'#4FB0E3':hexA('#4FB0E3',0.16)):(n===0?'#fff':n===1?'#FCF6EA':'#FBEDED');
+    var numC=past?'#cfd2dd':(selected&&isEnd?'#fff':'var(--dark)');
+    var lblC=(selected&&isEnd)?'#fff':(n===1?'#C9820B':'#DC282E');
+    cells+='<button class="pl-cell" data-day="'+(past?'':di)+'" style="background:'+bg+';cursor:'+(past?'default':'pointer')+'"><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+numC+'">'+d+'</span>'+((!past&&n>0)?'<span style="font-family:Nunito;font-weight:800;font-size:.54rem;text-transform:uppercase;color:'+lblC+'">'+n+' off</span>':'')+'</button>';
+  }
+  var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
+  var back=document.createElement('div');back.id='plback';back.className='pl-back';
+  back.innerHTML='<div class="pl"><div class="pl-hd"><div class="t">Find open dates</div><div class="navbox" style="border:none"><button data-pm="-1" style="background:#fff;border:1px solid var(--border);border-radius:8px 0 0 8px;padding:7px 12px;cursor:pointer;font-weight:800">‹</button><span style="padding:0 12px;font-family:Nunito;font-weight:800;font-size:.84rem;line-height:32px;background:#fff;display:inline-block">'+MONL[M]+' '+Y+'</span><button data-pm="1" style="background:#fff;border:1px solid var(--border);border-radius:0 8px 8px 0;padding:7px 12px;cursor:pointer;font-weight:800">›</button></div><button id="plx" style="position:absolute;top:13px;right:14px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;width:32px;height:32px;border-radius:9px;cursor:pointer;font-weight:800">✕</button></div>'
+    +'<div class="pl-grid" style="background:var(--dark)">'+DAYS.map(function(d){return '<div style="padding:8px;font-family:Nunito;font-weight:800;font-size:.56rem;text-transform:uppercase;color:rgba(255,255,255,.85)">'+d+'</div>';}).join('')+'</div>'
+    +'<div class="pl-grid">'+cells+'</div>'
+    +'<div class="pl-ft"><div style="display:flex;gap:12px;font-family:Nunito;font-weight:800;font-size:.68rem;color:var(--dark-grey)"><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#fff;border:1.5px solid var(--border);vertical-align:-1px"></span> Open</span><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#FCF6EA;border:1.5px solid #EBD9AE;vertical-align:-1px"></span> Filling</span><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#FBEDED;border:1.5px solid #F0C9C9;vertical-align:-1px"></span> Tight</span></div><div style="flex:1"></div><div style="font-family:Nunito Sans;font-size:.82rem">'+(PSTART?'<b style="font-family:Nunito">'+esc(fmtRange(PSTART,PEND||PSTART))+'</b>':'<span style="color:var(--grey)">Click a start, then an end</span>')+'</div><button class="btn btn-red" id="plUse" style="width:auto;padding:9px 16px;'+(PSTART?'':'opacity:.5;cursor:not-allowed')+'">Use these dates</button></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(ev){if(ev.target===back)closePlanner();});
+  back.querySelector('#plx').onclick=closePlanner;
+  back.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){PMON=new Date(PMON.getFullYear(),PMON.getMonth()+Number(b.getAttribute('data-pm')),1);renderPlanner();};});
+  back.querySelectorAll('[data-day]').forEach(function(b){var di=b.getAttribute('data-day');if(!di)return;b.onclick=function(){
+    if(!PSTART||(PSTART&&PEND)||di<PSTART){PSTART=di;PEND=null;}else PEND=di;renderPlanner();};});
+  back.querySelector('#plUse').onclick=function(){if(!PSTART)return;FORM.start=PSTART;FORM.end=PEND||PSTART;REQUESTING=true;closePlanner();render();};
 }
 
 initAuth();
