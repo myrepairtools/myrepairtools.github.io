@@ -24,3 +24,16 @@ drop policy if exists tor_upd on time_off_requests;
 create policy tor_upd on time_off_requests for update to authenticated using (is_admin(store) or staff_id = (select id from staff where auth_uid=auth.uid())) with check (is_admin(store) or staff_id = (select id from staff where auth_uid=auth.uid()));
 drop policy if exists tor_del on time_off_requests;
 create policy tor_del on time_off_requests for delete to authenticated using (staff_id = (select id from staff where auth_uid=auth.uid()) and status='pending');
+
+-- Visiting members: a staff added to another store's schedule board (Schedule Admin).
+create table if not exists schedule_membership (
+  id bigserial primary key,
+  store text not null,
+  staff_id bigint not null references staff(id) on delete cascade,
+  unique(store, staff_id)
+);
+alter table schedule_membership enable row level security;
+drop policy if exists sm_read on schedule_membership;
+create policy sm_read on schedule_membership for select using (true);
+drop policy if exists sm_write on schedule_membership;
+create policy sm_write on schedule_membership for all to authenticated using (is_admin(store)) with check (is_admin(store));
