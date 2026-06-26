@@ -409,7 +409,10 @@ var PG_PAGES=[
   {key:'cash',label:'Cash Tracker',dot:'#E3F0D8',options:[{key:'reg',label:'Registers & safes'}]},
   {key:'schedule',label:'Schedule',dot:'#D8E8F5',options:[{key:'shifts',label:'Shift presets'}]}
 ];
-var PTYPES=[], FLAGS=[], SHIFTS=[]; /* consumption page settings: part types + custom flags; schedule: shift presets */
+var PTYPES=[], FLAGS=[], SHIFTS=[]; /* consumption: part types + flags; schedule: named shifts */
+var SHIFT_BY_ID={}, HOURS={};        /* HOURS[shift_id][store] = {def:{id,enabled,closed,start,end}, days:{wd:{id,closed,start,end}}} */
+var SHIFTSEL=lsGet('cprSetShift',null), SHIFTLOC=null; /* selected shift id + location tab in the editor */
+var SHIFTPAL=['#2E9E5B','#4FB0E3','#8B5CF6','#DC282E','#C9820B','#2D2D3B'];
 var HYLA_SET={}, HYLA_LABEL=[], HYLA_GUIDE=[]; /* hyla page settings (hyla_settings kv) */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
@@ -532,13 +535,20 @@ async function loadPages(){
     sb.from('part_types').select('id,part_type,active').order('part_type'),
     sb.from('flag_types').select('id,key,label,color,active,sort').order('sort').order('id'),
     sb.from('hyla_settings').select('key,value'),
-    sb.from('shift_presets').select('id,store,label,start_min,end_min,color,sort').order('sort'),
+    sb.from('shifts').select('id,name,color,sort,active').order('sort'),
+    sb.from('shift_hours').select('id,shift_id,store,weekday,start_min,end_min,closed,enabled'),
   ]);
   DMFRS=res[0].error?[]:(res[0].data||[]);
   DPARTS=res[1].error?[]:(res[1].data||[]);
   PTYPES=res[2].error?[]:(res[2].data||[]);
   FLAGS=res[3].error?[]:(res[3].data||[]);
   SHIFTS=res[5].error?[]:(res[5].data||[]);
+  SHIFT_BY_ID={};SHIFTS.forEach(function(s){SHIFT_BY_ID[s.id]=s;});
+  HOURS={};(res[6].error?[]:(res[6].data||[])).forEach(function(r){
+    var h=HOURS[r.shift_id]||(HOURS[r.shift_id]={});var st=h[r.store]||(h[r.store]={def:null,days:{}});
+    var row={id:r.id,closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};
+    if(r.weekday==null)st.def=row;else st.days[r.weekday]=row;
+  });
   HYLA_SET={};(res[4].error?[]:(res[4].data||[])).forEach(function(r){HYLA_SET[r.key]=r.value;});
   HYLA_LABEL=hylaParse(HYLA_SET.labelItems,['Battery life','All functions','Audio test','Cleaned']);
   HYLA_GUIDE=hylaParse(HYLA_SET.guideSteps,[]);
@@ -1403,6 +1413,7 @@ function pgRenderNav(){
     return '<button class="pg3item'+(p.key===PGTOOL?' on':'')+'" data-pgtool="'+p.key+'">'+esc(p.label)+'</button>';
   }).join('');
   var page=PG_PAGES.filter(function(p){return p.key===PGTOOL;})[0]||PG_PAGES[0];
+  if(PGTOOL==='schedule'){renderShiftRail();return;}
   var opts=page.options.slice().sort(function(a,b){return a.label.localeCompare(b.label);});
   $('#pgOptions').innerHTML=opts.map(function(o){
     var n=pgOptCount(page.key,o.key);
@@ -1426,7 +1437,7 @@ function renderPages(){
   }
   if(consOn)renderConsumptionPage();
   if(hylaOn)renderHylaPage();
-  if(schedOn)renderSchedulePage();
+  if(schedOn)renderScheduleDetail();
   renderRegs();
 }
 /* ===== Hyla Orders page settings (writes to hyla_settings kv) ===== */
@@ -1474,59 +1485,180 @@ async function hylaKV(key,val){
   var r=await sb.from('hyla_settings').upsert({key:key,value:val==null?'':String(val)});
   if(r.error)toast(r.error.message,true);else toast('Saved');
 }
-/* ===== Schedule page settings: shift presets per location (writes shift_presets) ===== */
+/* ===== Schedule page settings: named shifts, hours per location & weekday =====
+   Master rail (#pgOptions) = the Shifts list; detail pane (#pagePaneSchedule) = the
+   selected shift's per-location / per-day hours. Writes shifts + shift_hours. */
 function shortStoreS(s){return String(s||'').replace(/^CPR\s*/,'');}
 function storeColorS(store){var s=STORES.filter(function(x){return x.store===store;})[0];return (s&&s.color)||'#4FB0E3';}
 function canStoreS(store){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores||[]).indexOf(store)>-1||AUTH.home_store===store);}
-function shTime(label){ /* "9:00AM - 7:00PM" -> [startMin,endMin] for sorting */
-  function tmin(s){var m=/(\d+):(\d+)\s*([AP]M)/i.exec(s);if(!m)return null;var h=(+m[1])%12;if(/pm/i.test(m[3]))h+=12;return h*60+(+m[2]);}
-  var parts=String(label).split(/\s*-\s*/);if(parts.length!==2)return [null,null];return [tmin(parts[0]),tmin(parts[1])];
+function mngStores(){return STORES.filter(function(s){return s.active!==false&&canStoreS(s.store);}).map(function(s){return s.store;});}
+function byShiftSort(a,b){return (a.sort||0)-(b.sort||0);}
+function hoursOf(sid,store){var h=HOURS[sid]||(HOURS[sid]={});return h[store]||(h[store]={def:null,days:{}});}
+function minToHHMM(m){if(m==null)return '';return ('0'+Math.floor(m/60)).slice(-2)+':'+('0'+(m%60)).slice(-2);}
+function hhmmToMin(s){var p=String(s||'').split(':');if(p.length!==2)return null;return (+p[0])*60+(+p[1]);}
+function fmtMin12(m){if(m==null)return '';var h=Math.floor(m/60),mm=m%60,h12=h%12;if(h12===0)h12=12;return mm?(h12+':'+('0'+mm).slice(-2)):(''+h12);}
+function fmtRange(s,e){return fmtMin12(s)+'–'+fmtMin12(e);}
+function shiftSummary(s){
+  var hs=HOURS[s.id]||{}, locs=Object.keys(hs).filter(function(st){return hs[st].def&&hs[st].def.enabled;});
+  var ovr=locs.reduce(function(n,st){return n+Object.keys(hs[st].days).length;},0);
+  return locs.length+' loc'+(locs.length===1?'':'s')+(ovr?(' · '+ovr+' override'+(ovr===1?'':'s')):'');
 }
-function shCard(store){
-  var list=SHIFTS.filter(function(p){return p.store===store;}).sort(function(a,b){return (a.start_min||0)-(b.start_min||0)||(a.end_min||0)-(b.end_min||0);});
-  var rows=list.length?list.map(function(p){
-    return '<div class="lstrow">'
-      +'<input type="color" class="flagclr" data-shcolor="'+p.id+'" value="'+esc(p.color||storeColorS(store))+'" title="Shift color on the grid">'
-      +'<input class="pgname" data-shname="'+p.id+'" value="'+esc(p.label)+'">'
-      +'<button class="ord del" data-shdel="'+p.id+'" title="Delete">✕</button>'
-      +'</div>';
-  }).join(''):'<div class="empty" style="padding:14px">No shifts yet.</div>';
-  return '<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:'+esc(storeColorS(store))+';margin-right:7px;vertical-align:middle"></span>'+esc(shortStoreS(store))+'</span><span class="pgcard-n">'+list.length+'</span></div>'
-    +'<div class="pgadd"><input class="pgin" data-shadd="'+esc(store)+'" placeholder="9:00AM - 7:00PM"><button class="btn alt sm" data-shaddbtn="'+esc(store)+'">Add</button></div>'
-    +'<div class="pgcard-body">'+rows+'</div></div>';
+function reSched(){renderShiftRail();renderScheduleDetail();}
+function renderShiftRail(){
+  var rail=$('#pgOptions');if(!rail)return;
+  var rows=SHIFTS.slice().sort(byShiftSort).map(function(s){
+    var on=String(s.id)===String(SHIFTSEL);
+    return '<button class="pg3item'+(on?' on':'')+'" data-shsel="'+s.id+'"'+(on?' style="border-left-color:'+esc(s.color||'#4FB0E3')+'"':'')+'>'
+      +'<span style="width:11px;height:11px;border-radius:50%;background:'+esc(s.color||'#4FB0E3')+';flex:none"></span>'
+      +'<span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-family:Nunito;font-weight:800;font-size:.84rem;color:var(--dark)">'+esc(s.name)+(s.active?'':' <span style="font-size:.5rem;color:var(--grey)">ARCH</span>')+'</span>'
+      +'<span style="display:block;font-family:Nunito Sans;font-weight:600;font-size:.66rem;color:var(--grey)">'+shiftSummary(s)+'</span></span></button>';
+  }).join('');
+  rail.innerHTML='<div style="font-family:Nunito;font-weight:800;font-size:.58rem;letter-spacing:.8px;text-transform:uppercase;color:var(--grey);padding:8px 11px 7px">Shifts</div>'
+    +rows+'<div style="padding:8px 7px"><button class="btn alt sm" id="shNew" style="width:100%">+ New shift</button></div>';
+  rail.querySelectorAll('[data-shsel]').forEach(function(b){b.onclick=function(){SHIFTSEL=b.getAttribute('data-shsel');lsSet('cprSetShift',SHIFTSEL);reSched();};});
+  var nb=$('#shNew');if(nb)nb.onclick=newShift;
 }
-function renderSchedulePage(){
+function emptyShiftsHtml(){
+  return '<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px">'
+    +'<div style="width:60px;height:60px;border-radius:15px;background:var(--light-grey);display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:14px">🗓️</div>'
+    +'<div style="font-family:Nunito;font-weight:900;font-size:1.1rem;margin-bottom:6px">No shifts defined yet</div>'
+    +'<div style="font-family:Nunito Sans;font-size:.84rem;color:var(--grey);max-width:360px;margin-bottom:18px">Create reusable shifts like <b style="color:var(--dark-grey)">Opener</b>, <b style="color:var(--dark-grey)">Mid</b> or <b style="color:var(--dark-grey)">Closer</b>. Set hours once, then fine-tune per location and per day.</div>'
+    +'<button id="shNew2" class="btn">Create your first shift</button></div>';
+}
+function dayRowHtml(loc,wd,ho){
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], d=ho.days[wd], mode=d?(d.closed?'closed':'override'):'default';
+  function seg(label,m){var on=mode===m,color=(m==='closed'&&on)?'var(--red)':(on?'var(--dark)':'#9aa0b0');
+    return '<button class="shday" data-wd="'+wd+'" data-mode="'+m+'" style="flex:1;padding:5px 4px;border:none;border-radius:6px;cursor:pointer;font-family:Nunito;font-weight:800;font-size:9.5px;letter-spacing:.3px;text-transform:uppercase;background:'+(on?'#fff':'transparent')+';color:'+color+';box-shadow:'+(on?'0 1px 2px rgba(45,45,59,.12)':'none')+'">'+label+'</button>';}
+  var slot;
+  if(mode==='override')slot='<div style="display:flex;align-items:center;gap:6px"><input type="time" class="shdtime" data-wd="'+wd+'" data-which="start" value="'+minToHHMM(d.start!=null?d.start:ho.def.start)+'" style="width:108px;padding:6px 7px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" class="shdtime" data-wd="'+wd+'" data-which="end" value="'+minToHHMM(d.end!=null?d.end:ho.def.end)+'" style="width:108px;padding:6px 7px;border:1.5px solid var(--border);border-radius:8px"></div>';
+  else if(mode==='closed')slot='<span style="font-family:Nunito;font-weight:800;font-size:.5rem;letter-spacing:.4px;color:var(--red);background:#FBE9EA;padding:3px 8px;border-radius:999px">CLOSED · NOT OFFERED</span>';
+  else slot='<span style="font-family:Nunito Sans;font-weight:600;font-size:.78rem;color:var(--grey)">Inherits default · '+esc(fmtRange(ho.def.start,ho.def.end))+'</span>';
+  return '<div style="display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;background:#fff;border:1px solid #EEF0F4;flex-wrap:wrap">'
+    +'<span style="width:32px;font-family:Nunito;font-weight:800;font-size:.76rem;color:var(--dark)">'+DOW[wd]+'</span>'
+    +'<div style="display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;width:184px;flex:none">'+seg('Default','default')+seg('Custom','override')+seg('Closed','closed')+'</div>'
+    +'<div style="flex:1;min-width:150px;display:flex;align-items:center;min-height:34px">'+slot+'</div></div>';
+}
+function renderScheduleDetail(){
   var pane=$('#pagePaneSchedule');if(!pane)return;
-  var stores=STORES.filter(function(s){return s.active!==false&&canStoreS(s.store);});
-  pane.innerHTML=stores.length?(stores.map(function(s){return shCard(s.store);}).join('')
-    +'<div class="note" style="margin-top:10px">These options appear per store in the Schedule tool. The color shows on the schedule grid; enter times like <b>9:00AM - 7:00PM</b> and they sort earliest first.</div>')
-    :'<div class="empty" style="padding:20px">No stores you can manage.</div>';
+  if(!SHIFTS.length){pane.innerHTML=emptyShiftsHtml();var b0=pane.querySelector('#shNew2');if(b0)b0.onclick=newShift;return;}
+  if(!SHIFTSEL||!SHIFT_BY_ID[SHIFTSEL])SHIFTSEL=String(SHIFTS.slice().sort(byShiftSort)[0].id);
+  var s=SHIFT_BY_ID[SHIFTSEL], stores=mngStores();
+  if(!stores.length){pane.innerHTML='<div class="empty" style="padding:20px">No stores you can manage.</div>';return;}
+  if(!SHIFTLOC||stores.indexOf(SHIFTLOC)<0)SHIFTLOC=stores[0];
+  var loc=SHIFTLOC, ho=hoursOf(s.id,loc), enabled=!!(ho.def&&ho.def.enabled);
+  var html='<div style="display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid #EEF0F4">'
+    +'<div style="flex:1;min-width:170px"><label class="hlbl">Shift name</label><input id="shName" value="'+esc(s.name)+'" style="width:100%;font-family:Nunito;font-weight:800;font-size:1rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;color:var(--dark)"></div>'
+    +'<div><label class="hlbl">Color</label><div style="display:flex;gap:8px;align-items:center;height:38px">'+SHIFTPAL.map(function(c){return '<button class="shsw" data-color="'+c+'" style="width:26px;height:26px;border-radius:50%;background:'+c+';cursor:pointer;padding:0;border:'+(c===s.color?'3px solid #fff':'2px solid #fff')+';box-shadow:0 0 0 '+(c===s.color?('2px '+c):'1px var(--border)')+'"></button>';}).join('')+'</div></div>'
+    +'<div><label class="hlbl">Status</label><div style="display:flex;align-items:center;gap:9px;height:38px"><button id="shActive" class="toggle'+(s.active?' on':'')+'"></button><span style="font-family:Nunito;font-weight:800;font-size:.8rem;color:'+(s.active?'#1E7AA8':'var(--grey)')+'">'+(s.active?'Active':'Archived')+'</span></div></div>'
+    +'<div style="margin-left:auto"><button id="shDelBtn" class="btn alt sm" style="color:var(--red);border-color:#F3C7C9">Delete</button></div></div>';
+  html+='<div style="margin:16px 0 12px"><label class="hlbl">Location</label><div style="display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px">'
+    +stores.map(function(st){var on=st===loc;return '<button class="shloc" data-loc="'+esc(st)+'" style="padding:7px 14px;border:none;border-radius:7px;cursor:pointer;font-family:Nunito;font-weight:800;font-size:.72rem;background:'+(on?'var(--blue)':'transparent')+';color:'+(on?'#fff':'#9aa0b0')+'">'+esc(shortStoreS(st))+'</button>';}).join('')
+    +'</div></div>';
+  html+='<div style="border:1px solid var(--border);border-radius:11px;background:#FBFBFC;overflow:hidden">';
+  if(enabled){
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:#fff;border-bottom:1px solid #EEF0F4;flex-wrap:wrap">'
+      +'<div><label class="hlbl">Default hours at '+esc(shortStoreS(loc))+'</label><div style="display:flex;align-items:center;gap:7px"><input type="time" id="shDefStart" value="'+minToHHMM(ho.def.start)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" id="shDefEnd" value="'+minToHHMM(ho.def.end)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"></div></div>'
+      +'<div style="display:flex;align-items:center;gap:9px"><button id="shEnabled" class="toggle on"></button><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:#1E7AA8">Enabled here</span></div></div>';
+    html+='<div style="padding:13px 16px 16px"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;flex-wrap:wrap"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;letter-spacing:.5px;text-transform:uppercase;color:#9aa0b0">Per-day hours <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">— override only where it differs</span></div><div style="display:flex;gap:7px"><button id="shReset" class="btn alt sm">Reset to default</button><button id="shCopy" class="btn alt sm">Copy to all locations</button></div></div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px;max-width:560px">';
+    for(var wd=0;wd<7;wd++)html+=dayRowHtml(loc,wd,ho);
+    html+='</div></div>';
+  }else{
+    html+='<div style="padding:34px 20px;text-align:center"><div style="font-size:24px;margin-bottom:8px;opacity:.5">🚫</div><div style="font-family:Nunito;font-weight:800;font-size:.9rem;color:var(--dark-grey);margin-bottom:4px">'+esc(s.name)+' isn’t offered at '+esc(shortStoreS(loc))+'</div><div style="font-family:Nunito Sans;font-size:.8rem;color:var(--grey);margin-bottom:14px">It won’t appear in the Schedule tool’s picker for this store.</div><button id="shEnable" class="btn blue">Enable at '+esc(shortStoreS(loc))+'</button></div>';
+  }
+  html+='</div><div class="note" style="margin-top:12px">Define a shift once, then refine it down the tree only where it differs. The Schedule tool derives each day’s time from <b>shift × location × weekday</b>; this color shows on the grid. Changes save automatically.</div>';
+  pane.innerHTML=html;
+  /* wire */
+  var p=pane;
+  var nm=p.querySelector('#shName');if(nm)nm.onchange=function(){renameShift(s.id,nm.value);};
+  p.querySelectorAll('.shsw').forEach(function(b){b.onclick=function(){recolorShift(s.id,b.getAttribute('data-color'));};});
+  var act=p.querySelector('#shActive');if(act)act.onclick=function(){toggleActiveShift(s.id);};
+  var del=p.querySelector('#shDelBtn');if(del)del.onclick=function(){delShift(s.id);};
+  p.querySelectorAll('.shloc').forEach(function(b){b.onclick=function(){SHIFTLOC=b.getAttribute('data-loc');renderScheduleDetail();};});
+  var en=p.querySelector('#shEnabled');if(en)en.onclick=function(){setEnabled(s.id,loc,false);};
+  var enb=p.querySelector('#shEnable');if(enb)enb.onclick=function(){setEnabled(s.id,loc,true);};
+  var ds=p.querySelector('#shDefStart');if(ds)ds.onchange=function(){setDef(s.id,loc,'start',ds.value);};
+  var de=p.querySelector('#shDefEnd');if(de)de.onchange=function(){setDef(s.id,loc,'end',de.value);};
+  var rs=p.querySelector('#shReset');if(rs)rs.onclick=function(){resetDays(s.id,loc);};
+  var cp=p.querySelector('#shCopy');if(cp)cp.onclick=function(){copyLoc(s.id,loc);};
+  p.querySelectorAll('.shday').forEach(function(b){b.onclick=function(){dayMode(s.id,loc,+b.getAttribute('data-wd'),b.getAttribute('data-mode'));};});
+  p.querySelectorAll('.shdtime').forEach(function(b){b.onchange=function(){dayTime(s.id,loc,+b.getAttribute('data-wd'),b.getAttribute('data-which'),b.value);};});
 }
-function shFind(id){return SHIFTS.filter(function(x){return String(x.id)===String(id);})[0];}
-async function shAdd(store){
-  var inp=$('#pagePaneSchedule [data-shadd="'+store+'"]');var label=inp?inp.value.trim():'';if(!label)return;
-  var tm=shTime(label);
-  var r=await sb.from('shift_presets').insert({store:store,label:label,start_min:tm[0],end_min:tm[1],color:storeColorS(store),sort:tm[0]||0}).select().single();
-  if(r.error){toast(/duplicate|unique/i.test(r.error.message)?'That shift already exists for this store':r.error.message,true);return;}
-  SHIFTS.push(r.data);renderSchedulePage();pgRenderNav();
-}
-async function shRename(id,label){
-  label=String(label).trim();var row=shFind(id);if(!row)return;
-  if(!label){renderSchedulePage();return;}
-  var tm=shTime(label);
-  var r=await sb.from('shift_presets').update({label:label,start_min:tm[0],end_min:tm[1],sort:tm[0]||0}).eq('id',id);
-  if(r.error){toast(/duplicate|unique/i.test(r.error.message)?'That shift already exists':r.error.message,true);renderSchedulePage();return;}
-  row.label=label;row.start_min=tm[0];row.end_min=tm[1];renderSchedulePage();
-}
-async function shColor(id,color){
-  var row=shFind(id);if(!row)return;
-  var r=await sb.from('shift_presets').update({color:color}).eq('id',id);
-  if(r.error){toast(r.error.message,true);return;}row.color=color;
-}
-async function shDel(id){
-  var r=await sb.from('shift_presets').delete().eq('id',id);
+/* ----- shift CRUD ----- */
+async function newShift(){
+  var sort=SHIFTS.reduce(function(m,s){return Math.max(m,s.sort||0);},0)+10, color=SHIFTPAL[SHIFTS.length%SHIFTPAL.length];
+  var r=await sb.from('shifts').insert({name:'New shift',color:color,sort:sort,active:true}).select().single();
   if(r.error){toast(r.error.message,true);return;}
-  SHIFTS=SHIFTS.filter(function(x){return String(x.id)!==String(id);});renderSchedulePage();pgRenderNav();
+  SHIFTS.push(r.data);SHIFT_BY_ID[r.data.id]=r.data;SHIFTSEL=String(r.data.id);lsSet('cprSetShift',SHIFTSEL);
+  toast('Shift created');reSched();
+}
+async function renameShift(id,name){name=String(name).trim();var s=SHIFT_BY_ID[id];if(!s)return;if(!name){renderScheduleDetail();return;}
+  var r=await sb.from('shifts').update({name:name}).eq('id',id);if(r.error){toast(r.error.message,true);renderScheduleDetail();return;}
+  s.name=name;reSched();
+}
+async function recolorShift(id,color){var s=SHIFT_BY_ID[id];if(!s)return;
+  var r=await sb.from('shifts').update({color:color}).eq('id',id);if(r.error){toast(r.error.message,true);return;}
+  s.color=color;reSched();
+}
+async function toggleActiveShift(id){var s=SHIFT_BY_ID[id];if(!s)return;var nv=!s.active;
+  var r=await sb.from('shifts').update({active:nv}).eq('id',id);if(r.error){toast(r.error.message,true);return;}
+  s.active=nv;reSched();
+}
+async function delShift(id){var s=SHIFT_BY_ID[id];if(!s)return;
+  if(!window.confirm('Delete shift “'+s.name+'”? Days using it keep its name as a fallback in the schedule.'))return;
+  var r=await sb.from('shifts').delete().eq('id',id);if(r.error){toast(r.error.message,true);return;}
+  SHIFTS=SHIFTS.filter(function(x){return x.id!==id;});delete SHIFT_BY_ID[id];delete HOURS[id];
+  SHIFTSEL=SHIFTS.length?String(SHIFTS.slice().sort(byShiftSort)[0].id):null;lsSet('cprSetShift',SHIFTSEL||'');
+  toast('Shift deleted');reSched();
+}
+/* ----- shift_hours CRUD ----- */
+async function setEnabled(id,store,val){
+  var st=hoursOf(id,store);
+  if(st.def){var r=await sb.from('shift_hours').update({enabled:val}).eq('id',st.def.id);if(r.error){toast(r.error.message,true);return;}st.def.enabled=val;}
+  else{var r2=await sb.from('shift_hours').insert({shift_id:id,store:store,weekday:null,start_min:540,end_min:1020,enabled:val,closed:false}).select().single();
+    if(r2.error){toast(r2.error.message,true);return;}st.def={id:r2.data.id,enabled:val,closed:false,start:540,end:1020};}
+  reSched();
+}
+async function setDef(id,store,which,hhmm){var m=hhmmToMin(hhmm);if(m==null)return;var st=hoursOf(id,store);if(!st.def)return;
+  var patch={};patch[which==='start'?'start_min':'end_min']=m;
+  var r=await sb.from('shift_hours').update(patch).eq('id',st.def.id);if(r.error){toast(r.error.message,true);return;}
+  if(which==='start')st.def.start=m;else st.def.end=m;renderScheduleDetail();
+}
+async function dayMode(id,store,wd,mode){
+  var st=hoursOf(id,store), d=st.days[wd];
+  if(mode==='default'){
+    if(d){var r=await sb.from('shift_hours').delete().eq('id',d.id);if(r.error){toast(r.error.message,true);return;}delete st.days[wd];}
+  }else if(mode==='closed'){
+    if(d){var r2=await sb.from('shift_hours').update({closed:true,start_min:null,end_min:null}).eq('id',d.id);if(r2.error){toast(r2.error.message,true);return;}d.closed=true;d.start=null;d.end=null;}
+    else{var r3=await sb.from('shift_hours').insert({shift_id:id,store:store,weekday:wd,closed:true,start_min:null,end_min:null,enabled:true}).select().single();if(r3.error){toast(r3.error.message,true);return;}st.days[wd]={id:r3.data.id,closed:true,start:null,end:null};}
+  }else{
+    var ds=st.def?st.def.start:540, de=st.def?st.def.end:1020;
+    if(d){var r4=await sb.from('shift_hours').update({closed:false,start_min:(d.start!=null?d.start:ds),end_min:(d.end!=null?d.end:de)}).eq('id',d.id);if(r4.error){toast(r4.error.message,true);return;}d.closed=false;if(d.start==null)d.start=ds;if(d.end==null)d.end=de;}
+    else{var r5=await sb.from('shift_hours').insert({shift_id:id,store:store,weekday:wd,closed:false,start_min:ds,end_min:de,enabled:true}).select().single();if(r5.error){toast(r5.error.message,true);return;}st.days[wd]={id:r5.data.id,closed:false,start:ds,end:de};}
+  }
+  reSched();
+}
+async function dayTime(id,store,wd,which,hhmm){var m=hhmmToMin(hhmm);if(m==null)return;var d=hoursOf(id,store).days[wd];if(!d)return;
+  var patch={};patch[which==='start'?'start_min':'end_min']=m;
+  var r=await sb.from('shift_hours').update(patch).eq('id',d.id);if(r.error){toast(r.error.message,true);return;}
+  if(which==='start')d.start=m;else d.end=m;
+}
+async function resetDays(id,store){var st=hoursOf(id,store);var ids=Object.keys(st.days).map(function(wd){return st.days[wd].id;});if(!ids.length)return;
+  var r=await sb.from('shift_hours').delete().in('id',ids);if(r.error){toast(r.error.message,true);return;}
+  st.days={};toast('Day overrides cleared');reSched();
+}
+async function copyLoc(id,store){
+  var src=hoursOf(id,store);if(!src.def){toast('Enable this location first',true);return;}
+  var targets=mngStores().filter(function(t){return t!==store;});
+  for(var i=0;i<targets.length;i++){var t=targets[i];
+    var del=await sb.from('shift_hours').delete().eq('shift_id',id).eq('store',t);if(del.error){toast(del.error.message,true);return;}
+    var rows=[{shift_id:id,store:t,weekday:null,start_min:src.def.start,end_min:src.def.end,enabled:src.def.enabled,closed:!!src.def.closed}];
+    Object.keys(src.days).forEach(function(wd){var d=src.days[wd];rows.push({shift_id:id,store:t,weekday:+wd,start_min:d.start,end_min:d.end,enabled:true,closed:!!d.closed});});
+    var ins=await sb.from('shift_hours').insert(rows).select();if(ins.error){toast(ins.error.message,true);return;}
+    var stx={def:null,days:{}};(ins.data||[]).forEach(function(r){var row={id:r.id,enabled:r.enabled!==false,closed:!!r.closed,start:r.start_min,end:r.end_min};if(r.weekday==null)stx.def=row;else stx.days[r.weekday]=row;});
+    (HOURS[id]||(HOURS[id]={}))[t]=stx;
+  }
+  toast('Copied to all locations');reSched();
 }
 
 function renderConsumptionPage(){
@@ -1717,7 +1849,7 @@ function initUI(){
   $('#resetRules').onclick=resetRules;
   $('#tabRoles').onclick=function(){TAB='roles';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#view-pages').addEventListener('click',function(e){
-    var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel],[data-shaddbtn],[data-shdel]');if(!t)return;
+    var t=e.target.closest('[data-pgtool],[data-pgopt],[data-pgadd],[data-pgactive],[data-pgdel],[data-ptaddbtn],[data-ptactive],[data-ptdel],[data-flagaddbtn],[data-flagactive],[data-flagdel],[data-haddbtn],[data-hdel]');if(!t)return;
     if(t.hasAttribute('data-pgtool')){PGTOOL=t.getAttribute('data-pgtool');PGOPT='';renderPages();lsSet('cprSetPgtool',PGTOOL);lsSet('cprSetPgopt',PGOPT);}
     else if(t.hasAttribute('data-pgopt')){PGOPT=t.getAttribute('data-pgopt');renderPages();lsSet('cprSetPgopt',PGOPT);}
     else if(t.hasAttribute('data-pgadd'))pgAdd(t.getAttribute('data-pgadd'));
@@ -1731,8 +1863,6 @@ function initUI(){
     else if(t.hasAttribute('data-flagdel'))flagDel(t.getAttribute('data-flagdel'));
     else if(t.hasAttribute('data-haddbtn'))hylaAdd(t.getAttribute('data-haddbtn'));
     else if(t.hasAttribute('data-hdel')){var h1=t.getAttribute('data-hdel').split('|');hylaDel(h1[0],+h1[1]);}
-    else if(t.hasAttribute('data-shaddbtn'))shAdd(t.getAttribute('data-shaddbtn'));
-    else if(t.hasAttribute('data-shdel'))shDel(t.getAttribute('data-shdel'));
   });
   // hyla list drag-reorder (parallels the damage-list DnD; index-based)
   var HDRAG=null;
@@ -1799,10 +1929,8 @@ function initUI(){
     else if(t.hasAttribute('data-flagcolor'))flagColor(t.getAttribute('data-flagcolor'),t.value);
     else if(t.hasAttribute('data-hname')){var h=t.getAttribute('data-hname').split('|');hylaRename(h[0],+h[1],t.value);}
     else if(t.hasAttribute('data-hkv'))hylaKV(t.getAttribute('data-hkv'),t.value);
-    else if(t.hasAttribute('data-shname'))shRename(t.getAttribute('data-shname'),t.value);
-    else if(t.hasAttribute('data-shcolor'))shColor(t.getAttribute('data-shcolor'),t.value);
   });
-  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd],[data-hname],[data-hadd],[data-shname],[data-shadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else if(t.hasAttribute('data-hadd'))hylaAdd(t.getAttribute('data-hadd'));else if(t.hasAttribute('data-shadd'))shAdd(t.getAttribute('data-shadd'));else t.blur();});
+  $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd],[data-hname],[data-hadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else if(t.hasAttribute('data-hadd'))hylaAdd(t.getAttribute('data-hadd'));else t.blur();});
   $('#addChannel').onclick=openAddChannel;
   $('#view-notif').addEventListener('click',function(e){
     var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evch],[data-chedit]');if(!t)return;
