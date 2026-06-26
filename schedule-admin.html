@@ -223,7 +223,7 @@ async function load(){
     for(var wd=0;wd<7;wd++){var v=shf[String(wd)];if(v==null){rec.arr[wd]=null;continue;}if(typeof v==='string')v={label:v};
       if(v.label==='Off'&&!v.shift_id)rec.arr[wd]='off';
       else if(v.away)rec.arr[wd]={store:v.store,away:true};
-      else if(v.shift_id!=null)rec.arr[wd]={store:v.store,id:v.shift_id};
+      else if(v.shift_id!=null)rec.arr[wd]={store:v.store,id:v.shift_id,label:v.label};
       else if(v.label){var m=SHIFTS.filter(function(s){return s.name===v.label;})[0];rec.arr[wd]=m?{store:v.store,id:m.id}:null;}
       else rec.arr[wd]=null;}
   });
@@ -288,10 +288,18 @@ function filterPillsHtml(){
 }
 function filterStores(){var vs=visibleStores();return FILTER==='All'?vs:vs.filter(function(s){return s.store===FILTER;});}
 function legendHtml(){return '<div class="legend"><span class="lgt">Shifts</span>'+SHIFTS.filter(function(s){return s.active;}).map(function(s){return '<span class="lg"><span class="av" style="width:10px;height:10px;background:'+esc(s.color||'#4FB0E3')+';border-radius:50%"></span>'+esc(s.name)+'</span>';}).join('')+'</div>';}
+function parseLabel(label){var m=String(label||'').split(/\s*-\s*/);if(m.length!==2)return null;
+  function t(s){var x=/(\d+):(\d+)\s*([AP]M)/i.exec(s);if(!x)return null;var h=(+x[1])%12;if(/pm/i.test(x[3]))h+=12;return h*60+(+x[2]);}
+  var a=t(m[0]),b=t(m[1]);return (a==null||b==null)?null:[a,b];}
+/* Resolve a cell's chip; falls back to the label's hours when the shift was deleted. */
+function shiftMeta(a,wd){
+  var sh=shiftById(a.id);
+  if(sh){var rd=resolve(a.id,a.store,wd);return {name:sh.name,color:sh.color||'#4FB0E3',tm:rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end),warn:rd.offered===false||!!rd.closed};}
+  var pm=parseLabel(a.label);return {name:pm?rangeMin(pm[0],pm[1]):(a.label||'Shift'),color:'#C9820B',tm:'shift removed',warn:true};
+}
 function cellShift(a,store,wd){
-  var sh=shiftById(a.id);if(!sh)return '<div class="blankc">+</div>';
-  var rd=resolve(a.id,a.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);var warn=rd.offered===false||!!rd.closed;
-  return '<div class="chip" style="background:'+hexA(sh.color,0.12)+';border-left:3px solid '+esc(sh.color)+'"><div class="cn">'+esc(sh.name)+(warn?' <span style="font-size:10px">⚠️</span>':'')+'</div><div class="ct">'+esc(tm)+'</div></div>';
+  var m=shiftMeta(a,wd);
+  return '<div class="chip" style="background:'+hexA(m.color,0.12)+';border-left:3px solid '+esc(m.color)+'"><div class="cn">'+esc(m.name)+(m.warn?' <span style="font-size:10px">⚠️</span>':'')+'</div><div class="ct">'+esc(m.tm)+'</div></div>';
 }
 function cellAway(store){var c=storeColor(store);return '<div class="chip" style="background:'+hexA(c,0.09)+';border-left:3px solid '+esc(c)+'"><div class="cn" style="color:'+esc(c)+'"><span class="av" style="width:8px;height:8px;background:'+esc(c)+';border-radius:50%"></span>In '+esc(shortStore(store))+'</div></div>';}
 function empCell(e,store){
@@ -345,8 +353,8 @@ function renderThisWeek(){
         else if(a==null)inner='<div class="blankc">·</div>';
         else if(a==='off')inner='<div class="offc">OFF</div>';
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
-        else{var sh=shiftById(a.id);var rd=resolve(a.id,a.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);var pend=req&&req.status==='pending';
-          inner='<div class="chip" style="background:'+hexA(sh?sh.color:'#4FB0E3',0.12)+';border-left:3px solid '+esc(sh?sh.color:'#4FB0E3')+(pend?';outline:1.5px dashed '+hexA('#C9820B',0.7)+';outline-offset:-3px':'')+'"><div class="cn">'+esc(sh?sh.name:'Shift')+'</div><div class="ct"'+(pend?' style="color:var(--amber);font-weight:800"':'')+'>'+(pend?'Requested off':esc(tm))+'</div></div>';}
+        else{var m=shiftMeta(a,wd);var pend=req&&req.status==='pending';
+          inner='<div class="chip" style="background:'+hexA(m.color,0.12)+';border-left:3px solid '+esc(m.color)+(pend?';outline:1.5px dashed '+hexA('#C9820B',0.7)+';outline-offset:-3px':'')+'"><div class="cn">'+esc(m.name)+'</div><div class="ct"'+(pend?' style="color:var(--amber);font-weight:800"':'')+'>'+(pend?'Requested off':esc(m.tm))+'</div></div>';}
         return '<td class="cell">'+inner+'</td>';
       }).join('');
       return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+'</tr>';
