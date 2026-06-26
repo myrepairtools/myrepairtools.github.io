@@ -205,7 +205,7 @@ function shiftById(id){return SHIFT_BY_ID[id];}
 async function load(){
   var [st,so,sh,hr,sc,rq,mm]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color').eq('active',true),
-    sb.from('stores').select('store,display_order,active,color').order('display_order'),
+    sb.from('stores').select('store,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
@@ -234,18 +234,25 @@ async function load(){
 }
 function weekStart(d){var x=new Date(d);x.setDate(x.getDate()-x.getDay());x.setHours(0,0,0,0);return x;}
 function reqOn(empId,isoDate){return REQS.filter(function(r){return r.staff_id===empId&&r.status!=='denied'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
+function reqFor(store,wd){
+  var s=STORES.filter(function(x){return x.store===store;})[0]||{};
+  var we=(wd===0||wd===6);
+  var nz=function(v,d){return v==null?d:v;};
+  return we?{staff:nz(s.we_min_staff,2),mgr:nz(s.we_min_mgr,1)}:{staff:nz(s.min_staff,2),mgr:nz(s.min_mgr,1)};
+}
 function coverage(store,wd,isoDate){
   var count=0,mgr=0;
   STAFF.forEach(function(e){var a=SCHED[e.id]&&SCHED[e.id].arr[wd];if(!a||a==='off'||a.store!==store||a.away)return;
     var r=isoDate?reqOn(e.id,isoDate):null;if(r&&r.status==='approved')return;count++;if(isMgr(e.role))mgr++;});
-  return {count:count,mgr:mgr,short:(count<2||mgr<1)};
+  var req=reqFor(store,wd);
+  return {count:count,mgr:mgr,short:(count<req.staff||mgr<req.mgr)};
 }
 function conflictFor(r){
   var e=empById(r.staff_id);if(!e||r.status!=='pending')return null;var byStore={};
   var d=new Date(r.start_date+'T00:00:00'),end=new Date(r.end_date+'T00:00:00');
   while(d<=end){var wd=d.getDay(),isoDate=iso(d);var a=SCHED[e.id]&&SCHED[e.id].arr[wd];
-    if(a&&a!=='off'&&a.store&&!a.away){var cov=coverage(a.store,wd,isoDate);var after=cov.count-1,afterMgr=cov.mgr-(isMgr(e.role)?1:0);
-      if(after<2||afterMgr<1)(byStore[a.store]=byStore[a.store]||[]).push(DAYS[wd]);}
+    if(a&&a!=='off'&&a.store&&!a.away){var cov=coverage(a.store,wd,isoDate);var after=cov.count-1,afterMgr=cov.mgr-(isMgr(e.role)?1:0);var req=reqFor(a.store,wd);
+      if(after<req.staff||afterMgr<req.mgr)(byStore[a.store]=byStore[a.store]||[]).push(DAYS[wd]);}
     d.setDate(d.getDate()+1);}
   var stores=Object.keys(byStore);if(!stores.length)return null;
   return stores.map(function(s){return storeShort(s)+' '+byStore[s].join('/');}).join(' · ');
