@@ -29,7 +29,8 @@
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
-    { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' }
+    { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
+    { label:'My Schedule',         url:'my-schedule.html',          icon:'🗓️' }
   ];
   var PRIVILEGED = [
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },

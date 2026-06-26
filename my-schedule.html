@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Schedule — CPR</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;--purple:#8B5CF6;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:680px;margin:0 auto;padding:18px 16px 70px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:-.4px}
+.hide{display:none}
+/* lock (mirrors schedule.html) */
+.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;z-index:2000}
+.lock.hide{display:none}
+.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
+.lock-box .ic{font-size:30px;margin-bottom:14px}
+.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
+.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
+.lock-box input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px;text-align:center;letter-spacing:4px}
+.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
+.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
+.app{display:none}.app.show{display:block}
+/* header */
+.me-hd{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+.me-av{width:44px;height:44px;border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex:none}
+.me-nm{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;line-height:1.1}
+.me-sub{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:.78rem;color:var(--grey);font-weight:700}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+.locpills{display:inline-flex;background:#E4E4EA;border-radius:9px;padding:2px;gap:2px}
+.locpills button{padding:5px 11px;border:none;border-radius:7px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;background:transparent;color:#9aa0b0}
+.locpills button.on{background:#fff;box-shadow:0 1px 2px rgba(45,45,59,.12)}
+/* tabs */
+.tabs{display:flex;background:#E4E4EA;border-radius:11px;padding:3px;gap:2px;margin-bottom:14px}
+.tabs button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:9px 4px;border:none;border-radius:9px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;background:transparent;color:#9aa0b0}
+.tabs button.on{background:#fff;color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.12)}
+.tabs .badge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;color:#fff;background:var(--amber);border-radius:999px;padding:0 5px;min-width:15px;text-align:center}
+/* week nav */
+.wknav{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:7px 8px;margin-bottom:12px}
+.wknav button{width:34px;height:34px;border:none;border-radius:9px;background:var(--light-grey);color:var(--dark-grey);font-size:16px;font-weight:800;cursor:pointer}
+.wknav .lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;text-align:center}
+.wknav .sub{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.62rem;color:var(--grey);letter-spacing:.3px;text-transform:uppercase;text-align:center}
+/* day cards */
+.dcard{display:flex;align-items:center;gap:13px;width:100%;border:1.5px solid var(--border);border-radius:14px;background:#fff;overflow:hidden;padding:12px 14px;margin-bottom:9px}
+.dcard.today{border-color:var(--red)}
+.drail{width:42px;flex:none;text-align:center}
+.drail .d{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey)}
+.drail .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;line-height:1.1}
+.drail .t{font-family:'Nunito',sans-serif;font-weight:800;font-size:.5rem;letter-spacing:.4px;color:var(--red)}
+.dvr{width:1px;align-self:stretch;background:#EEF0F4}
+.dbody{flex:1;min-width:0}
+.shift-nm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;display:flex;align-items:center;gap:6px}
+.shift-tm{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;color:#6b7180;margin-top:1px}
+.pill{display:inline-block;margin-top:5px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;letter-spacing:.3px;padding:2px 7px;border-radius:999px}
+.muted{color:var(--grey)}
+/* store / who's on */
+.scard{background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px}
+.scard.today{border-color:var(--red)}
+.scard-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF0F4}
+.scard-hd .h{font-family:'Nunito',sans-serif;font-weight:900;font-size:.84rem}
+.scard-bd{padding:8px 14px 11px;display:flex;flex-direction:column;gap:7px}
+.who{display:flex;align-items:center;gap:9px}
+.who .av{width:24px;height:24px;border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;display:flex;align-items:center;justify-content:center;flex:none}
+.who .nm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem}
+.who .tm{margin-left:auto;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.74rem;color:#9aa0b0}
+/* time off */
+.btn{font-family:'Nunito',sans-serif;font-weight:800;border:none;border-radius:12px;cursor:pointer}
+.btn-red{background:var(--red);color:#fff;padding:13px;width:100%;font-size:.9rem}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:15px}
+.lbl{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey);margin-bottom:6px}
+.inp{width:100%;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:'Nunito Sans',sans-serif;font-size:.84rem}
+.seg{display:flex;gap:7px}
+.seg button{flex:1;padding:9px 4px;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;background:#fff;color:#9aa0b0}
+.sect{font-family:'Nunito',sans-serif;font-weight:900;font-size:.82rem;margin:18px 0 10px}
+.req{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:8px}
+.req .meta{flex:1;min-width:0}
+.req .dr{font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem}
+.req .sm{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.72rem;color:var(--grey);margin-top:2px}
+.sbadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex:none}
+.tbadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px}
+.warnbox{display:flex;align-items:flex-start;gap:8px;background:#FCF1DD;border:1px solid #F0E0BE;border-radius:10px;padding:10px 12px;margin-bottom:13px;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.74rem;color:#8A5A00;line-height:1.4}
+.empty{font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.8rem;color:var(--grey);padding:2px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:11px 18px;border-radius:11px;font-weight:800;font-size:.84rem;opacity:0;pointer-events:none;transition:.2s;z-index:3000;font-family:'Nunito',sans-serif}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div id="lockScreen" class="lock">
+  <div class="lock-box">
+    <div class="ic">🗓️</div>
+    <h2>My Schedule</h2>
+    <p>Enter your PIN to see your shifts.</p>
+    <input id="lkPin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <button id="lkGo">Unlock</button>
+    <div id="lkErr" class="lock-err"></div>
+  </div>
+</div>
+
+<div id="app" class="app">
+  <main>
+    <div class="me-hd">
+      <span class="me-av" id="meAv"></span>
+      <div style="min-width:0">
+        <div class="me-nm" id="meNm"></div>
+        <div class="me-sub" id="meSub"></div>
+      </div>
+      <span style="flex:1"></span>
+      <span id="locWrap"></span>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="wknav"></div>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var FN=SB_URL+'/functions/v1/cpr-auth';
+var sb=createClient(SB_URL,ANON);
+var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
+var $=function(s){return document.querySelector(s);};
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
+function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var DAYL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var TYPES={Vacation:'#4FB0E3',Personal:'#8B5CF6',Sick:'#DC282E'};
+var AVPAL=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
+function avatarBg(id){var h=0,s=String(id||'');for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AVPAL[h%AVPAL.length];}
+function initials(n){var p=String(n||'?').trim().split(/\s+/);return ((p[0]||'')[0]||'')+((p[1]||'')[0]||'')||'?';}
+function hexA(hex,a){var h=String(hex||'#4FB0E3').replace('#','');if(h.length===3)h=h.split('').map(function(c){return c+c;}).join('');return 'rgba('+(parseInt(h.slice(0,2),16)||79)+','+(parseInt(h.slice(2,4),16)||176)+','+(parseInt(h.slice(4,6),16)||227)+','+a+')';}
+function fmtMin(m){if(m==null)return '';var h=Math.floor(m/60),mm=m%60,h12=h%12;if(h12===0)h12=12;return mm?(h12+':'+('0'+mm).slice(-2)):(''+h12);}
+function rangeMin(s,e){return fmtMin(s)+'–'+fmtMin(e);}
+function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function fmtRange(s,e){var a=s.split('-').map(Number),b=e.split('-').map(Number);if(s===e)return MON[a[1]-1]+' '+a[2];if(a[1]===b[1])return MON[a[1]-1]+' '+a[2]+'–'+b[2];return MON[a[1]-1]+' '+a[2]+' – '+MON[b[1]-1]+' '+b[2];}
+function dayCount(s,e){var n=Math.round((new Date(e)-new Date(s))/86400000)+1;return n===1?'1 day':n+' days';}
+function statusBadge(st){return 'sbadge '+(st==='approved'?'':st==='denied'?'':'')+'';}
+function statusStyle(st){return st==='approved'?'color:var(--green);background:#E6F4EC':st==='denied'?'color:var(--red);background:#FBE9EA':'color:var(--amber);background:#FCF3E3';}
+function statusLabel(st){return st==='approved'?'Approved':st==='denied'?'Denied':'Pending';}
+
+/* ===== auth (PIN lock, accepts any role) ===== */
+var ME=null, IDLE_MS=10*60*1000, idleTimer=null;
+function fn(body,tok){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
+function lockErr(t){$('#lkErr').textContent=t||'';}
+function showLock(){$('#app').classList.remove('show');$('#lockScreen').classList.remove('hide');$('#lkPin').value='';}
+function resetIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);}
+function relock(){clearTimeout(idleTimer);sb.auth.signOut();ME=null;showLock();}
+function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
+async function doLogin(){
+  var pin=$('#lkPin').value||'';if(!pin){lockErr('Enter your PIN');return;}
+  $('#lkGo').disabled=true;lockErr('Signing in…');
+  try{
+    var r=await fn({action:'login',pin:pin,device_id:DEVICE_ID});
+    if(r.status!==200){var d=r.data||{};lockErr(d.error==='invalid'?('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'')):(d.error||'Login failed.'));$('#lkGo').disabled=false;return;}
+    var st=r.data.staff||{};
+    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
+    ME={id:st.id,name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
+    $('#lkGo').disabled=false;lockErr('');unlockUI();
+  }catch(e){$('#lkGo').disabled=false;lockErr(String(e&&e.message||e));}
+}
+async function initAuth(){
+  $('#lkGo').onclick=doLogin;
+  $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});$('#lkPin').focus();
+  ['click','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(){if(ME)resetIdle();});});
+  var sess=(await sb.auth.getSession()).data.session;
+  if(sess){var sr=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){ME={id:sr.data.id,name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}}
+  showLock();
+}
+
+/* ===== data ===== */
+var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[];
+var TAB='me', SELSTORE=null, WK=null;
+function resolve(shiftId,store,wd){
+  var h=HOURS[shiftId+'|'+store];
+  if(!h||!h.def||!h.def.enabled)return {offered:false};
+  var d=h.days[wd];
+  if(d&&d.closed)return {closed:true};
+  if(d&&d.start!=null)return {start:d.start,end:d.end};
+  if(h.def.closed)return {closed:true};
+  return {start:h.def.start,end:h.def.end};
+}
+function storeColor(store){var s=STORES.filter(function(x){return x.store===store;})[0];return (s&&s.color)||'#4FB0E3';}
+function dayRec(staffId,wd){
+  var sh=(SCHED[staffId]&&SCHED[staffId].shifts)||{}, v=sh[String(wd)];
+  if(v==null)return {none:true};
+  if(typeof v==='string')v={label:v};
+  if(v==='off'||v.label==='Off')return {off:true};
+  var sid=v.shift_id;
+  if(sid==null&&v.label){var m=Object.values(SHIFT_BY_ID).filter(function(s){return s.name===v.label;})[0];if(m)sid=m.id;}
+  if(sid==null)return {none:true};
+  return {shift_id:sid,store:v.store||(SCHED[staffId]&&SCHED[staffId].store)};
+}
+function weekStart(d){var x=new Date(d);x.setDate(x.getDate()-x.getDay());x.setHours(0,0,0,0);return x;}
+function myStores(){
+  var set={};if(ME.home_store)set[ME.home_store]=1;
+  var sh=(SCHED[ME.id]&&SCHED[ME.id].shifts)||{};
+  Object.keys(sh).forEach(function(k){var r=dayRec(ME.id,k);if(r.store)set[r.store]=1;});
+  (ME.authorized_stores||[]).forEach(function(s){if(ME.role==='owner'||ME.role==='admin'||ME.role==='manager')set[s]=1;});
+  var order=STORES.map(function(s){return s.store;});
+  return Object.keys(set).sort(function(a,b){return order.indexOf(a)-order.indexOf(b);});
+}
+function approvedOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='approved'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
+function pendingOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='pending'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
+async function load(){
+  var [st,so,sh,hr,sc,rq]=await Promise.all([
+    sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color').eq('active',true),
+    sb.from('stores').select('store,display_order,active,color').order('display_order'),
+    sb.from('shifts').select('id,name,color,sort,active'),
+    sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
+    sb.from('staff_schedule').select('staff_id,store,shifts'),
+    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note')
+  ]);
+  STAFF=(st.data||[]);
+  STORES=(so.data||[]).filter(function(s){return s.active!==false;});
+  SHIFT_BY_ID={};(sh.data||[]).forEach(function(s){SHIFT_BY_ID[s.id]=s;});
+  HOURS={};(hr.data||[]).forEach(function(r){var k=r.shift_id+'|'+r.store,h=HOURS[k]||(HOURS[k]={def:null,days:{}});var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};if(r.weekday==null)h.def=row;else h.days[r.weekday]=row;});
+  SCHED={};(sc.data||[]).forEach(function(r){SCHED[r.staff_id]={shifts:r.shifts||{},store:r.store};});
+  REQS=(rq.data||[]);
+  var ms=myStores();if(!SELSTORE||ms.indexOf(SELSTORE)<0)SELSTORE=ms[0]||ME.home_store;
+  if(!WK)WK=weekStart(new Date());
+  renderHeader();render();
+}
+function staffById(id){return STAFF.filter(function(s){return s.id===id;})[0];}
+function avFor(s,sz){var bg=esc((s&&s.avatar_color)||avatarBg(s&&s.id));var face=s&&s.avatar?esc(s.avatar):esc(initials(s&&s.display_name));return '<span class="av" style="background:'+bg+(s&&s.avatar?';font-size:.8rem':'')+'">'+face+'</span>';}
+
+function renderHeader(){
+  var me=staffById(ME.id)||{display_name:ME.name,id:ME.id};
+  var bg=esc((me.avatar_color)||avatarBg(ME.id)), face=me.avatar?esc(me.avatar):esc(initials(ME.name));
+  $('#meAv').style.background=bg; if(me.avatar)$('#meAv').style.fontSize='1.3rem'; $('#meAv').textContent='';$('#meAv').innerHTML=face;
+  $('#meNm').textContent=ME.name;
+  var roleLabel=ME.role==='team_member'||ME.role==='employee'?'Tech':(ME.role==='admin'||ME.role==='manager'?'Manager':(ME.role==='owner'?'Owner':ME.role||''));
+  $('#meSub').innerHTML='<span class="dot" style="background:'+esc(storeColor(ME.home_store))+'"></span>'+esc(shortStore(ME.home_store))+' · '+esc(roleLabel);
+  var ms=myStores();
+  $('#locWrap').innerHTML = ms.length>1 ? '<span class="locpills">'+ms.map(function(s){return '<button data-loc="'+esc(s)+'"'+(s===SELSTORE?' class="on" style="color:'+esc(storeColor(s))+'"':'')+'>'+esc(shortStore(s).slice(0,3).toUpperCase())+'</button>';}).join('')+'</span>' : '';
+  $('#locWrap').querySelectorAll('[data-loc]').forEach(function(b){b.onclick=function(){SELSTORE=b.getAttribute('data-loc');renderHeader();render();};});
+  var myPending=REQS.filter(function(r){return r.staff_id===ME.id&&r.status==='pending';}).length;
+  var defs=[{k:'me',l:'My week'},{k:'store',l:'Store'},{k:'timeoff',l:'Time off'}];
+  $('#tabs').innerHTML=defs.map(function(t){return '<button data-tab="'+t.k+'"'+(t.k===TAB?' class="on"':'')+'>'+t.l+(t.k==='timeoff'&&myPending?' <span class="badge">'+myPending+'</span>':'')+'</button>';}).join('');
+  $('#tabs').querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){TAB=b.getAttribute('data-tab');REQUESTING=false;renderHeader();render();};});
+}
+function renderWknav(){
+  if(TAB==='timeoff'){$('#wknav').innerHTML='';return;}
+  var end=new Date(WK);end.setDate(end.getDate()+6);
+  var label=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate();
+  var thisWk=iso(weekStart(new Date()))===iso(WK);
+  $('#wknav').innerHTML='<div class="wknav"><button data-wk="-1">‹</button><div><div class="lbl">'+label+'</div><div class="sub">'+(thisWk?'This week':'')+'</div></div><button data-wk="1">›</button></div>';
+  $('#wknav').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+}
+function render(){
+  renderWknav();
+  if(TAB==='me')renderMe();else if(TAB==='store')renderStore();else renderTimeoff();
+}
+function renderMe(){
+  var todayIso=iso(new Date());
+  var html=DAYS.map(function(dy,wd){
+    var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isToday=di===todayIso;
+    var rail='<div class="drail"><div class="d">'+dy+'</div><div class="n"'+(isToday?' style="color:var(--red)"':'')+'>'+dt.getDate()+'</div>'+(isToday?'<div class="t">TODAY</div>':'')+'</div>';
+    var ap=approvedOn(ME.id,di), body;
+    if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div class="shift-nm" style="color:'+c+'"><span class="dot" style="background:'+c+'"></span>Time off</div><div class="shift-tm">'+esc(ap.type)+'</div>';}
+    else{
+      var r=dayRec(ME.id,wd);
+      if(r.none||r.off)body='<span class="shift-nm muted">Day off</span>';
+      else{var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,r.store,wd);var tm=rd.offered===false?'not offered':rd.closed?'closed':rangeMin(rd.start,rd.end);
+        var pend=pendingOn(ME.id,di);
+        body='<div class="shift-nm"><span class="dot" style="background:'+esc(s?s.color:'#4FB0E3')+'"></span>'+esc(s?s.name:'Shift')+'</div><div class="shift-tm">'+esc(tm)+' · '+esc(shortStore(r.store))+'</div>'
+          +(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">YOUR TIME OFF — PENDING</span>':'');}
+    }
+    return '<div class="dcard'+(isToday?' today':'')+'">'+rail+'<div class="dvr"></div><div class="dbody">'+body+'</div></div>';
+  }).join('');
+  $('#view').innerHTML=html;
+}
+function renderStore(){
+  var store=SELSTORE, todayIso=iso(new Date());
+  if(!store){$('#view').innerHTML='<div class="empty">No store schedule to show.</div>';return;}
+  var html=DAYS.map(function(dy,wd){
+    var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isToday=di===todayIso;
+    var working=[];
+    STAFF.forEach(function(e){
+      var ap=approvedOn(e.id,di);if(ap)return;
+      var r=dayRec(e.id,wd);if(r.none||r.off||r.store!==store)return;
+      var s=SHIFT_BY_ID[r.shift_id],rd=resolve(r.shift_id,store,wd);
+      working.push({e:e,name:e.display_name,tm:rd.offered===false?'':rd.closed?'':rangeMin(rd.start,rd.end),start:rd.start||0,me:e.id===ME.id});
+    });
+    working.sort(function(a,b){return a.start-b.start;});
+    var rows=working.length?working.map(function(w){
+      return '<div class="who">'+avFor(w.e)+'<span class="nm"'+(w.me?' style="color:#1E7AA8"':'')+'>'+esc(w.name)+(w.me?' <span style="font-size:.5rem;color:#1E7AA8;background:#E3F0F7;padding:1px 5px;border-radius:999px">YOU</span>':'')+'</span><span class="tm">'+esc(w.tm)+'</span></div>';
+    }).join(''):'<div class="empty">No one scheduled.</div>';
+    return '<div class="scard'+(isToday?' today':'')+'"><div class="scard-hd"><span class="h"'+(isToday?' style="color:var(--red)"':'')+'>'+DAYL[wd]+' '+dt.getDate()+'</span>'+(isToday?'<span class="pill" style="color:#fff;background:var(--red);margin:0">TODAY</span>':'')+'<span style="flex:1"></span><span class="tm" style="font-family:Nunito Sans;font-weight:700;font-size:.7rem;color:var(--grey)">'+working.length+' on</span></div><div class="scard-bd">'+rows+'</div></div>';
+  }).join('');
+  $('#view').innerHTML=html;
+}
+/* ===== time off ===== */
+var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:''};
+function renderTimeoff(){
+  var f=FORM;
+  if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
+  var myStoreNames=myStores();
+  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&(myStoreNames.indexOf(e.home_store)>-1);}).map(function(e){return e.id;});
+  var conflicts=REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=f.end&&r.end_date>=f.start;});
+  var conflictTxt=conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');
+  var form=REQUESTING?(
+    '<div class="card" style="margin-bottom:18px"><div style="font-family:Nunito;font-weight:900;font-size:.95rem;margin-bottom:12px">Request time off</div>'
+    +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:13px">'+['Vacation','Personal','Sick'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1"><label class="lbl">Start</label><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"></div><div style="flex:1"><label class="lbl">End</label><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div></div>'
+    +'<label class="lbl">Note (optional)</label><input class="inp" id="fNote" value="'+esc(f.note)+'" placeholder="e.g. family trip" style="margin-bottom:13px">'
+    +(conflicts.length?'<div class="warnbox"><span>⚠️</span><div>Heads up — overlaps with '+esc(conflictTxt)+'. You can still submit; your manager will see the conflict.</div></div>':'')
+    +'<div style="display:flex;gap:9px"><button class="btn" id="fCancel" style="flex:1;padding:11px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.84rem">Cancel</button><button class="btn btn-red" id="fSubmit" style="flex:1.4;width:auto;padding:11px;font-size:.84rem">Send to manager</button></div></div>'
+  ):'<button class="btn btn-red" id="openReq" style="margin-bottom:18px">+ Request time off</button>';
+
+  var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
+  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';
+    return '<div class="req" style="border-left:4px solid '+c+'"><div class="meta"><div style="display:flex;align-items:center;gap:7px"><span class="dr">'+esc(fmtRange(r.start_date,r.end_date))+'</span><span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+'">'+esc(r.type)+'</span></div><div class="sm">'+dayCount(r.start_date,r.end_date)+(r.status==='pending'?' · tap to cancel':'')+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'"':'')+'>'+statusLabel(r.status)+'</span></div>';
+  }).join(''):'<div class="empty">No requests yet.</div>';
+
+  var today=iso(new Date());
+  var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
+  var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};
+    return '<div class="req"><span class="me-av" style="width:28px;height:28px;font-size:.62rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div class="meta"><div class="dr">'+esc(e.display_name)+'</div><div class="sm">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(r.type)+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';
+  }).join(''):'<div class="empty">No upcoming team time off.</div>';
+
+  $('#view').innerHTML=form+'<div class="sect">My requests</div>'+mineHtml+'<div class="sect">Team time off</div><div class="empty" style="margin:-4px 0 8px">All locations · so you can plan around each other</div>'+teamHtml;
+
+  if($('#openReq'))$('#openReq').onclick=function(){REQUESTING=true;render();};
+  if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
+  $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
+  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;render();};
+  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;render();};
+  if($('#fNote'))$('#fNote').oninput=function(){FORM.note=this.value;};
+  if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
+  $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
+}
+async function submitRequest(){
+  var f=FORM;if(!f.start||!f.end){toast('Pick dates',true);return;}
+  var row={staff_id:ME.id,store:ME.home_store,type:f.type,start_date:f.start,end_date:f.end,note:f.note||null,status:'pending'};
+  var r=await sb.from('time_off_requests').insert(row).select().single();
+  if(r.error){toast(r.error.message,true);return;}
+  REQS.push(r.data);REQUESTING=false;FORM={type:'Vacation',start:'',end:'',note:''};
+  toast('✓ Sent to your manager');renderHeader();render();
+}
+async function cancelRequest(id){
+  var r=await sb.from('time_off_requests').delete().eq('id',id);
+  if(r.error){toast(r.error.message,true);return;}
+  REQS=REQS.filter(function(x){return x.id!==id;});toast('Request canceled');renderHeader();render();
+}
+
+initAuth();
+</script>
+</body>
+</html>
