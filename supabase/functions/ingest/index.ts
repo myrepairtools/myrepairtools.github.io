@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { unzipSync } from "https://esm.sh/fflate@0.8.2";
+
+// DEPLOY NOTE: this function authenticates via the ?token= query param, NOT a
+// Supabase JWT. It MUST be deployed with verify_jwt=false (deploy metadata), or
+// the gateway 401s every Looker delivery before it reaches this code. A redeploy
+// without the flag once knocked all feeds offline — keep it false.
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -24,6 +30,47 @@ function extractRows(body: any): any[] | null {
   if (typeof body?.attachment?.data === "string") { try { return JSON.parse(body.attachment.data); } catch { return null; } } // JSON - Simple (wrapped)
   if (Array.isArray(body?.data)) return body.data;
   return null;
+}
+
+// Minimal RFC-4180 CSV parser -> array of row objects keyed by the header row.
+// (Handles quoted fields, so money values like "$1,234.50" survive the comma.)
+function parseCsv(text: string): any[] {
+  text = text.replace(/^﻿/, "");
+  const recs: string[][] = []; let f = "", row: string[] = [], q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(f); f = ""; }
+    else if (c === "\n") { row.push(f); recs.push(row); row = []; f = ""; }
+    else if (c !== "\r") f += c;
+  }
+  if (f !== "" || row.length) { row.push(f); recs.push(row); }
+  if (!recs.length) return [];
+  const head = recs[0].map((h) => h.trim());
+  const out: any[] = [];
+  for (let r = 1; r < recs.length; r++) {
+    const rr = recs[r];
+    if (rr.length === 1 && rr[0] === "") continue;                       // blank line
+    const o: Record<string, string> = {};
+    for (let c = 0; c < head.length; c++) o[head[c]] = rr[c] ?? "";
+    out.push(o);
+  }
+  return out;
+}
+
+// Looker "merged" reports can ONLY be delivered as a dashboard, which sends the
+// CSV(s) inside a base64 ZIP attachment (mimetype application/zip;base64).
+// Decode -> unzip -> parse the first CSV so those feeds ingest like the inline ones.
+function rowsFromZip(b64: string): any[] | null {
+  try {
+    const bin = Uint8Array.from(atob(b64.replace(/\s+/g, "")), (c) => c.charCodeAt(0));
+    const files = unzipSync(bin);
+    const names = Object.keys(files);
+    const name = names.find((n) => /\.csv$/i.test(n)) ?? names[0];
+    if (!name) return null;
+    return parseCsv(new TextDecoder().decode(files[name]));
+  } catch { return null; }
 }
 
 async function storeMap() {
@@ -68,7 +115,10 @@ Deno.serve(async (req) => {
 
     let body: any = null;
     try { body = await req.json(); } catch { try { body = { raw: await req.text() }; } catch { body = null; } }
-    const rows = extractRows(body);
+    let rows = extractRows(body);
+    if (!rows && body?.attachment && typeof body.attachment.data === "string" && /zip/i.test(String(body.attachment.mimetype ?? ""))) {
+      rows = rowsFromZip(body.attachment.data);                          // Looker merged/dashboard => zipped CSV
+    }
     if (!rows) { await admin.from("ingest_debug").insert({ feed, payload: body }); return J({ ok: false, reason: "could not parse rows; saved to ingest_debug" }); }
     // TEMP diagnostic: log a breadcrumb for claims feeds so we can confirm
     // arrival, row count, and the column names being sent.
