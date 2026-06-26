@@ -73,6 +73,29 @@ td.r{text-align:right;white-space:nowrap}
 .pg3dot{width:17px;height:17px;border-radius:5px;flex:none}
 .pg3n{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--grey)}
 .pg3pane{flex:1;min-width:0;padding:16px 18px;overflow:auto}
+/* Page Settings v2 shell: single tool rail + adaptive editor pane */
+.pg2{display:flex;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.06);overflow:hidden;height:calc(100vh - 200px);min-height:520px;min-width:900px}
+.pg2rail{flex:none;width:274px;border-right:1px solid var(--border);background:#FBFBFC;padding:12px 10px;overflow:auto}
+.pg2lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;letter-spacing:.8px;text-transform:uppercase;color:var(--grey);padding:6px 8px 9px}
+.pg2tool{display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:none;border-left:3px solid transparent;background:none;padding:11px;border-radius:0 10px 10px 0;cursor:pointer;margin-bottom:3px}
+.pg2tool.on{border-left-color:var(--red);background:#EAF4FB}
+.pg2ic{width:32px;height:32px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.pg2nm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;color:var(--dark)}
+.pg2editor{flex:1;min-width:400px;display:flex;flex-direction:column;overflow:hidden}
+.pg2hd{display:flex;align-items:center;gap:13px;padding:16px 20px;border-bottom:1px solid #EEF0F4}
+.pg2hic{width:40px;height:40px;flex:none;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.pg2t{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;line-height:1.1}
+.pg2w{font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:600;margin-top:2px}
+.pg2tabs{padding:14px 20px 0}
+.pg2seg{display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px}
+.pg2tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;padding:7px 14px;border:none;border-radius:7px;background:none;color:#9aa0b0;cursor:pointer}
+.pg2tab.on{background:var(--dark);color:#fff}
+.pg2c{font-size:.6rem;opacity:.7}
+.pg2body{flex:1;min-height:0;overflow:auto;padding:16px 20px}
+.shmd{display:grid;grid-template-columns:208px 1fr;gap:16px;align-items:start}
+.shmaster{border:1px solid var(--border);border-radius:11px;background:#FCFCFD;padding:8px 7px;overflow:auto}
+.shdetail{min-width:0}
+@media(max-width:760px){.shmd{grid-template-columns:1fr}}
 .lstrow{display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid var(--light-grey);border-top:2px solid transparent;border-radius:6px}
 .lstrow:last-child{border-bottom:none}
 .lstrow.dragging{opacity:.4}
@@ -296,25 +319,28 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
   </section>
 
   <!-- PAGE SETTINGS TAB -->
-  <section id="view-pages" class="hide">
-    <div class="pg3">
-      <div class="pg3rail" style="width:240px;border-right:1px solid var(--border);background:#FBFBFC" id="pgPages"></div>
-      <div class="pg3rail" style="width:226px;border-right:1px solid var(--border)" id="pgOptions"></div>
-      <div class="pg3pane">
-        <div id="pagePane"></div>
-        <div id="pagePaneSchedule" class="hide"></div>
-        <div id="pagePaneConsumption" class="hide"></div>
-        <div id="pagePaneHyla" class="hide"></div>
-        <div id="pagePaneCash" class="hide">
-          <div class="sect-h">Registers &amp; safes
-            <select id="regStore" style="width:auto;min-width:200px"></select>
+  <section id="view-pages" class="hide" style="overflow-x:auto">
+    <div class="pg2">
+      <div class="pg2rail" id="pgPages"></div>
+      <div class="pg2editor">
+        <div class="pg2hd" id="pgHeader"></div>
+        <div class="pg2tabs" id="pgTabs"></div>
+        <div class="pg2body">
+          <div id="pagePane"></div>
+          <div id="pagePaneSchedule" class="hide"></div>
+          <div id="pagePaneConsumption" class="hide"></div>
+          <div id="pagePaneHyla" class="hide"></div>
+          <div id="pagePaneCash" class="hide">
+            <div class="sect-h">Registers &amp; safes
+              <select id="regStore" style="width:auto;min-width:200px"></select>
+            </div>
+            <div class="card"><table><thead><tr>
+              <th>Location</th><th class="r">Starting $</th><th class="r">Float $</th><th>Status</th><th></th>
+            </tr></thead><tbody id="regRows"></tbody></table>
+              <div class="empty hide" id="regEmpty">No registers for this store yet.</div>
+            </div>
+            <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
           </div>
-          <div class="card"><table><thead><tr>
-            <th>Location</th><th class="r">Starting $</th><th class="r">Float $</th><th>Status</th><th></th>
-          </tr></thead><tbody id="regRows"></tbody></table>
-            <div class="empty hide" id="regEmpty">No registers for this store yet.</div>
-          </div>
-          <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addReg">+ Add register</button></div>
         </div>
       </div>
     </div>
@@ -403,11 +429,11 @@ var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rul
 var PGTOOL=lsGet('cprSetPgtool','damage'), PGOPT=lsGet('cprSetPgopt','mfr'), DMFRS=[], DPARTS=[]; /* page settings: per-tool config (tech damage lists) */
 /* 3-pane page-settings model: Page > Option > Settings */
 var PG_PAGES=[
-  {key:'damage',label:'Tech Damage Tracker',dot:'#D8E8F5',options:[{key:'mfr',label:'Manufacturers'},{key:'part',label:'Parts'}]},
-  {key:'consumption',label:'Consumption Report',dot:'#FCE3D6',options:[{key:'ptype',label:'Part types'},{key:'flag',label:'Flags'}]},
-  {key:'hyla',label:'Hyla Orders',dot:'#EDE3F7',options:[{key:'label',label:'Label checklist'},{key:'guide',label:'Testing guide'},{key:'rma',label:'RMA defaults'}]},
-  {key:'cash',label:'Cash Tracker',dot:'#E3F0D8',options:[{key:'reg',label:'Registers & safes'}]},
-  {key:'schedule',label:'Schedule',dot:'#D8E8F5',options:[{key:'shifts',label:'Shift presets'}]}
+  {key:'damage',label:'Tech Damage Tracker',icon:'🔧',bg:'#E3F0F7',where:'Appears in the Tech Damage Tracker logging form.',options:[{key:'mfr',label:'Manufacturers'},{key:'part',label:'Parts'}]},
+  {key:'consumption',label:'Consumption Report',icon:'📊',bg:'#EAF5DD',where:'Appears in the Consumption & Ordering report.',options:[{key:'ptype',label:'Part types'},{key:'flag',label:'Flags'}]},
+  {key:'hyla',label:'Hyla Orders',icon:'♻️',bg:'#F0E7F9',where:'Appears across the Hyla Orders workflow.',options:[{key:'label',label:'Label checklist'},{key:'guide',label:'Testing guide'},{key:'rma',label:'RMA defaults'}]},
+  {key:'cash',label:'Cash Tracker',icon:'💵',bg:'#E3F5EC',where:'Registers & safes for the Cash Tracker.',options:[{key:'reg',label:'Registers & safes'}]},
+  {key:'schedule',label:'Schedule',icon:'🗓️',bg:'#E6F2FB',where:'Drives the Schedule grid and each tech’s work-day pace.',options:[{key:'shifts',label:'Shifts'}]}
 ];
 var PTYPES=[], FLAGS=[], SHIFTS=[]; /* consumption: part types + flags; schedule: named shifts */
 var SHIFT_BY_ID={}, HOURS={};        /* HOURS[shift_id][store] = {def:{id,enabled,closed,start,end}, days:{wd:{id,closed,start,end}}} */
@@ -1406,19 +1432,22 @@ function pgOptCount(pageKey,optKey){
   if(pageKey==='cash')return ct(REGS);
   return '';
 }
+function curPage(){return PG_PAGES.filter(function(p){return p.key===PGTOOL;})[0]||PG_PAGES[0];}
 function pgRenderNav(){
   if(!$('#pgPages'))return;
   var pages=PG_PAGES.slice().sort(function(a,b){return a.label.localeCompare(b.label);});
-  $('#pgPages').innerHTML=pages.map(function(p){
-    return '<button class="pg3item'+(p.key===PGTOOL?' on':'')+'" data-pgtool="'+p.key+'">'+esc(p.label)+'</button>';
+  $('#pgPages').innerHTML='<div class="pg2lbl">Tools</div>'+pages.map(function(p){
+    return '<button class="pg2tool'+(p.key===PGTOOL?' on':'')+'" data-pgtool="'+p.key+'"><span class="pg2ic" style="background:'+p.bg+'">'+p.icon+'</span><span class="pg2nm">'+esc(p.label)+'</span></button>';
   }).join('');
-  var page=PG_PAGES.filter(function(p){return p.key===PGTOOL;})[0]||PG_PAGES[0];
-  if(PGTOOL==='schedule'){renderShiftRail();return;}
-  var opts=page.options.slice().sort(function(a,b){return a.label.localeCompare(b.label);});
-  $('#pgOptions').innerHTML=opts.map(function(o){
+  var page=curPage();
+  if($('#pgHeader'))$('#pgHeader').innerHTML='<span class="pg2hic" style="background:'+page.bg+'">'+page.icon+'</span><div style="min-width:0"><div class="pg2t">'+esc(page.label)+'</div><div class="pg2w">'+esc(page.where||'')+'</div></div>';
+  var tabs=$('#pgTabs');if(!tabs)return;
+  if(PGTOOL==='schedule'||!page.options||page.options.length<2){tabs.innerHTML='';tabs.style.display='none';return;}
+  tabs.style.display='';
+  tabs.innerHTML='<div class="pg2seg">'+page.options.map(function(o){
     var n=pgOptCount(page.key,o.key);
-    return '<button class="pg3item'+(o.key===PGOPT?' on':'')+'" data-pgopt="'+o.key+'"><span>'+esc(o.label)+'</span>'+(n?'<span class="pg3n">'+n+'</span>':'')+'</button>';
-  }).join('');
+    return '<button class="pg2tab'+(o.key===PGOPT?' on':'')+'" data-pgopt="'+o.key+'">'+esc(o.label)+(n?' <span class="pg2c">'+n+'</span>':'')+'</button>';
+  }).join('')+'</div>';
 }
 function renderPages(){
   if(!$('#pgPages'))return;
@@ -1437,7 +1466,7 @@ function renderPages(){
   }
   if(consOn)renderConsumptionPage();
   if(hylaOn)renderHylaPage();
-  if(schedOn)renderScheduleDetail();
+  if(schedOn)renderSchedule();
   renderRegs();
 }
 /* ===== Hyla Orders page settings (writes to hyla_settings kv) ===== */
@@ -1486,8 +1515,8 @@ async function hylaKV(key,val){
   if(r.error)toast(r.error.message,true);else toast('Saved');
 }
 /* ===== Schedule page settings: named shifts, hours per location & weekday =====
-   Master rail (#pgOptions) = the Shifts list; detail pane (#pagePaneSchedule) = the
-   selected shift's per-location / per-day hours. Writes shifts + shift_hours. */
+   Master-detail inside the editor pane: #shiftMaster = the Shifts list, #shiftDetail
+   = the selected shift's per-location / per-day hours. Writes shifts + shift_hours. */
 function shortStoreS(s){return String(s||'').replace(/^CPR\s*/,'');}
 function storeColorS(store){var s=STORES.filter(function(x){return x.store===store;})[0];return (s&&s.color)||'#4FB0E3';}
 function canStoreS(store){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores||[]).indexOf(store)>-1||AUTH.home_store===store);}
@@ -1503,9 +1532,14 @@ function shiftSummary(s){
   var ovr=locs.reduce(function(n,st){return n+Object.keys(hs[st].days).length;},0);
   return locs.length+' loc'+(locs.length===1?'':'s')+(ovr?(' · '+ovr+' override'+(ovr===1?'':'s')):'');
 }
-function reSched(){renderShiftRail();renderScheduleDetail();}
+function reSched(){renderShiftRail();renderShiftDetail();}
+function renderSchedule(){
+  var pane=$('#pagePaneSchedule');if(!pane)return;
+  pane.innerHTML='<div class="shmd"><div class="shmaster" id="shiftMaster"></div><div class="shdetail" id="shiftDetail"></div></div>';
+  renderShiftRail();renderShiftDetail();
+}
 function renderShiftRail(){
-  var rail=$('#pgOptions');if(!rail)return;
+  var rail=$('#shiftMaster');if(!rail)return;
   var rows=SHIFTS.slice().sort(byShiftSort).map(function(s){
     var on=String(s.id)===String(SHIFTSEL);
     return '<button class="pg3item'+(on?' on':'')+'" data-shsel="'+s.id+'"'+(on?' style="border-left-color:'+esc(s.color||'#4FB0E3')+'"':'')+'>'
@@ -1538,8 +1572,8 @@ function dayRowHtml(loc,wd,ho){
     +'<div style="display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;width:184px;flex:none">'+seg('Default','default')+seg('Custom','override')+seg('Closed','closed')+'</div>'
     +'<div style="flex:1;min-width:150px;display:flex;align-items:center;min-height:34px">'+slot+'</div></div>';
 }
-function renderScheduleDetail(){
-  var pane=$('#pagePaneSchedule');if(!pane)return;
+function renderShiftDetail(){
+  var pane=$('#shiftDetail');if(!pane)return;
   if(!SHIFTS.length){pane.innerHTML=emptyShiftsHtml();var b0=pane.querySelector('#shNew2');if(b0)b0.onclick=newShift;return;}
   if(!SHIFTSEL||!SHIFT_BY_ID[SHIFTSEL])SHIFTSEL=String(SHIFTS.slice().sort(byShiftSort)[0].id);
   var s=SHIFT_BY_ID[SHIFTSEL], stores=mngStores();
@@ -1574,7 +1608,7 @@ function renderScheduleDetail(){
   p.querySelectorAll('.shsw').forEach(function(b){b.onclick=function(){recolorShift(s.id,b.getAttribute('data-color'));};});
   var act=p.querySelector('#shActive');if(act)act.onclick=function(){toggleActiveShift(s.id);};
   var del=p.querySelector('#shDelBtn');if(del)del.onclick=function(){delShift(s.id);};
-  p.querySelectorAll('.shloc').forEach(function(b){b.onclick=function(){SHIFTLOC=b.getAttribute('data-loc');renderScheduleDetail();};});
+  p.querySelectorAll('.shloc').forEach(function(b){b.onclick=function(){SHIFTLOC=b.getAttribute('data-loc');renderShiftDetail();};});
   var en=p.querySelector('#shEnabled');if(en)en.onclick=function(){setEnabled(s.id,loc,false);};
   var enb=p.querySelector('#shEnable');if(enb)enb.onclick=function(){setEnabled(s.id,loc,true);};
   var ds=p.querySelector('#shDefStart');if(ds)ds.onchange=function(){setDef(s.id,loc,'start',ds.value);};
@@ -1592,8 +1626,8 @@ async function newShift(){
   SHIFTS.push(r.data);SHIFT_BY_ID[r.data.id]=r.data;SHIFTSEL=String(r.data.id);lsSet('cprSetShift',SHIFTSEL);
   toast('Shift created');reSched();
 }
-async function renameShift(id,name){name=String(name).trim();var s=SHIFT_BY_ID[id];if(!s)return;if(!name){renderScheduleDetail();return;}
-  var r=await sb.from('shifts').update({name:name}).eq('id',id);if(r.error){toast(r.error.message,true);renderScheduleDetail();return;}
+async function renameShift(id,name){name=String(name).trim();var s=SHIFT_BY_ID[id];if(!s)return;if(!name){renderShiftDetail();return;}
+  var r=await sb.from('shifts').update({name:name}).eq('id',id);if(r.error){toast(r.error.message,true);renderShiftDetail();return;}
   s.name=name;reSched();
 }
 async function recolorShift(id,color){var s=SHIFT_BY_ID[id];if(!s)return;
@@ -1622,7 +1656,7 @@ async function setEnabled(id,store,val){
 async function setDef(id,store,which,hhmm){var m=hhmmToMin(hhmm);if(m==null)return;var st=hoursOf(id,store);if(!st.def)return;
   var patch={};patch[which==='start'?'start_min':'end_min']=m;
   var r=await sb.from('shift_hours').update(patch).eq('id',st.def.id);if(r.error){toast(r.error.message,true);return;}
-  if(which==='start')st.def.start=m;else st.def.end=m;renderScheduleDetail();
+  if(which==='start')st.def.start=m;else st.def.end=m;renderShiftDetail();
 }
 async function dayMode(id,store,wd,mode){
   var st=hoursOf(id,store), d=st.days[wd];
