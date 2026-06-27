@@ -109,15 +109,13 @@
   @view-transition { navigation: auto; }
   ::view-transition-old(root),::view-transition-new(root){ animation-duration:.18s; }
 
-  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px;
+  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px; --cpr-top-h:52px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }
   .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:'Nunito','Nunito Sans',sans-serif; }
 
-  /* icon rail — CPR Blue Dark, white icons */
-  .cpr-rail{ position:fixed; top:0; left:0; bottom:0; width:var(--cpr-rail-w);
+  /* icon rail — CPR Blue Dark, white icons. Starts below the top bar (app shell). */
+  .cpr-rail{ position:fixed; top:var(--cpr-top-h); left:0; bottom:0; width:var(--cpr-rail-w);
     background:var(--cpr-blue-dark); z-index:1001; display:flex; flex-direction:column; align-items:center; padding-top:12px; gap:6px; }
-  .cpr-rail .cpr-brand{ width:42px; height:42px; border-radius:11px; background:var(--cpr-red); display:flex; align-items:center; justify-content:center; margin-bottom:10px; text-decoration:none; }
-  .cpr-rail .cpr-brand svg{ width:20px; height:20px; }
   .cpr-rail .cpr-burger2{ display:none; width:40px; height:40px; border:none; background:none; color:#fff; font-size:1.3rem; cursor:pointer; border-radius:11px; }
   .cpr-rail .cpr-burger2:hover{ background:rgba(255,255,255,.12); }
   .cpr-rail .cpr-areabtn{ width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
@@ -126,9 +124,9 @@
   .cpr-rail .cpr-areabtn.active{ background:var(--cpr-blue); color:#fff; }
   .cpr-rail .cpr-railsp{ flex:1; }
   .cpr-rail .cpr-raildiv{ width:28px; height:1px; background:rgba(255,255,255,.16); margin:3px 0; }
-  .cpr-rail .cpr-avatar{ width:38px; height:38px; border:none; cursor:pointer; border-radius:50%; background:var(--cpr-red); color:#fff; font-family:'Nunito'; font-weight:900; font-size:.78rem; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
-  .cpr-rail .cpr-avatar:hover{ box-shadow:0 0 0 3px rgba(220,40,46,.28); }
-  .cpr-usermenu{ position:fixed; left:calc(var(--cpr-rail-w) + 8px); bottom:12px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
+  .cpr-rail .cpr-railgear{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:14px; text-decoration:none; opacity:.78; }
+  .cpr-rail .cpr-railgear:hover{ background:rgba(255,255,255,.12); opacity:1; }
+  .cpr-usermenu{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
   .cpr-usermenu.show{ display:block; }
   .cpr-usermenu .who{ padding:9px 10px 8px; }
   .cpr-usermenu .who .nm{ font-family:'Nunito'; font-weight:800; font-size:.86rem; color:#2D2D3B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -152,12 +150,9 @@
   @media(max-width:859px){ .cpr-flyout{ display:none !important; } }
 
   /* menu pane */
-  .cpr-pane{ position:fixed; top:0; left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
+  .cpr-pane{ position:fixed; top:var(--cpr-top-h); left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
     background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; transition:transform .2s ease; }
   .cpr-pane a{ text-decoration:none; }
-  .cpr-pane-hd{ display:flex; align-items:center; gap:9px; padding:16px 18px 12px; font-family:'Nunito',sans-serif; font-weight:900; font-size:1.05rem; letter-spacing:-.3px; color:var(--cpr-blue-dark); }
-  .cpr-pane-hd .cpr-wm-mark{ width:26px; height:26px; border-radius:7px; background:var(--cpr-red); display:flex; align-items:center; justify-content:center; }
-  .cpr-pane-hd .cpr-wm-mark svg{ width:15px; height:15px; }
   .cpr-grp{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:14px 18px 6px; }
   .cpr-link{ display:flex; align-items:center; gap:11px; padding:10px 18px; font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem; color:#4E4E50; border-left:3px solid transparent; cursor:pointer; }
   .cpr-link .ic{ width:21px; text-align:center; font-size:1rem; flex:none; }
@@ -191,7 +186,40 @@
   .cpr-gear{ display:flex; align-items:center; gap:10px; padding:11px 18px; margin:6px 0; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem; color:#4E4E50; border-top:1px solid #E0E2EA; }
   .cpr-gear:hover{ background:#F3F2F2; color:#2D2D3B; }
 
+  /* top bar — persistent app-shell header: spans the full width on top of the rail,
+     so the dark bar + dark rail read as one continuous frame. Holds brand, clock
+     (soon), bell, identity. */
+  .cpr-topbar{ position:fixed; top:0; left:0; right:0; height:var(--cpr-top-h);
+    background:var(--cpr-blue-dark); display:flex; align-items:center; gap:12px; padding:0 16px 0 0; z-index:1002; }
+  .cpr-tb-brand{ height:var(--cpr-top-h); display:flex; align-items:center; flex:none; text-decoration:none; padding:0 16px; }
+  .cpr-tb-brand:hover{ opacity:.85; }
+  .cpr-tb-brand .cpr-tb-wm{ display:flex; }                 /* full <> myRepairTools wordmark */
+  .cpr-tb-brand .cpr-tb-ico{ display:none; }                /* chevron-only, mobile */
+  .cpr-tb-sp{ flex:1; }
+  .cpr-tb-chip{ display:inline-flex; align-items:center; gap:6px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.7rem; color:rgba(255,255,255,.55); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
+  .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
+  .cpr-tb-bell .bdg{ position:absolute; top:5px; right:6px; min-width:8px; height:8px; border-radius:999px; background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; }
+  .cpr-tb-role{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.78rem; color:#fff; white-space:nowrap; cursor:pointer; border:none; background:none; padding:6px 8px; border-radius:9px; }
+  .cpr-tb-role:hover{ background:rgba(255,255,255,.10); }
+  .cpr-tb-role .dot{ width:7px; height:7px; border-radius:50%; background:#2E9E5B; flex:none; }
+  .cpr-tb-role .nm-ini{ display:none; width:26px; height:26px; border-radius:50%; background:var(--cpr-red); color:#fff; font-size:.68rem; font-weight:900; align-items:center; justify-content:center; }
+  .cpr-belldd{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:300px; background:#fff; border:1px solid #E0E2EA; border-radius:13px; box-shadow:0 16px 44px rgba(45,45,59,.22); z-index:1004; display:none; overflow:hidden; }
+  .cpr-belldd.show{ display:block; }
+  .cpr-belldd .h{ padding:12px 14px; font-family:'Nunito',sans-serif; font-weight:900; font-size:.84rem; color:#2D2D3B; border-bottom:1px solid #EEF0F4; }
+  .cpr-belldd .empty{ padding:20px 14px; font-family:'Nunito Sans',sans-serif; font-size:.82rem; color:#9aa0b0; text-align:center; line-height:1.5; }
+  @media(max-width:560px){
+    .cpr-tb-chip{ display:none; }
+    .cpr-tb-role .nm-full, .cpr-tb-role .dot, .cpr-tb-role .nm-role{ display:none; }
+    .cpr-tb-role .nm-ini{ display:inline-flex; }
+    .cpr-tb-role{ padding:2px; }
+    .cpr-tb-brand .cpr-tb-wm{ display:none; }
+    .cpr-tb-brand .cpr-tb-ico{ display:flex; }
+    .cpr-tb-brand{ width:var(--cpr-rail-w); justify-content:center; padding:0; }
+  }
+
   /* push page content clear of shell */
+  body{ padding-top:var(--cpr-top-h) !important; }
   @media(min-width:860px){
     body{ margin-left:var(--cpr-nav-w) !important; }
     body.cpr-nav-collapsed{ margin-left:var(--cpr-rail-w) !important; }
@@ -218,7 +246,8 @@
     home:  'M3 10.6 12 3l9 7.6M5.5 9.2V20h13V9.2',
     tools: 'M14.6 6.4a3.8 3.8 0 0 0-5 4.9L3.5 17.4V20.5H6.6l6.1-6.1a3.8 3.8 0 0 0 4.9-5l-2.4 2.4-2-2 2.4-2.4Z',
     user:  'M12 12.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4ZM5.6 20v-.4c0-3 2.9-4.8 6.4-4.8s6.4 1.8 6.4 4.8V20',
-    lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5'
+    lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5',
+    gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z'
   };
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
@@ -269,13 +298,11 @@
     }
     var roleLabel = (currentRole()==='owner') ? 'Owner' : 'Admin';
     var links = vis.map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
-    var gear = canSee({ acc:'staff.manage' })
-      ? '<div class="cpr-gear" data-act="settings"><span>⚙️</span> Settings</div>' : '';
     return ''
       + '<div class="cpr-grp" style="padding-bottom:6px">Admin &amp; Owner</div>'
       + '<div class="cpr-unlocked-hd"><span class="cpr-pill"><span class="dot"></span> '+esc(roleLabel)+(NAV_NAME?(' · '+esc(NAV_NAME)):'')+'</span>'
       +   '<button class="cpr-lockbtn" data-act="lock">Lock</button></div>'
-      + links + '<div class="cpr-spacer"></div>' + gear;
+      + links + '<div class="cpr-spacer"></div>';
   }
 
   // build the contents of the collapsed-rail hover flyout for an area
@@ -300,21 +327,21 @@
         + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>No owner or manager tools for your role.</div></div>';
     }
     var links = vis.map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
-    var gear = canSee({ acc:'staff.manage' })
-      ? '<a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>' : '';
-    return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links + gear;
+    return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links;
   }
 
-  // myRepairTools wordmark for the white menu pane (dark text + red), inlined
-  // with a tight viewBox so it sits flush-left and crisp.
-  function navLogo(){
-    return '<svg viewBox="0 0 308 64" width="150" height="31" style="display:block" xmlns="http://www.w3.org/2000/svg" fill="none" role="img" aria-label="myRepairTools">'
+  // white-on-dark wordmark for the top bar (myRepair white, Tools red, red chevron),
+  // plus a chevron-only mark shown in its place on mobile.
+  function navLogoTop(){
+    var wm = '<span class="cpr-tb-wm"><svg viewBox="0 0 308 64" width="148" height="31" style="display:block" xmlns="http://www.w3.org/2000/svg" fill="none" role="img" aria-label="myRepairTools">'
       + '<path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>'
-      + '<text x="74" y="44" font-family="\'Nunito\',sans-serif" font-size="30" font-weight="800"><tspan fill="#2D2D3B">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
-      + '</svg>';
+      + '<text x="74" y="44" font-family="\'Nunito\',sans-serif" font-size="30" font-weight="800"><tspan fill="#fff">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
+      + '</svg></span>';
+    var ico = '<span class="cpr-tb-ico"><svg viewBox="13 8 48 48" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
+    return wm + ico;
   }
   function paneInner(area){
-    var hd = '<div class="cpr-pane-hd">' + navLogo() + '</div>';
+    var hd = '';   // brand now lives in the top bar; the pane starts at its tool list
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -352,19 +379,23 @@
     var b = rail && rail.querySelector('.cpr-areabtn[data-area="admin"]');
     if (b) b.style.display = hasAdminArea() ? '' : 'none';
   }
+  // the rail-bottom gear → Settings shows only for users who can actually use it
+  function updateGearIcon(){
+    var g = rail && rail.querySelector('.cpr-railgear');
+    if (g) g.style.display = canSee({ acc:'staff.manage' }) ? '' : 'none';
+  }
 
   function renderPriv(){
     if (pane){ pane.innerHTML = paneInner(ACTIVE_AREA); wirePriv(); }
     broadcastRole();
     updateAvatar();
     updateAdminIcon();
-    // top bar role pill
+    updateGearIcon();
+    // top bar identity (name)
     if (top){ var rp = top.querySelector('[data-roleslot]'); if (rp) rp.innerHTML = roleSlotHtml(); wireTop(); }
   }
   function roleText(){ var r = currentRole(); return r === 'owner' ? 'Owner' : (rank() >= RANK.admin ? 'Admin' : (r ? 'Team Member' : 'Not signed in')); }
   function updateAvatar(){
-    var av = rail && rail.querySelector('.cpr-avatar');
-    if (av) av.textContent = avatarInitials();
     if (usermenu){
       var nm = usermenu.querySelector('[data-um-name]'); if (nm) nm.textContent = NAV_NAME || 'Signed in';
       var rl = usermenu.querySelector('[data-um-role]'); if (rl) rl.textContent = roleText();
@@ -417,17 +448,19 @@
     });
   }
 
+  // inner content of the top-bar identity slot (the [data-roleslot] span)
   function roleSlotHtml(){
-    var role = currentRole();
-    if (!role) return '';
-    var label = (role==='owner') ? 'Owner' : 'Admin';
-    return '<span class="cpr-tb-role"><span class="dot"></span>'+esc(label)+(NAV_NAME?(' · '+esc(NAV_NAME)):'')+'</span>';
+    if (!currentRole() && !NAV_NAME) return '<span class="nm-full" style="color:rgba(255,255,255,.5);font-weight:700">Not signed in</span>';
+    return '<span class="dot"></span><span class="nm-full">'+(NAV_NAME?esc(NAV_NAME):'Signed in')+'</span>'
+      + '<span class="nm-ini">'+esc(avatarInitials())+'</span>';
   }
-
   function wireTop(){
     if (!top) return;
-    var lock = top.querySelector('[data-tbact="lock"]');
-    if (lock) lock.onclick = function(){ doSignOut(); };
+    var bell = top.querySelector('[data-tbact="bell"]');
+    if (bell && !bell._wired){ bell._wired = true; bell.onclick = function(e){ e.stopPropagation(); var dd = document.querySelector('.cpr-belldd'); if (dd) dd.classList.toggle('show'); }; }
+    // the identity (name) is the account-menu trigger now that the rail avatar is gone
+    var id = top.querySelector('[data-roleslot]');
+    if (id && !id._wired){ id._wired = true; id.onclick = function(e){ e.stopPropagation(); if (usermenu){ updateAvatar(); usermenu.classList.toggle('show'); } }; }
   }
 
   function avatarInitials(){
@@ -451,7 +484,6 @@
     // icon rail
     rail = document.createElement('nav'); rail.className = 'cpr-rail';
     rail.innerHTML = ''
-      + '<a class="cpr-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home"><svg viewBox="13 8 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>'
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
@@ -460,8 +492,25 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
-      + '<button class="cpr-avatar" title="Account" aria-label="Account">'+avatarInitials()+'</button>';
+      + '<a class="cpr-railgear" href="settings.html" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'</a>';
     document.body.insertBefore(rail, document.body.firstChild);
+
+    // ── top bar (persistent): page title · clock (soon) · bell · identity ─
+    top = document.createElement('div'); top.className = 'cpr-topbar';
+    top.innerHTML = ''
+      + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home">'+navLogoTop()+'</a>'
+      + '<span class="cpr-tb-sp"></span>'
+      + '<span class="cpr-tb-chip" title="Time clock — coming with QuickBooks Time">🕐 Time clock · soon</span>'
+      + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">🔔<span class="bdg"></span></button>'
+      + '<span class="cpr-tb-role" data-roleslot>' + roleSlotHtml() + '</span>';
+    document.body.insertBefore(top, document.body.firstChild);
+    var belldd = document.createElement('div'); belldd.className = 'cpr-belldd';
+    belldd.innerHTML = '<div class="h">Notifications</div><div class="empty">No notifications yet.<br>Coming soon.</div>';
+    document.body.appendChild(belldd);
+    document.addEventListener('click', function(e){
+      if (belldd.classList.contains('show') && !belldd.contains(e.target) && !e.target.closest('.cpr-tb-bell')) belldd.classList.remove('show');
+    });
+    wireTop();
 
     // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
     var collapseBtn = rail.querySelector('.cpr-collapse');
@@ -482,7 +531,7 @@
     updateCollapseBtn();
     if (collapseBtn) collapseBtn.onclick = function(){ setCollapsed(!collapsed); };
 
-    // ── account menu (avatar) : Switch user / Sign out ──────────────────
+    // ── account menu : opens from the top-bar identity (name) ───────────
     usermenu = document.createElement('div'); usermenu.className = 'cpr-usermenu';
     usermenu.innerHTML = ''
       + '<div class="who"><div class="nm" data-um-name>Signed in</div><div class="rl" data-um-role></div></div>'
@@ -492,10 +541,9 @@
     document.body.appendChild(usermenu);
     usermenu.querySelector('[data-um="switch"]').onclick = function(){ usermenu.classList.remove('show'); doSwitchUser(); };
     usermenu.querySelector('[data-um="signout"]').onclick = function(){ usermenu.classList.remove('show'); doSignOut(); };
-    var avBtn = rail.querySelector('.cpr-avatar');
-    if (avBtn) avBtn.onclick = function(e){ e.stopPropagation(); updateAvatar(); usermenu.classList.toggle('show'); };
+    var idBtn = top && top.querySelector('[data-roleslot]');
     document.addEventListener('click', function(e){
-      if (usermenu.classList.contains('show') && !usermenu.contains(e.target) && !(avBtn && avBtn.contains(e.target))) usermenu.classList.remove('show');
+      if (usermenu.classList.contains('show') && !usermenu.contains(e.target) && !(idBtn && idBtn.contains(e.target))) usermenu.classList.remove('show');
     });
 
     // ── collapsed flyout: hover an area icon to reach its tools ──────────
