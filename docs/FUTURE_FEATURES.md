@@ -98,3 +98,54 @@ the bigger version below).
   a simple `WIDGETS = {key: renderFn}` registry beats an abstraction.
 - Gut check: ship Tier-0 snapshots first and see if people actually customize before
   investing past it.
+
+## QuickBooks Time + Checklists + Notifications feed (the "daily ops" loop)
+
+A connected system: clock-in/out (QuickBooks Time) wraps the **checklist** feature,
+and a shared **notifications feed** surfaces due-time alerts. All three are the same
+spine viewed three ways: a tasks/notifications data model + a periodic rule engine +
+a per-person feed, with AI as an optional summarizer.
+
+**Decided:** clock-in/out happens **on MyRepairTools (Option A)** — the site punches
+QuickBooks Time via the API so it can wrap the clock moment with checklist UX.
+QuickBooks Time stays the system of record (hours flow to payroll unchanged).
+
+### Clock-wrap UX (Option A)
+- **Clock In** button → calls the QBO Time API to start the timesheet → immediately
+  shows the employee's checklist / day overview (ideally AI-phrased).
+- **Clock Out** → before punching out, checks for **incomplete tasks** for today and
+  warns ("You have 3 unfinished: …. Clock out anyway?").
+
+### Checklists (Phase 1 — STARTED; schema live, see docs/sql/checklists.sql)
+- `checklist_items`: title, details, store, assignee_staff_id, recurrence
+  ('once'|'daily'|'weekly'), weekdays int[], due_date, priority, est_minutes, active.
+- `checklist_completions`: item_id, staff_id, done_date, done_at — unique(item_id, done_date)
+  so a recurring task resets per day.
+- Permissions: `checklist.view` (everyone, see/complete own) · `checklist.manage`
+  (owner/admin, create & assign).
+- v1 surfaces: **Checklist Admin** (manager creates/assigns, sees completion) +
+  **My Checklist** (employee sees today, checks off). Mobile-friendly employee view.
+- Later: assign by role/store ("whoever opens Eugene"), templates, est-minute budgets.
+
+### Notifications / alerts feed
+- Engine = a **scheduled job** (`pg_cron`) — the reliable heartbeat. It queries for
+  due/overdue conditions (e.g. a Hyla order at the 7-day mark, `status` ≠ complete) and
+  writes notification rows. Deterministic, cheap, never misses. (Scaffolding already
+  exists: `notification_rules`, `notification_channels`, `notification_rule_channels`.)
+- AI = the **smart layer on top** (optional): the same job can hand the day's pile to
+  Claude to triage/prioritize/phrase ("3 things actually need attention today, here's
+  why"). The cron is the trigger; the AI is the editor — never the other way around.
+- A `notifications` table (what, target person/role/store, severity, due context,
+  read/dismissed, source rule|ai) + a **site-wide feed UI** (bell/inbox in nav, filtered
+  per person). Same source feeds the clock-in overview and clock-out reminder.
+
+### QuickBooks Time (TSheets) integration
+- OAuth2; tokens held server-side in an edge function (never the browser, same pattern
+  as the AI key). Supports punching (start/stop timesheets — needed for Option A) and
+  webhooks (clock events). Does **not** require a dedicated IP (unlike Mobile Sentrix).
+
+### Mobile Sentrix API (separate item)
+- Their API requires a **dedicated/static outbound IP**, which Supabase edge functions
+  do not provide. Plan: route only the Mobile Sentrix calls through a **static-IP relay**
+  (QuotaGuard Static / Fixie, or a small reserved-IP box) and allowlist that IP. Sync
+  their data (pricing/stock) into Supabase on a schedule so pages read local/fast.
