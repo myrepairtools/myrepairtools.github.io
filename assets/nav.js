@@ -63,8 +63,9 @@
   function rank(){ return RANK[NAV_ROLE] || 0; }
   function broadcastRole(){
     window.CPRNavRole = NAV_ROLE;
+    window.CPRNavName = NAV_NAME || '';
     window.CPRPerms = NAV_PERMS ? Array.from(NAV_PERMS) : null;
-    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:NAV_ROLE, perms:window.CPRPerms } })); } catch(_){}
+    try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:NAV_ROLE, name:NAV_NAME||'', perms:window.CPRPerms } })); } catch(_){}
   }
   // read the current role from the shared session, then re-render
   function refreshRole(){
