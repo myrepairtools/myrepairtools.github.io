@@ -3,77 +3,349 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>myrepairtools</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<title>Dashboard — CPR</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='52' font-size='86' text-anchor='middle' dominant-baseline='central'>🏠</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{ --red:#DC282E; --dark:#2D2D3B; --dark-grey:#4E4E50; --blue:#4FB0E3; --grey:#B9BDCB; --light-grey:#F3F2F2; --white:#FFFFFF; --border:#E0E2EA; }
-  *{ box-sizing:border-box; margin:0; padding:0; }
-  body{ background:var(--light-grey); font-family:'Nunito Sans',sans-serif; min-height:100vh; }
-  main{ max-width:880px; padding:34px 30px 60px; }
-  .home-h{ font-family:'Nunito',sans-serif; font-weight:900; font-size:1.8rem; color:var(--dark); letter-spacing:-.5px; }
-  .home-sub{ color:var(--dark-grey); margin-top:4px; font-size:.92rem; }
-  .grp{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.64rem; text-transform:uppercase; letter-spacing:.8px; color:var(--grey); margin:30px 0 12px; }
-  .tiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(178px,1fr)); gap:12px; max-width:780px; }
-  .tile{ background:var(--white); border:1px solid var(--border); border-top:3px solid var(--blue); border-radius:11px; padding:13px 14px; text-decoration:none; display:block; transition:transform .12s,box-shadow .12s; }
-  .tile:hover{ transform:translateY(-2px); box-shadow:0 8px 18px rgba(45,45,59,.08); }
-  .tile.adm{ border-top-color:var(--dark); }
-  .tile.own{ border-top-color:var(--red); }
-  .tile .ti{ font-size:1.25rem; line-height:1; }
-  .tile .tn{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.9rem; color:var(--dark); margin-top:7px; }
-  .tile .td{ font-size:.74rem; color:var(--dark-grey); margin-top:2px; line-height:1.35; }
-  #privGrp,#privTiles{ display:none; }
-  @media(max-width:859px){ main{ padding:20px 16px 50px; } }
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--green:#2E9E5B;--purple:#8B5CF6;--amber:#B45309;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 70px}
+
+/* greeting */
+.dash-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:22px}
+.hi{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.6px;line-height:1.1}
+.hi .wave{font-size:1.7rem;margin-right:4px}
+.dash-sub{color:var(--dark-grey);font-size:.9rem;margin-top:5px;font-weight:600}
+.head-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:999px;padding:8px 14px;white-space:nowrap}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--grey)}
+.ai-btn{display:inline-flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:#fff;background:var(--dark);border:none;border-radius:999px;padding:9px 16px;cursor:pointer;transition:filter .15s}
+.ai-btn:hover{filter:brightness(1.12)}
+.ai-btn .spark{font-size:.95rem}
+.edit-btn{display:inline-flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:999px;padding:8px 15px;cursor:pointer;transition:all .15s}
+.edit-btn:hover{border-color:var(--blue);color:var(--dark)}
+.edit-btn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.reset-btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey);background:none;border:none;cursor:pointer;text-decoration:underline;display:none}
+.editing .reset-btn{display:inline-block}
+
+/* edit-mode banner */
+.edit-note{display:none;align-items:center;gap:9px;background:#EAF6FD;border:1px solid #BFE2F5;color:#1f6f9c;border-radius:11px;padding:10px 14px;font-size:.82rem;font-weight:700;margin-bottom:16px}
+.editing .edit-note{display:flex}
+
+/* widget grid — 10 cols so 100=10, 60=6, 40=4 */
+.widgets{display:grid;grid-template-columns:repeat(10,1fr);gap:16px;align-items:start}
+.w{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent,var(--blue));border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);display:flex;flex-direction:column;overflow:hidden;transition:box-shadow .15s}
+.w[data-size="full"]{grid-column:span 10}
+.w[data-size="wide"]{grid-column:span 6}
+.w[data-size="narrow"]{grid-column:span 4}
+.w[data-wid="tasks"]{--accent:var(--green)}
+.w[data-wid="commission"]{--accent:var(--blue)}
+.w[data-wid="schedule"]{--accent:var(--purple)}
+.w[data-wid="comms"]{--accent:var(--red)}
+.w[data-wid="links"]{--accent:var(--dark)}
+.w-hd{display:flex;align-items:center;gap:10px;padding:15px 17px 13px;border-bottom:1px solid #F1F2F6}
+.w-ic{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;font-size:1rem;background:var(--light-grey);flex:none}
+.w-hd h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;letter-spacing:-.2px}
+.w-tag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);color:var(--grey)}
+.w-tag.preview{color:var(--blue);border-color:#BFE2F5;background:#EAF6FD}
+.w-tag.soon{color:var(--amber);border-color:#F3D9A8;background:#FEF6E7}
+.w-link{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--blue);text-decoration:none;white-space:nowrap}
+.w-link:hover{text-decoration:underline}
+.w-bd{padding:15px 17px 17px;flex:1}
+
+/* edit controls (hidden until editing) */
+.w-grip{display:none;cursor:grab;color:var(--grey);font-size:1rem;line-height:1;margin-right:-2px;flex:none}
+.w-size{display:none;margin-left:auto;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:2px}
+.w-size button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;color:var(--dark-grey);background:none;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
+.w-size button.on{background:var(--white);color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.12)}
+.editing .w{border:1.5px dashed var(--blue);border-top-width:3px}
+.editing .w-hd{cursor:grab}
+.editing .w-grip{display:block}
+.editing .w-size{display:inline-flex}
+.editing .w-link,.editing .w-tag{display:none}
+.editing .w-bd{opacity:.55;pointer-events:none}
+.w.dragging{opacity:.4;box-shadow:0 12px 30px rgba(45,45,59,.18)}
+
+/* tasks */
+.tasklist{list-style:none;display:flex;flex-direction:column;gap:2px}
+.task{display:flex;align-items:center;gap:11px;padding:9px 6px;border-radius:9px}
+.task:hover{background:var(--light-grey)}
+.cbx{width:19px;height:19px;border-radius:6px;border:2px solid var(--grey);flex:none}
+.task.done .cbx{background:var(--green);border-color:var(--green);position:relative}
+.task.done .cbx::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:.7rem;font-weight:900;display:grid;place-items:center}
+.task .tt{font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;color:var(--dark)}
+.task.done .tt{color:var(--grey);text-decoration:line-through}
+.task .tm{font-size:.72rem;color:var(--dark-grey);margin-top:1px}
+.task .tg{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.5px;padding:3px 7px;border-radius:6px;white-space:nowrap}
+.tg.must{color:var(--red);background:#FFF1F1;border:1px solid #F6C9CA}
+.tg.asap{color:var(--amber);background:#FEF6E7;border:1px solid #F3D9A8}
+
+/* kpis (commission) */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kpi{background:var(--light-grey);border-radius:11px;padding:12px}
+.kpi .kl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.kpi .kv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem;color:var(--dark);margin-top:4px}
+.kpi.tot .kv{color:var(--green)}
+.goal{margin-top:14px}
+.goal-row{display:flex;justify-content:space-between;font-size:.74rem;font-weight:700;color:var(--dark-grey);margin-bottom:6px}
+.bar-track{height:9px;border-radius:999px;background:var(--light-grey);overflow:hidden}
+.bar-fill{height:100%;border-radius:999px;background:var(--blue)}
+
+/* schedule */
+.shift{display:flex;align-items:center;gap:13px;background:var(--light-grey);border-radius:11px;padding:13px 14px}
+.shift .day{text-align:center;background:#fff;border:1px solid var(--border);border-radius:9px;padding:6px 11px;flex:none}
+.shift .day .dow{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.5px;color:var(--red)}
+.shift .day .dnum{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;color:var(--dark);line-height:1}
+.shift .si .stime{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;color:var(--dark)}
+.shift .si .sloc{font-size:.76rem;color:var(--dark-grey);margin-top:2px}
+.hoursline{display:flex;justify-content:space-between;align-items:baseline;margin-top:13px}
+.hoursline .hl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.hoursline .hv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark)}
+
+/* empty state */
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;padding:26px 14px;color:var(--grey)}
+.empty .ei{font-size:1.8rem;opacity:.7}
+.empty .et{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:var(--dark-grey)}
+.empty .es{font-size:.78rem;color:var(--grey);max-width:280px;line-height:1.45}
+
+/* quick links */
+.qlinks{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:11px}
+.ql{display:flex;align-items:center;gap:11px;background:var(--white);border:1px solid var(--border);border-radius:11px;padding:12px 13px;text-decoration:none;transition:transform .12s,box-shadow .12s,border-color .12s}
+.ql:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(45,45,59,.08);border-color:var(--blue)}
+.ql .qi{font-size:1.25rem;line-height:1}
+.ql .qn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark)}
+
+.foot-note{margin-top:22px;font-size:.74rem;color:var(--grey);text-align:center}
+
+@media(max-width:1000px){ .w{grid-column:1/-1 !important} .w-size{display:none !important} .editing .w-hd{cursor:default} .editing .w-grip{display:none} }
+@media(max-width:560px){ main{padding:18px 16px 60px} .hi{font-size:1.6rem} .kpis{grid-template-columns:1fr 1fr} }
 </style>
 </head>
 <body>
 
-
 <main>
-  <h1 class="home-h" id="greeting">Welcome</h1>
-  <p class="home-sub">Everything in one place — pick a tool to get started.</p>
-
-  <div class="grp">Operations</div>
-  <div class="tiles">
-    <a class="tile" href="cash-tracker.html"><div class="ti">💵</div><div class="tn">Cash Tracker</div><div class="td">Tills, safes &amp; daily audit.</div></a>
-    <a class="tile" href="price-calculator.html"><div class="ti">🧮</div><div class="tn">Price Calculator</div><div class="td">Cost-based repair quotes.</div></a>
-    <a class="tile" href="price-guide.html"><div class="ti">📱</div><div class="tn">Price Guide</div><div class="td">SKU &amp; repair price reference.</div></a>
-    <a class="tile" href="jerry-ding-order.html"><div class="ti">📋</div><div class="tn">Jerry Ding Order</div><div class="td">Vendor order form.</div></a>
-    <a class="tile" href="po-converter.html"><div class="ti">📦</div><div class="tn">PO Converter</div><div class="td">Vendor PO → RepairQ import.</div></a>
-    <a class="tile" href="damage-tracker.html"><div class="ti">🔧</div><div class="tn">Tech Damage Tracker</div><div class="td">Log damaged parts &amp; trends.</div></a>
-    <a class="tile" href="commission-dashboard.html"><div class="ti">📈</div><div class="tn">My Commission</div><div class="td">Your commission, tips &amp; goals.</div></a>
+  <div class="dash-head">
+    <div>
+      <h1 class="hi"><span class="wave">👋</span><span id="greeting">Welcome</span></h1>
+      <div class="dash-sub" id="subline">Here's your day at a glance.</div>
+    </div>
+    <div class="head-actions">
+      <button class="reset-btn" id="resetBtn">Reset layout</button>
+      <button class="edit-btn" id="editBtn">⚙ Customize</button>
+      <span class="chip" id="clockChip"><span class="dot"></span> <span id="clockTxt">Clock status · coming soon</span></span>
+      <button class="ai-btn" id="aiBtn"><span class="spark">✨</span> Ask AI</button>
+    </div>
   </div>
 
-  <div class="grp" id="privGrp">Admin &amp; Owner</div>
-  <div class="tiles" id="privTiles">
-    <a class="tile adm" data-min="admin" href="cash-admin.html"><div class="ti">💰</div><div class="tn">Cash Admin</div><div class="td">Reconcile &amp; oversight.</div></a>
-    <a class="tile adm" data-min="admin" href="employee-records.html"><div class="ti">📁</div><div class="tn">Employee Records</div><div class="td">Staff profiles &amp; history.</div></a>
-    <a class="tile adm" data-min="admin" href="schedule-admin.html"><div class="ti">🗓️</div><div class="tn">Schedule Admin</div><div class="td">Build shifts, project weeks, approve time off.</div></a>
-    <a class="tile own" data-min="owner" href="claim-payouts.html"><div class="ti">📊</div><div class="tn">Claim Payouts</div><div class="td">Weekly claim payouts &amp; Profit First.</div></a>
-    <a class="tile own" data-min="owner" href="commission-calculator.html"><div class="ti">🧾</div><div class="tn">Commission Calculator</div><div class="td">Per-tech commission runs.</div></a>
-    <a class="tile own" data-min="owner" href="profit-first.html"><div class="ti">🏦</div><div class="tn">Profit First</div><div class="td">Owner financial planning.</div></a>
+  <div class="edit-note">↔ Drag a widget by its header to reorder · pick <b>100 / 60 / 40</b> width · changes save automatically.</div>
+
+  <div class="widgets" id="widgets">
+
+    <!-- My Tasks -->
+    <section class="w" data-wid="tasks" data-size="wide" draggable="false">
+      <div class="w-hd" data-handle>
+        <span class="w-grip">⠿</span>
+        <span class="w-ic">✅</span><h2>My Tasks</h2>
+        <span class="w-tag preview">Preview</span>
+        <a class="w-link" href="#">View all →</a>
+        <span class="w-size" data-size-ctl></span>
+      </div>
+      <div class="w-bd">
+        <ul class="tasklist">
+          <li class="task"><span class="cbx"></span><div><div class="tt">Open registers &amp; count tills</div><div class="tm">Opening · due 10:00 AM</div></div><span class="tg must">Must do</span></li>
+          <li class="task"><span class="cbx"></span><div><div class="tt">Wipe down counters &amp; demo phones</div><div class="tm">Anytime today</div></div><span class="tg asap">ASAP</span></li>
+          <li class="task"><span class="cbx"></span><div><div class="tt">Restock screen protectors</div><div class="tm">Anytime today</div></div></li>
+          <li class="task done"><span class="cbx"></span><div><div class="tt">Check overnight repair queue</div><div class="tm">Completed 9:12 AM</div></div></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- My Commission -->
+    <section class="w" data-wid="commission" data-size="narrow" draggable="false">
+      <div class="w-hd" data-handle>
+        <span class="w-grip">⠿</span>
+        <span class="w-ic">📈</span><h2>My Commission</h2>
+        <span class="w-tag preview">Preview</span>
+        <a class="w-link" href="commission-dashboard.html">Open →</a>
+        <span class="w-size" data-size-ctl></span>
+      </div>
+      <div class="w-bd">
+        <div class="kpis">
+          <div class="kpi"><div class="kl">Commission</div><div class="kv">$612</div></div>
+          <div class="kpi"><div class="kl">Tips</div><div class="kv">$88</div></div>
+          <div class="kpi tot"><div class="kl">Total</div><div class="kv">$700</div></div>
+        </div>
+        <div class="goal">
+          <div class="goal-row"><span>Pay-period goal</span><span>62% of $1,500</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:62%"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Communications -->
+    <section class="w" data-wid="comms" data-size="wide" draggable="false">
+      <div class="w-hd" data-handle>
+        <span class="w-grip">⠿</span>
+        <span class="w-ic">📣</span><h2>Communications</h2>
+        <span class="w-tag soon">Coming soon</span>
+        <span class="w-size" data-size-ctl></span>
+      </div>
+      <div class="w-bd">
+        <div class="empty">
+          <div class="ei">📭</div>
+          <div class="et">No new messages</div>
+          <div class="es">Store announcements, shift swaps, and manager notes will show up here.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- My Schedule -->
+    <section class="w" data-wid="schedule" data-size="narrow" draggable="false">
+      <div class="w-hd" data-handle>
+        <span class="w-grip">⠿</span>
+        <span class="w-ic">🗓️</span><h2>My Schedule</h2>
+        <span class="w-tag preview">Preview</span>
+        <a class="w-link" href="my-schedule.html">View →</a>
+        <span class="w-size" data-size-ctl></span>
+      </div>
+      <div class="w-bd">
+        <div class="shift">
+          <div class="day"><div class="dow">Today</div><div class="dnum" id="schDay">27</div></div>
+          <div class="si"><div class="stime">10:00 AM – 6:00 PM</div><div class="sloc">Eugene · 8.0 hrs</div></div>
+        </div>
+        <div class="hoursline"><span class="hl">Scheduled this week</span><span class="hv">32.5 hrs</span></div>
+      </div>
+    </section>
+
+    <!-- Quick Links -->
+    <section class="w" data-wid="links" data-size="full" draggable="false">
+      <div class="w-hd" data-handle>
+        <span class="w-grip">⠿</span>
+        <span class="w-ic">⚡</span><h2>Quick Links</h2>
+        <span class="w-size" data-size-ctl></span>
+      </div>
+      <div class="w-bd">
+        <div class="qlinks">
+          <a class="ql" href="cash-tracker.html"><span class="qi">💵</span><span class="qn">Cash Tracker</span></a>
+          <a class="ql" href="price-guide.html"><span class="qi">📱</span><span class="qn">Price Guide</span></a>
+          <a class="ql" href="price-calculator.html"><span class="qi">🧮</span><span class="qn">Price Calculator</span></a>
+          <a class="ql" href="commission-dashboard.html"><span class="qi">📈</span><span class="qn">My Commission</span></a>
+          <a class="ql" href="my-schedule.html"><span class="qi">🗓️</span><span class="qn">My Schedule</span></a>
+          <a class="ql" href="damage-tracker.html"><span class="qi">🔧</span><span class="qn">Damage Tracker</span></a>
+        </div>
+      </div>
+    </section>
+
   </div>
+
+  <div class="foot-note">Dashboard shell · widgets fill in as tools come online.</div>
 </main>
 
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script>
 (function(){
-  var h = new Date().getHours();
-  document.getElementById('greeting').textContent = (h<12?'Good morning':h<18?'Good afternoon':'Good evening');
-  var RANK = { none:0, employee:1, admin:2, owner:3 };
-  function applyRole(){
-    var r = RANK[window.CPRNavRole] || 0;
-    var any = r >= RANK.admin;
-    document.getElementById('privGrp').style.display = any ? 'block' : 'none';
-    document.getElementById('privTiles').style.display = any ? 'grid' : 'none';
-    document.querySelectorAll('#privTiles .tile').forEach(function(t){
-      t.style.display = (r >= RANK[t.getAttribute('data-min')]) ? 'block' : 'none';
+  var greetEl = document.getElementById('greeting');
+  var subEl   = document.getElementById('subline');
+
+  /* ---------- greeting + date ---------- */
+  function timeGreeting(){ var h=new Date().getHours(); return h<12?'Good morning':h<18?'Good afternoon':'Good evening'; }
+  function firstName(){ var n=(window.CPRNavName||'').trim(); return n?n.split(/\s+/)[0]:''; }
+  function applyGreeting(){ var fn=firstName(); greetEl.textContent = timeGreeting() + (fn?', '+fn:''); }
+  (function(){
+    var d=new Date();
+    var days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var mons=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    subEl.textContent = days[d.getDay()]+', '+mons[d.getMonth()]+' '+d.getDate()+' · here’s your day at a glance.';
+    var sd=document.getElementById('schDay'); if(sd) sd.textContent=d.getDate();
+  })();
+  window.addEventListener('cprnav:auth', applyGreeting);
+  setTimeout(applyGreeting, 300);
+
+  /* ---------- Ask AI ---------- */
+  document.getElementById('aiBtn').onclick=function(){
+    if (window.CPRAssistant && window.CPRAssistant.open){ window.CPRAssistant.open(); return; }
+    alert('The AI assistant is coming soon — ask questions, analyze panic logs, and draft customer replies right from here.');
+  };
+
+  /* ---------- customizable layout ---------- */
+  var LS='cprDashLayout';
+  var SIZES=[['full','100'],['wide','60'],['narrow','40']];
+  var grid=document.getElementById('widgets');
+  var editing=false, dragEl=null;
+
+  // build the 100/60/40 segmented control inside each widget header
+  Array.prototype.forEach.call(grid.querySelectorAll('[data-size-ctl]'), function(ctl){
+    var w=ctl.closest('.w');
+    SIZES.forEach(function(s){
+      var b=document.createElement('button');
+      b.textContent=s[1]; b.setAttribute('data-sz',s[0]);
+      b.onclick=function(e){ e.stopPropagation(); setSize(w,s[0]); save(); };
+      ctl.appendChild(b);
+    });
+  });
+  function setSize(w,sz){
+    w.setAttribute('data-size',sz);
+    Array.prototype.forEach.call(w.querySelectorAll('[data-size-ctl] button'), function(b){
+      b.classList.toggle('on', b.getAttribute('data-sz')===sz);
     });
   }
-  window.addEventListener('cprnav:auth', applyRole);
-  // nav.js broadcasts on load; also run once in case we missed it
-  setTimeout(applyRole, 300);
+  function refreshSizeButtons(){
+    Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(w){ setSize(w, w.getAttribute('data-size')); });
+  }
+
+  function save(){
+    try{
+      var arr=Array.prototype.map.call(grid.querySelectorAll('.w'), function(w){
+        return { id:w.getAttribute('data-wid'), size:w.getAttribute('data-size') };
+      });
+      localStorage.setItem(LS, JSON.stringify(arr));
+    }catch(_){}
+  }
+  function load(){
+    var arr; try{ arr=JSON.parse(localStorage.getItem(LS)); }catch(_){ arr=null; }
+    if(!arr || !arr.length) { refreshSizeButtons(); return; }
+    arr.forEach(function(rec){
+      var w=grid.querySelector('.w[data-wid="'+rec.id+'"]');
+      if(w){ if(rec.size) w.setAttribute('data-size',rec.size); grid.appendChild(w); }  // re-append in saved order
+    });
+    refreshSizeButtons();
+  }
+
+  // drag to reorder (desktop). Insert near the widget whose centre is closest.
+  function place(x,y){
+    var items=grid.querySelectorAll('.w:not(.dragging)');
+    var best=null, bestD=Infinity, after=false;
+    Array.prototype.forEach.call(items, function(it){
+      var r=it.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+      var d=(x-cx)*(x-cx)+(y-cy)*(y-cy);
+      if(d<bestD){ bestD=d; best=it; after=(x>cx); if(y>r.bottom) after=true; if(y<r.top) after=false; }
+    });
+    if(!best){ grid.appendChild(dragEl); return; }
+    best.parentNode.insertBefore(dragEl, after?best.nextSibling:best);
+  }
+  Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(w){
+    w.addEventListener('dragstart', function(e){ if(!editing){ e.preventDefault(); return; } dragEl=w; w.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain','');}catch(_){}} );
+    w.addEventListener('dragend', function(){ if(dragEl){ dragEl.classList.remove('dragging'); } dragEl=null; save(); });
+  });
+  grid.addEventListener('dragover', function(e){ if(!editing||!dragEl) return; e.preventDefault(); place(e.clientX,e.clientY); });
+
+  // toggle edit mode — only then are widgets draggable
+  function setEditing(on){
+    editing=on;
+    document.body.classList.toggle('editing', on);
+    document.getElementById('editBtn').classList.toggle('on', on);
+    document.getElementById('editBtn').innerHTML = on ? '✓ Done' : '⚙ Customize';
+    Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(w){ w.setAttribute('draggable', on?'true':'false'); });
+  }
+  document.getElementById('editBtn').onclick=function(){ setEditing(!editing); };
+  document.getElementById('resetBtn').onclick=function(){
+    try{ localStorage.removeItem(LS); }catch(_){}
+    location.reload();
+  };
+
+  load();
 })();
 </script>
 </body>

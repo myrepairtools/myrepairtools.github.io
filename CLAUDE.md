@@ -20,7 +20,12 @@ Each tool is **one self-contained HTML file** at the repo root (e.g. `cash-track
 code is in `assets/`. There is no component system or templating — when a pattern needs to
 change across tools, it changes in each file or in a shared `assets/*.js`.
 
-`index.html` is the launcher (tile grid). `operations.html` / `admin.html` are thin
+`index.html` is the **employee dashboard** — the landing page for everyone after sign-in.
+It greets the user (`window.CPRNavName`) and shows a customizable widget grid (My Tasks,
+My Commission, My Schedule, Communications, Quick Links). Each widget has a 100/60/40
+width preset and is drag-reorderable in "Customize" mode; the layout is persisted in
+`localStorage` (`cprDashLayout`). Widgets currently carry sample/Preview data and get wired
+to live sources as each tool comes online. `operations.html` / `admin.html` are thin
 redirect/landing stubs. `login-test.html` and `settings.html` are utility pages.
 
 The brand system (reused everywhere): fonts `Nunito` / `Nunito Sans`; CSS custom props
