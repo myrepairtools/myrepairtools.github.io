@@ -149,3 +149,26 @@ QuickBooks Time stays the system of record (hours flow to payroll unchanged).
   do not provide. Plan: route only the Mobile Sentrix calls through a **static-IP relay**
   (QuotaGuard Static / Fixie, or a small reserved-IP box) and allowlist that IP. Sync
   their data (pricing/stock) into Supabase on a schedule so pages read local/fast.
+
+## Overtime tracking report (QuickBooks Time integration)
+
+A weekly report to **catch overtime before it happens** so managers can adjust shifts
+mid-week to avoid it.
+
+**Idea**
+- Per employee, per week: **hours worked so far** (actual, from QuickBooks Time) +
+  **remaining scheduled hours** (from our Schedule) → **projected weekly total**.
+- Flag who is **on pace for overtime** against a configurable threshold (e.g. 40h/week)
+  — green / approaching / will-exceed — early enough to cut or move shifts.
+- View by store and by week; sort by who's closest to OT.
+
+**Why it fits**
+- Pairs the **QuickBooks Time** actuals (the system of record for hours/payroll) with the
+  **scheduled hours** we already compute in Schedule Admin — actual + projected = the
+  early-warning number.
+- Same QBO Time integration as the clock-in/out wrap; no dedicated IP needed.
+
+**Open questions when we build it**
+- OT threshold(s): weekly 40h (Oregon default) — any daily/store-specific rules?
+- Should it push an alert (notifications feed) when someone crosses "approaching OT,"
+  not just show in a report?
