@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist — Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#fff;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;--purple:#8B5CF6;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+.proto-tag{position:fixed;top:0;left:0;right:0;background:#2D2D3B;color:#fff;font-family:'Nunito';font-weight:800;font-size:.66rem;letter-spacing:.5px;text-align:center;padding:4px;z-index:50}
+main{max-width:1120px;margin:0 auto;padding:42px 28px 70px}
+a{color:var(--blue);font-weight:700;text-decoration:none}a:hover{text-decoration:underline}
+/* header */
+.hd{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;letter-spacing:-.5px}
+.sub{color:var(--dark-grey);font-size:.9rem;margin-top:3px}
+.hd-r{margin-left:auto;display:flex;align-items:center;gap:12px}
+.bell{position:relative;width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:18px}
+.bell .dot{position:absolute;top:7px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--red);border:2px solid #fff}
+.locpills{display:inline-flex;background:#E4E4EA;border-radius:10px;padding:3px;gap:2px}
+.locpills button{padding:7px 13px;border:none;border-radius:8px;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.74rem;background:transparent;color:#9aa0b0}
+.locpills button.on{background:#fff;box-shadow:0 1px 2px rgba(45,45,59,.12)}
+/* controls row */
+.ctrl{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.seg{display:inline-flex;background:#E4E4EA;border-radius:10px;padding:3px;gap:2px}
+.seg button{padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.78rem;background:transparent;color:#9aa0b0}
+.seg button.on{background:#fff;color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.12)}
+.btn{font-family:'Nunito';font-weight:800;border:none;border-radius:10px;cursor:pointer;padding:9px 15px;font-size:.82rem}
+.btn-red{background:var(--red);color:#fff}
+.btn-ghost{background:#fff;border:1.5px solid var(--border);color:var(--dark-grey)}
+.spacer{flex:1}
+/* KPI tiles */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:#fff;border:1px solid var(--border);border-top:3px solid var(--blue);border-radius:12px;padding:14px 16px}
+.kpi.green{border-top-color:var(--green)}.kpi.amber{border-top-color:var(--amber)}.kpi.red{border-top-color:var(--red)}
+.kpi .n{font-family:'Nunito';font-weight:900;font-size:1.7rem;line-height:1}
+.kpi .l{font-size:.72rem;color:var(--dark-grey);font-weight:700;margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+/* table */
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;font-family:'Nunito';font-weight:800;font-size:.6rem;letter-spacing:.6px;text-transform:uppercase;color:var(--grey);padding:11px 14px;border-bottom:1px solid #EEF0F4;background:#FBFBFC}
+tbody td{padding:11px 14px;border-bottom:1px solid #F2F3F6;font-size:.86rem;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.overdue{box-shadow:inset 3px 0 0 var(--red)}
+tbody tr.done{opacity:.55}
+.cbx{width:20px;height:20px;border-radius:6px;border:2px solid var(--grey);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
+.cbx.on{background:var(--green);border-color:var(--green)}
+.tname{font-family:'Nunito';font-weight:800;color:var(--dark)}
+.tname.done-txt{text-decoration:line-through;color:var(--grey)}
+.flag{display:inline-block;font-family:'Nunito';font-weight:800;font-size:.54rem;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:999px;margin-left:7px;vertical-align:middle}
+.flag.must{background:#FBE9EA;color:var(--red)}.flag.asap{background:#FCF3E3;color:var(--amber)}
+.who{display:inline-flex;align-items:center;gap:7px}
+.av{width:24px;height:24px;border-radius:50%;color:#fff;font-family:'Nunito';font-weight:800;font-size:.56rem;display:flex;align-items:center;justify-content:center;flex:none}
+.due{font-family:'Nunito Sans';font-weight:700;font-size:.82rem}
+.due.past{color:var(--red);font-weight:800}
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito';font-weight:800;font-size:.62rem;color:var(--dark-grey);background:#F3F2F2;padding:3px 9px;border-radius:999px}
+.rowact{display:flex;gap:6px;justify-content:flex-end}
+.iconbtn{width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px;color:var(--dark-grey)}
+.muted{color:var(--grey)}
+/* modal */
+.back{position:fixed;inset:0;background:rgba(45,45,59,.45);display:none;align-items:flex-start;justify-content:center;padding:48px 18px;z-index:60;overflow:auto}
+.back.show{display:flex}
+.modal{background:#fff;border-radius:16px;width:560px;max-width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.m-hd{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid #EEF0F4}
+.m-hd .t{font-family:'Nunito';font-weight:900;font-size:1.05rem}
+.m-hd .x{margin-left:auto;width:32px;height:32px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-weight:800}
+.m-bd{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.m-ft{padding:14px 18px;border-top:1px solid #EEF0F4;display:flex;gap:10px;justify-content:flex-end}
+.fld label{display:block;font-family:'Nunito';font-weight:800;font-size:.6rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey);margin-bottom:6px}
+.inp,select.inp{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'Nunito Sans';font-size:.88rem;background:#fff}
+.inp:focus{outline:none;border-color:var(--blue)}
+.row2{display:flex;gap:12px}.row2>*{flex:1}
+.pillset{display:flex;gap:6px;flex-wrap:wrap}
+.pillset button{padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.74rem;color:#9aa0b0}
+.pillset button.on{border-color:var(--blue);background:#EAF4FB;color:var(--dark)}
+.dow{display:flex;gap:5px}
+.dow button{width:38px;height:34px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.7rem;color:#9aa0b0}
+.dow button.on{border-color:var(--green);background:#E9F6EE;color:var(--green)}
+.hint{font-size:.72rem;color:var(--grey);font-weight:600;margin-top:5px}
+.linkbar{display:flex;gap:8px;align-items:center;margin-top:7px;background:#F7F9FC;border:1px dashed var(--border);border-radius:9px;padding:8px 10px}
+.linkbar select,.linkbar input{flex:1;min-width:0;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:'Nunito Sans'}
+/* detail popup */
+.det .row{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #F2F3F6}
+.det .k{width:120px;font-family:'Nunito';font-weight:800;font-size:.66rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey);flex:none;padding-top:2px}
+.det .v{font-size:.88rem;font-weight:600}
+/* bell dropdown */
+.belldd{position:absolute;top:50px;right:0;width:320px;background:#fff;border:1px solid var(--border);border-radius:13px;box-shadow:0 18px 50px rgba(45,45,59,.22);display:none;z-index:70;overflow:hidden}
+.belldd.show{display:block}
+.belldd .h{padding:12px 14px;font-family:'Nunito';font-weight:900;font-size:.86rem;border-bottom:1px solid #EEF0F4}
+.belldd .item{padding:11px 14px;border-bottom:1px solid #F2F3F6;font-size:.82rem;display:flex;gap:9px}
+.belldd .item .ic{flex:none}
+@media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}thead th.hide-sm,td.hide-sm{display:none}}
+</style>
+</head>
+<body>
+<div class="proto-tag">PROTOTYPE — static mock for review. No data is saved. Built from the design spec (docs/CHECKLIST_DESIGN.md).</div>
+<main>
+  <div class="hd">
+    <div>
+      <h1>Checklist</h1>
+      <div class="sub">Your tasks for today — Vince Amador · Eugene</div>
+    </div>
+    <div class="hd-r">
+      <span class="locpills"><button class="on">EUG</button><button>SAL</button><button>CLA</button></span>
+      <div style="position:relative">
+        <button class="bell" onclick="document.getElementById('bd').classList.toggle('show')">🔔<span class="dot"></span></button>
+        <div class="belldd" id="bd">
+          <div class="h">Notifications</div>
+          <div class="item"><span class="ic">⚠️</span><div><b>3 tasks still due today</b><div class="muted" style="font-size:.72rem">Consumption report, bench QC, cash drop</div></div></div>
+          <div class="item"><span class="ic">🔁</span><div><b>Your turn: clean bathroom</b><div class="muted" style="font-size:.72rem">Due by end of week</div></div></div>
+          <div class="item"><span class="ic">📅</span><div><b>Payroll reminder</b><div class="muted" style="font-size:.72rem">Due the 20th</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <span class="seg"><button class="on" onclick="setView(this,'mine')">My tasks</button><button onclick="setView(this,'store')">Store</button></span>
+    <span class="seg"><button class="on">Today</button><button>This week</button></span>
+    <span class="spacer"></span>
+    <button class="btn btn-red" onclick="openNew()">+ New task</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi green"><div class="n" id="k-done">3</div><div class="l">Done today</div></div>
+    <div class="kpi"><div class="n" id="k-todo">4</div><div class="l">Still to do</div></div>
+    <div class="kpi red"><div class="n">1</div><div class="l">Overdue</div></div>
+    <div class="kpi amber"><div class="n">94%</div><div class="l">On-time · this month</div></div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr>
+        <th style="width:42px"></th>
+        <th>Task</th>
+        <th class="assignee-col hide-sm" style="display:none">Assignee</th>
+        <th style="width:150px">Due</th>
+        <th class="hide-sm" style="width:120px">Recurs</th>
+        <th style="width:90px"></th>
+      </tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+  <p class="hint" style="margin-top:12px">Click a task name or 👁 to see full details &amp; instructions · ✎ to edit · the checkbox marks it done. Overdue rows show a red bar.</p>
+</main>
+
+<!-- NEW TASK MODAL -->
+<div class="back" id="newBack">
+  <div class="modal">
+    <div class="m-hd"><span class="t">New task</span><button class="x" onclick="close_('newBack')">✕</button></div>
+    <div class="m-bd">
+      <div class="fld"><label>Task name</label>
+        <input class="inp" id="tn" placeholder='e.g. Complete Consumption Report and order from MS' value="Complete Consumption Report and order from MS">
+        <div class="linkbar">🔗 <span style="font-weight:700;font-size:.74rem;color:var(--dark-grey)">Link a phrase to a tool:</span>
+          <input id="lphrase" placeholder="Consumption Report">
+          <select><option>Consumption &amp; Ordering</option><option>Hyla Orders</option><option>Cash Tracker</option><option>Price Guide</option><option>— or paste a URL —</option></select>
+          <button class="btn btn-ghost" style="padding:7px 11px">Insert</button>
+        </div>
+        <div class="hint">Renders as: Complete <a href="#">Consumption Report</a> and order from MS</div>
+      </div>
+      <div class="fld"><label>Instructions</label>
+        <textarea class="inp" rows="2" placeholder="Steps, notes, or a knowledge-base link…">Pull yesterday's usage, compare to par, place the MS order. KB: https://kb.cpr/consumption</textarea>
+        <div class="hint">Links in here are clickable too.</div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Assignee <span class="muted" style="text-transform:none;letter-spacing:0">(managers)</span></label>
+          <select class="inp"><option>Whoever closes Eugene (shift)</option><option>Vince Amador</option><option>Rotate — Eugene team</option><option>Either closer (group, any one)</option></select>
+        </div>
+        <div class="fld"><label>Store</label><select class="inp"><option>Eugene</option><option>Salem NE</option><option>Clackamas</option><option>Any</option></select></div>
+      </div>
+      <div class="fld"><label>Priority</label>
+        <div class="pillset"><button class="on">Normal</button><button>Please do ASAP</button><button>Must do today</button></div>
+      </div>
+      <div class="fld"><label>How often does it recur?</label>
+        <div class="pillset" id="recset">
+          <button data-r="once">One-off</button><button data-r="daily">Daily</button>
+          <button class="on" data-r="weekly">Weekly</button><button data-r="monthly">Monthly</button><button data-r="flex">Flexible</button>
+        </div>
+        <div id="r-weekly" style="margin-top:10px"><div class="hint" style="margin:0 0 6px">Pick the day(s) — choose two for twice-a-week:</div>
+          <div class="dow"><button>Su</button><button class="on">M</button><button>Tu</button><button class="on">W</button><button>Th</button><button>F</button><button>Sa</button></div></div>
+        <div id="r-monthly" style="margin-top:10px;display:none"><div class="hint" style="margin:0 0 6px">Pick date(s) of the month — e.g. payroll on the 5th &amp; 20th:</div>
+          <input class="inp" value="5, 20" placeholder="e.g. 5, 20"></div>
+        <div id="r-flex" style="margin-top:10px;display:none"><div class="hint" style="margin:0 0 6px">Times per period, any day in the window (e.g. bathroom):</div>
+          <div class="row2"><input class="inp" value="1" style="max-width:80px"><select class="inp"><option>per week</option><option>per month</option></select></div></div>
+      </div>
+      <div class="fld"><label>Default due</label>
+        <div class="row2">
+          <select class="inp"><option>Same day</option><option>After assigned…</option><option>Specific time</option></select>
+          <div class="row2"><input class="inp" value="3" style="max-width:80px"><select class="inp"><option>days</option><option selected>days</option><option>weeks</option><option>months</option></select></div>
+        </div>
+        <div class="hint">Always custom — set "+N days / weeks / months", same-day, or a specific time. Adds a due time so we can flag "not done in time".</div>
+      </div>
+    </div>
+    <div class="m-ft"><button class="btn btn-ghost" onclick="close_('newBack')">Cancel</button><button class="btn btn-red" onclick="close_('newBack')">Create task</button></div>
+  </div>
+</div>
+
+<!-- DETAIL POPUP -->
+<div class="back" id="detBack">
+  <div class="modal">
+    <div class="m-hd"><span class="t" id="dt-title">Task</span><button class="x" onclick="close_('detBack')">✕</button></div>
+    <div class="m-bd det" id="dt-body"></div>
+    <div class="m-ft"><button class="btn btn-ghost" onclick="close_('detBack')">Close</button><button class="btn btn-ghost" onclick="alert('Edit mode (prototype)')">✎ Edit</button><button class="btn btn-red" onclick="close_('detBack')">Mark done</button></div>
+  </div>
+</div>
+
+<script>
+var STAFF={vince:'#C9820B',nick:'#1E7AA8',josh:'#2D2D3B',mara:'#2E9E5B'};
+var TASKS=[
+ {id:1,name:'Complete <a href="#">Consumption Report</a> and order from MS',plain:'Complete Consumption Report and order from MS',who:'vince',whoName:'Vince A.',due:'Today · 6:00 PM',past:false,recur:'Daily',pr:'must',done:false,instr:"Pull yesterday's usage, compare to par, place the MS order. KB: <a href='#'>consumption article</a>"},
+ {id:2,name:'Morning till count',who:'vince',whoName:'Vince A.',due:'Today · 10:00 AM',past:true,recur:'Daily',pr:'',done:false,instr:'Count both drawers, log in Cash Tracker.'},
+ {id:3,name:'Bench QC — Hyla order #1234',who:'vince',whoName:'Vince A.',due:'Today · 4:00 PM',past:false,recur:'One-off',pr:'asap',done:false,instr:'QC the 2 returned devices before they ship.'},
+ {id:4,name:'Wipe down repair benches',who:'vince',whoName:'Vince A.',due:'Today · close',past:false,recur:'Daily',pr:'',done:false,instr:'Disinfect and clear all benches at close.'},
+ {id:5,name:'Clean bathroom (your turn 🔁)',who:'vince',whoName:'Vince A.',due:'By Sat',past:false,recur:'Weekly',pr:'',done:false,instr:'Rotating task — your turn this week.'},
+ {id:6,name:'Cash drop to safe',who:'vince',whoName:'Vince A.',due:'Done · 9:12 AM',past:false,recur:'Daily',pr:'',done:true,instr:'Drop counted cash to the safe.'},
+ {id:7,name:'Open store / unlock systems',who:'vince',whoName:'Vince A.',due:'Done · 9:01 AM',past:false,recur:'Daily',pr:'',done:true,instr:'Unlock, boot POS, lights on.'},
+ {id:8,name:'Check overnight tickets',who:'vince',whoName:'Vince A.',due:'Done · 9:30 AM',past:false,recur:'Daily',pr:'',done:true,instr:'Review tickets that came in overnight.'}
+];
+function init(n){return n.split(' ').map(w=>w[0]).slice(0,2).join('');}
+function render(){
+  var tb=document.getElementById('tb');tb.innerHTML='';
+  var todo=0,done=0;
+  TASKS.forEach(function(t){
+    if(t.done)done++;else todo++;
+    var tr=document.createElement('tr');tr.className=(t.past&&!t.done?'overdue ':'')+(t.done?'done':'');
+    var flag=t.pr==='must'?'<span class="flag must">Must do today</span>':t.pr==='asap'?'<span class="flag asap">ASAP</span>':'';
+    var assignee=window.__view==='store'?'<td class="assignee-col hide-sm"><span class="who"><span class="av" style="background:'+(STAFF[t.who]||'#888')+'">'+init(t.whoName)+'</span>'+t.whoName+'</span></td>':'';
+    tr.innerHTML='<td><span class="cbx '+(t.done?'on':'')+'" onclick="toggle('+t.id+')">'+(t.done?'✓':'')+'</span></td>'
+      +'<td><span class="tname '+(t.done?'done-txt':'')+'" style="cursor:pointer" onclick="detail('+t.id+')">'+t.name+'</span>'+flag+'</td>'
+      +assignee
+      +'<td><span class="due '+(t.past&&!t.done?'past':'')+(t.done?' muted':'')+'">'+t.due+'</span></td>'
+      +'<td class="hide-sm"><span class="chip">🔁 '+t.recur+'</span></td>'
+      +'<td><div class="rowact"><button class="iconbtn" title="View" onclick="detail('+t.id+')">👁</button><button class="iconbtn" title="Edit" onclick="alert(\'Edit (prototype)\')">✎</button></div></td>';
+    tb.appendChild(tr);
+  });
+  document.getElementById('k-done').textContent=done;
+  document.getElementById('k-todo').textContent=todo;
+}
+window.__view='mine';
+function setView(b,v){window.__view=v;[].forEach.call(b.parentNode.children,function(x){x.classList.remove('on')});b.classList.add('on');
+  document.querySelectorAll('.assignee-col').forEach(function(e){e.style.display=v==='store'?'':'none'});
+  document.querySelector('.sub').textContent=v==='store'?'All Eugene store tasks today':'Your tasks for today — Vince Amador · Eugene';
+  render();}
+function toggle(id){var t=TASKS.find(x=>x.id===id);t.done=!t.done;t.due=t.done?'Done · just now':t.due;render();}
+function detail(id){var t=TASKS.find(x=>x.id===id);document.getElementById('dt-title').innerHTML=t.name;
+  document.getElementById('dt-body').innerHTML=
+   '<div class="row"><div class="k">Assignee</div><div class="v">'+t.whoName+'</div></div>'
+  +'<div class="row"><div class="k">Due</div><div class="v">'+t.due+'</div></div>'
+  +'<div class="row"><div class="k">Recurs</div><div class="v">'+t.recur+'</div></div>'
+  +'<div class="row"><div class="k">Priority</div><div class="v">'+(t.pr==='must'?'Must do today':t.pr==='asap'?'Please do ASAP':'Normal')+'</div></div>'
+  +'<div class="row"><div class="k">Instructions</div><div class="v">'+t.instr+'</div></div>';
+  document.getElementById('detBack').classList.add('show');}
+function openNew(){document.getElementById('newBack').classList.add('show');}
+function close_(id){document.getElementById(id).classList.remove('show');}
+document.getElementById('recset').addEventListener('click',function(e){var b=e.target.closest('[data-r]');if(!b)return;
+  [].forEach.call(this.children,function(x){x.classList.remove('on')});b.classList.add('on');
+  var r=b.getAttribute('data-r');
+  document.getElementById('r-weekly').style.display=r==='weekly'?'':'none';
+  document.getElementById('r-monthly').style.display=r==='monthly'?'':'none';
+  document.getElementById('r-flex').style.display=r==='flex'?'':'none';});
+document.querySelectorAll('.dow button,.pillset button').forEach(function(b){if(b.hasAttribute('data-r'))return;b.onclick=function(){
+  if(this.closest('#recset'))return;
+  if(this.closest('.dow')){this.classList.toggle('on');return;}
+  [].forEach.call(this.parentNode.children,function(x){x.classList.remove('on')});this.classList.add('on');};});
+render();
+</script>
+</body>
+</html>

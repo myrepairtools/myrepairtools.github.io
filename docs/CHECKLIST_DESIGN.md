@@ -78,7 +78,8 @@ nightly job for fast tiles and as the **commission qualifier** source (§9).
   end of day by one of the two closing"). One occurrence for the group; whoever does it
   is recorded in `done_by`.
 - **each** — *every* eligible person must complete their own. Generates one occurrence
-  **per person**.
+  **per person** — perfect for "everyone must do this," e.g. a **new training** assigned
+  to the whole team, where you see exactly who's completed it (a completion grid).
 
 **For shift/role/group + `any`:** the occurrence is a shared/pool item — anyone
 eligible can check it off, and **we record who did** (`done_by`). That answers "if
@@ -114,6 +115,32 @@ reassignment. This is the payoff of keeping the schedule in clean data.
   past `due_at`, not done) and reminders.
 
 ---
+
+## 4b. Overdue / late / miss lifecycle (nothing disappears prematurely)
+A task's **completion status** is tracked separately from its **due time**, so an
+overdue task stays visible and doable *while* we still record that it was late.
+
+- **open** — not done, not past due.
+- **overdue** — past `due_at`, not done. **Stays on Today (red bar), still completable.**
+  It does NOT disappear.
+- **done (on-time)** — completed at/before `due_at`.
+- **done (late)** — completed after `due_at` but within the task's window. Counts as
+  done, flagged **late** (and we know *how* late).
+- **missed** — the window closed with no completion. Recorded; counts against compliance.
+
+**When can a task finally leave Today?** (window close)
+- **One-off** — never auto-expires. Rides Today until done, or a manager closes/cancels
+  it. Shows its age ("2 days overdue").
+- **Daily** — visible all that day; at day's end an undone one is logged (late/missed)
+  and does **not** pile onto tomorrow (tomorrow generates its own fresh occurrence). A
+  manager may choose to carry it over.
+- **Weekly / monthly** — stays through its window (the week / the month) until done; if
+  the window closes undone → missed.
+
+**Performance falls out of this for free** (monthly, per person): completion % (done ÷
+assigned) · **on-time %** (on-time ÷ assigned) · **late count** · miss count. "How often
+are they late" = the late count / on-time %. The KPI tiles, the employee's own view, and
+the commission qualifier all read these same numbers.
 
 ## 5. Priority
 Ben's two flags + none: **"Must do today"** · **"Please do ASAP"** · normal. Drives
@@ -194,9 +221,34 @@ Tie task performance to a **commissionable qualifier**:
 
 ---
 
-## 12. To confirm before build
-1. Fairness-ledger behavior (round-robin vs. weighted-by-availability) — review the
-   concept in the prototype first.
-2. Reporting period (rolling 7/30 days vs. pay-period aligned — likely pay-period, to
-   match commission).
-3. Whether "each"-mode tasks should also support a single shared completion override.
+## 12. Decisions locked (from review)
+1. **Rotation = simple fairness.** Task recurs on its schedule; if the person whose
+   turn it is isn't working the day it recurs, it **auto-bumps to their next shift**.
+   If they're on vacation / out for an extended stretch, **flag a manager to reassign**
+   (don't silently skip). Even distribution over time via the ledger.
+2. **Reporting period = monthly, standard calendar** (matches commission payout).
+3. **Manager override marks any task done regardless of mode** (incl. `each`).
+
+## 13. UI decisions (from prototype review)
+- **No admin/employee switcher** on the Checklist — Task Admin (the library) is a
+  **separate page**. Checklist is the do/track surface only.
+- **Staff default to "My tasks"; toggle to "Store" view** (all store tasks). The
+  assignee dropdown is a manager/owner tool; techs get My / Store instead.
+- **Standard page header** (match the other tools) — not design's custom sub-header.
+- **Location selector** in the site-standard pill style (for multi-store staff).
+- **Default Due is always custom** (no presets): a number + unit — **days / weeks /
+  months** — or same-day / specific time. (Design only had days & weeks; add months.)
+- **Recurrence picks specific days:** Weekly → choose one or more **weekdays**
+  (twice-a-week = pick two). Monthly → choose one or more **dates** (payroll = 5th &
+  20th). Plus the **flexible** "N times per period, any day" mode (bathroom).
+- **Monthly/long-horizon planning lives in Task Admin** (library), with **calendar +
+  list** views; the employee Checklist stays Today / This week (list). Employees don't
+  need to look months out — that's a manager planning tool.
+- Keep from design: the **task table**, **KPI tiles**, the **New Task modal** (esp. the
+  key-phrase → hyperlink inserter), **view + edit** row actions, **red past-due bar**.
+
+## 14. Bigger-picture (separate projects, noted here)
+- **Notification bell + dropdown** and a **notifications / new-posts feed** — this is the
+  feed/notifications project (roadmap). The checklist feeds it; build the feed separately.
+- **Top nav bar?** MyRepairTools currently uses the side rail + menu as primary. Adding
+  a top bar is a **nav-shell decision** to make on its own, not inside Checklists.
