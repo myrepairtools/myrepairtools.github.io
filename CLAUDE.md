@@ -20,13 +20,19 @@ Each tool is **one self-contained HTML file** at the repo root (e.g. `cash-track
 code is in `assets/`. There is no component system or templating — when a pattern needs to
 change across tools, it changes in each file or in a shared `assets/*.js`.
 
-`index.html` is the **employee dashboard** — the landing page for everyone after sign-in.
-It greets the user (`window.CPRNavName`) and shows a customizable widget grid (My Tasks,
-My Commission, My Schedule, Communications, Quick Links). Each widget has a 100/60/40
-width preset and is drag-reorderable in "Customize" mode; the layout is persisted in
-`localStorage` (`cprDashLayout`). Widgets currently carry sample/Preview data and get wired
-to live sources as each tool comes online. `operations.html` / `admin.html` are thin
-redirect/landing stubs. `login-test.html` and `settings.html` are utility pages.
+`index.html` is the **employee dashboard** — the landing page for everyone after sign-in
+(also listed under **My Hub** in `nav.js`). It greets the user (`window.CPRNavName`) and
+renders a **widget registry** (the `REG` array in its inline script): each widget is a
+module `{ id, title, icon, accent, defaultSize, tag, link, can(), render(), mount() }`.
+In "Customize" mode each widget is **drag-reorderable**, has a **100/60/40 width preset**,
+can be **removed**, and an **"＋ Add a widget"** gallery offers any registry widget not on
+the board (gated by `can()` against role/`window.CPRPerms`). To add a widget, push a module
+to `REG`; that's the whole "widget library." Layout persists **per-user in Supabase**
+(`dashboard_layouts`, keyed by `staff_id`) with a `localStorage` (`cprDashLayout`) cache /
+offline fallback. Several widgets still carry sample/Preview data; the **My Commission**
+widget is wired to real numbers via `assets/commission-summary.js`. `operations.html` /
+`admin.html` are thin redirect/landing stubs. `login-test.html` / `settings.html` are
+utility pages.
 
 The brand system (reused everywhere): fonts `Nunito` / `Nunito Sans`; CSS custom props
 `--red:#DC282E --dark:#2D2D3B --blue:#4FB0E3 --grey:#B9BDCB --light-grey:#F3F2F2`. Match
@@ -49,6 +55,11 @@ these when adding UI so a new tool looks native.
   `sort`, `options`, `find`). Store `name` must match RepairQ/sheet exports exactly;
   `aliases` resolve older spellings. Add/rename/remove stores **only here**.
 - **`hyla/rq-device-catalog.json`** — RepairQ device catalog consumed by `hyla-orders.html`.
+- **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
+  source of truth for the Commission Calculator + Dashboard. Never re-implement the math.
+- **`commission-summary.js`** — one call (`window.CPRCommissionSummary.forMe()`) returning the
+  signed-in user's current-month `{ commission, tips, total, goal }` using the engine. Used by
+  the dashboard's My Commission widget; load `commission-engine.js` before it.
 
 ## Auth & roles
 

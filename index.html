@@ -39,11 +39,12 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .w[data-size="full"]{grid-column:span 10}
 .w[data-size="wide"]{grid-column:span 6}
 .w[data-size="narrow"]{grid-column:span 4}
-.w[data-wid="tasks"]{--accent:var(--green)}
-.w[data-wid="commission"]{--accent:var(--blue)}
-.w[data-wid="schedule"]{--accent:var(--purple)}
-.w[data-wid="comms"]{--accent:var(--red)}
-.w[data-wid="links"]{--accent:var(--dark)}
+.w[data-accent="green"]{--accent:var(--green)}
+.w[data-accent="blue"]{--accent:var(--blue)}
+.w[data-accent="purple"]{--accent:var(--purple)}
+.w[data-accent="red"]{--accent:var(--red)}
+.w[data-accent="amber"]{--accent:var(--amber)}
+.w[data-accent="dark"]{--accent:var(--dark)}
 .w-hd{display:flex;align-items:center;gap:10px;padding:15px 17px 13px;border-bottom:1px solid #F1F2F6}
 .w-ic{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;font-size:1rem;background:var(--light-grey);flex:none}
 .w-hd h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;letter-spacing:-.2px}
@@ -59,13 +60,35 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .w-size{display:none;margin-left:auto;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:2px}
 .w-size button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;color:var(--dark-grey);background:none;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
 .w-size button.on{background:var(--white);color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.12)}
+.w-del{display:none;margin-left:8px;width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--white);color:var(--grey);cursor:pointer;font-size:.8rem;align-items:center;justify-content:center;flex:none}
+.w-del:hover{color:var(--red);border-color:#F6C9CA;background:#FFF1F1}
 .editing .w{border:1.5px dashed var(--blue);border-top-width:3px}
 .editing .w-hd{cursor:grab}
 .editing .w-grip{display:block}
 .editing .w-size{display:inline-flex}
+.editing .w-del{display:inline-flex}
 .editing .w-link,.editing .w-tag{display:none}
 .editing .w-bd{opacity:.55;pointer-events:none}
 .w.dragging{opacity:.4;box-shadow:0 12px 30px rgba(45,45,59,.18)}
+
+/* add-widget tile + gallery (edit mode) */
+.w-add{display:none;grid-column:span 4;align-items:center;justify-content:center;gap:9px;min-height:96px;background:none;border:2px dashed var(--grey);border-radius:14px;color:var(--dark-grey);font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;cursor:pointer;transition:all .15s}
+.w-add:hover{border-color:var(--blue);color:var(--blue);background:#EAF6FD}
+.editing .w-add{display:flex}
+.wg-modal{display:none;position:fixed;inset:0;z-index:1200;background:rgba(45,45,59,.5);align-items:center;justify-content:center;padding:20px}
+.wg-modal.show{display:flex}
+.wg-card{background:#fff;border-radius:16px;width:100%;max-width:460px;max-height:84vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(45,45,59,.3)}
+.wg-hd{display:flex;align-items:center;padding:17px 19px;border-bottom:1px solid var(--border);font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.wg-hd button{margin-left:auto;border:none;background:none;font-size:1.1rem;color:var(--grey);cursor:pointer}
+.wg-list{padding:10px;overflow-y:auto}
+.wg-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:11px}
+.wg-item:hover{background:var(--light-grey)}
+.wg-item .gi{width:34px;height:34px;border-radius:9px;background:var(--light-grey);display:grid;place-items:center;font-size:1.05rem;flex:none}
+.wg-item .gt{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem}
+.wg-item .gd{font-size:.76rem;color:var(--dark-grey);margin-top:1px}
+.wg-item .gadd{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:#fff;background:var(--blue);border:none;border-radius:8px;padding:7px 13px;cursor:pointer;flex:none}
+.wg-item .gadd:hover{filter:brightness(1.07)}
+.wg-empty{padding:24px;text-align:center;color:var(--grey);font-size:.85rem;font-weight:700}
 
 /* tasks */
 .tasklist{list-style:none;display:flex;flex-direction:column;gap:2px}
@@ -81,7 +104,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .tg.must{color:var(--red);background:#FFF1F1;border:1px solid #F6C9CA}
 .tg.asap{color:var(--amber);background:#FEF6E7;border:1px solid #F3D9A8}
 
-/* kpis (commission) */
+/* kpis (commission / generic) */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .kpi{background:var(--light-grey);border-radius:11px;padding:12px}
 .kpi .kl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
@@ -103,6 +126,23 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .hoursline .hl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
 .hoursline .hv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark)}
 
+/* leaderboard */
+.lb{list-style:none;display:flex;flex-direction:column;gap:3px}
+.lb li{display:flex;align-items:center;gap:11px;padding:8px 6px;border-radius:9px}
+.lb li:hover{background:var(--light-grey)}
+.lb .rk{width:22px;height:22px;border-radius:50%;background:var(--light-grey);display:grid;place-items:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem;color:var(--dark-grey);flex:none}
+.lb li.me .rk{background:var(--blue);color:#fff}
+.lb .ln{font-family:'Nunito',sans-serif;font-weight:700;font-size:.88rem}
+.lb .lv{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:900;font-size:.88rem;color:var(--dark)}
+
+/* tills (cash status) */
+.tills{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px}
+.till{background:var(--light-grey);border-radius:10px;padding:11px}
+.till .tl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.till .tv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin-top:3px}
+.till .ts{font-size:.64rem;font-weight:800;margin-top:2px}
+.till .ts.ok{color:var(--green)} .till .ts.bad{color:var(--red)}
+
 /* empty state */
 .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;padding:26px 14px;color:var(--grey)}
 .empty .ei{font-size:1.8rem;opacity:.7}
@@ -118,7 +158,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 
 .foot-note{margin-top:22px;font-size:.74rem;color:var(--grey);text-align:center}
 
-@media(max-width:1000px){ .w{grid-column:1/-1 !important} .w-size{display:none !important} .editing .w-hd{cursor:default} .editing .w-grip{display:none} }
+@media(max-width:1000px){ .w,.w-add{grid-column:1/-1 !important} .w-size{display:none !important} .editing .w-hd{cursor:default} .editing .w-grip{display:none} }
 @media(max-width:560px){ main{padding:18px 16px 60px} .hi{font-size:1.6rem} .kpis{grid-template-columns:1fr 1fr} }
 </style>
 </head>
@@ -138,214 +178,283 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     </div>
   </div>
 
-  <div class="edit-note">↔ Drag a widget by its header to reorder · pick <b>100 / 60 / 40</b> width · changes save automatically.</div>
+  <div class="edit-note">↔ Drag a widget by its header to reorder · pick <b>100 / 60 / 40</b> width · <b>＋ Add a widget</b> to bring more in · changes save automatically.</div>
 
-  <div class="widgets" id="widgets">
+  <div class="widgets" id="widgets"></div>
 
-    <!-- My Tasks -->
-    <section class="w" data-wid="tasks" data-size="wide" draggable="false">
-      <div class="w-hd" data-handle>
-        <span class="w-grip">⠿</span>
-        <span class="w-ic">✅</span><h2>My Tasks</h2>
-        <span class="w-tag preview">Preview</span>
-        <a class="w-link" href="#">View all →</a>
-        <span class="w-size" data-size-ctl></span>
-      </div>
-      <div class="w-bd">
-        <ul class="tasklist">
-          <li class="task"><span class="cbx"></span><div><div class="tt">Open registers &amp; count tills</div><div class="tm">Opening · due 10:00 AM</div></div><span class="tg must">Must do</span></li>
-          <li class="task"><span class="cbx"></span><div><div class="tt">Wipe down counters &amp; demo phones</div><div class="tm">Anytime today</div></div><span class="tg asap">ASAP</span></li>
-          <li class="task"><span class="cbx"></span><div><div class="tt">Restock screen protectors</div><div class="tm">Anytime today</div></div></li>
-          <li class="task done"><span class="cbx"></span><div><div class="tt">Check overnight repair queue</div><div class="tm">Completed 9:12 AM</div></div></li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- My Commission -->
-    <section class="w" data-wid="commission" data-size="narrow" draggable="false">
-      <div class="w-hd" data-handle>
-        <span class="w-grip">⠿</span>
-        <span class="w-ic">📈</span><h2>My Commission</h2>
-        <span class="w-tag preview">Preview</span>
-        <a class="w-link" href="commission-dashboard.html">Open →</a>
-        <span class="w-size" data-size-ctl></span>
-      </div>
-      <div class="w-bd">
-        <div class="kpis">
-          <div class="kpi"><div class="kl">Commission</div><div class="kv">$612</div></div>
-          <div class="kpi"><div class="kl">Tips</div><div class="kv">$88</div></div>
-          <div class="kpi tot"><div class="kl">Total</div><div class="kv">$700</div></div>
-        </div>
-        <div class="goal">
-          <div class="goal-row"><span>Pay-period goal</span><span>62% of $1,500</span></div>
-          <div class="bar-track"><div class="bar-fill" style="width:62%"></div></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Communications -->
-    <section class="w" data-wid="comms" data-size="wide" draggable="false">
-      <div class="w-hd" data-handle>
-        <span class="w-grip">⠿</span>
-        <span class="w-ic">📣</span><h2>Communications</h2>
-        <span class="w-tag soon">Coming soon</span>
-        <span class="w-size" data-size-ctl></span>
-      </div>
-      <div class="w-bd">
-        <div class="empty">
-          <div class="ei">📭</div>
-          <div class="et">No new messages</div>
-          <div class="es">Store announcements, shift swaps, and manager notes will show up here.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- My Schedule -->
-    <section class="w" data-wid="schedule" data-size="narrow" draggable="false">
-      <div class="w-hd" data-handle>
-        <span class="w-grip">⠿</span>
-        <span class="w-ic">🗓️</span><h2>My Schedule</h2>
-        <span class="w-tag preview">Preview</span>
-        <a class="w-link" href="my-schedule.html">View →</a>
-        <span class="w-size" data-size-ctl></span>
-      </div>
-      <div class="w-bd">
-        <div class="shift">
-          <div class="day"><div class="dow">Today</div><div class="dnum" id="schDay">27</div></div>
-          <div class="si"><div class="stime">10:00 AM – 6:00 PM</div><div class="sloc">Eugene · 8.0 hrs</div></div>
-        </div>
-        <div class="hoursline"><span class="hl">Scheduled this week</span><span class="hv">32.5 hrs</span></div>
-      </div>
-    </section>
-
-    <!-- Quick Links -->
-    <section class="w" data-wid="links" data-size="full" draggable="false">
-      <div class="w-hd" data-handle>
-        <span class="w-grip">⠿</span>
-        <span class="w-ic">⚡</span><h2>Quick Links</h2>
-        <span class="w-size" data-size-ctl></span>
-      </div>
-      <div class="w-bd">
-        <div class="qlinks">
-          <a class="ql" href="cash-tracker.html"><span class="qi">💵</span><span class="qn">Cash Tracker</span></a>
-          <a class="ql" href="price-guide.html"><span class="qi">📱</span><span class="qn">Price Guide</span></a>
-          <a class="ql" href="price-calculator.html"><span class="qi">🧮</span><span class="qn">Price Calculator</span></a>
-          <a class="ql" href="commission-dashboard.html"><span class="qi">📈</span><span class="qn">My Commission</span></a>
-          <a class="ql" href="my-schedule.html"><span class="qi">🗓️</span><span class="qn">My Schedule</span></a>
-          <a class="ql" href="damage-tracker.html"><span class="qi">🔧</span><span class="qn">Damage Tracker</span></a>
-        </div>
-      </div>
-    </section>
-
-  </div>
-
-  <div class="foot-note">Dashboard shell · widgets fill in as tools come online.</div>
+  <div class="foot-note">Dashboard · widgets fill in as tools come online.</div>
 </main>
+
+<!-- add-widget gallery -->
+<div class="wg-modal" id="wgModal">
+  <div class="wg-card">
+    <div class="wg-hd">Add a widget <button id="wgClose">✕</button></div>
+    <div class="wg-list" id="wgList"></div>
+  </div>
+</div>
 
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
+<script src="assets/commission-engine.js"></script>
+<script src="assets/commission-summary.js"></script>
 <script>
 (function(){
-  var greetEl = document.getElementById('greeting');
-  var subEl   = document.getElementById('subline');
-
-  /* ---------- greeting + date ---------- */
+  /* ====================== greeting + date ====================== */
+  var greetEl=document.getElementById('greeting'), subEl=document.getElementById('subline');
   function timeGreeting(){ var h=new Date().getHours(); return h<12?'Good morning':h<18?'Good afternoon':'Good evening'; }
   function firstName(){ var n=(window.CPRNavName||'').trim(); return n?n.split(/\s+/)[0]:''; }
-  function applyGreeting(){ var fn=firstName(); greetEl.textContent = timeGreeting() + (fn?', '+fn:''); }
+  function applyGreeting(){ var fn=firstName(); greetEl.textContent=timeGreeting()+(fn?', '+fn:''); }
   (function(){
-    var d=new Date();
-    var days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var d=new Date(), days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var mons=['January','February','March','April','May','June','July','August','September','October','November','December'];
-    subEl.textContent = days[d.getDay()]+', '+mons[d.getMonth()]+' '+d.getDate()+' · here’s your day at a glance.';
-    var sd=document.getElementById('schDay'); if(sd) sd.textContent=d.getDate();
+    subEl.textContent=days[d.getDay()]+', '+mons[d.getMonth()]+' '+d.getDate()+' · here’s your day at a glance.';
   })();
-  window.addEventListener('cprnav:auth', applyGreeting);
+  window.addEventListener('cprnav:auth', function(){ applyGreeting(); rebuildIfRoleChanged(); });
   setTimeout(applyGreeting, 300);
 
-  /* ---------- Ask AI ---------- */
   document.getElementById('aiBtn').onclick=function(){
     if (window.CPRAssistant && window.CPRAssistant.open){ window.CPRAssistant.open(); return; }
     alert('The AI assistant is coming soon — ask questions, analyze panic logs, and draft customer replies right from here.');
   };
 
-  /* ---------- customizable layout ---------- */
-  var LS='cprDashLayout';
+  /* ====================== role / perms helpers ====================== */
+  var RANK={none:0,employee:1,team_member:1,manager:2,admin:2,owner:3};
+  function rank(){ return RANK[window.CPRNavRole]||0; }
+  function hasPerm(k){ var p=window.CPRPerms; return !p ? true : (p.indexOf(k)>-1); } // perms unknown -> allow
+
+  /* ====================== widget registry ====================== */
+  var todayNum=new Date().getDate();
+  var REG=[
+    { id:'tasks', title:'My Tasks', icon:'✅', accent:'green', defaultSize:'wide',
+      desc:'Today’s checklist items and due tasks.', tag:{t:'preview',x:'Preview'}, link:{href:'#',x:'View all →'},
+      render:function(){ return ''
+        +'<ul class="tasklist">'
+        +'<li class="task"><span class="cbx"></span><div><div class="tt">Open registers &amp; count tills</div><div class="tm">Opening · due 10:00 AM</div></div><span class="tg must">Must do</span></li>'
+        +'<li class="task"><span class="cbx"></span><div><div class="tt">Wipe down counters &amp; demo phones</div><div class="tm">Anytime today</div></div><span class="tg asap">ASAP</span></li>'
+        +'<li class="task"><span class="cbx"></span><div><div class="tt">Restock screen protectors</div><div class="tm">Anytime today</div></div></li>'
+        +'<li class="task done"><span class="cbx"></span><div><div class="tt">Check overnight repair queue</div><div class="tm">Completed 9:12 AM</div></div></li>'
+        +'</ul>'; } },
+
+    { id:'commission', title:'My Commission', icon:'📈', accent:'blue', defaultSize:'narrow',
+      desc:'Your commission, tips and goal this period.', tag:{t:'preview',x:'Preview'}, link:{href:'commission-dashboard.html',x:'Open →'},
+      render:function(){ return ''
+        +'<div class="kpis" data-comm-kpis>'
+        +'<div class="kpi"><div class="kl">Commission</div><div class="kv" data-k="commission">—</div></div>'
+        +'<div class="kpi"><div class="kl">Tips</div><div class="kv" data-k="tips">—</div></div>'
+        +'<div class="kpi tot"><div class="kl">Total</div><div class="kv" data-k="total">—</div></div>'
+        +'</div>'
+        +'<div class="goal" data-comm-goal style="display:none">'
+        +'<div class="goal-row"><span data-g="label">Pay-period goal</span><span data-g="pct"></span></div>'
+        +'<div class="bar-track"><div class="bar-fill" data-g="bar" style="width:0%"></div></div>'
+        +'</div>'
+        +'<div class="empty" data-comm-empty style="display:none;padding:14px 4px"><div class="et" data-comm-msg>Sign in to see your commission.</div></div>'; },
+      mount:function(bd){ loadCommission(bd); } },
+
+    { id:'comms', title:'Communications', icon:'📣', accent:'red', defaultSize:'wide',
+      desc:'Store announcements, shift swaps, manager notes.', tag:{t:'soon',x:'Coming soon'},
+      render:function(){ return '<div class="empty"><div class="ei">📭</div><div class="et">No new messages</div><div class="es">Store announcements, shift swaps, and manager notes will show up here.</div></div>'; } },
+
+    { id:'schedule', title:'My Schedule', icon:'🗓️', accent:'purple', defaultSize:'narrow',
+      desc:'Your next shift and hours this week.', tag:{t:'preview',x:'Preview'}, link:{href:'my-schedule.html',x:'View →'},
+      render:function(){ return ''
+        +'<div class="shift"><div class="day"><div class="dow">Today</div><div class="dnum">'+todayNum+'</div></div>'
+        +'<div class="si"><div class="stime">10:00 AM – 6:00 PM</div><div class="sloc">Eugene · 8.0 hrs</div></div></div>'
+        +'<div class="hoursline"><span class="hl">Scheduled this week</span><span class="hv">32.5 hrs</span></div>'; } },
+
+    { id:'links', title:'Quick Links', icon:'⚡', accent:'dark', defaultSize:'full',
+      desc:'Fast access to the tools you use most.',
+      render:function(){ return ''
+        +'<div class="qlinks">'
+        +'<a class="ql" href="cash-tracker.html"><span class="qi">💵</span><span class="qn">Cash Tracker</span></a>'
+        +'<a class="ql" href="price-guide.html"><span class="qi">📱</span><span class="qn">Price Guide</span></a>'
+        +'<a class="ql" href="price-calculator.html"><span class="qi">🧮</span><span class="qn">Price Calculator</span></a>'
+        +'<a class="ql" href="commission-dashboard.html"><span class="qi">📈</span><span class="qn">My Commission</span></a>'
+        +'<a class="ql" href="my-schedule.html"><span class="qi">🗓️</span><span class="qn">My Schedule</span></a>'
+        +'<a class="ql" href="damage-tracker.html"><span class="qi">🔧</span><span class="qn">Damage Tracker</span></a>'
+        +'</div>'; } },
+
+    /* ---- library extras (not in the default board; available from the gallery) ---- */
+    { id:'goals', title:'My Goals', icon:'🎯', accent:'amber', defaultSize:'narrow',
+      desc:'Track attach rate and personal targets.', tag:{t:'preview',x:'Preview'},
+      render:function(){ return ''
+        +'<div class="goal" style="margin-top:0"><div class="goal-row"><span>Accessory attach</span><span>48% of 55%</span></div><div class="bar-track"><div class="bar-fill" style="width:87%"></div></div></div>'
+        +'<div class="goal"><div class="goal-row"><span>Google reviews</span><span>6 of 10</span></div><div class="bar-track"><div class="bar-fill" style="width:60%;background:var(--green)"></div></div></div>'; } },
+
+    { id:'leaderboard', title:'Store Leaderboard', icon:'🏆', accent:'blue', defaultSize:'narrow',
+      desc:'This week’s top performers at your store.', tag:{t:'preview',x:'Preview'},
+      render:function(){ return ''
+        +'<ul class="lb">'
+        +'<li><span class="rk">1</span><span class="ln">Vince R.</span><span class="lv">$1,420</span></li>'
+        +'<li class="me"><span class="rk">2</span><span class="ln">You</span><span class="lv">$1,180</span></li>'
+        +'<li><span class="rk">3</span><span class="ln">Marcus T.</span><span class="lv">$980</span></li>'
+        +'</ul>'; } },
+
+    { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
+      desc:'Till & safe balances — managers only.', tag:{t:'preview',x:'Preview'},
+      can:function(){ return rank()>=RANK.manager || hasPerm('cash.admin'); },
+      render:function(){ return ''
+        +'<div class="tills">'
+        +'<div class="till"><div class="tl">Till #1</div><div class="tv">$1,240</div><div class="ts ok">Balanced</div></div>'
+        +'<div class="till"><div class="tl">Till #2</div><div class="tv">$980</div><div class="ts ok">Balanced</div></div>'
+        +'<div class="till"><div class="tl">Safe</div><div class="tv">$5,400</div><div class="ts bad">Count due</div></div>'
+        +'</div>'; } }
+  ];
+  function byId(id){ for(var i=0;i<REG.length;i++){ if(REG[i].id===id) return REG[i]; } return null; }
+  function canShow(def){ return def && (!def.can || def.can()); }
+
+  var DEFAULT_LAYOUT=[
+    {id:'tasks',size:'wide'},{id:'commission',size:'narrow'},
+    {id:'comms',size:'wide'},{id:'schedule',size:'narrow'},
+    {id:'links',size:'full'}
+  ];
   var SIZES=[['full','100'],['wide','60'],['narrow','40']];
+
+  /* ====================== render engine ====================== */
   var grid=document.getElementById('widgets');
-  var editing=false, dragEl=null;
+  var editing=false, dragEl=null, addTile=null, lastRole=null;
 
-  // build the 100/60/40 segmented control inside each widget header
-  Array.prototype.forEach.call(grid.querySelectorAll('[data-size-ctl]'), function(ctl){
-    var w=ctl.closest('.w');
-    SIZES.forEach(function(s){
-      var b=document.createElement('button');
-      b.textContent=s[1]; b.setAttribute('data-sz',s[0]);
-      b.onclick=function(e){ e.stopPropagation(); setSize(w,s[0]); save(); };
-      ctl.appendChild(b);
-    });
-  });
-  function setSize(w,sz){
-    w.setAttribute('data-size',sz);
-    Array.prototype.forEach.call(w.querySelectorAll('[data-size-ctl] button'), function(b){
-      b.classList.toggle('on', b.getAttribute('data-sz')===sz);
-    });
+  function widgetEl(rec){
+    var def=byId(rec.id); if(!canShow(def)) return null;
+    var el=document.createElement('section');
+    el.className='w'; el.setAttribute('data-wid',def.id);
+    el.setAttribute('data-size', rec.size||def.defaultSize); el.setAttribute('data-accent',def.accent);
+    el.setAttribute('draggable','false');
+    var tag = def.tag ? '<span class="w-tag '+def.tag.t+'">'+def.tag.x+'</span>' : '';
+    var link= def.link ? '<a class="w-link" href="'+def.link.href+'">'+def.link.x+'</a>' : '';
+    el.innerHTML=''
+      +'<div class="w-hd" data-handle>'
+      +'<span class="w-grip">⠿</span>'
+      +'<span class="w-ic">'+def.icon+'</span><h2>'+def.title+'</h2>'
+      +tag+link
+      +'<span class="w-size" data-size-ctl></span>'
+      +'<button class="w-del" title="Remove widget">✕</button>'
+      +'</div>'
+      +'<div class="w-bd"></div>';
+    var bd=el.querySelector('.w-bd'); bd.innerHTML=def.render();
+    var ctl=el.querySelector('[data-size-ctl]');
+    SIZES.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.setAttribute('data-sz',s[0]);
+      b.onclick=function(e){ e.stopPropagation(); setSize(el,s[0]); save(); }; ctl.appendChild(b); });
+    refreshSize(el);
+    el.querySelector('.w-del').onclick=function(e){ e.stopPropagation(); el.remove(); save(); };
+    el.addEventListener('dragstart', function(e){ if(!editing){ e.preventDefault(); return; } dragEl=el; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain','');}catch(_){}} );
+    el.addEventListener('dragend', function(){ el.classList.remove('dragging'); dragEl=null; save(); });
+    if (def.mount) try{ def.mount(bd, el); }catch(_){}
+    return el;
   }
-  function refreshSizeButtons(){
-    Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(w){ setSize(w, w.getAttribute('data-size')); });
-  }
+  function setSize(el,sz){ el.setAttribute('data-size',sz); refreshSize(el); }
+  function refreshSize(el){ var sz=el.getAttribute('data-size');
+    Array.prototype.forEach.call(el.querySelectorAll('[data-size-ctl] button'), function(b){ b.classList.toggle('on', b.getAttribute('data-sz')===sz); }); }
 
-  function save(){
-    try{
-      var arr=Array.prototype.map.call(grid.querySelectorAll('.w'), function(w){
-        return { id:w.getAttribute('data-wid'), size:w.getAttribute('data-size') };
-      });
-      localStorage.setItem(LS, JSON.stringify(arr));
-    }catch(_){}
+  function ensureAddTile(){
+    if(!addTile){ addTile=document.createElement('button'); addTile.className='w-add'; addTile.id='addTile';
+      addTile.innerHTML='＋ Add a widget'; addTile.onclick=openGallery; }
+    grid.appendChild(addTile);
   }
-  function load(){
-    var arr; try{ arr=JSON.parse(localStorage.getItem(LS)); }catch(_){ arr=null; }
-    if(!arr || !arr.length) { refreshSizeButtons(); return; }
-    arr.forEach(function(rec){
-      var w=grid.querySelector('.w[data-wid="'+rec.id+'"]');
-      if(w){ if(rec.size) w.setAttribute('data-size',rec.size); grid.appendChild(w); }  // re-append in saved order
-    });
-    refreshSizeButtons();
+  function renderLayout(layout){
+    grid.innerHTML=''; addTile=null;
+    (layout||[]).forEach(function(rec){ var el=widgetEl(rec); if(el) grid.appendChild(el); });
+    ensureAddTile();
+    Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(el){ el.setAttribute('draggable', editing?'true':'false'); });
   }
+  function getLayout(){ return Array.prototype.map.call(grid.querySelectorAll('.w[data-wid]'), function(el){
+    return { id:el.getAttribute('data-wid'), size:el.getAttribute('data-size') }; }); }
 
-  // drag to reorder (desktop). Insert near the widget whose centre is closest.
   function place(x,y){
-    var items=grid.querySelectorAll('.w:not(.dragging)');
-    var best=null, bestD=Infinity, after=false;
-    Array.prototype.forEach.call(items, function(it){
-      var r=it.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
-      var d=(x-cx)*(x-cx)+(y-cy)*(y-cy);
-      if(d<bestD){ bestD=d; best=it; after=(x>cx); if(y>r.bottom) after=true; if(y<r.top) after=false; }
-    });
-    if(!best){ grid.appendChild(dragEl); return; }
+    var items=grid.querySelectorAll('.w:not(.dragging)'), best=null,bestD=Infinity,after=false;
+    Array.prototype.forEach.call(items, function(it){ var r=it.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+      var d=(x-cx)*(x-cx)+(y-cy)*(y-cy); if(d<bestD){ bestD=d; best=it; after=(x>cx); if(y>r.bottom) after=true; if(y<r.top) after=false; } });
+    if(!best){ grid.insertBefore(dragEl, addTile); return; }
     best.parentNode.insertBefore(dragEl, after?best.nextSibling:best);
+    if(addTile) grid.appendChild(addTile);
   }
-  Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(w){
-    w.addEventListener('dragstart', function(e){ if(!editing){ e.preventDefault(); return; } dragEl=w; w.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain','');}catch(_){}} );
-    w.addEventListener('dragend', function(){ if(dragEl){ dragEl.classList.remove('dragging'); } dragEl=null; save(); });
-  });
   grid.addEventListener('dragover', function(e){ if(!editing||!dragEl) return; e.preventDefault(); place(e.clientX,e.clientY); });
 
-  // toggle edit mode — only then are widgets draggable
+  /* ====================== add-widget gallery ====================== */
+  var modal=document.getElementById('wgModal'), wgList=document.getElementById('wgList');
+  function shownIds(){ var s={}; Array.prototype.forEach.call(grid.querySelectorAll('.w[data-wid]'), function(el){ s[el.getAttribute('data-wid')]=1; }); return s; }
+  function openGallery(){ buildGallery(); modal.classList.add('show'); }
+  function closeGallery(){ modal.classList.remove('show'); }
+  function buildGallery(){
+    var shown=shownIds(), rows='';
+    REG.forEach(function(def){ if(shown[def.id] || !canShow(def)) return;
+      rows+='<div class="wg-item" data-add="'+def.id+'"><span class="gi">'+def.icon+'</span>'
+        +'<div><div class="gt">'+def.title+'</div><div class="gd">'+(def.desc||'')+'</div></div>'
+        +'<button class="gadd">Add</button></div>'; });
+    wgList.innerHTML = rows || '<div class="wg-empty">All available widgets are on your dashboard.</div>';
+    Array.prototype.forEach.call(wgList.querySelectorAll('[data-add]'), function(row){
+      row.querySelector('.gadd').onclick=function(){ addWidget(row.getAttribute('data-add')); }; });
+  }
+  function addWidget(id){
+    var def=byId(id); if(!def) return;
+    var el=widgetEl({id:id,size:def.defaultSize}); if(!el) return;
+    grid.insertBefore(el, addTile||null);
+    el.setAttribute('draggable', editing?'true':'false');
+    save(); buildGallery();
+  }
+  document.getElementById('wgClose').onclick=closeGallery;
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeGallery(); });
+
+  /* ====================== edit mode ====================== */
   function setEditing(on){
-    editing=on;
-    document.body.classList.toggle('editing', on);
-    document.getElementById('editBtn').classList.toggle('on', on);
-    document.getElementById('editBtn').innerHTML = on ? '✓ Done' : '⚙ Customize';
-    Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(w){ w.setAttribute('draggable', on?'true':'false'); });
+    editing=on; document.body.classList.toggle('editing',on);
+    var b=document.getElementById('editBtn'); b.classList.toggle('on',on); b.innerHTML=on?'✓ Done':'⚙ Customize';
+    Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(el){ el.setAttribute('draggable', on?'true':'false'); });
+    if(!on) closeGallery();
   }
   document.getElementById('editBtn').onclick=function(){ setEditing(!editing); };
-  document.getElementById('resetBtn').onclick=function(){
-    try{ localStorage.removeItem(LS); }catch(_){}
-    location.reload();
-  };
+  document.getElementById('resetBtn').onclick=function(){ localStorageSet(null); applyLayout(DEFAULT_LAYOUT); save(); };
 
-  load();
+  /* ====================== persistence (Supabase per-user + localStorage) ====================== */
+  var LS='cprDashLayout';
+  var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+  var SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+  var sbP=null, staffP=null, saveT=null;
+  function sbClient(){ if(sbP) return sbP; sbP=import('https://esm.sh/@supabase/supabase-js@2').then(function(m){ return m.createClient(SB_URL,SB_ANON); }).catch(function(){ return null; }); return sbP; }
+  function myStaffId(){ if(staffP) return staffP; staffP=sbClient().then(function(sb){ if(!sb) return null;
+      return sb.auth.getUser().then(function(res){ var u=res&&res.data&&res.data.user; if(!u) return null;
+        return sb.from('staff').select('id').eq('auth_uid',u.id).maybeSingle().then(function(r){ return r.data?r.data.id:null; }); }); }).catch(function(){ return null; }); return staffP; }
+
+  function localStorageGet(){ try{ var a=JSON.parse(localStorage.getItem(LS)); return (a&&a.length)?a:null; }catch(_){ return null; } }
+  function localStorageSet(v){ try{ if(v) localStorage.setItem(LS, JSON.stringify(v)); else localStorage.removeItem(LS); }catch(_){} }
+
+  function save(){
+    var layout=getLayout();
+    localStorageSet(layout);
+    clearTimeout(saveT);
+    saveT=setTimeout(function(){ myStaffId().then(function(id){ if(!id) return; sbClient().then(function(sb){ if(!sb) return;
+      sb.from('dashboard_layouts').upsert({ staff_id:id, layout:layout, updated_at:new Date().toISOString() }, { onConflict:'staff_id' }).then(function(){}, function(){}); }); }); }, 600);
+  }
+  function applyLayout(layout){ renderLayout(layout); }
+
+  function syncFromCloud(){
+    myStaffId().then(function(id){ if(!id) return; sbClient().then(function(sb){ if(!sb) return;
+      sb.from('dashboard_layouts').select('layout').eq('staff_id',id).maybeSingle().then(function(r){
+        if(r && r.data && Array.isArray(r.data.layout) && r.data.layout.length){ localStorageSet(r.data.layout); applyLayout(r.data.layout); }
+      }, function(){}); }); });
+  }
+
+  function rebuildIfRoleChanged(){ var r=window.CPRNavRole||'none'; if(r!==lastRole){ lastRole=r; applyLayout(getLayout().length?getLayout():(localStorageGet()||DEFAULT_LAYOUT)); } }
+
+  /* ====================== commission wiring (real data) ====================== */
+  function money0(n){ return '$'+Math.round(Number(n)||0).toLocaleString('en-US'); }
+  function loadCommission(bd){
+    if(!window.CPRCommissionSummary || !window.CPRCommissionSummary.forMe){ return; }
+    window.CPRCommissionSummary.forMe().then(function(s){
+      if(!s){ var k=bd.querySelector('[data-comm-kpis]'); if(k)k.style.display='none'; var em=bd.querySelector('[data-comm-empty]'); if(em) em.style.display='block'; return; }
+      var set=function(key,v){ var el=bd.querySelector('[data-k="'+key+'"]'); if(el) el.textContent=v; };
+      set('commission', money0(s.commission)); set('tips', money0(s.tips)); set('total', money0(s.total));
+      if(s.goal && s.goal>0){ var cur=Number(s.goalCurrent)||0, pct=Math.min(100,Math.round((cur/s.goal)*100));
+        var g=bd.querySelector('[data-comm-goal]'); if(g){ g.style.display='block';
+          g.querySelector('[data-g="label"]').textContent=s.goalLabel||'Goal';
+          g.querySelector('[data-g="pct"]').textContent=money0(cur)+' of '+money0(s.goal);
+          g.querySelector('[data-g="bar"]').style.width=pct+'%'; } }
+    }, function(){});
+  }
+
+  /* ====================== boot ====================== */
+  lastRole=window.CPRNavRole||'none';
+  applyLayout(localStorageGet() || DEFAULT_LAYOUT);
+  syncFromCloud();
 })();
 </script>
 </body>
