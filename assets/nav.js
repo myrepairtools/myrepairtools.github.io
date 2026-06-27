@@ -109,15 +109,13 @@
   @view-transition { navigation: auto; }
   ::view-transition-old(root),::view-transition-new(root){ animation-duration:.18s; }
 
-  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px;
+  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px; --cpr-top-h:52px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }
   .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:'Nunito','Nunito Sans',sans-serif; }
 
-  /* icon rail — CPR Blue Dark, white icons */
-  .cpr-rail{ position:fixed; top:0; left:0; bottom:0; width:var(--cpr-rail-w);
+  /* icon rail — CPR Blue Dark, white icons. Starts below the top bar (app shell). */
+  .cpr-rail{ position:fixed; top:var(--cpr-top-h); left:0; bottom:0; width:var(--cpr-rail-w);
     background:var(--cpr-blue-dark); z-index:1001; display:flex; flex-direction:column; align-items:center; padding-top:12px; gap:6px; }
-  .cpr-rail .cpr-brand{ width:42px; height:42px; border-radius:11px; background:var(--cpr-red); display:flex; align-items:center; justify-content:center; margin-bottom:10px; text-decoration:none; }
-  .cpr-rail .cpr-brand svg{ width:20px; height:20px; }
   .cpr-rail .cpr-burger2{ display:none; width:40px; height:40px; border:none; background:none; color:#fff; font-size:1.3rem; cursor:pointer; border-radius:11px; }
   .cpr-rail .cpr-burger2:hover{ background:rgba(255,255,255,.12); }
   .cpr-rail .cpr-areabtn{ width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
@@ -152,7 +150,7 @@
   @media(max-width:859px){ .cpr-flyout{ display:none !important; } }
 
   /* menu pane */
-  .cpr-pane{ position:fixed; top:0; left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
+  .cpr-pane{ position:fixed; top:var(--cpr-top-h); left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
     background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; transition:transform .2s ease; }
   .cpr-pane a{ text-decoration:none; }
   .cpr-pane-hd{ display:flex; align-items:center; gap:9px; padding:16px 18px 12px; font-family:'Nunito',sans-serif; font-weight:900; font-size:1.05rem; letter-spacing:-.3px; color:var(--cpr-blue-dark); }
@@ -191,7 +189,30 @@
   .cpr-gear{ display:flex; align-items:center; gap:10px; padding:11px 18px; margin:6px 0; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem; color:#4E4E50; border-top:1px solid #E0E2EA; }
   .cpr-gear:hover{ background:#F3F2F2; color:#2D2D3B; }
 
+  /* top bar — persistent app-shell header: spans the full width on top of the rail,
+     so the dark bar + dark rail read as one continuous frame. Holds brand, clock
+     (soon), bell, identity. */
+  .cpr-topbar{ position:fixed; top:0; left:0; right:0; height:var(--cpr-top-h);
+    background:var(--cpr-blue-dark); display:flex; align-items:center; gap:12px; padding:0 16px 0 0; z-index:1002; }
+  .cpr-tb-brand{ width:var(--cpr-rail-w); height:var(--cpr-top-h); display:flex; align-items:center; justify-content:center; flex:none; text-decoration:none; }
+  .cpr-tb-brand .mk{ width:38px; height:38px; border-radius:10px; background:var(--cpr-red); display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-brand .mk svg{ width:21px; height:21px; }
+  .cpr-tb-brand:hover .mk{ box-shadow:0 0 0 3px rgba(220,40,46,.28); }
+  .cpr-tb-sp{ flex:1; }
+  .cpr-tb-chip{ display:inline-flex; align-items:center; gap:6px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.7rem; color:rgba(255,255,255,.55); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
+  .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
+  .cpr-tb-bell .bdg{ position:absolute; top:5px; right:6px; min-width:8px; height:8px; border-radius:999px; background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; }
+  .cpr-tb-role{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.78rem; color:#fff; white-space:nowrap; }
+  .cpr-tb-role .dot{ width:7px; height:7px; border-radius:50%; background:#2E9E5B; flex:none; }
+  .cpr-belldd{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:300px; background:#fff; border:1px solid #E0E2EA; border-radius:13px; box-shadow:0 16px 44px rgba(45,45,59,.22); z-index:1004; display:none; overflow:hidden; }
+  .cpr-belldd.show{ display:block; }
+  .cpr-belldd .h{ padding:12px 14px; font-family:'Nunito',sans-serif; font-weight:900; font-size:.84rem; color:#2D2D3B; border-bottom:1px solid #EEF0F4; }
+  .cpr-belldd .empty{ padding:20px 14px; font-family:'Nunito Sans',sans-serif; font-size:.82rem; color:#9aa0b0; text-align:center; line-height:1.5; }
+  @media(max-width:560px){ .cpr-tb-chip{ display:none; } .cpr-tb-role .nm-full{ display:none; } }
+
   /* push page content clear of shell */
+  body{ padding-top:var(--cpr-top-h) !important; }
   @media(min-width:860px){
     body{ margin-left:var(--cpr-nav-w) !important; }
     body.cpr-nav-collapsed{ margin-left:var(--cpr-rail-w) !important; }
@@ -417,17 +438,16 @@
     });
   }
 
+  // inner content of the top-bar identity slot (the [data-roleslot] span)
   function roleSlotHtml(){
-    var role = currentRole();
-    if (!role) return '';
-    var label = (role==='owner') ? 'Owner' : 'Admin';
-    return '<span class="cpr-tb-role"><span class="dot"></span>'+esc(label)+(NAV_NAME?(' · '+esc(NAV_NAME)):'')+'</span>';
+    if (!currentRole() && !NAV_NAME) return '<span style="color:rgba(255,255,255,.5);font-weight:700">Not signed in</span>';
+    return '<span class="dot"></span><span class="nm-full">'+(NAV_NAME?esc(NAV_NAME):'Signed in')+'</span>'
+      + '<span style="color:rgba(255,255,255,.55);font-weight:700">· '+esc(roleText())+'</span>';
   }
-
   function wireTop(){
     if (!top) return;
-    var lock = top.querySelector('[data-tbact="lock"]');
-    if (lock) lock.onclick = function(){ doSignOut(); };
+    var bell = top.querySelector('[data-tbact="bell"]');
+    if (bell && !bell._wired){ bell._wired = true; bell.onclick = function(e){ e.stopPropagation(); var dd = document.querySelector('.cpr-belldd'); if (dd) dd.classList.toggle('show'); }; }
   }
 
   function avatarInitials(){
@@ -451,7 +471,6 @@
     // icon rail
     rail = document.createElement('nav'); rail.className = 'cpr-rail';
     rail.innerHTML = ''
-      + '<a class="cpr-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home"><svg viewBox="13 8 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>'
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
@@ -462,6 +481,23 @@
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
       + '<button class="cpr-avatar" title="Account" aria-label="Account">'+avatarInitials()+'</button>';
     document.body.insertBefore(rail, document.body.firstChild);
+
+    // ── top bar (persistent): page title · clock (soon) · bell · identity ─
+    top = document.createElement('div'); top.className = 'cpr-topbar';
+    top.innerHTML = ''
+      + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home"><span class="mk"><svg viewBox="13 8 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span></a>'
+      + '<span class="cpr-tb-sp"></span>'
+      + '<span class="cpr-tb-chip" title="Time clock — coming with QuickBooks Time">🕐 Time clock · soon</span>'
+      + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">🔔<span class="bdg"></span></button>'
+      + '<span class="cpr-tb-role" data-roleslot>' + roleSlotHtml() + '</span>';
+    document.body.insertBefore(top, document.body.firstChild);
+    var belldd = document.createElement('div'); belldd.className = 'cpr-belldd';
+    belldd.innerHTML = '<div class="h">Notifications</div><div class="empty">No notifications yet.<br>Coming soon.</div>';
+    document.body.appendChild(belldd);
+    document.addEventListener('click', function(e){
+      if (belldd.classList.contains('show') && !belldd.contains(e.target) && !e.target.closest('.cpr-tb-bell')) belldd.classList.remove('show');
+    });
+    wireTop();
 
     // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
     var collapseBtn = rail.querySelector('.cpr-collapse');
