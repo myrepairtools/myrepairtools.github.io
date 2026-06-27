@@ -1535,6 +1535,10 @@ function minToHHMM(m){if(m==null)return '';return ('0'+Math.floor(m/60)).slice(-
 function hhmmToMin(s){var p=String(s||'').split(':');if(p.length!==2)return null;return (+p[0])*60+(+p[1]);}
 function fmtMin12(m){if(m==null)return '';var h=Math.floor(m/60),mm=m%60,h12=h%12;if(h12===0)h12=12;return mm?(h12+':'+('0'+mm).slice(-2)):(''+h12);}
 function fmtRange(s,e){return fmtMin12(s)+'–'+fmtMin12(e);}
+/* shift length in hours (0 if invalid/closed) */
+function shDurH(s,e){return (s==null||e==null||e<=s)?0:(e-s)/60;}
+function shHrsTxt(h){if(!h)return '0h';var r=Math.round(h*100)/100;return r+'h';}
+function hrsPill(h,muted){return '<span style="font-family:Nunito;font-weight:800;font-size:.7rem;color:'+(muted?'var(--grey)':'var(--dark-grey)')+';background:'+(muted?'#F3F2F2':'#EAF4FB')+';padding:2px 8px;border-radius:999px;white-space:nowrap">'+shHrsTxt(h)+'</span>';}
 function shiftSummary(s){
   var hs=HOURS[s.id]||{}, locs=Object.keys(hs).filter(function(st){return hs[st].def&&hs[st].def.enabled;});
   var ovr=locs.reduce(function(n,st){return n+Object.keys(hs[st].days).length;},0);
@@ -1575,10 +1579,12 @@ function dayRowHtml(loc,wd,ho){
   if(mode==='override')slot='<div style="display:flex;align-items:center;gap:6px"><input type="time" class="shdtime" data-wd="'+wd+'" data-which="start" value="'+minToHHMM(d.start!=null?d.start:ho.def.start)+'" style="width:108px;padding:6px 7px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" class="shdtime" data-wd="'+wd+'" data-which="end" value="'+minToHHMM(d.end!=null?d.end:ho.def.end)+'" style="width:108px;padding:6px 7px;border:1.5px solid var(--border);border-radius:8px"></div>';
   else if(mode==='closed')slot='<span style="font-family:Nunito;font-weight:800;font-size:.5rem;letter-spacing:.4px;color:var(--red);background:#FBE9EA;padding:3px 8px;border-radius:999px">CLOSED · NOT OFFERED</span>';
   else slot='';
+  var eff=mode==='closed'?0:shDurH((d&&d.start!=null)?d.start:ho.def.start,(d&&d.end!=null)?d.end:ho.def.end);
   return '<div style="display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;background:#fff;border:1px solid #EEF0F4;flex-wrap:wrap">'
     +'<span style="width:32px;font-family:Nunito;font-weight:800;font-size:.76rem;color:var(--dark)">'+DOW[wd]+'</span>'
     +'<div style="display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;width:184px;flex:none">'+seg('Default','default')+seg('Custom','override')+seg('Closed','closed')+'</div>'
-    +'<div style="flex:1;min-width:150px;display:flex;align-items:center;min-height:34px">'+slot+'</div></div>';
+    +'<div style="flex:1;min-width:150px;display:flex;align-items:center;min-height:34px">'+slot+'</div>'
+    +hrsPill(eff,mode==='closed')+'</div>';
 }
 function renderShiftDetail(){
   var pane=$('#shiftDetail');if(!pane)return;
@@ -1599,7 +1605,7 @@ function renderShiftDetail(){
   html+='<div style="border:1px solid var(--border);border-radius:11px;background:#FBFBFC;overflow:hidden">';
   if(enabled){
     html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:#fff;border-bottom:1px solid #EEF0F4;flex-wrap:wrap">'
-      +'<div><label class="hlbl">Default hours at '+esc(shortStoreS(loc))+'</label><div style="display:flex;align-items:center;gap:7px"><input type="time" id="shDefStart" value="'+minToHHMM(ho.def.start)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" id="shDefEnd" value="'+minToHHMM(ho.def.end)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"></div></div>'
+      +'<div><label class="hlbl">Default hours at '+esc(shortStoreS(loc))+'</label><div style="display:flex;align-items:center;gap:7px"><input type="time" id="shDefStart" value="'+minToHHMM(ho.def.start)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" id="shDefEnd" value="'+minToHHMM(ho.def.end)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">'+hrsPill(shDurH(ho.def.start,ho.def.end))+'</div></div>'
       +'<div style="display:flex;align-items:center;gap:9px"><button id="shEnabled" class="toggle grn on"></button><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:var(--green)">Enabled here</span></div></div>';
     html+='<div style="padding:13px 16px 16px"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;flex-wrap:wrap"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;letter-spacing:.5px;text-transform:uppercase;color:#9aa0b0">Per-day hours <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">— override only where it differs</span></div><div style="display:flex;gap:7px"><button id="shReset" class="btn alt sm">Reset to default</button><button id="shCopy" class="btn alt sm">Copy to all locations</button></div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px;max-width:560px">';
@@ -1683,7 +1689,7 @@ async function dayMode(id,store,wd,mode){
 async function dayTime(id,store,wd,which,hhmm){var m=hhmmToMin(hhmm);if(m==null)return;var d=hoursOf(id,store).days[wd];if(!d)return;
   var patch={};patch[which==='start'?'start_min':'end_min']=m;
   var r=await sb.from('shift_hours').update(patch).eq('id',d.id);if(r.error){toast(r.error.message,true);return;}
-  if(which==='start')d.start=m;else d.end=m;
+  if(which==='start')d.start=m;else d.end=m;renderShiftDetail();
 }
 async function resetDays(id,store){var st=hoursOf(id,store);var ids=Object.keys(st.days).map(function(wd){return st.days[wd].id;});if(!ids.length)return;
   var r=await sb.from('shift_hours').delete().in('id',ids);if(r.error){toast(r.error.message,true);return;}

@@ -313,6 +313,19 @@ function cellShift(a,store,wd){
   return '<div class="chip" style="background:'+hexA(m.color,0.12)+';border-left:3px solid '+esc(m.color)+'"><div class="cn">'+esc(m.name)+(m.warn?' <span style="font-size:10px">⚠️</span>':'')+'</div><div class="ct">'+esc(m.tm)+'</div></div>';
 }
 function cellAway(store){var c=storeColor(store);return '<div class="chip" style="background:'+hexA(c,0.09)+';border-left:3px solid '+esc(c)+'"><div class="cn" style="color:'+esc(c)+'"><span class="av" style="width:8px;height:8px;background:'+esc(c)+';border-radius:50%"></span>In '+esc(shortStore(store))+'</div></div>';}
+/* Hours a scheduled cell contributes at THIS store (0 for off / away / closed). */
+function durMins(s,e){return (s==null||e==null||e<=s)?0:(e-s);}
+function cellHours(a,store,wd){
+  if(!a||a==='off'||a.away||(a.store&&a.store!==store))return 0;
+  var sh=shiftById(a.id)||labelToShift(a.label);
+  if(sh){var rd=resolve(sh.id,a.store||store,wd);
+    if(rd.start!=null)return durMins(rd.start,rd.end)/60;
+    var pm0=parseLabel(a.label);if(pm0)return durMins(pm0[0],pm0[1])/60;return 0;}
+  var pm=parseLabel(a.label);if(pm)return durMins(pm[0],pm[1])/60;return 0;
+}
+function fmtHrs(h){if(!h)return '0';var r=Math.round(h*100)/100;return String(r);}
+function hrsTd(h){return '<td class="hrs" style="text-align:right;padding:4px 12px;border-bottom:1px solid #F5F6F8;font-family:Nunito;font-weight:900;font-size:.82rem;white-space:nowrap;color:'+(h>0?'var(--dark)':'#cfd2dd')+'">'+(h>0?fmtHrs(h)+'<span style="font-weight:700;font-size:.62rem;color:var(--grey)">h</span>':'—')+'</td>';}
+var HRS_TH='<th class="hrs" style="text-align:right;padding-right:12px">Hrs</th>';
 function empCell(e,store){
   var visiting=e.home_store!==store;
   var av=avHtml(e,30,'.72rem',visiting?storeColor(e.home_store):store);
@@ -322,22 +335,26 @@ function empCell(e,store){
   return '<div class="empname">'+av+'<div><div class="nmline">'+esc(e.display_name)+'</div>'+tags+'</div></div>';
 }
 function renderWeekly(){
-  var head='<th class="emp">Employee</th>'+DAYS.map(function(d){return '<th>'+d+'</th>';}).join('');
+  var head='<th class="emp">Employee</th>'+DAYS.map(function(d){return '<th>'+d+'</th>';}).join('')+HRS_TH;
   var html='<div class="toolbar"><span class="cap"><span class="av" style="width:7px;height:7px;background:var(--blue);border-radius:50%"></span>Recurring weekly · repeats every week, no specific dates</span><span style="flex:1"></span>'+legendHtml()+'</div>'
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
   html+=filterStores().map(function(s){
-    var emps=boardEmps(s.store);
+    var emps=boardEmps(s.store), boardH=0;
     var rows=emps.map(function(e){
+      var total=0;
       var cells=DAYS.map(function(d,wd){var a=SCHED[e.id].arr[wd];var inner;
         if(a==null)inner='<div class="blankc">+</div>';
         else if(a==='off')inner='<div class="offc">OFF</div>';
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
         else inner=cellShift(a,s.store,wd);
+        total+=cellHours(a,s.store,wd);
         return '<td class="cell clk" data-emp="'+e.id+'" data-wd="'+wd+'">'+inner+'</td>';
       }).join('');
-      return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+'</tr>';
+      boardH+=total;
+      return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+hrsTd(total)+'</tr>';
     }).join('');
-    return '<div class="board"><div class="board-hd"><span class="bar" style="background:'+esc(storeColor(s.store))+'"></span><span class="nm">'+esc(shortStore(s.store))+'</span><span class="sub">'+emps.length+' people</span><span style="flex:1"></span><button class="add" data-add="'+esc(s.store)+'" title="Add employee">+</button></div><table class="bt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var sub=emps.length+' people'+(boardH>0?' · '+fmtHrs(boardH)+'h scheduled':'');
+    return '<div class="board"><div class="board-hd"><span class="bar" style="background:'+esc(storeColor(s.store))+'"></span><span class="nm">'+esc(shortStore(s.store))+'</span><span class="sub">'+sub+'</span><span style="flex:1"></span><button class="add" data-add="'+esc(s.store)+'" title="Add employee">+</button></div><table class="bt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   html+='</div><div class="note">Click any day to assign a <b>store + shift</b> — a tech can work different stores on different days. Times derive from the shift’s hours for that location &amp; weekday (Settings › Page Settings › Schedule). This is the standing weekly schedule; one-off changes show under This Week &amp; Monthly.</div>';
   $('#view').innerHTML=html;
@@ -352,25 +369,28 @@ function wireWeekly(){
 function renderThisWeek(){
   var end=new Date(WK);end.setDate(end.getDate()+6);
   var wlabel=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate()+', '+end.getFullYear();
-  var head='<th class="emp">Employee</th>'+DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);return '<th>'+d+'<div class="dt">'+dt.getDate()+'</div></th>';}).join('');
+  var head='<th class="emp">Employee</th>'+DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);return '<th>'+d+'<div class="dt">'+dt.getDate()+'</div></th>';}).join('')+HRS_TH;
   var html='<div class="toolbar"><div class="navbox"><button data-wk="-1">‹</button><span class="lbl">'+wlabel+'</span><button data-wk="1">›</button></div><button class="btn" data-wk="0">This week</button><span style="flex:1"></span>'
     +'<div class="legend"><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--blue)"></span>Vacation</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--purple)"></span>Personal</span><span class="lg" style="color:var(--grey)"><span style="width:10px;height:10px;border-radius:3px;border:1.5px dashed var(--amber)"></span>Pending</span></div></div>'
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
   html+=filterStores().map(function(s){
-    var emps=boardEmps(s.store);
+    var emps=boardEmps(s.store), boardH=0;
     var rows=emps.map(function(e){
+      var total=0;
       var cells=DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var a=SCHED[e.id].arr[wd];var req=reqOn(e.id,di);var inner;
         if(req&&req.status==='approved'){var c=TYPES[req.type]||'#B9BDCB';inner='<div class="chip" style="background:'+hexA(c,0.13)+';border-left:3px solid '+c+'"><div class="cn" style="color:'+c+'"><span class="av" style="width:8px;height:8px;background:'+c+';border-radius:50%"></span>Off</div><div class="ct">'+esc(req.type)+'</div></div>';}
         else if(a==null)inner='<div class="blankc">·</div>';
         else if(a==='off')inner='<div class="offc">OFF</div>';
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
-        else{var m=shiftMeta(a,wd);var pend=req&&req.status==='pending';
+        else{var m=shiftMeta(a,wd);var pend=req&&req.status==='pending';total+=cellHours(a,s.store,wd);
           inner='<div class="chip" style="background:'+hexA(m.color,0.12)+';border-left:3px solid '+esc(m.color)+(pend?';outline:1.5px dashed '+hexA('#C9820B',0.7)+';outline-offset:-3px':'')+'"><div class="cn">'+esc(m.name)+'</div><div class="ct"'+(pend?' style="color:var(--amber);font-weight:800"':'')+'>'+(pend?'Requested off':esc(m.tm))+'</div></div>';}
         return '<td class="cell">'+inner+'</td>';
       }).join('');
-      return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+'</tr>';
+      boardH+=total;
+      return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+hrsTd(total)+'</tr>';
     }).join('');
-    return '<div class="board"><div class="board-hd"><span class="bar" style="background:'+esc(storeColor(s.store))+'"></span><span class="nm">'+esc(shortStore(s.store))+'</span><span class="sub">'+emps.length+' people</span></div><table class="bt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var sub=emps.length+' people'+(boardH>0?' · '+fmtHrs(boardH)+'h scheduled':'');
+    return '<div class="board"><div class="board-hd"><span class="bar" style="background:'+esc(storeColor(s.store))+'"></span><span class="nm">'+esc(shortStore(s.store))+'</span><span class="sub">'+sub+'</span></div><table class="bt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   html+='</div><div class="note">The standing weekly schedule <b>projected onto real dates</b>, with approved time off blanking the shift and pending requests flagged. Read-only — edit the pattern under <b>Recurring</b>, approve under <b>Time Off</b>.</div>';
   $('#view').innerHTML=html;
