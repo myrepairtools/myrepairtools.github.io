@@ -30,12 +30,12 @@
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
-    { label:'My Schedule',         url:'my-schedule.html',          icon:'🗓️' }
+    { label:'My Schedule',         url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
   ];
   var PRIVILEGED = [
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
     { label:'Employee Records', url:'employee-records.html',      icon:'📁', minRole:'admin', acc:'staff.view' },
-    { label:'Schedule Admin',   url:'schedule-admin.html',        icon:'🗓️', minRole:'admin' },
+    { label:'Schedule Admin',   url:'schedule-admin.html',        icon:'🗓️', minRole:'admin', acc:'schedule.admin' },
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
     { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' }
