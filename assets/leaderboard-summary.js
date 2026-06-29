@@ -39,12 +39,12 @@
         if(!s) return null;
         return client.from('staff').select('id,display_name,home_store,authorized_stores,role').eq('auth_uid',s.user.id).maybeSingle().then(function(meR){
           var me=meR.data; if(!me) return null;
-          return Promise.all([
-            client.from('commission_sales').select('staff_id,store,accy_net,device_units,device_returns,device_attach,device_attach_return').gte('biz_date',start).lte('biz_date',end),
-            client.from('staff').select('id,display_name')
-          ]).then(function(res){
-            var sales=res[0].data||[], staff=res[1].data||[];
-            var nameById={}; staff.forEach(function(x){ nameById[x.id]=x.display_name; });
+          // staff RLS hides other people's rows from a tech, so the name comes off the
+          // sales row itself (commission_sales.employee), which is visible via can_see_store.
+          return client.from('commission_sales')
+            .select('staff_id,employee,store,accy_net,device_units,device_returns,device_attach,device_attach_return')
+            .gte('biz_date',start).lte('biz_date',end).then(function(res){
+            var sales=res.data||[];
 
             // which store to show: the viewer's home store if it has sales, else the busiest store they can see
             var byStoreCount={}; sales.forEach(function(r){ byStoreCount[r.store]=(byStoreCount[r.store]||0)+1; });
@@ -57,12 +57,13 @@
             var agg={};
             sales.forEach(function(r){
               if(r.store!==store) return;
-              var a=agg[r.staff_id]||(agg[r.staff_id]={id:r.staff_id, accy:0, devUnits:0, devAccy:0});
+              var a=agg[r.staff_id]||(agg[r.staff_id]={id:r.staff_id, name:r.employee||('Staff '+r.staff_id), accy:0, devUnits:0, devAccy:0});
+              if(!a.name && r.employee) a.name=r.employee;
               a.accy += Number(r.accy_net)||0;
               a.devUnits += (Number(r.device_units)||0) - (Number(r.device_returns)||0);
               a.devAccy += (Number(r.device_attach)||0) - (Number(r.device_attach_return)||0);
             });
-            var rows=Object.keys(agg).map(function(k){ var a=agg[k]; a.name=nameById[a.id]||('Staff '+a.id); return a; });
+            var rows=Object.keys(agg).map(function(k){ return agg[k]; });
             return { store:store, meId:me.id, rows:rows };
           });
         });

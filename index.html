@@ -137,8 +137,10 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .lb .ln{font-family:'Nunito',sans-serif;font-weight:700;font-size:.88rem}
 .lb .lv{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:900;font-size:.88rem;color:var(--dark);white-space:nowrap}
 .lb .lv .lsub{font-weight:700;font-size:.72rem;color:var(--grey)}
-.lb-toggle{display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:9px;padding:2px}
-.lb-toggle button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;color:var(--dark-grey);background:none;border:none;border-radius:7px;padding:5px 10px;cursor:pointer}
+.w-headx{margin-left:auto;display:inline-flex;align-items:center}
+.editing .w-headx{display:none}
+.lb-toggle{display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:2px}
+.lb-toggle button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;color:var(--dark-grey);background:none;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}
 .lb-toggle button.on{background:#fff;color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.12)}
 .lb-cap{font-size:.64rem;color:var(--grey);font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin:8px 2px 4px}
 
@@ -295,12 +297,12 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 
     { id:'leaderboard', title:'Store Leaderboard', icon:'🏆', accent:'blue', defaultSize:'narrow',
       desc:'Rank your store’s techs by accessory $ or device units (this month).',
+      headExtra:'<div class="lb-toggle" data-lb-toggle><button data-m="accy" class="on">Accy $</button><button data-m="dev">Devices</button></div>',
       render:function(){ return ''
-        +'<div class="lb-toggle" data-lb-toggle><button data-m="accy" class="on">Accessory $</button><button data-m="dev">Device units</button></div>'
         +'<div class="lb-cap" data-lb-cap>This month</div>'
         +'<ul class="lb" data-lb-list></ul>'
         +'<div class="empty" data-lb-empty style="display:none;padding:14px 4px"><div class="et">No sales recorded yet this month.</div></div>'; },
-      mount:function(bd){ loadLeaderboard(bd); } },
+      mount:function(bd,el){ loadLeaderboard(bd,el); } },
 
     { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
       desc:'Till & safe balances — managers only.', tag:{t:'preview',x:'Preview'},
@@ -350,7 +352,9 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       +'<div class="w-hd" data-handle>'
       +'<span class="w-grip">⠿</span>'
       +'<span class="w-ic">'+def.icon+'</span><h2>'+def.title+'</h2>'
-      +tag+link
+      +tag
+      +(def.headExtra?'<span class="w-headx">'+def.headExtra+'</span>':'')
+      +link
       +'<span class="w-size" data-size-ctl></span>'
       +'<button class="w-del" title="Remove widget">✕</button>'
       +'</div>'
@@ -497,8 +501,9 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     }, function(){});
   }
 
-  function loadLeaderboard(bd){
+  function loadLeaderboard(bd, el){
     if(!window.CPRLeaderboard || !window.CPRLeaderboard.forStore){ return; }
+    var host = el || bd;   // toggle lives in the widget header (el); list/cap live in the body (bd)
     function shortStore(s){ return window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s*/,''); }
     function metric(){ try{ return localStorage.getItem('cprLbMetric')||'accy'; }catch(_){ return 'accy'; } }
     function setMetric(m){ try{ localStorage.setItem('cprLbMetric',m); }catch(_){} }
@@ -510,7 +515,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     function paint(){
       var m=metric(), list=bd.querySelector('[data-lb-list]'); if(!list) return;
       // reflect active toggle
-      Array.prototype.forEach.call(bd.querySelectorAll('[data-lb-toggle] button'), function(b){ b.classList.toggle('on', b.getAttribute('data-m')===m); });
+      Array.prototype.forEach.call(host.querySelectorAll('[data-lb-toggle] button'), function(b){ b.classList.toggle('on', b.getAttribute('data-m')===m); });
       var rows=STATE.rows.slice().sort(function(a,b){ return (m==='accy'?(b.accy-a.accy):(b.devUnits-a.devUnits)); }).slice(0,8);
       if(!rows.length){ list.innerHTML=''; var em=bd.querySelector('[data-lb-empty]'); if(em) em.style.display='block'; return; }
       var em2=bd.querySelector('[data-lb-empty]'); if(em2) em2.style.display='none';
@@ -519,8 +524,8 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       }).join('');
     }
     // toggle wiring (once)
-    Array.prototype.forEach.call(bd.querySelectorAll('[data-lb-toggle] button'), function(b){
-      b.onclick=function(){ setMetric(b.getAttribute('data-m')); paint(); scheduleMasonry(); };
+    Array.prototype.forEach.call(host.querySelectorAll('[data-lb-toggle] button'), function(b){
+      b.onclick=function(e){ e.stopPropagation(); setMetric(b.getAttribute('data-m')); paint(); scheduleMasonry(); };
     });
     window.CPRLeaderboard.forStore().then(function(d){
       if(!d || !d.rows || !d.rows.length){ var em=bd.querySelector('[data-lb-empty]'); if(em) em.style.display='block'; return; }
