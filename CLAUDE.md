@@ -86,6 +86,10 @@ these when adding UI so a new tool looks native.
 - **`schedule-summary.js`** — one call (`window.CPRScheduleSummary.forMe()`) returning the
   signed-in user's `{ today, weekHours }`, mirroring `my-schedule.html`'s shift-resolution
   logic (shifts → shift_hours, named-shift + label fallbacks). Used by the My Schedule widget.
+- **`leaderboard-summary.js`** — one call (`window.CPRLeaderboard.forStore()`) returning the
+  current-month per-tech `{ accy, devUnits, devAccy }` for the viewer's store (RLS
+  `can_see_store` scopes it). Powers the Store Leaderboard widget's accessory-$ / device-units
+  toggle.
 
 ## Auth & roles
 
