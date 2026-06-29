@@ -13,6 +13,29 @@ serves the repo root.
 To preview locally, open a file directly or run any static server, e.g.
 `python3 -m http.server` then visit `http://localhost:8000`.
 
+## Standing directive: design for AI
+
+**The owner wants every tool we build or touch to be AI-compatible, and wants AI
+progressively woven into the site.** Apply this by default — it does not need to be
+re-requested:
+
+- **Keep data in clean Supabase tables (not buried in page-only state).** The AI
+  assistant reads/writes the database server-side via an edge function — never through
+  the HTML pages — so any data a tool produces should live in well-named Postgres tables
+  the assistant can query. Prefer Supabase over Apps Script for new data (continues the
+  existing migration).
+- **The AI proxy is the `cpr-assistant` Supabase edge function** (holds
+  `ANTHROPIC_API_KEY` as a secret; the key must never ship to the browser). The chat
+  widget is `assets/cpr-assistant.js`, injected site-wide by `nav.js` and openable via
+  `window.CPRAssistant.open()`. Default model `claude-opus-4-8`; the Anthropic Messages
+  API is streamed back as SSE.
+- **Reads before writes.** Data-access "tools" the assistant can call are scoped query
+  functions defined in the edge function, gated by the existing `permissions` /
+  `role_permissions` system. Write actions must be **named, permission-checked,
+  confirm-gated** (read → propose → human confirms → write → audit-log) — never raw SQL.
+- When adding a feature, ask "how would the assistant see or do this?" and leave the
+  data model and permissions in a state that answers it.
+
 ## Page model
 
 Each tool is **one self-contained HTML file** at the repo root (e.g. `cash-tracker.html`,

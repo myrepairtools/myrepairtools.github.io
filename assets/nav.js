@@ -604,4 +604,12 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectNav);
   else injectNav();
+
+  // Site-wide AI chat widget (loads once; self-skips inside iframes).
+  (function loadAssistant(){
+    if (document.querySelector('script[data-cpr-assistant]')) return;
+    var s = document.createElement('script');
+    s.src = 'assets/cpr-assistant.js'; s.defer = true; s.setAttribute('data-cpr-assistant', '1');
+    document.head.appendChild(s);
+  })();
 })();
