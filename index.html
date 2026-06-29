@@ -34,7 +34,9 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .editing .edit-note{display:flex}
 
 /* widget grid — 10 cols so 100=10, 60=6, 40=4 */
-.widgets{display:grid;grid-template-columns:repeat(10,1fr);gap:16px;align-items:start}
+/* masonry: 1px row track + JS-computed row-spans so widgets pack vertically
+   (the right column stacks tight instead of waiting for a tall left neighbour) */
+.widgets{display:grid;grid-template-columns:repeat(10,1fr);column-gap:16px;row-gap:0;grid-auto-rows:1px;grid-auto-flow:row dense;align-items:start}
 .w{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent,var(--blue));border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);display:flex;flex-direction:column;overflow:hidden;transition:box-shadow .15s}
 .w[data-size="full"]{grid-column:span 10}
 .w[data-size="wide"]{grid-column:span 6}
@@ -72,7 +74,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .w.dragging{opacity:.4;box-shadow:0 12px 30px rgba(45,45,59,.18)}
 
 /* add-widget tile + gallery (edit mode) */
-.w-add{display:none;grid-column:span 4;align-items:center;justify-content:center;gap:9px;min-height:96px;background:none;border:2px dashed var(--grey);border-radius:14px;color:var(--dark-grey);font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;cursor:pointer;transition:all .15s}
+.w-add{display:none;grid-column:1/-1;align-items:center;justify-content:center;gap:9px;min-height:84px;background:none;border:2px dashed var(--grey);border-radius:14px;color:var(--dark-grey);font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;cursor:pointer;transition:all .15s}
 .w-add:hover{border-color:var(--blue);color:var(--blue);background:#EAF6FD}
 .editing .w-add{display:flex}
 .wg-modal{display:none;position:fixed;inset:0;z-index:1200;background:rgba(45,45,59,.5);align-items:center;justify-content:center;padding:20px}
@@ -313,6 +315,18 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
   var grid=document.getElementById('widgets');
   var editing=false, dragEl=null, addTile=null, lastRole=null;
 
+  /* masonry: give each card a row-span matching its height so cards pack
+     vertically (1px row track + 16 extra rows == the 16px gap). */
+  var masonryRAF=null;
+  function masonry(){
+    var els=grid.querySelectorAll('.w, .w-add');
+    for(var i=0;i<els.length;i++){ var h=els[i].getBoundingClientRect().height; els[i].style.gridRowEnd='span '+(Math.ceil(h)+16); }
+  }
+  function scheduleMasonry(){ if(masonryRAF) return; masonryRAF=requestAnimationFrame(function(){ masonryRAF=null; masonry(); }); }
+  var ro=(typeof ResizeObserver!=='undefined') ? new ResizeObserver(scheduleMasonry) : null;  // recompute when any card's content resizes
+  window.addEventListener('resize', scheduleMasonry);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleMasonry);
+
   function widgetEl(rec){
     var def=byId(rec.id); if(!canShow(def)) return null;
     var el=document.createElement('section');
@@ -335,19 +349,20 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     SIZES.forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.setAttribute('data-sz',s[0]);
       b.onclick=function(e){ e.stopPropagation(); setSize(el,s[0]); save(); }; ctl.appendChild(b); });
     refreshSize(el);
-    el.querySelector('.w-del').onclick=function(e){ e.stopPropagation(); el.remove(); save(); };
+    el.querySelector('.w-del').onclick=function(e){ e.stopPropagation(); if(ro) ro.unobserve(el); el.remove(); save(); scheduleMasonry(); };
     el.addEventListener('dragstart', function(e){ if(!editing){ e.preventDefault(); return; } dragEl=el; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain','');}catch(_){}} );
-    el.addEventListener('dragend', function(){ el.classList.remove('dragging'); dragEl=null; save(); });
+    el.addEventListener('dragend', function(){ el.classList.remove('dragging'); dragEl=null; save(); scheduleMasonry(); });
     if (def.mount) try{ def.mount(bd, el); }catch(_){}
+    if (ro) ro.observe(el);
     return el;
   }
-  function setSize(el,sz){ el.setAttribute('data-size',sz); refreshSize(el); }
+  function setSize(el,sz){ el.setAttribute('data-size',sz); refreshSize(el); scheduleMasonry(); }
   function refreshSize(el){ var sz=el.getAttribute('data-size');
     Array.prototype.forEach.call(el.querySelectorAll('[data-size-ctl] button'), function(b){ b.classList.toggle('on', b.getAttribute('data-sz')===sz); }); }
 
   function ensureAddTile(){
     if(!addTile){ addTile=document.createElement('button'); addTile.className='w-add'; addTile.id='addTile';
-      addTile.innerHTML='＋ Add a widget'; addTile.onclick=openGallery; }
+      addTile.innerHTML='＋ Add a widget'; addTile.onclick=openGallery; if(ro) ro.observe(addTile); }
     grid.appendChild(addTile);
   }
   function renderLayout(layout){
@@ -355,6 +370,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     (layout||[]).forEach(function(rec){ var el=widgetEl(rec); if(el) grid.appendChild(el); });
     ensureAddTile();
     Array.prototype.forEach.call(grid.querySelectorAll('.w'), function(el){ el.setAttribute('draggable', editing?'true':'false'); });
+    scheduleMasonry();
   }
   function getLayout(){ return Array.prototype.map.call(grid.querySelectorAll('.w[data-wid]'), function(el){
     return { id:el.getAttribute('data-wid'), size:el.getAttribute('data-size') }; }); }
@@ -367,7 +383,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     best.parentNode.insertBefore(dragEl, after?best.nextSibling:best);
     if(addTile) grid.appendChild(addTile);
   }
-  grid.addEventListener('dragover', function(e){ if(!editing||!dragEl) return; e.preventDefault(); place(e.clientX,e.clientY); });
+  grid.addEventListener('dragover', function(e){ if(!editing||!dragEl) return; e.preventDefault(); place(e.clientX,e.clientY); scheduleMasonry(); });
 
   /* ====================== add-widget gallery ====================== */
   var modal=document.getElementById('wgModal'), wgList=document.getElementById('wgList');
@@ -389,7 +405,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     var el=widgetEl({id:id,size:def.defaultSize}); if(!el) return;
     grid.insertBefore(el, addTile||null);
     el.setAttribute('draggable', editing?'true':'false');
-    save(); buildGallery();
+    save(); buildGallery(); scheduleMasonry();
   }
   document.getElementById('wgClose').onclick=closeGallery;
   modal.addEventListener('click', function(e){ if(e.target===modal) closeGallery(); });
