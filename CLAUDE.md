@@ -83,6 +83,9 @@ these when adding UI so a new tool looks native.
 - **`commission-summary.js`** — one call (`window.CPRCommissionSummary.forMe()`) returning the
   signed-in user's current-month `{ commission, tips, total, goal }` using the engine. Used by
   the dashboard's My Commission widget; load `commission-engine.js` before it.
+- **`schedule-summary.js`** — one call (`window.CPRScheduleSummary.forMe()`) returning the
+  signed-in user's `{ today, weekHours }`, mirroring `my-schedule.html`'s shift-resolution
+  logic (shifts → shift_hours, named-shift + label fallbacks). Used by the My Schedule widget.
 
 ## Auth & roles
 

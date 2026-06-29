@@ -67,7 +67,8 @@
         return session(client).then(function(s){
           if(!s) return null;
           return client.from('staff').select('id,display_name,role,home_store').eq('auth_uid', s.user.id).maybeSingle().then(function(meR){
-            var me = meR.data; if(!me || EXCLUDE(me)) return null;
+            var me = meR.data; if(!me) return null;
+            if(EXCLUDE(me)) return { excluded:true, name:me.display_name };
             return Promise.all([
               client.from('commission_rates').select('*').order('sort'),
               client.from('commission_rules').select('*'),

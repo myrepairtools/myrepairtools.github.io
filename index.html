@@ -199,6 +199,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/nav.js"></script>
 <script src="assets/commission-engine.js"></script>
 <script src="assets/commission-summary.js"></script>
+<script src="assets/schedule-summary.js"></script>
 <script>
 (function(){
   /* ====================== greeting + date ====================== */
@@ -238,7 +239,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'</ul>'; } },
 
     { id:'commission', title:'My Commission', icon:'📈', accent:'blue', defaultSize:'narrow',
-      desc:'Your commission, tips and goal this period.', tag:{t:'preview',x:'Preview'}, link:{href:'commission-dashboard.html',x:'Open →'},
+      desc:'Your commission, tips and goal this period.', link:{href:'commission-dashboard.html',x:'Open →'},
       render:function(){ return ''
         +'<div class="kpis" data-comm-kpis>'
         +'<div class="kpi"><div class="kl">Commission</div><div class="kv" data-k="commission">—</div></div>'
@@ -257,11 +258,14 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       render:function(){ return '<div class="empty"><div class="ei">📭</div><div class="et">No new messages</div><div class="es">Store announcements, shift swaps, and manager notes will show up here.</div></div>'; } },
 
     { id:'schedule', title:'My Schedule', icon:'🗓️', accent:'purple', defaultSize:'narrow',
-      desc:'Your next shift and hours this week.', tag:{t:'preview',x:'Preview'}, link:{href:'my-schedule.html',x:'View →'},
+      desc:'Your next shift and hours this week.', link:{href:'my-schedule.html',x:'View →'},
       render:function(){ return ''
-        +'<div class="shift"><div class="day"><div class="dow">Today</div><div class="dnum">'+todayNum+'</div></div>'
-        +'<div class="si"><div class="stime">10:00 AM – 6:00 PM</div><div class="sloc">Eugene · 8.0 hrs</div></div></div>'
-        +'<div class="hoursline"><span class="hl">Scheduled this week</span><span class="hv">32.5 hrs</span></div>'; } },
+        +'<div class="shift" data-sched-shift style="display:none"><div class="day"><div class="dow">Today</div><div class="dnum">'+todayNum+'</div></div>'
+        +'<div class="si"><div class="stime" data-s="time">—</div><div class="sloc" data-s="loc"></div></div></div>'
+        +'<div class="empty" data-sched-off style="display:none;padding:10px 4px 4px"><div class="et" data-s="offmsg">Day off today</div></div>'
+        +'<div class="hoursline" data-sched-week style="display:none"><span class="hl">Scheduled this week</span><span class="hv" data-s="hrs">—</span></div>'
+        +'<div class="empty" data-sched-empty style="display:none;padding:14px 4px"><div class="et">Sign in to see your schedule.</div></div>'; },
+      mount:function(bd){ loadSchedule(bd); } },
 
     { id:'links', title:'Quick Links', icon:'⚡', accent:'dark', defaultSize:'full',
       desc:'Fast access to the tools you use most.',
@@ -455,8 +459,10 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
   function money0(n){ return '$'+Math.round(Number(n)||0).toLocaleString('en-US'); }
   function loadCommission(bd){
     if(!window.CPRCommissionSummary || !window.CPRCommissionSummary.forMe){ return; }
+    function showEmpty(msg){ var k=bd.querySelector('[data-comm-kpis]'); if(k)k.style.display='none'; var g=bd.querySelector('[data-comm-goal]'); if(g)g.style.display='none'; var em=bd.querySelector('[data-comm-empty]'); if(em) em.style.display='block'; var m=bd.querySelector('[data-comm-msg]'); if(m&&msg) m.textContent=msg; }
     window.CPRCommissionSummary.forMe().then(function(s){
-      if(!s){ var k=bd.querySelector('[data-comm-kpis]'); if(k)k.style.display='none'; var em=bd.querySelector('[data-comm-empty]'); if(em) em.style.display='block'; return; }
+      if(!s){ showEmpty('Sign in to see your commission.'); return; }
+      if(s.excluded){ showEmpty('Owners don’t earn commission.'); return; }
       var set=function(key,v){ var el=bd.querySelector('[data-k="'+key+'"]'); if(el) el.textContent=v; };
       set('commission', money0(s.commission)); set('tips', money0(s.tips)); set('total', money0(s.total));
       if(s.goal && s.goal>0){ var cur=Number(s.goalCurrent)||0, pct=Math.min(100,Math.round((cur/s.goal)*100));
@@ -464,6 +470,23 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
           g.querySelector('[data-g="label"]').textContent=s.goalLabel||'Goal';
           g.querySelector('[data-g="pct"]').textContent=money0(cur)+' of '+money0(s.goal);
           g.querySelector('[data-g="bar"]').style.width=pct+'%'; } }
+    }, function(){});
+  }
+
+  function loadSchedule(bd){
+    if(!window.CPRScheduleSummary || !window.CPRScheduleSummary.forMe){ return; }
+    window.CPRScheduleSummary.forMe().then(function(s){
+      if(!s){ var em=bd.querySelector('[data-sched-empty]'); if(em) em.style.display='block'; return; }
+      var wk=bd.querySelector('[data-sched-week]'); if(wk){ wk.style.display='flex'; var hv=wk.querySelector('[data-s="hrs"]'); if(hv) hv.textContent=(s.weekHours||0).toFixed(1)+' hrs'; }
+      var t=s.today||{};
+      if(t.kind==='shift'){
+        var sf=bd.querySelector('[data-sched-shift]'); if(sf){ sf.style.display='flex';
+          sf.querySelector('[data-s="time"]').textContent=t.time||t.name||'Scheduled';
+          sf.querySelector('[data-s="loc"]').textContent=(t.store||'')+(t.hours?(' · '+t.hours.toFixed(1)+' hrs'):''); }
+      } else {
+        var off=bd.querySelector('[data-sched-off]'); if(off){ off.style.display='block';
+          off.querySelector('[data-s="offmsg"]').textContent = t.kind==='timeoff' ? ('Time off today'+(t.type?(' · '+t.type):'')) : 'Day off today'; }
+      }
     }, function(){});
   }
 
