@@ -35,6 +35,12 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
 .btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;border:none;border-radius:8px;padding:9px 15px;cursor:pointer;background:var(--red);color:#fff}
 .btn.alt{background:var(--white);color:var(--dark);border:1.5px solid var(--border)}
+.exportwrap{position:relative;display:inline-block}
+.exportmenu{position:absolute;top:calc(100% + 5px);right:0;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(45,45,59,.18);z-index:60;min-width:210px;overflow:hidden;padding:4px}
+.exportmenu.hide{display:none}
+.exportmenu button{display:block;width:100%;text-align:left;border:none;background:none;font-family:'Nunito',sans-serif;font-weight:700;font-size:.8rem;color:var(--dark);padding:9px 12px;border-radius:7px;cursor:pointer}
+.exportmenu button:hover{background:var(--light-grey)}
+.exportmenu .sub{font-size:.68rem;color:var(--grey);font-weight:700;margin-top:1px}
 .btn.blue{background:var(--blue)}
 .btn.sm{padding:6px 11px;font-size:.72rem}
 .btn:disabled{opacity:.5;cursor:default}
@@ -343,11 +349,18 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <input type="date" id="day" style="width:auto">
     <div class="tabs" id="viewTabs">
       <button class="tab active" data-v="daily">Daily order</button>
+      <button class="tab" data-v="battery">Battery order</button>
       <button class="tab" data-v="stock">Stock levels</button>
     </div>
     <div class="store-pills" id="storePills"></div>
     <div class="spacer"></div>
-    <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix</button>
+    <div class="exportwrap" id="exportWrap">
+      <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix ▾</button>
+      <div class="exportmenu hide" id="exportMenu">
+        <button data-bat="1">Export with Batteries<div class="sub">Everything suggested, as today</div></button>
+        <button data-bat="0">Export without Batteries<div class="sub">Skip batteries — order those weekly</div></button>
+      </div>
+    </div>
     <button class="btn alt sm" id="grpBtn">⚙ Part groups</button>
     <button class="btn alt sm" id="feedBtn">📡 Feed health</button>
   </div>
@@ -404,6 +417,36 @@ tr.grp.open .chev{transform:rotate(90deg)}
       <tbody id="stockRows"></tbody>
     </table>
     <div class="empty hide" id="stockEmpty">No matching SKUs.</div>
+  </div>
+  </section>
+
+  <section id="view-battery" class="hide">
+  <div class="bar">
+    <label style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)">Batteries used since</label>
+    <input type="date" id="batSince" style="width:auto">
+    <button class="btn alt sm" id="bat7">Last 7 days</button>
+    <span class="muted" id="batRange" style="font-size:.78rem;font-weight:700;color:var(--grey)"></span>
+    <div class="spacer"></div>
+    <button class="btn blue sm" id="batExport">⬇ Export batteries for MobileSentrix</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="batUnits">0</div><div class="l">Batteries used</div></div>
+    <div class="kpi"><div class="v" id="batSkus">0</div><div class="l">Battery SKUs</div></div>
+    <div class="kpi order"><div class="v" id="batOrder">0</div><div class="l">To order</div></div>
+  </div>
+  <div class="card">
+    <table class="tbl">
+      <thead><tr>
+        <th>SKU</th>
+        <th>Item</th>
+        <th class="ctr">Used</th>
+        <th class="ctr">In stock</th>
+        <th class="ctr">On order</th>
+        <th class="ctr">Order</th>
+      </tr></thead>
+      <tbody id="batRows"></tbody>
+    </table>
+    <div class="empty hide" id="batEmpty">No batteries used in this period.</div>
   </div>
   </section>
 
@@ -544,6 +587,8 @@ async function loadAll(){
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
   pills();render();renderStock();renderNoParts();renderFresh();
+  var atab=$('#viewTabs')&&$('#viewTabs').querySelector('.tab.active');
+  if(atab&&atab.getAttribute('data-v')==='battery')loadBatteries();
 }
 
 /* ---- login overlay ---- */
@@ -920,34 +965,96 @@ function render(){
   $('#empty').classList.toggle('hide',rows.length>0);
 }
 
-/* order rows use each group's default SKU (set in Manage groups) */
-function orderList(){
+/* Battery detection — ground-shipped cells. Match the word battery/batteries but
+   exclude battery-adjacent accessories (adhesive/cover/connector/...) that ship
+   normally, and brand words like "Battersea" (no \bbattery\b). */
+function isBattery(name){
+  var n=String(name||'').toLowerCase();
+  if(!/\bbatter(y|ies)\b/.test(n))return false;
+  if(/\bbatter(y|ies)\b\s*(adhesive|cover|connector|flex|cable|bracket|sticker|sleeve|holder|clip|screw|spacer|foam|gasket|tape|insulator)\b/.test(n))return false;
+  if(/adhesive (tape|strip|sticker|sheet|pad)/.test(n))return false;
+  return true;
+}
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function isoDaysAgo(n){var d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
+
+/* order rows use each group's default SKU (set in Manage groups).
+   withBatteries===false drops battery cells (ordered weekly on the Battery tab). */
+function orderList(withBatteries){
   var rows=buildRows(), out=[];
   rows.forEach(function(r){
     if(r.suggest<=0)return;
+    if(withBatteries===false && isBattery(r.name))return;
     out.push([r.orderSku,r.suggest]);
   });
   return out;
 }
 
-async function exportOrder(){
-  var rows=orderList();
-  if(!rows.length){alert('Nothing to order — everything is at max.');return;}
+/* shared MobileSentrix export: opens the quick-order tab + writes the xlsx */
+async function buildMSExport(rows,label){
   // open the MobileSentrix quick-order tab in the click gesture (avoids popup blocking)
   window.open('https://www.cpr.parts/quickorder/index/view','_blank');
   try{
     var XLSX=await import('https://esm.sh/xlsx@0.18.5');
-    // MobileSentrix quick-order skips row 1 as a header — include one so the
-    // first SKU isn't dropped.
+    // MobileSentrix quick-order skips row 1 as a header — include one so the first SKU isn't dropped.
     var aoa=[['SKU','Qty']].concat(rows.map(function(r){return [r[0],r[1]];}));
     var ws=XLSX.utils.aoa_to_sheet(aoa);
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Order');
-    var fname='mobilesentrix-order-'+STATE.store.replace(/\s+/g,'-').toLowerCase()+'-'+($('#day').value||'today')+'.xlsx';
+    var fname='mobilesentrix-'+label+'-'+STATE.store.replace(/\s+/g,'-').toLowerCase()+'-'+todayISO()+'.xlsx';
     XLSX.writeFile(wb,fname);
   }catch(e){
     alert('Could not build the Excel file: '+(e&&e.message||e));
   }
+}
+
+async function exportOrder(withBatteries){
+  var rows=orderList(withBatteries);
+  if(!rows.length){alert(withBatteries===false?'Nothing to order once batteries are excluded.':'Nothing to order — everything is at max.');return;}
+  buildMSExport(rows, withBatteries===false?'order-no-batteries':'order');
+}
+
+/* ---- Battery order (weekly) ---- */
+var BATROWS=[];
+async function loadBatteries(){
+  var store=STATE.store; if(!store)return;
+  var since=$('#batSince').value||isoDaysAgo(7), end=todayISO();
+  if(since>end)since=end;
+  var r=await sb.from('consumption_log').select('sku,units,name').eq('store',store).gte('biz_date',since).lte('biz_date',end);
+  var agg={};
+  (r.data||[]).forEach(function(x){
+    var nm=x.name||(SNAP[x.sku]&&SNAP[x.sku].name)||x.sku;
+    if(!isBattery(nm))return;
+    var a=agg[x.sku]||(agg[x.sku]={sku:x.sku,name:nm,used:0});
+    a.used+=(x.units||0);
+  });
+  BATROWS=Object.keys(agg).map(function(k){return agg[k];}).filter(function(b){return b.used>0;}).sort(function(a,b){return b.used-a.used;});
+  renderBatteries();
+}
+function renderBatteries(){
+  var tb=$('#batRows'); if(!tb)return; tb.innerHTML='';
+  var units=0;
+  BATROWS.forEach(function(r){
+    var s=SNAP[r.sku]||{instock:0,onorder:0};
+    units+=r.used;
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="sku">'+r.sku+'</td>'
+      +'<td class="itm"><span class="nm">'+esc(r.name)+'</span></td>'
+      +'<td class="ctr"><b>'+r.used+'</b></td>'
+      +'<td class="ctr">'+s.instock+'</td>'
+      +'<td class="ctr">'+s.onorder+'</td>'
+      +'<td class="ctr"><span class="buysku">'+r.used+'</span></td>';
+    tb.appendChild(tr);
+  });
+  $('#batUnits').textContent=units;
+  $('#batSkus').textContent=BATROWS.length;
+  $('#batOrder').textContent=units;
+  $('#batEmpty').classList.toggle('hide',BATROWS.length>0);
+  $('#batRange').textContent=(($('#batSince').value||isoDaysAgo(7))+' → '+todayISO());
+}
+async function exportBatteries(){
+  if(!BATROWS.length){alert('No batteries used in this period.');return;}
+  buildMSExport(BATROWS.map(function(r){return [r.sku, r.used];}), 'batteries');
 }
 
 /* ---- store pills + date ---- */
@@ -1393,7 +1500,15 @@ function wireMsTypeahead(er,g){
 }
 
 async function init(){
-  $('#exportBtn').addEventListener('click',exportOrder);
+  // export dropdown (with / without batteries)
+  $('#exportBtn').addEventListener('click',function(e){e.stopPropagation();$('#exportMenu').classList.toggle('hide');});
+  $('#exportMenu').querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){$('#exportMenu').classList.add('hide');exportOrder(b.getAttribute('data-bat')==='1');});});
+  document.addEventListener('click',function(e){if(!e.target.closest('#exportWrap')){var m=$('#exportMenu');if(m)m.classList.add('hide');}});
+  // battery-order controls
+  $('#batSince').value=isoDaysAgo(7);
+  $('#batSince').addEventListener('change',loadBatteries);
+  $('#bat7').addEventListener('click',function(){$('#batSince').value=isoDaysAgo(7);loadBatteries();});
+  $('#batExport').addEventListener('click',exportBatteries);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
   $('#addGrp').addEventListener('click',async function(){
     var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null,part_type:null};
@@ -1410,8 +1525,8 @@ async function init(){
     if(FEEDOPEN)loadFeedHealth();  // always pull fresh sync times on open
   });
   $('#grpBtn').addEventListener('click',async function(){
-    $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-groups').classList.remove('hide');
-    $('#exportBtn').style.display='none';$('#viewTabs').style.visibility='hidden';
+    $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-battery').classList.add('hide');$('#view-groups').classList.remove('hide');
+    $('#exportWrap').style.display='none';$('#viewTabs').style.visibility='hidden';
     $('#storePills').style.display='none';$('#day').style.display='none';$('#grpBtn').style.display='none';
     $('#feedBtn').style.display='none';$('#freshLine').style.display='none';FEEDOPEN=false;renderFeedHealth();
     $('#appH1').style.display='none';$('#appSub').style.display='none';
@@ -1426,7 +1541,9 @@ async function init(){
     var active=$('#viewTabs').querySelector('.tab.active').getAttribute('data-v');
     $('#view-daily').classList.toggle('hide',active!=='daily');
     $('#view-stock').classList.toggle('hide',active!=='stock');
-    $('#exportBtn').style.display=(active==='daily')?'':'none';
+    $('#view-battery').classList.toggle('hide',active!=='battery');
+    $('#exportWrap').style.display=(active==='daily')?'':'none';
+    if(active==='battery')loadBatteries();
   });
   $('#grpSearch').addEventListener('input',function(){GQ=this.value;renderTable();});
   $('#filtBtn').addEventListener('click',function(e){e.stopPropagation();FILTOPEN=!FILTOPEN;var p=$('#filtPop');if(p)p.classList.toggle('hide',!FILTOPEN);});
@@ -1445,8 +1562,10 @@ async function init(){
     var v=t.getAttribute('data-v');
     $('#view-daily').classList.toggle('hide',v!=='daily');
     $('#view-stock').classList.toggle('hide',v!=='stock');
-    $('#exportBtn').style.display=(v==='daily')?'':'none';
+    $('#view-battery').classList.toggle('hide',v!=='battery');
+    $('#exportWrap').style.display=(v==='daily')?'':'none';
     if(v==='stock')renderStock();
+    if(v==='battery')loadBatteries();
   });});
   document.addEventListener('click',function(e){var m=$('#optMenu');if(!m||m.classList.contains('hide'))return;if(e.target.closest('#optMenu')||e.target.closest('.opt'))return;m.classList.add('hide');});
   ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
