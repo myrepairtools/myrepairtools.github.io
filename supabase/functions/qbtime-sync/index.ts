@@ -145,24 +145,49 @@ async function syncUsers(token: string) {
     return null;
   }
 
+  // Active-staff last names — the dupe guard for auto-create (never spawn a second row for
+  // someone who's likely already here, e.g. "Michael Amador" QB ↔ "Vince Amador" MRT).
+  const activeLastNames = new Set<string>();
+  for (const s of staff || []) if (s.active && norm(s.last_name)) activeLastNames.add(norm(s.last_name));
+
   const stamp = new Date().toISOString();
-  const rows = users.map((u) => {
+  const created: { qbt_id: string; staff_id: number; name: string }[] = [];
+
+  const rows: Record<string, unknown>[] = [];
+  for (const u of users) {
     const qbt_id = String(u.id);
     const prior = existingMap.get(qbt_id);
+    const seenBefore = existingMap.has(qbt_id);
+    const active = u.active === undefined ? null : !!u.active;
     // Preserve a manual/prior mapping if present; only auto-match when we have nothing yet.
-    const staff_id = (prior != null) ? prior : autoMatch(u);
-    return {
-      qbt_id,
-      staff_id,
+    let staff_id: number | null = (prior != null) ? prior : autoMatch(u);
+
+    // Auto-create the MRT staff row for a brand-new QB hire: first time we've seen this qbt_id,
+    // it's active, no name match, and no last-name collision with existing active staff. Existing
+    // roster (already in qbtime_users) never triggers this — so no dupes from the back-fill set.
+    if (staff_id == null && active === true && !seenBefore && !activeLastNames.has(norm(u.last_name))) {
+      const fn = (u.first_name as string) || "", ln = (u.last_name as string) || "";
+      const legal = `${fn} ${ln}`.trim() || (u.username as string) || `QB ${qbt_id}`;
+      const { data: ins, error } = await admin.from("staff").insert({
+        display_name: legal,            // shown name = legal until the owner sets a preferred name
+        first_name: fn || null, last_name: ln || null,
+        role: "team_member", active: true, archived: false,
+        hr_status: "active", start_date: null,
+        // stub: no PIN/store/login yet — the owner finishes setup (onboarding) on the profile
+        pin_hash: null, home_store: null, authorized_stores: null, auth_uid: null,
+      }).select("id").single();
+      if (!error && ins) { staff_id = ins.id as number; created.push({ qbt_id, staff_id, name: legal }); activeLastNames.add(norm(ln)); }
+    }
+
+    rows.push({
+      qbt_id, staff_id,
       first_name: (u.first_name as string) || null,
       last_name: (u.last_name as string) || null,
       email: (u.email as string) || null,
       username: (u.username as string) || null,
-      active: u.active === undefined ? null : !!u.active,
-      raw: u,
-      last_synced: stamp,
-    };
-  });
+      active, raw: u, last_synced: stamp,
+    });
+  }
 
   if (rows.length) {
     const { error } = await admin.from("qbtime_users").upsert(rows, { onConflict: "qbt_id" });
@@ -183,6 +208,7 @@ async function syncUsers(token: string) {
     ok: true,
     fetched: rows.length,
     matched: rows.filter((r) => r.staff_id != null).length,
+    created: created.length ? created : undefined,                 // new hires auto-created in MRT
     termination_candidates: termination_candidates.length ? termination_candidates : undefined,
     // only surface *active* unmatched QB users — inactive strangers are just noise.
     unmatched: rows.filter((r) => r.staff_id == null && r.active !== false)

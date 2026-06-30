@@ -158,6 +158,12 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .fin{width:100%;font-family:'Nunito Sans';font-size:.86rem;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;outline:none;color:var(--dark)}
 .fin:focus{border-color:var(--blue)}
 select.fin{cursor:pointer}
+.fhint{font-family:'Nunito Sans';font-size:.72rem;color:var(--grey);margin-top:4px;line-height:1.4}
+.qbtlink{margin-bottom:11px;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;background:var(--light-grey)}
+.qbtlink .qbt-top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.qbtlink .qbt-ico{font-size:1rem}
+.qbtlink .qbt-ttl{font-family:'Nunito';font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+.qbtlink .qbt-state{font-family:'Nunito Sans';font-size:.78rem;color:var(--grey);font-weight:700;margin-left:auto}
 textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
 .fcheck{display:flex;align-items:center;gap:8px;font-family:'Nunito';font-weight:700;font-size:.82rem;color:var(--dark-grey);margin-bottom:4px;cursor:pointer}
 .goalrow{display:flex;gap:8px;margin-bottom:7px}
@@ -276,6 +282,7 @@ function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast sho
 /* ===== state + data ===== */
 let AUTH=null, NAME2USER={};
 let ALL=[], EMPLOYEES=[], DMG_BYNAME={}, DMG_BYID={};
+let QBU=[];   // qbtime_users rows (qbt_id, staff_id, names) for the profile's QB Time link row
 const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',catF:'all',sortNewest:true,empSearch:'',logRange:'all',dmgRange:'all',showArchived:false,mDetail:false};
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
@@ -331,15 +338,17 @@ async function initAuth(){
 
 /* ===== data load ===== */
 async function load(){
-  const [stRes,enRes,piRes]=await Promise.all([
-    sb.from('staff').select('id,display_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active'),
+  const [stRes,enRes,piRes,qbRes]=await Promise.all([
+    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
+    sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active'),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
+  QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row
   const byId={};
   (stRes.data||[]).forEach(s=>{byId[s.id]={
-    id:s.id,name:s.display_name,role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
+    id:s.id,name:s.display_name,preferred:s.preferred_name||'',role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
     title:s.title||'',roleLevel:s.role,homeStore:s.home_store,first:s.first_name||'',last:s.last_name||'',
     username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',
     start:isoOf(s.start_date),archived:!!s.archived||s.active===false,active:s.active!==false,onPip:false,entries:[],pips:[]
@@ -745,7 +754,9 @@ function openPersonEditor(emp){
   modal(
     '<h2>'+(isNew?'Add employee':'Edit '+esc(emp.name))+'</h2>'
     +(isNew?'<div class="msub">Creates a login (PIN) and a records profile.</div>':'')
-    +'<div class="frow">'+field('First name','<input id="p_first" class="fin" value="'+esc(emp.first||'')+'">')+field('Last name','<input id="p_last" class="fin" value="'+esc(emp.last||'')+'">')+'</div>'
+    +'<div class="frow">'+field('Legal first name','<input id="p_first" class="fin" value="'+esc(emp.first||'')+'">')+field('Legal last name','<input id="p_last" class="fin" value="'+esc(emp.last||'')+'">')+'</div>'
+    +field('Preferred name','<input id="p_pref" class="fin" value="'+esc(emp.preferred||'')+'" placeholder="'+esc(((emp.first||'')+' '+(emp.last||'')).trim()||'shown across myRepairTools')+'"><div class="fhint">Shown everywhere in myRepairTools. Leave blank to use the legal name.</div>')
+    +(isNew?'':qbtLinkField(emp))
     +'<div class="frow">'+field('Store','<select id="p_store" class="fin">'+storeOpts+'</select>')+field('Job title','<input id="p_title" class="fin" value="'+esc(emp.title||'')+'" placeholder="e.g. Repair Technician">')+'</div>'
     +'<div class="frow">'+field('Start date','<input id="p_start" type="date" class="fin" value="'+esc(emp.start||'')+'">')+field('Access level','<select id="p_role" class="fin">'+roleOpts+'</select>')+'</div>'
     +(isNew
@@ -758,9 +769,50 @@ function openPersonEditor(emp){
   $('#p_psave').onclick=()=>savePerson(isNew?null:emp);
   if(!isNew&&$('#p_arch'))$('#p_arch').onclick=()=>archivePerson(emp,!emp.archived);
 }
+/* ----- QuickBooks Time link (per-profile; replaces the old integration mapping panel) ----- */
+const QBT_SYNC_FN=SB_URL+'/functions/v1/qbtime-sync';
+function qbtName(u){return ((u.first_name||'')+' '+(u.last_name||'')).trim()||('QB #'+u.qbt_id);}
+function qbtLinkField(emp){
+  const linked=QBU.filter(u=>String(u.staff_id)===String(emp.id))[0]||null;
+  const isOwner=AUTH&&AUTH.role==='owner';
+  const inactiveInQb=linked&&linked.active===false;
+  const state=linked?('Linked'+(inactiveInQb?' · ⚠ inactive in QB':'')):'Not linked';
+  // selectable: unlinked QB users + whoever's already on this person
+  const pickable=QBU.filter(u=>u.staff_id==null||String(u.staff_id)===String(emp.id))
+    .sort((a,b)=>(b.active?1:0)-(a.active?1:0)||qbtName(a).localeCompare(qbtName(b)));
+  let opts='<option value="">— not linked —</option>';
+  pickable.forEach(u=>{opts+='<option value="'+esc(u.qbt_id)+'"'+(linked&&linked.qbt_id===u.qbt_id?' selected':'')+'>'+esc(qbtName(u))+(u.active===false?' · inactive':'')+'</option>';});
+  const hint=inactiveInQb
+    ? 'Terminated in QuickBooks Time — set Employment status to <b>Terminated</b> above if they’ve left.'
+    : (isOwner ? 'New hires created in QuickBooks auto-create here and link themselves. Use this only to fix a link by hand.'
+               : 'The QuickBooks Time link is managed by the owner.');
+  return '<div class="qbtlink">'
+    +'<div class="qbt-top"><span class="qbt-ico">🕐</span><span class="qbt-ttl">QuickBooks Time</span><span class="qbt-state" id="p_qbtstate">'+esc(state)+'</span></div>'
+    +(isOwner
+      ? '<select id="p_qbt" class="fin" data-cur="'+esc(linked?linked.qbt_id:'')+'" data-sid="'+esc(emp.id)+'">'+opts+'</select>'
+      : '<div class="fin" style="background:var(--light-grey);color:var(--dark-grey)">'+esc(linked?qbtName(linked):'Not linked')+'</div>')
+    +'<div class="fhint">'+hint+'</div></div>';
+}
+async function qbtMap(qbt_id,staff_id){
+  const tok=await sessionToken();
+  return fetch(QBT_SYNC_FN+'?action=map',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+    body:JSON.stringify({qbt_id:qbt_id,staff_id:staff_id})}).then(r=>r.json().catch(()=>({})));
+}
+async function applyQbtLink(emp){
+  const sel=$('#p_qbt'); if(!sel)return true;
+  const cur=sel.getAttribute('data-cur')||'', next=sel.value||'';
+  if(cur===next)return true;
+  // unlink the previous QB user (if any), then link the newly chosen one to this staff row
+  if(cur){const r=await qbtMap(cur,null); if(!(r&&r.ok)){toast('Could not update QB link',true);return false;}}
+  if(next){const r=await qbtMap(next,emp.id); if(!(r&&r.ok)){toast('Could not update QB link',true);return false;}}
+  // reflect locally so a re-open is correct without a full reload
+  QBU.forEach(u=>{if(String(u.staff_id)===String(emp.id))u.staff_id=null; if(String(u.qbt_id)===String(next))u.staff_id=emp.id;});
+  return true;
+}
 async function savePerson(emp){
   const v=i=>$('#'+i);
   const first=v('p_first').value.trim(),last=v('p_last').value.trim();
+  const pref=(v('p_pref')?v('p_pref').value.trim():'');
   const home=v('p_store').value,title=v('p_title').value.trim(),start=v('p_start').value,role=v('p_role').value;
   if(!first&&!last){toast('Enter a name',true);return;}
   v('p_psave').disabled=true;
@@ -770,7 +822,7 @@ async function savePerson(emp){
     const base=((first[0]||'')+last).toLowerCase().replace(/[^a-z0-9]/g,'')||('user'+Date.now().toString(36));
     let res=null;
     for(let n=0;n<6;n++){
-      res=await authFn({action:'create_staff',first_name:first,last_name:last,username:base+(n?String(n+1):''),
+      res=await authFn({action:'create_staff',first_name:first,last_name:last,preferred_name:pref,username:base+(n?String(n+1):''),
         role,home_store:home,authorized_stores:[home],pin,title,start_date:start});
       if(res.status===200&&res.data.ok)break;
       if(!/taken/i.test(res.data.error||''))break;
@@ -780,9 +832,10 @@ async function savePerson(emp){
   }else{
     const status=v('p_status').value,notes=v('p_notes').value.trim();
     const archived=status==='terminated',active=status!=='terminated';
-    const res=await authFn({action:'update_staff',staff_id:emp.id,first_name:first,last_name:last,
+    const res=await authFn({action:'update_staff',staff_id:emp.id,first_name:first,last_name:last,preferred_name:pref,
       home_store:home,role,title,start_date:start,hr_status:status,notes,archived,active});
     if(!(res.status===200&&res.data.ok)){toast(res.data.error||'Could not save',true);v('p_psave').disabled=false;return;}
+    if(!(await applyQbtLink(emp))){v('p_psave').disabled=false;return;}
     closeModal();toast('Saved');await load();
   }
 }

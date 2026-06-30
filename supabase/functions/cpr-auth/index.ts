@@ -70,6 +70,9 @@ const displayFrom = (first, last, username)=>[
     first,
     last
   ].filter(Boolean).join(" ").trim() || (username ?? "");
+// Shown name = owner-set preferred, else legal. Keeps display_name = preferred || legal so every
+// existing reader of display_name shows the right thing (RepairQ report names are separate).
+const displayName = (preferred, first, last, username)=>(String(preferred ?? "").trim() || displayFrom(first, last, username));
 Deno.serve(async (req)=>{
   if (req.method === "OPTIONS") return json({}, 200);
   let body;
@@ -189,7 +192,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { first_name, last_name, username, role, home_store, authorized_stores, pin, title, start_date, hr_status } = body;
+    const { first_name, last_name, username, preferred_name, role, home_store, authorized_stores, pin, title, start_date, hr_status } = body;
     const newRole = role ?? "employee";
     if (!canManageRole(c.role, newRole)) return json({
       error: "managers can only create employees"
@@ -209,7 +212,8 @@ Deno.serve(async (req)=>{
     const pin_hash = await hashPin(pin);
     const { error: ie } = await admin.from("staff").insert({
       auth_uid: created.user.id,
-      display_name: displayFrom(first_name, last_name, username),
+      display_name: displayName(preferred_name, first_name, last_name, username),
+      preferred_name: (String(preferred_name ?? "").trim() || null),
       first_name: first_name ?? null,
       last_name: last_name ?? null,
       username,
@@ -239,11 +243,11 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { staff_id, first_name, last_name, username, role, home_store, authorized_stores, active, title, start_date, hr_status, notes, archived } = body;
+    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, hr_status, notes, archived } = body;
     if (!staff_id) return json({
       error: "missing staff_id"
     }, 400);
-    const { data: target } = await admin.from("staff").select("role, first_name, last_name, username").eq("id", staff_id).maybeSingle();
+    const { data: target } = await admin.from("staff").select("role, first_name, last_name, username, preferred_name").eq("id", staff_id).maybeSingle();
     if (!target) return json({
       error: "not found"
     }, 404);
@@ -266,8 +270,11 @@ Deno.serve(async (req)=>{
     if (hr_status != null) patch.hr_status = hr_status;
     if (notes != null) patch.notes = notes;
     if (archived != null) patch.archived = archived;
-    if (first_name != null || last_name != null || username != null) {
-      patch.display_name = displayFrom(first_name ?? target.first_name, last_name ?? target.last_name, username ?? target.username);
+    // preferred_name: "" clears the override (back to legal), a value sets it, omitted leaves as-is.
+    if (preferred_name != null) patch.preferred_name = (String(preferred_name).trim() || null);
+    if (first_name != null || last_name != null || username != null || preferred_name != null) {
+      const pref = preferred_name != null ? preferred_name : target.preferred_name;
+      patch.display_name = displayName(pref, first_name ?? target.first_name, last_name ?? target.last_name, username ?? target.username);
     }
     const { error } = await admin.from("staff").update(patch).eq("id", staff_id);
     if (error) {

@@ -9,6 +9,28 @@ This file plans the build-out from the owner's list.
 Almost everything depends on three shared pieces. Build these first.
 
 ### Foundation A — Rock-solid employee mapping  *(keystone, quick)* — ✅ BUILT
+> **Redesign (owner call): identity lives on the employee profile, not in the integration.**
+> Mapping was a one-time back-fill chore (two rosters that grew up apart), not a permanent
+> integration setting. The ongoing model:
+> 1. Create the hire in **QuickBooks** → 2. the sync **auto-creates the MRT staff row** with the
+> legal name and links it (`qbtime_users.staff_id`) on the spot → 3. the owner opens the new
+> person in **Employee Records**, sets a **Preferred name** (`staff.preferred_name`; blank → legal),
+> and finishes setup (PIN/store) → 4. preferred overrides legal everywhere in MRT
+> (`display_name = preferred_name || legal`), except RepairQ-report names, which keep their own.
+> - **Auto-create is dupe-guarded:** only fires for a *first-time-seen* QB `qbt_id` that's active,
+>   name-unmatched, and has no last-name collision with existing active staff — so the existing
+>   roster (already in `qbtime_users`) never spawns a second row. New hires come in as **stubs**
+>   (no PIN/store/login until the owner finishes setup — `pin_hash`/`home_store`/`authorized_stores`
+>   are now nullable for exactly this).
+> - **The QB Time link + preferred name live on the profile** (`employee-records.html`), owner-editable
+>   (admins see it read-only). The Settings → Integrations mapping panel is **retired**; the QB Time
+>   page is just **Connection + Sync** now, and the sync reports created / linked / inactive counts.
+> - **Terminations surface on the profile too:** a linked QB user gone inactive shows
+>   "⚠ inactive in QB" on their record; the owner flips Employment status to Terminated. (Still
+>   never the reverse — MRT never writes terminations back to QBO.)
+> - The nickname matcher below is now just the bridge for the *existing* roster; new hires are
+>   id-linked from birth.
+
 Covers list items **#9 (name mismatches)** and **#6 (termination sync)**.
 - The auto-match by name misses nicknames: QB Time carries **legal** names, MRT/RepairQ use
   **preferred** names. Real examples: Michael→**Vince** Amador, Joshua→Josh, Benjamin→Ben,

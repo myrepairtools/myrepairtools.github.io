@@ -438,15 +438,11 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div id="qbtHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
         </div>
 
-        <!-- Employee mapping section (appears when connected) -->
+        <!-- Employees section (mapping lives on each employee's profile now) -->
         <div id="qbtMap" class="hide" style="max-width:640px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Employee mapping</div>
-            <span style="flex:1"></span>
-            <button class="btn alt sm" id="qbtMapRefresh">Refresh</button>
-          </div>
-          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:10px 0 4px">Link each QuickBooks Time employee to a myRepairTools staff record. QB Time carries <b>legal</b> names; MRT uses <b>preferred</b> names &mdash; auto-match handles nicknames, the rest you link by hand here.</p>
-          <div id="qbtMapBody" style="margin-top:10px"></div>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Employees</div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:10px 0 4px">New hires created in QuickBooks Time are <b>auto-created in myRepairTools</b> on sync, with their legal name. Open the new employee in <a href="employee-records.html" style="color:var(--blue);font-weight:700">Employee Records</a> to set a <b>preferred name</b> and finish setup (PIN, store). The QuickBooks Time link lives on each person&rsquo;s profile.</p>
+          <div id="qbtMapBody" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey);margin-top:8px"></div>
         </div>
       </div>
     </div>
@@ -724,7 +720,7 @@ async function qbtRenderStatus(){
     if(conn){conn.textContent='Reconnect';conn.classList.remove('hide');}
     if(disc)disc.classList.remove('hide');
     var sync=$('#qbtSyncUsers'); if(sync)sync.classList.remove('hide');
-    var map=$('#qbtMap'); if(map){map.classList.toggle('hide',!detailOpen); if(detailOpen)qbtLoadMap();}
+    var map=$('#qbtMap'); if(map)map.classList.toggle('hide',!detailOpen);
   }else{
     qbtCardPill('off');
     if(st)st.textContent='Not connected';
@@ -757,103 +753,21 @@ async function qbtSyncUsers(){
     .then(function(x){return x.json().catch(function(){return {};});});
   if(!hint)return;
   if(r&&r.ok){
-    var tc=(r.termination_candidates&&r.termination_candidates.length)?(' · '+r.termination_candidates.length+' flagged for review'):'';
-    hint.textContent='Synced '+r.fetched+' QuickBooks Time users · '+r.matched+' matched to staff'+(r.unmatched&&r.unmatched.length?(' · '+r.unmatched.length+' to link'):'')+tc+'.';
-    qbtLoadMap();
+    var bits=[r.matched+' linked'];
+    if(r.created&&r.created.length) bits.push(r.created.length+' new auto-created');
+    if(r.unmatched&&r.unmatched.length) bits.push(r.unmatched.length+' unmatched');
+    if(r.termination_candidates&&r.termination_candidates.length) bits.push(r.termination_candidates.length+' inactive in QB');
+    hint.textContent='Synced '+r.fetched+' QuickBooks Time users · '+bits.join(' · ')+'.';
+    var sum=$('#qbtMapBody');
+    if(sum){
+      var parts=[];
+      if(r.created&&r.created.length) parts.push('<b>'+r.created.length+' new</b> employee'+(r.created.length>1?'s':'')+' auto-created: '+r.created.map(function(c){return esc(c.name);}).join(', ')+' — open in Employee Records to finish setup.');
+      if(r.termination_candidates&&r.termination_candidates.length) parts.push('<b>'+r.termination_candidates.length+'</b> inactive in QuickBooks but still active here — review on their profile: '+r.termination_candidates.map(function(t){return esc(t.name);}).join(', ')+'.');
+      if(r.unmatched&&r.unmatched.length) parts.push('<b>'+r.unmatched.length+'</b> QB user'+(r.unmatched.length>1?'s':'')+' not linked to anyone here: '+r.unmatched.map(function(u){return esc(u.name);}).join(', ')+'.');
+      sum.innerHTML=parts.length?parts.join('<br>'):'Everyone is synced and linked.';
+    }
   }
   else hint.textContent='Sync failed'+(r&&r.detail?(' — '+(typeof r.detail==='string'?r.detail:JSON.stringify(r.detail))):'')+'.';
-}
-/* ---- employee mapping (link QB Time users ↔ staff, confirm terminations) ---- */
-var QBT_TERMS=[]; /* termination candidates from the last sync (proposed, not applied) */
-async function qbtSyncFetch(action,opts){
-  var tok=await sessionToken();
-  opts=opts||{};
-  return fetch(QBT_SYNC_FN+'?action='+action,Object.assign({headers:{'Authorization':'Bearer '+tok,'apikey':ANON,'Content-Type':'application/json'}},opts))
-    .then(function(x){return x.json().catch(function(){return {};});});
-}
-async function qbtLoadMap(){
-  var body=$('#qbtMapBody'); if(!body)return;
-  body.innerHTML='<span style="font-family:\'Nunito Sans\',sans-serif;font-size:.82rem;color:var(--grey)">Loading…</span>';
-  /* pull the proposed terminations from a fresh sync read, and the roster */
-  var rost=await qbtSyncFetch('roster');
-  if(!rost||!rost.ok){ body.innerHTML='<span style="color:var(--red);font-size:.82rem">Could not load mapping'+(rost&&rost.error?(' — '+rost.error):'')+'.</span>'; return; }
-  qbtRenderMap(rost.qbtime_users||[], rost.staff||[]);
-}
-function qbtStaffOptions(staff,sel){
-  var o='<option value="">— not linked —</option>';
-  staff.forEach(function(s){
-    var nm=s.display_name||((s.first_name||'')+' '+(s.last_name||'')).trim();
-    o+='<option value="'+s.id+'"'+(String(sel)===String(s.id)?' selected':'')+'>'+esc(nm)+(s.role?(' · '+esc(s.role)):'')+'</option>';
-  });
-  return o;
-}
-function qbtRenderMap(qbu,staff){
-  var body=$('#qbtMapBody'); if(!body)return;
-  var linkedStaff={}; qbu.forEach(function(u){ if(u.staff_id!=null) linkedStaff[u.staff_id]=u.qbt_id; });
-  /* termination candidates: mapped QB user inactive while staff row active */
-  var staffActive={}; staff.forEach(function(s){ staffActive[s.id]=true; });
-  var terms=qbu.filter(function(u){ return u.staff_id!=null && u.active===false && staffActive[u.staff_id]; });
-  var unmatched=qbu.filter(function(u){ return u.staff_id==null && u.active!==false; });
-  var linked=qbu.filter(function(u){ return u.staff_id!=null; });
-
-  function nm(u){ return ((u.first_name||'')+' '+(u.last_name||'')).trim(); }
-  var html='';
-
-  if(terms.length){
-    html+='<div style="margin-bottom:14px;padding:12px 14px;border:1px solid #F2C9CB;background:#FCEDED;border-radius:10px">';
-    html+='<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.84rem;color:#B02329">⚠ Terminated in QuickBooks Time — review</div>';
-    html+='<div style="font-family:\'Nunito Sans\',sans-serif;font-size:.78rem;color:var(--dark-grey);margin:4px 0 8px">These are marked inactive in QB Time but still active in myRepairTools. Deactivate here to terminate in MRT, or keep active if it’s a false alarm.</div>';
-    terms.forEach(function(u){
-      html+='<div class="qbt-term" data-sid="'+u.staff_id+'" style="display:flex;align-items:center;gap:8px;padding:6px 0">'
-        +'<span style="flex:1;font-family:\'Nunito Sans\',sans-serif;font-size:.86rem;font-weight:700">'+esc(nm(u))+'</span>'
-        +'<button class="btn alt sm qbt-keep">Keep active</button>'
-        +'<button class="btn sm qbt-deact" style="background:#DC282E">Deactivate in MRT</button></div>';
-    });
-    html+='</div>';
-  }
-
-  html+='<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.82rem;margin:6px 0 6px">To link ('+unmatched.length+')</div>';
-  if(!unmatched.length) html+='<div style="font-family:\'Nunito Sans\',sans-serif;font-size:.8rem;color:var(--grey);margin-bottom:8px">Everyone’s linked. 🎉</div>';
-  unmatched.forEach(function(u){
-    html+='<div class="qbt-row" data-qbt="'+esc(u.qbt_id)+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--light-grey)">'
-      +'<span style="flex:1;font-family:\'Nunito Sans\',sans-serif;font-size:.86rem"><b>'+esc(nm(u))+'</b>'+(u.username?('<span style="color:var(--grey)"> · '+esc(u.username)+'</span>'):'')+'</span>'
-      +'<select class="qbt-pick" style="width:auto;min-width:180px">'+qbtStaffOptions(staff,'')+'</select></div>';
-  });
-
-  html+='<details style="margin-top:14px"><summary style="cursor:pointer;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.82rem">Linked ('+linked.length+')</summary><div style="margin-top:8px">';
-  linked.forEach(function(u){
-    var s=staff.filter(function(x){return String(x.id)===String(u.staff_id);})[0];
-    var snm=s?(s.display_name||((s.first_name||'')+' '+(s.last_name||'')).trim()):('#'+u.staff_id);
-    html+='<div class="qbt-row" data-qbt="'+esc(u.qbt_id)+'" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--light-grey)'+(u.active===false?';opacity:.55':'')+'">'
-      +'<span style="flex:1;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem">'+esc(nm(u))+(u.active===false?' <span style="color:var(--grey)">· QB inactive</span>':'')+' <span style="color:var(--grey)">→</span> <b>'+esc(snm)+'</b></span>'
-      +'<select class="qbt-pick" style="width:auto;min-width:180px">'+qbtStaffOptions(staff,u.staff_id)+'</select></div>';
-  });
-  html+='</div></details>';
-
-  body.innerHTML=html;
-
-  /* wire link/unlink dropdowns */
-  $all('#qbtMapBody .qbt-row').forEach(function(row){
-    var sel=row.querySelector('.qbt-pick'); if(!sel)return;
-    sel.onchange=async function(){
-      var qbt_id=row.getAttribute('data-qbt');
-      var r=await qbtSyncFetch('map',{method:'POST',body:JSON.stringify({qbt_id:qbt_id,staff_id:sel.value||null})});
-      if(r&&r.ok){ toast('Mapping saved'); qbtLoadMap(); }
-      else toast('Could not save'+(r&&r.error?(' — '+r.error):''),true);
-    };
-  });
-  /* wire termination confirm / dismiss */
-  $all('#qbtMapBody .qbt-term').forEach(function(row){
-    var sid=row.getAttribute('data-sid');
-    var d=row.querySelector('.qbt-deact'), k=row.querySelector('.qbt-keep');
-    if(d)d.onclick=async function(){
-      if(!confirm('Deactivate this employee in myRepairTools? This terminates their MRT access; it does not change QuickBooks.'))return;
-      var r=await qbtSyncFetch('deactivate',{method:'POST',body:JSON.stringify({staff_id:Number(sid)})});
-      if(r&&r.ok){ toast('Employee deactivated'); qbtLoadMap(); }
-      else toast('Could not deactivate'+(r&&r.error?(' — '+r.error):''),true);
-    };
-    if(k)k.onclick=function(){ row.style.display='none'; }; /* dismiss for this view; reappears on next sync */
-  });
 }
 function qbtHandleReturn(){
   var q=new URLSearchParams(location.search), s=q.get('qbtime');
@@ -2135,7 +2049,6 @@ function initUI(){
   $('#qbtConnect').onclick=qbtConnect;
   $('#qbtDisconnect').onclick=qbtDisconnect;
   $('#qbtSyncUsers').onclick=qbtSyncUsers;
-  var qmr=$('#qbtMapRefresh'); if(qmr)qmr.onclick=qbtLoadMap;
   $all('.integ-card').forEach(function(card){
     card.style.cursor='pointer';
     card.addEventListener('click',function(e){
