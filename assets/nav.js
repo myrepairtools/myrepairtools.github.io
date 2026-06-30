@@ -407,10 +407,10 @@
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></div>';
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
-    var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
-    if (ord) h += '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord;
     var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (pr) h += '<div class="cpr-grp">Sales &amp; Pricing</div>' + pr;
+    var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (ord) h += '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord;
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (ops) h += '<div class="cpr-grp">Operations</div>' + ops;
     if (hasAdminArea()) h += '<div data-priv>' + privilegedHtml() + '</div>';
@@ -547,8 +547,8 @@
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
