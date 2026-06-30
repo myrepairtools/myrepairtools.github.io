@@ -264,6 +264,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <button class="tab" data-tab="notif" id="tabNotif">Notifications <span class="ct" id="ctNotif">0</span></button>
     <button class="tab" data-tab="pages" id="tabPages">Page Settings</button>
     <button class="tab" data-tab="commission" id="tabCommission">Commission</button>
+    <button class="tab hide" data-tab="integ" id="tabInteg">Integrations</button>
     <button class="tab hide" data-tab="roles" id="tabRoles">Roles &amp; Permissions <span class="ct" id="ctRoles">0</span></button>
   </div>
 
@@ -390,6 +391,27 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <div class="bar"><button class="btn alt sm" id="resetRules">Clear this scope</button><span class="spacer"></span><button class="btn" id="saveRules">Save</button></div>
 
   </section>
+
+  <!-- INTEGRATIONS TAB (owner only) -->
+  <section id="view-integ" class="hide">
+    <div style="max-width:640px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:1.5rem">🕐</span>
+        <div>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem">QuickBooks Time</div>
+          <div id="qbtStatus" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey);font-weight:700">Checking…</div>
+        </div>
+        <span style="flex:1"></span>
+        <span id="qbtPill" class="hide" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px"></span>
+      </div>
+      <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey);margin:12px 0 16px">Sync clock-in/out and timesheets so hours, overtime, and time-off live alongside the rest of myRepairTools. Connecting is owner-only and the credentials stay server-side &mdash; the browser never sees them.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="qbtConnect">Connect QuickBooks Time</button>
+        <button class="btn alt sm hide" id="qbtDisconnect">Disconnect</button>
+      </div>
+      <div id="qbtHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -425,6 +447,7 @@ function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimu
 function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
+qbtHandleReturn();   /* if returning from the QuickBooks Time OAuth round-trip, land on Integrations */
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
 var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
 var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
@@ -599,20 +622,75 @@ function renderTabs(){
   $('#ctLoc').textContent=STORES.length;
   $('#ctRoles').textContent=RBROLES.length;
   $('#tabRoles').classList.toggle('hide',!owner);
-  if(!owner&&TAB==='roles')TAB='staff';   /* non-owners can't sit on the roles tab */
+  $('#tabInteg').classList.toggle('hide',!owner);
+  if(!owner&&(TAB==='roles'||TAB==='integ'))TAB='staff';   /* owner-only tabs */
   $('#ctNotif').textContent=NRULES.filter(function(e){return e.enabled;}).length;
   $('#tabStaff').classList.toggle('active',TAB==='staff');
   $('#tabLoc').classList.toggle('active',TAB==='loc');
   $('#tabNotif').classList.toggle('active',TAB==='notif');
   $('#tabPages').classList.toggle('active',TAB==='pages');
   $('#tabCommission').classList.toggle('active',TAB==='commission');
+  $('#tabInteg').classList.toggle('active',TAB==='integ');
   $('#tabRoles').classList.toggle('active',TAB==='roles');
   $('#view-staff').classList.toggle('hide',TAB!=='staff');
   $('#view-loc').classList.toggle('hide',TAB!=='loc');
   $('#view-notif').classList.toggle('hide',TAB!=='notif');
   $('#view-pages').classList.toggle('hide',TAB!=='pages');
   $('#view-commission').classList.toggle('hide',TAB!=='commission');
+  $('#view-integ').classList.toggle('hide',TAB!=='integ');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
+  if(TAB==='integ')qbtRenderStatus();
+}
+
+/* ===================== QuickBooks Time (integrations) ===================== */
+var QBT_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbtime-oauth';
+var QBT_RETURN_MSG='';
+async function qbtCall(action){
+  var tok=await sessionToken();
+  return fetch(QBT_FN+'?action='+action,{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}})
+    .then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});
+}
+async function qbtRenderStatus(){
+  var st=$('#qbtStatus'),pill=$('#qbtPill'),conn=$('#qbtConnect'),disc=$('#qbtDisconnect'),hint=$('#qbtHint');
+  if(!st)return;
+  if(hint)hint.textContent=QBT_RETURN_MSG||'';
+  st.textContent='Checking…'; if(pill)pill.classList.add('hide');
+  var r=await qbtCall('status'), d=r.data||{};
+  if(r.status===403){ st.textContent='Owner sign-in required.'; if(conn)conn.classList.add('hide'); if(disc)disc.classList.add('hide'); return; }
+  if(d.connected){
+    st.textContent='Connected'+(d.updated_at?(' · since '+new Date(d.updated_at).toLocaleDateString()):'');
+    if(pill){pill.textContent='Connected';pill.style.color='#1E9E5B';pill.style.background='#E9F6EE';pill.style.border='1px solid #CFE9D8';pill.classList.remove('hide');}
+    if(conn){conn.textContent='Reconnect';conn.classList.remove('hide');}
+    if(disc)disc.classList.remove('hide');
+  }else{
+    st.textContent='Not connected';
+    if(pill){pill.textContent='Off';pill.style.color='#8A8F9C';pill.style.background='#F3F2F2';pill.style.border='1px solid var(--border)';pill.classList.remove('hide');}
+    if(conn){conn.textContent='Connect QuickBooks Time';conn.classList.remove('hide');}
+    if(disc)disc.classList.add('hide');
+  }
+}
+async function qbtConnect(){
+  var hint=$('#qbtHint'); if(hint)hint.textContent='Opening QuickBooks Time…';
+  var r=await qbtCall('start');
+  if(r.data&&r.data.url){ window.location.href=r.data.url; return; }
+  if(hint){
+    if(r.data&&r.data.error==='not_configured')hint.textContent='⚠ QuickBooks Time API keys aren’t set yet (QBT_CLIENT_ID / QBT_CLIENT_SECRET). Add those in Supabase first.';
+    else if(r.status===403)hint.textContent='Owner sign-in required to connect.';
+    else hint.textContent='Could not start the connection'+(r.data&&r.data.detail?(' — '+r.data.detail):'')+'.';
+  }
+}
+async function qbtDisconnect(){
+  if(!confirm('Disconnect QuickBooks Time? New syncing stops until you reconnect.'))return;
+  await qbtCall('disconnect'); QBT_RETURN_MSG=''; qbtRenderStatus();
+}
+function qbtHandleReturn(){
+  var q=new URLSearchParams(location.search), s=q.get('qbtime');
+  if(!s)return;
+  QBT_RETURN_MSG = s==='connected' ? 'QuickBooks Time connected ✓'
+    : ('Connection failed'+(q.get('detail')?(' — '+q.get('detail')):'')+'.');
+  TAB='integ'; lsSet('cprSetTab',TAB);
+  q.delete('qbtime'); q.delete('detail');
+  history.replaceState(null,'',location.pathname+(q.toString()?('?'+q.toString()):''));
 }
 
 /* ===================== COMMISSION SETTINGS ===================== */
@@ -1880,6 +1958,9 @@ function initUI(){
   $('#tabNotif').onclick=function(){TAB='notif';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabPages').onclick=function(){TAB='pages';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabCommission').onclick=function(){TAB='commission';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#tabInteg').onclick=function(){TAB='integ';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
+  $('#qbtConnect').onclick=qbtConnect;
+  $('#qbtDisconnect').onclick=qbtDisconnect;
   $('#saveRates').onclick=saveRates;
   $('#resetRates').onclick=resetRates;
   $('#crateSel').onchange=function(){CRTSEL=$('#crateSel').value;renderRates();};
