@@ -17,14 +17,21 @@
   var NAV_ROLE = null, NAV_NAME = '', NAV_PERMS = null; // NAV_PERMS: Set of granted permission keys (null = not loaded yet)
   var HOME = 'index.html';
 
-  var OPERATIONS = [
-    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵', acc:'cash.view' },
-    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' },
+  // Ordering & Inventory — parts/supplier ordering and stock.
+  var ORDERING = [
+    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋', acc:'orders.jerryding' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦', acc:'orders.po' },
+    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' }
+  ];
+  // Sales & Pricing — quoting and customer-facing pricing.
+  var PRICING = [
     { label:'Price Calculator',    url:'price-calculator.html',    icon:'🧮', acc:'pricing.view' },
-    { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' },
-    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
+    { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' }
+  ];
+  // Operations — store-floor / daily ops.
+  var OPERATIONS = [
+    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵', acc:'cash.view' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
@@ -98,9 +105,11 @@
   function doSwitchUser(){ signOutThen(function(){ window.location.reload(); }); }      // re-PIN here
 
   // Which area is the current page in?
-  var inAdmin = PRIVILEGED.some(function(t){ return t.url.toLowerCase() === currentFile; });
-  var inHub   = HUB.some(function(t){ return t.url.toLowerCase() === currentFile; });
-  var ACTIVE_AREA = inHub ? 'hub' : (inAdmin ? 'admin' : 'ops');   // default ops (incl. home)
+  var inAdmin   = PRIVILEGED.some(function(t){ return t.url.toLowerCase() === currentFile; });
+  var inHub     = HUB.some(function(t){ return t.url.toLowerCase() === currentFile; });
+  var inOrder   = ORDERING.some(function(t){ return t.url.toLowerCase() === currentFile; });
+  var inPricing = PRICING.some(function(t){ return t.url.toLowerCase() === currentFile; });
+  var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inOrder ? 'order' : inPricing ? 'pricing' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -255,6 +264,8 @@
   var RAIL_ICONS = {
     home:  'M3 10.6 12 3l9 7.6M5.5 9.2V20h13V9.2',
     tools: 'M14.6 6.4a3.8 3.8 0 0 0-5 4.9L3.5 17.4V20.5H6.6l6.1-6.1a3.8 3.8 0 0 0 4.9-5l-2.4 2.4-2-2 2.4-2.4Z',
+    order: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16ZM3.3 7 12 12l8.7-5M12 22V12',
+    tag:   'M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V5a2 2 0 0 1 2-2h7a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8ZM7.5 7.5h.01',
     user:  'M12 12.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4ZM5.6 20v-.4c0-3 2.9-4.8 6.4-4.8s6.4 1.8 6.4 4.8V20',
     lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5',
     gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z'
@@ -321,6 +332,14 @@
       return '<div class="cpr-fly-hd">Operations</div>'
         + OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
+    if (area === 'order'){
+      return '<div class="cpr-fly-hd">Ordering &amp; Inventory</div>'
+        + ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    }
+    if (area === 'pricing'){
+      return '<div class="cpr-fly-hd">Sales &amp; Pricing</div>'
+        + PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    }
     if (area === 'hub'){
       return '<div class="cpr-fly-hd">My Hub</div>'
         + HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -363,6 +382,16 @@
         + (hub || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
+    if (area === 'order'){
+      var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      return hd + '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
+    if (area === 'pricing'){
+      var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      return hd + '<div class="cpr-grp">Sales &amp; Pricing</div>' + pr
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     return hd
       + '<div class="cpr-grp">Operations</div>'
@@ -378,6 +407,10 @@
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></div>';
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
+    var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (ord) h += '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord;
+    var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (pr) h += '<div class="cpr-grp">Sales &amp; Pricing</div>' + pr;
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (ops) h += '<div class="cpr-grp">Operations</div>' + ops;
     if (hasAdminArea()) h += '<div data-priv>' + privilegedHtml() + '</div>';
@@ -514,6 +547,8 @@
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
@@ -583,7 +618,7 @@
     }
     function showFlyout(area, btn){
       if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
-      if (area !== 'ops' && area !== 'hub' && area !== 'admin') return;
+      if (['ops','hub','admin','order','pricing'].indexOf(area) < 0) return;
       clearTimeout(flyHideT);
       flyout.innerHTML = flyoutLinksHtml(area);
       flyout.classList.add('show');
