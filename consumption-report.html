@@ -157,6 +157,8 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .brk b{font-family:'Nunito Sans',sans-serif}
 .flags{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
 .flags .stoptag,.flags .claimtag,.flags .cflag{margin-left:0}
+.ficon{font-size:1rem;line-height:1;margin-right:5px;cursor:default;vertical-align:middle}
+.flags .ficon:last-child{margin-right:0}
 .cflag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;border-radius:5px;padding:1px 6px;white-space:nowrap;vertical-align:middle}
 .claimtag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 6px;white-space:nowrap}
 .optcell{text-align:center;white-space:nowrap}
@@ -440,8 +442,13 @@ tr.grp.open .chev{transform:rotate(90deg)}
         <th>Item</th>
         <th class="ctr">Used</th>
         <th class="ctr">In stock</th>
+        <th class="ctr">Claim ✓</th>
         <th class="ctr">On order</th>
-        <th class="ctr">Order</th>
+        <th class="ctr">Max</th>
+        <th class="ctr">Suggest</th>
+        <th class="ctr">Order SKU</th>
+        <th>Flags</th>
+        <th></th>
       </tr></thead>
       <tbody id="batRows"></tbody>
     </table>
@@ -570,7 +577,7 @@ async function loadAll(){
     sb.from('consumption_log').select('sku,units,name').eq('store',store).eq('biz_date',day),
     sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
     loadGroups(),
-    sb.from('flag_types').select('key,label,color,active,sort').eq('active',true).order('sort').order('id'),
+    sb.from('flag_types').select('key,label,color,icon,active,sort').eq('active',true).order('sort').order('id'),
     sb.from('sku_flags').select('sku,flag_key').eq('store',store),
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle()
@@ -678,10 +685,16 @@ function usedMap(){var m={};CONSUMPTION.forEach(function(c){m[c.sku]=(m[c.sku]||
 /* Special Order items are ordered manually, so — like Consignment only — they
    ignore the stock-driven suggested-order math (suggest forced to 0). */
 function isSpecialOrder(sku){ return ((SKUFLAGS[STATE.store]||{})[sku]||[]).indexOf('special_order')>-1; }
+function hasBatteryFlag(sku){ return ((SKUFLAGS[STATE.store]||{})[sku]||[]).indexOf('battery')>-1; }
 
-/* build display rows: grouped rollups + ungrouped sku rows */
-function buildRows(){
-  var used=usedMap(), seenGrp={}, rows=[];
+/* build display rows: grouped rollups + ungrouped sku rows.
+   used  = sku->units map (defaults to today's consumption); a custom map (e.g. a
+           weekly window) powers the Battery tab.
+   filter = optional row predicate; when given the rows are NOT frozen into ORDER
+           (that stable-sort is the daily tab's). */
+function buildRows(used, filter){
+  used = used || usedMap();
+  var seenGrp={}, rows=[];
   var stop=STOPSTOCK[STATE.store]||[], claimRep=CLAIMREPORT[STATE.store]||{};
   var skus={};Object.keys(used).forEach(function(s){skus[s]=1;});
   Object.keys(skus).forEach(function(sku){
@@ -717,6 +730,7 @@ function buildRows(){
       claimElig:cElig,flagSku:pref,
       suggest:noSuggest?0:Math.max(0,gmx-instock-onorder),orderSku:pref,members:members});
   });
+  if(filter){ rows=rows.filter(filter); rows.sort(function(a,b){return b.suggest-a.suggest;}); return rows; }
   var keyOf=function(r){return r.type==='group'?('g:'+r.gid):r.sku;};
   if(ORDER){
     var oidx={};ORDER.forEach(function(k,i){oidx[k]=i;});
@@ -739,10 +753,10 @@ function openOptMenu(btn){
   var isStop=(STOPSTOCK[STATE.store]||[]).indexOf(sku)>-1;
   var assigned=(SKUFLAGS[STATE.store]||{})[sku]||[];
   var html='<div class="oih">'+sku+' · '+STATE.store+'</div>'
-    +'<div class="oi'+(isStop?' on':'')+'" data-f="stop"><span class="chk">✓</span> Consignment only</div>';
+    +'<div class="oi'+(isStop?' on':'')+'" data-f="stop"><span class="chk">✓</span> 🤝 Consignment only</div>';
   FLAGTYPES.forEach(function(f){
     var on=assigned.indexOf(f.key)>-1;
-    html+='<div class="oi'+(on?' on':'')+'" data-flag="'+esc(f.key)+'"><span class="chk">✓</span> '+esc(f.label)+'</div>';
+    html+='<div class="oi'+(on?' on':'')+'" data-flag="'+esc(f.key)+'"><span class="chk">✓</span> '+(f.icon?f.icon+' ':'')+esc(f.label)+'</div>';
   });
   menu.innerHTML=html;
   menu.querySelectorAll('.oi').forEach(function(oi){oi.addEventListener('click',async function(){
@@ -805,13 +819,14 @@ function flagTint(hex){
   if(isNaN(r)||isNaN(g)||isNaN(b)){r=79;g=176;b=227;}
   return 'rgba('+r+','+g+','+b+',0.13)';
 }
+/* tags render as icons (with the full name on hover) instead of spelled-out text */
 function flagsHtml(flagSku,isStop){
   var h='<span class="flags">';
-  if(isStop)h+='<span class="stoptag" title="Consignment only">CO</span>';
+  if(isStop)h+='<span class="ficon" title="Consignment only">🤝</span>';
   var assigned=(SKUFLAGS[STATE.store]||{})[flagSku]||[];
   FLAGTYPES.forEach(function(f){
     if(assigned.indexOf(f.key)<0)return;
-    h+='<span class="cflag" style="background:'+flagTint(f.color)+';color:'+(f.color||'#4FB0E3')+'" title="'+esc(f.label)+'">'+esc(f.label)+'</span>';
+    h+='<span class="ficon" title="'+esc(f.label)+'">'+(f.icon||'🏷️')+'</span>';
   });
   return h+'</span>';
 }
@@ -897,12 +912,10 @@ function renderStock(){
   wireMaxEdit(tb);
 }
 
-function render(){
-  /* ANCHOR */
-  var rows=buildRows(), tb=$('#rows'); tb.innerHTML='';
-  var totUsed=0,totOrder=0,below=0;
+/* shared row renderer for the Daily order + Battery order tables (same columns) */
+function renderOrderRows(tb, rows){
+  tb.innerHTML='';
   rows.forEach(function(r){
-    totUsed+=r.used; totOrder+=r.suggest; if(r.instock===0)below++;
     var sCls=r.suggest>0?'go':'zero';
     var hasDetail=(r.type==='group');
     var orderCell=r.suggest>0
@@ -957,6 +970,13 @@ function render(){
     b.addEventListener('click',function(e){e.stopPropagation();openOptMenu(b);});
   });
   wireMaxEdit(tb);
+}
+
+function render(){
+  var rows=buildRows();
+  renderOrderRows($('#rows'), rows);
+  var totUsed=0,totOrder=0,below=0;
+  rows.forEach(function(r){totUsed+=r.used;totOrder+=r.suggest;if(r.instock===0)below++;});
   $('#kUsed').textContent=totUsed;
   $('#kLines').textContent=rows.length;
   $('#kBelow').textContent=below;
@@ -964,16 +984,6 @@ function render(){
   $('#empty').classList.toggle('hide',rows.length>0);
 }
 
-/* Battery detection — ground-shipped cells. Match the word battery/batteries but
-   exclude battery-adjacent accessories (adhesive/cover/connector/...) that ship
-   normally, and brand words like "Battersea" (no \bbattery\b). */
-function isBattery(name){
-  var n=String(name||'').toLowerCase();
-  if(!/\bbatter(y|ies)\b/.test(n))return false;
-  if(/\bbatter(y|ies)\b\s*(adhesive|cover|connector|flex|cable|bracket|sticker|sleeve|holder|clip|screw|spacer|foam|gasket|tape|insulator)\b/.test(n))return false;
-  if(/adhesive (tape|strip|sticker|sheet|pad)/.test(n))return false;
-  return true;
-}
 function todayISO(){return new Date().toISOString().slice(0,10);}
 function isoDaysAgo(n){var d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
 
@@ -983,7 +993,7 @@ function orderList(withBatteries){
   var rows=buildRows(), out=[];
   rows.forEach(function(r){
     if(r.suggest<=0)return;
-    if(withBatteries===false && isBattery(r.name))return;
+    if(withBatteries===false && hasBatteryFlag(r.flagSku))return;
     out.push([r.orderSku,r.suggest]);
   });
   return out;
@@ -1013,47 +1023,33 @@ async function exportOrder(withBatteries){
   buildMSExport(rows, withBatteries===false?'order-no-batteries':'order');
 }
 
-/* ---- Battery order (weekly) ---- */
-var BATROWS=[];
+/* ---- Battery order (weekly) — same table as Daily, filtered to battery-tagged
+   SKUs, with "Used" summed over the chosen window. ---- */
+var BATUSED={}, BATROWS=[];
 async function loadBatteries(){
   var store=STATE.store; if(!store)return;
   var since=$('#batSince').value||isoDaysAgo(7), end=todayISO();
   if(since>end)since=end;
-  var r=await sb.from('consumption_log').select('sku,units,name').eq('store',store).gte('biz_date',since).lte('biz_date',end);
-  var agg={};
-  (r.data||[]).forEach(function(x){
-    var nm=x.name||(SNAP[x.sku]&&SNAP[x.sku].name)||x.sku;
-    if(!isBattery(nm))return;
-    var a=agg[x.sku]||(agg[x.sku]={sku:x.sku,name:nm,used:0});
-    a.used+=(x.units||0);
-  });
-  BATROWS=Object.keys(agg).map(function(k){return agg[k];}).filter(function(b){return b.used>0;}).sort(function(a,b){return b.used-a.used;});
+  var r=await sb.from('consumption_log').select('sku,units').eq('store',store).gte('biz_date',since).lte('biz_date',end);
+  var used={}; (r.data||[]).forEach(function(x){used[x.sku]=(used[x.sku]||0)+(x.units||0);});
+  BATUSED=used;
   renderBatteries();
 }
 function renderBatteries(){
-  var tb=$('#batRows'); if(!tb)return; tb.innerHTML='';
-  var units=0;
-  BATROWS.forEach(function(r){
-    var s=SNAP[r.sku]||{instock:0,onorder:0};
-    units+=r.used;
-    var tr=document.createElement('tr');
-    tr.innerHTML='<td class="sku">'+r.sku+'</td>'
-      +'<td class="itm"><span class="nm">'+esc(r.name)+'</span></td>'
-      +'<td class="ctr"><b>'+r.used+'</b></td>'
-      +'<td class="ctr">'+s.instock+'</td>'
-      +'<td class="ctr">'+s.onorder+'</td>'
-      +'<td class="ctr"><span class="buysku">'+r.used+'</span></td>';
-    tb.appendChild(tr);
-  });
-  $('#batUnits').textContent=units;
-  $('#batSkus').textContent=BATROWS.length;
-  $('#batOrder').textContent=units;
-  $('#batEmpty').classList.toggle('hide',BATROWS.length>0);
+  var rows=buildRows(BATUSED, function(r){return hasBatteryFlag(r.flagSku);});
+  BATROWS=rows;
+  renderOrderRows($('#batRows'), rows);
+  var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;totOrder+=r.suggest;});
+  $('#batUnits').textContent=totUsed;
+  $('#batSkus').textContent=rows.length;
+  $('#batOrder').textContent=totOrder;
+  $('#batEmpty').classList.toggle('hide',rows.length>0);
   $('#batRange').textContent=(($('#batSince').value||isoDaysAgo(7))+' → '+todayISO());
 }
 async function exportBatteries(){
-  if(!BATROWS.length){alert('No batteries used in this period.');return;}
-  buildMSExport(BATROWS.map(function(r){return [r.sku, r.used];}), 'batteries');
+  var out=BATROWS.filter(function(r){return r.suggest>0;}).map(function(r){return [r.orderSku, r.suggest];});
+  if(!out.length){alert('Nothing to order — batteries are at or above max.');return;}
+  buildMSExport(out, 'batteries');
 }
 
 /* ---- store pills + date ---- */
