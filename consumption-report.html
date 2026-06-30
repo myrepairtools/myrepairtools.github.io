@@ -322,6 +322,23 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .emodal-list .mlist{margin:0}
 .emodal-ft{flex:none;display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-top:1px solid var(--border)}
 .emodal-ft .btn.blue{padding:9px 20px}
+/* ===== Samsung Adhesive Mapping ===== */
+.samcard{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.samcard .samhd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.samcard .samttl{font-family:'Nunito',sans-serif;font-weight:900;font-size:.98rem;color:var(--dark)}
+.samcard .sambadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 6px}
+.samrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #F1F2F5}
+.samrow .samrole{flex:none;width:120px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)}
+.samrow .samsku{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark);min-width:120px}
+.samrow .samname{flex:1;font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.samrow .samx{flex:none;border:none;background:none;color:var(--grey);cursor:pointer;font-weight:800;font-size:.9rem;padding:2px 6px;border-radius:5px}
+.samrow .samx:hover{background:#FBEDED;color:var(--red)}
+.samrole.oem{color:#1E7AA8}.samrole.gap{color:var(--red)}
+.samadd{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.samadd select,.samadd input{font-family:'Nunito Sans',sans-serif;font-size:.8rem;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--white)}
+.samadd .msbox{position:relative;flex:1;min-width:220px}
+.samadd .msbox input{width:100%}
+.samwarn{font-family:'Nunito Sans',sans-serif;font-size:.74rem;color:var(--red);font-weight:700;margin-top:6px}
 </style>
 </head>
 <body>
@@ -363,7 +380,7 @@ tr.grp.open .chev{transform:rotate(90deg)}
       </div>
     </div>
     <button class="btn blue sm" id="batExport" style="display:none">⬇ Export batteries for MobileSentrix</button>
-    <button class="btn alt sm" id="grpBtn">⚙ Part groups</button>
+    <button class="btn alt sm" id="grpBtn">⚙ Part Configuration</button>
     <button class="btn alt sm" id="feedBtn">📡 Feed health</button>
   </div>
   <div class="fhpanel hide" id="feedHealth"></div>
@@ -456,10 +473,18 @@ tr.grp.open .chev{transform:rotate(90deg)}
   </section>
 
   <section id="view-groups" class="hide">
-  <h1>Part Groups</h1>
-  <p class="sub">Pool interchangeable SKUs into one part &middot; describe it with manufacturer, model &amp; part type so consumption and reordering roll up cleanly.</p>
+  <h1>Part Configuration</h1>
   <div class="bar">
     <button class="btn alt sm" id="grpBack">← Daily order</button>
+    <div class="tabs" id="cfgTabs">
+      <button class="tab active" data-c="groups">Part Groups</button>
+      <button class="tab" data-c="samsung">Samsung Adhesive Mapping</button>
+    </div>
+  </div>
+
+  <div id="cfg-groups">
+  <p class="sub">Pool interchangeable SKUs into one part &middot; describe it with manufacturer, model &amp; part type so consumption and reordering roll up cleanly.</p>
+  <div class="bar">
     <input type="search" id="grpSearch" placeholder="Search group, SKU or item…" style="flex:1;max-width:300px">
     <span class="filtwrap">
       <button class="btn alt sm" id="filtBtn">⚲ Filters</button>
@@ -487,6 +512,19 @@ tr.grp.open .chev{transform:rotate(90deg)}
     <div class="empty hide" id="grpEmpty">No matching part groups.</div>
   </div>
   <div id="editModalHost"></div>
+  </div>
+
+  <div id="cfg-samsung" class="hide">
+  <p class="sub">Map each Galaxy UB claim model to its OEM &amp; Service-Pack display SKUs and the <b>GH</b> adhesive(s) that must be in stock to receive a claim. The Daily order reads this to flag claim-at-risk coverage and suggest adhesive top-ups.</p>
+  <div class="bar">
+    <input type="search" id="samSearch" placeholder="Search model, SKU or part…" style="flex:1;max-width:300px">
+    <span class="muted" id="samCount" style="font-size:.78rem;font-weight:700;color:var(--grey)"></span>
+    <div class="spacer"></div>
+    <button class="btn red sm" id="samAddModel">+ Add model</button>
+  </div>
+  <div id="samHost"></div>
+  <div class="empty hide" id="samEmpty">No matching models.</div>
+  </div>
   </section>
 </main>
 </div>
@@ -555,6 +593,127 @@ async function saveGroupMembers(g){
   await saveGroupRow(g);
   await sb.from('group_members').delete().eq('group_id',g.id);
   if(g.members.length)await sb.from('group_members').insert(g.members.map(function(m,idx){return {group_id:g.id,sku:m.sku,name:m.name,position:idx};}));
+}
+/* ===== Samsung Adhesive Mapping (claim-coverage config) ===== */
+var SAMMAP=[], SAMNAMES={}, SAMQ='', SAM_NEWMODELS=[];
+var SAM_KINDS=[{v:'oem_display',label:'OEM display'},{v:'sp_display',label:'Service-pack display'},
+  {v:'front',label:'Front adhesive'},{v:'back',label:'Back adhesive'},{v:'combo',label:'Combo adhesive (front+back)'}];
+function canEditCfg(){return !!(STATE.me&&(STATE.me.role==='owner'||STATE.me.role==='admin'));}
+async function loadSamsungMap(){
+  var r=await sb.from('samsung_adhesive_map').select('id,model,sku,kind,role,position').order('model').order('position');
+  SAMMAP=r.data||[];
+  var skus=Array.from(new Set(SAMMAP.map(function(x){return x.sku;})));
+  SAMNAMES={};
+  if(skus.length){
+    var c=await sb.from('ms_catalog').select('sku,name').in('sku',skus);
+    (c.data||[]).forEach(function(x){SAMNAMES[x.sku]=x.name;});
+    var miss=skus.filter(function(s){return !SAMNAMES[s];});
+    if(miss.length){var s2=await sb.from('stock').select('sku,name').in('sku',miss);(s2.data||[]).forEach(function(x){if(!SAMNAMES[x.sku])SAMNAMES[x.sku]=x.name;});}
+  }
+}
+function samModels(){
+  var by={};
+  SAMMAP.forEach(function(r){(by[r.model]||(by[r.model]=[])).push(r);});
+  SAM_NEWMODELS.forEach(function(m){if(!by[m])by[m]=[];});
+  return Object.keys(by).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});}).map(function(m){return {model:m,rows:by[m]};});
+}
+function samRoleLabel(r){
+  if(r.kind==='oem_display')return ['OEM display','oem'];
+  if(r.kind==='sp_display')return ['Service-pack',''];
+  if(r.kind==='adhesive')return [(r.role==='combo'?'Combo adhesive':(r.role==='front'?'Front adhesive':'Back adhesive')),''];
+  return [r.kind,''];
+}
+function samAddForm(model){
+  var opts=SAM_KINDS.map(function(k){return '<option value="'+k.v+'">'+k.label+'</option>';}).join('');
+  return '<div class="samadd" data-addfor="'+esc(model)+'"><select class="samkind">'+opts+'</select>'
+    +'<span class="msbox"><input class="samsearch" placeholder="Search SKU or part name…" autocomplete="off"><div class="msdrop hide"></div></span></div>';
+}
+function renderSamsung(){
+  var host=$('#samHost'); if(!host)return;
+  var edit=canEditCfg(), q=SAMQ.trim().toLowerCase();
+  var models=samModels().filter(function(g){
+    if(!q)return true;
+    if(g.model.toLowerCase().indexOf(q)>-1)return true;
+    return g.rows.some(function(r){return r.sku.toLowerCase().indexOf(q)>-1||((SAMNAMES[r.sku]||'').toLowerCase().indexOf(q)>-1);});
+  });
+  if($('#samCount'))$('#samCount').textContent=models.length+' model'+(models.length===1?'':'s');
+  if($('#samEmpty'))$('#samEmpty').classList.toggle('hide',models.length>0);
+  var ord={oem_display:0,sp_display:1,adhesive:2};
+  host.innerHTML=models.map(function(g){
+    var hasAdh=g.rows.some(function(r){return r.kind==='adhesive';});
+    var h='<div class="samcard"><div class="samhd"><span class="samttl">'+esc(g.model)+'</span>';
+    if(g.rows.some(function(r){return r.kind==='sp_display';}))h+='<span class="sambadge">OEM + SP</span>';
+    if(!hasAdh)h+='<span class="samwarn" style="margin:0">⚠ no adhesive mapped</span>';
+    if(edit)h+='<div style="flex:1"></div><button class="samx" data-delmodel="'+esc(g.model)+'" title="Remove model">🗑</button>';
+    h+='</div>';
+    g.rows.slice().sort(function(a,b){return (ord[a.kind]-ord[b.kind])||(a.position-b.position);}).forEach(function(r){
+      var rl=samRoleLabel(r);
+      h+='<div class="samrow"><span class="samrole '+rl[1]+'">'+esc(rl[0])+'</span>'
+        +'<span class="samsku">'+esc(r.sku)+'</span><span class="samname">'+esc(SAMNAMES[r.sku]||'—')+'</span>'
+        +(edit?'<button class="samx" data-delrow="'+r.id+'" title="Remove">✕</button>':'')+'</div>';
+    });
+    if(edit)h+=samAddForm(g.model);
+    return h+'</div>';
+  }).join('');
+  if(edit)wireSamControls();
+}
+function wireSamControls(){
+  var host=$('#samHost');
+  host.querySelectorAll('[data-delrow]').forEach(function(b){b.onclick=function(){samDelRow(+b.getAttribute('data-delrow'));};});
+  host.querySelectorAll('[data-delmodel]').forEach(function(b){b.onclick=function(){samDelModel(b.getAttribute('data-delmodel'));};});
+  host.querySelectorAll('.samadd').forEach(function(box){
+    var model=box.getAttribute('data-addfor'), kind=box.querySelector('.samkind'),
+        inp=box.querySelector('.samsearch'), drop=box.querySelector('.msdrop');
+    var items=[],timer=null,seq=0;
+    function close(){drop.classList.add('hide');drop.innerHTML='';items=[];}
+    async function add(sku,name){
+      sku=(sku||'').trim(); if(!sku)return;
+      var kv=kind.value, k=(kv==='front'||kv==='back'||kv==='combo')?'adhesive':kv, role=(k==='adhesive')?kv:null;
+      if(name&&!SAMNAMES[sku])SAMNAMES[sku]=name;
+      close(); inp.value='';
+      var res=await sb.from('samsung_adhesive_map').insert({model:model,sku:sku,kind:k,role:role,position:99});
+      if(res.error){alert('Could not save: '+res.error.message);return;}
+      var i=SAM_NEWMODELS.indexOf(model); if(i>-1)SAM_NEWMODELS.splice(i,1);
+      await loadSamsungMap(); renderSamsung();
+    }
+    inp.addEventListener('input',function(){
+      var qq=inp.value.trim(); clearTimeout(timer);
+      if(qq.length<2){close();return;}
+      var my=++seq;
+      timer=setTimeout(async function(){
+        var clean=qq.replace(/[%,]/g,' ');
+        var r=await sb.from('ms_catalog').select('sku,name').or('sku.ilike.'+clean+'%,name.ilike.%'+clean+'%').limit(12);
+        if(my!==seq)return;
+        items=r.data||[];
+        if(!items.length){drop.innerHTML='<div class="msnomatch"><div class="msnote">No catalog match.</div><button class="btn alt sm" data-manual>+ Add “'+esc(qq)+'” as SKU</button></div>';drop.classList.remove('hide');
+          var mb=drop.querySelector('[data-manual]'); if(mb)mb.onmousedown=function(e){e.preventDefault();add(qq,qq);};return;}
+        drop.innerHTML=items.map(function(it,i){return '<div class="msrow" data-i="'+i+'"><div class="msname">'+esc(it.name||it.sku)+'</div><div class="msmeta"><span class="mssku"><b>SKU</b> '+esc(it.sku)+'</span></div></div>';}).join('');
+        drop.classList.remove('hide');
+        drop.querySelectorAll('.msrow').forEach(function(row){row.onmousedown=function(e){e.preventDefault();var it=items[+row.getAttribute('data-i')];if(it)add(it.sku,it.name);};});
+      },200);
+    });
+    inp.addEventListener('blur',function(){setTimeout(close,160);});
+  });
+}
+async function samDelRow(id){var res=await sb.from('samsung_adhesive_map').delete().eq('id',id);if(res.error){alert(res.error.message);return;}await loadSamsungMap();renderSamsung();}
+async function samDelModel(model){
+  if(!confirm('Remove “'+model+'” and all its mapped parts?'))return;
+  var res=await sb.from('samsung_adhesive_map').delete().eq('model',model);if(res.error){alert(res.error.message);return;}
+  var i=SAM_NEWMODELS.indexOf(model); if(i>-1)SAM_NEWMODELS.splice(i,1);
+  await loadSamsungMap(); renderSamsung();
+}
+function samAddModel(){
+  var name=prompt('Model name (e.g. Galaxy S27 Ultra):'); if(!name)return; name=name.trim(); if(!name)return;
+  if(samModels().some(function(g){return g.model.toLowerCase()===name.toLowerCase();})){alert('That model already exists.');return;}
+  SAM_NEWMODELS.push(name); SAMQ=''; if($('#samSearch'))$('#samSearch').value=''; renderSamsung();
+}
+function getCfgTab(){try{return localStorage.getItem('cprCfgTab')||'groups';}catch(e){return 'groups';}}
+function applyCfgTab(v){
+  var t=$('#cfgTabs'); if(!t)return;
+  t.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-c')===v);});
+  $('#cfg-groups').classList.toggle('hide',v!=='groups');
+  $('#cfg-samsung').classList.toggle('hide',v!=='samsung');
+  if(v==='samsung')renderSamsung();
 }
 async function fetchAllStock(store){
   var all=[],from=0,size=1000;
@@ -1524,8 +1683,16 @@ async function init(){
     $('#storePills').style.display='none';$('#day').style.display='none';$('#grpBtn').style.display='none';
     $('#feedBtn').style.display='none';$('#freshLine').style.display='none';FEEDOPEN=false;renderFeedHealth();
     $('#appH1').style.display='none';$('#appSub').style.display='none';
-    await Promise.all([loadManufacturers(),loadPartTypes()]);renderGroups();
+    if($('#samAddModel'))$('#samAddModel').style.display=canEditCfg()?'':'none';
+    await Promise.all([loadManufacturers(),loadPartTypes(),loadSamsungMap()]);
+    renderGroups();
+    applyCfgTab(getCfgTab());
   });
+  $('#cfgTabs').querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
+    var v=t.getAttribute('data-c');try{localStorage.setItem('cprCfgTab',v);}catch(e){}applyCfgTab(v);
+  });});
+  $('#samSearch').addEventListener('input',function(){SAMQ=this.value;renderSamsung();});
+  $('#samAddModel').addEventListener('click',samAddModel);
   $('#grpBack').addEventListener('click',function(){
     $('#view-groups').classList.add('hide');$('#viewTabs').style.visibility='';
     $('#storePills').style.display='';$('#day').style.display='';$('#grpBtn').style.display='';
