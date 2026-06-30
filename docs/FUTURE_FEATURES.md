@@ -98,3 +98,42 @@ the bigger version below).
   a simple `WIDGETS = {key: renderFn}` registry beats an abstraction.
 - Gut check: ship Tier-0 snapshots first and see if people actually customize before
   investing past it.
+
+## Meeting topics / talking points (owner & manager parking lot)
+
+A quick capture spot for the owner/managers to jot down **things to bring up with the
+team** when the moment isn't right — it needs to be in person, or the person is off.
+Today there's no authoritative place, so topics get noticed-then-lost.
+
+**Idea**
+- A simple **running list**: add a talking point in one tap (a short note), optionally
+  tagged to a person, a store, and/or a category.
+- Each item has a status (open → discussed/done). **Marking it done can file it into one
+  or more employee records** as a logged note (coaching point, kudos, 1:1 follow-up),
+  so the conversation gets a permanent home on the person(s) it was about.
+  Read → discuss → file → audit trail.
+- Optional fields: who it's about (**0, 1, or many** staff), priority, a "raise at next
+  1:1 / next team meeting" flag, optional reminder/due.
+
+**Why it fits**
+- Employee Records already exists, so filing a closed topic as a note on the staff
+  record(s) is a natural extension — and a great owner habit to bake in.
+- Owner/manager-gated; could surface in My Hub for managers as a "talk to my team" card,
+  and the assistant could later draft/sort topics.
+
+**Open questions to settle when we build it**
+- Link to employee(s) at creation, at close, or both? (Lean: optional at creation;
+  on close, choose whether/where to file.)
+- Filing target: a free-form **note on the employee record** vs a structured "coaching
+  log" entry type. Lean: a simple notes/timeline on the staff record this writes into.
+- Many-to-many: one team-wide topic filed to several people needs a topic↔staff join.
+- Scope/visibility: owner-only, or each manager keeps their own list scoped by
+  `can_see_store`?
+- Categories/tags (coaching, kudos, policy, scheduling, recurring meeting agenda?).
+
+**Storage**
+- `meeting_topics` (id, author_staff_id, title/body, status, priority, store?, created_at,
+  closed_at) + a `meeting_topic_staff` join (topic_id, staff_id) for the 0/1/many "about"
+  links and for filing into each person's record on close.
+- On close-with-file, also write a note row to the employee-record notes/timeline table
+  for each linked staff member.
