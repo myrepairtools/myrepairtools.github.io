@@ -84,6 +84,8 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
 .sbadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;padding:3px 9px;border-radius:999px;flex:none}
 .tbadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px}
 .warnbox{display:flex;align-items:flex-start;gap:8px;background:#FCF1DD;border:1px solid #F0E0BE;border-radius:10px;padding:10px 12px;margin-bottom:13px;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.74rem;color:#8A5A00;line-height:1.4}
+.acklbl{display:flex;gap:8px;align-items:flex-start;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:#8A5A00;cursor:pointer;line-height:1.35;background:#fff;border:1px solid #F0E0BE;border-radius:8px;padding:8px 10px}
+.acklbl input{margin-top:1px;flex:none;width:15px;height:15px;accent-color:#C9820B;cursor:pointer}
 .empty{font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.8rem;color:var(--grey);padding:2px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:11px 18px;border-radius:11px;font-weight:800;font-size:.84rem;opacity:0;pointer-events:none;transition:.2s;z-index:3000;font-family:'Nunito',sans-serif}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
@@ -368,21 +370,34 @@ function renderStore(){
   $('#view').innerHTML=html;
 }
 /* ===== time off ===== */
-var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:''};
+var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:'',ack:false};
+/* teammates (same store) whose pending/approved time off overlaps the chosen range */
+function conflictsFor(start,end){
+  var myStoreNames=myStores();
+  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
+  return REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=end&&r.end_date>=start;});
+}
+function conflictText(conflicts){return conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');}
+/* warning + required acknowledgment shown when the request overlaps a teammate */
+function ackBoxHtml(conflictTxt){
+  return '<div class="warnbox" style="flex-direction:column;align-items:stretch;gap:9px">'
+    +'<div style="display:flex;align-items:flex-start;gap:8px"><span>⚠️</span><div>This overlaps with <b>'+esc(conflictTxt)+'</b> — it <b>may not be approved</b>.</div></div>'
+    +'<label class="acklbl"><input type="checkbox" id="fAck"'+(FORM.ack?' checked':'')+'> I understand it may be denied and want to send it to my manager anyway.</label>'
+    +'</div>';
+}
 function renderTimeoff(){
   var f=FORM;
   if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
-  var myStoreNames=myStores();
-  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&(myStoreNames.indexOf(e.home_store)>-1);}).map(function(e){return e.id;});
-  var conflicts=REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=f.end&&r.end_date>=f.start;});
-  var conflictTxt=conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');
+  var conflicts=conflictsFor(f.start,f.end);
+  var conflictTxt=conflictText(conflicts);
+  var blockSubmit=conflicts.length&&!f.ack;
   var form=REQUESTING?(
     '<div class="card" style="margin-bottom:18px"><div style="font-family:Nunito;font-weight:900;font-size:.95rem;margin-bottom:12px">Request time off</div>'
     +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:13px">'+['Vacation','Personal','Sick'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
     +'<div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1"><label class="lbl">Start</label><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"></div><div style="flex:1"><label class="lbl">End</label><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div></div>'
     +'<label class="lbl">Note (optional)</label><input class="inp" id="fNote" value="'+esc(f.note)+'" placeholder="e.g. family trip" style="margin-bottom:13px">'
-    +(conflicts.length?'<div class="warnbox"><span>⚠️</span><div>Heads up — overlaps with '+esc(conflictTxt)+'. You can still submit; your manager will see the conflict.</div></div>':'')
-    +'<div style="display:flex;gap:9px"><button class="btn" id="fCancel" style="flex:1;padding:11px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.84rem">Cancel</button><button class="btn btn-red" id="fSubmit" style="flex:1.4;width:auto;padding:11px;font-size:.84rem">Send to manager</button></div></div>'
+    +(conflicts.length?ackBoxHtml(conflictTxt):'')
+    +'<div style="display:flex;gap:9px"><button class="btn" id="fCancel" style="flex:1;padding:11px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.84rem">Cancel</button><button class="btn btn-red" id="fSubmit"'+(blockSubmit?' disabled':'')+' style="flex:1.4;width:auto;padding:11px;font-size:.84rem'+(blockSubmit?';opacity:.5;cursor:not-allowed':'')+'">Send to manager</button></div></div>'
   ):'<button class="btn btn-red" id="openReq" style="margin-bottom:18px">+ Request Time Off</button>';
 
   var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
@@ -401,18 +416,20 @@ function renderTimeoff(){
   if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
   if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
   $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
-  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;render();};
-  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;render();};
+  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;render();};
+  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;render();};
+  if($('#fAck'))$('#fAck').onchange=function(){FORM.ack=this.checked;render();};
   if($('#fNote'))$('#fNote').oninput=function(){FORM.note=this.value;};
   if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
 }
 async function submitRequest(){
   var f=FORM;if(!f.start||!f.end){toast('Pick dates',true);return;}
+  if(conflictsFor(f.start,f.end).length&&!f.ack){toast('Please check the box acknowledging the overlap',true);return;}
   var row={staff_id:ME.id,store:ME.home_store,type:f.type,start_date:f.start,end_date:f.end,note:f.note||null,status:'pending'};
   var r=await sb.from('time_off_requests').insert(row).select().single();
   if(r.error){toast(r.error.message,true);return;}
-  REQS.push(r.data);REQUESTING=false;FORM={type:'Vacation',start:'',end:'',note:''};
+  REQS.push(r.data);REQUESTING=false;FORM={type:'Vacation',start:'',end:'',note:'',ack:false};
   toast('✓ Sent to your manager');renderHeader();render();
 }
 async function cancelRequest(id){
@@ -473,15 +490,16 @@ function timeoffPanelHtml(web){
   var f=FORM;if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
   var myStoreNames=myStores();
   var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
-  var conflicts=REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=f.end&&r.end_date>=f.start;});
-  var conflictTxt=conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');
+  var conflicts=conflictsFor(f.start,f.end);
+  var conflictTxt=conflictText(conflicts);
+  var blockSubmit=conflicts.length&&!f.ack;
   var actions=REQUESTING?'':'<button class="btn btn-red" id="openReq" style="height:48px;width:100%">+ Request Time Off</button>';
   var form=REQUESTING?(
     '<div class="card"><div style="font-family:Nunito;font-weight:900;font-size:.92rem;margin-bottom:11px">Request time off</div>'
     +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:11px">'+['Vacation','Personal','Sick'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:11px"><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div>'
-    +(conflicts.length?'<div class="warnbox"><span>⚠️</span><div>Overlaps '+esc(conflictTxt)+'. You can still submit.</div></div>':'')
-    +'<div style="display:flex;gap:8px"><button class="btn" id="fCancel" style="flex:1;padding:10px">Cancel</button><button class="btn btn-red" id="fSubmit" style="flex:1.3;width:auto;padding:10px">Submit</button></div></div>'
+    +(conflicts.length?ackBoxHtml(conflictTxt):'')
+    +'<div style="display:flex;gap:8px"><button class="btn" id="fCancel" style="flex:1;padding:10px">Cancel</button><button class="btn btn-red" id="fSubmit"'+(blockSubmit?' disabled':'')+' style="flex:1.3;width:auto;padding:10px'+(blockSubmit?';opacity:.5;cursor:not-allowed':'')+'">Submit</button></div></div>'
   ):'';
   var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
   var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'" title="Tap to cancel"':'')+'>'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
@@ -495,8 +513,9 @@ function wireTimeoffPanel(){
   if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
   if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
   $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
-  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;render();};
-  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;render();};
+  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;render();};
+  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;render();};
+  if($('#fAck'))$('#fAck').onchange=function(){FORM.ack=this.checked;render();};
   if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
 }
@@ -538,7 +557,7 @@ function renderPlanner(){
   back.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){PMON=new Date(PMON.getFullYear(),PMON.getMonth()+Number(b.getAttribute('data-pm')),1);renderPlanner();};});
   back.querySelectorAll('[data-day]').forEach(function(b){var di=b.getAttribute('data-day');if(!di)return;b.onclick=function(){
     if(!PSTART||(PSTART&&PEND)||di<PSTART){PSTART=di;PEND=null;}else PEND=di;renderPlanner();};});
-  back.querySelector('#plUse').onclick=function(){if(!PSTART)return;FORM.start=PSTART;FORM.end=PEND||PSTART;REQUESTING=true;closePlanner();render();};
+  back.querySelector('#plUse').onclick=function(){if(!PSTART)return;FORM.start=PSTART;FORM.end=PEND||PSTART;FORM.ack=false;REQUESTING=true;closePlanner();render();};
 }
 
 initAuth();
