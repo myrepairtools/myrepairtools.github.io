@@ -6,7 +6,10 @@
  * fallbacks) so the dashboard widget can't drift from the schedule page.
  *
  * Exposes window.CPRScheduleSummary.forMe() -> Promise<summary|null>.
- *   summary = { name, today:{kind:'shift'|'off'|'timeoff', name?, time?, store?, hours?, type?}, weekHours }
+ *   summary = { name, today:{kind:'shift'|'off'|'timeoff', name?, time?, store?, hours?, type?},
+ *               weekHours,            // SCHEDULED hours this week (weekly template)
+ *               workedHours, otHours, // ACTUAL worked hours from QB Time this week (Sun–Sat) + OT over 40
+ *               onClock }             // currently clocked in per QB Time
  *   null    = not signed in / no staff row.
  */
 (function (root) {
@@ -75,13 +78,17 @@
         if(!s) return null;
         return client.from('staff').select('id,display_name,home_store,authorized_stores,role').eq('auth_uid',s.user.id).maybeSingle().then(function(meR){
           var me=meR.data; if(!me) return null;
+          // current week, Sunday–Saturday (matches the QB Time OT week)
+          var nowW=new Date(), wkStart=iso(new Date(nowW.getFullYear(),nowW.getMonth(),nowW.getDate()-nowW.getDay())),
+              wkEnd=iso(new Date(nowW.getFullYear(),nowW.getMonth(),nowW.getDate()+(6-nowW.getDay())));
           return Promise.all([
             client.from('shifts').select('id,name,color,active'),
             client.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
             client.from('staff_schedule').select('staff_id,store,shifts').eq('staff_id',me.id),
-            client.from('time_off_requests').select('staff_id,type,start_date,end_date,status').eq('staff_id',me.id).eq('status','approved')
+            client.from('time_off_requests').select('staff_id,type,start_date,end_date,status').eq('staff_id',me.id).eq('status','approved'),
+            client.from('qbtime_timesheets').select('seconds,on_the_clock,biz_date').eq('staff_id',me.id).gte('biz_date',wkStart).lte('biz_date',wkEnd)
           ]).then(function(res){
-            var sh=res[0], hr=res[1], sc=res[2], rq=res[3];
+            var sh=res[0], hr=res[1], sc=res[2], rq=res[3], ts=res[4];
             SHIFT_BY_ID={}; (sh.data||[]).forEach(function(x){ SHIFT_BY_ID[x.id]=x; });
             HOURS={}; (hr.data||[]).forEach(function(r){ var k=r.shift_id+'|'+r.store, h=HOURS[k]||(HOURS[k]={def:null,days:{}}); var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false}; if(r.weekday==null)h.def=row; else h.days[r.weekday]=row; });
             var myRow=(sc.data&&sc.data[0])||null; SCHED=myRow?{shifts:myRow.shifts||{},store:myRow.store}:{shifts:{},store:me.home_store};
@@ -100,7 +107,13 @@
               else { var sm2=shiftMinutes(rr,twd); var hrs=(sm2.start!=null&&sm2.end!=null)?((sm2.end-sm2.start)/60):null;
                 today={kind:'shift', name:sm2.name, time:(sm2.start!=null?range12(sm2.start,sm2.end):''), store:shortStore(rr.store), hours:hrs}; }
             }
-            return { name:me.display_name, today:today, weekHours:Math.round((weekMin/60)*10)/10 };
+            // actual worked hours this week (Sun–Sat) from QB Time + OT over 40
+            var workedSec=0, onClock=false;
+            (ts&&ts.data||[]).forEach(function(r){ workedSec+=(+r.seconds||0); if(r.on_the_clock) onClock=true; });
+            var workedHours=Math.round((workedSec/3600)*10)/10, otHours=Math.round(Math.max(0,workedHours-40)*10)/10;
+
+            return { name:me.display_name, today:today, weekHours:Math.round((weekMin/60)*10)/10,
+              workedHours:workedHours, otHours:otHours, onClock:onClock };
           });
         });
       });

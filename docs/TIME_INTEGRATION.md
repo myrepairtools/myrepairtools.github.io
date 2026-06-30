@@ -106,7 +106,11 @@ Power Automate flow parses it and posts to Teams. **Reusable by every MRT tool**
 
 ## Recommended sequence
 1. ~~**A** (mapping/nicknames + manual-map UI + termination sync) — keystone, quick.~~ ✅ **done**
-2. **B** (timesheets sync) → ship **#2 hours-this-week** as the first tangible win.  ← *next*
+2. ~~**B** (timesheets sync) → ship **#2 hours-this-week**.~~ ✅ **done** — `qbtime_timesheets`
+   (daily rollup, RLS), `qbtime-sync?action=timesheets` (this-week / `?days=N` / `?start&end`),
+   hourly **pg_cron + pg_net** (8-day window). OT = 40h/wk, **Sun–Sat**. My Schedule's "My week"
+   strip shows **Worked X hrs** (+ OT badge, + on-the-clock) for the displayed week;
+   `schedule-summary.js` exposes `workedHours/otHours/onClock` for the dashboard widget.  ← *next: #3 or #10*
 3. **C** (notification rail) → **#3 OT/pace alerts**.
 4. **#10 PTO**, **#1 time-off push**.
 5. **#7/#8 clock-in/out + class + geofence/PWA** (the big one; do the research first).

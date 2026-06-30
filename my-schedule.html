@@ -97,6 +97,10 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 .wkstrip-hd{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);background:#fafafa}
 .wkstrip-hd .h{font-family:'Nunito',sans-serif;font-weight:900;font-size:.78rem;letter-spacing:.5px;text-transform:uppercase;color:var(--dark)}
 .wkstrip-hd .s{font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.74rem;color:var(--grey)}
+.wk-worked{margin-left:auto;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.74rem;color:var(--grey)}
+.wk-worked b{font-family:'Nunito',sans-serif;font-weight:900;color:var(--dark)}
+.wk-worked .ot{color:var(--red);font-weight:800;margin-left:6px}
+.wk-worked .live{color:#1E9E5B;font-weight:800;margin-left:6px}
 .wkgrid{display:grid;grid-template-columns:repeat(7,1fr)}
 .wkcol{display:flex;flex-direction:column;padding:11px 12px;border-left:1px solid #F5F6F8;min-height:120px}
 .wkcol.today{background:#FFFBFB}
@@ -489,11 +493,29 @@ function renderWeb(){
   /* sidebar */
   var side=timeoffPanelHtml(true);
   $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Schedule</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(SELSTORE))+'</div></div><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div class="lbl" style="width:140px">'+wlabel+'</div><button data-wk="1">›</button></div></div>'
-    +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span></div><div class="wkgrid">'+strip+'</div></div>'
+    +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span><span class="wk-worked" id="wkWorked"></span></div><div class="wkgrid">'+strip+'</div></div>'
     +'<div class="twocol"><div style="min-width:0;display:flex;flex-direction:column;gap:18px"><div class="wsect">Who\'s on with me</div>'+boards+'</div><aside class="side">'+side+'</aside></div>';
   $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
   wireTimeoffPanel();
   if($('#openPlanner'))$('#openPlanner').onclick=openPlanner;
+  loadWorkedHours(WK);
+}
+/* Actual hours worked (QB Time) for the displayed week (Sun–Sat), patched into the strip header. */
+var WORKED_TOK=0;
+function loadWorkedHours(weekStart){
+  var el=$('#wkWorked'); if(!el||!ME)return;
+  var s=new Date(weekStart), s0=new Date(s.getFullYear(),s.getMonth(),s.getDate()-s.getDay());
+  var wkStart=iso(s0), wkEnd=iso(new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6));
+  var tok=++WORKED_TOK;
+  sb.from('qbtime_timesheets').select('seconds,on_the_clock,biz_date').eq('staff_id',ME.id).gte('biz_date',wkStart).lte('biz_date',wkEnd)
+    .then(function(r){
+      if(tok!==WORKED_TOK)return;               // a newer week was requested; drop stale result
+      var rows=(r&&r.data)||[]; if(r&&r.error){el.textContent='';return;}
+      if(!rows.length){el.innerHTML='<span style="color:#cfd2dd">No clocked hours</span>';return;}
+      var sec=0,live=false; rows.forEach(function(x){sec+=(+x.seconds||0); if(x.on_the_clock)live=true;});
+      var h=Math.round(sec/360)/10, ot=Math.max(0,Math.round((h-40)*10)/10);
+      el.innerHTML='Worked <b>'+h+' hrs</b>'+(ot>0?'<span class="ot">'+ot+' OT</span>':'')+(live?'<span class="live">● on the clock</span>':'');
+    },function(){el.textContent='';});
 }
 function isMgrRole(r){return ['owner','admin','manager'].indexOf(r)>-1;}
 /* shared time-off panel (web sidebar + reused logic) */
