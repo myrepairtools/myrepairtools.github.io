@@ -165,7 +165,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active").order("active", {
+    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records").order("active", {
       ascending: false
     }).order("display_name");
     return json({
@@ -243,7 +243,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, hr_status, notes, archived } = body;
+    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, hr_status, notes, archived, hide_from_records } = body;
     if (!staff_id) return json({
       error: "missing staff_id"
     }, 400);
@@ -270,6 +270,7 @@ Deno.serve(async (req)=>{
     if (hr_status != null) patch.hr_status = hr_status;
     if (notes != null) patch.notes = notes;
     if (archived != null) patch.archived = archived;
+    if (hide_from_records != null) patch.hide_from_records = !!hide_from_records;
     // preferred_name: "" clears the override (back to legal), a value sets it, omitted leaves as-is.
     if (preferred_name != null) patch.preferred_name = (String(preferred_name).trim() || null);
     if (first_name != null || last_name != null || username != null || preferred_name != null) {

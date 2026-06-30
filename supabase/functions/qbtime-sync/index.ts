@@ -117,7 +117,14 @@ async function syncUsers(token: string) {
   for (const e of existing || []) existingMap.set(String(e.qbt_id), (e.staff_id as number) ?? null);
 
   // staff roster, normalized for matching.
-  const { data: staff } = await admin.from("staff").select("id, first_name, last_name, username, display_name, active");
+  const { data: staff } = await admin.from("staff").select("id, first_name, last_name, username, display_name, active, start_date");
+  const staffStart = new Map<number, string | null>();
+  for (const s of staff || []) staffStart.set(s.id as number, (s.start_date as string) ?? null);
+  // QB Time hire/term dates come as YYYY-MM-DD; "0000-00-00" means unset.
+  const qbDate = (v: unknown): string | null => {
+    const d = String(v ?? "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) && d !== "0000-00-00" ? d : null;
+  };
   type SRow = { id: number; fn: string; ln: string; user: string; dfn: string; dln: string };
   const list: SRow[] = [];
   const byUser = new Map<string, number>();
@@ -152,6 +159,7 @@ async function syncUsers(token: string) {
 
   const stamp = new Date().toISOString();
   const created: { qbt_id: string; staff_id: number; name: string }[] = [];
+  let backfilledStart = 0;
 
   const rows: Record<string, unknown>[] = [];
   for (const u of users) {
@@ -172,11 +180,17 @@ async function syncUsers(token: string) {
         display_name: legal,            // shown name = legal until the owner sets a preferred name
         first_name: fn || null, last_name: ln || null,
         role: "team_member", active: true, archived: false,
-        hr_status: "active", start_date: null,
+        hr_status: "active", start_date: qbDate((u as Record<string, unknown>).hire_date),  // hire date from QB
         // stub: no PIN/store/login yet — the owner finishes setup (onboarding) on the profile
         pin_hash: null, home_store: null, authorized_stores: null, auth_uid: null,
       }).select("id").single();
       if (!error && ins) { staff_id = ins.id as number; created.push({ qbt_id, staff_id, name: legal }); activeLastNames.add(norm(ln)); }
+    }
+
+    // Backfill hire date onto a linked staff row that has none — never overwrite an owner-entered date.
+    if (staff_id != null && staffStart.has(staff_id) && staffStart.get(staff_id) == null) {
+      const hd = qbDate((u as Record<string, unknown>).hire_date);
+      if (hd) { await admin.from("staff").update({ start_date: hd }).eq("id", staff_id); staffStart.set(staff_id, hd); backfilledStart++; }
     }
 
     rows.push({
@@ -202,13 +216,15 @@ async function syncUsers(token: string) {
   for (const s of staff || []) if (s.active) activeStaff.set(s.id as number, String(s.display_name || `${s.first_name ?? ""} ${s.last_name ?? ""}`).trim());
   const termination_candidates = rows
     .filter((r) => r.staff_id != null && r.active === false && activeStaff.has(r.staff_id))
-    .map((r) => ({ qbt_id: r.qbt_id, staff_id: r.staff_id, name: activeStaff.get(r.staff_id as number) }));
+    .map((r) => ({ qbt_id: r.qbt_id, staff_id: r.staff_id, name: activeStaff.get(r.staff_id as number),
+      term_date: qbDate((r.raw as Record<string, unknown>)?.term_date) }));   // when QB recorded the termination
 
   return {
     ok: true,
     fetched: rows.length,
     matched: rows.filter((r) => r.staff_id != null).length,
     created: created.length ? created : undefined,                 // new hires auto-created in MRT
+    start_dates_backfilled: backfilledStart || undefined,          // hire dates pulled from QB onto blank records
     termination_candidates: termination_candidates.length ? termination_candidates : undefined,
     // only surface *active* unmatched QB users — inactive strangers are just noise.
     unmatched: rows.filter((r) => r.staff_id == null && r.active !== false)

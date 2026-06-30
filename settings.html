@@ -1236,7 +1236,7 @@ function openMember(id){
   var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
   if(!m)return;
   var ros=CROSTER[m.id]||{};
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:'',
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,hide_from_records:!!m.hide_from_records,pin:'',
     comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{}),
     rules_override:Object.assign({},ros.rules_override||{}),rates_override:Object.assign({},ros.rates_override||{})}};
   renderModal();
@@ -1383,6 +1383,7 @@ function memberModalHtml(){
       })()
      +'</div>'
      +(MOPEN.isNew?'':qbtMemberLinkHtml(d,owner))
+     +((!MOPEN.isNew&&d.role==='owner')?'<label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem;font-weight:700;color:var(--dark-grey)"><input type="checkbox" data-hidefr'+(d.hide_from_records?' checked':'')+' style="width:16px;height:16px;flex:none;margin:0"> Hide from the Employee Records list <span style="font-weight:600;color:var(--grey);font-size:.76rem">(owners only)</span></label>':'')
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
        +'<div class="h">'+pinHint+'</div>'
        +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
@@ -1431,6 +1432,7 @@ function wireMember(host){
     if(v&&typeof v==='object'){if(v.lo!=null&&v.lo!=='')d.rates_override[sku]=+v.lo||0;else delete d.rates_override[sku];}
     else d.rates_override[sku]={goal:'',lo:(v!=null?v:''),hi:''};renderModal();};});
   var ql=host.querySelector('[data-qbtlink]');if(ql)ql.onchange=function(){d._qbtPick=ql.value;};
+  var hf=host.querySelector('[data-hidefr]');if(hf)hf.onchange=function(){d.hide_from_records=hf.checked;};
   var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
   var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
   host.querySelector('[data-save]').onclick=saveMember;
@@ -1447,7 +1449,7 @@ async function saveMember(){
       if(c.status!==200||!c.data.ok){toast((c.data&&c.data.error)||'Create failed',true);if(btn)btn.disabled=false;return;}
       toast('Member created · PIN '+d.pin);
     } else {
-      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active});
+      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active,hide_from_records:d.hide_from_records});
       if(u.status!==200||!u.data.ok){toast((u.data&&u.data.error)||'Save failed',true);if(btn)btn.disabled=false;return;}
       if(d.pin){ var p=await authFn({action:'set_pin',staff_id:d.staff_id,pin:d.pin});
         if(p.status===200&&p.data.ok)toast('Saved · new PIN '+d.pin); else toast((p.data&&p.data.error)||'Saved, but PIN reset failed',true);

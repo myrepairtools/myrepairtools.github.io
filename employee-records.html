@@ -18,7 +18,7 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .head{font-family:'Nunito',sans-serif}
 
 /* ===== app shell (sits right of the shared nav, which sets body margin) ===== */
-.erec-root{display:flex;height:100vh;overflow:hidden;background:var(--light-grey)}
+.erec-root{display:flex;height:calc(100vh - var(--cpr-top-h, 0px));overflow:hidden;background:var(--light-grey)}
 .erec-root[hidden]{display:none}
 
 /* ----- Employees pane ----- */
@@ -159,6 +159,9 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .fin:focus{border-color:var(--blue)}
 select.fin{cursor:pointer}
 .fhint{font-family:'Nunito Sans';font-size:.72rem;color:var(--grey);margin-top:4px;line-height:1.4}
+.hidetoggle{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:'Nunito Sans';font-size:.84rem;font-weight:700;color:var(--dark-grey);cursor:pointer}
+.hidetoggle input{width:16px;height:16px;flex:none;cursor:pointer}
+.hidetoggle span{font-weight:600;color:var(--grey);font-size:.76rem}
 .qbtlink{margin-bottom:11px;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;background:var(--light-grey)}
 .qbtlink .qbt-top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .qbtlink .qbt-ico{font-size:1rem}
@@ -339,7 +342,7 @@ async function initAuth(){
 /* ===== data load ===== */
 async function load(){
   const [stRes,enRes,piRes,qbRes]=await Promise.all([
-    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active'),
+    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
     sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active'),
@@ -350,7 +353,7 @@ async function load(){
   (stRes.data||[]).forEach(s=>{byId[s.id]={
     id:s.id,name:s.display_name,preferred:s.preferred_name||'',role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
     title:s.title||'',roleLevel:s.role,homeStore:s.home_store,first:s.first_name||'',last:s.last_name||'',
-    username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',
+    username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',hideFromRecords:!!s.hide_from_records,
     start:isoOf(s.start_date),archived:!!s.archived||s.active===false,active:s.active!==false,onPip:false,entries:[],pips:[]
   };});
   (enRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
@@ -364,7 +367,7 @@ async function load(){
       checkins:Array.isArray(d.checkins)?d.checkins:[]});});
   ALL=Object.values(byId);
   ALL.forEach(e=>{e.onPip=e.pips.some(p=>p.status==='active'||p.status==='under-review');});
-  ALL.sort((a,b)=>String(a.store).localeCompare(String(b.store))||String(a.name).localeCompare(String(b.name)));
+  ALL.sort(empSort);
   ALL.forEach((e,i)=>{e.avatarBg=AV[i%AV.length];});
   loadDamage();   // async, re-renders when done
   refilter();
@@ -372,7 +375,11 @@ async function load(){
   render();
 }
 function roleLabel(r){return ({owner:'Owner',admin:'Admin',manager:'Manager',team_member:'Team Member',employee:'Team Member'})[r]||r||'';}
-function refilter(){EMPLOYEES=ALL.filter(e=>S.showArchived?true:!e.archived);}
+/* store priority (Eugene → Salem → Clackamas via CPRLocations) → managers first → name A–Z */
+function storeRank(full){try{var s=window.CPRLocations&&CPRLocations.find&&CPRLocations.find(full);return s?s.order:99;}catch(e){return 99;}}
+function roleRank(rl){return (rl==='owner')?0:((rl==='admin'||rl==='manager')?1:2);} /* managers above team members */
+function empSort(a,b){return storeRank(a.homeStore)-storeRank(b.homeStore)||roleRank(a.roleLevel)-roleRank(b.roleLevel)||String(a.name).localeCompare(String(b.name));}
+function refilter(){EMPLOYEES=ALL.filter(e=>(S.showArchived?e.archived:!e.archived)&&!e.hideFromRecords);}
 function selectFirst(){const e=EMPLOYEES[0]||ALL[0]||null;S.empId=e?e.id:null;syncSel(e);}
 function selEmp(){return EMPLOYEES.find(e=>e.id===S.empId)||ALL.find(e=>e.id===S.empId)||EMPLOYEES[0]||null;}
 function syncSel(e){if(!e){S.entryId=S.pipId=S.damageId=null;return;}
@@ -762,6 +769,9 @@ function openPersonEditor(emp){
     +(isNew
       ? field('PIN','<input id="p_pin" class="fin" inputmode="numeric" autocomplete="off" placeholder="unique per person">')
       : field('Employment status','<select id="p_status" class="fin">'+statusOpts+'</select>')+field('Notes','<textarea id="p_notes" class="fin">'+esc(emp.notes||'')+'</textarea>'))
+    +((!isNew&&emp.roleLevel==='owner')
+      ? '<label class="hidetoggle"><input type="checkbox" id="p_hide"'+(emp.hideFromRecords?' checked':'')+'> Hide from the Employee Records list <span>(owners only — they still appear in Settings)</span></label>'
+      : '')
     +'<div class="mactions">'
     +(isNew?'':'<button class="btn-o" id="p_arch" style="margin-right:auto">'+(emp.archived?'Restore':'Archive')+'</button>')
     +'<button class="btn-o" data-close>Cancel</button><button class="btn-red" id="p_psave">'+(isNew?'Create employee':'Save changes')+'</button></div>'
@@ -832,8 +842,10 @@ async function savePerson(emp){
   }else{
     const status=v('p_status').value,notes=v('p_notes').value.trim();
     const archived=status==='terminated',active=status!=='terminated';
-    const res=await authFn({action:'update_staff',staff_id:emp.id,first_name:first,last_name:last,preferred_name:pref,
-      home_store:home,role,title,start_date:start,hr_status:status,notes,archived,active});
+    const body={action:'update_staff',staff_id:emp.id,first_name:first,last_name:last,preferred_name:pref,
+      home_store:home,role,title,start_date:start,hr_status:status,notes,archived,active};
+    if(v('p_hide'))body.hide_from_records=v('p_hide').checked;
+    const res=await authFn(body);
     if(!(res.status===200&&res.data.ok)){toast(res.data.error||'Could not save',true);v('p_psave').disabled=false;return;}
     if(!(await applyQbtLink(emp))){v('p_psave').disabled=false;return;}
     closeModal();toast('Saved');await load();
@@ -964,7 +976,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 /* ===== events (delegated on stable parents) ===== */
 $('#empSearch').addEventListener('input',e=>{S.empSearch=e.target.value;renderEmpList();});
-$('#archBtn').addEventListener('click',()=>{S.showArchived=!S.showArchived;$('#archBtn').classList.toggle('on',S.showArchived);$('#archBtn').textContent=S.showArchived?'Hide archived':'Show archived';refilter();if(!EMPLOYEES.find(x=>x.id===S.empId))selectFirst();render();});
+$('#archBtn').addEventListener('click',()=>{S.showArchived=!S.showArchived;$('#archBtn').classList.toggle('on',S.showArchived);$('#archBtn').textContent=S.showArchived?'← Show active':'Show archived';refilter();if(!EMPLOYEES.find(x=>x.id===S.empId))selectFirst();render();});
 $('#addPersonBtn').addEventListener('click',()=>openPersonEditor(null));
 $('#empList').addEventListener('click',e=>{
   const kb=e.target.closest('[data-editperson]');
