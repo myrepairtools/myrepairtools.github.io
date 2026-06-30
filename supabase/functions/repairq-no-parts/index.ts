@@ -88,11 +88,22 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return J({ error: "invalid JSON body" }, 400); }
 
   let rows: Record<string, unknown>[];
-  if (Array.isArray(body)) rows = body as Record<string, unknown>[];
-  else {
+  if (Array.isArray(body)) {
+    rows = body as Record<string, unknown>[];
+  } else {
     const b = body as Record<string, unknown>;
-    rows = (b.rows || b.data || b.items || b.records) as Record<string, unknown>[] ?? [b];
-    if (!Array.isArray(rows)) rows = [b];
+    // Looker webhook envelope (how RepairQ Analytics delivers): the report rows are a
+    // JSON *string* in attachment.data (or inline in data). Parse that out first.
+    const att = b.attachment as Record<string, unknown> | undefined;
+    const rawStr = (att && typeof att.data === "string") ? att.data
+                 : (typeof b.data === "string") ? (b.data as string) : null;
+    if (rawStr !== null) {
+      try { const p = JSON.parse(rawStr); rows = Array.isArray(p) ? p : [p]; }
+      catch { rows = []; }
+    } else {
+      const inner = (b.rows || b.data || b.items || b.records) as Record<string, unknown>[] | undefined;
+      rows = Array.isArray(inner) ? inner : [b];
+    }
   }
 
   const recs: ReturnType<typeof mapRow>[] = [];
