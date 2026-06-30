@@ -75,6 +75,29 @@ async function qbtGet(path: string, token: string, params?: Record<string, strin
 
 function norm(s: unknown) { return String(s ?? "").trim().toLowerCase(); }
 
+// common nickname groups (interchangeable forms) for fuzzy first-name matching
+const NICK_GROUPS: string[][] = [
+  ["michael","mike","mick","mikey"],["robert","rob","bob","bobby"],["william","will","bill","billy"],
+  ["richard","rich","rick","ricky","dick"],["joshua","josh"],["benjamin","ben","benji","benny"],
+  ["nicholas","nick","nico","nicky"],["james","jim","jimmy","jamie"],["john","johnny","jack"],
+  ["charles","charlie","chuck"],["thomas","tom","tommy"],["christopher","chris"],["daniel","dan","danny"],
+  ["matthew","matt","matty"],["anthony","tony"],["joseph","joe","joey"],["david","dave","davey"],
+  ["edward","ed","eddie","ted"],["andrew","andy","drew"],["steven","stephen","steve"],
+  ["kenneth","ken","kenny"],["samuel","sam","sammy"],["alexander","alex","xander"],["zachary","zach","zack"],
+  ["jacob","jake"],["jonathan","jon","jonny","jonathon"],["timothy","tim","timmy"],["jeffrey","jeff"],
+  ["gregory","greg"],["nathaniel","nathan","nate"],["patrick","pat"],["frederick","fred","freddy"],
+  ["lawrence","larry"],["raymond","ray"],["vincent","vince","vinny","vinnie"],["maxwell","max"],
+  ["gabriel","gabe"],["theodore","theo","ted"],["dominic","dom"],["jennifer","jen","jenny"],
+  ["elizabeth","liz","beth","lizzy"],["katherine","katharine","kate","katie","kat"],
+];
+const NICK = new Map<string, Set<string>>();
+for (const g of NICK_GROUPS) { const set = new Set(g); for (const n of g) NICK.set(n, set); }
+function firstForms(name: string): Set<string> { const n = norm(name); return new Set([n, ...(NICK.get(n) || [])]); }
+function firstsMatch(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const A = firstForms(a); for (const x of firstForms(b)) if (A.has(x)) return true; return false;
+}
+
 // Pull every QB Time user, upsert into qbtime_users, and match each to a staff row.
 async function syncUsers(token: string) {
   const users: Record<string, unknown>[] = [];
@@ -88,23 +111,48 @@ async function syncUsers(token: string) {
     page++;
   }
 
-  // staff lookup for matching (by first+last, fallback username)
-  const { data: staff } = await admin.from("staff").select("id, first_name, last_name, username, display_name");
-  const byName = new Map<string, number>(), byUser = new Map<string, number>();
+  // Existing mappings — preserve any staff_id already on file (manual maps win, never auto-clobbered).
+  const { data: existing } = await admin.from("qbtime_users").select("qbt_id, staff_id");
+  const existingMap = new Map<string, number | null>();
+  for (const e of existing || []) existingMap.set(String(e.qbt_id), (e.staff_id as number) ?? null);
+
+  // staff roster, normalized for matching.
+  const { data: staff } = await admin.from("staff").select("id, first_name, last_name, username, display_name, active");
+  type SRow = { id: number; fn: string; ln: string; user: string; dfn: string; dln: string };
+  const list: SRow[] = [];
+  const byUser = new Map<string, number>();
   for (const s of staff || []) {
     const fn = norm(s.first_name), ln = norm(s.last_name);
-    if (fn && ln) byName.set(fn + "|" + ln, s.id as number);
     if (s.username) byUser.set(norm(s.username), s.id as number);
-    // also index display_name split as a fallback
     const dn = String(s.display_name || "").trim().split(/\s+/);
-    if (dn.length >= 2) byName.set(norm(dn[0]) + "|" + norm(dn.slice(1).join(" ")), s.id as number);
+    const dfn = dn.length ? norm(dn[0]) : "", dln = dn.length >= 2 ? norm(dn.slice(1).join(" ")) : "";
+    list.push({ id: s.id as number, fn, ln, user: norm(s.username), dfn, dln });
   }
 
+  // Auto-match a QB user → staff id: exact legal → exact display → username → nickname (same last name).
+  function autoMatch(u: Record<string, unknown>): number | null {
+    const fn = norm(u.first_name), ln = norm(u.last_name), user = norm(u.username);
+    // 1) exact legal first+last
+    for (const s of list) if (s.fn && s.ln && s.fn === fn && s.ln === ln) return s.id;
+    // 2) exact display first+last
+    for (const s of list) if (s.dfn && s.dln && s.dfn === fn && s.dln === ln) return s.id;
+    // 3) username
+    if (user && byUser.has(user)) return byUser.get(user)!;
+    // 4) nickname-aware: same last name, interchangeable first form (legal or display)
+    for (const s of list) {
+      if (s.ln && s.ln === ln && (firstsMatch(s.fn, fn) || (s.dfn && firstsMatch(s.dfn, fn)))) return s.id;
+    }
+    return null;
+  }
+
+  const stamp = new Date().toISOString();
   const rows = users.map((u) => {
-    const fn = norm(u.first_name), ln = norm(u.last_name);
-    const staff_id = byName.get(fn + "|" + ln) ?? byUser.get(norm(u.username)) ?? null;
+    const qbt_id = String(u.id);
+    const prior = existingMap.get(qbt_id);
+    // Preserve a manual/prior mapping if present; only auto-match when we have nothing yet.
+    const staff_id = (prior != null) ? prior : autoMatch(u);
     return {
-      qbt_id: String(u.id),
+      qbt_id,
       staff_id,
       first_name: (u.first_name as string) || null,
       last_name: (u.last_name as string) || null,
@@ -112,7 +160,7 @@ async function syncUsers(token: string) {
       username: (u.username as string) || null,
       active: u.active === undefined ? null : !!u.active,
       raw: u,
-      last_synced: new Date().toISOString(),
+      last_synced: stamp,
     };
   });
 
@@ -120,12 +168,35 @@ async function syncUsers(token: string) {
     const { error } = await admin.from("qbtime_users").upsert(rows, { onConflict: "qbt_id" });
     if (error) return { ok: false, error: "db_" + error.message };
   }
+
+  // One-way termination sync — PROPOSE only, never auto-apply. A *mapped* QB user that's gone
+  // inactive while the MRT staff row is still active is a *candidate* for deactivation; we surface
+  // it for the owner to confirm in Settings (read → propose → confirm → write), never the reverse
+  // (terminating in MRT must not touch QBO). Auto-deactivating here once nuked the owner's own row.
+  const activeStaff = new Map<number, string>();
+  for (const s of staff || []) if (s.active) activeStaff.set(s.id as number, String(s.display_name || `${s.first_name ?? ""} ${s.last_name ?? ""}`).trim());
+  const termination_candidates = rows
+    .filter((r) => r.staff_id != null && r.active === false && activeStaff.has(r.staff_id))
+    .map((r) => ({ qbt_id: r.qbt_id, staff_id: r.staff_id, name: activeStaff.get(r.staff_id as number) }));
+
   return {
     ok: true,
     fetched: rows.length,
     matched: rows.filter((r) => r.staff_id != null).length,
-    unmatched: rows.filter((r) => r.staff_id == null).map((r) => `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim()),
+    termination_candidates: termination_candidates.length ? termination_candidates : undefined,
+    // only surface *active* unmatched QB users — inactive strangers are just noise.
+    unmatched: rows.filter((r) => r.staff_id == null && r.active !== false)
+      .map((r) => ({ qbt_id: r.qbt_id, name: `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim(), username: r.username })),
   };
+}
+
+// Manually link (or unlink) a QB Time user to a staff row. Body: { qbt_id, staff_id|null }.
+async function mapUser(qbt_id: string, staff_id: number | null) {
+  if (!qbt_id) return { ok: false, error: "qbt_id required" };
+  const { error } = await admin.from("qbtime_users")
+    .update({ staff_id, last_synced: new Date().toISOString() }).eq("qbt_id", qbt_id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, qbt_id, staff_id };
 }
 
 Deno.serve(async (req) => {
@@ -155,6 +226,39 @@ Deno.serve(async (req) => {
   }
   if (action === "users") {
     return json(await syncUsers(token));
+  }
+  if (action === "roster") {
+    // feed the Settings manual-map UI: every QB user + their current staff link, plus the staff list.
+    const { data: qbu } = await admin.from("qbtime_users")
+      .select("qbt_id, staff_id, first_name, last_name, username, email, active")
+      .order("active", { ascending: false }).order("last_name");
+    const { data: staff } = await admin.from("staff")
+      .select("id, first_name, last_name, display_name, role, active").eq("active", true).order("first_name");
+    return json({ ok: true, qbtime_users: qbu || [], staff: staff || [] });
+  }
+  if (action === "deactivate") {
+    // owner-confirmed termination: flip the MRT staff row inactive. POST { staff_id } (or ?staff_id=).
+    let sid: string | null = url.searchParams.get("staff_id");
+    if (req.method === "POST") {
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      if (b.staff_id != null) sid = String(b.staff_id);
+    }
+    if (!sid) return json({ ok: false, error: "staff_id required" }, 400);
+    const { error } = await admin.from("staff").update({ active: false }).eq("id", Number(sid));
+    if (error) return json({ ok: false, error: error.message }, 500);
+    return json({ ok: true, staff_id: Number(sid), active: false });
+  }
+  if (action === "map") {
+    // POST { qbt_id, staff_id } — staff_id null/empty unlinks. (GET fallback via query params too.)
+    let qbt_id = url.searchParams.get("qbt_id") || "";
+    let sid: string | null = url.searchParams.get("staff_id");
+    if (req.method === "POST") {
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      if (b.qbt_id != null) qbt_id = String(b.qbt_id);
+      if (b.staff_id !== undefined) sid = b.staff_id == null ? null : String(b.staff_id);
+    }
+    const staff_id = (sid == null || sid === "") ? null : Number(sid);
+    return json(await mapUser(qbt_id, staff_id));
   }
   return json({ error: "bad_action" }, 400);
 });

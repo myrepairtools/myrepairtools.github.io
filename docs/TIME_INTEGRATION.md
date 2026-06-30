@@ -8,16 +8,29 @@ This file plans the build-out from the owner's list.
 
 Almost everything depends on three shared pieces. Build these first.
 
-### Foundation A — Rock-solid employee mapping  *(keystone, quick)*
+### Foundation A — Rock-solid employee mapping  *(keystone, quick)* — ✅ BUILT
 Covers list items **#9 (name mismatches)** and **#6 (termination sync)**.
 - The auto-match by name misses nicknames: QB Time carries **legal** names, MRT/RepairQ use
   **preferred** names. Real examples: Michael→**Vince** Amador, Joshua→Josh, Benjamin→Ben,
-  Nicholas→Nick. (That's why "Michael Amador" landed in the unmatched 57.)
-- Build: (1) a **nickname-aware** auto-match pass (Josh/Joshua, Ben/Benjamin, Nick/Nicholas…),
-  (2) a **manual-map UI** — list QB Time users with `staff_id IS NULL`, pick the staff row to link.
-  Stored on `qbtime_users.staff_id`.
-- **One-way termination sync (#6):** when a *mapped* QB Time user goes inactive, mark the MRT
-  `staff` row inactive/archived. **Never** the reverse (MRT termination must not touch QBO).
+  Nicholas→Nick. (That's why "Michael Amador" landed in the unmatched.)
+- Built: (1) a **nickname-aware** auto-match pass (`NICK_GROUPS` dictionary in `qbtime-sync`:
+  exact legal → exact display → username → same-last-name + interchangeable first form);
+  (2) a **manual-map UI** in Settings → Integrations — lists QB users still to link with a staff
+  dropdown, plus a collapsed "Linked" list to re-point anyone. Saves to `qbtime_users.staff_id`
+  via `qbtime-sync?action=map`; `?action=roster` feeds the UI.
+- **Manual maps are sticky:** a re-sync **preserves** any existing `staff_id` (manual or prior)
+  and only auto-matches QB users that have *no* mapping yet — so a hand link is never clobbered.
+  (Verified: Michael→Vince and Jose Pelayo→Jose Vargas held across a re-sync.)
+- **One-way termination sync (#6) — PROPOSE, never auto-apply.** When a *mapped* QB Time user is
+  inactive while the MRT `staff` row is still active, the sync returns it as a
+  `termination_candidate`; the owner confirms (**Deactivate in MRT**) or dismisses (**Keep active**)
+  in the mapping panel. **Never** the reverse (MRT termination must not touch QBO). *Why propose:
+  the first cut auto-deactivated and immediately nuked the owner's own row — her QB user is inactive
+  but she's the active owner. Irreversible writes get a human in the loop (read → propose → confirm).*
+- **Refinement (owner):** going forward, new hires are **created in QBO first**, which gives MRT the
+  **legal** name on sync; the owner sets a **preferred** name on the MRT record and a blank preferred
+  falls back to legal. That makes the link **id-based** (`qbt_id` ↔ `staff_id`) rather than
+  name-guessed — the nickname pass is the bridge for the *existing* roster, not the long-term path.
 - Why first: every feature below keys off a correct QB-user ↔ staff link.
 
 ### Foundation B — Timesheets sync  *(the actual-hours data)*
@@ -42,7 +55,7 @@ Power Automate flow parses it and posts to Teams. **Reusable by every MRT tool**
 | 3 | **Overtime + pace + alerts** | B + C + schedules | Real-time hours vs their recurring scheduled hours; project end-of-week; flag pending OT → Teams/SMS alert. Define OT rule (OR: 40/wk). |
 | 1 | **Time-off → QB Time** | approval flow + mapping | The my-schedule time-off request we built → on approval, write the time-off to QB Time so payroll reflects it. Round out approve/deny first. |
 | 7 | **Clock-in/out via MRT** *(big keystone)* | B + mapping | Clock in/out from a mobile-friendly MRT page → create/close QB Time timesheets. The hook for enforcing checklist / repairs-w/o-parts / consumption workflows at clock-in. |
-| 8 | **Class/jobcode on clock-in** | #7 | Multi-location staff have multiple QBO classes; prompt to pick one at clock-in (skip if only 1) so hours bill to the right store on the P&L. Capture each user's jobcodes during sync. |
+| 8 | **Class/jobcode on clock-in** | #7 | **Only if QB Time hard-requires it.** Owner doesn't need class/P&L attribution driven from MRT for its own sake — but if QB Time's workforce/time rules make a class a *required* field to log time, the clock-in must satisfy it: prompt to pick one (skip if only 1) so hours bill to the right store. Capture each user's jobcodes during sync; build the picker only if the requirement is real. |
 | 5 | **Onboarding workflow** | new-hire trigger + checklists | Trigger = **new employee in QBO** (owner's call — QBO owns pay/tax/HR setup). MRT detects the new QB Time user via the sync diff and opens an onboarding/training checklist. No point rebuilding HR setup in MRT. |
 
 ## Answers to the open questions in the list
@@ -54,9 +67,10 @@ Power Automate flow parses it and posts to Teams. **Reusable by every MRT tool**
   Either way MRT pushes clock events to QB Time via API, so both can coexist short-term.
 - **Geolocate / IP-whitelist the clock?** Yes — capture browser geolocation at clock-in and validate
   against store coordinates, and/or check the request IP against a store whitelist server-side.
-- **Home-screen "widget" like Workforce?** An installable **PWA** (manifest + service worker) gives a
-  home-screen icon that opens the clock page — the web equivalent. A true interactive iOS/Android
-  widget is native-only (out of scope for a static site).
+- **Home-screen "widget" like Workforce?** Owner confirmed a true iOS/Android lock-screen/home-screen
+  **widget is native-only** — out of scope for a static site. The web compromise is an installable
+  **PWA** (manifest + service worker): a home-screen **icon** that opens the clock page in one tap.
+  Ship the PWA icon; don't chase a native widget.
 - **Multi-class billing (#8):** capture each employee's jobcodes/classes in the sync; at clock-in,
   show the class picker only when they have >1 (mirrors QBO skipping the ask for single-class).
 
@@ -67,8 +81,8 @@ Power Automate flow parses it and posts to Teams. **Reusable by every MRT tool**
 - An **email-sending** service for the notification rail (Resend/SendGrid/SMTP).
 
 ## Recommended sequence
-1. **A** (mapping/nicknames + manual-map UI + termination sync) — keystone, quick.
-2. **B** (timesheets sync) → ship **#2 hours-this-week** as the first tangible win.
+1. ~~**A** (mapping/nicknames + manual-map UI + termination sync) — keystone, quick.~~ ✅ **done**
+2. **B** (timesheets sync) → ship **#2 hours-this-week** as the first tangible win.  ← *next*
 3. **C** (notification rail) → **#3 OT/pace alerts**.
 4. **#10 PTO**, **#1 time-off push**.
 5. **#7/#8 clock-in/out + class + geofence/PWA** (the big one; do the research first).
