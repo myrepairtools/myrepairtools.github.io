@@ -394,34 +394,61 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 
   <!-- INTEGRATIONS TAB (owner only) -->
   <section id="view-integ" class="hide">
-    <div style="max-width:640px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:1.5rem">🕐</span>
-        <div>
-          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem">QuickBooks Time</div>
-          <div id="qbtStatus" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey);font-weight:700">Checking…</div>
+
+    <!-- LIBRARY: a card per integration; the gear opens that integration's settings sub-page -->
+    <div id="integLibrary">
+      <div class="sect-h" style="margin-top:0">Integrations</div>
+      <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey);margin:-4px 0 14px">Each tool we connect lives here. Click a card (or its ⚙) to manage that integration’s settings.</p>
+      <div id="integGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
+        <!-- QuickBooks Time -->
+        <div class="integ-card" data-integ="qbtime" style="position:relative;padding:18px 18px 16px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <button class="integ-gear" data-integ="qbtime" title="Settings" aria-label="QuickBooks Time settings"
+            style="position:absolute;top:10px;right:10px;width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.95rem;line-height:1;color:var(--dark-grey)">⚙</button>
+          <div style="font-size:1.6rem;margin-bottom:8px">🕐</div>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">QuickBooks Time</div>
+          <div style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:700;margin-top:2px">Time &amp; scheduling</div>
+          <div style="margin-top:12px"><span id="qbtCardPill" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px;background:#F3F2F2;color:#8A8F9C;border:1px solid var(--border)">…</span></div>
         </div>
-        <span style="flex:1"></span>
-        <span id="qbtPill" class="hide" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px"></span>
       </div>
-      <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey);margin:12px 0 16px">Sync clock-in/out and timesheets so hours, overtime, and time-off live alongside the rest of myRepairTools. Connecting is owner-only and the credentials stay server-side &mdash; the browser never sees them.</p>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn" id="qbtConnect">Connect QuickBooks Time</button>
-        <button class="btn alt sm hide" id="qbtSyncUsers">Sync employees</button>
-        <button class="btn alt sm hide" id="qbtDisconnect">Disconnect</button>
-      </div>
-      <div id="qbtHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
     </div>
 
-    <!-- Employee mapping (owner; appears when connected) -->
-    <div id="qbtMap" class="hide" style="max-width:640px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Employee mapping</div>
-        <span style="flex:1"></span>
-        <button class="btn alt sm" id="qbtMapRefresh">Refresh</button>
+    <!-- DETAIL: one integration's settings sub-page (RepairQ-style: Back + header + sections) -->
+    <div id="integDetail" class="hide">
+      <a id="integBack" href="#" style="display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;color:var(--blue);text-decoration:none;font-size:.9rem">&larr; Back to integrations</a>
+
+      <!-- QuickBooks Time settings page -->
+      <div id="integ-qbtime" class="integ-page hide" style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <span style="font-size:1.6rem">🕐</span>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem">QuickBooks Time</div>
+          <span style="flex:1"></span>
+          <span id="qbtPill" class="hide" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px"></span>
+        </div>
+
+        <!-- Connection section -->
+        <div style="max-width:640px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Connection</div>
+          <div id="qbtStatus" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey);font-weight:700;margin-top:2px">Checking…</div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey);margin:12px 0 16px">Sync clock-in/out and timesheets so hours, overtime, and time-off live alongside the rest of myRepairTools. Connecting is owner-only and the credentials stay server-side &mdash; the browser never sees them.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn" id="qbtConnect">Connect QuickBooks Time</button>
+            <button class="btn alt sm hide" id="qbtSyncUsers">Sync employees</button>
+            <button class="btn alt sm hide" id="qbtDisconnect">Disconnect</button>
+          </div>
+          <div id="qbtHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
+        </div>
+
+        <!-- Employee mapping section (appears when connected) -->
+        <div id="qbtMap" class="hide" style="max-width:640px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Employee mapping</div>
+            <span style="flex:1"></span>
+            <button class="btn alt sm" id="qbtMapRefresh">Refresh</button>
+          </div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:10px 0 4px">Link each QuickBooks Time employee to a myRepairTools staff record. QB Time carries <b>legal</b> names; MRT uses <b>preferred</b> names &mdash; auto-match handles nicknames, the rest you link by hand here.</p>
+          <div id="qbtMapBody" style="margin-top:10px"></div>
+        </div>
       </div>
-      <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:10px 0 4px">Link each QuickBooks Time employee to a myRepairTools staff record. QB Time carries <b>legal</b> names; MRT uses <b>preferred</b> names &mdash; auto-match handles nicknames, the rest you link by hand here.</p>
-      <div id="qbtMapBody" style="margin-top:10px"></div>
     </div>
   </section>
 </main>
@@ -651,8 +678,23 @@ function renderTabs(){
   $('#view-commission').classList.toggle('hide',TAB!=='commission');
   $('#view-integ').classList.toggle('hide',TAB!=='integ');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
-  if(TAB==='integ')qbtRenderStatus();
+  if(TAB==='integ'){renderInteg();qbtRenderStatus();}
 }
+
+/* ===================== Integrations library ↔ detail ===================== */
+/* Integrations is a card library; a gear on each card opens that integration's
+   own settings sub-page. INTEG_OPEN = null (library) | 'qbtime' (a detail page). */
+var INTEG_OPEN=lsGet('cprIntegOpen')||null;
+function renderInteg(){
+  var lib=$('#integLibrary'), det=$('#integDetail'); if(!lib||!det)return;
+  var open=INTEG_OPEN;
+  lib.classList.toggle('hide',!!open);
+  det.classList.toggle('hide',!open);
+  $all('.integ-page').forEach(function(p){ p.classList.add('hide'); });
+  if(open){ var pg=$('#integ-'+open); if(pg)pg.classList.remove('hide'); }
+}
+function integOpen(key){ INTEG_OPEN=key; lsSet('cprIntegOpen',key); renderInteg(); qbtRenderStatus(); }
+function integClose(){ INTEG_OPEN=null; lsSet('cprIntegOpen',''); renderInteg(); }
 
 /* ===================== QuickBooks Time (integrations) ===================== */
 var QBT_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbtime-oauth';
@@ -662,22 +704,30 @@ async function qbtCall(action){
   return fetch(QBT_FN+'?action='+action,{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}})
     .then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});
 }
+function qbtCardPill(state){ /* library card badge: 'on' | 'off' | 'wait' */
+  var c=$('#qbtCardPill'); if(!c)return;
+  if(state==='on'){c.textContent='Connected';c.style.color='#1E9E5B';c.style.background='#E9F6EE';c.style.border='1px solid #CFE9D8';}
+  else if(state==='off'){c.textContent='Not connected';c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
+  else {c.textContent='…';c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
+}
 async function qbtRenderStatus(){
   var st=$('#qbtStatus'),pill=$('#qbtPill'),conn=$('#qbtConnect'),disc=$('#qbtDisconnect'),hint=$('#qbtHint');
-  if(!st)return;
+  var detailOpen=(INTEG_OPEN==='qbtime');
   if(hint)hint.textContent=QBT_RETURN_MSG||'';
-  st.textContent='Checking…'; if(pill)pill.classList.add('hide');
+  if(st)st.textContent='Checking…'; if(pill)pill.classList.add('hide');
   var r=await qbtCall('status'), d=r.data||{};
-  if(r.status===403){ st.textContent='Owner sign-in required.'; if(conn)conn.classList.add('hide'); if(disc)disc.classList.add('hide'); return; }
+  if(r.status===403){ qbtCardPill('off'); if(st)st.textContent='Owner sign-in required.'; if(conn)conn.classList.add('hide'); if(disc)disc.classList.add('hide'); return; }
   if(d.connected){
-    st.textContent='Connected'+(d.updated_at?(' · since '+new Date(d.updated_at).toLocaleDateString()):'');
+    qbtCardPill('on');
+    if(st)st.textContent='Connected'+(d.updated_at?(' · since '+new Date(d.updated_at).toLocaleDateString()):'');
     if(pill){pill.textContent='Connected';pill.style.color='#1E9E5B';pill.style.background='#E9F6EE';pill.style.border='1px solid #CFE9D8';pill.classList.remove('hide');}
     if(conn){conn.textContent='Reconnect';conn.classList.remove('hide');}
     if(disc)disc.classList.remove('hide');
     var sync=$('#qbtSyncUsers'); if(sync)sync.classList.remove('hide');
-    var map=$('#qbtMap'); if(map){map.classList.remove('hide'); qbtLoadMap();}
+    var map=$('#qbtMap'); if(map){map.classList.toggle('hide',!detailOpen); if(detailOpen)qbtLoadMap();}
   }else{
-    st.textContent='Not connected';
+    qbtCardPill('off');
+    if(st)st.textContent='Not connected';
     if(pill){pill.textContent='Off';pill.style.color='#8A8F9C';pill.style.background='#F3F2F2';pill.style.border='1px solid var(--border)';pill.classList.remove('hide');}
     if(conn){conn.textContent='Connect QuickBooks Time';conn.classList.remove('hide');}
     if(disc)disc.classList.add('hide');
@@ -811,6 +861,7 @@ function qbtHandleReturn(){
   QBT_RETURN_MSG = s==='connected' ? 'QuickBooks Time connected ✓'
     : ('Connection failed'+(q.get('detail')?(' — '+q.get('detail')):'')+'.');
   TAB='integ'; lsSet('cprSetTab',TAB);
+  INTEG_OPEN='qbtime'; lsSet('cprIntegOpen','qbtime'); /* land back inside the QB Time page */
   q.delete('qbtime'); q.delete('detail');
   history.replaceState(null,'',location.pathname+(q.toString()?('?'+q.toString()):''));
 }
@@ -2085,6 +2136,14 @@ function initUI(){
   $('#qbtDisconnect').onclick=qbtDisconnect;
   $('#qbtSyncUsers').onclick=qbtSyncUsers;
   var qmr=$('#qbtMapRefresh'); if(qmr)qmr.onclick=qbtLoadMap;
+  $all('.integ-card').forEach(function(card){
+    card.style.cursor='pointer';
+    card.addEventListener('click',function(e){
+      /* clicking anywhere on a card (or its gear, which bubbles up) opens its settings page */
+      var key=card.getAttribute('data-integ'); if(key){ e.preventDefault(); integOpen(key); }
+    });
+  });
+  var ib=$('#integBack'); if(ib)ib.onclick=function(e){ e.preventDefault(); integClose(); };
   $('#saveRates').onclick=saveRates;
   $('#resetRates').onclick=resetRates;
   $('#crateSel').onchange=function(){CRTSEL=$('#crateSel').value;renderRates();};
