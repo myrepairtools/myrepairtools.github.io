@@ -241,6 +241,31 @@ async function mapUser(qbt_id: string, staff_id: number | null) {
   return { ok: true, qbt_id, staff_id };
 }
 
+// Pull QB Time jobcodes (regular + PTO) so we can label hours and PTO balances by name.
+async function syncJobcodes(token: string) {
+  const rows: Record<string, unknown>[] = [];
+  let page = 1;
+  for (let i = 0; i < 50; i++) {
+    const { status, data } = await qbtGet("jobcodes", token, { page, per_page: 200, active: "both", type: "all" });
+    if (status !== 200) return { ok: false, error: `jobcodes_${status}`, detail: data };
+    const obj = (data?.results?.jobcodes || {}) as Record<string, Record<string, unknown>>;
+    for (const j of Object.values(obj)) {
+      rows.push({
+        qbt_id: String(j.id), name: (j.name as string) || null, type: (j.type as string) || null,
+        parent_id: j.parent_id != null ? String(j.parent_id) : null, short_code: (j.short_code as string) || null,
+        active: j.active === undefined ? null : !!j.active, raw: j, updated_at: new Date().toISOString(),
+      });
+    }
+    if (!data?.more) break;
+    page++;
+  }
+  if (rows.length) {
+    const { error } = await admin.from("qbtime_jobcodes").upsert(rows, { onConflict: "qbt_id" });
+    if (error) return { ok: false, error: "db_" + error.message };
+  }
+  return { ok: true, jobcodes: rows.length, pto: rows.filter((r) => r.type === "pto").length };
+}
+
 // YYYY-MM-DD for a date in a timezone.
 function ymdIn(d: Date, tz: string): string {
   try { return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d); }
@@ -333,6 +358,9 @@ Deno.serve(async (req) => {
   }
   if (action === "users") {
     return json(await syncUsers(token));
+  }
+  if (action === "jobcodes") {
+    return json(await syncJobcodes(token));
   }
   if (action === "timesheets") {
     // ?start=&end= (YYYY-MM-DD). Or ?days=N for a trailing N-day window (cron uses this to
