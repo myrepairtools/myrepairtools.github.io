@@ -137,3 +137,33 @@ Today there's no authoritative place, so topics get noticed-then-lost.
   links and for filing into each person's record on close.
 - On close-with-file, also write a note row to the employee-record notes/timeline table
   for each linked staff member.
+
+## Employee onboarding workflow (kicked off by a new hire in QuickBooks)
+
+When a new employee is added in QuickBooks (we're wiring QuickBooks **Time** now), automatically
+start an onboarding workflow in myRepairTools instead of someone remembering every step by hand.
+
+**Idea**
+- A QuickBooks "new employee" event (webhook / sync) creates or links a `staff` record and opens an
+  **onboarding checklist** for that person.
+- Checklist covers the real first-day/first-week steps: paperwork, account + access provisioning
+  (RepairQ, myRepairTools PIN, email, Square, etc.), training modules, equipment, store assignment,
+  first-week schedule, commission setup.
+- Track completion per new hire; assign who owns each step; surface "X of Y onboarding tasks done"
+  on a manager view.
+
+**Why it fits**
+- Rides the QuickBooks Time integration we're building (employee sync is the trigger).
+- Lands the new person straight into **Employee Records**, and reuses the **Checklists** tool/tables.
+
+**Open questions to settle when we build it**
+- Source of the new-employee event — QuickBooks **Time** vs **Online** (and whether their webhooks
+  expose employee-created events, or we poll the employee list on a schedule and diff).
+- Auto-create the `staff` row vs propose-and-confirm (match by name/email to avoid dupes).
+- One global onboarding template vs per-role checklists.
+- Step ownership (owner/manager/HR), due dates, reminders.
+
+**Storage**
+- Reuse `checklist_items` / `checklist_completions` (an "onboarding" category assigned to the new
+  hire) or a dedicated `onboarding_tasks` table; a `staff.onboarding_status` (or a progress join)
+  for the at-a-glance state.
