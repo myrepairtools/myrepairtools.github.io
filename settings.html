@@ -407,6 +407,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
       <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey);margin:12px 0 16px">Sync clock-in/out and timesheets so hours, overtime, and time-off live alongside the rest of myRepairTools. Connecting is owner-only and the credentials stay server-side &mdash; the browser never sees them.</p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <button class="btn" id="qbtConnect">Connect QuickBooks Time</button>
+        <button class="btn alt sm hide" id="qbtSyncUsers">Sync employees</button>
         <button class="btn alt sm hide" id="qbtDisconnect">Disconnect</button>
       </div>
       <div id="qbtHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
@@ -662,11 +663,13 @@ async function qbtRenderStatus(){
     if(pill){pill.textContent='Connected';pill.style.color='#1E9E5B';pill.style.background='#E9F6EE';pill.style.border='1px solid #CFE9D8';pill.classList.remove('hide');}
     if(conn){conn.textContent='Reconnect';conn.classList.remove('hide');}
     if(disc)disc.classList.remove('hide');
+    var sync=$('#qbtSyncUsers'); if(sync)sync.classList.remove('hide');
   }else{
     st.textContent='Not connected';
     if(pill){pill.textContent='Off';pill.style.color='#8A8F9C';pill.style.background='#F3F2F2';pill.style.border='1px solid var(--border)';pill.classList.remove('hide');}
     if(conn){conn.textContent='Connect QuickBooks Time';conn.classList.remove('hide');}
     if(disc)disc.classList.add('hide');
+    var sync2=$('#qbtSyncUsers'); if(sync2)sync2.classList.add('hide');
   }
 }
 async function qbtConnect(){
@@ -682,6 +685,16 @@ async function qbtConnect(){
 async function qbtDisconnect(){
   if(!confirm('Disconnect QuickBooks Time? New syncing stops until you reconnect.'))return;
   await qbtCall('disconnect'); QBT_RETURN_MSG=''; qbtRenderStatus();
+}
+var QBT_SYNC_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbtime-sync';
+async function qbtSyncUsers(){
+  var hint=$('#qbtHint'); if(hint)hint.textContent='Syncing employees from QuickBooks Time…';
+  var tok=await sessionToken();
+  var r=await fetch(QBT_SYNC_FN+'?action=users',{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}})
+    .then(function(x){return x.json().catch(function(){return {};});});
+  if(!hint)return;
+  if(r&&r.ok) hint.textContent='Synced '+r.fetched+' QuickBooks Time users · '+r.matched+' matched to staff'+(r.unmatched&&r.unmatched.length?(' · '+r.unmatched.length+' unmatched'):'')+'.';
+  else hint.textContent='Sync failed'+(r&&r.detail?(' — '+(typeof r.detail==='string'?r.detail:JSON.stringify(r.detail))):'')+'.';
 }
 function qbtHandleReturn(){
   var q=new URLSearchParams(location.search), s=q.get('qbtime');
@@ -1961,6 +1974,7 @@ function initUI(){
   $('#tabInteg').onclick=function(){TAB='integ';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#qbtConnect').onclick=qbtConnect;
   $('#qbtDisconnect').onclick=qbtDisconnect;
+  $('#qbtSyncUsers').onclick=qbtSyncUsers;
   $('#saveRates').onclick=saveRates;
   $('#resetRates').onclick=resetRates;
   $('#crateSel').onchange=function(){CRTSEL=$('#crateSel').value;renderRates();};
