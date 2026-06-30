@@ -165,6 +165,11 @@
   .cpr-link .tag.owner{ color:#DC282E; border-color:#F6C9CA; background:#FFF1F1; }
   .cpr-div{ height:1px; background:#E0E2EA; margin:10px 16px; }
   .cpr-spacer{ flex:1; }
+  /* mobile menu profile header */
+  .cpr-mhd{ display:flex; align-items:center; gap:11px; padding:15px 18px 12px; border-bottom:1px solid #EEF0F4; }
+  .cpr-mhd .cpr-mav{ width:38px; height:38px; border-radius:50%; background:var(--cpr-red); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Nunito',sans-serif; font-weight:900; font-size:.82rem; flex:none; }
+  .cpr-mhd .nm{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.92rem; color:#2D2D3B; }
+  .cpr-mhd .rl{ font-size:.62rem; font-weight:800; color:var(--cpr-blue); text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
   .cpr-foot{ padding:10px 18px 16px; font-size:.58rem; color:#B9BDCB; }
 
   /* admin lock card */
@@ -193,6 +198,8 @@
      (soon), bell, identity. */
   .cpr-topbar{ position:fixed; top:0; left:0; right:0; height:var(--cpr-top-h);
     background:var(--cpr-blue-dark); display:flex; align-items:center; gap:12px; padding:0 16px 0 0; z-index:1002; }
+  .cpr-tb-burger{ display:none; width:44px; height:var(--cpr-top-h); align-items:center; justify-content:center; border:none; background:none; color:#fff; font-size:1.4rem; cursor:pointer; flex:none; }
+  .cpr-tb-burger:hover{ opacity:.85; }
   .cpr-tb-brand{ height:var(--cpr-top-h); display:flex; align-items:center; flex:none; text-decoration:none; padding:0 16px; }
   .cpr-tb-brand:hover{ opacity:.85; }
   .cpr-tb-brand .cpr-tb-wm{ display:flex; }                 /* full <> myRepairTools wordmark */
@@ -217,7 +224,7 @@
     .cpr-tb-role{ padding:2px; }
     .cpr-tb-brand .cpr-tb-wm{ display:none; }
     .cpr-tb-brand .cpr-tb-ico{ display:flex; }
-    .cpr-tb-brand{ width:var(--cpr-rail-w); justify-content:center; padding:0; }
+    .cpr-tb-brand{ width:auto; justify-content:center; padding:0 4px; }
   }
 
   /* push page content clear of shell */
@@ -232,11 +239,12 @@
   .cpr-scrim{ display:none; position:fixed; inset:0; background:rgba(45,45,59,.45); z-index:999; }
   .cpr-scrim.show{ display:block; }
   @media(max-width:859px){
-    .cpr-rail .cpr-burger2{ display:flex; align-items:center; justify-content:center; }
-    .cpr-rail .cpr-collapse{ display:none; }              /* burger handles mobile */
-    .cpr-pane{ transform:translateX(-100%); transition:transform .22s ease; }
+    .cpr-rail{ display:none; }                              /* no rail on mobile — hamburger menu instead */
+    .cpr-tb-burger{ display:flex; }                         /* hamburger lives in the top bar */
+    .cpr-pane{ left:0; width:min(86vw,330px); border-right:none; box-shadow:0 18px 50px rgba(45,45,59,.28);
+      transform:translateX(-100%); transition:transform .22s ease; }
     .cpr-pane.open{ transform:translateX(0); }
-    body{ margin-left:var(--cpr-rail-w) !important; }
+    body{ margin-left:0 !important; }                       /* content goes full width */
   }
   `;
 
@@ -362,6 +370,22 @@
       + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
 
+  function isMobile(){ return window.innerWidth < 860; }
+  // mobile has no rail to switch areas, so the slide-in menu shows every section
+  // the user can see at once (profile · My Hub · Operations · Admin · Settings).
+  function paneMobileInner(){
+    var h = '<div class="cpr-mhd"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
+      + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></div>';
+    var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
+    var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (ops) h += '<div class="cpr-grp">Operations</div>' + ops;
+    if (hasAdminArea()) h += '<div data-priv>' + privilegedHtml() + '</div>';
+    if (canSee({ acc:'staff.manage' })) h += '<div class="cpr-div"></div><a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>';
+    return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+  }
+  function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
+
   var rail, pane, scrim, top, usermenu;
   function setArea(area){
     ACTIVE_AREA = area;
@@ -388,7 +412,7 @@
   }
 
   function renderPriv(){
-    if (pane){ pane.innerHTML = paneInner(ACTIVE_AREA); wirePriv(); }
+    if (pane){ pane.innerHTML = paneContent(); wirePriv(); }
     broadcastRole();
     updateAvatar();
     updateAdminIcon();
@@ -480,7 +504,7 @@
 
     // menu pane
     pane = document.createElement('div'); pane.className = 'cpr-pane';
-    pane.innerHTML = paneInner(ACTIVE_AREA);
+    pane.innerHTML = paneContent();
     document.body.insertBefore(pane, document.body.firstChild);
 
     // icon rail
@@ -500,6 +524,7 @@
     // ── top bar (persistent): page title · clock (soon) · bell · identity ─
     top = document.createElement('div'); top.className = 'cpr-topbar';
     top.innerHTML = ''
+      + '<button class="cpr-tb-burger" aria-label="Menu">☰</button>'
       + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home">'+navLogoTop()+'</a>'
       + '<span class="cpr-tb-sp"></span>'
       + '<span class="cpr-tb-chip" title="Time clock — coming with QuickBooks Time">🕐 Time clock · soon</span>'
@@ -588,10 +613,21 @@
     wirePriv();
 
     var burger = rail.querySelector('.cpr-burger2');
-    function closeMenu(){ pane.classList.remove('open'); scrim.classList.remove('show'); }
-    burger.onclick = function(){ var open = pane.classList.toggle('open'); scrim.classList.toggle('show', open); };
+    var tbBurger = top.querySelector('.cpr-tb-burger');
+    function setMenu(open){ pane.classList.toggle('open', open); scrim.classList.toggle('show', open); if (tbBurger) tbBurger.innerHTML = open ? '✕' : '☰'; }
+    function closeMenu(){ setMenu(false); }
+    function toggleMenu(){ setMenu(!pane.classList.contains('open')); }
+    if (burger) burger.onclick = toggleMenu;
+    if (tbBurger) tbBurger.onclick = toggleMenu;
     scrim.onclick = closeMenu;
-    window.addEventListener('resize', function(){ flyout.classList.remove('show'); if (window.innerWidth >= 860){ closeMenu(); } });
+    // close the menu after tapping a tool on mobile
+    pane.addEventListener('click', function(e){ if (e.target.closest('.cpr-link')) closeMenu(); });
+    var wasMobile = isMobile();
+    window.addEventListener('resize', function(){
+      flyout.classList.remove('show');
+      if (window.innerWidth >= 860) closeMenu();
+      var m = isMobile(); if (m !== wasMobile){ wasMobile = m; pane.innerHTML = paneContent(); wirePriv(); }
+    });
 
     // single sign-on: pick up the shared session, and react when it changes
     // here, in another tab, or on another page (login / logout / refresh).
