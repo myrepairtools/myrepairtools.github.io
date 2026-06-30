@@ -47,6 +47,12 @@ function normStore(s: string): string {
   return s.trim(); // unknown → pass through unchanged
 }
 
+function todayIn(tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  } catch { return new Date().toISOString().slice(0, 10); }
+}
+
 function normDate(d: string): string | null {
   if (!d) return null;
   d = d.trim();
@@ -97,11 +103,13 @@ Deno.serve(async (req) => {
     else skipped.push(r);
   }
   const mode = (url.searchParams.get("mode") || "replace").toLowerCase();
-  const dateParam = url.searchParams.get("date");    // "replace this whole day" (handles empty reports)
+  let dateParam = url.searchParams.get("date");      // YYYY-MM-DD or "today" — replace this whole day (handles empty reports)
   const storeParam = url.searchParams.get("store");  // optional: scope the day-clear to one store
+  const tzParam = url.searchParams.get("tz") || "America/Chicago";  // for date=today (matches RepairQ report TZ)
+  if (dateParam && dateParam.toLowerCase() === "today") dateParam = todayIn(tzParam);
 
   if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam))
-    return J({ ok: false, error: "date must be YYYY-MM-DD" }, 400);
+    return J({ ok: false, error: "date must be YYYY-MM-DD or 'today'" }, 400);
 
   // Without an explicit ?date=, an empty payload is a no-op — we only ever clear days we can see.
   if (!recs.length && !dateParam) {
@@ -126,14 +134,16 @@ Deno.serve(async (req) => {
     if (nStore) delq = delq.eq("store", nStore);
     const del = await delq;
     if (del.error) return J({ ok: false, error: del.error.message }, 500);
-    const toInsert = recs.filter((r) => r.biz_date === dateParam && (!nStore || r.store === nStore));
+    // insert this store's rows under whatever accounted date they carry (upsert = idempotent
+    // across the hourly runs); the clear above used `date` so an empty report still zeroes the day.
+    const toInsert = nStore ? recs.filter((r) => r.store === nStore) : recs;
     if (toInsert.length) {
-      const ins = await sb.from("repairs_no_parts").insert(toInsert);
+      const ins = await sb.from("repairs_no_parts").upsert(toInsert, { onConflict: "store,biz_date,ticket" });
       if (ins.error) return J({ ok: false, error: ins.error.message }, 500);
     }
     return J({ ok: true, mode: "replace", date: dateParam, store: nStore ?? "(all stores)",
       received: rows.length, written: toInsert.length, skipped: skipped.length,
-      ignored_other_dates: (recs.length - toInsert.length) || undefined });
+      ignored_other_store_rows: (nStore ? recs.length - toInsert.length : 0) || undefined });
   }
 
   // No ?date=: replace only the (store, day) groups present in this delivery.
