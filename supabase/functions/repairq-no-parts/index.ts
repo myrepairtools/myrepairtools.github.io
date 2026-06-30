@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
   const mode = (url.searchParams.get("mode") || "replace").toLowerCase();
   let dateParam = url.searchParams.get("date");      // YYYY-MM-DD or "today" — replace this whole day (handles empty reports)
   const storeParam = url.searchParams.get("store");  // optional: scope the day-clear to one store
-  const tzParam = url.searchParams.get("tz") || "America/Chicago";  // for date=today (matches RepairQ report TZ)
+  const tzParam = url.searchParams.get("tz") || "America/Los_Angeles";  // for date=today; MUST match the RepairQ report's TZ
   if (dateParam && dateParam.toLowerCase() === "today") dateParam = todayIn(tzParam);
 
   if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam))
