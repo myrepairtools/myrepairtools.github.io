@@ -380,13 +380,16 @@ tr.grp.open .chev{transform:rotate(90deg)}
       </div>
     </div>
     <button class="btn blue sm" id="batExport" style="display:none">⬇ Export batteries for MobileSentrix</button>
+    <button class="btn alt sm" id="samCovBtn">🛡 Claim coverage</button>
     <button class="btn alt sm" id="grpBtn">⚙ Part Configuration</button>
     <button class="btn alt sm" id="feedBtn">📡 Feed health</button>
   </div>
   <div class="fhpanel hide" id="feedHealth"></div>
+  <div class="fhpanel hide" id="samCoverage"></div>
 
   <section id="view-daily">
   <div class="warnpanel hide" id="nopartsPanel"></div>
+  <div class="warnpanel hide" id="claimRisk"></div>
 
   <div class="kpis">
     <div class="kpi"><div class="v" id="kUsed">0</div><div class="l">Parts used</div></div>
@@ -703,7 +706,8 @@ async function samDelModel(model){
   await loadSamsungMap(); renderSamsung();
 }
 function samAddModel(){
-  var name=prompt('Model name (e.g. Galaxy S27 Ultra):'); if(!name)return; name=name.trim(); if(!name)return;
+  var name=prompt('Model name (e.g. S27 Ultra) — “Galaxy” is added automatically:'); if(!name)return; name=name.trim(); if(!name)return;
+  if(!/^galaxy\b/i.test(name))name='Galaxy '+name;
   if(samModels().some(function(g){return g.model.toLowerCase()===name.toLowerCase();})){alert('That model already exists.');return;}
   SAM_NEWMODELS.push(name); SAMQ=''; if($('#samSearch'))$('#samSearch').value=''; renderSamsung();
 }
@@ -715,6 +719,86 @@ function applyCfgTab(v){
   $('#cfg-samsung').classList.toggle('hide',v!=='samsung');
   if(v==='samsung')renderSamsung();
 }
+async function loadSamsungRows(){
+  var r=await sb.from('samsung_adhesive_map').select('id,model,sku,kind,role,position').order('model').order('position');
+  SAMMAP=r.data||[];
+}
+/* ===== Samsung claim coverage — reads the map against current-store stock ===== */
+var SAMCOVOPEN=false;
+function samStk(sku){var s=SNAP[sku]||{};return {i:+s.instock||0,o:+s.onorder||0};}
+function samRoleName(role){return role==='combo'?'Combo':(role==='front'?'Front':'Back');}
+function samCoverage(){
+  var by={};SAMMAP.forEach(function(r){(by[r.model]||(by[r.model]=[])).push(r);});
+  return Object.keys(by).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});}).map(function(model){
+    var rows=by[model];
+    var oem=rows.filter(function(r){return r.kind==='oem_display';});
+    var sp=rows.filter(function(r){return r.kind==='sp_display';});
+    var adh=rows.filter(function(r){return r.kind==='adhesive';});
+    function sumI(l){return l.reduce(function(a,r){return a+samStk(r.sku).i;},0);}
+    function sumO(l){return l.reduce(function(a,r){return a+samStk(r.sku).o;},0);}
+    var oemIn=sumI(oem),oemOn=sumO(oem),spIn=sumI(sp),spOn=sumO(sp);
+    var scrIn=oemIn+spIn,scrOn=oemOn+spOn;
+    var roles={};adh.forEach(function(r){var k=r.role||'back';(roles[k]||(roles[k]=[])).push(r);});
+    var roleInfo=Object.keys(roles).map(function(role){
+      var list=roles[role],ai=sumI(list),ao=sumO(list);
+      return {role:role,inn:ai,onn:ao,topup:Math.max(0,(scrIn+scrOn)-(ai+ao)),primary:list[0].sku,skus:list.map(function(x){return x.sku;})};
+    });
+    var minAdhIn=roleInfo.length?Math.min.apply(null,roleInfo.map(function(x){return x.inn;})):0;
+    var uncovered=adh.length?Math.max(0,oemIn-minAdhIn):0;
+    var topTotal=roleInfo.reduce(function(a,x){return a+x.topup;},0);
+    return {model:model,oemIn:oemIn,oemOn:oemOn,spIn:spIn,scrIn:scrIn,scrOn:scrOn,roles:roleInfo,uncovered:uncovered,topTotal:topTotal,hasAdh:adh.length>0};
+  });
+}
+function renderClaimRisk(){
+  var el=$('#claimRisk'); if(!el)return;
+  if(STATE.view&&STATE.view!=='daily'){el.classList.add('hide');return;}
+  var cov=samCoverage();
+  var atRisk=cov.filter(function(m){return m.uncovered>0;});
+  var units=atRisk.reduce(function(a,m){return a+m.uncovered;},0);
+  if(!atRisk.length){el.classList.add('hide');return;}
+  el.classList.remove('hide');
+  el.innerHTML='<h2>⚠ '+units+' Samsung claim'+(units>1?'s':'')+' at risk · '+atRisk.length+' model'+(atRisk.length>1?'s':'')+'</h2>'
+    +'<div class="wsub">These OEM displays are in stock without enough adhesive banded — a claim won’t come through until the adhesive is in stock. '
+    +'<a href="#" id="claimRiskOpen" style="font-weight:800;color:var(--red)">See coverage &amp; what to order →</a></div>';
+  var lnk=$('#claimRiskOpen'); if(lnk)lnk.onclick=function(e){e.preventDefault();if(!SAMCOVOPEN)toggleSamCov();var p=$('#samCoverage');if(p)p.scrollIntoView({behavior:'smooth',block:'start'});};
+}
+function renderSamCoverage(){
+  var p=$('#samCoverage'); if(!p)return;
+  if(!SAMCOVOPEN){p.classList.add('hide');return;}
+  p.classList.remove('hide');
+  var cov=samCoverage();
+  var act=cov.filter(function(m){return m.uncovered>0||m.topTotal>0;})
+    .sort(function(a,b){return (b.uncovered-a.uncovered)||(b.topTotal-a.topTotal);});
+  var okCount=cov.filter(function(m){return m.scrIn>0&&m.uncovered===0&&m.topTotal===0;}).length;
+  var h='<h2 style="margin:0 0 4px">🛡 Samsung claim coverage <span style="font-weight:700;color:var(--grey);font-size:.8rem">· '+STATE.store+'</span></h2>'
+    +'<div class="wsub" style="margin-bottom:10px">A front + back adhesive set should be banded to every Galaxy screen on the shelf (OEM + Service-Pack). OEM screens also need adhesive in stock to receive a claim. Suggested orders already net out the adhesive your OEM screen orders auto-carry.</div>';
+  if(!act.length){
+    h+='<div style="font-family:Nunito Sans;font-size:.9rem;color:var(--dark-grey)">✅ All mapped models are covered — nothing to order.</div>';
+  }else{
+    h+='<table class="tbl" style="margin-top:2px"><thead><tr><th>Model</th><th class="ctr">OEM in</th><th class="ctr">SP in</th><th>Adhesive (in / on order)</th><th class="ctr">Claim risk</th><th>Suggested order</th></tr></thead><tbody>';
+    act.forEach(function(m){
+      var adhCells=m.roles.map(function(r){
+        var short=r.inn<m.oemIn?' style="color:var(--red);font-weight:800"':'';
+        return '<div'+short+'>'+samRoleName(r.role)+': '+r.inn+' / '+r.onn+'</div>';
+      }).join('')||'<span style="color:var(--grey)">—</span>';
+      var risk=m.uncovered>0?'<span class="claimtag" style="color:#B23B3B;background:#FBEDED;border-color:#F0C9C9">⚠ '+m.uncovered+'</span>':'<span style="color:#1E9E5B;font-weight:800">✓</span>';
+      var ord=m.roles.filter(function(r){return r.topup>0;}).map(function(r){
+        return '<div><b>'+r.topup+'×</b> <span style="font-family:Nunito;font-weight:800">'+esc(r.primary)+'</span> <span style="color:var(--grey);font-size:.72rem">('+samRoleName(r.role).toLowerCase()+')</span></div>';
+      }).join('')||'<span style="color:var(--grey)">—</span>';
+      h+='<tr><td style="font-family:Nunito;font-weight:800">'+esc(m.model)+'</td>'
+        +'<td class="ctr">'+m.oemIn+(m.oemOn?' <span style="color:var(--grey);font-size:.72rem">(+'+m.oemOn+')</span>':'')+'</td>'
+        +'<td class="ctr">'+(m.spIn||'—')+'</td>'
+        +'<td style="font-family:Nunito Sans;font-size:.8rem">'+adhCells+'</td>'
+        +'<td class="ctr">'+risk+'</td>'
+        +'<td style="font-family:Nunito Sans;font-size:.8rem">'+ord+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+  if(okCount)h+='<div style="margin-top:10px;font-family:Nunito Sans;font-size:.82rem;color:var(--grey)">＋ '+okCount+' other stocked model'+(okCount>1?'s':'')+' fully covered.</div>';
+  p.innerHTML=h;
+}
+function toggleSamCov(){SAMCOVOPEN=!SAMCOVOPEN;var b=$('#samCovBtn');if(b)b.classList.toggle('on',SAMCOVOPEN);renderSamCoverage();}
+function renderCoverage(){renderClaimRisk();renderSamCoverage();}
 async function fetchAllStock(store){
   var all=[],from=0,size=1000;
   while(true){
@@ -738,7 +822,8 @@ async function loadAll(){
     sb.from('flag_types').select('key,label,color,icon,active,sort').eq('active',true).order('sort').order('id'),
     sb.from('sku_flags').select('sku,flag_key').eq('store',store),
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
-    sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle()
+    sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
+    loadSamsungRows()
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
@@ -750,7 +835,7 @@ async function loadAll(){
   var sf={};(res[8].data||[]).forEach(function(r){(sf[r.sku]||(sf[r.sku]=[])).push(r.flag_key);});SKUFLAGS[store]=sf;
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
-  pills();render();renderStock();renderNoParts();renderFresh();
+  pills();render();renderStock();renderNoParts();renderFresh();renderCoverage();
   var atab=$('#viewTabs')&&$('#viewTabs').querySelector('.tab.active');
   if(atab&&atab.getAttribute('data-v')==='battery')loadBatteries();
 }
@@ -1677,11 +1762,13 @@ async function init(){
     renderFeedHealth();
     if(FEEDOPEN)loadFeedHealth();  // always pull fresh sync times on open
   });
+  $('#samCovBtn').addEventListener('click',toggleSamCov);
   $('#grpBtn').addEventListener('click',async function(){
     $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-battery').classList.add('hide');$('#view-groups').classList.remove('hide');
     $('#exportWrap').style.display='none';$('#batExport').style.display='none';$('#viewTabs').style.visibility='hidden';
     $('#storePills').style.display='none';$('#day').style.display='none';$('#grpBtn').style.display='none';
     $('#feedBtn').style.display='none';$('#freshLine').style.display='none';FEEDOPEN=false;renderFeedHealth();
+    $('#samCovBtn').style.display='none';SAMCOVOPEN=false;renderSamCoverage();
     $('#appH1').style.display='none';$('#appSub').style.display='none';
     if($('#samAddModel'))$('#samAddModel').style.display=canEditCfg()?'':'none';
     await Promise.all([loadManufacturers(),loadPartTypes(),loadSamsungMap()]);
@@ -1703,6 +1790,7 @@ async function init(){
     $('#view-daily').classList.toggle('hide',active!=='daily');
     $('#view-stock').classList.toggle('hide',active!=='stock');
     $('#view-battery').classList.toggle('hide',active!=='battery');
+    $('#samCovBtn').style.display=(active==='daily')?'':'none';
     $('#exportWrap').style.display=(active==='daily')?'':'none';
     $('#batExport').style.display=(active==='battery')?'':'none';
     if(active==='battery')loadBatteries();
@@ -1726,6 +1814,8 @@ async function init(){
     $('#view-stock').classList.toggle('hide',v!=='stock');
     $('#view-battery').classList.toggle('hide',v!=='battery');
     $('#exportWrap').style.display=(v==='daily')?'':'none';
+    $('#samCovBtn').style.display=(v==='daily')?'':'none';
+    if(v!=='daily'){SAMCOVOPEN=false;renderSamCoverage();}
     $('#batExport').style.display=(v==='battery')?'':'none';
     if(v==='stock')renderStock();
     if(v==='battery')loadBatteries();
