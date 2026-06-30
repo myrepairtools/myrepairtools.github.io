@@ -631,6 +631,10 @@ function groupOf(sku){for(var i=0;i<GROUPS.length;i++){for(var j=0;j<GROUPS[i].m
 /* roll consumption up into used{sku}={sold,pulled} */
 function usedMap(){var m={};CONSUMPTION.forEach(function(c){m[c.sku]=(m[c.sku]||0)+(c.units||0);});return m;}
 
+/* Special Order items are ordered manually, so — like Consignment only — they
+   ignore the stock-driven suggested-order math (suggest forced to 0). */
+function isSpecialOrder(sku){ return ((SKUFLAGS[STATE.store]||{})[sku]||[]).indexOf('special_order')>-1; }
+
 /* build display rows: grouped rollups + ungrouped sku rows */
 function buildRows(){
   var used=usedMap(), seenGrp={}, rows=[];
@@ -643,11 +647,12 @@ function buildRows(){
     var nm=CNAMES[sku]||s.name||sku;
     var u=used[sku]||0;
     var blocked=stop.indexOf(sku)>-1;
+    var noSuggest=blocked||isSpecialOrder(sku);
     var mx=effMax(sku);
     rows.push({type:'sku',sku:sku,name:nm,used:u,
       instock:s.instock,onorder:s.onorder,max:mx,stop:blocked,
       claimElig:claimRep.hasOwnProperty(sku)?claimRep[sku]:null,flagSku:sku,
-      suggest:blocked?0:Math.max(0,mx-s.instock-s.onorder),orderSku:sku});
+      suggest:noSuggest?0:Math.max(0,mx-s.instock-s.onorder),orderSku:sku});
   });
   GROUPS.forEach(function(g){
     if(!seenGrp[g.id])return;
@@ -661,11 +666,12 @@ function buildRows(){
     });
     var pref=g.def||(g.members[0]&&g.members[0].sku)||'';
     var blocked=stop.indexOf(pref)>-1;
+    var noSuggest=blocked||isSpecialOrder(pref);
     var gmx=effGroupMax(g.id);
     rows.push({type:'group',gid:g.id,name:g.name,used:used2,
       instock:instock,onorder:onorder,max:gmx,usedSkus:usedSkus,stop:blocked,
       claimElig:cElig,flagSku:pref,
-      suggest:blocked?0:Math.max(0,gmx-instock-onorder),orderSku:pref,members:members});
+      suggest:noSuggest?0:Math.max(0,gmx-instock-onorder),orderSku:pref,members:members});
   });
   var keyOf=function(r){return r.type==='group'?('g:'+r.gid):r.sku;};
   if(ORDER){
