@@ -122,6 +122,9 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 .pl-grid{display:grid;grid-template-columns:repeat(7,1fr)}
 .pl-cell{min-height:60px;padding:7px 8px;text-align:left;border:none;border-top:1px solid #F0F1F4;border-left:1px solid #F0F1F4;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between}
 .pl-ft{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;border-top:1px solid #EEF0F4;flex-wrap:wrap}
+.pl-chips{display:flex;flex-wrap:wrap;gap:2px;align-items:center}
+.pl-ini{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.5rem;letter-spacing:-.2px}
+.pl-more{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;color:var(--dark-grey);align-self:center}
 </style>
 </head>
 <body>
@@ -395,7 +398,7 @@ function renderTimeoff(){
 
   $('#view').innerHTML=form+'<div class="sect">My requests</div>'+mineHtml+'<div class="sect">Team time off</div><div class="empty" style="margin:-4px 0 8px">All locations · so you can plan around each other</div>'+teamHtml;
 
-  if($('#openReq'))$('#openReq').onclick=function(){REQUESTING=true;render();};
+  if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
   if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
   $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
   if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;render();};
@@ -472,7 +475,7 @@ function timeoffPanelHtml(web){
   var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
   var conflicts=REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=f.end&&r.end_date>=f.start;});
   var conflictTxt=conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');
-  var actions=REQUESTING?'':'<div style="display:flex;flex-direction:column;gap:8px"><button class="btn btn-red" id="openReq" style="height:48px">+ Request Time Off</button>'+(web?'<button class="btn" id="openPlanner" style="width:100%;height:46px;padding:0 13px;font-size:.9rem;background:#fff;border:1.5px solid var(--border);color:var(--dark-grey);display:flex;align-items:center;justify-content:center;gap:7px">📅 Find Open Dates</button>':'')+'</div>';
+  var actions=REQUESTING?'':'<button class="btn btn-red" id="openReq" style="height:48px;width:100%">+ Request Time Off</button>';
   var form=REQUESTING?(
     '<div class="card"><div style="font-family:Nunito;font-weight:900;font-size:.92rem;margin-bottom:11px">Request time off</div>'
     +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:11px">'+['Vacation','Personal','Sick'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
@@ -489,7 +492,7 @@ function timeoffPanelHtml(web){
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem">Team time off</div><div style="font-family:Nunito Sans;font-weight:600;font-size:.68rem;color:var(--grey);margin-bottom:9px">All locations</div><div style="display:flex;flex-direction:column;gap:9px">'+teamHtml+'</div></div>';
 }
 function wireTimeoffPanel(){
-  if($('#openReq'))$('#openReq').onclick=function(){REQUESTING=true;render();};
+  if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
   if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
   $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
   if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;render();};
@@ -506,20 +509,23 @@ function renderPlanner(){
   var Y=PMON.getFullYear(),M=PMON.getMonth(),first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
   var myStoreNames=myStores();
   var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
-  function loadOn(di){return REQS.filter(function(r){return r.status!=='denied'&&teammates.indexOf(r.staff_id)>-1&&r.start_date<=di&&r.end_date>=di;}).length;}
+  function peopleOn(di){return REQS.filter(function(r){return r.status!=='denied'&&teammates.indexOf(r.staff_id)>-1&&r.start_date<=di&&r.end_date>=di;})
+    .map(function(r){var e=staffById(r.staff_id)||{};return {name:e.display_name||'?',ini:initials(e.display_name),color:(e.avatar_color||avatarBg(r.staff_id)),type:r.type,status:r.status};});}
   var selStart=PSTART,selEnd=PEND||PSTART;
   var cells='';
   for(var i=0;i<first;i++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
-  for(var d=1;d<=dim;d++){var di=iso(new Date(Y,M,d));var past=di<today;var n=loadOn(di);
-    var selected=selStart&&di>=selStart&&di<=selEnd;var isEnd=selStart&&(di===selStart||di===selEnd);
-    var bg=past?'#FBFBFC':selected?(isEnd?'#4FB0E3':hexA('#4FB0E3',0.16)):(n===0?'#fff':n===1?'#FCF6EA':'#FBEDED');
-    var numC=past?'#cfd2dd':(selected&&isEnd?'#fff':'var(--dark)');
-    var lblC=(selected&&isEnd)?'#fff':(n===1?'#C9820B':'#DC282E');
-    cells+='<button class="pl-cell" data-day="'+(past?'':di)+'" style="background:'+bg+';cursor:'+(past?'default':'pointer')+'"><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+numC+'">'+d+'</span>'+((!past&&n>0)?'<span style="font-family:Nunito;font-weight:800;font-size:.54rem;text-transform:uppercase;color:'+lblC+'">'+n+' off</span>':'')+'</button>';
+  for(var d=1;d<=dim;d++){var di=iso(new Date(Y,M,d));var past=di<today;var ppl=peopleOn(di);
+    var booked=ppl.some(function(p){return p.status==='approved';}),pending=ppl.length&&!booked;
+    var selected=selStart&&di>=selStart&&di<=selEnd;var isEnd=selStart&&(di===selStart||di===selEnd);var sel=(selected&&isEnd);
+    var bg=past?'#FBFBFC':selected?(isEnd?'#4FB0E3':hexA('#4FB0E3',0.16)):(booked?'#FBEDED':pending?'#FCF6EA':'#fff');
+    var numC=past?'#cfd2dd':sel?'#fff':'var(--dark)';
+    var chips=ppl.slice(0,3).map(function(p){return '<span class="pl-ini" title="'+esc(p.name+' · '+p.type+(p.status==='pending'?' (pending)':''))+'" style="background:'+esc(p.color)+(sel?';box-shadow:0 0 0 1.5px #fff':'')+'">'+esc(p.ini)+'</span>';}).join('')+(ppl.length>3?'<span class="pl-more"'+(sel?' style="color:#fff"':'')+'>+'+(ppl.length-3)+'</span>':'');
+    var ttl=ppl.length?esc(ppl.map(function(p){return p.name+' · '+p.type+(p.status==='pending'?' (pending)':'');}).join('\n')):'';
+    cells+='<button class="pl-cell" data-day="'+(past?'':di)+'" title="'+ttl+'" style="background:'+bg+';cursor:'+(past?'default':'pointer')+'"><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+numC+'">'+d+'</span>'+((!past&&ppl.length)?'<span class="pl-chips">'+chips+'</span>':'')+'</button>';
   }
   var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
   var back=document.createElement('div');back.id='plback';back.className='pl-back';
-  back.innerHTML='<div class="pl"><div class="pl-hd"><div class="t">Find open dates</div><div style="display:inline-flex;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden"><button data-pm="-1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">‹</button><span style="display:flex;align-items:center;padding:9px 16px;font-family:Nunito;font-weight:800;font-size:.82rem;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap">'+MONL[M]+' '+Y+'</span><button data-pm="1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">›</button></div><button id="plx" style="position:absolute;top:50%;transform:translateY(-50%);right:14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);width:32px;height:32px;border-radius:9px;cursor:pointer;font-weight:800;box-shadow:0 1px 3px rgba(45,45,59,.12)">✕</button></div>'
+  back.innerHTML='<div class="pl"><div class="pl-hd"><div class="t">Request time off · who’s already off</div><div style="display:inline-flex;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden"><button data-pm="-1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">‹</button><span style="display:flex;align-items:center;padding:9px 16px;font-family:Nunito;font-weight:800;font-size:.82rem;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap">'+MONL[M]+' '+Y+'</span><button data-pm="1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">›</button></div><button id="plx" style="position:absolute;top:50%;transform:translateY(-50%);right:14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);width:32px;height:32px;border-radius:9px;cursor:pointer;font-weight:800;box-shadow:0 1px 3px rgba(45,45,59,.12)">✕</button></div>'
     +'<div class="pl-grid" style="background:#fafafa;border-bottom:1px solid var(--border)">'+DAYS.map(function(d){return '<div style="padding:9px 8px;font-family:Nunito;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)">'+d+'</div>';}).join('')+'</div>'
     +'<div class="pl-grid">'+cells+'</div>'
     +'<div class="pl-ft"><div style="display:flex;gap:14px;align-items:center">'
