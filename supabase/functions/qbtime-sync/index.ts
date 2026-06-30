@@ -241,6 +241,71 @@ async function mapUser(qbt_id: string, staff_id: number | null) {
   return { ok: true, qbt_id, staff_id };
 }
 
+// YYYY-MM-DD for a date in a timezone.
+function ymdIn(d: Date, tz: string): string {
+  try { return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d); }
+  catch { return d.toISOString().slice(0, 10); }
+}
+// The Sunday that begins the current week (Sun–Sat), in the given tz.
+function weekStart(tz: string): string {
+  const today = ymdIn(new Date(), tz);
+  const [y, m, d] = today.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();   // 0=Sun … 6=Sat
+  const s = new Date(Date.UTC(y, m - 1, d - dow));
+  return s.toISOString().slice(0, 10);
+}
+function addDays(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// Pull QB Time timesheets for a date range and roll up into qbtime_timesheets
+// (one row per QB user per day: total seconds + per-jobcode breakdown + on-the-clock flag).
+async function syncTimesheets(token: string, startDate: string, endDate: string) {
+  // map qbt user id -> staff id (so each daily row carries the MRT link for RLS/feature reads)
+  const { data: qbu } = await admin.from("qbtime_users").select("qbt_id, staff_id");
+  const staffOf = new Map<string, number | null>();
+  for (const u of qbu || []) staffOf.set(String(u.qbt_id), (u.staff_id as number) ?? null);
+
+  type Agg = { seconds: number; jobcodes: Record<string, number>; onclock: boolean };
+  const byUserDay = new Map<string, Agg>();
+  let page = 1, fetched = 0;
+  for (let i = 0; i < 100; i++) {
+    const { status, data } = await qbtGet("timesheets", token, { start_date: startDate, end_date: endDate, page, per_page: 200 });
+    if (status !== 200) return { ok: false, error: `timesheets_${status}`, detail: data };
+    const obj = (data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>;
+    const arr = Object.values(obj);
+    for (const t of arr) {
+      const uid = String(t.user_id), date = String(t.date || "").slice(0, 10);
+      if (!uid || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      const secs = Number(t.duration) || 0;            // seconds; QB sends elapsed for open shifts too
+      const jc = String(t.jobcode_id ?? "0");
+      const k = uid + "|" + date;
+      const a = byUserDay.get(k) || { seconds: 0, jobcodes: {}, onclock: false };
+      a.seconds += secs;
+      a.jobcodes[jc] = (a.jobcodes[jc] || 0) + secs;
+      if (t.on_the_clock === true) a.onclock = true;
+      byUserDay.set(k, a);
+      fetched++;
+    }
+    if (!data?.more) break;
+    page++;
+  }
+
+  const stamp = new Date().toISOString();
+  const rows = Array.from(byUserDay.entries()).map(([k, a]) => {
+    const [uid, biz_date] = k.split("|");
+    return { qbt_user_id: uid, biz_date, staff_id: staffOf.get(uid) ?? null,
+      seconds: a.seconds, jobcodes: a.jobcodes, on_the_clock: a.onclock, updated_at: stamp };
+  });
+
+  if (rows.length) {
+    const { error } = await admin.from("qbtime_timesheets").upsert(rows, { onConflict: "qbt_user_id,biz_date" });
+    if (error) return { ok: false, error: "db_" + error.message };
+  }
+  return { ok: true, range: { start: startDate, end: endDate }, timesheets: fetched, day_rows: rows.length };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const url = new URL(req.url);
@@ -268,6 +333,18 @@ Deno.serve(async (req) => {
   }
   if (action === "users") {
     return json(await syncUsers(token));
+  }
+  if (action === "timesheets") {
+    // ?start=&end= (YYYY-MM-DD). Or ?days=N for a trailing N-day window (cron uses this to
+    // re-sync across the week boundary and catch late edits). Default: this week (Sun) → today.
+    const tz = url.searchParams.get("tz") || "America/Los_Angeles";
+    const days = Number(url.searchParams.get("days") || 0);
+    const today = ymdIn(new Date(), tz);
+    const start = url.searchParams.get("start") || (days > 0 ? addDays(today, -days) : weekStart(tz));
+    const end = url.searchParams.get("end") || today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end))
+      return json({ ok: false, error: "start/end must be YYYY-MM-DD" }, 400);
+    return json(await syncTimesheets(token, start, end));
   }
   if (action === "roster") {
     // feed the Settings manual-map UI: every QB user + their current staff link, plus the staff list.
