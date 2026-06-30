@@ -742,10 +742,13 @@ function samCoverage(){
     function sumO(l){return l.reduce(function(a,r){return a+samStk(r.sku).o;},0);}
     var oemIn=sumI(oem),oemOn=sumO(oem),spIn=sumI(sp),spOn=sumO(sp);
     var scrIn=oemIn+spIn,scrOn=oemOn+spOn;
+    /* restock target = a banded set per screen (OEM+SP, in+on) plus one spare,
+       so a surprise repair never lands you at exactly even. No screens → no target. */
+    var par=(scrIn+scrOn)>0?(scrIn+scrOn+1):0;
     var roles={};adh.forEach(function(r){var k=r.role||'back';(roles[k]||(roles[k]=[])).push(r);});
     var roleInfo=Object.keys(roles).map(function(role){
       var list=roles[role],ai=sumI(list),ao=sumO(list);
-      return {role:role,inn:ai,onn:ao,topup:Math.max(0,(scrIn+scrOn)-(ai+ao)),primary:list[0].sku,skus:list.map(function(x){return x.sku;})};
+      return {role:role,inn:ai,onn:ao,topup:Math.max(0,par-(ai+ao)),primary:list[0].sku,skus:list.map(function(x){return x.sku;})};
     });
     var minAdhIn=roleInfo.length?Math.min.apply(null,roleInfo.map(function(x){return x.inn;})):0;
     var uncovered=adh.length?Math.max(0,oemIn-minAdhIn):0;
@@ -775,7 +778,7 @@ function renderSamCoverage(){
     .sort(function(a,b){return (b.uncovered-a.uncovered)||(b.topTotal-a.topTotal);});
   var okCount=cov.filter(function(m){return m.scrIn>0&&m.uncovered===0&&m.topTotal===0;}).length;
   var h='<h2 style="margin:0 0 4px">🛡 Samsung claim coverage <span style="font-weight:700;color:var(--grey);font-size:.8rem">· '+STATE.store+'</span></h2>'
-    +'<div class="wsub" style="margin-bottom:10px">A front + back adhesive set should be banded to every Galaxy screen on the shelf (OEM + Service-Pack). OEM screens also need adhesive in stock to receive a claim. Suggested orders already net out the adhesive your OEM screen orders auto-carry.</div>';
+    +'<div class="wsub" style="margin-bottom:10px">A front + back adhesive set should be banded to every Galaxy screen on the shelf (OEM + Service-Pack), plus one spare. OEM screens also need adhesive in stock to receive a claim. Suggested orders already net out the adhesive your OEM screen orders auto-carry.</div>';
   if(!act.length){
     h+='<div style="font-family:Nunito Sans;font-size:.9rem;color:var(--dark-grey)">✅ All mapped models are covered — nothing to order.</div>';
   }else{
