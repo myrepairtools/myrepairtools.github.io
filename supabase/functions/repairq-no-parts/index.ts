@@ -96,20 +96,47 @@ Deno.serve(async (req) => {
     if (rec.store && rec.ticket && rec.biz_date) recs.push(rec);
     else skipped.push(r);
   }
-  if (!recs.length) {
+  const mode = (url.searchParams.get("mode") || "replace").toLowerCase();
+  const dateParam = url.searchParams.get("date");    // "replace this whole day" (handles empty reports)
+  const storeParam = url.searchParams.get("store");  // optional: scope the day-clear to one store
+
+  if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam))
+    return J({ ok: false, error: "date must be YYYY-MM-DD" }, 400);
+
+  // Without an explicit ?date=, an empty payload is a no-op — we only ever clear days we can see.
+  if (!recs.length && !dateParam) {
     return J({ ok: false, received: rows.length, written: 0, skipped: skipped.length,
       error: "no valid rows — each needs store, ticket and a date", sample: rows.slice(0, 2) }, 422);
   }
 
-  const mode = (url.searchParams.get("mode") || "replace").toLowerCase();
-
   if (mode === "upsert") {
+    if (!recs.length) return J({ ok: true, mode, received: rows.length, written: 0, skipped: skipped.length });
     const { error } = await sb.from("repairs_no_parts").upsert(recs, { onConflict: "store,biz_date,ticket" });
     if (error) return J({ ok: false, error: error.message }, 500);
     return J({ ok: true, mode, received: rows.length, written: recs.length, skipped: skipped.length });
   }
 
-  // replace mode: snapshot — clear every (store, day) this delivery covers, then insert
+  // ── replace mode ──────────────────────────────────────────────────────────
+  // ?date= replaces that ENTIRE day (optionally for one ?store=), clearing it even
+  // when the report is empty — so a store/day correctly drops to zero once every
+  // ticket is fixed. This is the mode to use for the hourly snapshots.
+  if (dateParam) {
+    const nStore = storeParam ? normStore(storeParam) : null;
+    let delq = sb.from("repairs_no_parts").delete().eq("biz_date", dateParam);
+    if (nStore) delq = delq.eq("store", nStore);
+    const del = await delq;
+    if (del.error) return J({ ok: false, error: del.error.message }, 500);
+    const toInsert = recs.filter((r) => r.biz_date === dateParam && (!nStore || r.store === nStore));
+    if (toInsert.length) {
+      const ins = await sb.from("repairs_no_parts").insert(toInsert);
+      if (ins.error) return J({ ok: false, error: ins.error.message }, 500);
+    }
+    return J({ ok: true, mode: "replace", date: dateParam, store: nStore ?? "(all stores)",
+      received: rows.length, written: toInsert.length, skipped: skipped.length,
+      ignored_other_dates: (recs.length - toInsert.length) || undefined });
+  }
+
+  // No ?date=: replace only the (store, day) groups present in this delivery.
   const groups = new Map<string, ReturnType<typeof mapRow>[]>();
   for (const r of recs) {
     const k = r.store + "|" + r.biz_date;
