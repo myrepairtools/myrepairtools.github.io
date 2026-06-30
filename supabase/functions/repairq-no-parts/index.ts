@@ -59,10 +59,10 @@ function normDate(d: string): string | null {
 }
 
 function mapRow(r: Record<string, unknown>) {
-  const store  = normStore(pick(r, ["store", "Store", "location", "store_name", "locationName"]));
-  const ticket = pick(r, ["ticket", "ticketId", "ticket_id", "id", "ID", "Ticket ID", "ticketNumber"]);
+  const store  = normStore(pick(r, ["store", "Store", "Location", "location", "store_name", "locationName"]));
+  const ticket = pick(r, ["ticket", "Ticket Number", "ticketId", "ticket_id", "id", "ID", "Ticket ID", "ticketNumber"]);
   const tech   = pick(r, ["tech", "technician", "fullName", "Full Name", "full_name", "assignedTo"]);
-  const device = pick(r, ["device", "item", "itemName", "description", "repair", "lineItem", "Name"]);
+  const device = pick(r, ["device", "Catalog Item", "item", "itemName", "description", "repair", "lineItem", "Name"]);
   const note   = pick(r, ["note", "Note", "notes"]);
   const biz_date = normDate(pick(r, ["date", "biz_date", "accountedOn", "Accounted on Date", "accounted_on_date", "closedDate"]));
   return { store, ticket, tech, device, note: note || null, biz_date };
