@@ -38,7 +38,11 @@
   var HUB = [
     { label:'Dashboard',           url:'index.html',                icon:'🏠' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
-    { label:'My Schedule',         url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
+    { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
+  ];
+  // Reports — a library page of read-only reports (managers/owner).
+  var REPORTS = [
+    { label:'Reports', url:'reports.html', icon:'📊', minRole:'admin', acc:'reports.view' }
   ];
   var PRIVILEGED = [
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
@@ -109,7 +113,8 @@
   var inHub     = HUB.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inOrder   = ORDERING.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inPricing = PRICING.some(function(t){ return t.url.toLowerCase() === currentFile; });
-  var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inOrder ? 'order' : inPricing ? 'pricing' : 'ops';   // default ops (incl. home)
+  var inReports = (currentFile === 'reports.html');
+  var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -268,7 +273,8 @@
     tag:   'M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V5a2 2 0 0 1 2-2h7a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8ZM7.5 7.5h.01',
     user:  'M12 12.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4ZM5.6 20v-.4c0-3 2.9-4.8 6.4-4.8s6.4 1.8 6.4 4.8V20',
     lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5',
-    gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z'
+    gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z',
+    chart: 'M3 21h18M6.5 21V11M12 21V5M17.5 21v-7'
   };
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
@@ -438,6 +444,12 @@
     var b = rail && rail.querySelector('.cpr-areabtn[data-area="admin"]');
     if (b) b.style.display = hasAdminArea() ? '' : 'none';
   }
+  // Reports rail icon: managers/owner (team data). Gated by role rank so it doesn't depend on a
+  // DB permission yet; add a 'reports.view' permission later for finer RBAC.
+  function updateReportsIcon(){
+    var b = rail && rail.querySelector('.cpr-reportsbtn');
+    if (b) b.style.display = (rank() >= RANK.admin) ? '' : 'none';
+  }
   // the rail-bottom gear → Settings shows only for users who can actually use it
   function updateGearIcon(){
     var g = rail && rail.querySelector('.cpr-railgear');
@@ -449,6 +461,7 @@
     broadcastRole();
     updateAvatar();
     updateAdminIcon();
+    updateReportsIcon();
     updateGearIcon();
     // top bar identity (name)
     if (top){ var rp = top.querySelector('[data-roleslot]'); if (rp) rp.innerHTML = roleSlotHtml(); wireTop(); }
@@ -550,6 +563,7 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
+      + '<a class="cpr-areabtn cpr-reportsbtn'+(currentFile==='reports.html'?' active':'')+'" href="reports.html" title="Reports" style="display:none">'+railIcon('chart')+'</a>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
