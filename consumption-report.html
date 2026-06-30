@@ -339,6 +339,10 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .samadd .msbox{position:relative;flex:1;min-width:220px}
 .samadd .msbox input{width:100%}
 .samwarn{font-family:'Nunito Sans',sans-serif;font-size:.74rem;color:var(--red);font-weight:700;margin-top:6px}
+tr.samchild{background:#FBFCFE}
+tr.samchild td:first-child{padding-left:28px;border-left:2px solid #CDEAF8}
+tr.samchild .nm{color:var(--dark-grey)}
+.samkid{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:0 5px;margin-right:6px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -799,6 +803,32 @@ function renderSamCoverage(){
 }
 function toggleSamCov(){SAMCOVOPEN=!SAMCOVOPEN;var b=$('#samCovBtn');if(b)b.classList.toggle('on',SAMCOVOPEN);renderSamCoverage();}
 function renderCoverage(){renderClaimRisk();renderSamCoverage();}
+/* Reorder a row list so each mapped adhesive sits directly under its model's
+   display (preferring the OEM display) as an indented child. Not pooled —
+   each keeps its own row/numbers; totals & export are unaffected. */
+function clusterSamsung(rows){
+  if(!SAMMAP.length||!rows||rows.length<2)return rows;
+  var idx={};SAMMAP.forEach(function(r){idx[r.sku]={model:r.model,role:(r.kind==='oem_display'||r.kind==='sp_display')?'display':(r.role||'back'),kind:r.kind};});
+  function inf(r){return (r.type==='sku'&&r.sku)?idx[r.sku]:null;}
+  var oemDisp={},firstDisp={},adhBy={};
+  rows.forEach(function(r){var i=inf(r);if(!i||i.role!=='display')return;if(!firstDisp[i.model])firstDisp[i.model]=r;if(i.kind==='oem_display'&&!oemDisp[i.model])oemDisp[i.model]=r;});
+  rows.forEach(function(r){var i=inf(r);if(!i||i.role==='display')return;if(firstDisp[i.model])(adhBy[i.model]||(adhBy[i.model]=[])).push(r);});
+  if(!Object.keys(adhBy).length)return rows;
+  var rank={front:0,combo:1,back:2},childSet={};
+  Object.keys(adhBy).forEach(function(m){
+    adhBy[m].forEach(function(c){var i=inf(c);c._samChild=true;c._samRole=i.role;childSet[c.sku]=1;});
+    adhBy[m].sort(function(a,b){return (rank[a._samRole]==null?9:rank[a._samRole])-(rank[b._samRole]==null?9:rank[b._samRole]);});
+  });
+  var target={};Object.keys(adhBy).forEach(function(m){target[m]=oemDisp[m]||firstDisp[m];});
+  var out=[];
+  rows.forEach(function(r){
+    if(r.type==='sku'&&childSet[r.sku])return;
+    out.push(r);
+    var i=inf(r);
+    if(i&&i.role==='display'&&target[i.model]===r)adhBy[i.model].forEach(function(c){out.push(c);});
+  });
+  return out;
+}
 async function fetchAllStock(store){
   var all=[],from=0,size=1000;
   while(true){
@@ -1133,12 +1163,14 @@ function renderStock(){
   });
   list=list.filter(function(r){return !q||((r.type==='group'?'':r.sku)+' '+r.name).toLowerCase().indexOf(q)>-1;});
   list.sort(function(a,b){return a.name.localeCompare(b.name);});
+  list=clusterSamsung(list);
   list.forEach(function(r){
     var isStop=stop.indexOf(r.flagSku)>-1;
     var flags=flagsHtml(r.flagSku,isStop);
     var skuCell=r.type==='group'?'<span style="color:var(--grey)">pooled</span>':r.sku;
-    var nameHtml=r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
+    var nameHtml=(r._samChild?'<span class="samkid">↳ '+samRoleName(r._samRole)+'</span>':'')+r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
     var tr=document.createElement('tr');
+    if(r._samChild)tr.className='samchild';
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
       +'<td class="num">'+r.instock+'</td>'
@@ -1166,13 +1198,13 @@ function renderOrderRows(tb, rows){
       : '<span class="buysku" style="color:var(--grey)">—</span>';
     var badges='';
     if(r.type==='group')badges+='<span class="poolbadge">⬡ Pool · '+r.members.length+'</span>';
-    var nameHtml=(hasDetail?'<span class="chev">›</span> ':'')+r.name+badges;
+    var nameHtml=(hasDetail?'<span class="chev">›</span> ':'')+(r._samChild?'<span class="samkid">↳ '+samRoleName(r._samRole)+'</span>':'')+r.name+badges;
     var flags=flagsHtml(r.flagSku,r.stop);
     var skuCell=(r.type==='group')
       ? (r.usedSkus.length?(r.usedSkus.length===1?r.usedSkus[0]:r.usedSkus[0]+' <span style="color:var(--grey)">+'+(r.usedSkus.length-1)+'</span>'):'<span style="color:var(--grey)">—</span>')
       : r.sku;
     var tr=document.createElement('tr');
-    if(hasDetail)tr.className='grp';
+    if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild';
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
       +'<td class="ctr"><b>'+r.used+'</b></td>'
@@ -1217,7 +1249,7 @@ function renderOrderRows(tb, rows){
 
 function render(){
   var rows=buildRows();
-  renderOrderRows($('#rows'), rows);
+  renderOrderRows($('#rows'), clusterSamsung(rows));
   var totUsed=0,totOrder=0,below=0;
   rows.forEach(function(r){totUsed+=r.used;totOrder+=r.suggest;if(r.instock===0)below++;});
   $('#kUsed').textContent=totUsed;
