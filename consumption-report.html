@@ -371,8 +371,6 @@ tr.samchild .nm{color:var(--dark-grey)}
 
   <div class="bar utilbar" id="utilBar">
     <div class="spacer"></div>
-    <button class="btn alt sm" id="impNoParts" title="Import the RepairQ ‘Repairs without parts’ CSV">⬆ Import no-parts</button>
-    <input type="file" id="impNoPartsFile" accept=".csv,text/csv" style="display:none">
     <button class="btn alt sm" id="samCovBtn">🛡 Claim coverage</button>
     <button class="btn alt sm" id="grpBtn">⚙ Part Configuration</button>
     <button class="btn alt sm" id="feedBtn">📡 Feed health</button>
@@ -1087,50 +1085,6 @@ function renderNoParts(){
   p.innerHTML=h;p.classList.remove('hide');
   $('#wpX').addEventListener('click',function(){list.forEach(function(r){NP_DISMISSED[STATE.store+'|'+r.tkt]=1;});renderNoParts();});
   p.querySelectorAll('.wp-ix').forEach(function(b){b.addEventListener('click',function(){NP_DISMISSED[STATE.store+'|'+b.getAttribute('data-tkt')]=1;renderNoParts();});});
-}
-/* RFC-4180 CSV parse: handles quoted fields, embedded commas/newlines, "" escapes */
-function parseCSV(text){
-  var rows=[],row=[],cur='',inQ=false; text=String(text).replace(/\r\n?/g,'\n');
-  for(var i=0;i<text.length;i++){var c=text[i];
-    if(inQ){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else inQ=false; } else cur+=c; }
-    else { if(c==='"')inQ=true; else if(c===','){row.push(cur);cur='';} else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';} else cur+=c; }
-  }
-  if(cur!==''||row.length){row.push(cur);rows.push(row);}
-  return rows;
-}
-/* Import the RepairQ "Repairs without parts" ticket-item CSV into repairs_no_parts.
-   Columns (by position): #, Store, Ticket ID, Status, Tech, Device, Note, Accounted Date.
-   Replaces each store/day group so a re-import is a clean snapshot. */
-async function importNoParts(file){
-  var text; try{ text=await file.text(); }catch(e){ alert('Could not read the file.'); return; }
-  var rows=parseCSV(text);
-  if(!rows.length){ alert('That file looks empty.'); return; }
-  var hdr=(rows[0]||[]).join(',').toLowerCase();
-  var start=(hdr.indexOf('accounted on date')>-1 || hdr.indexOf('status')>-1) ? 1 : 0;
-  var recs=[], skipped=0;
-  for(var r=start;r<rows.length;r++){
-    var col=rows[r]; if(!col || !col.join('').trim()) continue;
-    var store=(col[1]||'').trim(), ticket=(col[2]||'').trim(), tech=(col[4]||'').trim(),
-        device=(col[5]||'').trim(), note=(col[6]||'').trim(), date=(col[7]||'').trim().slice(0,10);
-    if(!store || !ticket || !/^\d{4}-\d{2}-\d{2}$/.test(date)){ skipped++; continue; }
-    recs.push({store:store,biz_date:date,ticket:ticket,tech:tech,device:device,note:note||null});
-  }
-  if(!recs.length){ alert('No valid rows found.\nExpected the RepairQ ticket-item export (Store, Ticket ID, … Accounted on Date).'); return; }
-  var groups={}; recs.forEach(function(x){ (groups[x.store+'|'+x.biz_date]||(groups[x.store+'|'+x.biz_date]=[])).push(x); });
-  var keys=Object.keys(groups), errs=[];
-  for(var g=0;g<keys.length;g++){
-    var first=groups[keys[g]][0];
-    var del=await sb.from('repairs_no_parts').delete().eq('store',first.store).eq('biz_date',first.biz_date);
-    if(del.error){ errs.push(first.store+' '+first.biz_date+': '+del.error.message); continue; }
-    var ins=await sb.from('repairs_no_parts').insert(groups[keys[g]]);
-    if(ins.error) errs.push(first.store+' '+first.biz_date+': '+ins.error.message);
-  }
-  // jump the view to the imported date when it's a single day, so the panel shows immediately
-  var dates={}; recs.forEach(function(x){ dates[x.biz_date]=1; });
-  var dk=Object.keys(dates); if(dk.length===1 && $('#day')) $('#day').value=dk[0];
-  await loadAll();
-  if(errs.length) alert('Imported with '+errs.length+' error(s):\n'+errs.join('\n')+(errs.length<keys.length?'\n\nThe rest imported.':''));
-  else alert('Imported '+recs.length+' repair'+(recs.length===1?'':'s')+' without parts'+(skipped?(' ('+skipped+' row(s) skipped)'):'')+'.');
 }
 
 function groupById(id){return GROUPS.filter(function(x){return x.id===id;})[0];}
@@ -1867,8 +1821,6 @@ async function init(){
     if(FEEDOPEN)loadFeedHealth();  // always pull fresh sync times on open
   });
   $('#samCovBtn').addEventListener('click',toggleSamCov);
-  $('#impNoParts').addEventListener('click',function(){$('#impNoPartsFile').click();});
-  $('#impNoPartsFile').addEventListener('change',function(){var f=this.files&&this.files[0];if(f)importNoParts(f);this.value='';});
   $('#grpBtn').addEventListener('click',async function(){
     $('#view-daily').classList.add('hide');$('#view-stock').classList.add('hide');$('#view-battery').classList.add('hide');$('#view-groups').classList.remove('hide');
     $('#exportWrap').style.display='none';$('#batExport').style.display='none';$('#viewTabs').style.visibility='hidden';
