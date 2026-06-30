@@ -1276,6 +1276,24 @@ function orderList(withBatteries){
   });
   return out;
 }
+/* Samsung adhesive top-ups (from claim coverage) as order lines — orders the
+   primary SKU per role. Self-consistent with screen orders: each new screen
+   raises the adhesive target by 1 and auto-carries 1, so no double-order. */
+function adhesiveOrderList(){
+  var out=[];
+  samCoverage().forEach(function(m){
+    m.roles.forEach(function(r){ if(r.topup>0)out.push([r.primary,r.topup]); });
+  });
+  return out;
+}
+/* merge [sku,qty] lists, de-duping by SKU (take the larger — never double-order) */
+function mergeOrders(){
+  var map={},order=[];
+  for(var a=0;a<arguments.length;a++){(arguments[a]||[]).forEach(function(p){
+    if(map[p[0]]==null){map[p[0]]=p[1];order.push(p[0]);}else map[p[0]]=Math.max(map[p[0]],p[1]);
+  });}
+  return order.map(function(s){return [s,map[s]];});
+}
 
 /* shared MobileSentrix export: opens the quick-order tab + writes the xlsx */
 async function buildMSExport(rows,label){
@@ -1296,7 +1314,7 @@ async function buildMSExport(rows,label){
 }
 
 async function exportOrder(withBatteries){
-  var rows=orderList(withBatteries);
+  var rows=mergeOrders(orderList(withBatteries), adhesiveOrderList());
   if(!rows.length){alert(withBatteries===false?'Nothing to order once batteries are excluded.':'Nothing to order — everything is at max.');return;}
   buildMSExport(rows, withBatteries===false?'order-no-batteries':'order');
 }
