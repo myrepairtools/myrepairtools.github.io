@@ -22,9 +22,11 @@ Almost everything depends on three shared pieces. Build these first.
 >   roster (already in `qbtime_users`) never spawns a second row. New hires come in as **stubs**
 >   (no PIN/store/login until the owner finishes setup — `pin_hash`/`home_store`/`authorized_stores`
 >   are now nullable for exactly this).
-> - **The QB Time link + preferred name live on the profile** (`employee-records.html`), owner-editable
->   (admins see it read-only). The Settings → Integrations mapping panel is **retired**; the QB Time
->   page is just **Connection + Sync** now, and the sync reports created / linked / inactive counts.
+> - **The QB Time link + preferred name live on the employee record**, edited in **both**
+>   Settings → Team member *and* Employee Records (two doors, one source of truth — both write the
+>   same `staff` row via `cpr-auth`, and the QB link via `qbtime-sync?action=map`). Owner-editable;
+>   admins see the QB link read-only. The Settings → Integrations mapping panel is **retired**; the
+>   QB Time integration page is just **Connection + Sync** now, reporting created / linked / inactive counts.
 > - **Terminations surface on the profile too:** a linked QB user gone inactive shows
 >   "⚠ inactive in QB" on their record; the owner flips Employment status to Terminated. (Still
 >   never the reverse — MRT never writes terminations back to QBO.)

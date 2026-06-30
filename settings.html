@@ -483,7 +483,7 @@ function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
 qbtHandleReturn();   /* if returning from the QuickBooks Time OAuth round-trip, land on Integrations */
-var STAFF=[], STORES=[], REGSTORE=null, REGS=[];
+var STAFF=[], STORES=[], REGSTORE=null, REGS=[], QBU=[];
 var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
 var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
 var PGTOOL=lsGet('cprSetPgtool','damage'), PGOPT=lsGet('cprSetPgopt','mfr'), DMFRS=[], DPARTS=[]; /* page settings: per-tool config (tech damage lists) */
@@ -590,6 +590,7 @@ async function loadStaff(){
   var r=await authFn({action:'list_staff_admin'});
   if(r.status!==200){toast((r.data&&r.data.error)||'Could not load staff',true);STAFF=[];return;}
   STAFF=r.data.staff||[]; ME_ROLE=r.data.me_role||(AUTH&&AUTH.role)||'admin';
+  try{ var q=await sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active'); QBU=(q&&q.data)||[]; }catch(e){ QBU=[]; }
 }
 async function loadRegs(){
   if(!REGSTORE){REGS=[];return;}
@@ -1235,14 +1236,14 @@ function openMember(id){
   var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
   if(!m)return;
   var ros=CROSTER[m.id]||{};
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:'',
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,pin:'',
     comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{}),
     rules_override:Object.assign({},ros.rules_override||{}),rates_override:Object.assign({},ros.rates_override||{})}};
   renderModal();
 }
 function openAddMember(){
   var home=(activeStores()[0]||{}).store||'';
-  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin(),
+  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',preferred_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin(),
     comm_goal:0,earns_override:{},rules_override:{},rates_override:{}}};
   renderModal();
 }
@@ -1305,6 +1306,39 @@ function memberCommPageHtml(d){
    +'</div>'
    +'<div class="modal-ft"><button class="btn alt sm" data-backmain>← Back</button><button class="btn blue" data-save>Done</button></div></div>';
 }
+/* ---- QuickBooks Time link on the member modal (same source of truth as Employee Records) ---- */
+async function qbtMapCall(qbt_id,staff_id){
+  var tok=await sessionToken();
+  return fetch(QBT_SYNC_FN+'?action=map',{method:'POST',headers:{'Authorization':'Bearer '+tok,'apikey':ANON,'Content-Type':'application/json'},
+    body:JSON.stringify({qbt_id:qbt_id,staff_id:staff_id})}).then(function(r){return r.json().catch(function(){return {};});});
+}
+async function applyQbtMemberLink(d){
+  if(!(AUTH&&AUTH.role==='owner'))return;            // map is owner-gated; admins see it read-only
+  if(d._qbtPick===undefined)return;                   // untouched
+  var linked=qbtLinkedFor(d.staff_id), cur=linked?String(linked.qbt_id):'', next=String(d._qbtPick||'');
+  if(cur===next)return;
+  if(cur){var r1=await qbtMapCall(cur,null); if(!(r1&&r1.ok)){toast('Saved, but QB link update failed',true);return;}}
+  if(next){var r2=await qbtMapCall(next,d.staff_id); if(!(r2&&r2.ok)){toast('Saved, but QB link update failed',true);return;}}
+  QBU.forEach(function(u){if(String(u.staff_id)===String(d.staff_id))u.staff_id=null; if(String(u.qbt_id)===next)u.staff_id=d.staff_id;});
+}
+function qbtUserName(u){return ((u.first_name||'')+' '+(u.last_name||'')).trim()||('QB #'+u.qbt_id);}
+function qbtLinkedFor(staff_id){return QBU.filter(function(u){return String(u.staff_id)===String(staff_id);})[0]||null;}
+function qbtMemberLinkHtml(d,owner){
+  var linked=qbtLinkedFor(d.staff_id), inactiveInQb=linked&&linked.active===false;
+  var cur=linked?String(linked.qbt_id):'';
+  var pick=(d._qbtPick!==undefined?d._qbtPick:cur);
+  var state=linked?('Linked'+(inactiveInQb?' · ⚠ inactive in QB':'')):'Not linked';
+  var pickable=QBU.filter(function(u){return u.staff_id==null||String(u.staff_id)===String(d.staff_id);})
+    .sort(function(a,b){return (b.active?1:0)-(a.active?1:0)||qbtUserName(a).localeCompare(qbtUserName(b));});
+  var opts='<option value="">— not linked —</option>';
+  pickable.forEach(function(u){opts+='<option value="'+esc(u.qbt_id)+'"'+(String(pick)===String(u.qbt_id)?' selected':'')+'>'+esc(qbtUserName(u))+(u.active===false?' · inactive':'')+'</option>';});
+  var hint=inactiveInQb?'Terminated in QuickBooks Time — set Status to <b>Terminated</b> above if they’ve left.'
+    :(owner?'New hires created in QuickBooks auto-create and link themselves. Use this only to fix a link by hand.':'The QuickBooks Time link is managed by the owner.');
+  return '<div class="row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">'
+    +'<label>QuickBooks Time</label>'
+    +(owner?'<select data-qbtlink>'+opts+'</select>':'<div style="padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--light-grey);color:var(--dark-grey);font-family:\'Nunito Sans\',sans-serif;font-size:.88rem">'+esc(linked?qbtUserName(linked):'Not linked')+'</div>')
+    +'<div style="margin-top:5px;font-size:.72rem;color:var(--dark-grey);line-height:1.4">'+esc(state)+' — '+hint+'</div></div>';
+}
 function memberModalHtml(){
   var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
   if(d._page==='commission')return memberCommPageHtml(d);
@@ -1335,6 +1369,8 @@ function memberModalHtml(){
        +'<div class="f"><label>Home store</label><select data-k="home_store">'+storeOpts(home)+'</select></div>'
        +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Terminated</option></select></div>'
      +'</div>'
+     +'<div class="f" style="margin-top:12px"><label>Preferred name</label><input data-k="preferred_name" value="'+esc(d.preferred_name||'')+'" placeholder="'+esc((d.first_name+' '+d.last_name).trim()||'shown across myRepairTools')+'">'
+       +'<div class="h" style="margin-top:4px">Shown everywhere in myRepairTools. Leave blank to use the legal name above.</div></div>'
      +'<div class="row" style="margin-top:14px"><label>Authorized locations</label><div class="authwrap">'+pills+'</div></div>'
      +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">'
      +(function(){
@@ -1346,6 +1382,7 @@ function memberModalHtml(){
           +'<span class="optrow-x">Set up ▸</span></button>';
       })()
      +'</div>'
+     +(MOPEN.isNew?'':qbtMemberLinkHtml(d,owner))
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
        +'<div class="h">'+pinHint+'</div>'
        +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
@@ -1393,6 +1430,7 @@ function wireMember(host){
   host.querySelectorAll('[data-ptgl]').forEach(function(a){a.onclick=function(e){e.preventDefault();var sku=a.getAttribute('data-ptgl');d.rates_override=d.rates_override||{};var v=d.rates_override[sku];
     if(v&&typeof v==='object'){if(v.lo!=null&&v.lo!=='')d.rates_override[sku]=+v.lo||0;else delete d.rates_override[sku];}
     else d.rates_override[sku]={goal:'',lo:(v!=null?v:''),hi:''};renderModal();};});
+  var ql=host.querySelector('[data-qbtlink]');if(ql)ql.onchange=function(){d._qbtPick=ql.value;};
   var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
   var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
   host.querySelector('[data-save]').onclick=saveMember;
@@ -1405,15 +1443,16 @@ async function saveMember(){
   try{
     if(MOPEN.isNew){
       if(!d.pin||d.pin.length<3){toast('Set a PIN (3-8 digits)',true);if(btn)btn.disabled=false;return;}
-      var c=await authFn({action:'create_staff',first_name:d.first_name,last_name:d.last_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,pin:d.pin});
+      var c=await authFn({action:'create_staff',first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,pin:d.pin});
       if(c.status!==200||!c.data.ok){toast((c.data&&c.data.error)||'Create failed',true);if(btn)btn.disabled=false;return;}
       toast('Member created · PIN '+d.pin);
     } else {
-      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active});
+      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active});
       if(u.status!==200||!u.data.ok){toast((u.data&&u.data.error)||'Save failed',true);if(btn)btn.disabled=false;return;}
       if(d.pin){ var p=await authFn({action:'set_pin',staff_id:d.staff_id,pin:d.pin});
         if(p.status===200&&p.data.ok)toast('Saved · new PIN '+d.pin); else toast((p.data&&p.data.error)||'Saved, but PIN reset failed',true);
       } else toast('Saved');
+      await applyQbtMemberLink(d);
     }
     // commission profile (goal / role / exempt) -> commission_roster, keyed to staff
     var sid=d.staff_id||(c&&c.data&&(c.data.staff_id||c.data.id||(c.data.staff&&c.data.staff.id)));
