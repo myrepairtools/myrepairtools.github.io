@@ -102,6 +102,23 @@ Deno.serve(async (req) => {
     if (rec.store && rec.ticket && rec.biz_date) recs.push(rec);
     else skipped.push(r);
   }
+  // temporary debug capture — what arrived + how it mapped (read from webhook_debug)
+  try {
+    await sb.from("webhook_debug").insert({
+      source: "repairq-no-parts",
+      body: body,
+      info: {
+        query: url.search,
+        received: rows.length,
+        first_row_keys: rows[0] ? Object.keys(rows[0] as Record<string, unknown>) : [],
+        first_mapped: rows[0] ? mapRow(rows[0] as Record<string, unknown>) : null,
+        valid: recs.length,
+        skipped: skipped.length,
+        skipped_sample: skipped.slice(0, 2),
+      },
+    });
+  } catch (_e) { /* debug only — never block ingest */ }
+
   const mode = (url.searchParams.get("mode") || "replace").toLowerCase();
   let dateParam = url.searchParams.get("date");      // YYYY-MM-DD or "today" — replace this whole day (handles empty reports)
   const storeParam = url.searchParams.get("store");  // optional: scope the day-clear to one store
