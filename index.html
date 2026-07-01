@@ -203,6 +203,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/commission-engine.js"></script>
 <script src="assets/commission-summary.js"></script>
 <script src="assets/schedule-summary.js"></script>
+<script src="assets/pto-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
 <script>
 (function(){
@@ -280,6 +281,13 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'</div>'; } },
 
     /* ---- library extras (not in the default board; available from the gallery) ---- */
+    { id:'pto', title:'My PTO', icon:'🌴', accent:'green', defaultSize:'narrow',
+      desc:'Your paid time-off balances from QuickBooks Time.', link:{href:'my-schedule.html',x:'Request →'},
+      render:function(){ return ''
+        +'<div data-pto-list></div>'
+        +'<div class="empty" data-pto-empty style="display:none;padding:14px 4px"><div class="et" data-pto-msg>Sign in to see your PTO.</div></div>'; },
+      mount:function(bd){ loadPto(bd); } },
+
     { id:'goals', title:'My Goals', icon:'🎯', accent:'amber', defaultSize:'narrow',
       desc:'Track attach rate and personal targets.', tag:{t:'preview',x:'Preview'},
       render:function(){ return ''
@@ -489,6 +497,18 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         var off=bd.querySelector('[data-sched-off]'); if(off){ off.style.display='block';
           off.querySelector('[data-s="offmsg"]').textContent = t.kind==='timeoff' ? ('Time off today'+(t.type?(' · '+t.type):'')) : 'Day off today'; }
       }
+    }, function(){});
+  }
+
+  function loadPto(bd){
+    if(!window.CPRPTO || !window.CPRPTO.forMe){ return; }
+    window.CPRPTO.forMe().then(function(s){
+      var list=bd.querySelector('[data-pto-list]'), em=bd.querySelector('[data-pto-empty]'), msg=bd.querySelector('[data-pto-msg]');
+      if(!s || !s.balances || !s.balances.length){ if(list)list.innerHTML=''; if(em)em.style.display='block'; if(msg)msg.textContent='No PTO balance in QuickBooks Time.'; return; }
+      if(em)em.style.display='none';
+      if(list) list.innerHTML = s.balances.map(function(b){
+        return '<div class="hoursline" style="display:flex"><span class="hl">'+esc(b.name)+'</span><span class="hv">'+(Number(b.hours)||0).toFixed(1)+' hrs</span></div>';
+      }).join('');
     }, function(){});
   }
 
