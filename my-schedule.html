@@ -240,7 +240,8 @@ async function initAuth(){
 }
 
 /* ===== data ===== */
-var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], HOLBYDATE={}, HOLHMAP={}, OVR={};
+var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], HOLBYDATE={}, HOLNAME={}, HOLHMAP={}, OVR={};
+var HOL_AMBER='#C9820B';
 var TAB='me', SELSTORE=null, WK=null;
 /* Effective day for a real date: a per-week schedule_override wins over the recurring template
    (mirrors Schedule Admin › This Week). */
@@ -254,14 +255,20 @@ function holEffect(store,di){var hid=HOLBYDATE[di];if(hid==null)return null;var 
 function shiftWindow(r,wd){var s=SHIFT_BY_ID[r.shift_id]||labelToShift(r.label);
   if(s){var rd=resolve(s.id,r.store,wd);if(rd.start!=null)return [rd.start,rd.end];}
   var pm=parseLabel(r.label);return pm?[pm[0],pm[1]]:null;}
-/* Trim a resolved shift view by a holiday: closed -> "Closed", reduced -> clamped range. */
+/* Trim a resolved shift view by a holiday, matching Schedule Admin › This Week:
+   closed -> amber "🎉 <Holiday> / Closed" chip; reduced -> shift name + 🎉 with clamped range. */
 function holAdjust(v,r,wd,di){
   if(!di||!r||!r.store)return v;
   var eff=holEffect(r.store,di);if(!eff)return v;
-  if(eff.closed){v.time='🎉 Closed';v.holiday=true;return v;}
-  var win=shiftWindow(r,wd);if(!win){v.holiday=true;return v;}
+  var nm=HOLNAME[di]||'Holiday';
+  v.holiday=true;v.color=HOL_AMBER;
+  if(eff.closed){v.name='🎉 '+nm;v.time='Closed';return v;}
+  var win=shiftWindow(r,wd);
+  if(!win){v.name='🎉 '+nm;return v;}
   var cs=Math.max(win[0],eff.open),ce=Math.min(win[1],eff.close);
-  v.time=(ce<=cs)?'🎉 Closed':('🎉 '+rangeMin(cs,ce));v.holiday=true;return v;
+  if(ce<=cs){v.name='🎉 '+nm;v.time='Closed';}
+  else{v.name=v.name+' 🎉';v.time=rangeMin(cs,ce);}
+  return v;
 }
 function resolve(shiftId,store,wd){
   var h=HOURS[shiftId+'|'+store];
@@ -323,7 +330,7 @@ async function load(){
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
     sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note'),
-    sb.from('holidays').select('id,holiday_date'),
+    sb.from('holidays').select('id,holiday_date,name'),
     sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id')
   ]);
@@ -333,7 +340,7 @@ async function load(){
   HOURS={};(hr.data||[]).forEach(function(r){var k=r.shift_id+'|'+r.store,h=HOURS[k]||(HOURS[k]={def:null,days:{}});var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};if(r.weekday==null)h.def=row;else h.days[r.weekday]=row;});
   SCHED={};(sc.data||[]).forEach(function(r){SCHED[r.staff_id]={shifts:r.shifts||{},store:r.store};});
   REQS=(rq.data||[]);
-  HOLBYDATE={};((ho&&ho.data)||[]).forEach(function(h){HOLBYDATE[String(h.holiday_date).slice(0,10)]=h.id;});
+  HOLBYDATE={};HOLNAME={};((ho&&ho.data)||[]).forEach(function(h){var d=String(h.holiday_date).slice(0,10);HOLBYDATE[d]=h.id;HOLNAME[d]=h.name;});
   HOLHMAP={};((hh&&hh.data)||[]).forEach(function(r){HOLHMAP[r.holiday_id+'|'+r.store]={closed:!!r.closed,open:r.open_min,close:r.close_min};});
   OVR={};((ov&&ov.data)||[]).forEach(function(r){OVR[r.staff_id+'|'+String(r.ovr_date).slice(0,10)]=r;});
   var ms=myStores();if(!SELSTORE||ms.indexOf(SELSTORE)<0)SELSTORE=ms[0]||ME.home_store;
