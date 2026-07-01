@@ -53,6 +53,7 @@
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
     { label:'Dashboard',           url:'index.html',                icon:'🏠' },
+    { label:'Communications',      url:'communications.html',       icon:'📣' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
   ];

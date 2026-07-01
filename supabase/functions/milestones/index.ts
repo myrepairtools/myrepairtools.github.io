@@ -23,6 +23,7 @@ const json = (b: unknown, status = 200) =>
 const money = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 function ymd(d: Date) { return d.toISOString().slice(0, 10); }
 function monthISO(d: Date) { return d.toISOString().slice(0, 7) + "-01"; }
+function isLeapYear(y: number) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
 
 async function sendVia(eventKey: string, subject: string, text: string) {
   const r = await fetch(`${NOTIFY_FN}?secret=${encodeURIComponent(NOTIFY_SECRET)}`, {
@@ -114,13 +115,26 @@ async function checkGoals() {
   return json({ ok: true, hits: hits.length, delivered: res.delivered, notify: res.detail });
 }
 
-/* ===== work anniversaries ===== */
+/* ===== work anniversaries + birthdays ===== */
+const NUMWORD = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 async function checkAnniversaries() {
-  const st = await admin.from("staff").select("id,display_name,start_date,active").eq("active", true).not("start_date", "is", null);
+  const st = await admin.from("staff").select("id,display_name,start_date,birthday,active").eq("active", true);
   const today = new Date(); const todayISO = ymd(today);
   const in7 = new Date(today.getTime() + 7 * 86400000); const in7ISO = ymd(in7);
   const events: Hit[] = [];
+  const posts: Array<{ source_key: string; kind: string; title: string; body: string }> = [];
   for (const s of (st.data || [])) {
+    const first = String(s.display_name || "").split(" ")[0];
+    // day-of birthday -> Communications feed post (in-app only, no email/Teams)
+    if (s.birthday) {
+      const bmd = String(s.birthday).slice(5, 10);
+      if (bmd === todayISO.slice(5) || (bmd === "02-29" && todayISO.slice(5) === "02-28" && !isLeapYear(today.getFullYear()))) {
+        posts.push({ source_key: `bday:${s.id}:${todayISO}`, kind: "birthday",
+          title: `🎂 Happy birthday, ${first}!`,
+          body: `It's ${s.display_name}'s birthday today — wish them a good one!` });
+      }
+    }
+    if (!s.start_date) continue;
     const sd = String(s.start_date).slice(0, 10);
     const [sy, sm, sdd] = sd.split("-").map(Number);
     for (const [when, whenISO] of [["day", todayISO], ["wk", in7ISO]] as Array<[string, string]>) {
@@ -129,13 +143,24 @@ async function checkAnniversaries() {
       const years = ty - sy; if (years < 1) continue;
       const key = `anniv:${s.id}:${whenISO}:${when}`;
       const nice = new Date(ty, tm - 1, td).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+      if (when === "day") {
+        posts.push({ source_key: `anniv:${s.id}:${todayISO}`, kind: "anniversary",
+          title: `🎉 ${first} hits ${NUMWORD[years] || years} year${years === 1 ? "" : "s"} at CPR`,
+          body: `${s.display_name} started on ${sd} — ${years} year${years === 1 ? "" : "s"} today. Congrats!` });
+      }
       events.push({ staffId: s.id, key,
         line: when === "day"
           ? `🎉 ${s.display_name} hits ${years} year${years === 1 ? "" : "s"} at CPR today — started ${sd}`
           : `📅 Heads-up: ${s.display_name}'s ${years}-year anniversary is ${nice} — started ${sd}` });
     }
   }
-  if (!events.length) return json({ ok: true, anniversaries: 0 });
+  // feed posts first (idempotent on source_key); independent of the Teams rule below
+  let posted = 0;
+  if (posts.length) {
+    const ins = await admin.from("communications").upsert(posts, { onConflict: "source_key", ignoreDuplicates: true }).select("id");
+    posted = (ins.data || []).length;
+  }
+  if (!events.length) return json({ ok: true, anniversaries: 0, feed_posts: posted });
   const lg = await admin.from("notify_log").select("dedupe_key").in("dedupe_key", events.map((e) => e.key));
   const seen = new Set((lg.data || []).map((x) => x.dedupe_key));
   const fresh = events.filter((e) => !seen.has(e.key));

@@ -135,6 +135,17 @@ default, and a row may carry other targets with `accy_goal` null (consumers must
 Consumers: commission-dashboard, commission-calculator (range's start month),
 assets/commission-summary.js. There is deliberately no separate goals page.
 
+**Communications (team feed):** `communications` (kind, title, body, source_key for
+automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
+seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);
+surfaces: the dashboard Communications widget (unread badge, manager ＋ quick-post,
+expand = mark read + time tracking, per-user dismiss) and `communications.html` (My Hub
+nav) with full history + read receipts (managers see who read / seconds spent). Posting
+is manager/owner (RLS `is_admin()`); reads/dismissals are per-user rows. Automated posts:
+milestones cron writes day-of birthdays/anniversaries; any notification rule routed to an
+**In-app · Communications** channel (notify function `type='inapp'`) posts here too.
+Distinct from future "Alerts" (personal/actionable, top-right icon — not built).
+
 When changing a tool's data layer, check which generation it uses first — they share no code.
 
 ## Conventions when editing

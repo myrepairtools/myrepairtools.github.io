@@ -223,6 +223,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/holiday-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
 <script src="assets/celebrations-summary.js"></script>
+<script src="assets/comms.js"></script>
 <script>
 (function(){
   /* ====================== greeting + date ====================== */
@@ -273,11 +274,12 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       mount:function(bd){ loadCommission(bd); } },
 
     { id:'comms', title:'Communications', icon:'📣', accent:'red', defaultSize:'wide',
-      desc:'Team celebrations — birthdays & work anniversaries. Announcements coming soon.',
+      desc:'Announcements, celebrations & team news — with read tracking.', link:{href:'communications.html',x:'View all →'},
       render:function(){ return ''
-        +'<div data-cel-list></div>'
-        +'<div class="empty" data-cel-empty style="display:none;padding:14px 4px"><div class="ei">🎈</div><div class="et">Nothing to celebrate just yet</div><div class="es">Birthdays and work anniversaries in the next two weeks show up here for everyone to see.</div></div>'; },
-      mount:function(bd){ loadCelebrations(bd); } },
+        +'<div data-cm-list></div>'
+        +'<div class="empty" data-cm-empty style="display:none;padding:14px 4px"><div class="ei">📭</div><div class="et">Nothing new</div><div class="es">Announcements, birthdays and anniversaries show up here for the whole team.</div></div>'
+        +'<div data-cm-upcoming></div>'; },
+      mount:function(bd,el){ loadComms(bd,el); } },
 
     { id:'schedule', title:'My Schedule', icon:'🗓️', accent:'purple', defaultSize:'narrow',
       desc:'Your next shift and hours this week.', link:{href:'my-schedule.html',x:'View →'},
@@ -669,30 +671,121 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     }, function(){});
   }
 
-  function loadCelebrations(bd){
-    if(!window.CPRCelebrations || !window.CPRCelebrations.upcoming){ return; }
-    var list=bd.querySelector('[data-cel-list]'), empty=bd.querySelector('[data-cel-empty]');
-    function shortStore(s){ return window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s*/,''); }
-    var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    function when(i){ if(i.daysAway===0) return 'today!'; if(i.daysAway===1) return 'tomorrow';
-      var p=i.date.split('-'); return 'in '+i.daysAway+' days · '+MONS[+p[1]-1]+' '+(+p[2]); }
-    function initials(n){ var p=String(n||'?').trim().split(/\s+/); return ((p[0]||'')[0]||'')+((p[1]||'')[0]||''); }
-    window.CPRCelebrations.upcoming({days:14}).then(function(d){
-      if(!list) return;
-      if(!d){ if(empty){ empty.style.display='block'; var et=empty.querySelector('.et'); if(et) et.textContent='Sign in to see celebrations.'; } return; }
-      if(!d.items.length){ if(empty) empty.style.display='block'; return; }
-      list.innerHTML=d.items.slice(0,8).map(function(i){
-        var today=i.daysAway===0;
-        var icon=i.kind==='birthday'?'🎂':'🎉';
-        var line=i.kind==='birthday' ? '<b>'+esc(i.name)+'</b>’s birthday'
-          : '<b>'+esc(i.name)+'</b> hits <b>'+i.years+' year'+(i.years===1?'':'s')+'</b> at CPR';
-        var av='<span style="width:26px;height:26px;border-radius:50%;background:'+esc(i.avatar_color||'#4FB0E3')+';color:#fff;display:flex;align-items:center;justify-content:center;font-family:Nunito,sans-serif;font-weight:800;font-size:'+(i.avatar?'0.9rem':'0.58rem')+';flex:none">'+(i.avatar?esc(i.avatar):esc(initials(i.name)))+'</span>';
-        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:9px'+(today?';background:#FCF3E3':'')+'">'
-          +'<span style="font-size:1.05rem;flex:none">'+icon+'</span>'+av
-          +'<span style="flex:1;min-width:0;font-size:.86rem;font-weight:600;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+line+' <span style="color:var(--grey);font-size:.72rem;font-weight:700">· '+esc(shortStore(i.home_store))+'</span></span>'
-          +'<span style="flex:none;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;color:'+(today?'var(--amber)':'var(--grey)')+'">'+esc(when(i))+'</span></div>';
+  /* Communications feed widget: unread badge + manager ＋ post; expand = mark read +
+     time-on-post; ✕ dismisses for this user only. */
+  var CM_TIMER=null;   // {id, started} — one open post at a time
+  function cmFlushTimer(){
+    if(!CM_TIMER||!window.CPRComms)return;
+    var sec=(Date.now()-CM_TIMER.started)/1000; var id=CM_TIMER.id; CM_TIMER=null;
+    if(sec>=1) window.CPRComms.addSeconds(id,sec);
+  }
+  window.addEventListener('pagehide',cmFlushTimer);
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden') cmFlushTimer(); });
+  function loadComms(bd,el){
+    if(!window.CPRComms){ return; }
+    var list=bd.querySelector('[data-cm-list]'), empty=bd.querySelector('[data-cm-empty]'), up=bd.querySelector('[data-cm-upcoming]');
+    var OPEN=null;
+    function ago(ts){ var m=Math.round((Date.now()-new Date(ts))/60000);
+      if(m<60) return m<=1?'just now':m+'m ago'; var h=Math.round(m/60); if(h<24) return h+'h ago';
+      var d=Math.round(h/24); return d===1?'yesterday':d+'d ago'; }
+    function draw(d){
+      var items=d.items.filter(function(i){ return !i.dismissed; }).slice(0,6);
+      // header: unread badge + ＋ for managers, slotted before the "View all" link
+      var hd=el&&el.querySelector('.w-hd');
+      if(hd){
+        var old=hd.querySelector('[data-cm-head]'); if(old) old.remove();
+        var mgr=['admin','owner','manager'].indexOf(d.myRole)>-1;
+        var span=document.createElement('span'); span.setAttribute('data-cm-head','');
+        span.style.cssText='display:inline-flex;align-items:center;gap:7px;margin-left:auto';
+        span.innerHTML=(d.unread?'<span style="min-width:19px;height:19px;border-radius:999px;background:var(--red);color:#fff;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;display:inline-flex;align-items:center;justify-content:center;padding:0 5px">'+d.unread+'</span>':'')
+          +(mgr?'<button data-cm-add title="Post a communication" style="width:24px;height:24px;border:1px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-weight:900;color:var(--dark-grey);line-height:1">＋</button>':'');
+        var anchor=hd.querySelector('.w-link')||hd.querySelector('[data-size-ctl]');
+        hd.insertBefore(span,anchor);
+        if(anchor&&anchor.classList&&anchor.classList.contains('w-link'))anchor.style.marginLeft='0';   // badge owns the auto-margin now
+        var add=span.querySelector('[data-cm-add]');
+        if(add) add.onclick=function(e){ e.stopPropagation(); e.preventDefault(); openCmPost(function(){ refresh(); }); };
+      }
+      if(!items.length){ list.innerHTML=''; if(empty) empty.style.display='block'; return; }
+      if(empty) empty.style.display='none';
+      list.innerHTML=items.map(function(i){
+        var k=window.CPRComms.kindMeta(i.kind), isOpen=OPEN===i.id;
+        var head='<div style="display:flex;align-items:center;gap:9px;cursor:pointer" data-cm-row="'+i.id+'">'
+          +'<span style="font-size:1rem;flex:none">'+k.icon+'</span>'
+          +(!i.read?'<span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none"></span>':'')
+          +'<span style="flex:1;min-width:0;font-size:.86rem;font-weight:'+(i.read?'600':'800')+';color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.title)+'</span>'
+          +'<span style="flex:none;font-size:.68rem;font-weight:700;color:var(--grey)">'+esc(ago(i.created_at))+'</span>'
+          +'<button data-cm-x="'+i.id+'" title="Dismiss for me" style="border:none;background:none;color:#cfd2dd;font-size:.8rem;cursor:pointer;padding:0 2px;flex:none">✕</button></div>';
+        var body=isOpen?'<div style="margin:6px 0 2px 26px;font-size:.82rem;color:var(--dark-grey);line-height:1.5">'+esc(i.body||'').replace(/\n/g,'<br>')
+          +'<div style="margin-top:4px;font-size:.68rem;color:var(--grey);font-weight:700">'+esc(i.author)+' · '+esc(k.label)+'</div></div>':'';
+        return '<div style="padding:7px 4px;border-radius:9px'+(isOpen?';background:var(--light-grey)':'')+'">'+head+body+'</div>';
       }).join('');
-    }, function(){});
+      list.querySelectorAll('[data-cm-row]').forEach(function(r){ r.onclick=function(ev){
+        if(ev.target.closest('[data-cm-x]'))return;
+        var id=Number(r.getAttribute('data-cm-row'));
+        cmFlushTimer();
+        if(OPEN===id){ OPEN=null; } else { OPEN=id; CM_TIMER={id:id,started:Date.now()};
+          window.CPRComms.markRead(id); var it=d.items.find(function(x){return x.id===id;}); if(it&&!it.read){ it.read=true; d.unread=Math.max(0,d.unread-1); } }
+        draw(d);
+      };});
+      list.querySelectorAll('[data-cm-x]').forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation();
+        var id=Number(b.getAttribute('data-cm-x')); if(CM_TIMER&&CM_TIMER.id===id) cmFlushTimer();
+        window.CPRComms.dismiss(id); var it=d.items.find(function(x){return x.id===id;});
+        if(it){ it.dismissed=true; if(!it.read) d.unread=Math.max(0,d.unread-1); } if(OPEN===id) OPEN=null;
+        draw(d); scheduleMasonry();
+      };});
+      scheduleMasonry();
+    }
+    function refresh(){ window.CPRComms.list({limit:25}).then(function(d){
+      if(!d){ if(empty){ empty.style.display='block'; var et=empty.querySelector('.et'); if(et) et.textContent='Sign in to see communications.'; } return; }
+      draw(d);
+    },function(){}); }
+    refresh();
+    // slim "coming up" footer: next celebrations so the team can plan ahead
+    if(up&&window.CPRCelebrations){ window.CPRCelebrations.upcoming({days:14}).then(function(c){
+      if(!c||!c.items.length){ return; }
+      var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var bits=c.items.filter(function(i){return i.daysAway>0;}).slice(0,3).map(function(i){
+        var p=i.date.split('-');
+        return (i.kind==='birthday'?'🎂 ':'🎉 ')+esc(String(i.name).split(' ')[0])+' '+MONS[+p[1]-1]+' '+(+p[2]);
+      });
+      if(bits.length) up.innerHTML='<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--light-grey);font-size:.72rem;font-weight:700;color:var(--grey)">Coming up: '+bits.join(' · ')+'</div>';
+    },function(){}); }
+  }
+  /* quick-post modal (managers/owner) */
+  function openCmPost(onDone){
+    var KINDS=['announcement','training','schedule','shoutout'];
+    var kind='announcement';
+    var back=document.createElement('div');
+    back.style.cssText='position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px';
+    function draw(){
+      var chips=KINDS.map(function(k){ var m=window.CPRComms.kindMeta(k), on=k===kind;
+        return '<button data-pk="'+k+'" style="padding:7px 12px;border:1.5px solid '+(on?m.color:'var(--border)')+';border-radius:999px;background:'+(on?m.color+'20':'#fff')+';color:'+(on?m.color:'var(--dark-grey)')+';font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;cursor:pointer">'+m.icon+' '+m.label+'</button>'; }).join(' ');
+      back.innerHTML='<div style="background:#fff;border-radius:16px;padding:18px 20px;width:100%;max-width:440px;box-shadow:0 20px 50px rgba(0,0,0,.25)">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;font-family:Nunito,sans-serif;font-weight:900;font-size:1rem">📣 Post a communication<button data-px style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--grey);line-height:1">×</button></div>'
+        +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 12px">Goes to everyone’s dashboard · read receipts on the Communications page</div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+chips+'</div>'
+        +'<input data-pt placeholder="Title" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.9rem;margin-bottom:9px">'
+        +'<textarea data-pb rows="3" placeholder="Details (optional)" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans,sans-serif;font-size:.86rem;resize:vertical"></textarea>'
+        +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button data-px style="padding:9px 14px;border:1px solid var(--border);background:#fff;border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;color:var(--dark-grey)">Cancel</button>'
+        +'<button data-pgo style="padding:9px 16px;border:none;background:var(--red);color:#fff;border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer">Post</button></div></div>';
+      back.querySelectorAll('[data-px]').forEach(function(b){ b.onclick=function(){ back.remove(); }; });
+      back.querySelectorAll('[data-pk]').forEach(function(b){ b.onclick=function(){ kind=b.getAttribute('data-pk');
+        var t=back.querySelector('[data-pt]').value, bo=back.querySelector('[data-pb]').value; draw();
+        back.querySelector('[data-pt]').value=t; back.querySelector('[data-pb]').value=bo; }; });
+      back.querySelector('[data-pgo]').onclick=function(){
+        var t=String(back.querySelector('[data-pt]').value||'').trim();
+        if(!t){ back.querySelector('[data-pt]').style.borderColor='var(--red)'; return; }
+        var bo=back.querySelector('[data-pb]').value;
+        window.CPRComms.post({kind:kind,title:t,body:bo}).then(function(r){
+          if(r&&r.error){ alert('Post failed: '+r.error); return; }
+          back.remove(); if(onDone) onDone();
+        });
+      };
+    }
+    draw();
+    back.addEventListener('click',function(e){ if(e.target===back) back.remove(); });
+    document.body.appendChild(back);
+    var ti=back.querySelector('[data-pt]'); if(ti) ti.focus();
   }
 
   /* ====================== boot ====================== */

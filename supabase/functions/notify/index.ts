@@ -111,10 +111,24 @@ async function sendEmail(to: string, subject: string, text: string): Promise<{ o
   return { ok: false, error: "email_not_configured" };
 }
 
-async function deliver(ch: Channel, subject: string, text: string, keyword: string, data: Record<string, unknown>): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
-  const target = (ch.target || "").trim();
-  if (!target) return { channel: ch.name, ok: false, via: ch.type, error: "no_target" };
+// event_key -> feed post kind, so in-app posts read naturally in the Communications widget
+function kindForEvent(eventKey: string): string {
+  if (eventKey.startsWith("schedule.")) return "schedule";
+  if (eventKey === "commission.goal_hit") return "shoutout";
+  if (eventKey === "records.anniversary") return "anniversary";
+  return "announcement";
+}
+
+async function deliver(ch: Channel, subject: string, text: string, keyword: string, data: Record<string, unknown>, inapp: { title: string; body: string; kind: string }): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
   try {
+    // in-app: post into the Communications feed (no target/config; keyword-free copy)
+    if (ch.type === "inapp") {
+      const { error } = await admin.from("communications").insert({ kind: inapp.kind, title: inapp.title, body: inapp.body || null });
+      if (error) return { channel: ch.name, ok: false, via: "inapp", error: error.message };
+      return { channel: ch.name, ok: true, via: "inapp" };
+    }
+    const target = (ch.target || "").trim();
+    if (!target) return { channel: ch.name, ok: false, via: ch.type, error: "no_target" };
     if (ch.type === "webhook") {
       const r = await fetch(target, { method: "POST", headers: { "Content-Type": "application/json" }, body: webhookBody(ch.webhook_format, subject, text, keyword, data) });
       if (!r.ok) return { channel: ch.name, ok: false, via: "webhook", error: `http_${r.status}` };
@@ -147,8 +161,8 @@ Deno.serve(async (req) => {
   if (action === "test") {
     // Test an unsaved draft ({channel:{type,target,...}}) or an existing channel by id.
     const draft = body.channel as Partial<Channel> | undefined;
-    if (draft && draft.target) {
-      channels = [{ id: 0, name: draft.name || "Draft channel", type: draft.type || "email", target: draft.target, webhook_format: draft.webhook_format || "adaptive", enabled: true }];
+    if (draft && (draft.target || draft.type === "inapp")) {
+      channels = [{ id: 0, name: draft.name || "Draft channel", type: draft.type || "email", target: draft.target || null, webhook_format: draft.webhook_format || "adaptive", enabled: true }];
     } else {
       const id = Number(body.channel_id);
       if (!id) return json({ ok: false, error: "channel_id or channel draft required" }, 400);
@@ -188,7 +202,9 @@ Deno.serve(async (req) => {
 
   const data = (body.data && typeof body.data === "object") ? body.data as Record<string, unknown> : {};
   if (!channels.length) return json({ ok: true, skipped: "no_channels", results: [] });
-  const results = await Promise.all(channels.map((c) => deliver(c, sendSubject, sendText, keyword, data)));
+  // in-app posts use the human copy (no keyword mangling) and a kind derived from the event
+  const inapp = { title: descSubject, body: descText, kind: kindForEvent(String(body.event_key || "")) };
+  const results = await Promise.all(channels.map((c) => deliver(c, sendSubject, sendText, keyword, data, inapp)));
   const okAll = results.every((r) => r.ok);
   return json({ ok: okAll, results, keyword: keyword || undefined });
 });

@@ -1564,11 +1564,13 @@ function renderNotif(){
   var cc=$('#channelCards');
   if(!CHANNELS.length){cc.innerHTML='<div class="empty" style="padding:22px;margin-bottom:10px">No channels yet — add a Teams channel email or a webhook to start routing alerts.</div>';}
   else cc.innerHTML=CHANNELS.map(function(c){
-    var email=c.type==='email';
+    var email=c.type==='email', ia=c.type==='inapp';
+    var icon=ia?'📣':(email?'✉':'⚡'), bg=ia?'#FBE9EA':(email?'#E9F4FB':'#EDEAF6'), fg=ia?'#B02329':(email?'#1E7AA8':'#7A6FD0');
+    var sub=ia?'In-app · Communications feed':((email?'Email':'Webhook')+' · '+esc(c.target||'Not set'));
     return '<div class="chcard">'
-      +'<span style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;font-size:1rem;background:'+(email?'#E9F4FB':'#EDEAF6')+';color:'+(email?'#1E7AA8':'#7A6FD0')+'">'+(email?'✉':'⚡')+'</span>'
+      +'<span style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none;font-size:1rem;background:'+bg+';color:'+fg+'">'+icon+'</span>'
       +'<div style="min-width:0;flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.9rem">'+esc(c.name||'Unnamed channel')+'</div>'
-      +'<div style="font-size:.74rem;color:var(--grey);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(email?'Teams email':'Webhook')+' · '+esc(c.target||'Not set')+'</div></div>'
+      +'<div style="font-size:.74rem;color:var(--grey);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div></div>'
       +'<button class="toggle'+(c.enabled?' on':'')+'" data-chtoggle="'+c.id+'" title="Enabled"></button>'
       +'<button class="btn alt sm" data-chedit="'+c.id+'">Edit</button></div>';
   }).join('');
@@ -1633,7 +1635,7 @@ function wireRoute(host){
   host.querySelectorAll('[data-mevch]').forEach(function(b){b.onclick=async function(){await toggleEventChannel(MOPEN.id,b.getAttribute('data-mevch'));renderModal();};});
 }
 function channelModalHtml(){
-  var d=MOPEN.draft, wh=d.type==='webhook';
+  var d=MOPEN.draft, wh=d.type==='webhook', ia=d.type==='inapp';
   var tLabel=wh?'Webhook URL':'Email address';
   var tPh=wh?'https://prod-…/triggers/manual/paths/invoke':'you@work.com or channel.abc123@amer.teams.ms';
   return '<div class="modal-back" data-close></div><div class="modal"><div class="modal-hd">'
@@ -1641,8 +1643,9 @@ function channelModalHtml(){
     +'<button class="modal-x" data-close>×</button></div>'
     +'<div class="modal-body">'
       +'<div class="grid2"><div class="f"><label>Name</label><input data-k="name" value="'+esc(d.name)+'" placeholder="e.g. Ops Teams Channel"></div>'
-      +'<div class="f"><label>Type</label><select data-k="type"><option value="email"'+(wh?'':' selected')+'>Email (work inbox or Teams channel)</option><option value="webhook"'+(wh?' selected':'')+'>Webhook (Power Automate)</option></select></div></div>'
-      +'<div class="f" style="margin-top:12px"><label>'+tLabel+'</label><input data-k="target" value="'+esc(d.target)+'" placeholder="'+tPh+'"></div>'
+      +'<div class="f"><label>Type</label><select data-k="type"><option value="email"'+(wh||ia?'':' selected')+'>Email (work inbox or Teams channel)</option><option value="webhook"'+(wh?' selected':'')+'>Webhook (Power Automate)</option><option value="inapp"'+(ia?' selected':'')+'>In-app · Communications feed</option></select></div></div>'
+      +(ia?'<div class="f" style="margin-top:12px"><div class="h">Posts straight into the Communications feed on everyone’s dashboard — nothing else to configure.</div></div>'
+        :'<div class="f" style="margin-top:12px"><label>'+tLabel+'</label><input data-k="target" value="'+esc(d.target)+'" placeholder="'+tPh+'"></div>')
       +(wh?'<div class="f" style="margin-top:12px"><label>Payload format</label><select data-k="webhook_format"><option value="adaptive"'+(d.webhook_format==='adaptive'?' selected':'')+'>Adaptive Card</option><option value="messagecard"'+(d.webhook_format==='messagecard'?' selected':'')+'>MessageCard</option></select></div>':'')
     +'</div>'
     +'<div class="modal-ft">'
@@ -1656,7 +1659,7 @@ function wireChannel(host){
   var del=host.querySelector('[data-delch]');if(del)del.onclick=deleteChannel;
   var test=host.querySelector('[data-test]');if(test)test.onclick=async function(){
     var dr=MOPEN.draft;
-    if(!String(dr.target||'').trim()){toast(dr.type==='webhook'?'Enter a webhook URL first':'Enter an email first',true);return;}
+    if(dr.type!=='inapp'&&!String(dr.target||'').trim()){toast(dr.type==='webhook'?'Enter a webhook URL first':'Enter an email first',true);return;}
     test.disabled=true;var was=test.textContent;test.textContent='Sending…';
     try{
       var tok=await sessionToken();
