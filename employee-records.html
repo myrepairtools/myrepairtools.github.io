@@ -375,7 +375,7 @@ async function initAuth(){
 async function load(){
   const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
   const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes]=await Promise.all([
-    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records'),
+    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records,wage_type'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
     sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active,raw'),
@@ -391,7 +391,7 @@ async function load(){
   (stRes.data||[]).forEach(s=>{byId[s.id]={
     id:s.id,name:s.display_name,preferred:s.preferred_name||'',role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
     title:s.title||'',roleLevel:s.role,homeStore:s.home_store,first:s.first_name||'',last:s.last_name||'',
-    username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',hideFromRecords:!!s.hide_from_records,
+    username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',hideFromRecords:!!s.hide_from_records,wageType:s.wage_type||'hourly',
     start:isoOf(s.start_date),archived:!!s.archived||s.active===false,active:s.active!==false,onPip:false,entries:[],pips:[],timeoff:[]
   };});
   (torRes&&torRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
@@ -870,6 +870,7 @@ function openPersonEditor(emp){
     +'<div class="frow">'+field('Legal first name','<input id="p_first" class="fin" value="'+esc(emp.first||'')+'">')+field('Legal last name','<input id="p_last" class="fin" value="'+esc(emp.last||'')+'">')+'</div>'
     +field('Preferred name','<input id="p_pref" class="fin" value="'+esc(emp.preferred||'')+'" placeholder="'+esc(((emp.first||'')+' '+(emp.last||'')).trim()||'shown across myRepairTools')+'"><div class="fhint">Shown everywhere in myRepairTools. Leave blank to use the legal name.</div>')
     +(isNew?'':qbtLinkField(emp))
+    +(isNew?'':field('Wage type','<div class="fin" style="background:var(--light-grey);color:var(--dark-grey);display:flex;align-items:center;gap:8px">'+(emp.wageType==='salary'?'💼 Salary <span style="color:var(--grey);font-weight:600">· overtime-exempt</span>':'🕐 Hourly')+'</div><div class="fhint">Synced from QuickBooks Time. Salary = no overtime.</div>'))
     +'<div class="frow">'+field('Store','<select id="p_store" class="fin">'+storeOpts+'</select>')+field('Job title','<input id="p_title" class="fin" value="'+esc(emp.title||'')+'" placeholder="e.g. Repair Technician">')+'</div>'
     +'<div class="frow">'+field('Start date','<input id="p_start" type="date" class="fin" value="'+esc(emp.start||'')+'">')+field('Access level','<select id="p_role" class="fin">'+roleOpts+'</select>')+'</div>'
     +(isNew

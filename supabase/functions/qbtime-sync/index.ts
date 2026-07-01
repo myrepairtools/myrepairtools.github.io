@@ -219,6 +219,17 @@ async function syncUsers(token: string) {
     .map((r) => ({ qbt_id: r.qbt_id, staff_id: r.staff_id, name: activeStaff.get(r.staff_id as number),
       term_date: qbDate((r.raw as Record<string, unknown>)?.term_date) }));   // when QB recorded the termination
 
+  // Wage type from QB (salaried = overtime-exempt) → staff.wage_type, from the ACTIVE linked user.
+  let wageSet = 0;
+  for (const r of rows) {
+    if (r.staff_id == null || r.active !== true) continue;
+    const raw = r.raw as Record<string, unknown>;
+    if (raw.salaried === undefined) continue;
+    const wt = raw.salaried ? "salary" : "hourly";
+    const { error } = await admin.from("staff").update({ wage_type: wt }).eq("id", r.staff_id).neq("wage_type", wt);
+    if (!error) wageSet++;
+  }
+
   return {
     ok: true,
     fetched: rows.length,

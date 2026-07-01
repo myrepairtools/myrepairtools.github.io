@@ -86,7 +86,7 @@ async function renderOvertime(host){
   const wkStart=iso(sun), wkEnd=iso(sat);
   const [tsR,stR]=await Promise.all([
     sb.from('qbtime_timesheets').select('staff_id,seconds,on_the_clock,biz_date').gte('biz_date',wkStart).lte('biz_date',wkEnd).not('staff_id','is',null),
-    sb.from('staff').select('id,display_name,home_store,role,active')
+    sb.from('staff').select('id,display_name,home_store,role,active,wage_type')
   ]);
   const staff={}; (stR.data||[]).forEach(s=>staff[s.id]=s);
   const agg={};
@@ -99,11 +99,12 @@ async function renderOvertime(host){
     const hrs=Math.round(a.sec/360)/10, dw=Object.keys(a.days).length;
     let proj=hrs;
     if(isThisWeek && dw>0 && dw<5 && today<=wkEnd){ proj=Math.round((hrs+(hrs/dw)*(5-dw))*10)/10; }
-    const status=hrs>40?'ot':(proj>=40?'watch':'ok');
-    return { id, name:s.display_name, store:s.home_store, role:s.role, hrs, dw, proj, onclock:a.onclock, status };
+    const salary=(s.wage_type==='salary');   // salaried = overtime-exempt
+    const status=salary?'salary':(hrs>40?'ot':(proj>=40?'watch':'ok'));
+    return { id, name:s.display_name, store:s.home_store, role:s.role, salary, hrs, dw, proj, onclock:a.onclock, status };
   }).sort((a,b)=>storeRank(a.store)-storeRank(b.store)||b.proj-a.proj);
 
-  const otNow=rows.filter(r=>r.hrs>40).length, watch=rows.filter(r=>r.status==='watch').length, live=rows.filter(r=>r.onclock).length;
+  const otNow=rows.filter(r=>!r.salary&&r.hrs>40).length, watch=rows.filter(r=>r.status==='watch').length, live=rows.filter(r=>r.onclock).length;
   const totHrs=Math.round(rows.reduce((s,r)=>s+r.hrs,0)*10)/10;
 
   let body='<div class="rephd"><div><h1>Overtime Report</h1><div class="sub">Worked hours this week (Sun–Sat) vs the 40-hour line'+(isThisWeek?' · pace = 5-day estimate':'')+'</div></div>'
@@ -120,13 +121,14 @@ async function renderOvertime(host){
   let lastStore=null, trows='';
   rows.forEach(r=>{
     if(r.store!==lastStore){ lastStore=r.store; trows+='<tr class="grphd"><td colspan="5">'+esc(shortStore(r.store)||'—')+'</td></tr>'; }
-    const pc=r.status==='ot'?'p-ot':(r.status==='watch'?'p-watch':'p-ok');
-    const pl=r.status==='ot'?'OT':(r.status==='watch'?'Watch':'OK');
+    const pc=r.status==='ot'?'p-ot':(r.status==='watch'?'p-watch':(r.status==='salary'?'':'p-ok'));
+    const pl=r.status==='ot'?'OT':(r.status==='watch'?'Watch':(r.status==='salary'?'Salary':'OK'));
+    const pillStyle=r.status==='salary'?' style="color:var(--grey);background:var(--light-grey)"':'';
     trows+='<tr><td>'+esc(r.name)+(r.onclock?' <span class="pill p-ok">● on clock</span>':'')+'</td>'
       +'<td class="num">'+r.dw+'</td>'
       +'<td class="num"><b>'+r.hrs.toFixed(1)+'</b></td>'
       +'<td class="num">'+(r.proj>r.hrs?r.proj.toFixed(1):'—')+'</td>'
-      +'<td><span class="pill '+pc+'">'+pl+'</span></td></tr>';
+      +'<td><span class="pill '+pc+'"'+pillStyle+'>'+pl+'</span></td></tr>';
   });
   body+='<table class="rep"><thead><tr><th>Employee</th><th class="num">Days</th><th class="num">Hours</th><th class="num">Projected</th><th>Status</th></tr></thead><tbody>'+trows+'</tbody></table>';
   host.innerHTML=body; wireWk(host);

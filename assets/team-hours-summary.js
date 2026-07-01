@@ -70,7 +70,7 @@
         var sun=new Date(now.getFullYear(),now.getMonth(),now.getDate()-wd0);
         var wkStart=iso(sun), wkEnd=iso(new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+6));
         return Promise.all([
-          client.from('staff').select('id,display_name,home_store,role,active').eq('active',true),
+          client.from('staff').select('id,display_name,home_store,role,active,wage_type').eq('active',true),
           client.from('shifts').select('id,name,active'),
           client.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
           client.from('staff_schedule').select('staff_id,store,shifts'),
@@ -111,8 +111,9 @@
             var remH=Math.round((remMin/60)*10)/10;
             var shiftsLeft=(todayRemMin>0?1:0)+futureShifts;
             var anticipated=Math.round((workedH+remH)*10)/10;
-            var ot=Math.max(0, Math.round((anticipated-40)*10)/10);
-            return { staff_id:e.id, name:e.display_name, store:e.home_store, role:e.role,
+            var salary=(e.wage_type==='salary');
+            var ot=salary?0:Math.max(0, Math.round((anticipated-40)*10)/10);   // salaried = OT-exempt
+            return { staff_id:e.id, name:e.display_name, store:e.home_store, role:e.role, wageType:e.wage_type||'hourly', salary:salary,
               worked:workedH, shiftsLeft:shiftsLeft, remaining:remH, anticipated:anticipated, ot:ot };
           });
           var stores=[]; rows.forEach(function(r){ if(r.store && stores.indexOf(r.store)<0) stores.push(r.store); });

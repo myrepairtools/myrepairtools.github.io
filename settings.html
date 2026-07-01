@@ -1236,7 +1236,7 @@ function openMember(id){
   var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
   if(!m)return;
   var ros=CROSTER[m.id]||{};
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,hide_from_records:!!m.hide_from_records,pin:'',
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,hide_from_records:!!m.hide_from_records,wage_type:m.wage_type||'hourly',pin:'',
     comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{}),
     rules_override:Object.assign({},ros.rules_override||{}),rates_override:Object.assign({},ros.rates_override||{})}};
   renderModal();
@@ -1382,6 +1382,7 @@ function memberModalHtml(){
           +'<span class="optrow-x">Set up ▸</span></button>';
       })()
      +'</div>'
+     +(MOPEN.isNew?'':'<div class="row" style="margin-top:14px"><label>Wage type</label><div style="padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--light-grey);color:var(--dark-grey);font-family:\'Nunito Sans\',sans-serif;font-size:.88rem">'+(d.wage_type==='salary'?'💼 Salary <span style="color:var(--grey)">· overtime-exempt</span>':'🕐 Hourly')+'</div><div class="h" style="margin-top:5px">Synced from QuickBooks Time.</div></div>')
      +(MOPEN.isNew?'':qbtMemberLinkHtml(d,owner))
      +((!MOPEN.isNew&&d.role==='owner')?'<label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem;font-weight:700;color:var(--dark-grey)"><input type="checkbox" data-hidefr'+(d.hide_from_records?' checked':'')+' style="width:16px;height:16px;flex:none;margin:0"> Hide from the Employee Records list <span style="font-weight:600;color:var(--grey);font-size:.76rem">(owners only)</span></label>':'')
      +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'

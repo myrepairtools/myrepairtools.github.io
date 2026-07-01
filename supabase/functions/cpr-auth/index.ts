@@ -166,7 +166,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records").order("active", {
+    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records, wage_type").order("active", {
       ascending: false
     }).order("display_name");
     return json({
