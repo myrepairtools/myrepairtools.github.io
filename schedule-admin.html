@@ -116,7 +116,7 @@ table.bt td.cell.clk{cursor:pointer}
 
 <div id="app" class="app">
   <main>
-    <div class="hubbar"><h1>Schedule Admin</h1><div style="display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap"><div class="hub" id="hub"></div><div id="hubActions"></div></div></div>
+    <div class="hubbar"><h1>Schedule Admin</h1><div class="hub" id="hub"></div></div>
     <div id="view"></div>
   </main>
 </div>
@@ -299,13 +299,22 @@ function render(){
   var holNeed=holNeedCount();
   $('#hub').innerHTML=defs.map(function(t){var badge=(t.k==='holidays'&&holNeed)?' <span class="badge">'+holNeed+'</span>':'';return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+badge+'</button>';}).join('');
   $('#hub').querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){VIEW=b.getAttribute('data-v');lsSet('cprSchedAdminView',VIEW);render();};});
-  // "Schedule change" is a static action on every tab — turning it on jumps to This Week, where per-week edits live.
-  $('#hubActions').innerHTML='<button class="btn" id="schChg" style="'+(SCHEDIT?'background:var(--red);color:#fff;border-color:var(--red)':'')+'">'+(SCHEDIT?'✓ Done editing':'✎ Schedule change')+'</button>';
-  $('#schChg').onclick=function(){SCHEDIT=!SCHEDIT;if(SCHEDIT&&VIEW!=='thisweek'){VIEW='thisweek';lsSet('cprSchedAdminView',VIEW);}render();};
   if(VIEW==='weekly')renderWeekly();
   else if(VIEW==='thisweek')renderThisWeek();
   else if(VIEW==='holidays')renderHolidays();
   else renderMonthly();
+  injectSchedChangeBar();
+}
+/* "Schedule change" is a static action on every tab, placed just below the legend toolbar.
+   Turning it on jumps to This Week, where the per-week edits live. */
+function injectSchedChangeBar(){
+  var view=$('#view');if(!view)return;
+  var firstTb=view.querySelector('.toolbar');
+  var bar=document.createElement('div');bar.className='toolbar';bar.style.marginTop='2px';
+  bar.innerHTML='<button class="btn" id="schChg" style="'+(SCHEDIT?'background:var(--red);color:#fff;border-color:var(--red)':'')+'">'+(SCHEDIT?'✓ Done editing':'✎ Schedule change')+'</button>';
+  if(firstTb&&firstTb.parentNode){firstTb.parentNode.insertBefore(bar,firstTb.nextSibling);}
+  else{view.insertBefore(bar,view.firstChild);}
+  $('#schChg').onclick=function(){SCHEDIT=!SCHEDIT;if(SCHEDIT&&VIEW!=='thisweek'){VIEW='thisweek';lsSet('cprSchedAdminView',VIEW);}render();};
 }
 function filterPillsHtml(){
   var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));
