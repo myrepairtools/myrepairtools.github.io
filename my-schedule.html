@@ -146,9 +146,9 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 }
 /* month calendar (My schedule + Team off layers) */
 .mtoolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.mlayer{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
-.mlayer button{padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;background:transparent;color:var(--grey)}
-.mlayer button.on{background:var(--dark);color:#fff}
+.mlayer{display:inline-flex;background:var(--dark);border:1px solid var(--dark);border-radius:8px;padding:3px;gap:2px}
+.mlayer button{padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;background:transparent;color:rgba(255,255,255,.55)}
+.mlayer button.on{background:#fff;color:var(--dark)}
 .mcal{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.05)}
 .mcal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:#fafafa;border-bottom:1px solid var(--border)}
 .mcal-dow div{padding:7px 4px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)}
@@ -173,6 +173,7 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 .web .mchip .mt{font-size:.6rem}
 .web .mini{width:20px;height:20px;font-size:.54rem}
 .web .moff{font-size:.66rem}
+body.mfull main{max-width:none}   /* month view fills the viewport instead of the 680/1180 column */
 </style>
 </head>
 <body>
@@ -410,6 +411,7 @@ function isWeb(){return window.innerWidth>=980;}
 function render(){
   var web=isWeb();
   document.body.classList.toggle('web',web);
+  document.body.classList.toggle('mfull',TAB==='month');     // month calendar spans full width
   $('#tabs').classList.toggle('hide',web);
   $('#wknav').classList.toggle('hide',web||TAB==='month');   // month view carries its own nav
   if(TAB==='month'){ if(!MMON)MMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1); renderMonth(web); return; }
@@ -488,8 +490,8 @@ function renderMonth(web){
     cells+='<div class="mcell'+(isT?' today':'')+'"><div class="mtop"><span class="mn">'+d+'</span>'+(holName?'<span class="mhol" title="'+esc(holName)+'">🎉 '+esc(holName)+'</span>':'')+'</div>'+inner+'</div>';
   }
   var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<div class="mcell out"></div>';
-  var nav='<div class="wknav" style="margin:0"><button data-mm="-1">‹</button><div class="lbl" style="min-width:132px">'+MONL[M]+' '+Y+'</div><button data-mm="1">›</button></div>';
-  var layer='<div class="mlayer"><button data-ml="mine" class="'+(MLAYER==='mine'?'on':'')+'">My schedule</button><button data-ml="team" class="'+(MLAYER==='team'?'on':'')+'">Team off</button></div>';
+  var nav='<div class="wknav" style="margin:0"><button data-mm="-1">‹</button><button class="lbl" data-mpick title="Pick a month" style="min-width:132px;cursor:pointer;background:#fff">'+MONL[M]+' '+Y+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-mm="1">›</button></div>';
+  var layer='<div class="mlayer"><button data-ml="mine" class="'+(MLAYER==='mine'?'on':'')+'">My schedule</button><button data-ml="team" class="'+(MLAYER==='team'?'on':'')+'">Team</button></div>';
   var dow='<div class="mcal-dow">'+DAYS.map(function(x){return '<div>'+x+'</div>';}).join('')+'</div>';
   var hint=MLAYER==='team'?'Who’s off across all stores · 🎉 marks store holidays':'Your shifts this month · time off &amp; holidays included';
   var head=web
@@ -500,7 +502,31 @@ function renderMonth(web){
     +(web?'':'<div class="empty" style="margin-top:10px;text-align:center">'+hint+'</div>');
   $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){MMON=new Date(MMON.getFullYear(),MMON.getMonth()+Number(b.getAttribute('data-mm')),1);render();};});
   $('#view').querySelectorAll('[data-ml]').forEach(function(b){b.onclick=function(){MLAYER=b.getAttribute('data-ml');lsSet('cprMyTimeLayer',MLAYER);render();};});
+  var mp=$('#view').querySelector('[data-mpick]');if(mp)mp.onclick=function(ev){ev.stopPropagation();openMonthPicker(mp);};
   if($('#mBack'))$('#mBack').onclick=function(){setTab('me');render();};
+}
+
+/* Month picker: click the month label to jump to any month/year. */
+var MPOP=null;
+function closeMonthPicker(){if(MPOP){MPOP.remove();MPOP=null;}}
+function openMonthPicker(anchor){
+  closeMonthPicker();
+  var year=MMON.getFullYear();
+  var back=document.createElement('div');back.style.cssText='position:fixed;inset:0;z-index:1500';back.onclick=closeMonthPicker;
+  var pop=document.createElement('div');pop.style.cssText='position:fixed;z-index:1501;width:252px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 34px rgba(45,45,59,.24);padding:10px';
+  function draw(){
+    var selY=MMON.getFullYear(),selM=MMON.getMonth();
+    var grid=MON.map(function(mn,i){var on=(year===selY&&i===selM);
+      return '<button data-mo="'+i+'" style="padding:9px 0;border:1px solid '+(on?'#4FB0E3':'transparent')+';border-radius:8px;background:'+(on?hexA('#4FB0E3',0.14):'transparent')+';color:'+(on?'#1E7AA8':'var(--dark)')+';font-family:Nunito,sans-serif;font-weight:800;font-size:.76rem;cursor:pointer">'+mn+'</button>';}).join('');
+    pop.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><button data-py="-1" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey)">‹</button><div style="flex:1;text-align:center;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem">'+year+'</div><button data-py="1" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey)">›</button></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">'+grid+'</div>';
+    pop.querySelectorAll('[data-py]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();year+=Number(b.getAttribute('data-py'));draw();};});
+    pop.querySelectorAll('[data-mo]').forEach(function(b){b.onclick=function(){MMON=new Date(year,Number(b.getAttribute('data-mo')),1);closeMonthPicker();render();};});
+  }
+  draw();
+  document.body.appendChild(back);document.body.appendChild(pop);MPOP={remove:function(){back.remove();pop.remove();}};
+  var r=anchor.getBoundingClientRect(),vw=window.innerWidth;
+  pop.style.left=Math.max(10,Math.min(r.left,vw-262))+'px';pop.style.top=(r.bottom+6)+'px';
 }
 
 /* ===== time off ===== */
