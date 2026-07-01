@@ -315,6 +315,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       desc:'Rank your store’s techs by accessory $ or device units (this month).',
       headExtra:'<div class="lb-toggle" data-lb-toggle><button data-m="accy" class="on">Accy $</button><button data-m="dev">Devices</button></div>',
       render:function(){ return ''
+        +'<div data-lb-stores></div>'
         +'<div class="lb-cap" data-lb-cap>This month</div>'
         +'<ul class="lb" data-lb-list></ul>'
         +'<div class="empty" data-lb-empty style="display:none;padding:14px 4px"><div class="et">No sales recorded yet this month.</div></div>'; },
@@ -617,7 +618,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
   }
 
   function loadLeaderboard(bd, el){
-    if(!window.CPRLeaderboard || !window.CPRLeaderboard.forStore){ return; }
+    if(!window.CPRLeaderboard || !window.CPRLeaderboard.forStores){ return; }
     var host = el || bd;   // toggle lives in the widget header (el); list/cap live in the body (bd)
     function shortStore(s){ return window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s*/,''); }
     function metric(){ try{ return localStorage.getItem('cprLbMetric')||'accy'; }catch(_){ return 'accy'; } }
@@ -626,14 +627,17 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       if(m==='accy') return '$'+Math.round(row.accy||0).toLocaleString('en-US');
       return (row.devUnits||0)+' <span class="lsub">dev · '+(row.devAccy||0)+' accy</span>';
     }
-    var STATE={rows:[],meId:null};
+    var STATE={byStore:{},stores:[],store:null,meId:null};
     function paint(){
       var m=metric(), list=bd.querySelector('[data-lb-list]'); if(!list) return;
-      // reflect active toggle
+      // reflect active toggle + active store pill
       Array.prototype.forEach.call(host.querySelectorAll('[data-lb-toggle] button'), function(b){ b.classList.toggle('on', b.getAttribute('data-m')===m); });
-      var rows=STATE.rows.slice().sort(function(a,b){ return (m==='accy'?(b.accy-a.accy):(b.devUnits-a.devUnits)); }).slice(0,8);
-      if(!rows.length){ list.innerHTML=''; var em=bd.querySelector('[data-lb-empty]'); if(em) em.style.display='block'; return; }
-      var em2=bd.querySelector('[data-lb-empty]'); if(em2) em2.style.display='none';
+      Array.prototype.forEach.call(bd.querySelectorAll('[data-lb-st]'), function(b){ b.classList.toggle('on', b.getAttribute('data-lb-st')===STATE.store); });
+      var cap=bd.querySelector('[data-lb-cap]'); if(cap) cap.textContent='This month'+(STATE.store?(' · '+shortStore(STATE.store)):'');
+      var rows=(STATE.byStore[STATE.store]||[]).slice().sort(function(a,b){ return (m==='accy'?(b.accy-a.accy):(b.devUnits-a.devUnits)); }).slice(0,8);
+      var em=bd.querySelector('[data-lb-empty]');
+      if(!rows.length){ list.innerHTML=''; if(em) em.style.display='block'; return; }
+      if(em) em.style.display='none';
       list.innerHTML=rows.map(function(r,i){
         return '<li'+(r.id===STATE.meId?' class="me"':'')+'><span class="rk">'+(i+1)+'</span><span class="ln">'+(r.id===STATE.meId?'You':esc(r.name))+'</span><span class="lv">'+val(r,m)+'</span></li>';
       }).join('');
@@ -642,10 +646,21 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     Array.prototype.forEach.call(host.querySelectorAll('[data-lb-toggle] button'), function(b){
       b.onclick=function(e){ e.stopPropagation(); setMetric(b.getAttribute('data-m')); paint(); scheduleMasonry(); };
     });
-    window.CPRLeaderboard.forStore().then(function(d){
-      if(!d || !d.rows || !d.rows.length){ var em=bd.querySelector('[data-lb-empty]'); if(em) em.style.display='block'; return; }
-      STATE.rows=d.rows; STATE.meId=d.meId;
-      var cap=bd.querySelector('[data-lb-cap]'); if(cap) cap.textContent='This month'+(d.store?(' · '+shortStore(d.store)):'');
+    window.CPRLeaderboard.forStores().then(function(d){
+      if(!d || !d.stores || !d.stores.length){ var em=bd.querySelector('[data-lb-empty]'); if(em) em.style.display='block'; return; }
+      STATE.byStore=d.byStore; STATE.stores=d.stores; STATE.meId=d.meId;
+      var sel; try{ sel=localStorage.getItem('cprLbStore'); }catch(_){}
+      STATE.store=(sel&&d.stores.indexOf(sel)>-1)?sel:d.defaultStore;
+      // store switcher — only when the viewer can see more than one store's sales
+      var sh=bd.querySelector('[data-lb-stores]');
+      if(sh && d.stores.length>1){
+        sh.innerHTML='<div class="th-filter" style="margin-bottom:6px">'+d.stores.map(function(s){
+          return '<button data-lb-st="'+esc(s)+'">'+esc(shortStore(s))+'</button>'; }).join('')+'</div>';
+        Array.prototype.forEach.call(sh.querySelectorAll('[data-lb-st]'), function(b){
+          b.onclick=function(e){ e.stopPropagation(); STATE.store=b.getAttribute('data-lb-st');
+            try{ localStorage.setItem('cprLbStore',STATE.store); }catch(_){} paint(); scheduleMasonry(); };
+        });
+      }
       paint();
     }, function(){});
   }
