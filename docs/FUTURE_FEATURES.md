@@ -61,6 +61,51 @@ commission overrides: store ← role ← person).
   **off**, the dashboard falls back to the current **calculated/derived** target (the
   accessory $ goal spread across the category mix); when **on**, the hand-set number wins.
 
+## Stretch goals + spiffs — working spec (2026-07-01, pending co-owner feedback)
+
+The monthly-meeting goals (`commission_goals`, set via the dashboard's 🎯 Set goals
+modal) should be **pure upside**, never a moved penalty line. Designed with real June
+data; Britt is bouncing it off the other owner before we lock and build.
+
+**Principles (settled)**
+- **The default accessory goal never moves.** `commission_roster.accy_goal` (e.g. $2,400)
+  stays the gate for the regular goal bonus, always. Meeting goals must not make an
+  existing bonus harder to earn. ⚠️ *This reverses current behavior* — today
+  `commission_goals.accy_goal` **replaces** the gate in the engine call. When this ships,
+  the month goal becomes the stretch line instead (consumers: commission-dashboard,
+  commission-calculator, commission-summary).
+- **Accessory stretch bonus:** the meeting accessory $ (e.g. $3,000) is a *second* goal.
+  - Land ≥ default but < stretch → normal commission incl. the regular goal bonus.
+  - Clear the stretch → **additional 10% × (actual sales − default goal)**.
+    Example: $3,100 actual, $2,400 default → +$70.
+  - **The cliff is intentional**: $2,999 pays $0 extra, $3,000 pays +$60. No smooth
+    per-$100 ramp — Britt explicitly doesn't want to reward drifting past the goal
+    they're already expected to hit; the pay is for committing to and hitting mark #2.
+  - **Sales-based, not GP-based (decided).** Accessory margins run 81–90% (team avg
+    ~86%, June data), so GP-based only saves ~$10–15 per stretch hit while hiding the
+    number from employees. Sales $ is what their dashboard bar shows — keep it chaseable.
+    Cost check: a $70 spiff on $700 incremental sales ≈ 11–12% of the ~$602 incremental
+    GP — cheap incentive.
+- **Category/scorecard spiffs (flat):** hit a scorecard target set in the meeting
+  (cases, screen protectors, power units) → flat bonus, working number **$20 each**.
+  Miss → nothing lost.
+
+**Open questions (for the co-owner conversation)**
+- Which targets carry the flat spiff — just case/SP/power, or also devices, attach %,
+  and per-service targets?
+- Is the $20 one global setting or a per-target $ field in the goal modal (e.g. $50 on
+  cases for a push month)?
+- Stretch percentage: 10% fixed, or configurable?
+
+**Build notes (when locked)**
+- Engine: add `stretchGoal` + `spiffs` inputs to `computeCommission` (or a post-pass) so
+  the payroll calculator itemizes "Stretch bonus" and "Spiffs" lines; dashboard Meeting
+  targets card shows the $ upside next to each bar ("+$20 if hit").
+- Storage: already in place — `commission_goals` has all the targets; add spiff config
+  (global setting or per-row columns) when the open questions resolve.
+- Until this ships: leave the Accessory $ field **blank** in 1:1s (scorecard targets are
+  display-only) so nobody's bonus line moves under current behavior.
+
 ## My Hub — employee snapshot dashboard ("widgets")
 
 A read-only **employee landing page** with glanceable **snapshot cards**, each linking
