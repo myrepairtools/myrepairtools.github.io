@@ -18,6 +18,9 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const NOTIFY_FROM = Deno.env.get("NOTIFY_FROM") || "CPR Tools <onboarding@resend.dev>";
+// Gmail SMTP fallback (no domain/DNS needed): app password on a Gmail account.
+const GMAIL_USER = Deno.env.get("GMAIL_USER") || "";
+const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") || "";
 
 const admin = createClient(SB_URL, SERVICE, { auth: { persistSession: false } });
 
@@ -73,22 +76,39 @@ function webhookBody(fmt: string | null, subject: string, text: string, keyword:
   return JSON.stringify({ keyword, subject, text, title: subject, message: text, ...data });
 }
 
-async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
-  if (!RESEND_API_KEY) return { ok: false, error: "email_not_configured" };
+function emailHtml(text: string): string {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2D2D3B;line-height:1.5">${
+    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>")
+  }</div>`;
+}
+async function sendViaResend(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: NOTIFY_FROM, to: [to], subject,
-      text,
-      html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2D2D3B;line-height:1.5">${
-        text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>")
-      }</div>`,
-    }),
+    body: JSON.stringify({ from: NOTIFY_FROM, to: [to], subject, text, html: emailHtml(text) }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) return { ok: false, error: (d && (d.message || d.name)) || `resend_${r.status}` };
   return { ok: true };
+}
+async function sendViaGmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
+    const client = new SMTPClient({
+      connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD } },
+    });
+    await client.send({ from: `CPR Tools <${GMAIL_USER}>`, to, subject, content: text, html: emailHtml(text) });
+    await client.close();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: "smtp_" + String((err as Error)?.message || err).slice(0, 140) };
+  }
+}
+// Prefer Resend when configured; otherwise fall back to Gmail SMTP. Neither → not configured.
+async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  if (RESEND_API_KEY) return sendViaResend(to, subject, text);
+  if (GMAIL_USER && GMAIL_APP_PASSWORD) return sendViaGmail(to, subject, text);
+  return { ok: false, error: "email_not_configured" };
 }
 
 async function deliver(ch: Channel, subject: string, text: string, keyword: string, data: Record<string, unknown>): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
