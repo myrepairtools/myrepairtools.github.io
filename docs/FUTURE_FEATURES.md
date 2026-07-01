@@ -167,3 +167,29 @@ start an onboarding workflow in myRepairTools instead of someone remembering eve
 - Reuse `checklist_items` / `checklist_completions` (an "onboarding" category assigned to the new
   hire) or a dedicated `onboarding_tasks` table; a `staff.onboarding_status` (or a progress join)
   for the at-a-glance state.
+
+## Notifications — more "Send to" channel types
+
+Today a notification channel (`notification_channels`) is **email** or **webhook**
+(Power Automate). Expand the "Send to" picker with more destination types as we build
+them out:
+
+- **Mobile / push** — reach staff on their phones directly (web push, or a native
+  push once there's an app). Good for time-sensitive alerts (schedule change, goal
+  hit, drawer variance).
+- **In-app "MRT alerts" / Communications feed** — a first-class *internal* destination:
+  the notification lands in the app's own alerts/Communications inbox (the Communications
+  board / My Hub "Alerts" card), not just an external channel. Ties directly into the
+  **Communications w/ Teams notifications** item on the main list and the My Hub "Alerts"
+  feed above. Likely needs an `alerts` table (recipient scope, body, read state) that the
+  notify backend writes to as a channel `type='inapp'`.
+- Others to consider later: SMS, a Slack/Teams-native bot post (vs. the email/webhook
+  bridge), or a digest email.
+
+**Build notes**
+- The delivery backend (`supabase/functions/notify`) already fans out per channel `type`;
+  adding a type is: a new `deliver()` branch + a picker option in the channel modal
+  (`settings.html` `channelModalHtml`). The per-event "Send to" config modal already lists
+  whatever channels exist, so new types show up there automatically.
+- The keyword field carries through regardless, so Power Automate routing still works
+  alongside a native in-app feed.

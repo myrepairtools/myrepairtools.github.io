@@ -305,7 +305,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 
     <div class="sect-h" style="margin-top:22px">Events</div>
     <div class="card"><table><thead><tr>
-      <th>Event</th><th>Send to</th><th class="r">On</th>
+      <th>Event</th><th>Keyword</th><th>Send to</th><th class="r">On</th>
     </tr></thead><tbody id="eventRows"></tbody></table>
       <div class="empty hide" id="eventEmpty">No events.</div>
     </div>
@@ -1572,16 +1572,14 @@ function renderNotif(){
   }).join('');
   $('#eventRows').innerHTML=NRULES.map(function(e){
     var ch=chOf(e.id);
-    var chips=CHANNELS.length?CHANNELS.map(function(c){var on=ch.indexOf(c.id)>-1;return '<button class="chchip'+(on?' on':'')+'" data-evch="'+e.id+'|'+c.id+'">'+esc(c.name||'Unnamed')+'</button>';}).join(' '):'<span style="color:var(--grey);font-size:.74rem;font-weight:700">Add a channel first</span>';
     var warn=e.enabled&&ch.length===0?' <span style="color:var(--amber);font-size:.64rem;font-weight:800">⚠ no destination</span>':'';
-    return '<tr><td>'
-      +'<div style="display:flex;align-items:center;gap:12px">'
-        +'<div style="min-width:0;flex:1"><span class="ttag" style="background:'+(TOOLCOLOR[e.tool]||'#B9BDCB')+'">'+esc(e.tool)+'</span> <b>'+esc(e.name)+'</b>'+warn+'</div>'
-        +'<div style="display:flex;align-items:center;gap:6px;flex:none"><span style="font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)">Keyword</span>'
-        +'<input data-evkw="'+e.id+'" value="'+esc(e.keyword||'')+'" placeholder="e.g. MRT_SCHEDULE" title="Sent as the signal so a Power Automate keyword trigger can match" style="font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;letter-spacing:.3px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;width:150px"></div>'
-      +'</div>'
-      +'<div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-top:3px">'+esc(e.description||'')+'</div></td>'
-      +'<td><div style="display:flex;flex-wrap:wrap;gap:6px">'+chips+'</div></td>'
+    var routed=CHANNELS.filter(function(c){return ch.indexOf(c.id)>-1;});
+    var routeLabel=routed.length?esc(routed.map(function(c){return c.name||'Unnamed';}).join(', ')):'Choose destination…';
+    var routeStyle=routed.length?'color:var(--dark)':'color:var(--grey)';
+    return '<tr><td><span class="ttag" style="background:'+(TOOLCOLOR[e.tool]||'#B9BDCB')+'">'+esc(e.tool)+'</span> <b>'+esc(e.name)+'</b>'+warn
+      +'<div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-top:2px">'+esc(e.description||'')+'</div></td>'
+      +'<td><input data-evkw="'+e.id+'" value="'+esc(e.keyword||'')+'" placeholder="e.g. MRT_SCHEDULE" title="Sent as the signal so a Power Automate keyword trigger can match" style="font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;letter-spacing:.3px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;width:160px"></td>'
+      +'<td><button class="btn alt sm" data-evroute="'+e.id+'" style="display:inline-flex;align-items:center;gap:8px;min-width:170px;justify-content:space-between;font-weight:700;'+routeStyle+'"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px">'+routeLabel+'</span><span style="font-size:.6rem;color:var(--grey)">▾</span></button></td>'
       +'<td class="r"><button class="toggle'+(e.enabled?' on':'')+'" data-evtoggle="'+e.id+'"></button></td></tr>';
   }).join('');
   // Hyla Orders notification settings (moved here from Page Settings)
@@ -1605,6 +1603,33 @@ async function toggleEventChannel(ruleId,chId){
 }
 function openAddChannel(){MOPEN={type:'channel',isNew:true,draft:{name:'',type:'email',target:'',webhook_format:'adaptive'}};renderModal();}
 function openEditChannel(id){var c=CHANNELS.filter(function(x){return String(x.id)===String(id);})[0];if(!c)return;MOPEN={type:'channel',isNew:false,draft:{id:c.id,name:c.name||'',type:c.type,target:c.target||'',webhook_format:c.webhook_format||'adaptive'}};renderModal();}
+/* Per-event "Send to" config modal: pick which channels fire for this event. */
+function openRouteModal(id){MOPEN={type:'route',id:id};renderModal();}
+function routeModalHtml(){
+  var e=NRULES.filter(function(x){return String(x.id)===String(MOPEN.id);})[0];if(!e)return '';
+  var ch=chOf(e.id), body;
+  if(!CHANNELS.length){
+    body='<div class="empty" style="padding:20px;text-align:center">No delivery channels yet.<br>Add one under <b>Delivery channels</b> above, then route it here.</div>';
+  }else{
+    body=CHANNELS.map(function(c){
+      var on=ch.indexOf(c.id)>-1, email=c.type==='email';
+      return '<button data-mevch="'+c.id+'" style="width:100%;display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid '+(on?'#4FB0E3':'var(--border)')+';background:'+(on?'#F1F9FE':'#fff')+';border-radius:10px;cursor:pointer;margin-bottom:8px;text-align:left">'
+        +'<span style="width:20px;height:20px;border-radius:6px;border:1.5px solid '+(on?'#4FB0E3':'#cfd2dd')+';background:'+(on?'#4FB0E3':'#fff')+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:900;flex:none">'+(on?'✓':'')+'</span>'
+        +'<span style="flex:1;min-width:0"><span style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.86rem">'+esc(c.name||'Unnamed')+'</span>'
+        +'<span style="display:block;font-size:.72rem;color:var(--grey);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(email?'Email':'Webhook')+' · '+esc(c.target||'not set')+'</span></span>'
+        +(c.enabled?'':'<span style="font-size:.6rem;font-weight:800;color:var(--amber);flex:none">disabled</span>')+'</button>';
+    }).join('');
+  }
+  return '<div class="modal-back" data-close></div><div class="modal"><div class="modal-hd">'
+    +'<div class="t">Send to<div class="s">'+esc(e.name)+' — pick the channels that fire</div></div>'
+    +'<button class="modal-x" data-close>×</button></div>'
+    +'<div class="modal-body">'+body+'</div>'
+    +'<div class="modal-ft"><span></span><button class="btn blue" data-close>Done</button></div></div>';
+}
+function wireRoute(host){
+  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  host.querySelectorAll('[data-mevch]').forEach(function(b){b.onclick=async function(){await toggleEventChannel(MOPEN.id,b.getAttribute('data-mevch'));renderModal();};});
+}
 function channelModalHtml(){
   var d=MOPEN.draft, wh=d.type==='webhook';
   var tLabel=wh?'Webhook URL':'Email address';
@@ -2105,6 +2130,7 @@ function renderModal(){
   else if(MOPEN.type==='reg'){host.innerHTML=regModalHtml();wireReg(host);}
   else if(MOPEN.type==='role'){host.innerHTML=roleModalHtml();wireRole(host);}
   else if(MOPEN.type==='channel'){host.innerHTML=channelModalHtml();wireChannel(host);}
+  else if(MOPEN.type==='route'){host.innerHTML=routeModalHtml();wireRoute(host);}
 }
 
 /* ===== wiring ===== */
@@ -2228,10 +2254,10 @@ function initUI(){
   $('#view-pages').addEventListener('keydown',function(e){if(e.key!=='Enter')return;var t=e.target.closest('[data-pgname],[data-pgaddinput],[data-ptname],[data-ptadd],[data-flagname],[data-flagadd],[data-hname],[data-hadd]');if(!t)return;e.preventDefault();if(t.hasAttribute('data-pgaddinput'))pgAdd(t.getAttribute('data-pgaddinput'));else if(t.hasAttribute('data-ptadd'))ptAdd();else if(t.hasAttribute('data-flagadd'))flagAdd();else if(t.hasAttribute('data-hadd'))hylaAdd(t.getAttribute('data-hadd'));else t.blur();});
   $('#addChannel').onclick=openAddChannel;
   $('#view-notif').addEventListener('click',function(e){
-    var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evch],[data-chedit]');if(!t)return;
+    var t=e.target.closest('[data-chtoggle],[data-evtoggle],[data-evroute],[data-chedit]');if(!t)return;
     if(t.hasAttribute('data-chtoggle'))toggleChannel(t.getAttribute('data-chtoggle'));
     else if(t.hasAttribute('data-evtoggle'))toggleEvent(t.getAttribute('data-evtoggle'));
-    else if(t.hasAttribute('data-evch')){var p=t.getAttribute('data-evch').split('|');toggleEventChannel(p[0],p[1]);}
+    else if(t.hasAttribute('data-evroute'))openRouteModal(t.getAttribute('data-evroute'));
     else if(t.hasAttribute('data-chedit'))openEditChannel(t.getAttribute('data-chedit'));
   });
   $('#view-notif').addEventListener('change',function(e){
