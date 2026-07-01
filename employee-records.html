@@ -127,6 +127,8 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .toreq{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--light-grey)}
 .toreq:last-child{border-bottom:none}
 .topill{flex:none;font-family:'Nunito';font-weight:800;font-size:.62rem;border-radius:999px;padding:3px 10px}
+.tohrs{flex:none;text-align:right;font-family:'Nunito';font-weight:900;font-size:.86rem;color:var(--dark);font-variant-numeric:tabular-nums;line-height:1.1}
+.tohrs .sub{display:block;font-family:'Nunito Sans';font-weight:700;font-size:.64rem;color:var(--grey);text-transform:uppercase;letter-spacing:.3px}
 .center-msg{height:100%;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:700;font-size:.88rem;padding:40px;text-align:center}
 
 /* detail cards */
@@ -567,10 +569,15 @@ function ptoHtml(e){
   if(!reqs.length)html+='<div class="empty-sm" style="text-align:left;padding:6px 2px">No requests submitted.</div>';
   else{ html+='<div class="toreqs">';
     reqs.forEach(r=>{const range=r.start===r.end?fmt(r.start):(fmt(r.start)+' – '+fmt(r.end));
-      html+='<div class="toreq"><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.86rem">'+esc(range)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(r.type)+(r.note?(' · '+esc(r.note)):'')+'</div></div><span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span></div>';});
-    html+='</div>'; }
+      const days=reqDays(r), hrs=days*8;
+      html+='<div class="toreq"><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.86rem">'+esc(range)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(r.type)+(r.note?(' · '+esc(r.note)):'')+'</div></div>'
+        +'<span class="tohrs">'+hrs+' hrs<span class="sub">'+days+(days===1?' day':' days')+'</span></span>'
+        +'<span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span></div>';});
+    html+='</div><div class="empty-sm" style="text-align:left;padding:9px 2px 0;font-size:.72rem">Hours estimated at 8 per day.</div>'; }
   return html+'</div>';
 }
+/* inclusive calendar-day span of a request (start & end are YYYY-MM-DD) */
+function reqDays(r){const s=new Date(r.start+'T00:00:00'),e=new Date(r.end+'T00:00:00');if(isNaN(s)||isNaN(e))return 1;const d=Math.round((e-s)/86400000)+1;return d<1?1:d;}
 
 function logHtml(e){
   let ents=e.entries.slice();
