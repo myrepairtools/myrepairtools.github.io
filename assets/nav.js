@@ -673,7 +673,7 @@
     }
     function showFlyout(area, btn){
       if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
-      if (['ops','hub','admin','order','pricing'].indexOf(area) < 0) return;
+      if (['ops','hub','admin','order','pricing','employees','reports'].indexOf(area) < 0) return;
       clearTimeout(flyHideT);
       flyout.innerHTML = flyoutLinksHtml(area);
       flyout.classList.add('show');

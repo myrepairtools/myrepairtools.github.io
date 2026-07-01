@@ -117,6 +117,35 @@ table.bt td.cell.clk{cursor:pointer}
 .toggle.on{background:var(--blue)}.toggle.on::after{left:19px}
 .toggle.grn.on{background:var(--green)}
 @media(max-width:640px){.shmd{grid-template-columns:1fr}}
+/* holidays table */
+.htbl-wrap{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden}
+.htbl{width:100%;border-collapse:collapse}
+.htbl thead th{background:var(--dark);color:rgba(255,255,255,.9);font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;letter-spacing:.6px;text-transform:uppercase;padding:12px 16px;text-align:left;white-space:nowrap}
+.htbl thead th.stcol{text-align:center;border-left:1px solid rgba(255,255,255,.08)}
+.htbl thead th.actcol{width:1%}
+.htbl tbody td{padding:12px 16px;border-bottom:1px solid #F1F2F5;vertical-align:middle}
+.htbl tbody td.stcol{text-align:center;border-left:1px solid #F4F5F7}
+.htbl tbody tr:last-child td{border-bottom:none}
+.htbl tbody tr.hrow:hover td{background:#FBFBFD}
+.htbl tbody tr.hrow.need td{background:#FFFCF6}
+.htbl tbody tr.hrow.need:hover td{background:#FFF9EE}
+.htbl .sectrow td{background:#F7F8FB;padding:6px 16px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;letter-spacing:.6px;text-transform:uppercase;color:#9aa0b0;border-bottom:1px solid #F1F2F5}
+.hnm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark);line-height:1.15}
+.hdt{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.72rem;color:var(--grey);margin-top:2px}
+.htags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.htag{display:inline-flex;align-items:center;gap:3px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;padding:2px 8px;border-radius:999px}
+.hstat{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;padding:3px 11px;border-radius:999px}
+.hstat.reg{color:#a4a9b5;background:#F4F5F7}
+.hstat.closed{color:var(--red);background:#FBE9EA}
+.hstat.cust{color:#1E6FA8;background:#E7F2FA}
+.hact{display:inline-flex;align-items:center;gap:7px;justify-content:flex-end;white-space:nowrap}
+.hbtn{border-radius:8px;padding:7px 13px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;cursor:pointer}
+.hbtn.conf{border:none;background:var(--green);color:#fff}
+.hbtn.conf:hover{background:#278a4e}
+.hbtn.edit{border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)}
+.hbtn.edit:hover{border-color:var(--blue);color:var(--blue)}
+.hdel{border:none;background:none;color:#cfd2dd;font-size:1rem;cursor:pointer;padding:3px 5px;border-radius:6px;line-height:1}
+.hdel:hover{color:var(--red);background:#FBE9EA}
 </style>
 </head>
 <body>
@@ -511,38 +540,38 @@ function shiftWindow(a,store,wd){var sh=shiftById(a.id)||labelToShift(a.label);
   var pm=parseLabel(a.label);return pm?[pm[0],pm[1]]:null;}
 function holCell(hid,store){
   var m=HOLH[hid]&&HOLH[hid][store];
-  if(!m)return '<span style="color:#cfd2dd;font-family:Nunito Sans;font-weight:700;font-size:.8rem">Regular</span>';
-  if(m.closed)return '<span class="tag" style="color:var(--red);background:'+hexA('#DC282E',0.1)+';font-size:.6rem;padding:2px 8px">CLOSED</span>';
-  if(m.open_min!=null&&m.close_min!=null)return '<span style="font-family:Nunito Sans;font-weight:700;font-size:.82rem;color:var(--dark)">'+esc(rangeMin(m.open_min,m.close_min))+'</span>';
-  return '<span style="color:#cfd2dd">—</span>';
+  if(!m)return '<span class="hstat reg">Open</span>';
+  if(m.closed)return '<span class="hstat closed">Closed</span>';
+  if(m.open_min!=null&&m.close_min!=null)return '<span class="hstat cust">🕘 '+esc(rangeMin(m.open_min,m.close_min))+'</span>';
+  return '<span class="hstat reg">Open</span>';
 }
 function renderHolidays(){
   var stores=visibleStores();
   var today=iso(new Date());
   var upcoming=HOLIDAYS.filter(function(h){return h.holiday_date>=today;}).sort(function(a,b){return a.holiday_date<b.holiday_date?-1:1;});
   var past=HOLIDAYS.filter(function(h){return h.holiday_date<today;}).sort(function(a,b){return a.holiday_date>b.holiday_date?-1:1;});
-  var head='<th class="first">Holiday</th>'+stores.map(function(s){return '<th style="text-align:center"><span style="display:inline-flex;align-items:center;gap:5px;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(s.store))+'"></span>'+esc(shortStore(s.store))+'</span></th>';}).join('')+'<th style="text-align:right" class="first">&nbsp;</th>';
+  var head='<th>Holiday</th>'+stores.map(function(s){return '<th class="stcol"><span style="display:inline-flex;align-items:center;gap:6px;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(s.store))+'"></span>'+esc(shortStore(s.store))+'</span></th>';}).join('')+'<th class="actcol"></th>';
   var needCount=upcoming.filter(function(h){return holObserved(h)&&!h.hours_confirmed;}).length;
   function rowHtml(h){
     var obs=holObserved(h), confirmed=h.hours_confirmed, isUp=h.holiday_date>=today, need=obs&&!confirmed&&isUp;
-    var tags='';
-    if(h.is_federal)tags+='<span class="tag" style="color:#4b4b6b;background:#EAEAF2;font-size:.5rem;margin-right:5px">🏛 BANK HOLIDAY</span>';
-    if(!obs)tags+='<span class="tag" style="color:#9aa0b0;background:#F3F2F2;font-size:.5rem">PAYROLL ONLY</span>';
-    else if(confirmed)tags+='<span class="tag" style="color:var(--green);background:#E6F4EC;font-size:.5rem">✓ HOURS SET</span>';
-    else if(isUp)tags+='<span class="tag" style="color:#B45309;background:#FCF1DD;font-size:.5rem">NEEDS HOURS</span>';
-    var cells=stores.map(function(s){return '<td style="text-align:center">'+(obs?holCell(h.id,s.store):'<span style="color:#cfd2dd;font-family:Nunito Sans;font-weight:700;font-size:.8rem">Regular</span>')+'</td>';}).join('');
-    var conf=need?'<button data-hconf="'+h.id+'" title="Accept these hours" style="border:none;background:var(--green);color:#fff;border-radius:8px;padding:6px 11px;font-family:Nunito;font-weight:800;font-size:.72rem;cursor:pointer">Confirm</button> ':'';
-    return '<tr'+(need?' style="background:#FFFCF7"':'')+'><td class="first"><div style="font-family:Nunito;font-weight:800;font-size:.9rem;color:var(--dark)">'+esc(h.name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);margin-bottom:4px">'+esc(holDateLabel(h.holiday_date))+'</div>'+tags+'</td>'+cells
-      +'<td style="text-align:right;white-space:nowrap" class="first">'+conf+'<button data-hedit="'+h.id+'" style="border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:8px;padding:6px 11px;font-family:Nunito;font-weight:800;font-size:.72rem;cursor:pointer">Edit</button> <button data-hdel="'+h.id+'" title="Delete" style="border:none;background:none;color:#cfd2dd;font-size:.95rem;cursor:pointer;padding:0 4px">✕</button></td></tr>';
+    var tags=[];
+    if(h.is_federal)tags.push('<span class="htag" style="color:#4b4b6b;background:#EAEAF2">🏛 Bank holiday</span>');
+    if(!obs)tags.push('<span class="htag" style="color:#9aa0b0;background:#F3F2F2">Payroll only</span>');
+    else if(confirmed)tags.push('<span class="htag" style="color:var(--green);background:#E6F4EC">✓ Hours set</span>');
+    else if(isUp)tags.push('<span class="htag" style="color:#B45309;background:#FCF1DD">Needs hours</span>');
+    var cells=stores.map(function(s){return '<td class="stcol">'+(obs?holCell(h.id,s.store):'<span class="hstat reg">Open</span>')+'</td>';}).join('');
+    var conf=need?'<button class="hbtn conf" data-hconf="'+h.id+'" title="Accept these hours">Confirm</button>':'';
+    return '<tr class="hrow'+(need?' need':'')+'"><td><div class="hnm">'+esc(h.name)+'</div><div class="hdt">'+esc(holDateLabel(h.holiday_date))+'</div>'+(tags.length?'<div class="htags">'+tags.join('')+'</div>':'')+'</td>'+cells
+      +'<td class="actcol"><div class="hact">'+conf+'<button class="hbtn edit" data-hedit="'+h.id+'">Edit</button><button class="hdel" data-hdel="'+h.id+'" title="Delete holiday">✕</button></div></td></tr>';
   }
-  var html='<div style="max-width:'+(360+stores.length*130)+'px"><div class="toolbar"><span style="font-family:Nunito;font-weight:900;font-size:1.05rem">Store holidays</span>'+(needCount?'<span style="font-family:Nunito;font-weight:800;font-size:.62rem;color:#fff;background:#C9820B;border-radius:999px;padding:2px 9px">'+needCount+' need hours</span>':'')+'<span style="flex:1"></span><button class="btn" id="haddBtn" style="background:var(--red);color:#fff;border-color:var(--red)">+ Add holiday</button></div>'
+  var html='<div style="max-width:'+(400+stores.length*150)+'px"><div class="toolbar"><span style="font-family:Nunito;font-weight:900;font-size:1.05rem">Store holidays</span>'+(needCount?'<span style="font-family:Nunito;font-weight:800;font-size:.62rem;color:#fff;background:#C9820B;border-radius:999px;padding:2px 9px">'+needCount+' need hours</span>':'')+'<span style="flex:1"></span><button class="btn" id="haddBtn" style="background:var(--red);color:#fff;border-color:var(--red)">+ Add holiday</button></div>'
     +(needCount?'<div style="background:'+hexA('#C9820B',0.08)+';border:1px solid '+hexA('#C9820B',0.3)+';border-radius:11px;padding:11px 15px;margin-bottom:14px;font-family:Nunito Sans;font-weight:700;font-size:.82rem;color:#8a6412">🎉 <b>'+needCount+' upcoming holiday'+(needCount>1?'s':'')+' need hours confirmed.</b> They’re pre-filled from last year where possible &mdash; review each store, then hit <b>Confirm</b>.</div>':'');
   if(!HOLIDAYS.length){
-    html+='<div class="totbl" style="padding:40px;text-align:center"><div style="font-size:26px;margin-bottom:8px">🎉</div><div style="font-family:Nunito;font-weight:800;font-size:.92rem;color:var(--dark-grey)">No holidays yet</div><div style="font-family:Nunito Sans;font-size:.8rem;color:var(--grey);margin-top:3px">Add a holiday to set closed days or reduced hours per store. Techs see upcoming holidays on My Time.</div></div>';
+    html+='<div class="htbl-wrap" style="padding:40px;text-align:center"><div style="font-size:26px;margin-bottom:8px">🎉</div><div style="font-family:Nunito;font-weight:800;font-size:.92rem;color:var(--dark-grey)">No holidays yet</div><div style="font-family:Nunito Sans;font-size:.8rem;color:var(--grey);margin-top:3px">Add a holiday to set closed days or reduced hours per store. Techs see upcoming holidays on My Time.</div></div>';
   }else{
-    html+='<div class="totbl"><table><thead><tr>'+head+'</tr></thead><tbody>';
-    if(upcoming.length)html+='<tr><td colspan="'+(stores.length+2)+'" style="background:#FAFAFB;padding:6px 16px;font-family:Nunito;font-weight:800;font-size:.58rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey)">Upcoming</td></tr>'+upcoming.map(rowHtml).join('');
-    if(past.length)html+='<tr><td colspan="'+(stores.length+2)+'" style="background:#FAFAFB;padding:6px 16px;font-family:Nunito;font-weight:800;font-size:.58rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey)">Past</td></tr>'+past.map(rowHtml).join('');
+    html+='<div class="htbl-wrap"><table class="htbl"><thead><tr>'+head+'</tr></thead><tbody>';
+    if(upcoming.length)html+='<tr class="sectrow"><td colspan="'+(stores.length+2)+'">Upcoming</td></tr>'+upcoming.map(rowHtml).join('');
+    if(past.length)html+='<tr class="sectrow"><td colspan="'+(stores.length+2)+'">Past</td></tr>'+past.map(rowHtml).join('');
     html+='</tbody></table></div>';
   }
   html+='<div class="note">Federal &amp; retail holidays <b>auto-fill every year</b> and pre-fill hours from last year — you just review &amp; <b>Confirm</b>. Set each store to <b>Regular</b>, <b>Closed</b>, or <b>custom hours</b>; closed &amp; reduced-hour days automatically trim scheduled shifts, and techs see the next holiday on their <b>My Time</b> dashboard. Bank-holiday tags flag days that may affect <b>payroll timing</b>.</div></div>';
