@@ -37,15 +37,19 @@
     var a=t(m[0]),b=t(m[1]); return (a==null||b==null)?null:[a,b]; }
   // scheduled minutes for one staff (sched = their staff_schedule row) on weekday wd
   function schedMinutes(sched, wd){
+    var w=schedWindow(sched, wd); return w?Math.max(0, w.end-w.start):0;
+  }
+  // resolved [start,end] window (+ store) for a staff's scheduled shift on weekday wd; null if off/none
+  function schedWindow(sched, wd){
     var sh=(sched&&sched.shifts)||{}, v=sh[String(wd)];
-    if (v==null) return 0;
+    if (v==null) return null;
     if (typeof v==='string') v={ label:v };
-    if (v==='off' || v.label==='Off') return 0;
+    if (v==='off' || v.label==='Off') return null;
     var sid=v.shift_id, store=v.store||(sched&&sched.store);
     if (sid==null && v.label){ var m=labelToShift(v.label); if(m) sid=m.id; }
-    if (sid!=null){ var rd=resolve(sid, store, wd); if(rd&&rd.start!=null) return Math.max(0, rd.end-rd.start); }
-    var pm=parseLabel(v.label); if(pm) return Math.max(0, pm[1]-pm[0]);
-    return 0;
+    if (sid!=null){ var rd=resolve(sid, store, wd); if(rd&&rd.start!=null) return { start:rd.start, end:rd.end, store:store }; }
+    var pm=parseLabel(v.label); if(pm) return { start:pm[0], end:pm[1], store:store };
+    return null;
   }
 
   var sbP=null;
@@ -76,15 +80,25 @@
           client.from('staff_schedule').select('staff_id,store,shifts'),
           client.from('qbtime_timesheets').select('staff_id,biz_date,seconds').gte('biz_date',wkStart).lte('biz_date',wkEnd),
           client.from('time_off_requests').select('staff_id,start_date,end_date,status').eq('status','approved').lte('start_date',wkEnd).gte('end_date',wkStart),
-          client.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id').gte('ovr_date',wkStart).lte('ovr_date',wkEnd)
+          client.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id').gte('ovr_date',wkStart).lte('ovr_date',wkEnd),
+          client.from('holidays').select('id,holiday_date').gte('holiday_date',wkStart).lte('holiday_date',wkEnd),
+          client.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min')
         ]).then(function(res){
-          var staff=res[0].data||[], sh=res[1].data||[], hr=res[2].data||[], sc=res[3].data||[], ts=res[4].data||[], off=res[5].data||[], ovr=res[6].data||[];
+          var staff=res[0].data||[], sh=res[1].data||[], hr=res[2].data||[], sc=res[3].data||[], ts=res[4].data||[], off=res[5].data||[], ovr=res[6].data||[], hols=(res[7]&&res[7].data)||[], holh=(res[8]&&res[8].data)||[];
           var ovrBy={}; ovr.forEach(function(o){ ovrBy[o.staff_id+'|'+String(o.ovr_date).slice(0,10)]=o; });
-          // effective scheduled minutes for a staff on a weekday/date: override wins over template
+          // holiday effect: date -> holiday_id, then holiday_id|store -> {closed,open_min,close_min}
+          var holByDate={}; hols.forEach(function(h){ holByDate[String(h.holiday_date).slice(0,10)]=h.id; });
+          var holhBy={}; holh.forEach(function(r){ holhBy[r.holiday_id+'|'+r.store]=r; });
+          function holEffect(store, dISO){ var hid=holByDate[dISO]; if(hid==null) return null; return holhBy[hid+'|'+store]||null; }
+          // clamp a resolved window to a holiday (closed -> 0), else full duration
+          function clampHol(win, store, dISO){ if(!win) return 0; var hh=holEffect(store, dISO);
+            if(hh){ if(hh.closed) return 0; return Math.max(0, Math.min(win.end, hh.close_min)-Math.max(win.start, hh.open_min)); }
+            return Math.max(0, win.end-win.start); }
+          // effective scheduled minutes for a staff on a weekday/date: override wins over template, holiday clamps
           function effMin(sid, wd, dISO, sched){
             var o=ovrBy[sid+'|'+dISO];
-            if(o){ if(o.is_off) return 0; var rd=resolve(o.shift_id, o.store, wd); return (rd&&rd.start!=null)?Math.max(0,rd.end-rd.start):0; }
-            return sched?schedMinutes(sched,wd):0;
+            if(o){ if(o.is_off) return 0; var rd=resolve(o.shift_id, o.store, wd); return (rd&&rd.start!=null)?clampHol({start:rd.start,end:rd.end}, o.store, dISO):0; }
+            return sched?clampHol(schedWindow(sched,wd), (schedWindow(sched,wd)||{}).store, dISO):0;
           }
           // approved time off (paid OR unpaid — both blank the shift) per staff, as date ranges
           var offBy={}; off.forEach(function(o){ (offBy[o.staff_id]||(offBy[o.staff_id]=[])).push([o.start_date,o.end_date]); });

@@ -504,6 +504,28 @@ function renderWeb(){
   if($('#openPlanner'))$('#openPlanner').onclick=openPlanner;
   loadWorkedHours(WK);
   loadPtoBalance();
+  loadUpcomingHoliday();
+}
+/* Next store holiday (name, date, this store's hours) surfaced in the sidebar. */
+function loadUpcomingHoliday(){
+  var card=document.getElementById('holCard'); if(!card||!ME)return;
+  var today=iso(new Date());
+  sb.from('holidays').select('id,name,holiday_date').gte('holiday_date',today).order('holiday_date').limit(1).then(function(r){
+    var h=((r&&r.data)||[])[0], c2=document.getElementById('holCard'); if(!c2)return;
+    if(!h){c2.style.display='none';return;}
+    sb.from('holiday_hours').select('store,closed,open_min,close_min').eq('holiday_id',h.id).then(function(r2){
+      var body=document.getElementById('holBody'); if(!body)return;
+      var rows=(r2&&r2.data)||[], store=SELSTORE||ME.home_store, mine=rows.filter(function(x){return x.store===store;})[0];
+      var status=!mine?{t:'Regular hours',col:'#2E9E5B'}:(mine.closed?{t:'Closed',col:'#DC282E'}:(mine.open_min!=null?{t:rangeMin(mine.open_min,mine.close_min),col:'#C9820B'}:{t:'Regular hours',col:'#2E9E5B'}));
+      var p=String(h.holiday_date).split('-').map(Number), hd=new Date(p[0],p[1]-1,p[2]);
+      var days=Math.round((hd-new Date(today+'T00:00:00'))/86400000);
+      var away=days<=0?'Today':(days===1?'Tomorrow':'in '+days+' days');
+      body.innerHTML='<div style="font-family:Nunito;font-weight:800;font-size:.9rem;color:var(--dark)">'+esc(h.name)+'</div>'
+        +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.7rem;color:var(--grey);margin:2px 0 8px">'+DAYL[hd.getDay()]+', '+MON[p[1]-1]+' '+p[2]+' · '+away+'</div>'
+        +'<div style="display:flex;align-items:center;gap:7px"><span style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(shortStore(store))+'</span><span style="font-family:Nunito;font-weight:800;font-size:.74rem;color:'+status.col+';background:'+hexA(status.col,0.12)+';padding:2px 9px;border-radius:999px">'+esc(status.t)+'</span></div>';
+      c2.style.display='';
+    },function(){});
+  },function(){});
 }
 /* Actual hours worked (QB Time) for the displayed week (Sun–Sat), patched into the strip header. */
 var WORKED_TOK=0;
@@ -554,6 +576,7 @@ function timeoffPanelHtml(web){
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
   var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};return '<div style="display:flex;align-items:center;gap:9px"><span class="me-av" style="width:26px;height:26px;font-size:.6rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.76rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No upcoming team time off.</div>';
   return actions+form
+    +'<div class="card" id="holCard" style="display:none;padding:13px 15px;border-top:3px solid #C9820B"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">🎉 Upcoming holiday</div><div id="holBody"></div></div>'
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">PTO balance</div><div id="ptoBal" style="display:flex;flex-wrap:wrap;gap:8px"><span class="empty">Loading…</span></div></div>'
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">My requests</div><div style="display:flex;flex-direction:column;gap:8px">'+mineHtml+'</div></div>'
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem">Team time off</div><div style="font-family:Nunito Sans;font-weight:600;font-size:.68rem;color:var(--grey);margin-bottom:9px">All locations</div><div style="display:flex;flex-direction:column;gap:9px">'+teamHtml+'</div></div>';
