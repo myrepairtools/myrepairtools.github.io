@@ -144,6 +144,35 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
   .pl-cell span:first-child{font-size:.92rem !important}
   .pl-ini{width:21px;height:21px;font-size:.56rem}
 }
+/* month calendar (My schedule + Team off layers) */
+.mtoolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.mlayer{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
+.mlayer button{padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;background:transparent;color:var(--grey)}
+.mlayer button.on{background:var(--dark);color:#fff}
+.mcal{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.mcal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:#fafafa;border-bottom:1px solid var(--border)}
+.mcal-dow div{padding:7px 4px;text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)}
+.mcal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.mcell{min-height:58px;padding:4px 4px 5px;border-top:1px solid #F0F1F4;border-left:1px solid #F0F1F4;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.mcell:nth-child(7n+1){border-left:none}
+.mcell.out{background:#FBFBFC}
+.mcell.today{background:#FFF7F7}
+.mtop{display:flex;align-items:center;gap:4px}
+.mcell .mn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;color:var(--dark-grey)}
+.mcell.today .mn{color:var(--red)}
+.mcell .mhol{font-family:'Nunito',sans-serif;font-weight:800;font-size:.5rem;color:#C9820B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mchip{border-radius:4px;padding:2px 4px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mchip .mt{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.52rem;color:#6b7180;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.moff{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;color:#cfd2dd}
+.mteam{display:flex;flex-wrap:wrap;gap:2px}
+.mini{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.46rem;flex:none}
+.web .mcell{min-height:104px;padding:7px 8px 8px;gap:3px}
+.web .mcell .mn{font-size:.8rem}
+.web .mcell .mhol{font-size:.58rem}
+.web .mchip{font-size:.66rem;padding:3px 6px}
+.web .mchip .mt{font-size:.6rem}
+.web .mini{width:20px;height:20px;font-size:.54rem}
+.web .moff{font-size:.66rem}
 </style>
 </head>
 <body>
@@ -242,7 +271,11 @@ async function initAuth(){
 /* ===== data ===== */
 var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], HOLBYDATE={}, HOLNAME={}, HOLHMAP={}, OVR={};
 var HOL_AMBER='#C9820B';
-var TAB='me', SELSTORE=null, WK=null;
+function lsGet(k,d){try{var v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+var TAB=lsGet('cprMyTimeTab','me'), SELSTORE=null, WK=null;
+var MMON=null, MLAYER=lsGet('cprMyTimeLayer','mine');   // month view: displayed month + active layer
+function setTab(t){TAB=t;lsSet('cprMyTimeTab',t);}
 /* Effective day for a real date: a per-week schedule_override wins over the recurring template
    (mirrors Schedule Admin › This Week). */
 function effDayRec(staffId,wd,di){
@@ -361,9 +394,10 @@ function renderHeader(){
   $('#locWrap').innerHTML = ms.length>1 ? '<span class="locpills">'+ms.map(function(s){return '<button data-loc="'+esc(s)+'"'+(s===SELSTORE?' class="on" style="color:'+esc(storeColor(s))+'"':'')+'>'+esc(shortStore(s).slice(0,3).toUpperCase())+'</button>';}).join('')+'</span>' : '';
   $('#locWrap').querySelectorAll('[data-loc]').forEach(function(b){b.onclick=function(){SELSTORE=b.getAttribute('data-loc');renderHeader();render();};});
   var myPending=REQS.filter(function(r){return r.staff_id===ME.id&&r.status==='pending';}).length;
-  var defs=[{k:'me',l:'My week'},{k:'store',l:'Store'},{k:'timeoff',l:'Time off'}];
+  var defs=[{k:'me',l:'Week'},{k:'month',l:'Month'},{k:'store',l:'Store'},{k:'timeoff',l:'Time off'}];
+  if(!defs.some(function(t){return t.k===TAB;}))setTab('me');
   $('#tabs').innerHTML=defs.map(function(t){return '<button data-tab="'+t.k+'"'+(t.k===TAB?' class="on"':'')+'>'+t.l+(t.k==='timeoff'&&myPending?' <span class="badge">'+myPending+'</span>':'')+'</button>';}).join('');
-  $('#tabs').querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){TAB=b.getAttribute('data-tab');REQUESTING=false;renderHeader();render();};});
+  $('#tabs').querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){setTab(b.getAttribute('data-tab'));REQUESTING=false;renderHeader();render();};});
 }
 function renderWknav(){
   if(TAB==='timeoff'){$('#wknav').innerHTML='';return;}
@@ -377,7 +411,8 @@ function render(){
   var web=isWeb();
   document.body.classList.toggle('web',web);
   $('#tabs').classList.toggle('hide',web);
-  $('#wknav').classList.toggle('hide',web);
+  $('#wknav').classList.toggle('hide',web||TAB==='month');   // month view carries its own nav
+  if(TAB==='month'){ if(!MMON)MMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1); renderMonth(web); return; }
   if(web){renderWeb();return;}
   renderWknav();
   if(TAB==='me')renderMe();else if(TAB==='store')renderStore();else renderTimeoff();
@@ -422,6 +457,52 @@ function renderStore(){
   }).join('');
   $('#view').innerHTML=html;
 }
+/* ===== month view (personal schedule + team-off layers) ===== */
+function monthMineCell(di,wd){
+  var ap=approvedOn(ME.id,di);
+  if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="mchip" style="background:'+hexA(c,0.14)+';color:'+c+'">Time off<div class="mt" style="color:'+c+'">'+esc(ap.type)+'</div></div>';}
+  var r=effDayRec(ME.id,wd,di);
+  if(r.none||r.off)return '<div class="moff">Off</div>';
+  var v=holAdjust(shiftView(r,wd),r,wd,di);
+  var pend=pendingOn(ME.id,di);
+  return '<div class="mchip" style="background:'+hexA(v.color,0.13)+'"><span style="color:'+esc(v.color)+'">'+esc(v.name)+'</span><div class="mt">'+(v.time?esc(v.time)+' · ':'')+esc(shortStore(r.store))+'</div></div>'
+    +(pend?'<div class="mt" style="color:var(--amber);font-weight:800">Requested off</div>':'');
+}
+function monthTeamCell(di){
+  var off=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.start_date<=di&&r.end_date>=di;});
+  if(!off.length)return '';
+  var chips=off.slice(0,8).map(function(r){var e=staffById(r.staff_id)||{};var pend=r.status==='pending';
+    return '<span class="mini" title="'+esc((e.display_name||'?')+' · '+r.type+' · '+shortStore(e.home_store)+(pend?' (pending)':''))+'" style="background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+(pend?';opacity:.45':'')+'">'+esc(initials(e.display_name))+'</span>';}).join('');
+  return '<div class="mteam">'+chips+(off.length>8?'<span class="pl-more">+'+(off.length-8)+'</span>':'')+'</div>';
+}
+function renderMonth(web){
+  var Y=MMON.getFullYear(),M=MMON.getMonth();
+  var first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
+  var todayIso=iso(new Date());
+  var cells='';
+  for(var i=0;i<first;i++)cells+='<div class="mcell out"></div>';
+  for(var d=1;d<=dim;d++){
+    var dt=new Date(Y,M,d),di=iso(dt),wd=dt.getDay(),isT=di===todayIso;
+    var holName=HOLNAME[di];
+    var inner=MLAYER==='team'?monthTeamCell(di):monthMineCell(di,wd);
+    cells+='<div class="mcell'+(isT?' today':'')+'"><div class="mtop"><span class="mn">'+d+'</span>'+(holName?'<span class="mhol" title="'+esc(holName)+'">🎉 '+esc(holName)+'</span>':'')+'</div>'+inner+'</div>';
+  }
+  var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<div class="mcell out"></div>';
+  var nav='<div class="wknav" style="margin:0"><button data-mm="-1">‹</button><div class="lbl" style="min-width:132px">'+MONL[M]+' '+Y+'</div><button data-mm="1">›</button></div>';
+  var layer='<div class="mlayer"><button data-ml="mine" class="'+(MLAYER==='mine'?'on':'')+'">My schedule</button><button data-ml="team" class="'+(MLAYER==='team'?'on':'')+'">Team off</button></div>';
+  var dow='<div class="mcal-dow">'+DAYS.map(function(x){return '<div>'+x+'</div>';}).join('')+'</div>';
+  var hint=MLAYER==='team'?'Who’s off across all stores · 🎉 marks store holidays':'Your shifts this month · time off &amp; holidays included';
+  var head=web
+    ? '<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+hint+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn" id="mBack" style="padding:9px 13px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">‹ Week view</button>'+layer+nav+'</div></div>'
+    : '<div class="mtoolbar">'+layer+'<span style="flex:1"></span>'+nav+'</div>';
+  $('#view').innerHTML=head+'<div class="mcal">'+dow+'<div class="mcal-grid">'+cells+'</div></div>'
+    +(web?'':'<div class="empty" style="margin-top:10px;text-align:center">'+hint+'</div>');
+  $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){MMON=new Date(MMON.getFullYear(),MMON.getMonth()+Number(b.getAttribute('data-mm')),1);render();};});
+  $('#view').querySelectorAll('[data-ml]').forEach(function(b){b.onclick=function(){MLAYER=b.getAttribute('data-ml');lsSet('cprMyTimeLayer',MLAYER);render();};});
+  if($('#mBack'))$('#mBack').onclick=function(){setTab('me');render();};
+}
+
 /* ===== time off ===== */
 var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:'',ack:false,hours:null};
 function reqDays(s,e){return Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1);}
@@ -555,10 +636,11 @@ function renderWeb(){
   }).join('');
   /* sidebar */
   var side=timeoffPanelHtml(true);
-  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(SELSTORE))+'</div></div><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div class="lbl" style="width:140px">'+wlabel+'</div><button data-wk="1">›</button></div></div>'
+  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(SELSTORE))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div class="lbl" style="width:140px">'+wlabel+'</div><button data-wk="1">›</button></div></div></div>'
     +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span><span class="wk-worked" id="wkWorked"></span></div><div class="wkgrid">'+strip+'</div></div>'
     +'<div class="twocol"><div style="min-width:0;display:flex;flex-direction:column;gap:18px"><div class="wsect">Who\'s on with me</div>'+boards+'</div><aside class="side">'+side+'</aside></div>';
   $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+  if($('#toMonth'))$('#toMonth').onclick=function(){setTab('month');if(!MMON)MMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1);render();};
   wireTimeoffPanel();
   if($('#openPlanner'))$('#openPlanner').onclick=openPlanner;
   loadWorkedHours(WK);

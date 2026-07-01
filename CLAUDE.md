@@ -140,3 +140,12 @@ When changing a tool's data layer, check which generation it uses first — they
 - Endpoint URLs, API tokens, and the Supabase anon key are committed in the source on
   purpose (this is a deterrent-level internal tool on public hosting). `robots.txt`
   disallows all crawlers.
+- **Week/date navigation → use the calendar date-picker pattern.** For any page with a
+  week (or day) navigator, the label between the `‹ ›` arrows should be a clickable button
+  (`data-wkpick`) that opens a month-calendar popover: pick any week row, page months with
+  `‹ ›`, "Jump to this week". The canonical implementation is `openWeekPicker()` in
+  `schedule-admin.html` (selected week highlighted, today marked, whole-row hover, popover
+  positioned under the anchor). Reuse that shape rather than plain one-week-at-a-time arrows
+  — it lets users jump to a future week in another month. Prime candidates to retrofit:
+  the schedule pages (`schedule.html`, `my-schedule.html`, `time-off.html`,
+  `report-overtime.html`, `time-entries.html`).
