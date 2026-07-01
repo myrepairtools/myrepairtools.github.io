@@ -160,10 +160,11 @@ Deno.serve(async (req) => {
   const descText = String(body.text || (action === "test"
     ? "This is a test from the CPR Tools notifications panel. If you got this, the channel works."
     : "You have a new notification from the CPR Tools."));
-  // When a keyword is set, the keyword IS the signal — send it as the message so a Power Automate
-  // "when keywords are mentioned" trigger matches. No keyword → send the human-readable message.
-  const sendSubject = keyword || descSubject;
-  const sendText = keyword || descText;
+  // Keyword is prepended (subject + first body line) so a Power Automate "when keywords are
+  // mentioned" trigger matches, while the readable body/facts still ride along for humans and for
+  // a flow that parses the email to build a rich card. No keyword → just the human message.
+  const sendSubject = keyword ? (keyword + (descSubject && descSubject !== keyword ? " · " + descSubject : "")) : descSubject;
+  const sendText = keyword ? (keyword + "\n\n" + descText) : descText;
 
   const data = (body.data && typeof body.data === "object") ? body.data as Record<string, unknown> : {};
   if (!channels.length) return json({ ok: true, skipped: "no_channels", results: [] });

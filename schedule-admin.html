@@ -388,7 +388,11 @@ async function notifyStaff(){
     var r=await fetch(NOTIFY_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
       body:JSON.stringify({action:'send',event_key:'schedule.manual_broadcast',
         subject:'Schedule updated — please check My Time',
-        text:'Your work schedule was just updated. Open My Time in myrepairtools to see your latest shifts and any time-off changes.',
+        text:'The work schedule was just updated — open My Time to see your latest shifts and any time-off changes.'
+          +'\n\nUpdated by: '+((AUTH&&AUTH.name)||'A manager')
+          +'\nWhen: '+whenLabel
+          +'\nStores: '+scope
+          +'\nOpen: https://myrepairtools.github.io/my-schedule.html',
         data:{event:'schedule_change',changedBy:(AUTH&&AUTH.name)||'A manager',changedAt:new Date().toISOString(),whenLabel:whenLabel,scope:scope,link:'https://myrepairtools.github.io/my-schedule.html'}})});
     var d=await r.json().catch(function(){return {};});
     if(r.ok&&d.ok&&d.results&&d.results.length)toast('✓ Staff notified');
