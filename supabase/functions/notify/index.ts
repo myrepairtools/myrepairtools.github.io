@@ -42,7 +42,7 @@ async function callerStaff(req: Request): Promise<Record<string, unknown> | null
 type Channel = { id: number; name: string; type: string; target: string | null; webhook_format: string | null; enabled: boolean };
 
 // Build the webhook payload for a Teams incoming webhook / Power Automate HTTP trigger.
-function webhookBody(fmt: string | null, subject: string, text: string, keyword: string): string {
+function webhookBody(fmt: string | null, subject: string, text: string, keyword: string, data: Record<string, unknown>): string {
   if (fmt === "messagecard") {
     return JSON.stringify({
       "@type": "MessageCard", "@context": "http://schema.org/extensions",
@@ -68,8 +68,9 @@ function webhookBody(fmt: string | null, subject: string, text: string, keyword:
       }],
     });
   }
-  // default: plain JSON — friendliest for a Power Automate "When an HTTP request is received" trigger
-  return JSON.stringify({ keyword, subject, text, title: subject, message: text });
+  // default: plain JSON — friendliest for a Power Automate "When an HTTP request is received" trigger.
+  // Spreads any structured fields (data) at top level so a flow can bind triggerBody()?['field'].
+  return JSON.stringify({ keyword, subject, text, title: subject, message: text, ...data });
 }
 
 async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
@@ -90,12 +91,12 @@ async function sendEmail(to: string, subject: string, text: string): Promise<{ o
   return { ok: true };
 }
 
-async function deliver(ch: Channel, subject: string, text: string, keyword: string): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
+async function deliver(ch: Channel, subject: string, text: string, keyword: string, data: Record<string, unknown>): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
   const target = (ch.target || "").trim();
   if (!target) return { channel: ch.name, ok: false, via: ch.type, error: "no_target" };
   try {
     if (ch.type === "webhook") {
-      const r = await fetch(target, { method: "POST", headers: { "Content-Type": "application/json" }, body: webhookBody(ch.webhook_format, subject, text, keyword) });
+      const r = await fetch(target, { method: "POST", headers: { "Content-Type": "application/json" }, body: webhookBody(ch.webhook_format, subject, text, keyword, data) });
       if (!r.ok) return { channel: ch.name, ok: false, via: "webhook", error: `http_${r.status}` };
       return { channel: ch.name, ok: true, via: "webhook" };
     }
@@ -164,8 +165,9 @@ Deno.serve(async (req) => {
   const sendSubject = keyword || descSubject;
   const sendText = keyword || descText;
 
+  const data = (body.data && typeof body.data === "object") ? body.data as Record<string, unknown> : {};
   if (!channels.length) return json({ ok: true, skipped: "no_channels", results: [] });
-  const results = await Promise.all(channels.map((c) => deliver(c, sendSubject, sendText, keyword)));
+  const results = await Promise.all(channels.map((c) => deliver(c, sendSubject, sendText, keyword, data)));
   const okAll = results.every((r) => r.ok);
   return json({ ok: okAll, results, keyword: keyword || undefined });
 });
