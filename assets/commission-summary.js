@@ -101,9 +101,10 @@
               var home=me.home_store;
               var effRules=E.mergeRules(rules[home], rov&&rov.rules, ros&&ros.rules_override);
               var effRates=E.mergeRates(rates, storeRates[home], rov&&rov.rates, ros&&ros.rates_override);
-              // this month's meeting-set goal (commission_goals) wins over the roster default
+              // this month's meeting-set goal (commission_goals) wins over the roster default;
+              // a row may carry only other targets (accy_goal null) — fall through in that case
               var mgRow=(mg&&mg.data&&mg.data[0])||null;
-              var goal=mgRow?(Number(mgRow.accy_goal)||0):(ros?Number(ros.accy_goal)||0:0);
+              var goal=(mgRow&&mgRow.accy_goal!=null)?(Number(mgRow.accy_goal)||0):(ros?Number(ros.accy_goal)||0:0);
 
               var totals=blankTotals(); (sales.data||[]).forEach(function(r){ addInto(totals,r); });
               var c=E.computeCommission(totals,{ accessoryGoal:goal, accDeviceUnits:totals.DeviceAttach, rates:effRates, earns:earns, rules:effRules });

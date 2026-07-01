@@ -222,9 +222,10 @@ async function loadConfig(){
     sb.from('commission_role_overrides').select('*'),
     sb.from('stores').select('store,display_order'),
     sb.from('staff_schedule').select('staff_id,work_days'),
-    sb.from('commission_goals').select('staff_id,accy_goal').eq('month',curMonthISO)
+    sb.from('commission_goals').select('*').eq('month',curMonthISO)
   ]);
-  STATE.monthGoals={};((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
+  STATE.monthGoals={};STATE.monthGoalRows={};
+  ((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoalRows[g.staff_id]=g;if(g.accy_goal!=null)STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
   STATE.storeOrder={};(so&&so.data||[]).forEach(s=>{STATE.storeOrder[s.store]=s.display_order==null?9990:s.display_order;});
   STATE.schedule={};(sch&&sch.data||[]).forEach(r=>{STATE.schedule[r.staff_id]=Array.isArray(r.work_days)?r.work_days:[];});
   STATE.rates={};STATE.rateLabels={};
@@ -311,7 +312,9 @@ async function loadTarget(){
   const months=[];for(let i=0;i<12;i++){const d=new Date(h0.getFullYear(),h0.getMonth()+i,1);const k=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
     const tt=byMon[k]||blankTotals();const cc=E.computeCommission(tt,{accessoryGoal:cfg.goal,accDeviceUnits:tt.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
     months.push({key:k,label:d.toLocaleString('en-US',{month:'short'}),total:cc.total});}
-  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months,wd:workDayInfo(t.id)};
+  const pd=new Date();pd.setDate(1);pd.setMonth(pd.getMonth()-1);
+  const prevKey=pd.getFullYear()+'-'+('0'+(pd.getMonth()+1)).slice(-2);
+  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months,wd:workDayInfo(t.id),prevTotals:byMon[prevKey]||blankTotals()};
   $('#status').textContent='';
   renderHeader();render();
 }
@@ -549,13 +552,137 @@ function renderGoals(){
   if(earns.services){const svcGoal=20,svcRate=(function(){for(const k in cfg.rates){const r=cfg.rates[k];return (r&&typeof r==='object')?(r.lo||r.hi||0):(Number(r)||0);}return 10;})();
     goals+=goalRow('Services',c.svcUnits,svcGoal,c.svcUnits+' / Goal '+svcGoal,(c.svcUnits>=svcGoal?'Service goal hit.':Math.max(0,svcGoal-c.svcUnits)+' more services ≈ +'+money0(Math.max(0,svcGoal-c.svcUnits)*svcRate)),'var(--purple)');}
   if(goals)body+='<div class="card acc-green"><div class="card-hd"><span class="card-t">Your goals this month</span></div><div class="card-bd" style="display:flex;flex-direction:column;gap:16px">'+goals+'</div></div>';
-  // monthly goal review (visual; the lock-in workflow is a future feature)
-  const nm=new Date(mi.start);nm.setMonth(nm.getMonth()+1);const nextMonth=nm.toLocaleString('en-US',{month:'long',year:'numeric'});
-  body+='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Monthly goal review · '+esc(nextMonth)+'</span></div><div class="card-bd"><div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
-    +'<div style="flex:1;min-width:240px;font-size:.86rem;color:var(--dark-grey);line-height:1.5">Your monthly check-in: review how '+esc(mi.label)+' went and lock in '+esc(nextMonth)+'’s targets. We’ll pre-fill a stretch from your trend.</div>'
-    +'<button class="btn" id="reviewGoals">Review &amp; set goals</button></div></div></div>';
+  // meeting targets: what was agreed in the monthly 1:1 (commission_goals row), with live progress
+  const mrow=STATE.monthGoalRows&&STATE.monthGoalRows[STATE.target.id];
+  if(mrow){
+    const netDev=(t.DeviceUnits||0)-(t.DeviceReturns||0);
+    const cat=k=>(t.categories&&t.categories[k])||0;
+    let mg2='';
+    if(mrow.device_goal!=null)mg2+=goalRow('Devices target',netDev,Number(mrow.device_goal),netDev+' / '+Number(mrow.device_goal)+' units',(netDev>=Number(mrow.device_goal)?'Device target hit.':(Number(mrow.device_goal)-netDev)+' more to your target.'),'var(--dark)');
+    if(mrow.device_attach_goal!=null){const cur=netDev>0?Math.round((t.DeviceAttach||0)/netDev*100):0;const tgt=Number(mrow.device_attach_goal);
+      mg2+=goalRow('Accessories per device',cur,tgt,cur+'% / '+tgt+'%',(cur>=tgt?'Attach target hit.':'Add accessories on device sales to reach '+tgt+'%.'),'var(--red)');}
+    if(mrow.case_goal!=null)mg2+=goalRow('Cases',cat('Case'),Number(mrow.case_goal),cat('Case')+' / '+Number(mrow.case_goal),(cat('Case')>=Number(mrow.case_goal)?'Case target hit.':(Number(mrow.case_goal)-cat('Case'))+' more cases.'),'var(--blue)');
+    if(mrow.sp_goal!=null)mg2+=goalRow('Screen protectors',cat('Screen Protector'),Number(mrow.sp_goal),cat('Screen Protector')+' / '+Number(mrow.sp_goal),(cat('Screen Protector')>=Number(mrow.sp_goal)?'Target hit.':(Number(mrow.sp_goal)-cat('Screen Protector'))+' more to go.'),'var(--green)');
+    if(mrow.power_goal!=null)mg2+=goalRow('Power',cat('Power'),Number(mrow.power_goal),cat('Power')+' / '+Number(mrow.power_goal),(cat('Power')>=Number(mrow.power_goal)?'Target hit.':(Number(mrow.power_goal)-cat('Power'))+' more to go.'),'var(--amber)');
+    const sgs=mrow.service_goals||{};
+    for(const sku in sgs){const tgt=Number(sgs[sku])||0;if(!tgt)continue;const cur=(t.services&&t.services[sku])||0;
+      mg2+=goalRow(esc(STATE.rateLabels[sku]||sku),cur,tgt,cur+' / '+tgt,(cur>=tgt?'Target hit.':(tgt-cur)+' more.'),'var(--purple)');}
+    if(mg2||mrow.note)body+='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Meeting targets · '+esc(mi.label)+'</span></div><div class="card-bd" style="display:flex;flex-direction:column;gap:16px">'
+      +(mrow.note?'<div style="background:var(--light-grey);border-radius:9px;padding:10px 13px;font-size:.84rem;color:var(--dark-grey)"><b style="font-family:Nunito">From your check-in:</b> '+esc(mrow.note)+'</div>':'')
+      +mg2+'</div></div>';
+  }
+  // monthly goal review — managers set targets right here during the 1:1
+  const nm=new Date();nm.setDate(1);nm.setMonth(nm.getMonth()+1);const nextMonth=nm.toLocaleString('en-US',{month:'long',year:'numeric'});
+  const isMgrViewer=STATE.me&&MGR(STATE.me.role);
+  body+='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Monthly goal review</span></div><div class="card-bd"><div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:240px;font-size:.86rem;color:var(--dark-grey);line-height:1.5">'
+    +(isMgrViewer?('Set '+esc(STATE.target.display_name.split(' ')[0])+'’s targets for '+esc(mi.label)+' or lock in '+esc(nextMonth)+' — accessory $, devices, attach %, categories and services.')
+      :('Your monthly check-in: review how '+esc(mi.label)+' is going and set '+esc(nextMonth)+'’s targets together with your manager.'))+'</div>'
+    +'<button class="btn" id="reviewGoals">'+(isMgrViewer?'🎯 Set goals':'Review & set goals')+'</button></div></div></div>';
   $('#view-goals').innerHTML=body;
-  const rg=$('#reviewGoals');if(rg)rg.onclick=()=>toast('Goal-setting workflow is coming soon');
+  const rg=$('#reviewGoals');if(rg)rg.onclick=()=>{ if(isMgrViewer) openGoalEditor(); else toast('Goals are set together with your manager at your monthly check-in'); };
+}
+
+/* ---- goal editor (managers/owner): full monthly scorecard for the viewed person ---- */
+let GM=null;   // {monthISO, rows:{iso:rowOrNull}}
+function monthISOFrom(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-01';}
+function gmLabel(isoStr){const p=isoStr.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleString('en-US',{month:'long',year:'numeric'});}
+async function openGoalEditor(){
+  const t=STATE.target;
+  const cur=new Date();cur.setDate(1);
+  const nxt=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+  const curISO=monthISOFrom(cur),nxtISO=monthISOFrom(nxt);
+  const r=await sb.from('commission_goals').select('*').eq('staff_id',t.id).in('month',[curISO,nxtISO]);
+  const rows={};(r.data||[]).forEach(x=>{rows[String(x.month).slice(0,10)]=x;});
+  GM={monthISO:curISO,curISO,nxtISO,rows};
+  drawGoalEditor();
+}
+function drawGoalEditor(){
+  const t=STATE.target, row=GM.rows[GM.monthISO]||{};
+  const prev=STATE.calc.prevTotals||blankTotals(), curT=STATE.calc.totals||blankTotals();
+  const ros=STATE.rosterById[t.id]||null, defGoal=ros?Number(ros.accy_goal)||0:0;
+  const prevDev=(prev.DeviceUnits||0)-(prev.DeviceReturns||0), curDev=(curT.DeviceUnits||0)-(curT.DeviceReturns||0);
+  const prevAtt=prevDev>0?Math.round((prev.DeviceAttach||0)/prevDev*100):0, curAtt=curDev>0?Math.round((curT.DeviceAttach||0)/curDev*100):0;
+  const pcat=k=>(prev.categories&&prev.categories[k])||0, ccat=k=>(curT.categories&&curT.categories[k])||0;
+  const hint=(a,b)=>'<span style="font-size:.68rem;color:var(--grey);font-weight:700">last mo '+a+' · now '+b+'</span>';
+  const fld=(key,label,val,ph,hintHtml,step)=>'<div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:Nunito;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)">'+label+'</label>'
+    +'<input data-gm="'+key+'" type="number" min="0" step="'+(step||1)+'" value="'+(val!=null?esc(val):'')+'" placeholder="'+esc(ph||'—')+'" style="font-family:Nunito;font-weight:800;font-size:.9rem;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;width:100%">'
+    +hintHtml+'</div>';
+  const sgs=row.service_goals||{};
+  let svc='';for(const sku in STATE.rateLabels){svc+=fld('svc:'+sku,esc(STATE.rateLabels[sku]),sgs[sku]!=null?sgs[sku]:null,'—',hint((prev.services&&prev.services[sku])||0,(curT.services&&curT.services[sku])||0));}
+  const seg=(isoStr,lbl)=>'<button data-gmm="'+isoStr+'" style="flex:1;padding:8px 4px;border:none;border-radius:7px;cursor:pointer;font-family:Nunito;font-weight:800;font-size:.76rem;background:'+(GM.monthISO===isoStr?'#fff':'transparent')+';color:'+(GM.monthISO===isoStr?'var(--dark)':'rgba(255,255,255,.65)')+'">'+lbl+'</button>';
+  const back=document.createElement('div');back.className='avpick-back';back.id='gmback';
+  back.innerHTML='<div class="avpick" style="max-width:520px;max-height:92vh;overflow:auto">'
+    +'<div class="avpick-hd"><b>🎯 '+esc(t.display_name)+' — monthly targets</b><button class="avpick-x" data-gmx>×</button></div>'
+    +'<div class="avpick-sub">Blank = no target for that metric. Only the accessory $ goal changes pay (the goal bonus); the rest are the scorecard you review together.</div>'
+    +'<div style="display:flex;gap:3px;background:var(--dark);border-radius:9px;padding:3px;margin-bottom:14px">'+seg(GM.curISO,gmLabel(GM.curISO))+seg(GM.nxtISO,gmLabel(GM.nxtISO))+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      +fld('accy_goal','Accessory $ goal',row.accy_goal!=null?row.accy_goal:null,defGoal?defGoal+' (default)':'no default',hint(money0(prev.NetAccySales||0),money0(curT.NetAccySales||0)),50)
+      +fld('device_goal','Devices (units)',row.device_goal!=null?row.device_goal:null,'—',hint(prevDev,curDev))
+      +fld('device_attach_goal','Accessories / device (%)',row.device_attach_goal!=null?row.device_attach_goal:null,'—',hint(prevAtt+'%',curAtt+'%'),5)
+      +fld('case_goal','Cases (units)',row.case_goal!=null?row.case_goal:null,'—',hint(pcat('Case'),ccat('Case')))
+      +fld('sp_goal','Screen protectors (units)',row.sp_goal!=null?row.sp_goal:null,'—',hint(pcat('Screen Protector'),ccat('Screen Protector')))
+      +fld('power_goal','Power (units)',row.power_goal!=null?row.power_goal:null,'—',hint(pcat('Power'),ccat('Power')))
+    +'</div>'
+    +'<div style="font-family:Nunito;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:14px 0 6px">Service targets</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+svc+'</div>'
+    +'<div style="margin-top:14px"><label style="font-family:Nunito;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)">Meeting note</label>'
+    +'<textarea data-gm="note" rows="2" placeholder="What was agreed / focus area" style="width:100%;margin-top:4px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans,sans-serif;font-size:.86rem;resize:vertical">'+esc(row.note||'')+'</textarea></div>'
+    +'<div class="avpick-ft" style="justify-content:space-between"><button class="btn" data-gmclear style="color:var(--red)">Clear month</button><span style="display:flex;gap:8px"><button class="btn" data-gmx>Cancel</button><button class="btn" data-gmsave style="background:var(--dark);color:#fff;border-color:var(--dark)">Save '+esc(gmLabel(GM.monthISO).split(' ')[0])+'</button></span></div>'
+    +'</div>';
+  const old=document.getElementById('gmback');if(old)old.remove();
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-gmx]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelectorAll('[data-gmm]').forEach(b=>b.onclick=()=>{stashGoalInputs();GM.monthISO=b.getAttribute('data-gmm');drawGoalEditor();});
+  back.querySelector('[data-gmclear]').onclick=async()=>{
+    if(!confirm('Remove all '+gmLabel(GM.monthISO)+' targets for '+t.display_name+'?'))return;
+    const d=await sb.from('commission_goals').delete().eq('staff_id',t.id).eq('month',GM.monthISO);
+    if(d.error){toast(d.error.message,true);return;}
+    delete GM.rows[GM.monthISO];toast('Targets cleared');back.remove();await afterGoalChange();
+  };
+  back.querySelector('[data-gmsave]').onclick=async()=>{
+    stashGoalInputs();
+    const row2=GM.rows[GM.monthISO]||{};
+    const any=['accy_goal','device_goal','device_attach_goal','case_goal','sp_goal','power_goal'].some(k=>row2[k]!=null)
+      ||(row2.service_goals&&Object.keys(row2.service_goals).length)||(row2.note&&row2.note.trim());
+    if(!any){
+      const d=await sb.from('commission_goals').delete().eq('staff_id',t.id).eq('month',GM.monthISO);
+      if(d.error){toast(d.error.message,true);return;}
+      toast('No targets — cleared');back.remove();await afterGoalChange();return;
+    }
+    const payload={staff_id:t.id,month:GM.monthISO,
+      accy_goal:row2.accy_goal!=null?row2.accy_goal:null,device_goal:row2.device_goal!=null?row2.device_goal:null,
+      device_attach_goal:row2.device_attach_goal!=null?row2.device_attach_goal:null,
+      case_goal:row2.case_goal!=null?row2.case_goal:null,sp_goal:row2.sp_goal!=null?row2.sp_goal:null,power_goal:row2.power_goal!=null?row2.power_goal:null,
+      service_goals:(row2.service_goals&&Object.keys(row2.service_goals).length)?row2.service_goals:null,
+      note:(row2.note&&row2.note.trim())||null,set_by:STATE.me.id,set_at:new Date().toISOString()};
+    const r=await sb.from('commission_goals').upsert(payload,{onConflict:'staff_id,month'});
+    if(r.error){toast(r.error.message,true);return;}
+    toast('✓ '+gmLabel(GM.monthISO)+' targets saved');back.remove();await afterGoalChange();
+  };
+}
+function stashGoalInputs(){
+  const back=document.getElementById('gmback');if(!back||!GM)return;
+  const row=Object.assign({},GM.rows[GM.monthISO]||{});
+  const sgs={};
+  back.querySelectorAll('[data-gm]').forEach(el=>{
+    const k=el.getAttribute('data-gm'), v=String(el.value||'').trim();
+    if(k==='note'){row.note=v;return;}
+    if(k.indexOf('svc:')===0){const sku=k.slice(4);if(v!==''&&Number(v)>0)sgs[sku]=Number(v);return;}
+    row[k]=v===''?null:Number(v);
+  });
+  row.service_goals=sgs;
+  GM.rows[GM.monthISO]=row;
+}
+async function afterGoalChange(){
+  // refresh the current-month goal maps + recompute (the accy goal gates the bonus)
+  const curISO=(function(){const n=new Date();return n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-01';})();
+  const mg=await sb.from('commission_goals').select('*').eq('month',curISO);
+  STATE.monthGoals={};STATE.monthGoalRows={};
+  ((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoalRows[g.staff_id]=g;if(g.accy_goal!=null)STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
+  STATE.board=null;
+  await loadTarget();
 }
 
 /* ---- Scoreboard ---- */

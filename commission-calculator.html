@@ -214,7 +214,7 @@ async function runReport(){
   if(error){$('#status').textContent='Error';toast(error.message,true);return;}
   // meeting-set monthly goals for the range's month (pay periods live within one month)
   const mgRes=await sb.from('commission_goals').select('staff_id,accy_goal').eq('month',start.slice(0,7)+'-01');
-  const monthGoals={};((mgRes&&mgRes.data)||[]).forEach(g=>{monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
+  const monthGoals={};((mgRes&&mgRes.data)||[]).forEach(g=>{if(g.accy_goal!=null)monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
   const byEmp={};
   (data||[]).forEach(r=>{
     const key=r.staff_id!=null?('sid:'+r.staff_id):('nm:'+r.employee);

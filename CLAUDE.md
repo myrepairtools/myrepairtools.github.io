@@ -125,12 +125,15 @@ There is **no single backend**. Tools talk to one of two systems:
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
    time-entries, monthly-goals.
 
-**Monthly goals:** `commission_goals` (staff_id, month, accy_goal, note) — per-employee
-monthly accessory $ targets set in `monthly-goals.html` (Employees nav; managers scoped by
-`can_see_staff`). Resolution everywhere is month goal → `commission_roster.accy_goal`
-default. The goal gates the "hit your accessory goal" commission bonus, so month goals
-change payout. Consumers: commission-dashboard, commission-calculator (range's start
-month), assets/commission-summary.js.
+**Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
+device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
+per-employee monthly targets set during 1:1s **in the commission dashboard's Goals tab**
+("🎯 Set goals" modal, manager/owner only via `can_see_staff` RLS; this/next-month toggle).
+Employees see a "Meeting targets" progress card on the same tab. Only `accy_goal` affects
+pay (it gates the accessory goal bonus); resolution is month goal → `commission_roster.accy_goal`
+default, and a row may carry other targets with `accy_goal` null (consumers must null-check).
+Consumers: commission-dashboard, commission-calculator (range's start month),
+assets/commission-summary.js. There is deliberately no separate goals page.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 
