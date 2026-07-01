@@ -240,8 +240,29 @@ async function initAuth(){
 }
 
 /* ===== data ===== */
-var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[];
+var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], HOLBYDATE={}, HOLHMAP={}, OVR={};
 var TAB='me', SELSTORE=null, WK=null;
+/* Effective day for a real date: a per-week schedule_override wins over the recurring template
+   (mirrors Schedule Admin › This Week). */
+function effDayRec(staffId,wd,di){
+  var o=OVR[staffId+'|'+di];
+  if(o){ if(o.is_off) return {off:true}; if(o.shift_id!=null) return {shift_id:o.shift_id,store:o.store,ovr:true}; return {none:true}; }
+  return dayRec(staffId,wd);
+}
+/* Holiday effect on a store for a date: null = none; {closed} or {open,close} minutes. */
+function holEffect(store,di){var hid=HOLBYDATE[di];if(hid==null)return null;var m=HOLHMAP[hid+'|'+store];if(!m)return null;return m.closed?{closed:true}:{open:m.open,close:m.close};}
+function shiftWindow(r,wd){var s=SHIFT_BY_ID[r.shift_id]||labelToShift(r.label);
+  if(s){var rd=resolve(s.id,r.store,wd);if(rd.start!=null)return [rd.start,rd.end];}
+  var pm=parseLabel(r.label);return pm?[pm[0],pm[1]]:null;}
+/* Trim a resolved shift view by a holiday: closed -> "Closed", reduced -> clamped range. */
+function holAdjust(v,r,wd,di){
+  if(!di||!r||!r.store)return v;
+  var eff=holEffect(r.store,di);if(!eff)return v;
+  if(eff.closed){v.time='🎉 Closed';v.holiday=true;return v;}
+  var win=shiftWindow(r,wd);if(!win){v.holiday=true;return v;}
+  var cs=Math.max(win[0],eff.open),ce=Math.min(win[1],eff.close);
+  v.time=(ce<=cs)?'🎉 Closed':('🎉 '+rangeMin(cs,ce));v.holiday=true;return v;
+}
 function resolve(shiftId,store,wd){
   var h=HOURS[shiftId+'|'+store];
   if(!h||!h.def||!h.def.enabled)return {offered:false};
@@ -295,13 +316,16 @@ function myStores(){
 function approvedOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='approved'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
 function pendingOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='pending'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
 async function load(){
-  var [st,so,sh,hr,sc,rq]=await Promise.all([
+  var [st,so,sh,hr,sc,rq,ho,hh,ov]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color').eq('active',true),
     sb.from('stores').select('store,display_order,active,color').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note')
+    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note'),
+    sb.from('holidays').select('id,holiday_date'),
+    sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
+    sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id')
   ]);
   STAFF=(st.data||[]);
   STORES=(so.data||[]).filter(function(s){return s.active!==false;});
@@ -309,6 +333,9 @@ async function load(){
   HOURS={};(hr.data||[]).forEach(function(r){var k=r.shift_id+'|'+r.store,h=HOURS[k]||(HOURS[k]={def:null,days:{}});var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};if(r.weekday==null)h.def=row;else h.days[r.weekday]=row;});
   SCHED={};(sc.data||[]).forEach(function(r){SCHED[r.staff_id]={shifts:r.shifts||{},store:r.store};});
   REQS=(rq.data||[]);
+  HOLBYDATE={};((ho&&ho.data)||[]).forEach(function(h){HOLBYDATE[String(h.holiday_date).slice(0,10)]=h.id;});
+  HOLHMAP={};((hh&&hh.data)||[]).forEach(function(r){HOLHMAP[r.holiday_id+'|'+r.store]={closed:!!r.closed,open:r.open_min,close:r.close_min};});
+  OVR={};((ov&&ov.data)||[]).forEach(function(r){OVR[r.staff_id+'|'+String(r.ovr_date).slice(0,10)]=r;});
   var ms=myStores();if(!SELSTORE||ms.indexOf(SELSTORE)<0)SELSTORE=ms[0]||ME.home_store;
   if(!WK)WK=weekStart(new Date());
   renderHeader();render();
@@ -357,9 +384,9 @@ function renderMe(){
     var ap=approvedOn(ME.id,di), body;
     if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div class="shift-nm" style="color:'+c+'"><span class="dot" style="background:'+c+'"></span>Time off</div><div class="shift-tm">'+esc(ap.type)+'</div>';}
     else{
-      var r=dayRec(ME.id,wd);
+      var r=effDayRec(ME.id,wd,di);
       if(r.none||r.off)body='<span class="shift-nm muted">Day off</span>';
-      else{var v=shiftView(r,wd);var pend=pendingOn(ME.id,di);
+      else{var v=holAdjust(shiftView(r,wd),r,wd,di);var pend=pendingOn(ME.id,di);
         body='<div class="shift-nm"><span class="dot" style="background:'+esc(v.color)+'"></span>'+esc(v.name)+'</div><div class="shift-tm">'+(v.time?esc(v.time)+' · ':'')+esc(shortStore(r.store))+'</div>'
           +(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">YOUR TIME OFF — PENDING</span>':'');}
     }
@@ -375,8 +402,8 @@ function renderStore(){
     var working=[];
     STAFF.forEach(function(e){
       var ap=approvedOn(e.id,di);if(ap)return;
-      var r=dayRec(e.id,wd);if(r.none||r.off||r.store!==store)return;
-      var v=shiftView(r,wd),rd=resolve(r.shift_id,store,wd),pl=parseLabel(r.label);
+      var r=effDayRec(e.id,wd,di);if(r.none||r.off||r.store!==store)return;
+      var v=holAdjust(shiftView(r,wd),r,wd,di),rd=resolve(r.shift_id,store,wd),pl=parseLabel(r.label);
       var startMin=rd.start!=null?rd.start:(pl?pl[0]:9999);
       working.push({e:e,name:e.display_name,tm:v.time||v.name,start:startMin,me:e.id===ME.id});
     });
@@ -462,9 +489,9 @@ var PMON=null, PSTART=null, PEND=null;
 function weekShiftCell(staffId,wd,di,cardStore){
   var ap=approvedOn(staffId,di);
   if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(c,0.13)+';border-left:2px solid '+c+'"><div class="n" style="color:'+c+'">Off</div><div class="t">'+esc(ap.type)+'</div></div>';}
-  var r=dayRec(staffId,wd);
+  var r=effDayRec(staffId,wd,di);
   if(r.none||r.off||(cardStore&&r.store!==cardStore))return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
-  var v=shiftView(r,wd);
+  var v=holAdjust(shiftView(r,wd),r,wd,di);
   return '<div class="wchip" style="background:'+hexA(v.color,0.12)+';border-left:2px solid '+esc(v.color)+'"><div class="n">'+esc(v.name)+(v.warn?' ⚠️':'')+'</div><div class="t">'+esc(v.time)+'</div></div>';
 }
 function renderWeb(){
@@ -476,16 +503,16 @@ function renderWeb(){
     var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isT=di===todayIso;
     var ap=approvedOn(ME.id,di),body;
     if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div style="border-radius:8px;padding:8px;background:'+hexA(c,0.12)+';border-left:3px solid '+c+'"><div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+c+'">Time off</div><div style="font-size:.68rem;color:#9aa0b0;font-weight:700">'+esc(ap.type)+'</div></div>';}
-    else{var r=dayRec(ME.id,wd);
+    else{var r=effDayRec(ME.id,wd,di);
       if(r.none||r.off)body='<div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:#cfd2dd">Off</div>';
-      else{var v=shiftView(r,wd);var pend=pendingOn(ME.id,di);
+      else{var v=holAdjust(shiftView(r,wd),r,wd,di);var pend=pendingOn(ME.id,di);
         body='<div style="border-radius:9px;padding:8px 9px;flex:1;background:'+hexA(v.color,0.1)+';border-left:3px solid '+esc(v.color)+'"><div style="font-family:Nunito;font-weight:800;font-size:.8rem">'+esc(v.name)+'</div>'+(v.time?'<div style="font-size:.7rem;color:#6b7180;font-weight:700;margin-top:1px">'+esc(v.time)+'</div>':'')+'<div style="display:flex;align-items:center;gap:4px;margin-top:4px"><span class="dot" style="width:8px;height:8px;background:'+esc(storeColor(r.store))+'"></span><span style="font-family:Nunito;font-weight:800;font-size:.6rem;color:#9aa0b0">'+esc(shortStore(r.store))+'</span></div>'+(pend?'<span class="pill" style="color:var(--amber);background:#FCF3E3">REQUESTED OFF</span>':'')+'</div>';}}
     return '<div class="wkcol'+(isT?' today':'')+'"><div class="dh"><span class="d">'+dy+'</span><span class="n"'+(isT?' style="color:var(--red)"':'')+'>'+dt.getDate()+'</span>'+(isT?'<span class="pill" style="margin:0;color:#fff;background:var(--red);font-size:.46rem">TODAY</span>':'')+'</div>'+body+'</div>';
   }).join('');
   /* who's on boards */
   var boards=myStores().map(function(store){
     var head='<th class="p">Person</th>'+DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);return '<th>'+d+'<div style="font-weight:700;font-size:.62rem;color:#cfd2dd">'+dt.getDate()+'</div></th>';}).join('');
-    var crew=STAFF.filter(function(e){var any=false;for(var wd=0;wd<7;wd++){var r=dayRec(e.id,wd);if(!r.none&&!r.off&&r.store===store){any=true;break;}}return any||e.home_store===store;});
+    var crew=STAFF.filter(function(e){var any=false;for(var wd=0;wd<7;wd++){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var r=effDayRec(e.id,wd,iso(dt));if(!r.none&&!r.off&&r.store===store){any=true;break;}}return any||e.home_store===store;});
     crew.sort(function(a,b){var ra=isMgrRole(a.role)?0:1,rb=isMgrRole(b.role)?0:1;if(ra!==rb)return ra-rb;return (a.display_name||'')<(b.display_name||'')?-1:1;});
     var rows=crew.map(function(e){
       var cells=DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);return '<td class="c">'+weekShiftCell(e.id,wd,iso(dt),store)+'</td>';}).join('');
