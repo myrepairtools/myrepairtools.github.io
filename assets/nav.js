@@ -40,9 +40,9 @@
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
   ];
-  // Reports — a library page of read-only reports (managers/owner).
+  // Reports — read-only reports (managers/owner); each report is its own page.
   var REPORTS = [
-    { label:'Reports', url:'reports.html', icon:'📊', minRole:'admin', acc:'reports.view' }
+    { label:'Overtime & Pace', url:'report-overtime.html', icon:'⏱️', minRole:'admin', acc:'reports.view' }
   ];
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
@@ -117,7 +117,7 @@
   var inHub     = HUB.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inOrder   = ORDERING.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inPricing = PRICING.some(function(t){ return t.url.toLowerCase() === currentFile; });
-  var inReports = (currentFile === 'reports.html');
+  var inReports = REPORTS.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inEmployees = EMPLOYEES.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
@@ -360,6 +360,10 @@
       return '<div class="cpr-fly-hd">Employees</div>'
         + EMPLOYEES.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
+    if (area === 'reports'){
+      return '<div class="cpr-fly-hd">Reports</div>'
+        + REPORTS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    }
     // admin area
     if (!NAV_ROLE){
       return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
@@ -404,6 +408,12 @@
         + (emp || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
+    if (area === 'reports'){
+      var rep = REPORTS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      return hd + '<div class="cpr-grp">Reports</div>'
+        + (rep || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
     if (area === 'order'){
       var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       return hd + '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord
@@ -437,6 +447,8 @@
     if (ops) h += '<div class="cpr-grp">Operations</div>' + ops;
     var emp = EMPLOYEES.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (emp) h += '<div class="cpr-grp">Employees</div>' + emp;
+    var rep = REPORTS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (rep) h += '<div class="cpr-grp">Reports</div>' + rep;
     if (hasAdminArea()) h += '<div data-priv>' + privilegedHtml() + '</div>';
     if (canSee({ acc:'staff.manage' })) h += '<div class="cpr-div"></div><a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>';
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -590,7 +602,7 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
       + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'</button>'
-      + '<a class="cpr-areabtn cpr-reportsbtn'+(currentFile==='reports.html'?' active':'')+'" href="reports.html" title="Reports" style="display:none">'+railIcon('chart')+'</a>'
+      + '<button class="cpr-areabtn cpr-reportsbtn'+(ACTIVE_AREA==='reports'?' active':'')+'" data-area="reports" title="Reports" style="display:none">'+railIcon('chart')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
