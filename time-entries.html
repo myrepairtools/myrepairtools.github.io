@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time Entries · CPR Oregon</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--light-grey)}
+.wrap{padding:22px 26px 60px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spacing:-.4px;margin:0}
+.sub{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.85rem;color:var(--grey);margin-top:4px}
+.rephd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.wknav{display:flex;align-items:center;gap:6px;margin-left:auto}
+.wknav button{width:34px;height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-size:1rem;color:var(--dark-grey)}
+.wknav .lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;min-width:150px;text-align:center}
+.tiles{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 14px}
+.tile{flex:1;min-width:130px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+.tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem}
+.tile .l{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);margin-top:2px}
+.filter{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}
+.filter button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;padding:7px 13px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:999px;cursor:pointer}
+.filter button.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+.repscroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+table.rep{width:100%;border-collapse:collapse}
+table.rep th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:#F0F1F4}
+table.rep td{padding:11px 14px;border-bottom:1px solid var(--light-grey);font-size:.88rem}
+table.rep td.num,table.rep th.num{text-align:right;font-variant-numeric:tabular-nums}
+table.rep th,table.rep td{border-left:1px solid var(--light-grey)}
+table.rep th:first-child,table.rep td:first-child{border-left:none}
+.grphd td{background:#F7F8FB;font-family:'Nunito',sans-serif;font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey)}
+tr.emprow{cursor:pointer}
+tr.emprow:hover td{background:#F8FAFD}
+tr.emprow.open td{background:#F4FAFE}
+.caret{display:inline-block;width:12px;color:var(--grey);font-size:.7rem;transition:transform .12s}
+tr.emprow.open .caret{transform:rotate(90deg);color:var(--blue)}
+th.day,td.day{text-align:center;padding:7px 8px;min-width:52px}
+th.day .dnum{display:block;font-weight:700;font-size:.66rem;color:#8a909e;margin-top:1px}
+th.day.today,td.day.today{background:#F4FAFE}
+.dw{font-family:'Nunito',sans-serif;font-weight:900;font-size:.82rem;line-height:1.05;color:var(--dark)}
+.dw.over{color:var(--amber)}
+.dw.muted{color:#cfd2dd;font-weight:800}
+.ds{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.7rem;color:var(--grey);line-height:1.15;margin-top:1px}
+.ds.off{color:#cfd2dd}
+.doff{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:#d3d6df}
+.otsub{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--red);margin-top:1px}
+.pill{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:3px 9px}
+.p-ok{color:#1E7A45;background:#E9F6EE}
+.p-watch{color:#9A6700;background:#FCF3E3}
+.p-ot{color:#B02329;background:#FCEDED}
+.empty{color:var(--grey);font-weight:700;padding:24px;text-align:center}
+.note{font-family:'Nunito Sans',sans-serif;font-size:.9rem;color:var(--dark-grey);background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 2px 0;font-family:'Nunito Sans',sans-serif;font-size:.76rem;color:var(--grey);font-weight:700}
+/* drill-down */
+td.drill{padding:0;background:#FBFCFE}
+.dd{padding:16px 18px 20px}
+.dd-hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.dd-hd .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.98rem}
+.dd-hd .s{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.76rem;color:var(--grey)}
+.dd-stats{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.dd-stats .st{text-align:right}
+.dd-stats .st .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.dd-stats .st .k{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)}
+.chart{background:#fff;border:1px solid var(--border);border-radius:11px;padding:16px 14px 10px;overflow-x:auto}
+.wkgrp{display:inline-flex;flex-direction:column;vertical-align:bottom;margin-right:16px}
+.wkbars{display:flex;align-items:flex-end;gap:5px;height:132px;border-bottom:2px solid var(--border);padding:0 3px}
+.bar{width:15px;border-radius:4px 4px 0 0;background:var(--blue);position:relative;min-height:2px;transition:height .15s}
+.bar.weekend{background:#BFE2F5}
+.bar.over{background:var(--amber)}
+.bar.zero{background:#EDEFF3}
+.bar .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:4px;background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;padding:2px 6px;border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .1s}
+.bar:hover .tip{opacity:1}
+.wkdays{display:flex;gap:5px;padding:4px 3px 0}
+.wkdays .d{width:15px;text-align:center;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.56rem;color:#a7abba}
+.wktot{text-align:center;margin-top:6px;font-family:'Nunito',sans-serif;font-weight:900;font-size:.74rem}
+.wktot.ot{color:var(--red)}
+.wktot .k{display:block;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.58rem;color:var(--grey);text-transform:uppercase;letter-spacing:.3px}
+.chart-empty{color:var(--grey);font-weight:700;padding:26px;text-align:center;font-size:.82rem}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <div id="repBody"><div class="empty">Loading…</div></div>
+  <div id="gate" class="note" hidden>Time Entries are for managers and the owner.</div>
+</div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/locations.js"></script>
+<script src="assets/team-hours-summary.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isMgr=r=>['owner','admin','manager'].indexOf(r)>-1;
+function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+function storeRank(s){try{var x=window.CPRLocations&&CPRLocations.find&&CPRLocations.find(s);return x?x.order:99;}catch(e){return 99;}}
+function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function fromISO(s){var p=String(s).split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtH(h){ if(h==null)return ''; var r=Math.round(h*100)/100; return String(r); }
+
+/* Auth: pin-gate.js is the sole gate. Read the shared session. */
+let AUTH=null, BOOTED=false;
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){ BOOTED=true; AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role}; boot(); }
+}
+sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
+
+function boot(){
+  if(!AUTH||!isMgr(AUTH.role)){ $('#repBody').innerHTML=''; $('#gate').hidden=false; return; }
+  render();
+}
+
+/* ===== state ===== */
+let WK=null;                 // Sunday of the viewed week
+let FILTER=(function(){try{return localStorage.getItem('cprTimeEntriesStore')||'All';}catch(e){return 'All';}})();
+let OPEN=null;               // staff_id of the expanded drill-down
+const HIST={};               // staff_id -> {days:{iso:hours}, loaded} trailing-history cache
+function weekSunday(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); return new Date(x.getFullYear(),x.getMonth(),x.getDate()-x.getDay()); }
+function fmtWk(sun){ const sat=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+6);
+  return MON[sun.getMonth()]+' '+sun.getDate()+' – '+MON[sat.getMonth()]+' '+sat.getDate(); }
+
+function dayCell(dc){
+  const cls='day'+(dc.isToday?' today':'');
+  if(dc.off && dc.worked===0){ return '<td class="'+cls+'"><div class="doff">'+(dc.timeoff?'PTO':'off')+'</div></td>'; }
+  const over=dc.worked>dc.sched+0.01 && dc.sched>0;
+  const wTxt=dc.worked>0 ? fmtH(dc.worked) : (dc.isFuture?'·':'0');
+  const wCls='dw'+(over?' over':'')+(dc.worked>0?'':' muted');
+  const sTxt=dc.off ? 'off' : fmtH(dc.sched);
+  return '<td class="'+cls+'"><div class="'+wCls+'">'+wTxt+'</div><div class="ds'+(dc.off?' off':'')+'">'+sTxt+'</div></td>';
+}
+
+async function render(){
+  if(!WK)WK=weekSunday(new Date());
+  const sun=WK, wkStartISO=iso(sun);
+  const isThisWeek=(iso(weekSunday(new Date()))===wkStartISO);
+  $('#repBody').innerHTML='<div class="empty">Loading…</div>';
+  const d = window.CPRTeamHours ? await window.CPRTeamHours.forWeek(wkStartISO) : null;
+  if(!d){ $('#repBody').innerHTML='<div class="empty">Couldn’t load time entries. Try refreshing.</div>'; return; }
+
+  const stores=(d.stores||[]).slice();
+  if(FILTER!=='All' && stores.indexOf(FILTER)<0) FILTER='All';
+  let rows=(d.rows||[]).filter(r=> r.worked>0 || r.anticipated>0 );
+  const scoped=rows.filter(r=> FILTER==='All' || r.store===FILTER )
+    .sort((a,b)=>storeRank(a.store)-storeRank(b.store)||b.worked-a.worked||b.anticipated-a.anticipated);
+
+  const live=scoped.filter(r=>r.onClock).length;
+  const totHrs=Math.round(scoped.reduce((s,r)=>s+r.worked,0)*10)/10;
+  const otNow=scoped.filter(r=>!r.salary&&r.worked>40).length;
+  const people=scoped.length;
+
+  let dayHead='';
+  for(let wd=0; wd<7; wd++){ const dt=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+wd); const today=(iso(dt)===d.today);
+    dayHead+='<th class="day'+(today?' today':'')+'">'+DOW[wd]+'<span class="dnum">'+dt.getDate()+'</span></th>'; }
+
+  const pills='<div class="filter"><button data-f="All" class="'+(FILTER==='All'?'on':'')+'">All stores</button>'
+    + stores.map(s=>'<button data-f="'+esc(s)+'" class="'+(FILTER===s?'on':'')+'">'+esc(shortStore(s))+'</button>').join('')+'</div>';
+
+  let body='<div class="rephd"><div><h1>Time Entries</h1><div class="sub">Clocked hours per day from QuickBooks Time · click anyone to see their history</div></div>'
+    +'<div class="wknav"><button data-wk="-1">‹</button><div class="lbl">'+fmtWk(sun)+'</div><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
+    +'<div class="tiles">'
+    +'<div class="tile"><div class="n">'+totHrs+'</div><div class="l">Total hours</div></div>'
+    +'<div class="tile"><div class="n" style="color:var(--green)">'+live+'</div><div class="l">On the clock</div></div>'
+    +'<div class="tile"><div class="n" style="color:var(--red)">'+otNow+'</div><div class="l">Over 40 this week</div></div>'
+    +'<div class="tile"><div class="n">'+people+'</div><div class="l">People with time</div></div>'
+    +'</div>'+pills;
+
+  if(!scoped.length){ body+='<div class="empty">No clocked time for this week'+(FILTER!=='All'?' at '+esc(shortStore(FILTER)):'')+'.</div>'; $('#repBody').innerHTML=body; wire(); return; }
+
+  let lastStore=null, trows='';
+  scoped.forEach(r=>{
+    if(FILTER==='All' && r.store!==lastStore){ lastStore=r.store; trows+='<tr class="grphd"><td colspan="10">'+esc(shortStore(r.store)||'—')+'</td></tr>'; }
+    const isOpen=OPEN===r.staff_id;
+    const otTxt=r.salary?'<span class="pill" style="color:var(--grey);background:var(--light-grey)">Salary</span>'
+      :(r.worked>40?'<span class="pill p-ot">+'+fmtH(Math.round((r.worked-40)*10)/10)+' OT</span>':'—');
+    trows+='<tr class="emprow'+(isOpen?' open':'')+'" data-emp="'+r.staff_id+'"><td><span class="caret">▶</span> '+esc(r.name)
+      +(r.onClock?' <span class="pill p-ok">● on clock</span>':'')+'</td>'
+      +r.days.map(dayCell).join('')
+      +'<td class="num"><b>'+fmtH(r.worked)+'</b></td>'
+      +'<td class="num">'+otTxt+'</td></tr>';
+    if(isOpen){ trows+='<tr class="drillrow"><td class="drill" colspan="10"><div class="dd" data-dd="'+r.staff_id+'"><div class="chart-empty">Loading history…</div></div></td></tr>'; }
+  });
+  body+='<div class="repscroll"><table class="rep"><thead><tr><th>Employee</th>'+dayHead
+    +'<th class="num">Worked</th><th class="num">OT</th></tr></thead><tbody>'+trows+'</tbody></table></div>'
+    +'<div class="legend"><span><b style="color:var(--dark)">top</b> = worked</span><span><b>bottom</b> = scheduled</span><span><b style="color:var(--amber)">amber</b> = over scheduled</span><span><b>off</b> = not scheduled · <b>PTO</b> = time off</span></div>';
+  $('#repBody').innerHTML=body; wire();
+  if(OPEN!=null){ const host=$('#repBody').querySelector('[data-dd="'+OPEN+'"]'); if(host) drawDrill(host, scoped.find(r=>r.staff_id===OPEN)); }
+}
+
+function wire(){
+  $('#repBody').querySelectorAll('[data-wk]').forEach(b=>b.onclick=()=>{ if(b.disabled)return;
+    WK=new Date(WK.getFullYear(),WK.getMonth(),WK.getDate()+7*Number(b.getAttribute('data-wk'))); render(); });
+  $('#repBody').querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ FILTER=b.getAttribute('data-f');
+    try{localStorage.setItem('cprTimeEntriesStore',FILTER);}catch(e){} render(); });
+  $('#repBody').querySelectorAll('.emprow').forEach(tr=>tr.onclick=()=>{
+    const id=Number(tr.getAttribute('data-emp')); OPEN=(OPEN===id)?null:id; render(); });
+}
+
+/* ===== drill-down: trailing-6-week daily-hours chart, straight from qbtime_timesheets ===== */
+const WEEKS_BACK=6;
+async function loadHist(staffId, endSat){
+  const key=staffId+'|'+iso(endSat);   // window depends on the viewed week, so key by both
+  if(HIST[key]) return HIST[key];
+  const raw=new Date(endSat.getFullYear(),endSat.getMonth(),endSat.getDate()-(WEEKS_BACK*7-1));
+  const start=new Date(raw.getFullYear(),raw.getMonth(),raw.getDate()-raw.getDay());   // snap back to Sunday → whole weeks only
+  const r=await sb.from('qbtime_timesheets').select('biz_date,seconds')
+    .eq('staff_id',staffId).gte('biz_date',iso(start)).lte('biz_date',iso(endSat));
+  const days={}; (r.data||[]).forEach(x=>{ if(!x.biz_date)return; days[String(x.biz_date).slice(0,10)]=(days[x.biz_date]||0)+(+x.seconds||0); });
+  return (HIST[key]={days:days, start:start});
+}
+async function drawDrill(host, row){
+  if(!row){ host.innerHTML='<div class="chart-empty">No data.</div>'; return; }
+  const endSat=new Date(WK.getFullYear(),WK.getMonth(),WK.getDate()+6);
+  const h=await loadHist(row.staff_id, endSat);
+  const todayISO=iso(new Date());
+  // build week groups oldest -> newest
+  let wkStart=new Date(h.start.getFullYear(),h.start.getMonth(),h.start.getDate()-h.start.getDay());
+  const weeks=[]; let totAll=0, daysWorked=0, maxDay=0;
+  for(let w=0; w<WEEKS_BACK+1; w++){
+    const sun=new Date(wkStart.getFullYear(),wkStart.getMonth(),wkStart.getDate()+w*7);
+    if(sun>endSat) break;
+    const bars=[]; let wtot=0;
+    for(let i=0;i<7;i++){ const dt=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+i); const di=iso(dt);
+      if(dt>endSat){ bars.push({hrs:null}); continue; }
+      const hrs=Math.round(((h.days[di]||0)/3600)*100)/100;
+      wtot+=hrs; if(hrs>0){ totAll+=hrs; daysWorked++; if(hrs>maxDay)maxDay=hrs; }
+      bars.push({hrs:hrs, di:di, wd:i, future:di>todayISO}); }
+    weeks.push({sun:sun, bars:bars, tot:Math.round(wtot*10)/10});
+  }
+  const scaleMax=Math.max(10, Math.ceil(maxDay));   // hours -> px (fit 128px)
+  const anyData=weeks.some(w=>w.tot>0);
+  if(!anyData){ host.innerHTML='<div class="dd"><div class="chart-empty">No clocked history yet for '+esc(row.name.split(' ')[0])+'. Entries will appear here as they sync from QuickBooks Time.</div></div>'; return; }
+  const avgDay=daysWorked?Math.round((totAll/daysWorked)*10)/10:0;
+  let chart='';
+  weeks.forEach(w=>{
+    const otWk=w.tot>40;
+    const bars=w.bars.map(b=>{
+      if(b.hrs==null) return '<div class="bar zero" style="height:2px;visibility:hidden"></div>';
+      const px=Math.max(2, Math.round((b.hrs/scaleMax)*128));
+      const cls='bar'+(b.hrs===0?' zero':(b.hrs>8?' over':((b.wd===0||b.wd===6)?' weekend':'')));
+      const tip=b.hrs>0?(fmtH(b.hrs)+'h · '+MON[fromISO(b.di).getMonth()]+' '+fromISO(b.di).getDate()):'off';
+      return '<div class="'+cls+'" style="height:'+px+'px"><span class="tip">'+tip+'</span></div>';
+    }).join('');
+    const dlabels=w.bars.map((b,i)=>'<div class="d">'+DOW[i][0]+'</div>').join('');
+    chart+='<div class="wkgrp"><div class="wkbars">'+bars+'</div><div class="wkdays">'+dlabels+'</div>'
+      +'<div class="wktot'+(otWk?' ot':'')+'">'+fmtH(w.tot)+'h<span class="k">wk of '+MON[w.sun.getMonth()]+' '+w.sun.getDate()+'</span></div></div>';
+  });
+  host.innerHTML='<div class="dd">'
+    +'<div class="dd-hd"><div><div class="t">'+esc(row.name)+'</div><div class="s">'+esc(shortStore(row.store))+' · last '+WEEKS_BACK+' weeks</div></div>'
+    +'<div class="dd-stats">'
+    +'<div class="st"><div class="v">'+fmtH(Math.round(totAll*10)/10)+'</div><div class="k">Hrs total</div></div>'
+    +'<div class="st"><div class="v">'+avgDay+'</div><div class="k">Avg / day</div></div>'
+    +'<div class="st"><div class="v">'+daysWorked+'</div><div class="k">Days worked</div></div>'
+    +'</div></div>'
+    +'<div class="chart">'+chart+'</div>'
+    +'<div class="legend"><span><b style="color:var(--blue)">bars</b> = hours clocked that day</span><span><b style="color:var(--amber)">amber</b> = over 8h</span><span><b style="color:var(--red)">red total</b> = week over 40h</span></div>'
+    +'</div>';
+}
+
+(async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
+</script>
+</body>
+</html>
