@@ -1237,7 +1237,7 @@ function openMember(id){
   var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
   if(!m)return;
   var ros=CROSTER[m.id]||{};
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,hide_from_records:!!m.hide_from_records,wage_type:m.wage_type||'hourly',pin:'',
+  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,hide_from_records:!!m.hide_from_records,wage_type:m.wage_type||'hourly',birthday:(m.birthday?String(m.birthday).slice(0,10):''),pin:'',
     comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{}),
     rules_override:Object.assign({},ros.rules_override||{}),rates_override:Object.assign({},ros.rates_override||{})}};
   renderModal();
@@ -1372,6 +1372,8 @@ function memberModalHtml(){
      +'</div>'
      +'<div class="f" style="margin-top:12px"><label>Preferred name</label><input data-k="preferred_name" value="'+esc(d.preferred_name||'')+'" placeholder="'+esc((d.first_name+' '+d.last_name).trim()||'shown across myRepairTools')+'">'
        +'<div class="h" style="margin-top:4px">Shown everywhere in myRepairTools. Leave blank to use the legal name above.</div></div>'
+     +'<div class="f" style="margin-top:12px"><label>Birthday</label><input type="date" data-k="birthday" value="'+esc(d.birthday||'')+'">'
+       +'<div class="h" style="margin-top:4px">For team celebrations — only the month &amp; day ever show (the year and age stay private).</div></div>'
      +'<div class="row" style="margin-top:14px"><label>Authorized locations</label><div class="authwrap">'+pills+'</div></div>'
      +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">'
      +(function(){
@@ -1451,7 +1453,7 @@ async function saveMember(){
       if(c.status!==200||!c.data.ok){toast((c.data&&c.data.error)||'Create failed',true);if(btn)btn.disabled=false;return;}
       toast('Member created · PIN '+d.pin);
     } else {
-      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active,hide_from_records:d.hide_from_records});
+      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active,hide_from_records:d.hide_from_records,birthday:(d.birthday!=null?d.birthday:undefined)});
       if(u.status!==200||!u.data.ok){toast((u.data&&u.data.error)||'Save failed',true);if(btn)btn.disabled=false;return;}
       if(d.pin){ var p=await authFn({action:'set_pin',staff_id:d.staff_id,pin:d.pin});
         if(p.status===200&&p.data.ok)toast('Saved · new PIN '+d.pin); else toast((p.data&&p.data.error)||'Saved, but PIN reset failed',true);

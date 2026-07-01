@@ -166,7 +166,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records, wage_type").order("active", {
+    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records, wage_type, birthday").order("active", {
       ascending: false
     }).order("display_name");
     return json({
@@ -244,7 +244,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, hr_status, notes, archived, hide_from_records } = body;
+    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, birthday, hr_status, notes, archived, hide_from_records } = body;
     if (!staff_id) return json({
       error: "missing staff_id"
     }, 400);
@@ -268,6 +268,7 @@ Deno.serve(async (req)=>{
     if (active != null) patch.active = active;
     if (title != null) patch.title = title;
     if (start_date != null) patch.start_date = start_date || null;
+    if (birthday != null) patch.birthday = birthday || null;   // "" clears it
     if (hr_status != null) patch.hr_status = hr_status;
     if (notes != null) patch.notes = notes;
     if (archived != null) patch.archived = archived;

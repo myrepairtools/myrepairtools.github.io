@@ -222,6 +222,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/team-hours-summary.js"></script>
 <script src="assets/holiday-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
+<script src="assets/celebrations-summary.js"></script>
 <script>
 (function(){
   /* ====================== greeting + date ====================== */
@@ -272,8 +273,11 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       mount:function(bd){ loadCommission(bd); } },
 
     { id:'comms', title:'Communications', icon:'📣', accent:'red', defaultSize:'wide',
-      desc:'Store announcements, shift swaps, manager notes.', tag:{t:'soon',x:'Coming soon'},
-      render:function(){ return '<div class="empty"><div class="ei">📭</div><div class="et">No new messages</div><div class="es">Store announcements, shift swaps, and manager notes will show up here.</div></div>'; } },
+      desc:'Team celebrations — birthdays & work anniversaries. Announcements coming soon.',
+      render:function(){ return ''
+        +'<div data-cel-list></div>'
+        +'<div class="empty" data-cel-empty style="display:none;padding:14px 4px"><div class="ei">🎈</div><div class="et">Nothing to celebrate just yet</div><div class="es">Birthdays and work anniversaries in the next two weeks show up here for everyone to see.</div></div>'; },
+      mount:function(bd){ loadCelebrations(bd); } },
 
     { id:'schedule', title:'My Schedule', icon:'🗓️', accent:'purple', defaultSize:'narrow',
       desc:'Your next shift and hours this week.', link:{href:'my-schedule.html',x:'View →'},
@@ -662,6 +666,32 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         });
       }
       paint();
+    }, function(){});
+  }
+
+  function loadCelebrations(bd){
+    if(!window.CPRCelebrations || !window.CPRCelebrations.upcoming){ return; }
+    var list=bd.querySelector('[data-cel-list]'), empty=bd.querySelector('[data-cel-empty]');
+    function shortStore(s){ return window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s*/,''); }
+    var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function when(i){ if(i.daysAway===0) return 'today!'; if(i.daysAway===1) return 'tomorrow';
+      var p=i.date.split('-'); return 'in '+i.daysAway+' days · '+MONS[+p[1]-1]+' '+(+p[2]); }
+    function initials(n){ var p=String(n||'?').trim().split(/\s+/); return ((p[0]||'')[0]||'')+((p[1]||'')[0]||''); }
+    window.CPRCelebrations.upcoming({days:14}).then(function(d){
+      if(!list) return;
+      if(!d){ if(empty){ empty.style.display='block'; var et=empty.querySelector('.et'); if(et) et.textContent='Sign in to see celebrations.'; } return; }
+      if(!d.items.length){ if(empty) empty.style.display='block'; return; }
+      list.innerHTML=d.items.slice(0,8).map(function(i){
+        var today=i.daysAway===0;
+        var icon=i.kind==='birthday'?'🎂':'🎉';
+        var line=i.kind==='birthday' ? '<b>'+esc(i.name)+'</b>’s birthday'
+          : '<b>'+esc(i.name)+'</b> hits <b>'+i.years+' year'+(i.years===1?'':'s')+'</b> at CPR';
+        var av='<span style="width:26px;height:26px;border-radius:50%;background:'+esc(i.avatar_color||'#4FB0E3')+';color:#fff;display:flex;align-items:center;justify-content:center;font-family:Nunito,sans-serif;font-weight:800;font-size:'+(i.avatar?'0.9rem':'0.58rem')+';flex:none">'+(i.avatar?esc(i.avatar):esc(initials(i.name)))+'</span>';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:9px'+(today?';background:#FCF3E3':'')+'">'
+          +'<span style="font-size:1.05rem;flex:none">'+icon+'</span>'+av
+          +'<span style="flex:1;min-width:0;font-size:.86rem;font-weight:600;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+line+' <span style="color:var(--grey);font-size:.72rem;font-weight:700">· '+esc(shortStore(i.home_store))+'</span></span>'
+          +'<span style="flex:none;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;color:'+(today?'var(--amber)':'var(--grey)')+'">'+esc(when(i))+'</span></div>';
+      }).join('');
     }, function(){});
   }
 
