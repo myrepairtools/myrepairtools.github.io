@@ -114,23 +114,13 @@ async function doLogin(){
   }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
 }
 function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');boot();}
-/* Shared single sign-on: getSession can intermittently return null when several Supabase
-   clients share storage, so fall back to the token nav.js / other tools persisted. */
-async function restoreSession(){
-  try{ const s=(await sb.auth.getSession()).data.session; if(s) return s; }catch(e){}
-  try{ const raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw) return null;
-    const o=JSON.parse(raw);
-    const at=o.access_token||(o.currentSession&&o.currentSession.access_token),
-          rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
-    if(at&&rt){ await sb.auth.setSession({access_token:at,refresh_token:rt});
-      const r2=(await sb.auth.getSession()).data.session; return r2||null; }
-  }catch(e){}
-  return null;
-}
+/* pin-gate.js owns sign-in (reliable session restore + reload after login); here we just
+   read that shared session. Plain getSession only — never setSession, which would rotate
+   the refresh token and race the pin-gate/nav clients. */
 async function initAuth(){
   $('#lkGo').onclick=doLogin;
   $('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  const sess=await restoreSession();
+  const sess=(await sb.auth.getSession()).data.session;
   if(sess){
     const sr=await sb.from('staff').select('display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
     if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role};unlock();return;}

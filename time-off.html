@@ -113,15 +113,9 @@ function overlapsFor(r){
 
 let AUTH=null, STAFF=[], REQS=[], TOSTATUS='pending', TOSCOPE='current';
 
-/* ---- auth (shared single sign-on) ---- */
-async function restoreSession(){
-  try{const s=(await sb.auth.getSession()).data.session;if(s)return s;}catch(e){}
-  try{const raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token');if(!raw)return null;const o=JSON.parse(raw);
-    const at=o.access_token||(o.currentSession&&o.currentSession.access_token),rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
-    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session||null;}
-  }catch(e){}
-  return null;
-}
+/* ---- auth: pin-gate.js owns sign-in; here we only read the shared session.
+   Plain getSession only — never setSession (it rotates the refresh token and
+   races the pin-gate/nav clients, which was blocking these pages). ---- */
 async function doLogin(){
   const pin=$('#lkPin').value,err=$('#lkErr');if(!pin){err.textContent='Enter your PIN';return;}
   $('#lkGo').disabled=true;err.textContent='Signing in…';
@@ -135,7 +129,7 @@ async function doLogin(){
 function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
 async function initAuth(){
   $('#lkGo').onclick=doLogin;$('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  const sess=await restoreSession();
+  const sess=(await sb.auth.getSession()).data.session;
   if(sess){const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
     if(sr.data){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};unlock();return;}}
   $('#lock').removeAttribute('hidden');$('#lkPin').focus();
