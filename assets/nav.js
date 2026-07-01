@@ -8,6 +8,20 @@
   'use strict';
   if (window.self !== window.top) return;   // skip inside iframes
 
+  // Home-screen icon: give every page the myRepairTools app icon (iOS uses
+  // apple-touch-icon; the SVG favicon is ignored for the home screen) + theme
+  // color + web manifest. Injected here so all pages get it without per-file edits.
+  (function iconMeta(){
+    try{
+      var head = document.head || document.getElementsByTagName('head')[0]; if(!head) return;
+      var add = function(tag, attrs){ if(document.querySelector(attrs.sel)) return;
+        var el = document.createElement(tag); for(var k in attrs){ if(k!=='sel') el.setAttribute(k, attrs[k]); } head.appendChild(el); };
+      add('link', { sel:'link[rel="apple-touch-icon"]', rel:'apple-touch-icon', href:'/apple-touch-icon.png' });
+      add('meta', { sel:'meta[name="theme-color"]', name:'theme-color', content:'#2D2D3B' });
+      add('link', { sel:'link[rel="manifest"]', rel:'manifest', href:'/manifest.webmanifest' });
+    }catch(e){}
+  })();
+
   // Single sign-on: role comes from the shared Supabase PIN session (same
   // session the pages use), so one PIN unlock covers the nav and every page.
   var SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
