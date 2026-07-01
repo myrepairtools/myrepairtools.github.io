@@ -216,6 +216,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/schedule-summary.js"></script>
 <script src="assets/pto-summary.js"></script>
 <script src="assets/team-hours-summary.js"></script>
+<script src="assets/holiday-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
 <script>
 (function(){
@@ -321,6 +322,13 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       can:function(){ return rank()>=RANK.manager; },
       render:function(){ return '<div data-th-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
       mount:function(bd){ loadTeamHours(bd); } },
+
+    { id:'holidaycheck', title:'Holiday Checklist', icon:'🎉', accent:'amber', defaultSize:'narrow',
+      desc:'Upcoming holidays that need store hours confirmed, plus bank-holiday payroll heads-ups.',
+      link:{href:'schedule-admin.html',x:'Set hours →'},
+      can:function(){ return rank()>=RANK.manager; },
+      render:function(){ return '<div data-hol-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
+      mount:function(bd){ loadHolidayCheck(bd); } },
 
     { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
       desc:'Till & safe balances — managers only.', tag:{t:'preview',x:'Preview'},
@@ -562,6 +570,40 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       }
       function wire(){ body.querySelectorAll('[data-th-store]').forEach(function(b){ b.onclick=function(){ var v=b.getAttribute('data-th-store'); try{localStorage.setItem('cprTeamHoursStore',v);}catch(e){} draw(v); }; }); }
       draw(sel);
+    }, function(){});
+  }
+
+  function loadHolidayCheck(bd){
+    if(!window.CPRHolidays || !window.CPRHolidays.forChecklist){ return; }
+    var body=bd.querySelector('[data-hol-body]'); if(!body) return;
+    var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function dlabel(dt){ var p=String(dt).split('-').map(Number); return MON[p[1]-1]+' '+p[2]; }
+    function away(n){ return n<=0?'today':(n===1?'tomorrow':(n<=14?'in '+n+' days':dlabelAway(n))); }
+    function dlabelAway(n){ return 'in '+Math.round(n/7)+' wks'; }
+    window.CPRHolidays.forChecklist({days:45}).then(function(d){
+      if(!body) return;
+      if(!d){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">Sign in to see holidays.</div></div>'; return; }
+      // items worth showing: needs-hours (any in window) + bank holidays within ~14 days
+      var need=d.items.filter(function(i){ return i.needsHours; });
+      var bank=d.items.filter(function(i){ return i.is_federal && i.daysAway<=14; });
+      if(!need.length && !bank.length){
+        body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">✓ All upcoming holidays are set.</div></div>';
+        return;
+      }
+      var rows='';
+      need.forEach(function(i){
+        rows+='<div class="hoursline" style="display:flex;align-items:center;gap:8px">'
+          +'<span style="width:7px;height:7px;border-radius:50%;background:#C9820B;flex:none"></span>'
+          +'<span class="hl" style="flex:1">Confirm hours · <b>'+esc(i.name)+'</b><span style="color:var(--grey);font-weight:700"> · '+dlabel(i.date)+'</span></span>'
+          +'<span class="hv" style="color:#C9820B">'+esc(away(i.daysAway))+'</span></div>';
+      });
+      bank.forEach(function(i){
+        rows+='<div class="hoursline" style="display:flex;align-items:center;gap:8px">'
+          +'<span style="width:7px;height:7px;border-radius:50%;background:#4b4b6b;flex:none"></span>'
+          +'<span class="hl" style="flex:1">🏛 <b>'+esc(i.name)+'</b> bank holiday<span style="color:var(--grey);font-weight:700"> · check payroll timing</span></span>'
+          +'<span class="hv" style="color:#6b7180">'+esc(away(i.daysAway))+'</span></div>';
+      });
+      body.innerHTML=rows;
     }, function(){});
   }
 

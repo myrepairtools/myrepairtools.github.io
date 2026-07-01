@@ -188,7 +188,9 @@ async function initAuth(){
 
 /* ===== data ===== */
 var STAFF=[], STORES=[], SHIFTS=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], MEMBERS={}, OVR={};
-var HOLIDAYS=[], HOLH={};   // HOLIDAYS: [{id,name,holiday_date}]; HOLH: holiday_id -> { store -> {closed,open_min,close_min} }
+var HOLIDAYS=[], HOLH={}, CATOBS={};   // HOLIDAYS rows; HOLH: holiday_id -> {store->hours}; CATOBS: catalog_id -> observed
+function holObserved(h){return h.catalog_id==null?true:(CATOBS[h.catalog_id]!==false);}   // manual holidays are always store-observed
+function holNeedCount(){var t=iso(new Date());return HOLIDAYS.filter(function(h){return h.holiday_date>=t&&holObserved(h)&&!h.hours_confirmed;}).length;}
 var SCHEDIT=false;   // This Week "Schedule change" edit mode (writes per-week schedule_overrides)
 /* Effective cell for a real date: a schedule_overrides row wins over the recurring template. */
 function effA(empId,wd,di){
@@ -213,7 +215,7 @@ function storeColor(store){var s=STORES.filter(function(x){return x.store===stor
 function empById(id){return STAFF.filter(function(e){return e.id===id;})[0];}
 function shiftById(id){return SHIFT_BY_ID[id];}
 async function load(){
-  var [st,so,sh,hr,sc,rq,mm,ov,hol,holh]=await Promise.all([
+  var [st,so,sh,hr,sc,rq,mm,ov,hol,holh,hc]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color').eq('active',true),
     sb.from('stores').select('store,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
@@ -222,8 +224,9 @@ async function load(){
     sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,submitted_at'),
     sb.from('schedule_membership').select('store,staff_id'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
-    sb.from('holidays').select('id,name,holiday_date').order('holiday_date'),
-    sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min')
+    sb.from('holidays').select('id,name,holiday_date,is_federal,hours_confirmed,catalog_id').order('holiday_date'),
+    sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
+    sb.from('holiday_catalog').select('id,observed,is_federal,active')
   ]);
   STAFF=(st.data||[]).filter(function(s){return !/^\s*britt\s+bay\s*$/i.test(s.display_name||'');});
   STORES=(so.data||[]).filter(function(s){return s.active!==false;});
@@ -243,7 +246,8 @@ async function load(){
   REQS=(rq.data||[]);
   MEMBERS={};(mm.data||[]).forEach(function(r){(MEMBERS[r.store]=MEMBERS[r.store]||[]).push(r.staff_id);});
   OVR={};(ov&&ov.data||[]).forEach(function(r){OVR[r.staff_id+'|'+String(r.ovr_date).slice(0,10)]=r;});   // per-week schedule changes
-  HOLIDAYS=((hol&&hol.data)||[]).map(function(h){return {id:h.id,name:h.name,holiday_date:String(h.holiday_date).slice(0,10)};});
+  CATOBS={};((hc&&hc.data)||[]).forEach(function(c){CATOBS[c.id]=c.observed!==false;});
+  HOLIDAYS=((hol&&hol.data)||[]).map(function(h){return {id:h.id,name:h.name,holiday_date:String(h.holiday_date).slice(0,10),is_federal:!!h.is_federal,hours_confirmed:!!h.hours_confirmed,catalog_id:h.catalog_id};});
   HOLH={};((holh&&holh.data)||[]).forEach(function(r){(HOLH[r.holiday_id]=HOLH[r.holiday_id]||{})[r.store]={closed:!!r.closed,open_min:r.open_min,close_min:r.close_min};});
   if(!WK)WK=weekStart(new Date());if(!MM)MM=new Date(new Date().getFullYear(),new Date().getMonth(),1);
   render();
@@ -292,7 +296,8 @@ function render(){
   // Time Off moved to its own page (time-off.html, under the Employees nav area).
   var defs=[{k:'weekly',l:'Recurring'},{k:'thisweek',l:'This Week'},{k:'monthly',l:'Monthly'},{k:'holidays',l:'Holidays'}];
   if(!defs.some(function(d){return d.k===VIEW;})){VIEW='monthly';lsSet('cprSchedAdminView',VIEW);}  // stale 'timeoff' -> monthly
-  $('#hub').innerHTML=defs.map(function(t){return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+'</button>';}).join('');
+  var holNeed=holNeedCount();
+  $('#hub').innerHTML=defs.map(function(t){var badge=(t.k==='holidays'&&holNeed)?' <span class="badge">'+holNeed+'</span>':'';return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+badge+'</button>';}).join('');
   $('#hub').querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){VIEW=b.getAttribute('data-v');lsSet('cprSchedAdminView',VIEW);render();};});
   // "Schedule change" is a static action on every tab — turning it on jumps to This Week, where per-week edits live.
   $('#hubActions').innerHTML='<button class="btn" id="schChg" style="'+(SCHEDIT?'background:var(--red);color:#fff;border-color:var(--red)':'')+'">'+(SCHEDIT?'✓ Done editing':'✎ Schedule change')+'</button>';
@@ -480,12 +485,21 @@ function renderHolidays(){
   var upcoming=HOLIDAYS.filter(function(h){return h.holiday_date>=today;}).sort(function(a,b){return a.holiday_date<b.holiday_date?-1:1;});
   var past=HOLIDAYS.filter(function(h){return h.holiday_date<today;}).sort(function(a,b){return a.holiday_date>b.holiday_date?-1:1;});
   var head='<th class="first">Holiday</th>'+stores.map(function(s){return '<th style="text-align:center"><span style="display:inline-flex;align-items:center;gap:5px;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(s.store))+'"></span>'+esc(shortStore(s.store))+'</span></th>';}).join('')+'<th style="text-align:right" class="first">&nbsp;</th>';
+  var needCount=upcoming.filter(function(h){return holObserved(h)&&!h.hours_confirmed;}).length;
   function rowHtml(h){
-    var cells=stores.map(function(s){return '<td style="text-align:center">'+holCell(h.id,s.store)+'</td>';}).join('');
-    return '<tr><td class="first"><div style="font-family:Nunito;font-weight:800;font-size:.9rem;color:var(--dark)">'+esc(h.name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(holDateLabel(h.holiday_date))+'</div></td>'+cells
-      +'<td style="text-align:right;white-space:nowrap" class="first"><button data-hedit="'+h.id+'" style="border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:8px;padding:6px 11px;font-family:Nunito;font-weight:800;font-size:.72rem;cursor:pointer">Edit</button> <button data-hdel="'+h.id+'" title="Delete" style="border:none;background:none;color:#cfd2dd;font-size:.95rem;cursor:pointer;padding:0 4px">✕</button></td></tr>';
+    var obs=holObserved(h), confirmed=h.hours_confirmed, isUp=h.holiday_date>=today, need=obs&&!confirmed&&isUp;
+    var tags='';
+    if(h.is_federal)tags+='<span class="tag" style="color:#4b4b6b;background:#EAEAF2;font-size:.5rem;margin-right:5px">🏛 BANK HOLIDAY</span>';
+    if(!obs)tags+='<span class="tag" style="color:#9aa0b0;background:#F3F2F2;font-size:.5rem">PAYROLL ONLY</span>';
+    else if(confirmed)tags+='<span class="tag" style="color:var(--green);background:#E6F4EC;font-size:.5rem">✓ HOURS SET</span>';
+    else if(isUp)tags+='<span class="tag" style="color:#B45309;background:#FCF1DD;font-size:.5rem">NEEDS HOURS</span>';
+    var cells=stores.map(function(s){return '<td style="text-align:center">'+(obs?holCell(h.id,s.store):'<span style="color:#cfd2dd;font-family:Nunito Sans;font-weight:700;font-size:.8rem">Regular</span>')+'</td>';}).join('');
+    var conf=need?'<button data-hconf="'+h.id+'" title="Accept these hours" style="border:none;background:var(--green);color:#fff;border-radius:8px;padding:6px 11px;font-family:Nunito;font-weight:800;font-size:.72rem;cursor:pointer">Confirm</button> ':'';
+    return '<tr'+(need?' style="background:#FFFCF7"':'')+'><td class="first"><div style="font-family:Nunito;font-weight:800;font-size:.9rem;color:var(--dark)">'+esc(h.name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);margin-bottom:4px">'+esc(holDateLabel(h.holiday_date))+'</div>'+tags+'</td>'+cells
+      +'<td style="text-align:right;white-space:nowrap" class="first">'+conf+'<button data-hedit="'+h.id+'" style="border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:8px;padding:6px 11px;font-family:Nunito;font-weight:800;font-size:.72rem;cursor:pointer">Edit</button> <button data-hdel="'+h.id+'" title="Delete" style="border:none;background:none;color:#cfd2dd;font-size:.95rem;cursor:pointer;padding:0 4px">✕</button></td></tr>';
   }
-  var html='<div style="max-width:'+(340+stores.length*130)+'px"><div class="toolbar"><span style="font-family:Nunito;font-weight:900;font-size:1.05rem">Store holidays</span><span style="flex:1"></span><button class="btn" id="haddBtn" style="background:var(--red);color:#fff;border-color:var(--red)">+ Add holiday</button></div>';
+  var html='<div style="max-width:'+(360+stores.length*130)+'px"><div class="toolbar"><span style="font-family:Nunito;font-weight:900;font-size:1.05rem">Store holidays</span>'+(needCount?'<span style="font-family:Nunito;font-weight:800;font-size:.62rem;color:#fff;background:#C9820B;border-radius:999px;padding:2px 9px">'+needCount+' need hours</span>':'')+'<span style="flex:1"></span><button class="btn" id="haddBtn" style="background:var(--red);color:#fff;border-color:var(--red)">+ Add holiday</button></div>'
+    +(needCount?'<div style="background:'+hexA('#C9820B',0.08)+';border:1px solid '+hexA('#C9820B',0.3)+';border-radius:11px;padding:11px 15px;margin-bottom:14px;font-family:Nunito Sans;font-weight:700;font-size:.82rem;color:#8a6412">🎉 <b>'+needCount+' upcoming holiday'+(needCount>1?'s':'')+' need hours confirmed.</b> They’re pre-filled from last year where possible &mdash; review each store, then hit <b>Confirm</b>.</div>':'');
   if(!HOLIDAYS.length){
     html+='<div class="totbl" style="padding:40px;text-align:center"><div style="font-size:26px;margin-bottom:8px">🎉</div><div style="font-family:Nunito;font-weight:800;font-size:.92rem;color:var(--dark-grey)">No holidays yet</div><div style="font-family:Nunito Sans;font-size:.8rem;color:var(--grey);margin-top:3px">Add a holiday to set closed days or reduced hours per store. Techs see upcoming holidays on My Time.</div></div>';
   }else{
@@ -494,11 +508,18 @@ function renderHolidays(){
     if(past.length)html+='<tr><td colspan="'+(stores.length+2)+'" style="background:#FAFAFB;padding:6px 16px;font-family:Nunito;font-weight:800;font-size:.58rem;letter-spacing:.5px;text-transform:uppercase;color:var(--grey)">Past</td></tr>'+past.map(rowHtml).join('');
     html+='</tbody></table></div>';
   }
-  html+='<div class="note">Set each store to <b>Regular</b>, <b>Closed</b>, or <b>custom hours</b> for the day. Mass-apply one setting to every store, or tailor it per store. Closed &amp; reduced-hour days automatically trim scheduled shifts, and techs see the next holiday on their <b>My Time</b> dashboard.</div></div>';
+  html+='<div class="note">Federal &amp; retail holidays <b>auto-fill every year</b> and pre-fill hours from last year — you just review &amp; <b>Confirm</b>. Set each store to <b>Regular</b>, <b>Closed</b>, or <b>custom hours</b>; closed &amp; reduced-hour days automatically trim scheduled shifts, and techs see the next holiday on their <b>My Time</b> dashboard. Bank-holiday tags flag days that may affect <b>payroll timing</b>.</div></div>';
   $('#view').innerHTML=html;
   var ab=$('#haddBtn');if(ab)ab.onclick=function(){openHolidayModal(null);};
+  $('#view').querySelectorAll('[data-hconf]').forEach(function(b){b.onclick=function(){confirmHoliday(Number(b.getAttribute('data-hconf')));};});
   $('#view').querySelectorAll('[data-hedit]').forEach(function(b){b.onclick=function(){openHolidayModal(Number(b.getAttribute('data-hedit')));};});
   $('#view').querySelectorAll('[data-hdel]').forEach(function(b){b.onclick=function(){deleteHoliday(Number(b.getAttribute('data-hdel')));};});
+}
+async function confirmHoliday(id){
+  var h=HOLIDAYS.filter(function(x){return x.id===id;})[0];if(!h)return;
+  h.hours_confirmed=true;render();
+  var r=await sb.from('holidays').update({hours_confirmed:true,confirmed_by:(AUTH&&AUTH.id)||null,confirmed_at:new Date().toISOString()}).eq('id',id);
+  if(r.error){h.hours_confirmed=false;render();toast(r.error.message,true);}else toast('Confirmed · '+h.name);
 }
 
 /* ---- Add / Edit holiday modal ---- */
@@ -602,11 +623,12 @@ async function saveHoliday(){
   f.saving=true;drawHolidayModal();
   try{
     var hid=f.editId;
+    var confMeta={hours_confirmed:true,confirmed_by:(AUTH&&AUTH.id)||null,confirmed_at:new Date().toISOString()};
     if(hid){
-      var up=await sb.from('holidays').update({name:f.name.trim(),holiday_date:f.date}).eq('id',hid);
+      var up=await sb.from('holidays').update(Object.assign({name:f.name.trim(),holiday_date:f.date},confMeta)).eq('id',hid);
       if(up.error)throw up.error;
     }else{
-      var ins=await sb.from('holidays').insert({name:f.name.trim(),holiday_date:f.date,created_by:(AUTH&&AUTH.id)||null}).select('id').single();
+      var ins=await sb.from('holidays').insert(Object.assign({name:f.name.trim(),holiday_date:f.date,created_by:(AUTH&&AUTH.id)||null},confMeta)).select('id').single();
       if(ins.error)throw ins.error;hid=ins.data.id;
     }
     if(clears.length){var d=await sb.from('holiday_hours').delete().eq('holiday_id',hid).in('store',clears);if(d.error)throw d.error;}
