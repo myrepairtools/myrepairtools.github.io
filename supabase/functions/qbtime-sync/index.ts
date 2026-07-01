@@ -72,6 +72,15 @@ async function qbtGet(path: string, token: string, params?: Record<string, strin
   const data = await r.json().catch(() => ({}));
   return { status: r.status, data };
 }
+// write helper for POST/PUT/DELETE (clock in/out, PTO push/delete)
+async function qbtReq(method: string, path: string, token: string, body: unknown) {
+  const r = await fetch(API + path, {
+    method, headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: body == null ? undefined : JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  return { status: r.status, data };
+}
 
 function norm(s: unknown) { return String(s ?? "").trim().toLowerCase(); }
 
@@ -417,6 +426,19 @@ Deno.serve(async (req) => {
     }
     const staff_id = (sid == null || sid === "") ? null : Number(sid);
     return json(await mapUser(qbt_id, staff_id));
+  }
+  if (action === "customfields") {
+    // Discover QB Time custom fields + items (the QuickBooks "class"/location lives here).
+    const cf = await qbtGet("customfields", token, { active: "yes" });
+    const fields = (cf.data?.results?.customfields || {}) as Record<string, Record<string, unknown>>;
+    const out: Record<string, unknown> = {};
+    for (const f of Object.values(fields)) {
+      const items = await qbtGet("customfielditems", token, { customfield_id: String(f.id) });
+      const its = Object.values((items.data?.results?.customfielditems || {}) as Record<string, Record<string, unknown>>)
+        .map((it) => ({ id: it.id, name: it.name, active: it.active }));
+      out[String(f.name)] = { id: f.id, required: f.required, item_count: its.length, items: its };
+    }
+    return json({ ok: true, cf_status: cf.status, fields: out });
   }
   return json({ error: "bad_action" }, 400);
 });
