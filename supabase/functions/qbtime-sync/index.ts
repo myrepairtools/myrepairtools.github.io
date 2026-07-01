@@ -115,6 +115,34 @@ async function openTimesheet(token: string, qbtId: string): Promise<Record<strin
   return Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0] || null;
 }
 
+// ---- PTO / time-off (write to QB Time) ----
+const PTO_MAP: Record<string, string> = { Vacation: "Vacation", Sick: "Sick", Personal: "Paid Time Off", PTO: "Paid Time Off", Unpaid: "Unpaid Time Off", Holiday: "Holiday" };
+async function ptoJobcodeId(typeName: string): Promise<number | null> {
+  const want = PTO_MAP[String(typeName)] || "Paid Time Off";
+  const { data } = await admin.from("qbtime_jobcodes").select("qbt_id").ilike("name", want).limit(1);
+  return data && data[0] ? Number(data[0].qbt_id) : null;
+}
+function daysInRange(start: string, end: string): string[] {
+  const out: string[] = []; let d = start;
+  for (let i = 0; i < 90 && d <= end; i++) { out.push(d); d = addDays(d, 1); }
+  return out.length ? out : [start];
+}
+// Create ONE approved QB Time time-off request spanning [start,end]; total `hours` split per day.
+async function createTimeOff(token: string, qbtId: string, jobcodeId: number, start: string, end: string, hours: number) {
+  const days = daysInRange(start, end), n = days.length;
+  const totalSec = Math.round(Number(hours) * 3600), per = Math.floor(totalSec / n), rem = totalSec - per * n;
+  const entries = days.map((d, i) => ({ jobcode_id: Number(jobcodeId), date: d, duration: per + (i === 0 ? rem : 0), entry_method: "manual", active: true }))
+    .filter((e) => e.duration > 0);
+  if (!entries.length) return { ok: false, id: null as number | null, msg: "zero_duration", raw: {} };
+  const r = await qbtReq("POST", "time_off_requests", token, { data: [{ user_id: Number(qbtId), status: "approved", time_off_request_entries: entries }] });
+  const res = Object.values((r.data?.results?.time_off_requests || {}) as Record<string, Record<string, unknown>>)[0] || {};
+  return { ok: res._status_code === 200, id: (res.id as number) ?? null, msg: res._status_message as string, raw: r.data };
+}
+// Cancel QB Time time-off requests (approval undone/denied). No DELETE endpoint — PUT status.
+async function cancelTimeOff(token: string, ids: number[]) {
+  for (const id of ids) await qbtReq("PUT", "time_off_requests", token, { data: [{ id: Number(id), status: "canceled" }] });
+}
+
 // common nickname groups (interchangeable forms) for fuzzy first-name matching
 const NICK_GROUPS: string[][] = [
   ["michael","mike","mick","mikey"],["robert","rob","bob","bobby"],["william","will","bill","billy"],
@@ -508,6 +536,34 @@ Deno.serve(async (req) => {
       const r = await qbtReq("DELETE", "timesheets?ids=" + encodeURIComponent(id), token, null);
       return json({ ok: r.status === 200, status: r.status, result: r.data });
     }
+  }
+  if (action === "timeoff_sync") {
+    // Reconcile approved time-off → QB Time; cancel entries no longer approved. One-way
+    // MRT→QBO, time-off only, idempotent (create-once, tracked via qbt_ids). Paid → "Paid
+    // Time Off" code; unpaid → "Unpaid Time Off" (the codes staff are actually assigned).
+    if (!privileged) return json({ error: "forbidden" }, 403);
+    const { data: toCreate } = await admin.from("time_off_requests")
+      .select("id,staff_id,type,start_date,end_date,hours,paid,qbt_ids")
+      .eq("status", "approved").gt("hours", 0).is("qbt_ids", null);
+    const { data: toCancel } = await admin.from("time_off_requests")
+      .select("id,qbt_ids,status").not("qbt_ids", "is", null).neq("status", "approved");
+    let created = 0, canceled = 0; const errors: unknown[] = [];
+    for (const r of (toCreate || [])) {
+      const qbtId = await qbtIdForStaff(String(r.staff_id));
+      if (!qbtId) { errors.push({ id: r.id, e: "no_qbt_link" }); continue; }
+      const jc = await ptoJobcodeId(r.paid === false ? "Unpaid" : "PTO");
+      if (!jc) { errors.push({ id: r.id, e: "no_jobcode" }); continue; }
+      const res = await createTimeOff(token, qbtId, jc, r.start_date, r.end_date, Number(r.hours));
+      if (res.ok && res.id) { await admin.from("time_off_requests").update({ qbt_ids: [res.id], qbt_synced_at: new Date().toISOString() }).eq("id", r.id); created++; }
+      else errors.push({ id: r.id, e: "create_failed", msg: res.msg });
+    }
+    for (const r of (toCancel || [])) {
+      const ids = Array.isArray(r.qbt_ids) ? (r.qbt_ids as number[]) : [];
+      await cancelTimeOff(token, ids.map(Number));
+      await admin.from("time_off_requests").update({ qbt_ids: null, qbt_synced_at: new Date().toISOString() }).eq("id", r.id);
+      canceled++;
+    }
+    return json({ ok: true, created, canceled, errors });
   }
   if (action === "customfields") {
     // Discover QB Time custom fields + items (the QuickBooks "class"/location lives here).
