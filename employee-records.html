@@ -127,6 +127,11 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .toreq{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--light-grey)}
 .toreq:last-child{border-bottom:none}
 .topill{flex:none;font-family:'Nunito';font-weight:800;font-size:.62rem;border-radius:999px;padding:3px 10px}
+.toact{flex:none;display:inline-flex;gap:7px}
+.tobtn{font-family:'Nunito';font-weight:800;font-size:.72rem;border-radius:8px;padding:6px 12px;cursor:pointer}
+.tobtn.appr{border:none;background:var(--green);color:#fff}
+.tobtn.deny{border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)}
+.toreopen{margin-left:8px;font-family:'Nunito';font-weight:700;font-size:.64rem;color:var(--grey);background:none;border:none;cursor:pointer;text-decoration:underline}
 .tohrs{flex:none;text-align:right;font-family:'Nunito';font-weight:900;font-size:.86rem;color:var(--dark);font-variant-numeric:tabular-nums;line-height:1.1}
 .tohrs .sub{display:block;font-family:'Nunito Sans';font-weight:700;font-size:.64rem;color:var(--grey);text-transform:uppercase;letter-spacing:.3px}
 .center-msg{height:100%;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:700;font-size:.88rem;padding:40px;text-align:center}
@@ -570,14 +575,27 @@ function ptoHtml(e){
   else{ html+='<div class="toreqs">';
     reqs.forEach(r=>{const range=r.start===r.end?fmt(r.start):(fmt(r.start)+' – '+fmt(r.end));
       const days=reqDays(r), hrs=days*8;
+      const act=r.status==='pending'
+        ? '<span class="toact"><button class="tobtn deny" data-deny="'+r.id+'">Deny</button><button class="tobtn appr" data-appr="'+r.id+'">Approve</button></span>'
+        : '<span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span><button class="toreopen" data-reopen="'+r.id+'" title="Reopen as pending">Reopen</button>';
       html+='<div class="toreq"><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.86rem">'+esc(range)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(r.type)+(r.note?(' · '+esc(r.note)):'')+'</div></div>'
-        +'<span class="tohrs">'+hrs+' hrs<span class="sub">'+days+(days===1?' day':' days')+'</span></span>'
-        +'<span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span></div>';});
+        +'<span class="tohrs">'+hrs+' hrs<span class="sub">'+days+(days===1?' day':' days')+'</span></span>'+act+'</div>';});
     html+='</div><div class="empty-sm" style="text-align:left;padding:9px 2px 0;font-size:.72rem">Hours estimated at 8 per day.</div>'; }
   return html+'</div>';
 }
 /* inclusive calendar-day span of a request (start & end are YYYY-MM-DD) */
 function reqDays(r){const s=new Date(r.start+'T00:00:00'),e=new Date(r.end+'T00:00:00');if(isNaN(s)||isNaN(e))return 1;const d=Math.round((e-s)/86400000)+1;return d<1?1:d;}
+/* approve / deny / reopen a request — same write path as Schedule Admin (RLS: is_admin(store) or self) */
+async function decideRequest(id,status){
+  let req=null; ALL.forEach(e=>{const r=(e.timeoff||[]).filter(x=>x.id===id)[0]; if(r)req=r;});
+  if(!req)return;
+  const prev=req.status; req.status=status; render();   // optimistic
+  const patch=status==='pending'?{status:status,decided_by:null,decided_at:null}
+    :{status:status,decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
+  const res=await sb.from('time_off_requests').update(patch).eq('id',id);
+  if(res.error){req.status=prev;render();toast(res.error.message||'Could not update',true);}
+  else toast(status==='approved'?'Approved':status==='denied'?'Denied':'Reopened');
+}
 
 function logHtml(e){
   let ents=e.entries.slice();
@@ -1076,6 +1094,9 @@ $('#empList').addEventListener('click',e=>{
 $('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;S.mDetail=false;render();});
 $('#work').addEventListener('change',e=>{const f=e.target.closest('[data-f]');if(f){S[f.dataset.f]=f.value;render();}});
 $('#work').addEventListener('click',e=>{
+  const dec=e.target.closest('[data-appr],[data-deny],[data-reopen]');
+  if(dec){const id=Number(dec.dataset.appr||dec.dataset.deny||dec.dataset.reopen);
+    decideRequest(id, dec.dataset.appr!=null?'approved':dec.dataset.deny!=null?'denied':'pending');return;}
   if(e.target.closest('[data-ticket]'))return;            // let ticket links open
   const card=e.target.closest('[data-entry],[data-pip],[data-dmg]');
   if(card){if(card.dataset.entry!=null)S.entryId=card.dataset.entry;
