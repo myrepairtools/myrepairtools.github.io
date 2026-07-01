@@ -246,7 +246,7 @@ function effA(empId,wd,di){
 }
 function isOverridden(empId,di){ return !!OVR[empId+'|'+di]; }
 var VIEW=lsGet('cprSchedAdminView','weekly'), FILTER='All', TOSTATUS='all', TOSCOPE='current';
-var WK=null, MM=null;
+var WK=null, MM=null, PICKM=null;   // PICKM = month shown in the This Week date-picker popover
 function canSee(store){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores||[]).indexOf(store)>-1||AUTH.home_store===store);}
 function resolve(shiftId,store,wd){
   var h=HOURS[shiftId+'|'+store];
@@ -468,7 +468,7 @@ function renderThisWeek(){
   var end=new Date(WK);end.setDate(end.getDate()+6);
   var wlabel=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate()+', '+end.getFullYear();
   var head='<th class="emp">Employee</th>'+DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var hol=holidayOn(di);return '<th'+(hol?' title="'+esc(hol.name)+'"':'')+'>'+d+'<div class="dt">'+dt.getDate()+'</div>'+(hol?'<div style="font-size:.54rem;font-weight:800;color:#C9820B;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:82px">🎉 '+esc(hol.name)+'</div>':'')+'</th>';}).join('')+HRS_TH;
-  var html='<div class="toolbar"><div class="navbox"><button data-wk="-1">‹</button><span class="lbl">'+wlabel+'</span><button data-wk="1">›</button></div><button class="btn" data-wk="0">This week</button>'
+  var html='<div class="toolbar"><div class="navbox"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="cursor:pointer;background:#fff">'+wlabel+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1">›</button></div><button class="btn" data-wk="0">This week</button>'
     +(SCHEDIT?'<span class="cap" style="color:var(--red);border-color:'+hexA('#DC282E',0.4)+';background:'+hexA('#DC282E',0.06)+'">✎ Editing this week — click a day to change it</span>':'')+'<span style="flex:1"></span>'
     +'<div class="legend"><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--blue)"></span>Vacation</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--purple)"></span>Personal</span><span class="lg" style="color:var(--grey)"><span style="width:10px;height:10px;border-radius:3px;border:1.5px dashed var(--amber)"></span>Pending</span></div></div>'
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
@@ -504,6 +504,7 @@ function renderThisWeek(){
   $('#view').innerHTML=html;
   $('#view').querySelectorAll('[data-fp]').forEach(function(b){b.onclick=function(){FILTER=b.getAttribute('data-fp');render();};});
   $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){var n=Number(b.getAttribute('data-wk'));if(n===0)WK=weekStart(new Date());else{WK=new Date(WK);WK.setDate(WK.getDate()+7*n);}render();};});
+  var wp=$('#view').querySelector('[data-wkpick]');if(wp)wp.onclick=function(ev){ev.stopPropagation();openWeekPicker(wp);};
   $('#view').querySelectorAll('.cell.clk[data-oemp]').forEach(function(td){td.onclick=function(ev){if(ev.target.closest('[data-xrmv]'))return;openOverridePicker(td,ev);};});
   $('#view').querySelectorAll('[data-xadd]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();openAddExtra(b.getAttribute('data-xadd'),ev);};});
   $('#view').querySelectorAll('[data-xrmv]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var p=b.getAttribute('data-xrmv').split('|');removeExtra(p[0],Number(p[1]));};});
@@ -766,6 +767,48 @@ function statusLabel(st){return st==='approved'?'Approved':st==='denied'?'Denied
 var POP=null;
 function closePop(){if(POP){POP.remove();POP=null;}}
 function placePop(pop,x,y){var vw=window.innerWidth,vh=window.innerHeight;pop.style.left=Math.max(10,Math.min(x,vw-250))+'px';pop.style.top=Math.max(10,Math.min(y,vh-360))+'px';}
+/* ===== This Week date-picker: a month calendar; pick any week (change months to jump ahead) ===== */
+function openWeekPicker(anchor){
+  closePop();
+  if(!PICKM)PICKM=new Date(WK.getFullYear(),WK.getMonth(),1);
+  var back=document.createElement('div');back.className='pop-back';back.onclick=closePop;
+  var pop=document.createElement('div');pop.className='pop';pop.style.width='272px';pop.style.padding='9px';
+  function draw(){
+    var Y=PICKM.getFullYear(),M=PICKM.getMonth();
+    var selWk=iso(WK),curWk=iso(weekStart(new Date())),todayISO=iso(new Date());
+    var start=new Date(Y,M,1);start.setDate(start.getDate()-start.getDay());
+    var cur=new Date(start),rows='';
+    for(var w=0;w<6;w++){
+      var rowStart=new Date(cur),inMonth=false,cells='';
+      for(var i=0;i<7;i++){
+        var isM=(cur.getMonth()===M);if(isM)inMonth=true;
+        var isToday=iso(cur)===todayISO;
+        cells+='<td style="text-align:center;padding:5px 0;font-family:\'Nunito Sans\',sans-serif;font-weight:'+(isM?800:600)+';font-size:.72rem;color:'+(isToday?'#DC282E':(isM?'var(--dark)':'#C7CAD4'))+'">'+cur.getDate()+(isToday?'<div style="height:2px;width:12px;background:#DC282E;border-radius:2px;margin:1px auto 0"></div>':'')+'</td>';
+        cur.setDate(cur.getDate()+1);
+      }
+      if(w>0&&!inMonth)break;
+      var rs=iso(rowStart),isSel=rs===selWk;
+      rows+='<tr class="wkrow" data-pwk="'+rs+'" style="cursor:pointer'+(isSel?';background:'+hexA('#4FB0E3',0.16)+';box-shadow:inset 0 0 0 1.5px '+hexA('#4FB0E3',0.55):'')+'">'+cells+'</tr>';
+    }
+    var bstyle='border:1px solid var(--border);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey);line-height:1';
+    pop.innerHTML='<div style="display:flex;align-items:center;gap:6px;padding:1px 1px 8px">'
+      +'<button data-pm="-1" style="'+bstyle+'">‹</button>'
+      +'<div style="flex:1;text-align:center;font-family:\'Nunito\',sans-serif;font-weight:900;font-size:.85rem">'+MONL[M]+' '+Y+'</div>'
+      +'<button data-pm="1" style="'+bstyle+'">›</button></div>'
+      +'<table style="width:100%;border-collapse:separate;border-spacing:0 2px"><thead><tr>'+DAYS.map(function(d){return '<th style="text-align:center;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.55rem;color:var(--grey);padding-bottom:3px">'+d[0]+'</th>';}).join('')+'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<button data-jump="'+curWk+'" style="width:100%;margin-top:7px;padding:7px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey)">↩ Jump to this week</button>';
+    pop.querySelectorAll('.wkrow').forEach(function(tr){
+      var rs=tr.getAttribute('data-pwk');
+      if(rs!==selWk){tr.onmouseenter=function(){tr.style.background=hexA('#4FB0E3',0.09);};tr.onmouseleave=function(){tr.style.background='';};}
+      tr.onclick=function(){var p=rs.split('-').map(Number);WK=new Date(p[0],p[1]-1,p[2]);PICKM=null;closePop();render();};
+    });
+    pop.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();PICKM=new Date(PICKM.getFullYear(),PICKM.getMonth()+Number(b.getAttribute('data-pm')),1);draw();};});
+    var jb=pop.querySelector('[data-jump]');if(jb)jb.onclick=function(){WK=weekStart(new Date());PICKM=null;closePop();render();};
+  }
+  draw();
+  document.body.appendChild(back);document.body.appendChild(pop);POP={remove:function(){back.remove();pop.remove();PICKM=null;}};
+  var r=anchor.getBoundingClientRect();placePop(pop,r.left,r.bottom+6);
+}
 function openPicker(td,ev){
   closePop();var emp=Number(td.getAttribute('data-emp')),wd=Number(td.getAttribute('data-wd')),e=empById(emp);if(!e)return;
   var homeStore=e.home_store;
