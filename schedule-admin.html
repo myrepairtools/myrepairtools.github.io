@@ -175,7 +175,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
 var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 var FN=SB_URL+'/functions/v1/cpr-auth';
+var NOTIFY_FN=SB_URL+'/functions/v1/notify';
 var sb=createClient(SB_URL,ANON);
+async function sessionToken(){try{var s=(await sb.auth.getSession()).data.session;if(s&&s.access_token)return s.access_token;}catch(e){}try{var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token');if(raw){var o=JSON.parse(raw);var t=o&&(o.access_token||(o.currentSession&&o.currentSession.access_token));if(t)return t;}}catch(e){}return ANON;}
 var AUTH=null, DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 var $=function(s){return document.querySelector(s);};
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -369,13 +371,38 @@ function makeShiftsBtn(){
   btn.textContent='🕘 Shifts';btn.title='Edit shifts & their hours';btn.onclick=openShiftsModal;
   return btn;
 }
+function makeNotifyBtn(){
+  var btn=document.createElement('button');btn.className='btn';btn.id='notifyBtn';
+  btn.textContent='📣 Notify staff';btn.title='Email staff to check My Time after a schedule change';
+  btn.onclick=notifyStaff;return btn;
+}
+/* Manual broadcast: fires the schedule.manual_broadcast rule -> whatever channels are routed
+   to it in Settings › Notifications (e.g. the owner's work email -> Power Automate -> Teams). */
+async function notifyStaff(){
+  if(!confirm('Notify all staff to check their updated schedule in My Time?'))return;
+  var btn=$('#notifyBtn');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+  try{
+    var tok=await sessionToken();
+    var r=await fetch(NOTIFY_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+      body:JSON.stringify({action:'send',event_key:'schedule.manual_broadcast',
+        subject:'Schedule updated — please check My Time',
+        text:'Your work schedule was just updated. Open My Time in myrepairtools to see your latest shifts and any time-off changes.'})});
+    var d=await r.json().catch(function(){return {};});
+    if(r.ok&&d.ok&&d.results&&d.results.length)toast('✓ Staff notified');
+    else if(d.skipped==='rule_disabled')toast('Turn on “Schedule change → notify staff” in Settings › Notifications',true);
+    else if(d.skipped==='no_channels')toast('Add + route a channel under Settings › Notifications first',true);
+    else{var err=(d.results&&d.results[0]&&d.results[0].error)||d.error||('http '+r.status);
+      toast(err==='email_not_configured'?'Email isn’t connected yet (add a RESEND_API_KEY)':('Notify failed: '+err),true);}
+  }catch(e){toast('Notify failed: '+(e&&e.message||e),true);}
+  if(btn){btn.disabled=false;btn.textContent='📣 Notify staff';}
+}
 function injectSchedChangeBar(){
   var view=$('#view');if(!view)return;
   var fp=view.querySelector('[data-fp]');                       // the location filter pills
   var host=fp?fp.closest('.toolbar'):view.querySelector('.toolbar');
   if(!host)return;
   var sp=document.createElement('span');sp.style.flex='1';       // push the buttons to the right
-  host.appendChild(sp);host.appendChild(makeShiftsBtn());host.appendChild(makeSchBtn());
+  host.appendChild(sp);host.appendChild(makeNotifyBtn());host.appendChild(makeShiftsBtn());host.appendChild(makeSchBtn());
 }
 function filterPillsHtml(){
   var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));

@@ -459,6 +459,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
 var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 var FN=SB_URL+'/functions/v1/cpr-auth';
+var NOTIFY_FN=SB_URL+'/functions/v1/notify';
 var sb=createClient(SB_URL,ANON);
 /* ==================== */
 var AUTH=null;        /* logged-in staff {name, role, home_store, authorized_stores} */
@@ -1594,14 +1595,14 @@ function openAddChannel(){MOPEN={type:'channel',isNew:true,draft:{name:'',type:'
 function openEditChannel(id){var c=CHANNELS.filter(function(x){return String(x.id)===String(id);})[0];if(!c)return;MOPEN={type:'channel',isNew:false,draft:{id:c.id,name:c.name||'',type:c.type,target:c.target||'',webhook_format:c.webhook_format||'adaptive'}};renderModal();}
 function channelModalHtml(){
   var d=MOPEN.draft, wh=d.type==='webhook';
-  var tLabel=wh?'Webhook URL':'Teams channel email';
-  var tPh=wh?'https://prod-…/triggers/manual/paths/invoke':'channel.abc123@amer.teams.ms';
+  var tLabel=wh?'Webhook URL':'Email address';
+  var tPh=wh?'https://prod-…/triggers/manual/paths/invoke':'you@work.com or channel.abc123@amer.teams.ms';
   return '<div class="modal-back" data-close></div><div class="modal"><div class="modal-hd">'
     +'<div class="t">'+(MOPEN.isNew?'New channel':'Edit channel')+'<div class="s">Where matching events post</div></div>'
     +'<button class="modal-x" data-close>×</button></div>'
     +'<div class="modal-body">'
       +'<div class="grid2"><div class="f"><label>Name</label><input data-k="name" value="'+esc(d.name)+'" placeholder="e.g. Ops Teams Channel"></div>'
-      +'<div class="f"><label>Type</label><select data-k="type"><option value="email"'+(wh?'':' selected')+'>Email to Teams channel</option><option value="webhook"'+(wh?' selected':'')+'>Webhook (Power Automate)</option></select></div></div>'
+      +'<div class="f"><label>Type</label><select data-k="type"><option value="email"'+(wh?'':' selected')+'>Email (work inbox or Teams channel)</option><option value="webhook"'+(wh?' selected':'')+'>Webhook (Power Automate)</option></select></div></div>'
       +'<div class="f" style="margin-top:12px"><label>'+tLabel+'</label><input data-k="target" value="'+esc(d.target)+'" placeholder="'+tPh+'"></div>'
       +(wh?'<div class="f" style="margin-top:12px"><label>Payload format</label><select data-k="webhook_format"><option value="adaptive"'+(d.webhook_format==='adaptive'?' selected':'')+'>Adaptive Card</option><option value="messagecard"'+(d.webhook_format==='messagecard'?' selected':'')+'>MessageCard</option></select></div>':'')
     +'</div>'
@@ -1614,7 +1615,21 @@ function wireChannel(host){
   host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
   host.querySelectorAll('[data-k]').forEach(function(el){var h=function(){d[el.getAttribute('data-k')]=el.value;if(el.getAttribute('data-k')==='type')renderModal();};el.oninput=h;el.onchange=h;});
   var del=host.querySelector('[data-delch]');if(del)del.onclick=deleteChannel;
-  var test=host.querySelector('[data-test]');if(test)test.onclick=function(){toast('Test sending arrives with the delivery backend');};
+  var test=host.querySelector('[data-test]');if(test)test.onclick=async function(){
+    var dr=MOPEN.draft;
+    if(!String(dr.target||'').trim()){toast(dr.type==='webhook'?'Enter a webhook URL first':'Enter an email first',true);return;}
+    test.disabled=true;var was=test.textContent;test.textContent='Sending…';
+    try{
+      var tok=await sessionToken();
+      var r=await fetch(NOTIFY_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+        body:JSON.stringify({action:'test',channel:{type:dr.type,target:String(dr.target).trim(),webhook_format:dr.webhook_format||'adaptive',name:dr.name||'Test channel'}})});
+      var d=await r.json().catch(function(){return {};});
+      if(r.ok&&d.ok)toast('✓ Test sent — check '+(dr.type==='webhook'?'the channel':'the inbox'));
+      else{var err=(d.results&&d.results[0]&&d.results[0].error)||d.error||('http '+r.status);
+        toast(err==='email_not_configured'?'Email isn’t connected yet — add a RESEND_API_KEY secret to send email':('Test failed: '+err),true);}
+    }catch(e){toast('Test failed: '+(e&&e.message||e),true);}
+    test.disabled=false;test.textContent=was;
+  };
   host.querySelector('[data-save]').onclick=saveChannel;
 }
 async function saveChannel(){
