@@ -305,16 +305,22 @@ function render(){
   else renderMonthly();
   injectSchedChangeBar();
 }
-/* "Schedule change" is a static action on every tab, placed just below the legend toolbar.
-   Turning it on jumps to This Week, where the per-week edits live. */
+/* "Schedule change" is a static action on every tab — right-aligned on the same row as the
+   location filter pills. Turning it on jumps to This Week, where the per-week edits live. */
+function makeSchBtn(){
+  var btn=document.createElement('button');btn.className='btn';btn.id='schChg';
+  if(SCHEDIT)btn.style.cssText='background:var(--red);color:#fff;border-color:var(--red)';
+  btn.textContent=SCHEDIT?'✓ Done editing':'✎ Schedule change';
+  btn.onclick=function(){SCHEDIT=!SCHEDIT;if(SCHEDIT&&VIEW!=='thisweek'){VIEW='thisweek';lsSet('cprSchedAdminView',VIEW);}render();};
+  return btn;
+}
 function injectSchedChangeBar(){
   var view=$('#view');if(!view)return;
-  var firstTb=view.querySelector('.toolbar');
-  var bar=document.createElement('div');bar.className='toolbar';bar.style.marginTop='2px';
-  bar.innerHTML='<button class="btn" id="schChg" style="'+(SCHEDIT?'background:var(--red);color:#fff;border-color:var(--red)':'')+'">'+(SCHEDIT?'✓ Done editing':'✎ Schedule change')+'</button>';
-  if(firstTb&&firstTb.parentNode){firstTb.parentNode.insertBefore(bar,firstTb.nextSibling);}
-  else{view.insertBefore(bar,view.firstChild);}
-  $('#schChg').onclick=function(){SCHEDIT=!SCHEDIT;if(SCHEDIT&&VIEW!=='thisweek'){VIEW='thisweek';lsSet('cprSchedAdminView',VIEW);}render();};
+  var fp=view.querySelector('[data-fp]');                       // the location filter pills
+  var host=fp?fp.closest('.toolbar'):view.querySelector('.toolbar');
+  if(!host)return;
+  var sp=document.createElement('span');sp.style.flex='1';       // push the button to the right
+  host.appendChild(sp);host.appendChild(makeSchBtn());
 }
 function filterPillsHtml(){
   var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));
