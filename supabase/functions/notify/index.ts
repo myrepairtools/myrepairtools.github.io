@@ -42,12 +42,13 @@ async function callerStaff(req: Request): Promise<Record<string, unknown> | null
 type Channel = { id: number; name: string; type: string; target: string | null; webhook_format: string | null; enabled: boolean };
 
 // Build the webhook payload for a Teams incoming webhook / Power Automate HTTP trigger.
-function webhookBody(fmt: string | null, subject: string, text: string): string {
+function webhookBody(fmt: string | null, subject: string, text: string, keyword: string): string {
   if (fmt === "messagecard") {
     return JSON.stringify({
       "@type": "MessageCard", "@context": "http://schema.org/extensions",
       summary: subject, themeColor: "DC282E",
       title: subject, text: text.replace(/\n/g, "\n\n"),
+      keyword,   // structured field Power Automate can switch on
     });
   }
   if (fmt === "adaptive") {
@@ -62,12 +63,13 @@ function webhookBody(fmt: string | null, subject: string, text: string): string 
             { type: "TextBlock", size: "Medium", weight: "Bolder", text: subject, wrap: true },
             { type: "TextBlock", text: text, wrap: true },
           ],
+          msteams: { keyword },
         },
       }],
     });
   }
   // default: plain JSON — friendliest for a Power Automate "When an HTTP request is received" trigger
-  return JSON.stringify({ subject, text, title: subject, message: text });
+  return JSON.stringify({ keyword, subject, text, title: subject, message: text });
 }
 
 async function sendEmail(to: string, subject: string, text: string): Promise<{ ok: boolean; error?: string }> {
@@ -88,12 +90,12 @@ async function sendEmail(to: string, subject: string, text: string): Promise<{ o
   return { ok: true };
 }
 
-async function deliver(ch: Channel, subject: string, text: string): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
+async function deliver(ch: Channel, subject: string, text: string, keyword: string): Promise<{ channel: string; ok: boolean; via: string; error?: string }> {
   const target = (ch.target || "").trim();
   if (!target) return { channel: ch.name, ok: false, via: ch.type, error: "no_target" };
   try {
     if (ch.type === "webhook") {
-      const r = await fetch(target, { method: "POST", headers: { "Content-Type": "application/json" }, body: webhookBody(ch.webhook_format, subject, text) });
+      const r = await fetch(target, { method: "POST", headers: { "Content-Type": "application/json" }, body: webhookBody(ch.webhook_format, subject, text, keyword) });
       if (!r.ok) return { channel: ch.name, ok: false, via: "webhook", error: `http_${r.status}` };
       return { channel: ch.name, ok: true, via: "webhook" };
     }
@@ -120,6 +122,7 @@ Deno.serve(async (req) => {
 
   // Resolve the channel list for this call.
   let channels: Channel[] = [];
+  let ruleKeyword = "";
   if (action === "test") {
     // Test an unsaved draft ({channel:{type,target,...}}) or an existing channel by id.
     const draft = body.channel as Partial<Channel> | undefined;
@@ -137,9 +140,10 @@ Deno.serve(async (req) => {
       const { data } = await admin.from("notification_channels").select("id,name,type,target,webhook_format,enabled").in("id", body.channel_ids as number[]);
       channels = (data || []) as Channel[];
     } else if (body.event_key) {
-      const { data: rule } = await admin.from("notification_rules").select("id,enabled").eq("event_key", String(body.event_key)).maybeSingle();
+      const { data: rule } = await admin.from("notification_rules").select("id,enabled,keyword").eq("event_key", String(body.event_key)).maybeSingle();
       if (!rule) return json({ ok: false, error: "rule not found" }, 404);
       if (!rule.enabled) return json({ ok: true, skipped: "rule_disabled", results: [] });
+      ruleKeyword = String(rule.keyword || "").trim();
       const { data: links } = await admin.from("notification_rule_channels").select("channel_id").eq("rule_id", rule.id);
       const ids = (links || []).map((l: { channel_id: number }) => l.channel_id);
       if (!ids.length) return json({ ok: true, skipped: "no_channels", results: [] });
@@ -150,13 +154,18 @@ Deno.serve(async (req) => {
     }
   }
 
-  const subject = String(body.subject || (action === "test" ? "CPR Tools · test notification" : "CPR Tools notification"));
-  const text = String(body.text || (action === "test"
+  const keyword = String(body.keyword || ruleKeyword || "").trim();
+  const descSubject = String(body.subject || (action === "test" ? "CPR Tools · test notification" : "CPR Tools notification"));
+  const descText = String(body.text || (action === "test"
     ? "This is a test from the CPR Tools notifications panel. If you got this, the channel works."
     : "You have a new notification from the CPR Tools."));
+  // When a keyword is set, the keyword IS the signal — send it as the message so a Power Automate
+  // "when keywords are mentioned" trigger matches. No keyword → send the human-readable message.
+  const sendSubject = keyword || descSubject;
+  const sendText = keyword || descText;
 
   if (!channels.length) return json({ ok: true, skipped: "no_channels", results: [] });
-  const results = await Promise.all(channels.map((c) => deliver(c, subject, text)));
+  const results = await Promise.all(channels.map((c) => deliver(c, sendSubject, sendText, keyword)));
   const okAll = results.every((r) => r.ok);
-  return json({ ok: okAll, results });
+  return json({ ok: okAll, results, keyword: keyword || undefined });
 });

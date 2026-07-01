@@ -609,7 +609,7 @@ async function loadRBAC(){
 async function loadNotif(){
   var res=await Promise.all([
     sb.from('notification_channels').select('id,name,type,target,webhook_format,enabled,sort').order('sort').order('id'),
-    sb.from('notification_rules').select('id,tool,event_key,name,description,enabled,sort').order('sort'),
+    sb.from('notification_rules').select('id,tool,event_key,name,description,enabled,sort,keyword').order('sort'),
     sb.from('notification_rule_channels').select('rule_id,channel_id'),
   ]);
   CHANNELS=res[0].error?[]:(res[0].data||[]);
@@ -1575,7 +1575,9 @@ function renderNotif(){
     var chips=CHANNELS.length?CHANNELS.map(function(c){var on=ch.indexOf(c.id)>-1;return '<button class="chchip'+(on?' on':'')+'" data-evch="'+e.id+'|'+c.id+'">'+esc(c.name||'Unnamed')+'</button>';}).join(' '):'<span style="color:var(--grey);font-size:.74rem;font-weight:700">Add a channel first</span>';
     var warn=e.enabled&&ch.length===0?' <span style="color:var(--amber);font-size:.64rem;font-weight:800">⚠ no destination</span>':'';
     return '<tr><td><span class="ttag" style="background:'+(TOOLCOLOR[e.tool]||'#B9BDCB')+'">'+esc(e.tool)+'</span> <b>'+esc(e.name)+'</b>'+warn
-      +'<div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-top:2px">'+esc(e.description||'')+'</div></td>'
+      +'<div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-top:2px">'+esc(e.description||'')+'</div>'
+      +'<div style="margin-top:7px;display:flex;align-items:center;gap:7px"><span style="font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)">Keyword</span>'
+      +'<input data-evkw="'+e.id+'" value="'+esc(e.keyword||'')+'" placeholder="e.g. MRT_SCHEDULE" title="Sent as the signal so a Power Automate keyword trigger can match" style="font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;letter-spacing:.3px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;width:170px"></div></td>'
       +'<td><div style="display:flex;flex-wrap:wrap;gap:6px">'+chips+'</div></td>'
       +'<td class="r"><button class="toggle'+(e.enabled?' on':'')+'" data-evtoggle="'+e.id+'"></button></td></tr>';
   }).join('');
@@ -1585,6 +1587,13 @@ function renderNotif(){
 }
 async function toggleChannel(id){var c=CHANNELS.filter(function(x){return String(x.id)===String(id);})[0];if(!c)return;var nv=!c.enabled;var r=await sb.from('notification_channels').update({enabled:nv}).eq('id',id);if(r.error){toast(r.error.message,true);return;}c.enabled=nv;renderNotif();}
 async function toggleEvent(id){var e=NRULES.filter(function(x){return String(x.id)===String(id);})[0];if(!e)return;var nv=!e.enabled;var r=await sb.from('notification_rules').update({enabled:nv}).eq('id',id);if(r.error){toast(r.error.message,true);return;}e.enabled=nv;renderNotif();renderTabs();}
+async function saveRuleKeyword(ruleId,val){
+  var e=NRULES.filter(function(x){return String(x.id)===String(ruleId);})[0];if(!e)return;
+  var kw=String(val||'').trim()||null;
+  var r=await sb.from('notification_rules').update({keyword:kw}).eq('id',ruleId);
+  if(r.error){toast(r.error.message,true);return;}
+  e.keyword=kw;toast(kw?'Keyword saved':'Keyword cleared');
+}
 async function toggleEventChannel(ruleId,chId){
   var has=NRC.some(function(x){return String(x.rule_id)===String(ruleId)&&String(x.channel_id)===String(chId);});
   if(has){var r=await sb.from('notification_rule_channels').delete().eq('rule_id',ruleId).eq('channel_id',chId);if(r.error){toast(r.error.message,true);return;}NRC=NRC.filter(function(x){return !(String(x.rule_id)===String(ruleId)&&String(x.channel_id)===String(chId));});}
@@ -2222,7 +2231,10 @@ function initUI(){
     else if(t.hasAttribute('data-evch')){var p=t.getAttribute('data-evch').split('|');toggleEventChannel(p[0],p[1]);}
     else if(t.hasAttribute('data-chedit'))openEditChannel(t.getAttribute('data-chedit'));
   });
-  $('#view-notif').addEventListener('change',function(e){var t=e.target.closest('[data-hkv]');if(t)hylaKV(t.getAttribute('data-hkv'),t.value);});
+  $('#view-notif').addEventListener('change',function(e){
+    var hk=e.target.closest('[data-hkv]');if(hk){hylaKV(hk.getAttribute('data-hkv'),hk.value);return;}
+    var kw=e.target.closest('[data-evkw]');if(kw)saveRuleKeyword(kw.getAttribute('data-evkw'),kw.value);
+  });
   $('#addRole').onclick=openAddRole;
   $all('#rpSeg button').forEach(function(b){b.onclick=function(){RP=b.getAttribute('data-rp');renderRoles();};});
   $('#staffSearch').addEventListener('input',function(){SEARCH=this.value;renderStaff();});
