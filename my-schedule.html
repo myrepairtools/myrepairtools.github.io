@@ -101,6 +101,8 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 .wk-worked b{font-family:'Nunito',sans-serif;font-weight:900;color:var(--dark)}
 .wk-worked .ot{color:var(--red);font-weight:800;margin-left:6px}
 .wk-worked .live{color:#1E9E5B;font-weight:800;margin-left:6px}
+.ptochip{display:inline-flex;flex-direction:column;background:var(--light-grey);border:1px solid var(--border);border-radius:9px;padding:7px 11px;font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;color:var(--dark);line-height:1.1}
+.ptochip span{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.6rem;text-transform:uppercase;letter-spacing:.3px;color:var(--grey);margin-top:2px}
 .wkgrid{display:grid;grid-template-columns:repeat(7,1fr)}
 .wkcol{display:flex;flex-direction:column;padding:11px 12px;border-left:1px solid #F5F6F8;min-height:120px}
 .wkcol.today{background:#FFFBFB}
@@ -176,6 +178,7 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
+<script src="assets/pto-summary.js"></script>
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
@@ -499,6 +502,7 @@ function renderWeb(){
   wireTimeoffPanel();
   if($('#openPlanner'))$('#openPlanner').onclick=openPlanner;
   loadWorkedHours(WK);
+  loadPtoBalance();
 }
 /* Actual hours worked (QB Time) for the displayed week (Sun–Sat), patched into the strip header. */
 var WORKED_TOK=0;
@@ -516,6 +520,15 @@ function loadWorkedHours(weekStart){
       var h=Math.round(sec/360)/10, ot=Math.max(0,Math.round((h-40)*10)/10);
       el.innerHTML='Worked <b>'+h+' hrs</b>'+(ot>0?'<span class="ot">'+ot+' OT</span>':'')+(live?'<span class="live">● on the clock</span>':'');
     },function(){el.textContent='';});
+}
+/* Own PTO balances (QuickBooks Time) in the time-off panel. */
+function loadPtoBalance(){
+  var el=document.getElementById('ptoBal'); if(!el||!window.CPRPTO)return;
+  CPRPTO.forMe().then(function(s){
+    var e2=document.getElementById('ptoBal'); if(!e2)return;
+    if(!s||!s.balances.length){e2.innerHTML='<span class="empty">No PTO balance in QuickBooks Time.</span>';return;}
+    e2.innerHTML=s.balances.map(function(b){return '<span class="ptochip"><b>'+b.hours+'</b> hrs<span>'+esc(b.name)+'</span></span>';}).join('');
+  },function(){});
 }
 function isMgrRole(r){return ['owner','admin','manager'].indexOf(r)>-1;}
 /* shared time-off panel (web sidebar + reused logic) */
@@ -539,7 +552,9 @@ function timeoffPanelHtml(web){
   var today=iso(new Date());
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
   var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};return '<div style="display:flex;align-items:center;gap:9px"><span class="me-av" style="width:26px;height:26px;font-size:.6rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.76rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No upcoming team time off.</div>';
-  return actions+form+'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">My requests</div><div style="display:flex;flex-direction:column;gap:8px">'+mineHtml+'</div></div>'
+  return actions+form
+    +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">PTO balance</div><div id="ptoBal" style="display:flex;flex-wrap:wrap;gap:8px"><span class="empty">Loading…</span></div></div>'
+    +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">My requests</div><div style="display:flex;flex-direction:column;gap:8px">'+mineHtml+'</div></div>'
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem">Team time off</div><div style="font-family:Nunito Sans;font-weight:600;font-size:.68rem;color:var(--grey);margin-bottom:9px">All locations</div><div style="display:flex;flex-direction:column;gap:9px">'+teamHtml+'</div></div>';
 }
 function wireTimeoffPanel(){
