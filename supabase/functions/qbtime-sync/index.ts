@@ -568,6 +568,19 @@ Deno.serve(async (req) => {
     }
     return json({ ok: true, created, canceled, errors });
   }
+  if (action === "to_read") {
+    // Read QB Time time-off requests (for verification). Defaults to all linked users.
+    if (!privileged) return json({ error: "forbidden" }, 403);
+    let uids = url.searchParams.get("qbt_id") || "";
+    if (!uids) {
+      const { data } = await admin.from("qbtime_users").select("qbt_id").not("staff_id", "is", null);
+      uids = (data || []).map((u) => u.qbt_id).join(",");
+    }
+    const r = await qbtGet("time_off_requests", token, { user_ids: uids });
+    const reqs = (r.data?.results?.time_off_requests || {}) as Record<string, Record<string, unknown>>;
+    const out = Object.values(reqs).map((t) => ({ id: t.id, user_id: t.user_id, status: t.status, start: t.start_date, end: t.end_date, hours: (Number(t.total_duration) || 0) / 3600, jobcode_id: t.jobcode_id }));
+    return json({ ok: true, count: out.length, requests: out });
+  }
   if (action === "customfields") {
     // Discover QB Time custom fields + items (the QuickBooks "class"/location lives here).
     const cf = await qbtGet("customfields", token, { active: "yes" });
