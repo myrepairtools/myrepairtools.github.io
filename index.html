@@ -141,6 +141,17 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .lb-toggle button.on{background:#fff;color:var(--dark);box-shadow:0 1px 2px rgba(45,45,59,.12)}
 .lb-cap{font-size:.64rem;color:var(--grey);font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin:8px 2px 4px}
 
+/* team hours widget */
+.th-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.th-filter button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;color:var(--dark-grey);background:var(--light-grey);border:1px solid var(--border);border-radius:999px;padding:4px 11px;cursor:pointer}
+.th-filter button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.thtbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.thtbl th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);text-align:right;padding:6px 8px;border-bottom:1px solid var(--border)}
+.thtbl th:first-child{text-align:left}
+.thtbl td{padding:8px;border-bottom:1px solid var(--light-grey);font-size:.82rem;text-align:right;font-weight:700}
+.thtbl td.thn{text-align:left;font-family:'Nunito',sans-serif;font-weight:800}
+.thtbl tr:last-child td{border-bottom:none}
+
 /* tills (cash status) */
 .tills{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px}
 .till{background:var(--light-grey);border-radius:10px;padding:11px}
@@ -204,6 +215,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/commission-summary.js"></script>
 <script src="assets/schedule-summary.js"></script>
 <script src="assets/pto-summary.js"></script>
+<script src="assets/team-hours-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
 <script>
 (function(){
@@ -302,6 +314,13 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'<ul class="lb" data-lb-list></ul>'
         +'<div class="empty" data-lb-empty style="display:none;padding:14px 4px"><div class="et">No sales recorded yet this month.</div></div>'; },
       mount:function(bd,el){ loadLeaderboard(bd,el); } },
+
+    { id:'teamhours', title:'Team Hours', icon:'⏱️', accent:'amber', defaultSize:'wide',
+      desc:'Worked hours, shifts left, and projected total/OT this week — filter by store.',
+      link:{href:'report-overtime.html',x:'Report →'},
+      can:function(){ return rank()>=RANK.manager; },
+      render:function(){ return '<div data-th-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
+      mount:function(bd){ loadTeamHours(bd); } },
 
     { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
       desc:'Till & safe balances — managers only.', tag:{t:'preview',x:'Preview'},
@@ -509,6 +528,39 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       if(list) list.innerHTML = s.balances.map(function(b){
         return '<div class="hoursline" style="display:flex"><span class="hl">'+esc(b.name)+'</span><span class="hv">'+(Number(b.hours)||0).toFixed(1)+' hrs</span></div>';
       }).join('');
+    }, function(){});
+  }
+
+  function loadTeamHours(bd){
+    if(!window.CPRTeamHours || !window.CPRTeamHours.forWeek){ return; }
+    function shortStore(s){ return window.CPRLocations ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s*/,''); }
+    var body=bd.querySelector('[data-th-body]');
+    window.CPRTeamHours.forWeek().then(function(d){
+      if(!body) return;
+      if(!d){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">Sign in to see team hours.</div></div>'; return; }
+      var stores=d.stores||[];
+      var sel; try{ sel=localStorage.getItem('cprTeamHoursStore'); }catch(e){}
+      if(!sel || (sel!=='All' && stores.indexOf(sel)<0)) sel=(stores.length>1?'All':(stores[0]||'All'));
+      function draw(store){
+        var filterBtns='<button data-th-store="All" class="'+(store==='All'?'on':'')+'">All</button>'
+          + stores.map(function(s){ return '<button data-th-store="'+esc(s)+'" class="'+(store===s?'on':'')+'">'+esc(shortStore(s))+'</button>'; }).join('');
+        var head='<div class="th-filter">'+filterBtns+'</div>';
+        var rows=(d.rows||[]).filter(function(r){ return store==='All' || r.store===store; })
+          .sort(function(a,b){ return b.ot-a.ot || b.anticipated-a.anticipated; });
+        if(!rows.length){ body.innerHTML=head+'<div class="empty" style="padding:12px 4px"><div class="et">No hours or shifts this week.</div></div>'; wire(); return; }
+        var trs=rows.map(function(r){
+          var otTxt = r.ot>0 ? '<span style="color:var(--red);font-weight:900">'+r.ot.toFixed(1)+'</span>' : '—';
+          return '<tr><td class="thn">'+esc(r.name)+'</td>'
+            +'<td>'+r.worked.toFixed(1)+'</td>'
+            +'<td>'+r.shiftsLeft+'</td>'
+            +'<td><b>'+r.anticipated.toFixed(1)+'</b></td>'
+            +'<td>'+otTxt+'</td></tr>';
+        }).join('');
+        body.innerHTML=head+'<table class="thtbl"><thead><tr><th>Employee</th><th>Worked</th><th>Left</th><th>Proj.</th><th>OT</th></tr></thead><tbody>'+trs+'</tbody></table>';
+        wire();
+      }
+      function wire(){ body.querySelectorAll('[data-th-store]').forEach(function(b){ b.onclick=function(){ var v=b.getAttribute('data-th-store'); try{localStorage.setItem('cprTeamHoursStore',v);}catch(e){} draw(v); }; }); }
+      draw(sel);
     }, function(){});
   }
 
