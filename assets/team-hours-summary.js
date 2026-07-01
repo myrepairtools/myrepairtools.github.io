@@ -63,22 +63,26 @@
   }
   function storeSort(a,b){ try{ var la=root.CPRLocations&&CPRLocations.find&&CPRLocations.find(a), lb=root.CPRLocations&&CPRLocations.find&&CPRLocations.find(b); var oa=la?la.order:99, ob=lb?lb.order:99; return oa-ob||String(a).localeCompare(String(b)); }catch(e){ return String(a).localeCompare(String(b)); } }
 
-  var memo=null;
-  function forWeek(){
-    if(memo) return memo;
-    memo=sb().then(function(client){
+  // memoized per week-start ('_this' = current week). forWeek(weekStartISO) lets the
+  // Overtime Report page through any week; the dashboard widget calls forWeek() (this week).
+  var memo={};
+  function forWeek(weekStartISO){
+    var key=weekStartISO||'_this';
+    if(memo[key]) return memo[key];
+    memo[key]=sb().then(function(client){
       if(!client) return null;
       return session(client).then(function(s){
         if(!s) return null;
-        var now=new Date(), wd0=now.getDay(), todayISO=iso(now);
-        var sun=new Date(now.getFullYear(),now.getMonth(),now.getDate()-wd0);
+        var todayISO=iso(new Date()), sun;
+        if(weekStartISO){ var p=String(weekStartISO).split('-').map(Number); sun=new Date(p[0],p[1]-1,p[2]); }
+        else { var now=new Date(); sun=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()); }
         var wkStart=iso(sun), wkEnd=iso(new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+6));
         return Promise.all([
           client.from('staff').select('id,display_name,home_store,role,active,wage_type').eq('active',true),
           client.from('shifts').select('id,name,active'),
           client.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
           client.from('staff_schedule').select('staff_id,store,shifts'),
-          client.from('qbtime_timesheets').select('staff_id,biz_date,seconds').gte('biz_date',wkStart).lte('biz_date',wkEnd),
+          client.from('qbtime_timesheets').select('staff_id,biz_date,seconds,on_the_clock').gte('biz_date',wkStart).lte('biz_date',wkEnd),
           client.from('time_off_requests').select('staff_id,start_date,end_date,status').eq('status','approved').lte('start_date',wkEnd).gte('end_date',wkStart),
           client.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id').gte('ovr_date',wkStart).lte('ovr_date',wkEnd),
           client.from('holidays').select('id,holiday_date').gte('holiday_date',wkStart).lte('holiday_date',wkEnd),
@@ -107,36 +111,46 @@
           SHIFT_BY_ID={}; sh.forEach(function(x){ SHIFT_BY_ID[x.id]=x; });
           HOURS={}; hr.forEach(function(r){ var k=r.shift_id+'|'+r.store, h=HOURS[k]||(HOURS[k]={def:null,days:{}}); var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false}; if(r.weekday==null)h.def=row; else h.days[r.weekday]=row; });
           var schedBy={}; sc.forEach(function(r){ schedBy[r.staff_id]={shifts:r.shifts||{},store:r.store}; });
-          // worked seconds this week + today, per staff
-          var workedWk={}, workedToday={};
-          ts.forEach(function(r){ if(r.staff_id==null) return; workedWk[r.staff_id]=(workedWk[r.staff_id]||0)+(+r.seconds||0); if(r.biz_date===todayISO) workedToday[r.staff_id]=(workedToday[r.staff_id]||0)+(+r.seconds||0); });
+          // worked seconds this week (total) + per date, and whether they're on the clock now
+          var workedWk={}, workedByDate={}, onClock={};
+          ts.forEach(function(r){ if(r.staff_id==null) return;
+            workedWk[r.staff_id]=(workedWk[r.staff_id]||0)+(+r.seconds||0);
+            if(r.biz_date){ (workedByDate[r.staff_id]||(workedByDate[r.staff_id]={}))[r.biz_date]=(workedByDate[r.staff_id][r.biz_date]||0)+(+r.seconds||0); }
+            if(r.on_the_clock) onClock[r.staff_id]=true; });
 
           var rows=staff.map(function(e){
             var sched=schedBy[e.id]||null;
-            var workedH=Math.round((workedWk[e.id]||0)/360)/10;
-            // remaining = today's unworked scheduled remainder + all future scheduled days,
-            // skipping any day the person has approved time off (paid or unpaid).
-            var todaySchedMin=(!isOff(e.id,todayISO))?effMin(e.id,wd0,todayISO,sched):0;
-            var todayWorkedMin=(workedToday[e.id]||0)/60;
-            var todayRemMin=Math.max(0, todaySchedMin-todayWorkedMin);
-            var futureMin=0, futureShifts=0;
-            for(var wd=wd0+1; wd<=6; wd++){ var dISO=dateOfWd(wd); if(isOff(e.id,dISO)) continue; var m=effMin(e.id,wd,dISO,sched); if(m>0){ futureMin+=m; futureShifts++; } }
-            var remMin=todayRemMin+futureMin;
-            var remH=Math.round((remMin/60)*10)/10;
-            var shiftsLeft=(todayRemMin>0?1:0)+futureShifts;
-            var anticipated=Math.round((workedH+remH)*10)/10;
+            var workedH=Math.round((workedWk[e.id]||0)/360)/10;   // whole-week worked (minute-accurate)
+            // Per-day grid + minute-accurate projection:
+            //   past day  -> counts actual worked ; today -> max(worked, scheduled) ; future -> scheduled
+            var days=[], expMin=0, shiftsLeft=0;
+            for(var wd=0; wd<=6; wd++){
+              var dISO=dateOfWd(wd);
+              var timeoff=isOff(e.id,dISO);
+              var schedMin=timeoff?0:effMin(e.id,wd,dISO,sched);
+              var workedMin=((workedByDate[e.id]&&workedByDate[e.id][dISO])||0)/60;
+              var exp = (dISO<todayISO) ? workedMin : (dISO===todayISO ? Math.max(workedMin,schedMin) : schedMin);
+              expMin+=exp;
+              if(dISO>=todayISO && schedMin>0 && exp>workedMin) shiftsLeft++;
+              days.push({ date:dISO, wd:wd,
+                worked:Math.round((workedMin/60)*100)/100, sched:Math.round((schedMin/60)*100)/100,
+                off:(schedMin===0), timeoff:timeoff,
+                isToday:(dISO===todayISO), isPast:(dISO<todayISO), isFuture:(dISO>todayISO) });
+            }
+            var anticipated=Math.round((expMin/60)*10)/10;
+            var remH=Math.max(0, Math.round((anticipated-workedH)*10)/10);
             var salary=(e.wage_type==='salary');
             var ot=salary?0:Math.max(0, Math.round((anticipated-40)*10)/10);   // salaried = OT-exempt
             return { staff_id:e.id, name:e.display_name, store:e.home_store, role:e.role, wageType:e.wage_type||'hourly', salary:salary,
-              worked:workedH, shiftsLeft:shiftsLeft, remaining:remH, anticipated:anticipated, ot:ot };
+              worked:workedH, shiftsLeft:shiftsLeft, remaining:remH, anticipated:anticipated, ot:ot, onClock:!!onClock[e.id], days:days };
           });
           var stores=[]; rows.forEach(function(r){ if(r.store && stores.indexOf(r.store)<0) stores.push(r.store); });
           stores.sort(storeSort);
-          return { weekStart:wkStart, weekEnd:wkEnd, stores:stores, rows:rows };
+          return { weekStart:wkStart, weekEnd:wkEnd, today:todayISO, stores:stores, rows:rows };
         });
       });
     }).catch(function(){ return null; });
-    return memo;
+    return memo[key];
   }
 
   root.CPRTeamHours = { forWeek: forWeek };

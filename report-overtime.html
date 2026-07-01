@@ -34,6 +34,22 @@ table.rep tr:last-child td{border-bottom:none}
 .p-ot{color:#B02329;background:#FCEDED}
 .empty{color:var(--grey);font-weight:700;padding:24px;text-align:center}
 .note{font-family:'Nunito Sans',sans-serif;font-size:.9rem;color:var(--dark-grey);background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px}
+/* per-day grid */
+.repscroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+table.rep.grid{border:none;border-radius:0}
+table.rep.grid th,table.rep.grid td{border-left:1px solid var(--light-grey)}
+table.rep.grid th:first-child,table.rep.grid td:first-child{border-left:none}
+th.day,td.day{text-align:center;padding:7px 8px;min-width:56px}
+th.day .dnum{display:block;font-weight:700;font-size:.66rem;color:#cfd2dd;margin-top:1px}
+th.day.today,td.day.today{background:#F4FAFE}
+.dw{font-family:'Nunito',sans-serif;font-weight:900;font-size:.82rem;line-height:1.05;color:var(--dark)}
+.dw.over{color:var(--amber)}
+.dw.muted{color:#cfd2dd;font-weight:800}
+.ds{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.7rem;color:var(--grey);line-height:1.15;margin-top:1px}
+.ds.off{color:#cfd2dd}
+.doff{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:#d3d6df}
+.otsub{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--red);margin-top:1px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 2px 0;font-family:'Nunito Sans',sans-serif;font-size:.76rem;color:var(--grey);font-weight:700}
 </style>
 </head>
 <body>
@@ -45,6 +61,7 @@ table.rep tr:last-child td{border-bottom:none}
 
 <script src="assets/pin-gate.js"></script>
 <script src="assets/locations.js"></script>
+<script src="assets/team-hours-summary.js"></script>
 <script src="assets/nav.js"></script>
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -80,34 +97,43 @@ function fmtWk(sun){ const sat=new Date(sun.getFullYear(),sun.getMonth(),sun.get
   const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return mo[sun.getMonth()]+' '+sun.getDate()+' – '+mo[sat.getMonth()]+' '+sat.getDate(); }
 
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function fmtH(h){ if(h==null)return ''; var r=Math.round(h*100)/100; return String(r); }
+function dayCell(dc){
+  const cls='day'+(dc.isToday?' today':'');
+  if(dc.off && dc.worked===0){   // not scheduled and nothing clocked
+    return '<td class="'+cls+'"><div class="doff">'+(dc.timeoff?'PTO':'off')+'</div></td>';
+  }
+  const over=dc.worked>dc.sched+0.01 && dc.sched>0;
+  const wTxt=dc.worked>0 ? fmtH(dc.worked) : (dc.isFuture?'·':'0');
+  const wCls='dw'+(over?' over':'')+(dc.worked>0?'':' muted');
+  const sTxt=dc.off ? 'off' : fmtH(dc.sched);
+  return '<td class="'+cls+'"><div class="'+wCls+'">'+wTxt+'</div><div class="ds'+(dc.off?' off':'')+'">'+sTxt+'</div></td>';
+}
 async function renderOvertime(host){
   if(!OT_WK)OT_WK=weekSunday(new Date());
-  const sun=OT_WK, sat=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+6);
-  const wkStart=iso(sun), wkEnd=iso(sat);
-  const [tsR,stR]=await Promise.all([
-    sb.from('qbtime_timesheets').select('staff_id,seconds,on_the_clock,biz_date').gte('biz_date',wkStart).lte('biz_date',wkEnd).not('staff_id','is',null),
-    sb.from('staff').select('id,display_name,home_store,role,active,wage_type')
-  ]);
-  const staff={}; (stR.data||[]).forEach(s=>staff[s.id]=s);
-  const agg={};
-  (tsR.data||[]).forEach(r=>{ const a=agg[r.staff_id]||(agg[r.staff_id]={sec:0,days:{},onclock:false});
-    a.sec+=(+r.seconds||0); if(r.biz_date)a.days[r.biz_date]=1; if(r.on_the_clock)a.onclock=true; });
+  const sun=OT_WK;
+  const wkStartISO=iso(sun);
+  const isThisWeek=(iso(weekSunday(new Date()))===wkStartISO);
+  host.innerHTML='<div class="empty">Loading…</div>';
+  const d = window.CPRTeamHours ? await window.CPRTeamHours.forWeek(wkStartISO) : null;
+  if(!d){ host.innerHTML='<div class="empty">Couldn’t load hours. Try refreshing.</div>'; return; }
 
-  const today=iso(new Date()), isThisWeek=(iso(weekSunday(new Date()))===wkStart);
-  const rows=Object.keys(agg).map(id=>{
-    const a=agg[id], s=staff[id]||{display_name:'Unknown',home_store:'',role:''};
-    const hrs=Math.round(a.sec/360)/10, dw=Object.keys(a.days).length;
-    let proj=hrs;
-    if(isThisWeek && dw>0 && dw<5 && today<=wkEnd){ proj=Math.round((hrs+(hrs/dw)*(5-dw))*10)/10; }
-    const salary=(s.wage_type==='salary');   // salaried = overtime-exempt
-    const status=salary?'salary':(hrs>40?'ot':(proj>=40?'watch':'ok'));
-    return { id, name:s.display_name, store:s.home_store, role:s.role, salary, hrs, dw, proj, onclock:a.onclock, status };
-  }).sort((a,b)=>storeRank(a.store)-storeRank(b.store)||b.proj-a.proj);
+  // show anyone who worked or is scheduled this week; sort by store, then who's closest to OT
+  const rows=(d.rows||[]).filter(r=> r.worked>0 || r.anticipated>0 )
+    .sort((a,b)=>storeRank(a.store)-storeRank(b.store)||b.anticipated-a.anticipated||b.worked-a.worked);
 
-  const otNow=rows.filter(r=>!r.salary&&r.hrs>40).length, watch=rows.filter(r=>r.status==='watch').length, live=rows.filter(r=>r.onclock).length;
-  const totHrs=Math.round(rows.reduce((s,r)=>s+r.hrs,0)*10)/10;
+  const otNow=rows.filter(r=>!r.salary&&r.worked>40).length;
+  const watch=rows.filter(r=>!r.salary&&r.worked<=40&&r.anticipated>=40).length;
+  const live=rows.filter(r=>r.onClock).length;
+  const totHrs=Math.round(rows.reduce((s,r)=>s+r.worked,0)*10)/10;
 
-  let body='<div class="rephd"><div><h1>Overtime Report</h1><div class="sub">Worked hours this week (Sun–Sat) vs the 40-hour line'+(isThisWeek?' · pace = 5-day estimate':'')+'</div></div>'
+  // day headers with dates
+  let dayHead='';
+  for(let wd=0; wd<7; wd++){ const dt=new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+wd); const today=(iso(dt)===d.today);
+    dayHead+='<th class="day'+(today?' today':'')+'">'+DOW[wd]+'<span class="dnum">'+dt.getDate()+'</span></th>'; }
+
+  let body='<div class="rephd"><div><h1>Overtime Report</h1><div class="sub">Worked / scheduled hours per day (Sun–Sat) · projection tracks past worked + upcoming scheduled vs the 40-hour line</div></div>'
     +'<div class="wknav"><button data-wk="-1">‹</button><div class="lbl">'+fmtWk(sun)+'</div><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
     +'<div class="tiles">'
     +'<div class="tile"><div class="n" style="color:var(--red)">'+otNow+'</div><div class="l">Over 40 now</div></div>'
@@ -116,21 +142,26 @@ async function renderOvertime(host){
     +'<div class="tile"><div class="n">'+totHrs+'</div><div class="l">Total hours</div></div>'
     +'</div>';
 
-  if(!rows.length){ body+='<div class="empty">No clocked hours for this week yet.</div>'; host.innerHTML=body; wireWk(host); return; }
+  if(!rows.length){ body+='<div class="empty">No hours or scheduled shifts for this week.</div>'; host.innerHTML=body; wireWk(host); return; }
 
   let lastStore=null, trows='';
   rows.forEach(r=>{
-    if(r.store!==lastStore){ lastStore=r.store; trows+='<tr class="grphd"><td colspan="5">'+esc(shortStore(r.store)||'—')+'</td></tr>'; }
-    const pc=r.status==='ot'?'p-ot':(r.status==='watch'?'p-watch':(r.status==='salary'?'':'p-ok'));
-    const pl=r.status==='ot'?'OT':(r.status==='watch'?'Watch':(r.status==='salary'?'Salary':'OK'));
-    const pillStyle=r.status==='salary'?' style="color:var(--grey);background:var(--light-grey)"':'';
-    trows+='<tr><td>'+esc(r.name)+(r.onclock?' <span class="pill p-ok">● on clock</span>':'')+'</td>'
-      +'<td class="num">'+r.dw+'</td>'
-      +'<td class="num"><b>'+r.hrs.toFixed(1)+'</b></td>'
-      +'<td class="num">'+(r.proj>r.hrs?r.proj.toFixed(1):'—')+'</td>'
-      +'<td><span class="pill '+pc+'"'+pillStyle+'>'+pl+'</span></td></tr>';
+    if(r.store!==lastStore){ lastStore=r.store; trows+='<tr class="grphd"><td colspan="11">'+esc(shortStore(r.store)||'—')+'</td></tr>'; }
+    const status=r.salary?'salary':(r.worked>40?'ot':(r.anticipated>=40?'watch':'ok'));
+    const pc2=status==='ot'?'p-ot':(status==='watch'?'p-watch':(status==='salary'?'':'p-ok'));
+    const pl=status==='ot'?'OT':(status==='watch'?'Watch':(status==='salary'?'Salary':'OK'));
+    const pillStyle=status==='salary'?' style="color:var(--grey);background:var(--light-grey)"':'';
+    const projTxt=r.salary?'<span style="color:var(--grey)">'+fmtH(r.anticipated)+'</span>'
+      :('<b>'+fmtH(r.anticipated)+'</b>'+(r.ot>0?'<span class="otsub">+'+fmtH(r.ot)+' OT</span>':''));
+    trows+='<tr><td>'+esc(r.name)+(r.onClock?' <span class="pill p-ok">● on clock</span>':'')+'</td>'
+      +r.days.map(dayCell).join('')
+      +'<td class="num"><b>'+fmtH(r.worked)+'</b></td>'
+      +'<td class="num">'+projTxt+'</td>'
+      +'<td><span class="pill '+pc2+'"'+pillStyle+'>'+pl+'</span></td></tr>';
   });
-  body+='<table class="rep"><thead><tr><th>Employee</th><th class="num">Days</th><th class="num">Hours</th><th class="num">Projected</th><th>Status</th></tr></thead><tbody>'+trows+'</tbody></table>';
+  body+='<div class="repscroll"><table class="rep grid"><thead><tr><th>Employee</th>'+dayHead
+    +'<th class="num">Worked</th><th class="num">Proj</th><th>Status</th></tr></thead><tbody>'+trows+'</tbody></table></div>'
+    +'<div class="legend"><span><b style="color:var(--dark)">top</b> = worked</span><span><b>bottom</b> = scheduled</span><span><b style="color:var(--amber)">amber</b> = worked over scheduled</span><span><b>off</b> = not scheduled · <b>PTO</b> = time off</span></div>';
   host.innerHTML=body; wireWk(host);
 }
 function wireWk(host){
