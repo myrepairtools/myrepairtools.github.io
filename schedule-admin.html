@@ -274,14 +274,14 @@ function boardEmps(store){
 
 /* ===== render ===== */
 function render(){
-  var pending=REQS.filter(function(r){return r.status==='pending';}).length;
-  var defs=[{k:'weekly',l:'Recurring'},{k:'thisweek',l:'This Week'},{k:'monthly',l:'Monthly'},{k:'timeoff',l:'Time Off'}];
-  $('#hub').innerHTML=defs.map(function(t){return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+(t.k==='timeoff'&&pending?' <span class="badge">'+pending+'</span>':'')+'</button>';}).join('');
+  // Time Off moved to its own page (time-off.html, under the Employees nav area).
+  var defs=[{k:'weekly',l:'Recurring'},{k:'thisweek',l:'This Week'},{k:'monthly',l:'Monthly'}];
+  if(!defs.some(function(d){return d.k===VIEW;})){VIEW='monthly';lsSet('cprSchedAdminView',VIEW);}  // stale 'timeoff' -> monthly
+  $('#hub').innerHTML=defs.map(function(t){return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+'</button>';}).join('');
   $('#hub').querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){VIEW=b.getAttribute('data-v');lsSet('cprSchedAdminView',VIEW);render();};});
   if(VIEW==='weekly')renderWeekly();
   else if(VIEW==='thisweek')renderThisWeek();
-  else if(VIEW==='monthly')renderMonthly();
-  else renderTimeoff();
+  else renderMonthly();
 }
 function filterPillsHtml(){
   var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));

@@ -44,10 +44,14 @@
   var REPORTS = [
     { label:'Reports', url:'reports.html', icon:'📊', minRole:'admin', acc:'reports.view' }
   ];
+  // Employees — people management (managers/owner): roster, scheduling, time off.
+  var EMPLOYEES = [
+    { label:'Team Members',   url:'employee-records.html', icon:'📁', minRole:'admin', acc:'staff.view' },
+    { label:'Schedule Admin', url:'schedule-admin.html',   icon:'🗓️', minRole:'admin', acc:'schedule.admin' },
+    { label:'Time Off',       url:'time-off.html',         icon:'🌴', minRole:'admin', acc:'schedule.admin' }
+  ];
   var PRIVILEGED = [
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
-    { label:'Employees',        url:'employee-records.html',      icon:'📁', minRole:'admin', acc:'staff.view' },
-    { label:'Schedule Admin',   url:'schedule-admin.html',        icon:'🗓️', minRole:'admin', acc:'schedule.admin' },
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
     { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' }
@@ -114,7 +118,8 @@
   var inOrder   = ORDERING.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inPricing = PRICING.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inReports = (currentFile === 'reports.html');
-  var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
+  var inEmployees = EMPLOYEES.some(function(t){ return t.url.toLowerCase() === currentFile; });
+  var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -274,7 +279,8 @@
     user:  'M12 12.4a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4ZM5.6 20v-.4c0-3 2.9-4.8 6.4-4.8s6.4 1.8 6.4 4.8V20',
     lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5',
     gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z',
-    chart: 'M3 21h18M6.5 21V11M12 21V5M17.5 21v-7'
+    chart: 'M3 21h18M6.5 21V11M12 21V5M17.5 21v-7',
+    people: 'M9 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM2.5 19.5v-.3c0-2.7 2.6-4.3 6.5-4.3s6.5 1.6 6.5 4.3v.3M16 5.3a3.2 3.2 0 0 1 0 6.2M17.5 14.6c2.5.5 4 1.9 4 4v.3'
   };
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
@@ -350,6 +356,10 @@
       return '<div class="cpr-fly-hd">My Hub</div>'
         + HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
+    if (area === 'employees'){
+      return '<div class="cpr-fly-hd">Employees</div>'
+        + EMPLOYEES.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    }
     // admin area
     if (!NAV_ROLE){
       return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
@@ -388,6 +398,12 @@
         + (hub || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
+    if (area === 'employees'){
+      var emp = EMPLOYEES.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      return hd + '<div class="cpr-grp">Employees</div>'
+        + (emp || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
     if (area === 'order'){
       var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       return hd + '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord
@@ -419,6 +435,8 @@
     if (ord) h += '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord;
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (ops) h += '<div class="cpr-grp">Operations</div>' + ops;
+    var emp = EMPLOYEES.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (emp) h += '<div class="cpr-grp">Employees</div>' + emp;
     if (hasAdminArea()) h += '<div data-priv>' + privilegedHtml() + '</div>';
     if (canSee({ acc:'staff.manage' })) h += '<div class="cpr-div"></div><a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>';
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -450,6 +468,13 @@
     var b = rail && rail.querySelector('.cpr-reportsbtn');
     if (b) b.style.display = (rank() >= RANK.admin) ? '' : 'none';
   }
+  // Employees rail icon: shows if the user can see any Employees tool (fall back to rank).
+  function updateEmployeesIcon(){
+    var b = rail && rail.querySelector('.cpr-employeesbtn');
+    if (!b) return;
+    var show = (NAV_PERMS === null) ? (rank() >= RANK.admin) : EMPLOYEES.some(canSee);
+    b.style.display = show ? '' : 'none';
+  }
   // the rail-bottom gear → Settings shows only for users who can actually use it
   function updateGearIcon(){
     var g = rail && rail.querySelector('.cpr-railgear');
@@ -462,6 +487,7 @@
     updateAvatar();
     updateAdminIcon();
     updateReportsIcon();
+    updateEmployeesIcon();
     updateGearIcon();
     // top bar identity (name)
     if (top){ var rp = top.querySelector('[data-roleslot]'); if (rp) rp.innerHTML = roleSlotHtml(); wireTop(); }
@@ -563,6 +589,7 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
+      + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'</button>'
       + '<a class="cpr-areabtn cpr-reportsbtn'+(currentFile==='reports.html'?' active':'')+'" href="reports.html" title="Reports" style="display:none">'+railIcon('chart')+'</a>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
