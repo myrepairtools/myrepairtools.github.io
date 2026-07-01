@@ -262,7 +262,7 @@ function empById(id){return STAFF.filter(function(e){return e.id===id;})[0];}
 function shiftById(id){return SHIFT_BY_ID[id];}
 async function load(){
   var [st,so,sh,hr,sc,rq,mm,ov,hol,holh,hc]=await Promise.all([
-    sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color').eq('active',true),
+    sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color,hide_from_recurring').eq('active',true),
     sb.from('stores').select('store,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
@@ -274,7 +274,7 @@ async function load(){
     sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
     sb.from('holiday_catalog').select('id,observed,is_federal,active')
   ]);
-  STAFF=(st.data||[]).filter(function(s){return !/^\s*britt\s+bay\s*$/i.test(s.display_name||'');});
+  STAFF=(st.data||[]);   // everyone is selectable; hide_from_recurring keeps flex staff (e.g. owner) off the auto boards
   STORES=(so.data||[]).filter(function(s){return s.active!==false;});
   SHIFTS=(sh.data||[]);SHIFT_BY_ID={};SHIFTS.forEach(function(s){SHIFT_BY_ID[s.id]=s;});
   HOURS={};(hr.data||[]).forEach(function(r){var k=r.shift_id+'|'+r.store,h=HOURS[k]||(HOURS[k]={def:null,days:{}});var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};if(r.weekday==null)h.def=row;else h.days[r.weekday]=row;});
@@ -332,8 +332,12 @@ function overlapsFor(r){
 function avHtml(e,sz,fs,colorOverride){var bg=esc(colorOverride||(e&&e.avatar_color)||avatarBg(e&&e.id));var face=e&&e.avatar?esc(e.avatar):esc(initials(e&&e.display_name));return '<span class="av" style="width:'+sz+'px;height:'+sz+'px;font-size:'+fs+';background:'+bg+'">'+face+'</span>';}
 function visibleStores(){return STORES.filter(function(s){return canSee(s.store);});}
 function boardEmps(store){
-  var home=STAFF.filter(function(e){return e.home_store===store;});
-  var extras=(MEMBERS[store]||[]).map(empById).filter(Boolean).filter(function(e){return e.home_store!==store;});
+  var seen={};
+  // Natural residents of this store, minus anyone flagged off the recurring boards (e.g. the owner).
+  var home=STAFF.filter(function(e){return e.home_store===store&&!e.hide_from_recurring;});
+  home.forEach(function(e){seen[e.id]=1;});
+  // Explicit schedule_membership adds always show — including hidden-from-recurring staff popped in on purpose.
+  var extras=(MEMBERS[store]||[]).map(empById).filter(Boolean).filter(function(e){if(seen[e.id])return false;seen[e.id]=1;return true;});
   return home.concat(extras).sort(function(a,b){var ra=isMgr(a.role)?0:1,rb=isMgr(b.role)?0:1;if(ra!==rb)return ra-rb;return (a.display_name||'')<(b.display_name||'')?-1:1;});
 }
 
@@ -419,10 +423,13 @@ function hrsTd(h){return '<td class="hrs" style="text-align:right;padding:4px 12
 var HRS_TH='<th class="hrs" style="text-align:right;padding-right:12px">Hrs</th>';
 function empCell(e,store){
   var visiting=e.home_store!==store;
+  var isMember=(MEMBERS[store]||[]).indexOf(e.id)>-1;
   var av=avHtml(e,30,'.72rem',visiting?storeColor(e.home_store):store);
+  var rm='<button class="rmv" data-rmv="'+store+'|'+e.id+'" title="Remove" style="border:none;background:none;color:#cfd2dd;font-size:.8rem;cursor:pointer;padding:0 2px">✕</button>';
   var tags='';
-  if(isMgr(e.role)&&!visiting)tags='<span class="tag" style="color:#4b4b6b;background:#EAEAF2">MANAGER</span>';
-  if(visiting)tags='<span class="tag" style="color:#9aa0b0;background:#F3F2F2">VISITING · '+esc(shortStore(e.home_store))+'</span> <button class="rmv" data-rmv="'+store+'|'+e.id+'" title="Remove" style="border:none;background:none;color:#cfd2dd;font-size:.8rem;cursor:pointer;padding:0 2px">✕</button>';
+  if(visiting)tags='<span class="tag" style="color:#9aa0b0;background:#F3F2F2">VISITING · '+esc(shortStore(e.home_store))+'</span> '+rm;
+  else if(isMember)tags='<span class="tag" style="color:#8a6d1f;background:#FBF0D8">ADDED</span> '+rm;   // hidden-from-recurring staff popped into their own store
+  else if(isMgr(e.role))tags='<span class="tag" style="color:#4b4b6b;background:#EAEAF2">MANAGER</span>';
   return '<div class="empname">'+av+'<div><div class="nmline">'+esc(e.display_name)+'</div>'+tags+'</div></div>';
 }
 function renderWeekly(){
@@ -784,17 +791,21 @@ function openPicker(td,ev){
 }
 function openAdd(store,ev){
   closePop();
-  var existing=MEMBERS[store]||[];
+  var onBoard=boardEmps(store).map(function(e){return e.id;});
   var back=document.createElement('div');back.className='pop-back';back.onclick=closePop;
   var pop=document.createElement('div');pop.className='pop';
   var groups=STORES.filter(function(st){return st.store!==store;}).map(function(st){
-    var people=STAFF.filter(function(e){return e.home_store===st.store&&existing.indexOf(e.id)<0;});
+    var people=STAFF.filter(function(e){return e.home_store===st.store&&!e.hide_from_recurring&&onBoard.indexOf(e.id)<0;});
     return {store:st.store,people:people};
   }).filter(function(g){return g.people.length;});
-  var html='<div class="pop-hd"><div class="n">Add to '+esc(shortStore(store))+'</div><div class="d">Teammates from other stores</div></div>';
-  if(!groups.length)html+='<div style="padding:18px 12px;text-align:center;font-family:Nunito Sans;font-size:.76rem;color:var(--grey);font-weight:600">Everyone from other stores is already here.</div>';
+  // Flex staff (e.g. the owner) are off the boards by default; they can be popped into any store's recurring schedule.
+  var flex=STAFF.filter(function(e){return e.hide_from_recurring&&onBoard.indexOf(e.id)<0;});
+  var html='<div class="pop-hd"><div class="n">Add to '+esc(shortStore(store))+'</div><div class="d">Add to the recurring schedule here</div></div>';
+  if(!groups.length&&!flex.length)html+='<div style="padding:18px 12px;text-align:center;font-family:Nunito Sans;font-size:.76rem;color:var(--grey);font-weight:600">Everyone is already here.</div>';
   groups.forEach(function(g){html+='<div class="pop-grp"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(g.store))+'"></span>'+esc(shortStore(g.store))+'</div>';
     g.people.forEach(function(e){html+='<button class="pop-item" data-add-emp="'+e.id+'">'+avHtml(e,26,'.62rem',storeColor(g.store))+esc(e.display_name)+'<span class="tm">'+(isMgr(e.role)?'Manager':'Tech')+'</span></button>';});});
+  if(flex.length){html+='<div class="pop-grp" style="border-top:1px solid #EEF0F4;margin-top:3px;padding-top:9px">Flexible · not on recurring</div>';
+    flex.forEach(function(e){html+='<button class="pop-item" data-add-emp="'+e.id+'">'+avHtml(e,26,'.62rem',storeColor(e.home_store))+esc(e.display_name)+'<span class="tm">'+(isMgr(e.role)?'Manager':'Tech')+'</span></button>';});}
   pop.innerHTML=html;document.body.appendChild(back);document.body.appendChild(pop);POP={remove:function(){back.remove();pop.remove();}};
   placePop(pop,ev.clientX-220,ev.clientY);
   pop.querySelectorAll('[data-add-emp]').forEach(function(b){b.onclick=function(){addMember(store,Number(b.getAttribute('data-add-emp')));};});

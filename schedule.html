@@ -152,13 +152,13 @@ function canManage(e){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores
 function byId(id){return STAFF.filter(function(x){return x.id===Number(id);})[0];}
 async function load(){
   var [st,so,sh,hr,sc]=await Promise.all([
-    sb.from('staff').select('id,display_name,home_store,active,role,avatar,avatar_color').eq('active',true),
+    sb.from('staff').select('id,display_name,home_store,active,role,avatar,avatar_color,hide_from_recurring').eq('active',true),
     sb.from('stores').select('store,display_order,active,color').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts')
   ]);
-  STAFF=(st.data||[]).filter(function(s){return !/^\s*britt\s+bay\s*$/i.test(s.display_name||'');});
+  STAFF=(st.data||[]);
   STORES=(so.data||[]).filter(function(s){return s.active!==false;});
   SHIFTS=(sh.data||[]);SHIFT_BY_ID={};SHIFTS.forEach(function(s){SHIFT_BY_ID[s.id]=s;});
   HOURS={};(hr.data||[]).forEach(function(r){
@@ -236,7 +236,7 @@ function render(){
     return '<span class="lg"><span class="lg-dot" style="background:'+esc(s.color||'#4FB0E3')+'"></span>'+esc(s.name)+'</span>';
   }).join('')+'<span style="margin-left:auto;font-size:.72rem;color:var(--grey);font-weight:600">Click a cell to assign · time is derived from shift × location × day</span></div>';
   var html=visibleStores().map(function(s){
-    var emps=STAFF.filter(function(e){return e.home_store===s.store;}).filter(canManage).sort(byMgrThenName);
+    var emps=STAFF.filter(function(e){return e.home_store===s.store&&!e.hide_from_recurring;}).filter(canManage).sort(byMgrThenName);
     if(!emps.length)return '';
     var rows=emps.map(function(e){
       var cells=DAYS.map(function(d,i){return '<div class="cell" data-emp="'+e.id+'" data-day="'+i+'" data-store="'+esc(s.store)+'">'+cellInner(e.id,i,s.store)+'</div>';}).join('');
