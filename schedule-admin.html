@@ -466,10 +466,11 @@ function renderThisWeek(){
     +'<div class="legend"><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--blue)"></span>Vacation</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--purple)"></span>Personal</span><span class="lg" style="color:var(--grey)"><span style="width:10px;height:10px;border-radius:3px;border:1.5px dashed var(--amber)"></span>Pending</span></div></div>'
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
   html+=filterStores().map(function(s){
-    var emps=boardEmps(s.store), boardH=0;
-    var rows=emps.map(function(e){
-      var total=0;
-      var cells=DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var a=effA(e.id,wd,di);var ovr=isOverridden(e.id,di);var req=reqOn(e.id,di);var inner;
+    var emps=boardEmps(s.store), extras=extrasFor(s.store), boardH=0;
+    var allRows=emps.map(function(e){return {e:e,x:false};}).concat(extras.map(function(e){return {e:e,x:true};}));
+    var rows=allRows.map(function(row){
+      var e=row.e, isExtra=row.x, total=0;
+      var cells=DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var a=isExtra?extraCell(e.id,s.store,di):effA(e.id,wd,di);var ovr=isOverridden(e.id,di);var req=reqOn(e.id,di);var inner;
         if(req&&req.status==='approved'){var c=TYPES[req.type]||'#B9BDCB';inner='<div class="chip" style="background:'+hexA(c,0.13)+';border-left:3px solid '+c+'"><div class="cn" style="color:'+c+'"><span class="av" style="width:8px;height:8px;background:'+c+';border-radius:50%"></span>Off</div><div class="ct">'+esc(req.type)+'</div></div>';}
         else if(a==null)inner='<div class="blankc">'+(SCHEDIT?'+':'·')+'</div>';
         else if(a==='off')inner='<div class="offc">OFF</div>';
@@ -482,21 +483,23 @@ function renderThisWeek(){
           else{total+=cellHours(a,s.store,wd);
             inner='<div class="chip" style="background:'+hexA(m.color,0.12)+';border-left:3px solid '+esc(m.color)+(pend?';outline:1.5px dashed '+hexA('#C9820B',0.7)+';outline-offset:-3px':'')+'"><div class="cn">'+esc(m.name)+'</div><div class="ct"'+(pend?' style="color:var(--amber);font-weight:800"':'')+'>'+(pend?'Requested off':esc(m.tm))+'</div></div>';}}
         if(ovr)inner+='<span title="Changed this week" style="position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--red)"></span>';
-        return '<td class="cell'+(SCHEDIT?' clk':'')+'" style="position:relative"'+(SCHEDIT?' data-oemp="'+e.id+'" data-owd="'+wd+'" data-odi="'+di+'"':'')+'>'+inner+'</td>';
+        return '<td class="cell'+(SCHEDIT?' clk':'')+'" style="position:relative"'+(SCHEDIT?' data-oemp="'+e.id+'" data-owd="'+wd+'" data-odi="'+di+'" data-octx="'+esc(s.store)+'"':'')+'>'+inner+'</td>';
       }).join('');
       boardH+=total;
-      return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+hrsTd(total)+'</tr>';
+      return '<tr><td class="emp">'+(isExtra?empCellExtra(e,s.store):empCell(e,s.store))+'</td>'+cells+hrsTd(total)+'</tr>';
     }).join('');
-    var sub=emps.length+' people'+(boardH>0?' · '+fmtHrs(boardH)+'h scheduled':'');
-    return '<div class="board"><div class="board-hd"><span class="bar" style="background:'+esc(storeColor(s.store))+'"></span><span class="nm">'+esc(shortStore(s.store))+'</span><span class="sub">'+sub+'</span></div><table class="bt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var sub=allRows.length+' people'+(boardH>0?' · '+fmtHrs(boardH)+'h scheduled':'');
+    return '<div class="board"><div class="board-hd"><span class="bar" style="background:'+esc(storeColor(s.store))+'"></span><span class="nm">'+esc(shortStore(s.store))+'</span><span class="sub">'+sub+'</span>'+(SCHEDIT?'<span style="flex:1"></span><button class="add" data-xadd="'+esc(s.store)+'" title="Add someone to this week">+</button>':'')+'</div><table class="bt"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
   }).join('');
   html+='</div><div class="note">'+(SCHEDIT
-    ? '<b>Editing this week only.</b> Click any day to change just this week &mdash; Off, a different shift, or another store. A red dot marks days changed from the recurring pattern. The standing schedule under <b>Recurring</b> is untouched.'
+    ? '<b>Editing this week only.</b> Click any day to change just this week &mdash; Off, a different shift, or another store. Use <b>＋</b> on a store to <b>add someone just for this week</b> (e.g. cover a shift), then click their day to set the shift. A red dot marks days changed from the recurring pattern; the standing <b>Recurring</b> schedule is untouched.'
     : 'The standing weekly schedule <b>projected onto real dates</b>, with approved time off blanking the shift and pending requests flagged. Hit <b>Schedule change</b> to adjust just this week; edit the pattern under <b>Recurring</b>.')+'</div>';
   $('#view').innerHTML=html;
   $('#view').querySelectorAll('[data-fp]').forEach(function(b){b.onclick=function(){FILTER=b.getAttribute('data-fp');render();};});
   $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){var n=Number(b.getAttribute('data-wk'));if(n===0)WK=weekStart(new Date());else{WK=new Date(WK);WK.setDate(WK.getDate()+7*n);}render();};});
-  $('#view').querySelectorAll('.cell.clk[data-oemp]').forEach(function(td){td.onclick=function(ev){openOverridePicker(td,ev);};});
+  $('#view').querySelectorAll('.cell.clk[data-oemp]').forEach(function(td){td.onclick=function(ev){if(ev.target.closest('[data-xrmv]'))return;openOverridePicker(td,ev);};});
+  $('#view').querySelectorAll('[data-xadd]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();openAddExtra(b.getAttribute('data-xadd'),ev);};});
+  $('#view').querySelectorAll('[data-xrmv]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var p=b.getAttribute('data-xrmv').split('|');removeExtra(p[0],Number(p[1]));};});
 }
 function renderMonthly(){
   var Y=MM.getFullYear(),M=MM.getMonth();
@@ -797,10 +800,43 @@ function openAdd(store,ev){
   pop.querySelectorAll('[data-add-emp]').forEach(function(b){b.onclick=function(){addMember(store,Number(b.getAttribute('data-add-emp')));};});
 }
 
+/* ===== add someone to This Week (per-week, via overrides) ===== */
+var ADDED={};   // "store|weekStart" -> [staff ids] added to a board this week (session; before they get a shift)
+function wkDates(){var out=[];for(var i=0;i<7;i++){var dt=new Date(WK);dt.setDate(dt.getDate()+i);out.push(iso(dt));}return out;}
+/* Cell for an "extra" (added) person: only their override AT THIS store shows; other days blank. */
+function extraCell(empId,store,di){var o=OVR[empId+'|'+di];return (o&&!o.is_off&&o.store===store)?{store:o.store,id:o.shift_id,label:(SHIFT_BY_ID[o.shift_id]||{}).name,ovr:true}:null;}
+function overrideExtrasAt(store){var home=boardEmps(store).map(function(e){return e.id;});var ds=wkDates();var ids={};
+  STAFF.forEach(function(e){if(home.indexOf(e.id)>-1)return;for(var i=0;i<ds.length;i++){var o=OVR[e.id+'|'+ds[i]];if(o&&!o.is_off&&o.store===store){ids[e.id]=1;break;}}});
+  return Object.keys(ids).map(Number);}
+function extrasFor(store){var home=boardEmps(store).map(function(e){return e.id;});var ovr=overrideExtrasAt(store);
+  var key=store+'|'+iso(WK);var added=(ADDED[key]||[]).filter(function(id){return home.indexOf(id)<0&&ovr.indexOf(id)<0;});
+  var seen={};return ovr.concat(added).filter(function(id){if(seen[id])return false;seen[id]=1;return true;}).map(empById).filter(Boolean);}
+function empCellExtra(e,store){return '<div class="empname">'+avHtml(e,30,'.72rem',storeColor(e.home_store))+'<div><div class="nmline">'+esc(e.display_name)+'</div><span class="tag" style="color:#8a6d1f;background:#FBF0D8">ADDED · '+esc(shortStore(e.home_store))+'</span> <button class="rmv" data-xrmv="'+esc(store)+'|'+e.id+'" title="Remove from this week" style="border:none;background:none;color:#cfd2dd;font-size:.8rem;cursor:pointer;padding:0 2px">✕</button></div></div>';}
+async function removeExtra(store,empId){
+  var key=store+'|'+iso(WK);ADDED[key]=(ADDED[key]||[]).filter(function(id){return id!==empId;});
+  var ds=wkDates(),toDel=ds.filter(function(di){var o=OVR[empId+'|'+di];return o&&!o.is_off&&o.store===store;});
+  toDel.forEach(function(di){delete OVR[empId+'|'+di];});render();
+  if(toDel.length){var d=await sb.from('schedule_overrides').delete().eq('staff_id',empId).in('ovr_date',toDel);if(d.error)toast(d.error.message,true);}
+  var e=empById(empId);toast('Removed · '+(e?e.display_name.split(' ')[0]:''));}
+function openAddExtra(store,ev){
+  closePop();
+  var onBoard=boardEmps(store).map(function(e){return e.id;}).concat(extrasFor(store).map(function(e){return e.id;}));
+  var back=document.createElement('div');back.className='pop-back';back.onclick=closePop;
+  var pop=document.createElement('div');pop.className='pop';
+  var groups=STORES.map(function(st){var people=STAFF.filter(function(e){return e.home_store===st.store&&onBoard.indexOf(e.id)<0;});return {store:st.store,people:people};}).filter(function(g){return g.people.length;});
+  var html='<div class="pop-hd"><div class="n">Add to '+esc(shortStore(store))+' · this week</div><div class="d">Pick anyone to schedule here</div></div>';
+  if(!groups.length)html+='<div style="padding:18px 12px;text-align:center;font-family:Nunito Sans;font-size:.76rem;color:var(--grey);font-weight:600">Everyone is already on this board.</div>';
+  groups.forEach(function(g){html+='<div class="pop-grp"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(g.store))+'"></span>'+esc(shortStore(g.store))+'</div>';
+    g.people.forEach(function(e){html+='<button class="pop-item" data-xemp="'+e.id+'">'+avHtml(e,26,'.62rem',storeColor(g.store))+esc(e.display_name)+'<span class="tm">'+(isMgr(e.role)?'Manager':'Tech')+'</span></button>';});});
+  pop.innerHTML=html;document.body.appendChild(back);document.body.appendChild(pop);POP={remove:function(){back.remove();pop.remove();}};
+  placePop(pop,ev.clientX-220,ev.clientY);
+  pop.querySelectorAll('[data-xemp]').forEach(function(b){b.onclick=function(){var id=Number(b.getAttribute('data-xemp'));var key=store+'|'+iso(WK);(ADDED[key]=ADDED[key]||[]).push(id);closePop();render();};});
+}
+
 /* ===== per-week schedule change (overrides) ===== */
 function openOverridePicker(td,ev){
   closePop();var emp=Number(td.getAttribute('data-oemp')),wd=Number(td.getAttribute('data-owd')),di=td.getAttribute('data-odi'),e=empById(emp);if(!e)return;
-  var homeStore=e.home_store;
+  var homeStore=td.getAttribute('data-octx')||e.home_store;   // shifts default to the board's store (so "added" people get that store's shifts)
   var back=document.createElement('div');back.className='pop-back';back.onclick=closePop;
   var pop=document.createElement('div');pop.className='pop';
   var shifts=SHIFTS.filter(function(sh){if(!sh.active)return false;var h=HOURS[sh.id+'|'+homeStore];return h&&h.def&&h.def.enabled;}).sort(function(a,b){return (a.sort||0)-(b.sort||0);});
