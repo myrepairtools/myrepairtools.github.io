@@ -542,9 +542,11 @@ Deno.serve(async (req) => {
     // MRT→QBO, time-off only, idempotent (create-once, tracked via qbt_ids). Paid → "Paid
     // Time Off" code; unpaid → "Unpaid Time Off" (the codes staff are actually assigned).
     if (!privileged) return json({ error: "forbidden" }, 403);
+    const today = ymdIn(new Date(), "America/Los_Angeles");
+    // Only sync current/upcoming approvals — never retro-write into already-run payroll.
     const { data: toCreate } = await admin.from("time_off_requests")
       .select("id,staff_id,type,start_date,end_date,hours,paid,qbt_ids")
-      .eq("status", "approved").gt("hours", 0).is("qbt_ids", null);
+      .eq("status", "approved").is("qbt_ids", null).gte("end_date", today);
     const { data: toCancel } = await admin.from("time_off_requests")
       .select("id,qbt_ids,status").not("qbt_ids", "is", null).neq("status", "approved");
     let created = 0, canceled = 0; const errors: unknown[] = [];
@@ -553,7 +555,8 @@ Deno.serve(async (req) => {
       if (!qbtId) { errors.push({ id: r.id, e: "no_qbt_link" }); continue; }
       const jc = await ptoJobcodeId(r.paid === false ? "Unpaid" : "PTO");
       if (!jc) { errors.push({ id: r.id, e: "no_jobcode" }); continue; }
-      const res = await createTimeOff(token, qbtId, jc, r.start_date, r.end_date, Number(r.hours));
+      const hrs = (r.hours && Number(r.hours) > 0) ? Number(r.hours) : daysInRange(r.start_date, r.end_date).length * 8;
+      const res = await createTimeOff(token, qbtId, jc, r.start_date, r.end_date, hrs);
       if (res.ok && res.id) { await admin.from("time_off_requests").update({ qbt_ids: [res.id], qbt_synced_at: new Date().toISOString() }).eq("id", r.id); created++; }
       else errors.push({ id: r.id, e: "create_failed", msg: res.msg });
     }

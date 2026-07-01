@@ -423,7 +423,28 @@ function renderStore(){
   $('#view').innerHTML=html;
 }
 /* ===== time off ===== */
-var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:'',ack:false};
+var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:'',ack:false,hours:null};
+function reqDays(s,e){return Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1);}
+function defHours(){return reqDays(FORM.start,FORM.end)*8;}
+/* PTO-hours input + available-balance line, shared by the mobile & web request forms. */
+function hoursFieldHtml(){
+  var paid=isPaidType(FORM.type);
+  return '<label class="lbl">'+(paid?'PTO hours to use':'Hours off (unpaid)')+'</label>'
+    +'<div style="display:flex;align-items:center;gap:11px;margin-bottom:13px">'
+    +'<input type="number" min="0" step="0.25" class="inp" id="fHours" value="'+esc(FORM.hours!=null?FORM.hours:'')+'" style="width:120px">'
+    +'<span id="fBal" style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.78rem;color:var(--grey)">'+(paid?'Available: …':'Not paid time off')+'</span></div>';
+}
+function loadReqBalance(){
+  var el=document.getElementById('fBal'); if(!el)return;
+  if(!isPaidType(FORM.type)){el.textContent='Not paid time off';return;}
+  if(!window.CPRPTO){el.textContent='';return;}
+  CPRPTO.forMe().then(function(s){var e2=document.getElementById('fBal'); if(!e2)return;
+    var pto=((s&&s.balances)||[]).filter(function(b){return /paid time off/i.test(b.name);})[0];
+    var hrs=pto?pto.hours:(s?s.totalHours:null);
+    e2.innerHTML=hrs!=null?('Available: <b style="color:var(--dark)">'+hrs+' hrs</b>'):'Balance unavailable';
+  },function(){});
+}
+function wireHoursField(){ var h=document.getElementById('fHours'); if(h)h.oninput=function(){FORM.hours=this.value===''?null:Number(this.value);}; loadReqBalance(); }
 /* teammates (same store) whose pending/approved time off overlaps the chosen range */
 function conflictsFor(start,end){
   var myStoreNames=myStores();
@@ -441,6 +462,7 @@ function ackBoxHtml(conflictTxt){
 function renderTimeoff(){
   var f=FORM;
   if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
+  if(f.hours==null)f.hours=defHours();
   var conflicts=conflictsFor(f.start,f.end);
   var conflictTxt=conflictText(conflicts);
   var blockSubmit=conflicts.length&&!f.ack;
@@ -448,6 +470,7 @@ function renderTimeoff(){
     '<div class="card" style="margin-bottom:18px"><div style="font-family:Nunito;font-weight:900;font-size:.95rem;margin-bottom:12px">Request time off</div>'
     +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:13px">'+['Vacation','Personal','Sick','Unpaid'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
     +'<div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1"><label class="lbl">Start</label><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"></div><div style="flex:1"><label class="lbl">End</label><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div></div>'
+    +hoursFieldHtml()
     +'<label class="lbl">Note (optional)</label><input class="inp" id="fNote" value="'+esc(f.note)+'" placeholder="e.g. family trip" style="margin-bottom:13px">'
     +(conflicts.length?ackBoxHtml(conflictTxt):'')
     +'<div style="display:flex;gap:9px"><button class="btn" id="fCancel" style="flex:1;padding:11px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.84rem">Cancel</button><button class="btn btn-red" id="fSubmit"'+(blockSubmit?' disabled':'')+' style="flex:1.4;width:auto;padding:11px;font-size:.84rem'+(blockSubmit?';opacity:.5;cursor:not-allowed':'')+'">Send to manager</button></div></div>'
@@ -469,20 +492,22 @@ function renderTimeoff(){
   if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
   if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
   $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
-  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;render();};
-  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;render();};
+  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;FORM.hours=defHours();render();};
+  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;FORM.hours=defHours();render();};
   if($('#fAck'))$('#fAck').onchange=function(){FORM.ack=this.checked;render();};
   if($('#fNote'))$('#fNote').oninput=function(){FORM.note=this.value;};
   if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
+  wireHoursField();
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
 }
 async function submitRequest(){
   var f=FORM;if(!f.start||!f.end){toast('Pick dates',true);return;}
   if(conflictsFor(f.start,f.end).length&&!f.ack){toast('Please check the box acknowledging the overlap',true);return;}
-  var row={staff_id:ME.id,store:ME.home_store,type:f.type,paid:isPaidType(f.type),start_date:f.start,end_date:f.end,note:f.note||null,status:'pending'};
+  var hrs=Number(f.hours);if(!(hrs>0)){toast('Enter the hours to use',true);return;}
+  var row={staff_id:ME.id,store:ME.home_store,type:f.type,paid:isPaidType(f.type),start_date:f.start,end_date:f.end,hours:hrs,note:f.note||null,status:'pending'};
   var r=await sb.from('time_off_requests').insert(row).select().single();
   if(r.error){toast(r.error.message,true);return;}
-  REQS.push(r.data);REQUESTING=false;FORM={type:'Vacation',start:'',end:'',note:'',ack:false};
+  REQS.push(r.data);REQUESTING=false;FORM={type:'Vacation',start:'',end:'',note:'',ack:false,hours:null};
   toast('✓ Sent to your manager');renderHeader();render();
 }
 async function cancelRequest(id){
@@ -591,6 +616,7 @@ function isMgrRole(r){return ['owner','admin','manager'].indexOf(r)>-1;}
 /* shared time-off panel (web sidebar + reused logic) */
 function timeoffPanelHtml(web){
   var f=FORM;if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
+  if(f.hours==null)f.hours=defHours();
   var myStoreNames=myStores();
   var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
   var conflicts=conflictsFor(f.start,f.end);
@@ -601,6 +627,7 @@ function timeoffPanelHtml(web){
     '<div class="card"><div style="font-family:Nunito;font-weight:900;font-size:.92rem;margin-bottom:11px">Request time off</div>'
     +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:11px">'+['Vacation','Personal','Sick','Unpaid'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:11px"><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div>'
+    +hoursFieldHtml()
     +(conflicts.length?ackBoxHtml(conflictTxt):'')
     +'<div style="display:flex;gap:8px"><button class="btn" id="fCancel" style="flex:1;padding:10px">Cancel</button><button class="btn btn-red" id="fSubmit"'+(blockSubmit?' disabled':'')+' style="flex:1.3;width:auto;padding:10px'+(blockSubmit?';opacity:.5;cursor:not-allowed':'')+'">Submit</button></div></div>'
   ):'';
@@ -619,10 +646,11 @@ function wireTimeoffPanel(){
   if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
   if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
   $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
-  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;render();};
-  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;render();};
+  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;FORM.hours=defHours();render();};
+  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;FORM.hours=defHours();render();};
   if($('#fAck'))$('#fAck').onchange=function(){FORM.ack=this.checked;render();};
   if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
+  wireHoursField();
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
 }
 /* find-open-dates planner */
@@ -663,7 +691,7 @@ function renderPlanner(){
   back.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){PMON=new Date(PMON.getFullYear(),PMON.getMonth()+Number(b.getAttribute('data-pm')),1);renderPlanner();};});
   back.querySelectorAll('[data-day]').forEach(function(b){var di=b.getAttribute('data-day');if(!di)return;b.onclick=function(){
     if(!PSTART||(PSTART&&PEND)||di<PSTART){PSTART=di;PEND=null;}else PEND=di;renderPlanner();};});
-  back.querySelector('#plUse').onclick=function(){if(!PSTART)return;FORM.start=PSTART;FORM.end=PEND||PSTART;FORM.ack=false;REQUESTING=true;closePlanner();render();};
+  back.querySelector('#plUse').onclick=function(){if(!PSTART)return;FORM.start=PSTART;FORM.end=PEND||PSTART;FORM.ack=false;FORM.hours=defHours();REQUESTING=true;closePlanner();render();};
 }
 
 initAuth();
