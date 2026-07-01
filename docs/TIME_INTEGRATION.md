@@ -75,7 +75,7 @@ Power Automate flow parses it and posts to Teams. **Reusable by every MRT tool**
 | # | Feature | Needs | Notes |
 |---|---------|-------|-------|
 | 2 | **Hours worked this week** in My Schedule | B | First visible employee win; sits beside the existing schedule summary. |
-| 10 | **PTO balances** | mapping | Pull QB Time time-off balances; show in My Schedule / hub / employee record. |
+| 10 | **PTO balances** | mapping | **Manager view shipped:** balances arrive free in `qbtime_users.raw.pto_balances` (jobcode→sec); `qbtime_jobcodes` (jobcodes action, `type=all`) labels them (Paid Time Off, Vacation, Sick, Holiday). **Employees → PTO tab** shows per-person balances. **Still to do:** employee self-service (My Time panel + My Hub widget). |
 | 3 | **Overtime + pace + alerts** | B + C + schedules | **Reporting half shipped:** `reports.html` (new **Reports** rail area / library page) → "Overtime & pace" report: weekly hours vs the 40h line + 5-day projected pace, store-grouped, RLS-scoped. OT rule = 40/wk, **Sun–Sat**. **Alerts half pending Foundation C** (push pending-OT to Teams/SMS). |
 | 1 | **Time-off → QB Time** | approval flow + mapping | The my-schedule time-off request we built → on approval, write the time-off to QB Time so payroll reflects it. Round out approve/deny first. |
 | 7 | **Clock-in/out via MRT** *(big keystone)* | B + mapping | Clock in/out from a mobile-friendly MRT page → create/close QB Time timesheets. The hook for enforcing checklist / repairs-w/o-parts / consumption workflows at clock-in. |

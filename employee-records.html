@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Employee Records · CPR Oregon</title>
+<title>Employees · CPR Oregon</title>
 <link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -107,6 +107,20 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .empty .t{font-family:'Nunito';font-weight:800;font-size:.92rem;color:var(--dark);margin-bottom:4px}
 .empty .s{color:var(--grey);font-weight:700;font-size:.8rem;line-height:1.5}
 .empty-sm{padding:34px 18px;text-align:center;color:var(--grey);font-weight:700;font-size:.84rem}
+.work-pad{flex:1;overflow:auto;padding:18px 22px}
+.tcard{border:1px solid var(--border);border-radius:12px;background:#fff;margin-bottom:14px;overflow:hidden;max-width:560px}
+.tcard-hd{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;background:#fafafa;border-bottom:1px solid var(--border);font-family:'Nunito';font-size:.86rem}
+.tcard-hd span{font-family:'Nunito Sans';font-weight:800;color:var(--dark-grey);font-variant-numeric:tabular-nums}
+.trow{display:flex;justify-content:space-between;padding:8px 15px;border-bottom:1px solid var(--light-grey);font-size:.85rem}
+.trow:last-child{border-bottom:none}
+.trow span:first-child{color:var(--dark-grey);font-weight:700}
+.trow span:last-child{font-variant-numeric:tabular-nums}
+.p-live{display:inline-block;font-family:'Nunito';font-weight:800;font-size:.58rem;color:#1E7A45;background:#E9F6EE;border-radius:999px;padding:2px 7px;margin-left:5px}
+.ptogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:13px;max-width:560px}
+.ptocard{border:1px solid var(--border);border-radius:12px;background:#fff;padding:16px 17px}
+.ptocard .pv{font-family:'Nunito';font-weight:900;font-size:1.9rem;line-height:1;color:var(--dark)}
+.ptocard .pl{font-family:'Nunito';font-weight:800;font-size:.82rem;margin-top:7px}
+.ptocard .ps{font-family:'Nunito Sans';font-weight:700;font-size:.68rem;color:var(--grey);text-transform:uppercase;letter-spacing:.4px;margin-top:1px}
 .center-msg{height:100%;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:700;font-size:.88rem;padding:40px;text-align:center}
 
 /* detail cards */
@@ -195,7 +209,7 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
 <div id="lock" class="lock">
   <div class="lock-card">
     <div class="lk-mark">+</div>
-    <h1>Employee Records</h1>
+    <h1>Employees</h1>
     <p>Enter your PIN to view staff records.</p>
     <div class="lk-field">
       <label>PIN</label>
@@ -219,6 +233,8 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
     <div id="profile"></div>
     <div class="tabbar" id="tabbar">
       <button class="tab on" data-tab="log">Log</button>
+      <button class="tab" data-tab="time">Time</button>
+      <button class="tab" data-tab="pto">PTO</button>
       <button class="tab" data-tab="pips">PIPs &amp; Reviews <span class="badge amber" data-pipbadge hidden></span></button>
       <button class="tab" data-tab="damage">Tech Damage <span class="badge blue" data-dmgbadge hidden></span></button>
     </div>
@@ -285,7 +301,9 @@ function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast sho
 /* ===== state + data ===== */
 let AUTH=null, NAME2USER={};
 let ALL=[], EMPLOYEES=[], DMG_BYNAME={}, DMG_BYID={};
-let QBU=[];   // qbtime_users rows (qbt_id, staff_id, names) for the profile's QB Time link row
+let QBU=[];   // qbtime_users rows (qbt_id, staff_id, names, raw) for the profile QB link + PTO balances
+let JOBCODES={};   // qbt jobcode id -> {name,type} (for labeling PTO balances)
+let TSBYSTAFF={};  // staff_id -> [{biz_date,seconds,on_the_clock}] (recent time entries)
 const S={empId:null,tab:'log',entryId:null,pipId:null,damageId:null,typeF:'all',catF:'all',sortNewest:true,empSearch:'',logRange:'all',dmgRange:'all',showArchived:false,mDetail:false};
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
@@ -341,14 +359,19 @@ async function initAuth(){
 
 /* ===== data load ===== */
 async function load(){
-  const [stRes,enRes,piRes,qbRes]=await Promise.all([
+  const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
+  const [stRes,enRes,piRes,qbRes,jcRes,tsRes]=await Promise.all([
     sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
-    sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active'),
+    sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active,raw'),
+    sb.from('qbtime_jobcodes').select('qbt_id,name,type'),
+    sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,on_the_clock').gte('biz_date',tsFrom),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
-  QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row
+  QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row + PTO balances (raw)
+  JOBCODES={}; ((jcRes&&jcRes.data)||[]).forEach(j=>{JOBCODES[String(j.qbt_id)]={name:j.name,type:j.type};});
+  TSBYSTAFF={}; ((tsRes&&tsRes.data)||[]).forEach(t=>{ if(t.staff_id==null)return; (TSBYSTAFF[t.staff_id]||(TSBYSTAFF[t.staff_id]=[])).push(t); });
   const byId={};
   (stRes.data||[]).forEach(s=>{byId[s.id]={
     id:s.id,name:s.display_name,preferred:s.preferred_name||'',role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
@@ -486,9 +509,43 @@ function renderWork(){
   const w=$('#work');
   if(!e){w.innerHTML='';return;}
   if(S.tab==='log')w.innerHTML=logHtml(e);
+  else if(S.tab==='time')w.innerHTML=timeHtml(e);
+  else if(S.tab==='pto')w.innerHTML=ptoHtml(e);
   else if(S.tab==='pips')w.innerHTML=pipHtml(e);
   else w.innerHTML=dmgHtml(e);
   const dp=w.querySelector('.detail-pane');if(dp)dp.classList.toggle('show',S.mDetail);
+}
+
+/* ----- Time & PTO tabs (QuickBooks Time) ----- */
+function qbtFor(e){return QBU.filter(u=>String(u.staff_id)===String(e.id))[0]||null;}
+function toHrs(sec){return Math.round((sec/3600)*10)/10;}
+function dowLabel(iso){const d=new Date(iso+'T00:00:00');if(isNaN(d))return iso;return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+fmt(iso).replace(/,\s*\d{4}$/,'');}
+function notLinkedHtml(what){return '<div class="work-pad"><div class="empty-sm">Not linked to QuickBooks Time — no '+esc(what)+' to show.<br>Link them with the pencil (edit) on their card.</div></div>';}
+function timeHtml(e){
+  if(!qbtFor(e))return notLinkedHtml('time entries');
+  const rows=(TSBYSTAFF[e.id]||[]).slice();
+  if(!rows.length)return '<div class="work-pad"><div class="empty-sm">No clocked time in the last 6 weeks.</div></div>';
+  const wk={};
+  rows.forEach(t=>{const d=new Date(t.biz_date+'T00:00:00');const sun=new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getDay());const k=isoOf(sun);
+    (wk[k]||(wk[k]={sec:0,days:[]}));wk[k].sec+=(+t.seconds||0);wk[k].days.push(t);});
+  let html='<div class="work-pad">';
+  Object.keys(wk).sort().reverse().forEach(k=>{const W=wk[k];const sun=new Date(k+'T00:00:00');const sat=isoOf(new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+6));
+    const tot=toHrs(W.sec),ot=Math.max(0,Math.round((tot-40)*10)/10);
+    html+='<div class="tcard"><div class="tcard-hd"><b>'+fmt(k).replace(/,\s*\d{4}$/,'')+' – '+fmt(sat)+'</b><span>'+tot.toFixed(1)+' hrs'+(ot>0?' · <span style="color:var(--red)">'+ot+' OT</span>':'')+'</span></div>';
+    W.days.sort((a,b)=>a.biz_date<b.biz_date?-1:1).forEach(d=>{html+='<div class="trow"><span>'+esc(dowLabel(d.biz_date))+'</span><span>'+toHrs(d.seconds).toFixed(1)+' hrs'+(d.on_the_clock?'<span class="p-live">● on clock</span>':'')+'</span></div>';});
+    html+='</div>';});
+  return html+'</div>';
+}
+function ptoHtml(e){
+  const u=qbtFor(e);
+  if(!u)return notLinkedHtml('PTO');
+  const bal=(u.raw&&u.raw.pto_balances)||null, items=[];
+  if(bal&&typeof bal==='object')Object.keys(bal).forEach(jc=>{const j=JOBCODES[jc];if(j&&j.type==='pto')items.push({name:j.name,sec:+bal[jc]||0});});
+  items.sort((a,b)=>b.sec-a.sec);
+  if(!items.length)return '<div class="work-pad"><div class="empty-sm">No PTO balances in QuickBooks Time.</div></div>';
+  let html='<div class="work-pad"><div class="ptogrid">';
+  items.forEach(it=>{html+='<div class="ptocard"><div class="pv">'+toHrs(it.sec).toFixed(1)+'</div><div class="pl">'+esc(it.name)+'</div><div class="ps">hrs available</div></div>';});
+  return html+'</div><div class="empty-sm" style="text-align:left;padding:16px 2px 0">Balances come from QuickBooks Time — the system of record for payroll.</div></div>';
 }
 
 function logHtml(e){
