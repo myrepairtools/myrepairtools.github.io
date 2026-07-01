@@ -65,6 +65,7 @@
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
     { label:'Team Members',   url:'employee-records.html', icon:'📁', minRole:'admin', acc:'staff.view' },
+    { label:'Monthly Goals',  url:'monthly-goals.html',    icon:'🎯', minRole:'admin', acc:'staff.view' },
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'🗓️', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Entries',   url:'time-entries.html',     icon:'🕐', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'🌴', minRole:'admin', acc:'schedule.admin' }

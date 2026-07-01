@@ -210,7 +210,8 @@ async function currentStaff(){
 
 /* ---- config (shared with the calculator) ---- */
 async function loadConfig(){
-  const [rt,rl,rs,st,rr,pm,rp,ro,so,sch]=await Promise.all([
+  const curMonthISO=(function(){const n=new Date();return n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-01';})();
+  const [rt,rl,rs,st,rr,pm,rp,ro,so,sch,mg]=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
@@ -220,8 +221,10 @@ async function loadConfig(){
     sb.from('role_permissions').select('role_id,permission_id'),
     sb.from('commission_role_overrides').select('*'),
     sb.from('stores').select('store,display_order'),
-    sb.from('staff_schedule').select('staff_id,work_days')
+    sb.from('staff_schedule').select('staff_id,work_days'),
+    sb.from('commission_goals').select('staff_id,accy_goal').eq('month',curMonthISO)
   ]);
+  STATE.monthGoals={};((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
   STATE.storeOrder={};(so&&so.data||[]).forEach(s=>{STATE.storeOrder[s.store]=s.display_order==null?9990:s.display_order;});
   STATE.schedule={};(sch&&sch.data||[]).forEach(r=>{STATE.schedule[r.staff_id]=Array.isArray(r.work_days)?r.work_days:[];});
   STATE.rates={};STATE.rateLabels={};
@@ -279,7 +282,9 @@ function effFor(staff){
   const home=staff.home_store;
   const rules=E.mergeRules(STATE.rules[home], roleOver&&roleOver.rules, ros&&ros.rules_override);
   const rates=E.mergeRates(STATE.rates, STATE.storeRates[home], roleOver&&roleOver.rates, ros&&ros.rates_override);
-  const goal=ros?Number(ros.accy_goal)||0:0;
+  // this month's meeting-set goal wins; falls back to the standing roster default
+  const mg=STATE.monthGoals&&STATE.monthGoals[staff.id];
+  const goal=(mg!=null)?mg:(ros?Number(ros.accy_goal)||0:0);
   return {earns,rules,rates,goal};
 }
 

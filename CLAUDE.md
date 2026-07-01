@@ -117,13 +117,20 @@ There is **no single backend**. Tools talk to one of two systems:
    body: JSON.stringify({action, token, ...})})` returning JSON `{ok, ...}`. The
    `text/plain` content-type is deliberate — it avoids a CORS preflight against Apps Script.
    Auth services (`site-gate`/`admin-gate`/`nav`) are themselves Apps Script deployments.
-   Tools currently on Apps Script: commission-calculator.
 
 2. **Supabase** (newer; the active migration target — see recent "Cash Tracker Migration"
    commits). Project `xuvsehrevxackuhmbmry.supabase.co`, client imported from
    `esm.sh/@supabase/supabase-js@2`. Tools on Supabase: cash-tracker, cash-admin,
    consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders,
-   claim-payouts.
+   claim-payouts, commission-calculator, commission-dashboard, schedule pages,
+   time-entries, monthly-goals.
+
+**Monthly goals:** `commission_goals` (staff_id, month, accy_goal, note) — per-employee
+monthly accessory $ targets set in `monthly-goals.html` (Employees nav; managers scoped by
+`can_see_staff`). Resolution everywhere is month goal → `commission_roster.accy_goal`
+default. The goal gates the "hit your accessory goal" commission bonus, so month goals
+change payout. Consumers: commission-dashboard, commission-calculator (range's start
+month), assets/commission-summary.js.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 

@@ -78,9 +78,10 @@
               client.from('role_permissions').select('role_id,permission_id'),
               client.from('commission_role_overrides').select('*'),
               client.from('commission_sales').select('*').eq('staff_id', me.id).gte('biz_date', mi.start).lte('biz_date', mi.end),
-              client.from('commission_tips').select('*').eq('period', mi.period)
+              client.from('commission_tips').select('*').eq('period', mi.period),
+              client.from('commission_goals').select('accy_goal').eq('staff_id', me.id).eq('month', mi.period+'-01')
             ]).then(function(res){
-              var rt=res[0], rl=res[1], rs=res[2], rr=res[3], pm=res[4], rp=res[5], ro=res[6], sales=res[7], tp=res[8];
+              var rt=res[0], rl=res[1], rs=res[2], rr=res[3], pm=res[4], rp=res[5], ro=res[6], sales=res[7], tp=res[8], mg=res[9];
 
               var rates={}, rateLabels={}; (rt.data||[]).forEach(function(r){
                 rates[r.sku]=(r.tiers&&r.tiers.goal)?{goal:Number(r.tiers.goal)||0,lo:Number(r.tiers.lo)||0,hi:Number(r.tiers.hi)||0}:(Number(r.amount)||0); rateLabels[r.sku]=r.label||r.sku; });
@@ -100,7 +101,9 @@
               var home=me.home_store;
               var effRules=E.mergeRules(rules[home], rov&&rov.rules, ros&&ros.rules_override);
               var effRates=E.mergeRates(rates, storeRates[home], rov&&rov.rates, ros&&ros.rates_override);
-              var goal=ros?Number(ros.accy_goal)||0:0;
+              // this month's meeting-set goal (commission_goals) wins over the roster default
+              var mgRow=(mg&&mg.data&&mg.data[0])||null;
+              var goal=mgRow?(Number(mgRow.accy_goal)||0):(ros?Number(ros.accy_goal)||0:0);
 
               var totals=blankTotals(); (sales.data||[]).forEach(function(r){ addInto(totals,r); });
               var c=E.computeCommission(totals,{ accessoryGoal:goal, accDeviceUnits:totals.DeviceAttach, rates:effRates, earns:earns, rules:effRules });

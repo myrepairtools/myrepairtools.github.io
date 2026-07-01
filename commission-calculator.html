@@ -212,6 +212,9 @@ async function runReport(){
   $('#status').textContent='Loading…';
   const {data,error}=await sb.from('commission_sales').select('*').gte('biz_date',start).lte('biz_date',end);
   if(error){$('#status').textContent='Error';toast(error.message,true);return;}
+  // meeting-set monthly goals for the range's month (pay periods live within one month)
+  const mgRes=await sb.from('commission_goals').select('staff_id,accy_goal').eq('month',start.slice(0,7)+'-01');
+  const monthGoals={};((mgRes&&mgRes.data)||[]).forEach(g=>{monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
   const byEmp={};
   (data||[]).forEach(r=>{
     const key=r.staff_id!=null?('sid:'+r.staff_id):('nm:'+r.employee);
@@ -240,8 +243,9 @@ async function runReport(){
     const rates=E.mergeRates(STATE.rates, STATE.storeRates[home], roleOver&&roleOver.rates, ros&&ros.rates_override);
     // "In roster" = linked to an active team member; a commission_roster row only
     // customizes goal/earnings/rules. Active staff are in the roster by default.
+    const goal=(e.staff_id!=null&&monthGoals[e.staff_id]!=null)?monthGoals[e.staff_id]:(ros?Number(ros.accy_goal)||0:0);
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
-      earns:earns, rules:rules, rates:rates, goal:ros?Number(ros.accy_goal)||0:0, inRoster:!!(sf&&sf.active)};
+      earns:earns, rules:rules, rates:rates, goal:goal, inRoster:!!(sf&&sf.active)};
   });
   if(!STATE.tipsPeriod)STATE.tipsPeriod=start.slice(0,7);
   await loadTips();
