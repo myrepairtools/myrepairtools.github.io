@@ -84,6 +84,27 @@ async function qbtReq(method: string, path: string, token: string, body: unknown
 
 function norm(s: unknown) { return String(s ?? "").trim().toLowerCase(); }
 
+// ---- Time clock helpers (write to QB Time) ----
+const CLASS_CF = "819414";   // required "Class" customfield = store
+function normStore(s: string) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function nowIso() { return new Date().toISOString().replace(/\.\d{3}Z$/, "+00:00"); }
+async function qbtIdForStaff(staffId: string): Promise<string | null> {
+  const { data } = await admin.from("qbtime_users").select("qbt_id").eq("staff_id", Number(staffId)).maybeSingle();
+  return data?.qbt_id ? String(data.qbt_id) : null;
+}
+async function classForStore(token: string, store: string): Promise<{ id: string; name: string } | null> {
+  const items = await qbtGet("customfielditems", token, { customfield_id: CLASS_CF });
+  for (const it of Object.values((items.data?.results?.customfielditems || {}) as Record<string, Record<string, unknown>>))
+    if (normStore(String(it.name)) === normStore(store)) return { id: String(it.id), name: String(it.name) };
+  return null;
+}
+async function openTimesheet(token: string, qbtId: string): Promise<Record<string, unknown> | null> {
+  // QB Time rejects very wide ranges; an open punch's date is today (window covers overnight shifts).
+  const today = ymdIn(new Date(), "America/Los_Angeles");
+  const r = await qbtGet("timesheets", token, { user_ids: qbtId, on_the_clock: "yes", start_date: addDays(today, -2), end_date: addDays(today, 1) });
+  return Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0] || null;
+}
+
 // common nickname groups (interchangeable forms) for fuzzy first-name matching
 const NICK_GROUPS: string[][] = [
   ["michael","mike","mick","mikey"],["robert","rob","bob","bobby"],["william","will","bill","billy"],
@@ -426,6 +447,44 @@ Deno.serve(async (req) => {
     }
     const staff_id = (sid == null || sid === "") ? null : Number(sid);
     return json(await mapUser(qbt_id, staff_id));
+  }
+  if (action === "clock_status" || action === "clock_in" || action === "clock_out" || action === "clock_delete") {
+    const b = req.method === "POST" ? (await req.json().catch(() => ({})) as Record<string, unknown>) : {};
+    const staff_id = String(b.staff_id ?? url.searchParams.get("staff_id") ?? "");
+    let qbt_id = String(b.qbt_id ?? url.searchParams.get("qbt_id") ?? "");
+    const store = String(b.store ?? url.searchParams.get("store") ?? "");
+    if (!qbt_id && staff_id) qbt_id = (await qbtIdForStaff(staff_id)) || "";
+    if (action !== "clock_delete" && !qbt_id) return json({ ok: false, error: "no_qbt_link", detail: "This staff member isn't linked to a QB Time user." }, 400);
+
+    if (action === "clock_status") {
+      const ts = await openTimesheet(token, qbt_id);
+      return json({ ok: true, on_the_clock: !!ts, id: ts?.id ?? null, start: ts?.start ?? null, customfields: ts?.customfields ?? null });
+    }
+    if (action === "clock_in") {
+      const existing = await openTimesheet(token, qbt_id);
+      if (existing) return json({ ok: true, already_clocked_in: true, id: existing.id, start: existing.start });
+      if (!store) return json({ ok: false, error: "store_required" }, 400);
+      const cls = await classForStore(token, store);
+      if (!cls) return json({ ok: false, error: "no_class_for_store", store }, 400);
+      const body = { data: [{ user_id: Number(qbt_id), type: "regular", start: nowIso(), end: "", jobcode_id: 0, customfields: { [CLASS_CF]: cls.name } }] };
+      const r = await qbtReq("POST", "timesheets", token, body);
+      const created = Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0];
+      return json({ ok: r.status === 200 && (created?._status_code === 200), status: r.status, id: created?.id ?? null, sent_class: cls, result: r.data });
+    }
+    if (action === "clock_out") {
+      const ts = await openTimesheet(token, qbt_id);
+      if (!ts) return json({ ok: true, not_clocked_in: true });
+      const body = { data: [{ id: Number(ts.id), end: nowIso() }] };
+      const r = await qbtReq("PUT", "timesheets", token, body);
+      const upd = Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0];
+      return json({ ok: r.status === 200 && (upd?._status_code === 200), status: r.status, id: ts.id, result: r.data });
+    }
+    if (action === "clock_delete") {   // test cleanup / undo
+      const id = String(b.id ?? url.searchParams.get("id") ?? "");
+      if (!id) return json({ ok: false, error: "id_required" }, 400);
+      const r = await qbtReq("DELETE", "timesheets?ids=" + encodeURIComponent(id), token, null);
+      return json({ ok: r.status === 200, status: r.status, result: r.data });
+    }
   }
   if (action === "customfields") {
     // Discover QB Time custom fields + items (the QuickBooks "class"/location lives here).
