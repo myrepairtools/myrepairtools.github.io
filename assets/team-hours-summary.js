@@ -67,7 +67,9 @@
   // Overtime Report page through any week; the dashboard widget calls forWeek() (this week).
   var memo={};
   function forWeek(weekStartISO){
-    var key=weekStartISO||'_this';
+    // Key by today's date too: "shifts left" and worked-vs-scheduled split at `today`,
+    // so a tab left open across midnight must recompute instead of serving a stale count.
+    var key=(weekStartISO||'_this')+'@'+iso(new Date());
     if(memo[key]) return memo[key];
     memo[key]=sb().then(function(client){
       if(!client) return null;

@@ -553,13 +553,18 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         var filterBtns='<button data-th-store="All" class="'+(store==='All'?'on':'')+'">All</button>'
           + stores.map(function(s){ return '<button data-th-store="'+esc(s)+'" class="'+(store===s?'on':'')+'">'+esc(shortStore(s))+'</button>'; }).join('');
         var head='<div class="th-filter">'+filterBtns+'</div>';
+        var ord={}; stores.forEach(function(s,i){ ord[s]=i; });   // store priority (already sorted by the summary)
         var rows=(d.rows||[]).filter(function(r){ return store==='All' || r.store===store; })
-          .sort(function(a,b){ return b.ot-a.ot || b.anticipated-a.anticipated; });
+          .sort(function(a,b){
+            if(store==='All'){ var oa=(a.store in ord)?ord[a.store]:99, ob=(b.store in ord)?ord[b.store]:99; if(oa!==ob) return oa-ob; }
+            return b.ot-a.ot || b.anticipated-a.anticipated;
+          });
         if(!rows.length){ body.innerHTML=head+'<div class="empty" style="padding:12px 4px"><div class="et">No hours or shifts this week.</div></div>'; wire(); return; }
         var trs=rows.map(function(r){
           var otTxt = r.salary ? '<span style="color:var(--grey);font-weight:700;font-size:.68rem">Salary</span>'
             : (r.ot>0 ? '<span style="color:var(--red);font-weight:900">'+r.ot.toFixed(1)+'</span>' : '—');
-          return '<tr><td class="thn">'+esc(r.name)+'</td>'
+          var stTag = (store==='All' && r.store) ? ' <span style="font-size:.6rem;font-weight:800;color:var(--grey);letter-spacing:.02em">'+esc(shortStore(r.store))+'</span>' : '';
+          return '<tr><td class="thn">'+esc(r.name)+stTag+'</td>'
             +'<td>'+r.worked.toFixed(1)+'</td>'
             +'<td>'+r.shiftsLeft+'</td>'
             +'<td><b>'+r.anticipated.toFixed(1)+'</b></td>'
