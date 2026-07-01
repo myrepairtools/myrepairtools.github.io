@@ -58,17 +58,7 @@ table.rep tr:last-child td{border-bottom:none}
 </head>
 <body>
 
-<div class="lock" id="lock" hidden>
-  <div class="lkcard">
-    <h2>Reports</h2>
-    <p>Enter your PIN to continue.</p>
-    <input id="lkPin" inputmode="numeric" autocomplete="off" placeholder="••••" maxlength="8">
-    <button id="lkGo">Sign in</button>
-    <div class="lkerr" id="lkErr"></div>
-  </div>
-</div>
-
-<div class="wrap" id="app" hidden>
+<div class="wrap" id="app">
   <!-- LIBRARY -->
   <div id="libView">
     <h1>Reports</h1>
@@ -98,35 +88,17 @@ function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String
 function storeRank(s){try{var x=window.CPRLocations&&CPRLocations.find&&CPRLocations.find(s);return x?x.order:99;}catch(e){return 99;}}
 function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
 
-let AUTH=null;
+let AUTH=null, BOOTED=false;
 
-/* ===== auth ===== */
-async function doLogin(){
-  const pin=$('#lkPin').value, err=$('#lkErr');
-  if(!pin){err.textContent='Enter your PIN';return;}
-  $('#lkGo').disabled=true;err.textContent='Signing in…';
-  try{
-    const r=await fn({action:'login',pin,device_id:deviceId()});
-    if(r.status!==200){const d=r.data||{};err.textContent=(r.status===423||d.locked)?'Locked — an owner must reset this device.':(d.error==='invalid'?('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'')):(d.error||'Login failed.'));$('#lkGo').disabled=false;return;}
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-    const st=r.data.staff||{};AUTH={name:st.display_name,role:st.role};
-    err.textContent='';$('#lkGo').disabled=false;unlock();
-  }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
+/* Auth: pin-gate.js is the ONLY gate (it covers the page until a valid session, and
+   reloads after login). We just read the shared session — via onAuthStateChange (fires
+   reliably when the session lands) plus an initial getSession — and never setSession. */
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){ BOOTED=true; AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role}; boot(); }
 }
-function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');boot();}
-/* pin-gate.js owns sign-in (reliable session restore + reload after login); here we just
-   read that shared session. Plain getSession only — never setSession, which would rotate
-   the refresh token and race the pin-gate/nav clients. */
-async function initAuth(){
-  $('#lkGo').onclick=doLogin;
-  $('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  const sess=(await sb.auth.getSession()).data.session;
-  if(sess){
-    const sr=await sb.from('staff').select('display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role};unlock();return;}
-  }
-  $('#lock').removeAttribute('hidden');$('#lkPin').focus();
-}
+sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 
 /* ===== report registry ===== */
 const REPORTS=[
@@ -218,7 +190,7 @@ function wireWk(host){
   });
 }
 
-initAuth();
+(async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 </script>
 </body>
 </html>

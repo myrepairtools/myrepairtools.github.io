@@ -57,16 +57,7 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 
-<div class="lock" id="lock" hidden>
-  <div class="lkcard">
-    <h2>Time Off</h2><p>Enter your PIN to continue.</p>
-    <input id="lkPin" inputmode="numeric" autocomplete="off" placeholder="••••" maxlength="8">
-    <button id="lkGo">Sign in</button>
-    <div class="lkerr" id="lkErr"></div>
-  </div>
-</div>
-
-<div class="wrap" id="app" hidden>
+<div class="wrap" id="app">
   <h1>Time Off</h1>
   <div class="sub">Review and decide time-off requests submitted from My Time.</div>
   <div id="gate" class="note" hidden>Time Off is for managers and the owner.</div>
@@ -113,27 +104,16 @@ function overlapsFor(r){
 
 let AUTH=null, STAFF=[], REQS=[], TOSTATUS='pending', TOSCOPE='current';
 
-/* ---- auth: pin-gate.js owns sign-in; here we only read the shared session.
-   Plain getSession only — never setSession (it rotates the refresh token and
-   races the pin-gate/nav clients, which was blocking these pages). ---- */
-async function doLogin(){
-  const pin=$('#lkPin').value,err=$('#lkErr');if(!pin){err.textContent='Enter your PIN';return;}
-  $('#lkGo').disabled=true;err.textContent='Signing in…';
-  try{
-    const r=await fn({action:'login',pin,device_id:deviceId()});
-    if(r.status!==200){const d=r.data||{};err.textContent=(r.status===423||d.locked)?'Locked — an owner must reset this device.':(d.error==='invalid'?('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'')):(d.error||'Login failed.'));$('#lkGo').disabled=false;return;}
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-    const st=r.data.staff||{};AUTH={id:st.id,name:st.display_name,role:st.role};err.textContent='';$('#lkGo').disabled=false;unlock();
-  }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
+/* Auth: pin-gate.js is the ONLY gate (covers the page until a valid session, reloads
+   after login). We just read the shared session — via onAuthStateChange (fires when the
+   session lands) plus an initial getSession — and never setSession. */
+let BOOTED=false;
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){ BOOTED=true; AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role}; load(); }
 }
-function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
-async function initAuth(){
-  $('#lkGo').onclick=doLogin;$('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  const sess=(await sb.auth.getSession()).data.session;
-  if(sess){const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};unlock();return;}}
-  $('#lock').removeAttribute('hidden');$('#lkPin').focus();
-}
+sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 
 async function load(){
   if(!AUTH||!isMgr(AUTH.role)){$('#gate').hidden=false;$('#view').innerHTML='';return;}
@@ -193,7 +173,7 @@ async function decide(id,status){
   else{const e=empById(r.staff_id);toast((status==='approved'?'Approved':status==='denied'?'Denied':'Reopened')+(e?' · '+e.display_name.split(' ')[0]:''));}
 }
 
-initAuth();
+(async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 </script>
 </body>
 </html>
