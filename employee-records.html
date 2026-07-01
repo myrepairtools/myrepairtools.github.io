@@ -122,6 +122,11 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 .ptocard .pv{font-family:'Nunito';font-weight:900;font-size:1.9rem;line-height:1;color:var(--dark)}
 .ptocard .pl{font-family:'Nunito';font-weight:800;font-size:.82rem;margin-top:7px}
 .ptocard .ps{font-family:'Nunito Sans';font-weight:700;font-size:.68rem;color:var(--grey);text-transform:uppercase;letter-spacing:.4px;margin-top:1px}
+.sect-lbl{font-family:'Nunito';font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);margin-bottom:10px}
+.toreqs{max-width:560px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.toreq{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--light-grey)}
+.toreq:last-child{border-bottom:none}
+.topill{flex:none;font-family:'Nunito';font-weight:800;font-size:.62rem;border-radius:999px;padding:3px 10px}
 .center-msg{height:100%;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:700;font-size:.88rem;padding:40px;text-align:center}
 
 /* detail cards */
@@ -341,7 +346,7 @@ async function doLogin(){
     }
     await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
     const st=r.data.staff||{};
-    AUTH={name:st.display_name,role:st.role};
+    AUTH={id:st.id,name:st.display_name,role:st.role};
     err.textContent='';$('#lkGo').disabled=false;
     unlock();
   }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
@@ -353,8 +358,8 @@ async function initAuth(){
   $('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   const sess=(await sb.auth.getSession()).data.session;
   if(sess){
-    const sr=await sb.from('staff').select('display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){AUTH={name:sr.data.display_name,role:sr.data.role};unlock();return;}
+    const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+    if(sr.data){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};unlock();return;}
   }
   $('#lock').removeAttribute('hidden');
 }
@@ -362,13 +367,14 @@ async function initAuth(){
 /* ===== data load ===== */
 async function load(){
   const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
-  const [stRes,enRes,piRes,qbRes,jcRes,tsRes]=await Promise.all([
+  const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes]=await Promise.all([
     sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
     sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active,raw'),
     sb.from('qbtime_jobcodes').select('qbt_id,name,type'),
     sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,on_the_clock').gte('biz_date',tsFrom),
+    sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,note,submitted_at'),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
   QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row + PTO balances (raw)
@@ -379,8 +385,10 @@ async function load(){
     id:s.id,name:s.display_name,preferred:s.preferred_name||'',role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
     title:s.title||'',roleLevel:s.role,homeStore:s.home_store,first:s.first_name||'',last:s.last_name||'',
     username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',hideFromRecords:!!s.hide_from_records,
-    start:isoOf(s.start_date),archived:!!s.archived||s.active===false,active:s.active!==false,onPip:false,entries:[],pips:[]
+    start:isoOf(s.start_date),archived:!!s.archived||s.active===false,active:s.active!==false,onPip:false,entries:[],pips:[],timeoff:[]
   };});
+  (torRes&&torRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
+    e.timeoff.push({id:r.id,type:r.type,start:isoOf(r.start_date),end:isoOf(r.end_date),status:r.status||'pending',note:r.note||'',submitted:r.submitted_at});});
   (enRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
     e.entries.push({id:r.id,date:isoOf(r.entry_date),incidentDate:isoOf(r.incident_date||r.entry_date),
       subject:r.subject||'(untitled)',type:r.entry_type||'observation',category:r.category||'general',
@@ -404,7 +412,8 @@ function roleLabel(r){return ({owner:'Owner',admin:'Admin',manager:'Manager',tea
 function storeRank(full){try{var s=window.CPRLocations&&CPRLocations.find&&CPRLocations.find(full);return s?s.order:99;}catch(e){return 99;}}
 function roleRank(rl){return (rl==='owner')?0:((rl==='admin'||rl==='manager')?1:2);} /* managers above team members */
 function empSort(a,b){return storeRank(a.homeStore)-storeRank(b.homeStore)||roleRank(a.roleLevel)-roleRank(b.roleLevel)||String(a.name).localeCompare(String(b.name));}
-function refilter(){EMPLOYEES=ALL.filter(e=>(S.showArchived?e.archived:!e.archived)&&!e.hideFromRecords);}
+/* Employees manages *others* — never show the signed-in person their own record. */
+function refilter(){EMPLOYEES=ALL.filter(e=>(S.showArchived?e.archived:!e.archived)&&!e.hideFromRecords&&!(AUTH&&String(e.id)===String(AUTH.id)));}
 function selectFirst(){const e=EMPLOYEES[0]||ALL[0]||null;S.empId=e?e.id:null;syncSel(e);}
 function selEmp(){return EMPLOYEES.find(e=>e.id===S.empId)||ALL.find(e=>e.id===S.empId)||EMPLOYEES[0]||null;}
 function syncSel(e){if(!e){S.entryId=S.pipId=S.damageId=null;return;}
@@ -538,16 +547,29 @@ function timeHtml(e){
     html+='</div>';});
   return html+'</div>';
 }
+function toStatusStyle(st){return st==='approved'?'color:var(--green);background:#E9F6EE':st==='denied'?'color:var(--red);background:#FBE9EA':'color:var(--amber);background:#FCF3E3';}
 function ptoHtml(e){
   const u=qbtFor(e);
-  if(!u)return notLinkedHtml('PTO');
-  const bal=(u.raw&&u.raw.pto_balances)||null, items=[];
+  const bal=(u&&u.raw&&u.raw.pto_balances)||null, items=[];
   if(bal&&typeof bal==='object')Object.keys(bal).forEach(jc=>{const j=JOBCODES[jc];if(j&&j.type==='pto')items.push({name:j.name,sec:+bal[jc]||0});});
   items.sort((a,b)=>b.sec-a.sec);
-  if(!items.length)return '<div class="work-pad"><div class="empty-sm">No PTO balances in QuickBooks Time.</div></div>';
-  let html='<div class="work-pad"><div class="ptogrid">';
-  items.forEach(it=>{html+='<div class="ptocard"><div class="pv">'+toHrs(it.sec).toFixed(1)+'</div><div class="pl">'+esc(it.name)+'</div><div class="ps">hrs available</div></div>';});
-  return html+'</div><div class="empty-sm" style="text-align:left;padding:16px 2px 0">Balances come from QuickBooks Time — the system of record for payroll.</div></div>';
+  let html='<div class="work-pad">';
+  // ── balances (QuickBooks Time) ──
+  html+='<div class="sect-lbl">Balances</div>';
+  if(!u)html+='<div class="empty-sm" style="text-align:left;padding:6px 2px 4px">Not linked to QuickBooks Time — no balances to show.</div>';
+  else if(!items.length)html+='<div class="empty-sm" style="text-align:left;padding:6px 2px 4px">No PTO balances in QuickBooks Time.</div>';
+  else{ html+='<div class="ptogrid">';
+    items.forEach(it=>{html+='<div class="ptocard"><div class="pv">'+toHrs(it.sec).toFixed(1)+'</div><div class="pl">'+esc(it.name)+'</div><div class="ps">hrs available</div></div>';});
+    html+='</div><div class="empty-sm" style="text-align:left;padding:9px 2px 0;font-size:.72rem">From QuickBooks Time — the system of record for payroll.</div>'; }
+  // ── time-off requests (submitted in My Time) ──
+  const reqs=(e.timeoff||[]).slice().sort((a,b)=>a.start<b.start?1:-1);
+  html+='<div class="sect-lbl" style="margin-top:22px">Time-off requests</div>';
+  if(!reqs.length)html+='<div class="empty-sm" style="text-align:left;padding:6px 2px">No requests submitted.</div>';
+  else{ html+='<div class="toreqs">';
+    reqs.forEach(r=>{const range=r.start===r.end?fmt(r.start):(fmt(r.start)+' – '+fmt(r.end));
+      html+='<div class="toreq"><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.86rem">'+esc(range)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(r.type)+(r.note?(' · '+esc(r.note)):'')+'</div></div><span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span></div>';});
+    html+='</div>'; }
+  return html+'</div>';
 }
 
 function logHtml(e){

@@ -152,6 +152,7 @@ Deno.serve(async (req)=>{
       refresh_token: sess.session.refresh_token,
       start_store: store ?? null,
       staff: {
+        id: staff.id,
         display_name: staff.display_name,
         role: staff.role,
         home_store: staff.home_store,
