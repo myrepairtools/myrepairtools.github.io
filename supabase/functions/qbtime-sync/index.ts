@@ -468,8 +468,10 @@ Deno.serve(async (req) => {
     let staff_id = String(b.staff_id ?? url.searchParams.get("staff_id") ?? "");
     let qbt_id = String(b.qbt_id ?? url.searchParams.get("qbt_id") ?? "");
     let store = String(b.store ?? url.searchParams.get("store") ?? "");
-    // Non-privileged staff can only ever clock THEMSELVES; ignore any passed target.
-    if (!privileged && caller) {
+    // Default to clocking the CALLER themselves. A privileged caller (owner/secret) may
+    // instead target someone else by explicitly passing staff_id/qbt_id (kiosk/manager);
+    // a non-privileged caller can ONLY ever clock themselves.
+    if (caller && (!privileged || (!qbt_id && !staff_id))) {
       staff_id = String(caller.id); qbt_id = "";
       if (!store) store = String(caller.home_store ?? "");
     }
