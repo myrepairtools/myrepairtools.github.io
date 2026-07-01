@@ -200,7 +200,24 @@
   }
   function clockPopAway(e){ var p = document.getElementById('cprClockPop'); if (p && !p.contains(e.target) && !e.target.closest('.cpr-tb-clock')) closeClockPop(); }
   function closeClockPop(){ var p = document.getElementById('cprClockPop'); if (p) p.remove(); document.removeEventListener('click', clockPopAway); }
-  function wireClock(){ var b = document.querySelector('.cpr-tb-clock'); if (!b) return; b.addEventListener('click', doClockClick); loadClock(); }
+  function enterKiosk(){
+    if (window.CPRKiosk && window.CPRKiosk.open){ window.CPRKiosk.open(); return; }
+    var s = document.createElement('script'); s.src = 'assets/kiosk.js';
+    s.onload = function(){ if (window.CPRKiosk && window.CPRKiosk.open) window.CPRKiosk.open(); };
+    s.onerror = function(){ toastNav('Could not load kiosk', true); };
+    document.head.appendChild(s);
+  }
+  function wireClock(){
+    var b = document.querySelector('.cpr-tb-clock'); if (!b) return;
+    b.addEventListener('click', doClockClick);
+    // right-click (desktop) or long-press (iPad) → kiosk mode
+    b.addEventListener('contextmenu', function(e){ e.preventDefault(); enterKiosk(); });
+    var lp = null;
+    b.addEventListener('touchstart', function(){ lp = setTimeout(function(){ lp = null; enterKiosk(); }, 650); }, { passive:true });
+    b.addEventListener('touchend', function(){ if (lp){ clearTimeout(lp); lp = null; } });
+    b.addEventListener('touchmove', function(){ if (lp){ clearTimeout(lp); lp = null; } });
+    loadClock();
+  }
   function toastNav(msg, err){
     var t = document.createElement('div'); t.textContent = msg;
     t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:3000;background:' + (err ? '#DC282E' : '#2D2D3B') + ';color:#fff;padding:10px 18px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.82rem;box-shadow:0 8px 24px rgba(0,0,0,.2)';
