@@ -74,9 +74,14 @@
           client.from('shifts').select('id,name,active'),
           client.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
           client.from('staff_schedule').select('staff_id,store,shifts'),
-          client.from('qbtime_timesheets').select('staff_id,biz_date,seconds').gte('biz_date',wkStart).lte('biz_date',wkEnd)
+          client.from('qbtime_timesheets').select('staff_id,biz_date,seconds').gte('biz_date',wkStart).lte('biz_date',wkEnd),
+          client.from('time_off_requests').select('staff_id,start_date,end_date,status').eq('status','approved').lte('start_date',wkEnd).gte('end_date',wkStart)
         ]).then(function(res){
-          var staff=res[0].data||[], sh=res[1].data||[], hr=res[2].data||[], sc=res[3].data||[], ts=res[4].data||[];
+          var staff=res[0].data||[], sh=res[1].data||[], hr=res[2].data||[], sc=res[3].data||[], ts=res[4].data||[], off=res[5].data||[];
+          // approved time off (paid OR unpaid — both blank the shift) per staff, as date ranges
+          var offBy={}; off.forEach(function(o){ (offBy[o.staff_id]||(offBy[o.staff_id]=[])).push([o.start_date,o.end_date]); });
+          function isOff(sid,dISO){ var rs=offBy[sid]; if(!rs) return false; for(var i=0;i<rs.length;i++){ if(rs[i][0]<=dISO && rs[i][1]>=dISO) return true; } return false; }
+          function dateOfWd(wd){ return iso(new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+wd)); }
           SHIFT_BY_ID={}; sh.forEach(function(x){ SHIFT_BY_ID[x.id]=x; });
           HOURS={}; hr.forEach(function(r){ var k=r.shift_id+'|'+r.store, h=HOURS[k]||(HOURS[k]={def:null,days:{}}); var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false}; if(r.weekday==null)h.def=row; else h.days[r.weekday]=row; });
           var schedBy={}; sc.forEach(function(r){ schedBy[r.staff_id]={shifts:r.shifts||{},store:r.store}; });
@@ -87,12 +92,13 @@
           var rows=staff.map(function(e){
             var sched=schedBy[e.id]||null;
             var workedH=Math.round((workedWk[e.id]||0)/360)/10;
-            // remaining = today's unworked scheduled remainder + all future scheduled days
-            var todaySchedMin=sched?schedMinutes(sched,wd0):0;
+            // remaining = today's unworked scheduled remainder + all future scheduled days,
+            // skipping any day the person has approved time off (paid or unpaid).
+            var todaySchedMin=(sched && !isOff(e.id,todayISO))?schedMinutes(sched,wd0):0;
             var todayWorkedMin=(workedToday[e.id]||0)/60;
             var todayRemMin=Math.max(0, todaySchedMin-todayWorkedMin);
             var futureMin=0, futureShifts=0;
-            for(var wd=wd0+1; wd<=6; wd++){ var m=sched?schedMinutes(sched,wd):0; if(m>0){ futureMin+=m; futureShifts++; } }
+            for(var wd=wd0+1; wd<=6; wd++){ if(isOff(e.id,dateOfWd(wd))) continue; var m=sched?schedMinutes(sched,wd):0; if(m>0){ futureMin+=m; futureShifts++; } }
             var remMin=todayRemMin+futureMin;
             var remH=Math.round((remMin/60)*10)/10;
             var shiftsLeft=(todayRemMin>0?1:0)+futureShifts;

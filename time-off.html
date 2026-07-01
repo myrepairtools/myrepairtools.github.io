@@ -81,7 +81,7 @@ function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'applic
 function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
 /* ---- shared bits (ported from Schedule Admin) ---- */
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const TYPES={Vacation:'#4FB0E3',Personal:'#8B5CF6',Sick:'#DC282E'};
+const TYPES={Vacation:'#4FB0E3',Personal:'#8B5CF6',Sick:'#DC282E',Unpaid:'#8A8F9C'};
 const AVPAL=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
 function avatarBg(id){let h=0,s=String(id||'');for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AVPAL[h%AVPAL.length];}
 function initials(n){const p=String(n||'?').trim().split(/\s+/);return ((p[0]||'')[0]||'')+((p[1]||'')[0]||'')||'?';}
@@ -103,6 +103,7 @@ function overlapsFor(r){
 }
 
 let AUTH=null, STAFF=[], REQS=[], TOSTATUS='pending', TOSCOPE='current';
+let ADDING=false, AFORM={staff_id:'',type:'Vacation',start:'',end:'',note:''};
 
 /* Auth: pin-gate.js is the ONLY gate (covers the page until a valid session, reloads
    after login). We just read the shared session — via onAuthStateChange (fires when the
@@ -119,18 +120,35 @@ async function load(){
   if(!AUTH||!isMgr(AUTH.role)){$('#gate').hidden=false;$('#view').innerHTML='';return;}
   const [stR,rqR]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,role,avatar,avatar_color,active'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,submitted_at')
+    sb.from('time_off_requests').select('id,staff_id,store,type,paid,start_date,end_date,status,note,submitted_at')
   ]);
   STAFF=(stR.data||[]); REQS=(rqR.data||[]);
   render();
 }
 
+function addFormHtml(){
+  const emps=STAFF.slice().sort((a,b)=>String(a.display_name).localeCompare(String(b.display_name)));
+  const types=['Vacation','Personal','Sick','Unpaid'];
+  return '<div style="background:#fff;border:1px solid var(--border);border-radius:13px;padding:16px 18px;margin-bottom:14px;max-width:640px">'
+    +'<div style="font-family:Nunito;font-weight:900;font-size:.95rem;margin-bottom:12px">Add time off</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">'
+    +'<label style="font-family:Nunito Sans;font-weight:800;font-size:.7rem;color:var(--grey);text-transform:uppercase;letter-spacing:.4px">Employee<select id="af_emp" style="display:block;width:100%;margin-top:4px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit">'+'<option value="">Pick someone…</option>'+emps.map(e=>'<option value="'+e.id+'"'+(String(AFORM.staff_id)===String(e.id)?' selected':'')+'>'+esc(e.display_name)+'</option>').join('')+'</select></label>'
+    +'<label style="font-family:Nunito Sans;font-weight:800;font-size:.7rem;color:var(--grey);text-transform:uppercase;letter-spacing:.4px">Type<select id="af_type" style="display:block;width:100%;margin-top:4px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit">'+types.map(t=>'<option'+(AFORM.type===t?' selected':'')+'>'+t+'</option>').join('')+'</select></label>'
+    +'<label style="font-family:Nunito Sans;font-weight:800;font-size:.7rem;color:var(--grey);text-transform:uppercase;letter-spacing:.4px">Start<input type="date" id="af_start" value="'+esc(AFORM.start)+'" style="display:block;width:100%;margin-top:4px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit"></label>'
+    +'<label style="font-family:Nunito Sans;font-weight:800;font-size:.7rem;color:var(--grey);text-transform:uppercase;letter-spacing:.4px">End<input type="date" id="af_end" value="'+esc(AFORM.end)+'" style="display:block;width:100%;margin-top:4px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit"></label>'
+    +'</div>'
+    +'<input id="af_note" placeholder="Note (optional)" value="'+esc(AFORM.note)+'" style="width:100%;margin-top:10px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:.86rem">'
+    +'<div style="font-family:Nunito Sans;font-size:.74rem;color:var(--grey);font-weight:700;margin-top:8px" id="af_paidnote"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="tobtn deny" data-addcancel style="border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);font-family:Nunito;font-weight:800;font-size:.78rem;border-radius:9px;padding:8px 14px;cursor:pointer">Cancel</button>'
+    +'<button class="tobtn appr" data-addsave style="border:none;background:var(--green);color:#fff;font-family:Nunito;font-weight:800;font-size:.78rem;border-radius:9px;padding:8px 16px;cursor:pointer">Add &amp; approve</button></div></div>';
+}
 function render(){
   const today=iso(new Date());
   const pending=REQS.filter(r=>r.status==='pending').length;
   const statusDefs=[['all','All'],['pending','Pending'],['approved','Approved'],['denied','Denied']];
   const scopeDefs=[['current','Current & upcoming'],['past','Past'],['all','All']];
-  let html='<div class="toolbar"><span style="font-family:Nunito;font-weight:900;font-size:1.05rem">Requests</span>'+(pending?'<span class="pend">'+pending+' pending</span>':'')+'</div>'
+  let html='<div class="toolbar"><span style="font-family:Nunito;font-weight:900;font-size:1.05rem">Requests</span>'+(pending?'<span class="pend">'+pending+' pending</span>':'')+'<span style="flex:1"></span>'+(ADDING?'':'<button class="tobtn appr" style="border:none;background:var(--red);color:#fff;font-family:Nunito;font-weight:800;font-size:.78rem;border-radius:9px;padding:8px 14px;cursor:pointer" data-addopen>+ Add time off</button>')+'</div>'
+    +(ADDING?addFormHtml():'')
     +'<div class="toolbar"><div class="seg">'+statusDefs.map(d=>'<button data-ts="'+d[0]+'"'+(d[0]===TOSTATUS?' class="on"':'')+'>'+d[1]+'</button>').join('')+'</div>'
     +'<div class="seg">'+scopeDefs.map(d=>'<button data-tc="'+d[0]+'"'+(d[0]===TOSCOPE?' class="on"':'')+'>'+d[1]+'</button>').join('')+'</div></div>';
   const rows=REQS.filter(r=>{
@@ -163,8 +181,25 @@ function render(){
   $('#view').querySelectorAll('[data-appr]').forEach(b=>b.onclick=()=>decide(Number(b.getAttribute('data-appr')),'approved'));
   $('#view').querySelectorAll('[data-deny]').forEach(b=>b.onclick=()=>decide(Number(b.getAttribute('data-deny')),'denied'));
   $('#view').querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>decide(Number(b.getAttribute('data-undo')),'pending'));
+  const ao=$('#view').querySelector('[data-addopen]'); if(ao)ao.onclick=()=>{ADDING=true;render();};
+  const ac=$('#view').querySelector('[data-addcancel]'); if(ac)ac.onclick=()=>{ADDING=false;render();};
+  const at=$('#af_type'); if(at){const upd=()=>{const n=$('#af_paidnote'); if(n)n.textContent=(at.value==='Unpaid')?'Unpaid — documented, does not use PTO.':'Paid time off (PTO).';}; at.onchange=upd; upd();}
+  const as=$('#view').querySelector('[data-addsave]'); if(as)as.onclick=addRequest;
 }
 
+async function addRequest(){
+  const emp=$('#af_emp').value, type=$('#af_type').value, start=$('#af_start').value, end=$('#af_end').value, note=$('#af_note').value.trim();
+  if(!emp){toast('Pick an employee',true);return;}
+  if(!start||!end){toast('Pick start and end dates',true);return;}
+  if(end<start){toast('End is before start',true);return;}
+  const e=empById(Number(emp));
+  const row={staff_id:Number(emp),store:e?e.home_store:null,type:type,paid:(type!=='Unpaid'),start_date:start,end_date:end,note:note||null,
+    status:'approved',decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
+  const res=await sb.from('time_off_requests').insert(row).select().single();
+  if(res.error){toast(res.error.message||'Could not add',true);return;}
+  REQS.push(res.data); ADDING=false; AFORM={staff_id:'',type:'Vacation',start:'',end:'',note:''};
+  toast('Time off added'+(e?' · '+e.display_name.split(' ')[0]:'')); render();
+}
 async function decide(id,status){
   const r=REQS.filter(x=>x.id===id)[0];if(!r)return;const prev=r.status;r.status=status;render();
   const patch=status==='pending'?{status,decided_by:null,decided_at:null}:{status,decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
