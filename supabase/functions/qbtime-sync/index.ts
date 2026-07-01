@@ -31,12 +31,18 @@ const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 async function isOwner(req: Request): Promise<boolean> {
-  const auth = req.headers.get("Authorization")?.replace("Bearer ", "");
-  if (!auth) return false;
-  const { data } = await admin.auth.getUser(auth);
-  if (!data?.user) return false;
-  const { data: s } = await admin.from("staff").select("role").eq("auth_uid", data.user.id).eq("active", true).maybeSingle();
+  const s = await callerStaff(req);
   return s?.role === "owner";
+}
+// The signed-in staff member behind the request's JWT (null if none/invalid/inactive).
+async function callerStaff(req: Request): Promise<Record<string, unknown> | null> {
+  const auth = req.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!auth) return null;
+  const { data } = await admin.auth.getUser(auth);
+  if (!data?.user) return null;
+  const { data: s } = await admin.from("staff").select("id, role, display_name, home_store, authorized_stores")
+    .eq("auth_uid", data.user.id).eq("active", true).maybeSingle();
+  return s || null;
 }
 
 // Returns a valid access token, refreshing (and persisting) if it's near expiry.
@@ -89,8 +95,12 @@ const CLASS_CF = "819414";   // required "Class" customfield = store
 function normStore(s: string) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 function nowIso() { return new Date().toISOString().replace(/\.\d{3}Z$/, "+00:00"); }
 async function qbtIdForStaff(staffId: string): Promise<string | null> {
-  const { data } = await admin.from("qbtime_users").select("qbt_id").eq("staff_id", Number(staffId)).maybeSingle();
-  return data?.qbt_id ? String(data.qbt_id) : null;
+  // A staff member may (rarely) map to more than one QB Time user; prefer one that can track time.
+  const { data } = await admin.from("qbtime_users").select("qbt_id, raw, active").eq("staff_id", Number(staffId));
+  if (!data || !data.length) return null;
+  const pick = data.find((u) => (u.raw as Record<string, Record<string, unknown>>)?.permissions?.time_tracking === true)
+    || data.find((u) => u.active) || data[0];
+  return pick?.qbt_id ? String(pick.qbt_id) : null;
 }
 async function classForStore(token: string, store: string): Promise<{ id: string; name: string } | null> {
   const items = await qbtGet("customfielditems", token, { customfield_id: CLASS_CF });
@@ -377,9 +387,14 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action") || "ping";
 
-  // auth: owner JWT or shared sync secret
+  // auth: owner JWT or shared sync secret for admin actions; any signed-in staff may use
+  // the clock actions (but only for THEMSELVES unless owner/secret — enforced below).
   const secret = url.searchParams.get("secret") || req.headers.get("x-qbt-secret") || "";
-  const authed = (SYNC_SECRET && secret === SYNC_SECRET) || (await isOwner(req));
+  const bySecret = !!SYNC_SECRET && secret === SYNC_SECRET;
+  const caller = bySecret ? null : await callerStaff(req);
+  const privileged = bySecret || caller?.role === "owner";
+  const isClock = action.startsWith("clock_");
+  const authed = privileged || (isClock && !!caller);
   if (!authed) return json({ error: "forbidden", detail: "Owner or sync secret required." }, 403);
 
   let token: string;
@@ -450,9 +465,14 @@ Deno.serve(async (req) => {
   }
   if (action === "clock_status" || action === "clock_in" || action === "clock_out" || action === "clock_delete") {
     const b = req.method === "POST" ? (await req.json().catch(() => ({})) as Record<string, unknown>) : {};
-    const staff_id = String(b.staff_id ?? url.searchParams.get("staff_id") ?? "");
+    let staff_id = String(b.staff_id ?? url.searchParams.get("staff_id") ?? "");
     let qbt_id = String(b.qbt_id ?? url.searchParams.get("qbt_id") ?? "");
-    const store = String(b.store ?? url.searchParams.get("store") ?? "");
+    let store = String(b.store ?? url.searchParams.get("store") ?? "");
+    // Non-privileged staff can only ever clock THEMSELVES; ignore any passed target.
+    if (!privileged && caller) {
+      staff_id = String(caller.id); qbt_id = "";
+      if (!store) store = String(caller.home_store ?? "");
+    }
     if (!qbt_id && staff_id) qbt_id = (await qbtIdForStaff(staff_id)) || "";
     if (action !== "clock_delete" && !qbt_id) return json({ ok: false, error: "no_qbt_link", detail: "This staff member isn't linked to a QB Time user." }, 400);
 
@@ -479,7 +499,8 @@ Deno.serve(async (req) => {
       const upd = Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0];
       return json({ ok: r.status === 200 && (upd?._status_code === 200), status: r.status, id: ts.id, result: r.data });
     }
-    if (action === "clock_delete") {   // test cleanup / undo
+    if (action === "clock_delete") {   // test cleanup / undo — privileged only
+      if (!privileged) return json({ ok: false, error: "forbidden" }, 403);
       const id = String(b.id ?? url.searchParams.get("id") ?? "");
       if (!id) return json({ ok: false, error: "id_required" }, 400);
       const r = await qbtReq("DELETE", "timesheets?ids=" + encodeURIComponent(id), token, null);

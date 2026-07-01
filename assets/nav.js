@@ -15,6 +15,8 @@
   var SB_FN   = SB_URL + '/functions/v1/cpr-auth';
   var sbClient = null, sbReady = null;
   var NAV_ROLE = null, NAV_NAME = '', NAV_PERMS = null; // NAV_PERMS: Set of granted permission keys (null = not loaded yet)
+  var NAV_STAFF = null;                                  // { id, home_store, authorized_stores } for the signed-in user
+  var CLOCK = { on:false, id:null, start:null, busy:false, tick:null };  // top-rail time-clock state
   var HOME = 'index.html';
 
   // Ordering & Inventory — parts/supplier ordering and stock.
@@ -92,9 +94,10 @@
       sb.auth.getSession().then(function(res){
         var sess = res && res.data && res.data.session;
         if (!sess){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); return; }
-        sb.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
-          if (sr && sr.data){ NAV_ROLE = normRole(sr.data.role); NAV_NAME = sr.data.display_name || ''; }
-          else { NAV_ROLE = null; NAV_NAME = ''; }
+        sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
+          if (sr && sr.data){ NAV_ROLE = normRole(sr.data.role); NAV_NAME = sr.data.display_name || '';
+            NAV_STAFF = { id:sr.data.id, home_store:sr.data.home_store, authorized_stores:sr.data.authorized_stores||[] }; loadClock(); }
+          else { NAV_ROLE = null; NAV_NAME = ''; NAV_STAFF = null; }
           // load the granted permission keys, then render once (so tools don't flash)
           sb.rpc('my_permissions').then(function(pr){
             NAV_PERMS = new Set((pr && pr.data) ? pr.data : []);
@@ -113,6 +116,97 @@
   }
   function doSignOut(){ signOutThen(function(){ window.location.href = HOME; }); }     // sign out -> Home
   function doSwitchUser(){ signOutThen(function(){ window.location.reload(); }); }      // re-PIN here
+
+  // ── top-rail time clock (writes punches to QB Time via the qbtime-sync function) ──
+  function clockFetch(action, body){
+    return loadSB().then(function(sb){
+      if (!sb) return null;
+      return sb.auth.getSession().then(function(res){
+        var sess = res && res.data && res.data.session;
+        if (!sess) return null;
+        return fetch(SB_URL + '/functions/v1/qbtime-sync?action=' + action, {
+          method:'POST',
+          headers:{ 'Authorization':'Bearer ' + sess.access_token, 'apikey':SB_ANON, 'Content-Type':'application/json' },
+          body: JSON.stringify(body || {})
+        }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+      });
+    });
+  }
+  function clockStores(){
+    var set = []; if (NAV_STAFF && NAV_STAFF.home_store) set.push(NAV_STAFF.home_store);
+    ((NAV_STAFF && NAV_STAFF.authorized_stores) || []).forEach(function(s){ if (set.indexOf(s) < 0) set.push(s); });
+    return set;
+  }
+  function clkStoreName(s){ return (window.CPRLocations && CPRLocations.display) ? CPRLocations.display(s) : String(s||'').replace(/^CPR\s*/,''); }
+  function clkStoreColor(s){ try { var x = window.CPRLocations && CPRLocations.find && CPRLocations.find(s); return (x && x.color) || '#4FB0E3'; } catch(_){ return '#4FB0E3'; } }
+  function clkElapsed(){
+    if (!CLOCK.start) return '🟢 On clock';
+    var t = new Date(CLOCK.start).getTime(); if (isNaN(t)) return '🟢 On clock';
+    var mins = Math.max(0, Math.floor((Date.now() - t) / 60000)), h = Math.floor(mins/60), m = mins%60;
+    return '🟢 ' + (h > 0 ? (h + 'h ' + m + 'm') : (m + 'm'));
+  }
+  function renderClock(){
+    var b = document.querySelector('.cpr-tb-clock'); if (!b) return;
+    b.classList.toggle('on', CLOCK.on); b.classList.toggle('busy', CLOCK.busy);
+    var lbl = b.querySelector('.lbl');
+    if (lbl) lbl.textContent = CLOCK.busy ? '…' : (CLOCK.on ? clkElapsed() : '🕐 Clock in');
+    b.title = CLOCK.on ? 'On the clock — click to clock out' : 'Click to clock in';
+    if (CLOCK.on && !CLOCK.tick) CLOCK.tick = setInterval(function(){ var l = document.querySelector('.cpr-tb-clock .lbl'); if (l && CLOCK.on && !CLOCK.busy) l.textContent = clkElapsed(); }, 30000);
+    if (!CLOCK.on && CLOCK.tick){ clearInterval(CLOCK.tick); CLOCK.tick = null; }
+  }
+  function loadClock(){
+    if (!NAV_STAFF) return;
+    clockFetch('clock_status', {}).then(function(d){
+      if (d && d.ok){ CLOCK.on = !!d.on_the_clock; CLOCK.id = d.id; CLOCK.start = d.start; }
+      renderClock();
+    });
+  }
+  function clockIn(store){
+    if (!store){ toastNav('No store set for clock-in', true); return; }
+    CLOCK.busy = true; renderClock();
+    clockFetch('clock_in', { store: store }).then(function(d){
+      CLOCK.busy = false;
+      if (d && d.ok){ toastNav('Clocked in · ' + clkStoreName(store)); loadClock(); }
+      else { renderClock(); toastNav((d && (d.detail || d.error)) || 'Clock-in failed', true); }
+    });
+  }
+  function clockOut(){
+    CLOCK.busy = true; renderClock();
+    clockFetch('clock_out', {}).then(function(d){
+      CLOCK.busy = false;
+      if (d && d.ok){ CLOCK.on = false; CLOCK.id = null; CLOCK.start = null; renderClock(); toastNav('Clocked out'); }
+      else { renderClock(); toastNav((d && (d.detail || d.error)) || 'Clock-out failed', true); }
+    });
+  }
+  function doClockClick(ev){
+    if (CLOCK.busy) return;
+    if (CLOCK.on){ clockOut(); return; }
+    var opts = clockStores();
+    if (opts.length <= 1) clockIn(opts[0] || (NAV_STAFF && NAV_STAFF.home_store) || '');
+    else openStorePicker(ev.currentTarget);
+  }
+  function openStorePicker(anchor){
+    closeClockPop();
+    var pop = document.createElement('div'); pop.className = 'cpr-clockpop'; pop.id = 'cprClockPop';
+    pop.innerHTML = '<div class="h">Clock in at…</div>' + clockStores().map(function(s){
+      return '<button data-cin="' + esc(s) + '"><span class="sdot" style="background:' + esc(clkStoreColor(s)) + '"></span>' + esc(clkStoreName(s)) + '</button>';
+    }).join('');
+    document.body.appendChild(pop);
+    var r = anchor.getBoundingClientRect();
+    pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+    pop.querySelectorAll('[data-cin]').forEach(function(btn){ btn.onclick = function(){ var s = btn.getAttribute('data-cin'); closeClockPop(); clockIn(s); }; });
+    setTimeout(function(){ document.addEventListener('click', clockPopAway); }, 0);
+  }
+  function clockPopAway(e){ var p = document.getElementById('cprClockPop'); if (p && !p.contains(e.target) && !e.target.closest('.cpr-tb-clock')) closeClockPop(); }
+  function closeClockPop(){ var p = document.getElementById('cprClockPop'); if (p) p.remove(); document.removeEventListener('click', clockPopAway); }
+  function wireClock(){ var b = document.querySelector('.cpr-tb-clock'); if (!b) return; b.addEventListener('click', doClockClick); loadClock(); }
+  function toastNav(msg, err){
+    var t = document.createElement('div'); t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:3000;background:' + (err ? '#DC282E' : '#2D2D3B') + ';color:#fff;padding:10px 18px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.82rem;box-shadow:0 8px 24px rgba(0,0,0,.2)';
+    document.body.appendChild(t);
+    setTimeout(function(){ t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 2200);
+  }
 
   // Which area is the current page in?
   var inAdmin   = PRIVILEGED.some(function(t){ return t.url.toLowerCase() === currentFile; });
@@ -227,6 +321,18 @@
   .cpr-tb-brand .cpr-tb-ico{ display:none; }                /* chevron-only, mobile */
   .cpr-tb-sp{ flex:1; }
   .cpr-tb-chip{ display:inline-flex; align-items:center; gap:6px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.7rem; color:rgba(255,255,255,.55); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
+  .cpr-tb-clock{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.74rem; color:#fff; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); padding:6px 12px; border-radius:999px; white-space:nowrap; cursor:pointer; -webkit-user-select:none; user-select:none; }
+  .cpr-tb-clock:hover{ background:rgba(255,255,255,.16); }
+  .cpr-tb-clock.on{ background:rgba(46,158,91,.22); border-color:rgba(46,158,91,.5); }
+  .cpr-tb-clock.busy{ opacity:.55; cursor:default; }
+  .cpr-tb-clock .dot{ width:8px; height:8px; border-radius:50%; background:#9aa0b0; flex:none; }
+  .cpr-tb-clock.on .dot{ background:#39d98a; animation:cprpulse 2s infinite; }
+  @keyframes cprpulse{0%{box-shadow:0 0 0 0 rgba(57,217,138,.5)}70%{box-shadow:0 0 0 6px rgba(57,217,138,0)}100%{box-shadow:0 0 0 0 rgba(57,217,138,0)}}
+  .cpr-clockpop{ position:fixed; z-index:1400; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 14px 34px rgba(45,45,59,.24); padding:6px; min-width:186px; }
+  .cpr-clockpop .h{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.58rem; letter-spacing:.6px; text-transform:uppercase; color:#B9BDCB; padding:8px 12px 5px; }
+  .cpr-clockpop button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; padding:9px 12px; border-radius:8px; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:800; font-size:.82rem; color:#2D2D3B; }
+  .cpr-clockpop button:hover{ background:#F3F2F2; }
+  .cpr-clockpop .sdot{ width:9px; height:9px; border-radius:50%; flex:none; }
   .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
   .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell .bdg{ position:absolute; top:5px; right:6px; min-width:8px; height:8px; border-radius:999px; background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; }
@@ -617,7 +723,7 @@
       + '<button class="cpr-tb-burger" aria-label="Menu">☰</button>'
       + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home">'+navLogoTop()+'</a>'
       + '<span class="cpr-tb-sp"></span>'
-      + '<span class="cpr-tb-chip" title="Time clock — coming with QuickBooks Time">🕐 Time clock · soon</span>'
+      + '<button class="cpr-tb-clock" data-clock title="Time clock — click to clock in/out"><span class="dot"></span><span class="lbl">🕐 Clock in</span></button>'
       + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">🔔<span class="bdg"></span></button>'
       + '<span class="cpr-tb-role" data-roleslot>' + roleSlotHtml() + '</span>';
     document.body.insertBefore(top, document.body.firstChild);
@@ -628,6 +734,7 @@
       if (belldd.classList.contains('show') && !belldd.contains(e.target) && !e.target.closest('.cpr-tb-bell')) belldd.classList.remove('show');
     });
     wireTop();
+    wireClock();
 
     // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
     var collapseBtn = rail.querySelector('.cpr-collapse');
