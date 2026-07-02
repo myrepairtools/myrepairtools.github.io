@@ -80,7 +80,7 @@ tbody tr:hover td.bal,tbody tr:hover td.den{background:rgba(79,176,227,.04)}
 .aurow.grand{border-top:2px solid var(--border);margin-top:10px;padding-top:13px;font-size:1rem}
 .aurow.grand span:last-child{font-size:1.7rem;font-weight:900}
 .au-os{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
-.au-os.ok{color:var(--green)}.au-os.bad{color:var(--red)}
+.au-os.ok{color:var(--green)}.au-os.bad{color:var(--red)}.au-os.over{color:#d97706}
 td input.au-count{width:110px}
 /* entries log */
 table.elog{table-layout:fixed;width:100%}
@@ -288,6 +288,8 @@ tr.aurow-clk:hover td{background:#f8fafd}
     <div class="save-row">
       <button class="btn" id="auClose">Finalize audit…</button>
       <span class="muted">Everything autosaves as you type — you can leave and resume this draft from the audit list.</span>
+      <span style="flex:1"></span>
+      <button class="btn alt sm" id="auDeleteDraft" style="color:var(--red)">Delete draft</button>
     </div>
     <p class="hint" id="auClosedNote" style="margin-top:10px"></p>
     </div><!-- /auWorkView -->
@@ -488,6 +490,8 @@ function loadData(){
    attributed) starting balances. */
 var AUDIT={row:null,data:null,list:[],saveTimer:null,saving:false,saveQueued:false};
 var SAFES=['Large Safe','Small Safe'];
+/* over/short color: green = even, orange = over, red = short */
+function osColor(v){return Math.abs(v)<0.005?'var(--green)':(v>0?'#d97706':'var(--red)');}
 function fmtRange(a,b){
   var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var p=String(a).slice(0,10).split('-'),q=String(b).slice(0,10).split('-');
@@ -574,7 +578,7 @@ var AU_SHOW_DELETED=false;
 function auLogRow(a,osBy){
   var closed=a.status==='closed', del=a.status==='deleted';
   var os=(closed||del)?(osBy[a.id]||0):null;
-  var osHtml=(os!=null)?('<span style="font-family:Nunito;font-weight:800;color:'+(Math.abs(os)<0.005?'var(--green)':'var(--red)')+'">'+money(os)+'</span>'):'—';
+  var osHtml=(os!=null)?('<span style="font-family:Nunito;font-weight:800;color:'+osColor(os)+'">'+money(os)+'</span>'):'—';
   var dep=(closed||del)?money(num(a.bank_deposit)+num(a.small_to_bank)):'—';
   var pill=del?('<span class="aupill" style="color:#8a909e;background:var(--light-grey)">Deleted '+String(a.deleted_at||'').slice(0,10)+'</span>')
     :(closed?('<span class="aupill closed">Closed '+String(a.closed_at||'').slice(0,10)+'</span>'):'<span class="aupill draft">Draft</span>');
@@ -656,6 +660,7 @@ async function openWork(row){
   }catch(e){$('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">'+String(e&&e.message||e)+'</td></tr>';}
 }
 $('#auBack').onclick=function(){ flushDraftSave(); loadAudit(); };
+$('#auDeleteDraft').onclick=function(){ if(AUDIT.row) deleteAudit(AUDIT.row); };
 function renderAudit(){
   var d=AUDIT.data; if(!d)return;
   $('#auditBody').innerHTML=d.locations.map(function(l,i){
@@ -793,7 +798,7 @@ function recalcAudit(){
     if(c.counted==null){ if(os){os.textContent='—';os.className='au-os';} return; }
     anyCount=true; countedTotal+=c.counted;
     var locOS=c.counted-c.tracked;
-    if(os){os.textContent=money(locOS);os.className='au-os '+(Math.abs(locOS)<0.005?'ok':'bad');}
+    if(os){os.textContent=money(locOS);os.className='au-os '+(Math.abs(locOS)<0.005?'ok':(locOS>0?'over':'bad'));}
   });
   var expected=openingTotal+rq-petty;
   var overShort=anyCount?(countedTotal-expected):0;
@@ -803,11 +808,11 @@ function recalcAudit(){
   $('#auExpected').textContent=money(expected);
   $('#auCounted').textContent=anyCount?money(countedTotal):'—';
   $('#auOverShort').textContent=anyCount?money(overShort):'—';
-  $('#auOverShort').style.color=!anyCount?'var(--grey)':(Math.abs(overShort)<0.005?'var(--green)':'var(--red)');
+  $('#auOverShort').style.color=!anyCount?'var(--grey)':osColor(overShort);
   var st=$('#auStatus');
   if(!anyCount){st.textContent='Enter counts';st.className='op-pill';}
   else if(Math.abs(overShort)<0.005){st.textContent='Even';st.className='op-pill';st.style.background='#d1fae5';st.style.color='#065f46';}
-  else if(overShort>0){st.textContent='Over';st.className='op-pill';st.style.background='#dbeafe';st.style.color='#1e40af';}
+  else if(overShort>0){st.textContent='Over';st.className='op-pill';st.style.background='#fef3c7';st.style.color='#92400e';}
   else{st.textContent='Short';st.className='op-pill exp';}
 }
 /* ---- AUTOSAVE (drafts): everything persists as you type, so an idle relock
@@ -898,7 +903,7 @@ function openFinalizeWizard(counts){
         +'<div class="step">Finalize · step 2 of 2</div><h3>✅ Confirm the new starting balances</h3>'
         +'<p class="hint" style="margin:6px 0 4px">These carry forward as the <b>opening balances for the next audit</b>. Your confirmation is logged with your name.</p>'
         +'<table><thead><tr><th>Location</th><th class="num">Counted</th><th class="num">Starts next period at</th></tr></thead><tbody>'+trs+'</tbody></table>'
-        +'<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem"><span>Audit over / short</span><b style="font-family:Nunito;color:'+(Math.abs(os)<0.005?'var(--green)':'var(--red)')+'">'+money(os)+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem"><span>Audit over / short</span><b style="font-family:Nunito;color:'+osColor(os)+'">'+money(os)+'</b></div>'
         +(num(depBank)+num(depSB)>0?'<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:.9rem"><span>Going to the bank</span><b style="font-family:Nunito">'+money(num(depBank)+num(depSB))+'</b></div>':'')
         +'<div class="save-row" style="justify-content:space-between;gap:8px;margin-top:16px"><button class="btn alt sm" data-wb>‹ Back</button><span style="display:flex;gap:8px"><button class="btn alt sm" data-wx>Cancel</button><button class="btn" id="wzGo">Confirm as '+(AUTH?AUTH.name:'')+' &amp; close audit</button></span></div></div>';
       back.querySelector('[data-wb]').onclick=function(){step=1;draw();};
@@ -945,7 +950,7 @@ async function openDetail(row){
   var os=0;locs.forEach(function(r){os+=num(r.over_short);});
   var trs=locs.map(function(r){
     return '<tr><td>'+r.location+'</td><td class="num">'+money(r.tracked)+'</td><td class="num">'+money(r.counted)+'</td>'
-      +'<td class="num" style="color:'+(Math.abs(num(r.over_short))<0.005?'var(--green)':'var(--red)')+'">'+money(r.over_short)+'</td>'
+      +'<td class="num" style="color:'+osColor(num(r.over_short))+'">'+money(r.over_short)+'</td>'
       +'<td class="num"><b style="font-family:Nunito">'+money(r.carry_forward!=null?r.carry_forward:r.counted)+'</b></td></tr>';
   }).join('');
   var envRows=days.filter(function(r){return r.day!=null;});
@@ -967,7 +972,7 @@ async function openDetail(row){
         +'<div class="rl"><span>Status</span><span>'+(isDel?'Deleted':'Closed '+String(row.closed_at||'').slice(0,10))+'</span></div>'
         +'<div class="rl"><span>Completed by</span><span>'+(row.auditor||'—')+'</span></div>'
         +'<div class="rl"><span>Starting balances confirmed by</span><span>'+(row.confirmed_by||'—')+(row.confirmed_at?(' · '+String(row.confirmed_at).slice(0,10)):'')+'</span></div>'
-        +'<div class="rl"><span>Over / short</span><span class="'+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span></div>'
+        +'<div class="rl"><span>Over / short</span><span class="'+(Math.abs(os)<0.005?'ok':(os>0?'over':'bad'))+'">'+money(os)+'</span></div>'
         +'<div class="rl"><span>RepairQ net sales</span><span>'+money(row.repairq_sales)+'</span></div>'
         +'<div class="rl"><span>Petty cash out</span><span>'+money(row.petty_cash)+'</span></div>'
         +'<div class="rl"><span>Bank deposit (Large Safe)</span><span>'+money(row.bank_deposit)+'</span></div>'
