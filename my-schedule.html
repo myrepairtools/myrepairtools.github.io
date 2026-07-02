@@ -427,6 +427,9 @@ function render(){
   document.body.classList.toggle('web',web);
   document.body.classList.toggle('mfull',TAB==='month');     // month calendar spans full width
   $('#tabs').classList.toggle('hide',web);
+  // Desktop shows every store's board + all stores on the holiday card, so the store
+  // picker is a dead control there — it only matters on mobile (Store tab, holiday card).
+  $('#locWrap').classList.toggle('hide',web);
   $('#wknav').classList.toggle('hide',web||TAB==='month');   // month view carries its own nav
   if(TAB==='month'){ if(!MMON)MMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1); renderMonth(web); return; }
   if(web){renderWeb();return;}
@@ -676,7 +679,7 @@ function renderWeb(){
   }).join('');
   /* sidebar */
   var side=timeoffPanelHtml(true);
-  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(SELSTORE))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div class="lbl" style="width:140px">'+wlabel+'</div><button data-wk="1">›</button></div></div></div>'
+  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(ME.home_store))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div class="lbl" style="width:140px">'+wlabel+'</div><button data-wk="1">›</button></div></div></div>'
     +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span><span class="wk-worked" id="wkWorked"></span></div><div class="wkgrid">'+strip+'</div></div>'
     +'<div class="twocol"><div style="min-width:0;display:flex;flex-direction:column;gap:18px"><div class="wsect">Who\'s on with me</div>'+boards+'</div><aside class="side">'+side+'</aside></div>';
   $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
@@ -696,14 +699,21 @@ function loadUpcomingHoliday(){
     if(!h){c2.style.display='none';return;}
     sb.from('holiday_hours').select('store,closed,open_min,close_min').eq('holiday_id',h.id).then(function(r2){
       var body=document.getElementById('holBody'); if(!body)return;
-      var rows=(r2&&r2.data)||[], store=SELSTORE||ME.home_store, mine=rows.filter(function(x){return x.store===store;})[0];
-      var status=!mine?{t:'Regular hours',col:'#2E9E5B'}:(mine.closed?{t:'Closed',col:'#DC282E'}:(mine.open_min!=null?{t:rangeMin(mine.open_min,mine.close_min),col:'#C9820B'}:{t:'Regular hours',col:'#2E9E5B'}));
+      var rows=(r2&&r2.data)||[];
+      // desktop card: one hours line per store the user works — replaces the old
+      // header store picker (which only ever switched this card on desktop)
+      var stores=myStores(); if(!stores.length)stores=[ME.home_store];
+      var lines=stores.map(function(store){
+        var mine=rows.filter(function(x){return x.store===store;})[0];
+        var status=!mine?{t:'Regular hours',col:'#2E9E5B'}:(mine.closed?{t:'Closed',col:'#DC282E'}:(mine.open_min!=null?{t:rangeMin(mine.open_min,mine.close_min),col:'#C9820B'}:{t:'Regular hours',col:'#2E9E5B'}));
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:7px;margin-top:5px"><span style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)"><span class="dot" style="width:8px;height:8px;background:'+esc(storeColor(store))+'"></span>'+esc(shortStore(store))+'</span><span style="font-family:Nunito;font-weight:800;font-size:.74rem;color:'+status.col+';background:'+hexA(status.col,0.12)+';padding:2px 9px;border-radius:999px">'+esc(status.t)+'</span></div>';
+      }).join('');
       var p=String(h.holiday_date).split('-').map(Number), hd=new Date(p[0],p[1]-1,p[2]);
       var days=Math.round((hd-new Date(today+'T00:00:00'))/86400000);
       var away=days<=0?'Today':(days===1?'Tomorrow':'in '+days+' days');
       body.innerHTML='<div style="font-family:Nunito;font-weight:800;font-size:.9rem;color:var(--dark)">'+esc(h.name)+'</div>'
-        +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.7rem;color:var(--grey);margin:2px 0 8px">'+DAYL[hd.getDay()]+', '+MON[p[1]-1]+' '+p[2]+' · '+away+'</div>'
-        +'<div style="display:flex;align-items:center;gap:7px"><span style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(shortStore(store))+'</span><span style="font-family:Nunito;font-weight:800;font-size:.74rem;color:'+status.col+';background:'+hexA(status.col,0.12)+';padding:2px 9px;border-radius:999px">'+esc(status.t)+'</span></div>';
+        +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.7rem;color:var(--grey);margin:2px 0 3px">'+DAYL[hd.getDay()]+', '+MON[p[1]-1]+' '+p[2]+' · '+away+'</div>'
+        +lines;
       c2.style.display='';
     },function(){});
   },function(){});
