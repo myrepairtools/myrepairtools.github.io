@@ -30,6 +30,10 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
 .me-nm{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;line-height:1.1}
 .me-sub{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:.78rem;color:var(--grey);font-weight:700}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+/* admin swivel button — same shape as Schedule Admin's header .btn; greyed without access */
+.adminbtn{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);padding:8px 13px;font-size:.76rem;cursor:pointer;text-decoration:none;white-space:nowrap}
+.adminbtn:hover{border-color:var(--blue);color:var(--blue)}
+.adminbtn.off,.adminbtn.off:hover{opacity:.45;cursor:not-allowed;border-color:var(--border);color:var(--dark-grey)}
 .locpills{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
 .locpills button{padding:5px 11px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;background:transparent;color:var(--grey)}
 .locpills button.on{background:var(--blue);color:#fff!important}
@@ -197,6 +201,7 @@ body.mfull main{max-width:none}   /* month view fills the viewport instead of th
         <div class="me-sub" id="meSub"></div>
       </div>
       <span style="flex:1"></span>
+      <a class="adminbtn off" id="schAdminBtn" href="schedule-admin.html" title="Managers &amp; the owner only">🗓️ Schedule Admin</a>
       <span id="locWrap"></span>
     </div>
     <div class="tabs" id="tabs"></div>
@@ -246,7 +251,16 @@ function lockErr(t){$('#lkErr').textContent=t||'';}
 function showLock(){$('#app').classList.remove('show');$('#lockScreen').classList.remove('hide');$('#lkPin').value='';}
 function resetIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);}
 function relock(){clearTimeout(idleTimer);sb.auth.signOut();ME=null;showLock();}
-function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
+function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();wireAdminBtn();load();}
+/* Schedule Admin lives behind this button now (not in the nav) — visible to everyone,
+   greyed without access. The page itself still verifies the role. */
+function wireAdminBtn(){
+  var b=$('#schAdminBtn');if(!b)return;
+  var ok=!!ME&&(ME.role==='admin'||ME.role==='owner');
+  b.classList.toggle('off',!ok);
+  b.title=ok?'Open Schedule Admin':'Managers & the owner only';
+  b.onclick=ok?null:function(e){e.preventDefault();toast('Schedule Admin is for managers & the owner',true);};
+}
 async function doLogin(){
   var pin=$('#lkPin').value||'';if(!pin){lockErr('Enter your PIN');return;}
   $('#lkGo').disabled=true;lockErr('Signing in…');

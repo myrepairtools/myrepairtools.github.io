@@ -67,13 +67,15 @@
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
     { label:'Team Members',   url:'employee-records.html', icon:'📁', minRole:'admin', acc:'staff.view' },
-    { label:'Schedule Admin', url:'schedule-admin.html',   icon:'🗓️', minRole:'admin', acc:'schedule.admin' },
-    { label:'Task Admin',     url:'task-admin.html',       icon:'🗂️', minRole:'admin' },
+    // Schedule/Task Admin reached from buttons on My Time / Checklist (hidden from menus)
+    { label:'Schedule Admin', url:'schedule-admin.html',   icon:'🗓️', minRole:'admin', acc:'schedule.admin', hidden:true },
+    { label:'Task Admin',     url:'task-admin.html',       icon:'🗂️', minRole:'admin', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'🕐', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'🌴', minRole:'admin', acc:'schedule.admin' }
   ];
   var PRIVILEGED = [
-    { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin' },
+    // Cash Admin reached from a button on Cash Tracker (hidden from menus)
+    { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin', hidden:true },
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
     { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' }
@@ -444,7 +446,9 @@
   }
 
   // a tool is visible if its access permission is granted (perms not yet loaded -> show, to avoid a flash)
-  function canSee(t){ if (!t || !t.acc) return true; if (NAV_PERMS === null) return true; return NAV_PERMS.has(t.acc); }
+  // hidden:true = page stays registered (rail highlight, role gating) but never renders
+  // in a menu — its access lives on a button inside the tool it manages instead.
+  function canSee(t){ if (!t) return true; if (t.hidden) return false; if (!t.acc) return true; if (NAV_PERMS === null) return true; return NAV_PERMS.has(t.acc); }
 
   function privilegedHtml(){
     if (!NAV_ROLE){   // no session (pin-gate normally prevents this) -> PIN unlock card

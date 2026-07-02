@@ -23,8 +23,9 @@ button{font-family:inherit}
 .locpills button.on{background:var(--blue);color:#fff}
 .bellbtn{position:relative;width:40px;height:40px;border-radius:9px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-size:1.05rem}
 .bellbtn .n{position:absolute;top:4px;right:4px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;display:flex;align-items:center;justify-content:center}
-.navbtn{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey);border:1.5px solid var(--border);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer}
+.navbtn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey);border:1px solid var(--border);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;white-space:nowrap}
 .navbtn:hover{border-color:var(--blue);color:var(--blue)}
+.navbtn.off,.navbtn.off:hover{opacity:.45;cursor:not-allowed;border-color:var(--border);color:var(--dark-grey)}
 /* controls */
 .ctl{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .tabs{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
@@ -123,7 +124,7 @@ textarea.inp{resize:vertical}
     <div class="hd-r">
       <span class="locpills" id="locPills"></span>
       <button class="bellbtn" id="bellBtn" title="Outstanding today">🔔<span class="n hide" id="bellN"></span></button>
-      <a class="navbtn hide" id="adminLink" href="task-admin.html">🗂️ Task Admin</a>
+      <a class="navbtn off" id="adminLink" href="task-admin.html" title="Managers &amp; the owner only">🗂️ Task Admin</a>
     </div>
   </div>
 
@@ -216,7 +217,11 @@ async function boot(){
   if(window.CPRLocations)STORES=CPRLocations.sort(STORES);
   SEL=lsGet('cprCkStore',ME.home_store||STORES[0]);
   if(STORES.indexOf(SEL)<0)SEL=STORES[0];
-  if(isMgr(ME.role))$('#adminLink').classList.remove('hide');
+  // Task Admin lives behind this button (not in the nav) — visible to everyone, greyed without access
+  const al=$('#adminLink'),mgrOk=isMgr(ME.role);
+  al.classList.toggle('off',!mgrOk);
+  al.title=mgrOk?'Open Task Admin':'Managers & the owner only';
+  al.onclick=mgrOk?null:e=>{e.preventDefault();toast('Task Admin is for managers & the owner',true);};
   $('#pgSub').textContent='Daily, weekly & one-off tasks';
   wireStatic();
   await loadData();

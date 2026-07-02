@@ -67,6 +67,12 @@ these when adding UI so a new tool looks native.
   into every page, defines the canonical tool lists (`OPERATIONS` + `PRIVILEGED`), and
   owns role-based visibility. **When you add or rename a tool, update the `OPERATIONS` or
   `PRIVILEGED` array here** (and the tile in `index.html`) or it won't appear in the nav.
+  **Admin-page access pattern:** an admin page that manages a front-end tool (Cash Admin,
+  Schedule Admin, Task Admin) is reached from an **`.adminbtn` button in the header of the
+  tool it manages** (Cash Tracker / My Time / Checklist) — not from the nav menus. Keep its
+  nav entry with `hidden:true` (stays registered for rail highlighting; never renders in a
+  menu). The button is always visible: enabled for admin/owner, greyed (`.off`) with a toast
+  for everyone else; the page itself stays gated. Follow this pattern for new admin pages.
 - **`site-gate.js`** — site-wide front-door password. One shared password, cached forever
   in `localStorage` (`cpr_site_unlocked`). A casual-access deterrent, not real security.
 - **`admin-gate.js`** — per-person passcode overlay for protected pages. Verifies

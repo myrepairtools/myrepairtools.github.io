@@ -15,6 +15,10 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
 .page-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .today{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey);background:var(--white);border:1.5px solid var(--border);border-radius:7px;padding:8px 14px;white-space:nowrap}
+/* admin swivel button — same shape as Schedule Admin's header .btn; greyed without access */
+.adminbtn{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;border-radius:9px;border:1px solid var(--border);background:var(--white);color:var(--dark-grey);padding:8px 13px;font-size:.76rem;cursor:pointer;text-decoration:none;white-space:nowrap}
+.adminbtn:hover{border-color:var(--blue);color:var(--blue)}
+.adminbtn.off,.adminbtn.off:hover{opacity:.45;cursor:not-allowed;border-color:var(--border);color:var(--dark-grey)}
 .bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .bar-label{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);margin-right:2px}
 .pills{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap}
@@ -116,7 +120,10 @@ tr.detrow.hide{display:none}
 <main>
   <div class="page-title-row">
     <div><h1>Cash Tracker</h1><p class="sub">Opens, closes &amp; transfers — logged by register.</p></div>
-    <div class="today" id="todayLbl"></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <a class="adminbtn off" id="cashAdminBtn" href="cash-admin.html" title="Managers &amp; the owner only">💰 Cash Admin</a>
+      <div class="today" id="todayLbl"></div>
+    </div>
   </div>
 
   <div class="banner hide" id="setupBanner"></div>
@@ -217,6 +224,16 @@ async function loadBootstrap(){
   var sorted=window.CPRLocations?CPRLocations.sort(stores):stores.sort();
   STATE.me=await currentStaff();
   STATE.stores=allowedStores(sorted,STATE.me);
+  wireAdminBtn(STATE.me);
+}
+/* Cash Admin lives behind this button now (not in the nav) — visible to everyone,
+   greyed without access. The page itself stays gated (cash.admin via pin-gate). */
+function wireAdminBtn(me){
+  var b=document.getElementById('cashAdminBtn');if(!b)return;
+  var ok=!!me&&(me.role==='admin'||me.role==='owner');
+  b.classList.toggle('off',!ok);
+  b.title=ok?'Open Cash Admin':'Managers & the owner only';
+  b.onclick=ok?null:function(e){e.preventDefault();toast('Cash Admin is for managers & the owner',true);};
 }
 function fetchEntries(store,period){
   return sb.from('cash_entries').select('*').eq('store',store).eq('period',period).then(function(r){if(r.error)throw r.error;return (r.data||[]).map(rowFromDb);});
