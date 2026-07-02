@@ -56,6 +56,9 @@ td.r{text-align:right;white-space:nowrap}
 .split{font-size:.74rem;color:#5b3fb0;font-weight:700}
 .gt{font-family:'Nunito';font-weight:900}
 .tfoot td{border-top:2px solid var(--border);padding-top:10px;font-family:'Nunito';font-weight:900}
+.copyv{cursor:pointer;border-radius:5px;padding:2px 5px;margin:-2px -5px}
+.copyv:hover{background:#EAF6FD;color:#1E7AA8}
+.copyv:active{background:#CDEAF8}
 .warn{margin-top:12px;background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:11px 14px;border-radius:9px;font-size:.84rem}
 /* commission detail */
 .crow{border-bottom:1px solid rgba(224,226,234,.7)}
@@ -298,9 +301,9 @@ function renderSummary(){
     const split=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>shortStore(p.store)+' '+money(p.amt)).join(' · '):'';
     return '<tr><td class="nm">'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠ not in roster</span>')+'</td>'
       +'<td class="r split">'+esc(split)+'</td>'
-      +'<td class="r">'+money(c.total)+'</td>'
-      +'<td class="r" style="color:'+(tip>0?'var(--green)':'var(--grey)')+'">'+(tip>0?money(tip):'—')+'</td>'
-      +'<td class="r gt">'+money(tot)+'</td></tr>';}).join('');
+      +'<td class="r">'+copyable(c.total)+'</td>'
+      +'<td class="r" style="color:'+(tip>0?'var(--green)':'var(--grey)')+'">'+(tip>0?copyable(tip):'—')+'</td>'
+      +'<td class="r gt">'+copyable(tot)+'</td></tr>';}).join('');
   const unrostered=rows.filter(r=>!r.inRoster).map(r=>r.name);
   $('#view-summary').innerHTML=
     '<div class="card acc-red"><div class="card-hd"><span class="card-t">'+(all?'All locations':esc(STATE.store))+'</span></div><div class="card-bd">'
@@ -318,11 +321,22 @@ function renderSummary(){
       +'</div>'
     +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead>'
     +'<tbody>'+(body||'<tr><td colspan="5" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
-    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+money(grandC)+'</td><td class="r">'+money(grandT)+'</td><td class="r">'+money(grandG)+'</td></tr></tfoot></table>'
+    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+copyable(grandC)+'</td><td class="r">'+copyable(grandT)+'</td><td class="r">'+copyable(grandG)+'</td></tr></tfoot></table>'
     +(unrostered.length?'<div class="warn">'+unrostered.length+' with sales aren’t active team members (terminated or one-off): '+esc(unrostered.join(', '))+'. Their commission still totals here; add them in Settings → Team Members if they should be on the roster.</div>':'')
     +'</div></div>';
   const pb=$('#payroll');if(pb)pb.onclick=()=>downloadPayroll(rows);
   const ab=$('#archiveBtn');if(ab&&!ab.disabled)ab.onclick=openArchive;
+  $all('#view-summary .copyv').forEach(el=>el.onclick=()=>copyText(el.getAttribute('data-copy')));
+}
+
+/* click-to-copy money cells: copies the bare number (no $ or commas) for QBO */
+function copyable(n){const v=(Number(n)||0).toFixed(2);return '<span class="copyv" data-copy="'+v+'" title="Click to copy '+v+'">'+money(n)+'</span>';}
+function copyText(v){
+  const done=()=>toast('Copied '+v+' — paste into QBO');
+  const fallback=()=>{const ta=document.createElement('textarea');ta.value=v;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');done();}catch(e){toast('Copy failed',true);}ta.remove();};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(done,fallback);
+  else fallback();
 }
 
 /* ---- month-end archive: freeze the range's month, as computed right here ----
