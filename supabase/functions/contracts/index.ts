@@ -137,6 +137,7 @@ function pub(c: Record<string, unknown>) {
   return {
     status: c.status, store: c.store, customer_name: c.customer_name,
     device: c.device, ticket_ref: c.ticket_ref, scope: c.scope,
+    service_name: c.service_name, pay_mode: c.pay_mode,
     price: c.price, collect: c.collect, terms: c.terms, outcome: c.outcome,
     signed_name: c.signed_name, signed_at: c.signed_at, signature: c.signature,
     paid_at: c.paid_at, paid_amount: c.paid_amount, created_at: c.created_at,

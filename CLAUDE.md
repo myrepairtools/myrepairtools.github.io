@@ -188,7 +188,14 @@ update daily without manual entry.
 **Micro contracts (microsoldering):** `micro_contracts` (random `token` = the customer's
 capability URL; status draft→sent→signed→paid | void; `terms` jsonb snapshots the template
 at creation so old contracts keep their signed wording; signature png, signed_at/ip/ua,
-square_link_url/order_id, price vs `collect`-at-signing for deposits) +
+square_link_url/order_id, price vs `collect`-at-signing for deposits; `pay_mode`
+'remote' = Square pay link right after signing, 'instore' = sign only — payment runs
+through RepairQ → Square Terminal at the counter, closed out with the staff tool's
+"✓ Paid in store" button; service fields snapshot the picked `micro_services` row) +
+`micro_services` (the per-vendor microsoldering price list: vendor, service, device,
+customer price, optional vendor cost, active; manager-edited in the staff tool's
+💲 Services & pricing modal — techs must pick a service, which locks the price, or
+choose Custom) +
 `micro_contract_templates` (single master row — intro with {business}/{customer}/{date}
 placeholders, sections jsonb, outcome choices; `approved=false` shows a draft warning in
 the staff tool until the owner reviews). Surfaces: `micro-contract.html` (Operations nav,
