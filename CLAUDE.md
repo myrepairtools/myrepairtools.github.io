@@ -201,7 +201,7 @@ templates LINK as `{clause_id}` sections alongside inline template-specific clau
 editing a library clause updates every linking template, and creation resolves links
 to full text in the `terms` snapshot) + `contract_services` (per-`library` price
 lists, grouped by vendor: default customer price + optional vendor cost + `tiers`
-jsonb [{price, devices:[…]}] for device-tiered pricing — device names match
+jsonb [{price, cost, devices:[…]}] for device-tiered pricing (per-tier vendor cost optional) — device names match
 `device_models` (the curated model list) exactly). Surfaces: `contracts.html`
 (Operations nav, any staff — template-first New Contract with a **device-first
 workflow**: device autocompletes from device_models, the service list then shows only

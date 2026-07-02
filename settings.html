@@ -1859,8 +1859,10 @@ function renderMicroServices(pane){
     var tiers=Array.isArray(sv.tiers)?sv.tiers:[];
     var tierHtml=tiers.map(function(t,ti){
       return '<div style="border:1px dashed var(--border);border-radius:9px;padding:10px;margin-top:8px" data-tier="'+ti+'">'
-        +'<div style="display:flex;gap:8px;align-items:center"><span style="font-family:Nunito;font-weight:800;font-size:.72rem">Tier price $</span>'
-        +'<input class="pgin" data-tprice value="'+(t.price!=null?t.price:'')+'" type="number" step="0.01" style="width:120px;flex:none;text-align:right">'
+        +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-family:Nunito;font-weight:800;font-size:.72rem">Customer $</span>'
+        +'<input class="pgin" data-tprice value="'+(t.price!=null?t.price:'')+'" type="number" step="0.01" style="width:100px;flex:none;text-align:right">'
+        +'<span style="font-family:Nunito;font-weight:800;font-size:.72rem;color:var(--grey)">Cost $</span>'
+        +'<input class="pgin" data-tcost value="'+(t.cost!=null?t.cost:'')+'" type="number" step="0.01" style="width:90px;flex:none;text-align:right" title="Vendor cost for these devices (optional)">'
         +'<span style="flex:1"></span><button class="btn alt sm" data-tdel="'+ti+'" style="color:var(--red)">🗑</button></div>'
         +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+(t.devices||[]).map(function(d,di){return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--light-grey);border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:700">'+esc(d)+'<button style="border:none;background:none;cursor:pointer;color:var(--grey);font-weight:800" data-ddel="'+ti+'|'+di+'">×</button></span>';}).join('')+'</div>'
         +'<div class="devac" style="position:relative;margin-top:8px"><input class="pgin" data-dadd="'+ti+'" placeholder="Add device — type to search, Enter to add" autocomplete="off" style="width:100%"><div class="devdrop" data-devdrop="'+ti+'" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 22px rgba(45,45,59,.16);max-height:210px;overflow:auto;margin-top:2px"></div></div>'
@@ -1897,7 +1899,7 @@ function renderMicroServices(pane){
     sv.price=$('#svPrice').value===''?'':+$('#svPrice').value;sv.cost=$('#svCost').value===''?null:+$('#svCost').value;
     sv.active=$('#svActive').checked;
     sv.tiers=Array.isArray(sv.tiers)?sv.tiers:[];
-    pane.querySelectorAll('[data-tier]').forEach(function(el){var ti=+el.getAttribute('data-tier');if(sv.tiers[ti])sv.tiers[ti].price=el.querySelector('[data-tprice]').value===''?'':+el.querySelector('[data-tprice]').value;});
+    pane.querySelectorAll('[data-tier]').forEach(function(el){var ti=+el.getAttribute('data-tier');if(sv.tiers[ti]){sv.tiers[ti].price=el.querySelector('[data-tprice]').value===''?'':+el.querySelector('[data-tprice]').value;var tc=el.querySelector('[data-tcost]');sv.tiers[ti].cost=(tc&&tc.value!=='')?+tc.value:null;}});
   }
   $('#svLib').onchange=function(){stashSvc();};
   $('#svTAdd').onclick=function(){stashSvc();(sv.tiers=sv.tiers||[]).push({price:'',devices:[]});renderMicroServices(pane);};
@@ -1944,7 +1946,7 @@ function renderMicroServices(pane){
     if(!sv.service){toast('Service name is required',true);return;}
     var payload={library:sv.library,vendor:sv.vendor||null,service:sv.service,device:null,
       price:Number(sv.price)||0,cost:(sv.cost==null||sv.cost==='')?null:Number(sv.cost),active:sv.active!==false,
-      tiers:(sv.tiers||[]).filter(function(t){return Number(t.price)>0&&(t.devices||[]).length;}).map(function(t){return {price:Number(t.price)||0,devices:t.devices};}),
+      tiers:(sv.tiers||[]).filter(function(t){return Number(t.price)>0&&(t.devices||[]).length;}).map(function(t){return {price:Number(t.price)||0,cost:(t.cost==null||t.cost==='')?null:Number(t.cost),devices:t.devices};}),
       updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
     var r=await sb.from('contract_services').update(payload).eq('id',sv.id);
     if(r.error){toast(r.error.message,true);return;}
