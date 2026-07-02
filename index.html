@@ -715,7 +715,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
           +'<span style="flex:1;min-width:0;font-size:.86rem;font-weight:'+(i.read?'600':'800')+';color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.title)+'</span>'
           +'<span style="flex:none;font-size:.68rem;font-weight:700;color:var(--grey)">'+esc(ago(i.created_at))+'</span>'
           +'<button data-cm-x="'+i.id+'" title="Dismiss for me" style="border:none;background:none;color:#cfd2dd;font-size:.8rem;cursor:pointer;padding:0 2px;flex:none">✕</button></div>';
-        var body=isOpen?'<div style="margin:6px 0 2px 26px;font-size:.82rem;color:var(--dark-grey);line-height:1.5">'+esc(i.body||'').replace(/\n/g,'<br>')
+        var body=isOpen?'<div style="margin:6px 0 2px 26px;font-size:.82rem;color:var(--dark-grey);line-height:1.5">'+window.CPRComms.fmtBody(i.body||'')
           +'<div style="margin-top:4px;font-size:.68rem;color:var(--grey);font-weight:700">'+esc(i.author)+' · '+esc(k.label)+'</div></div>':'';
         return '<div style="padding:7px 4px;border-radius:9px'+(isOpen?';background:var(--light-grey)':'')+'">'+head+body+'</div>';
       }).join('');
@@ -760,18 +760,20 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     function draw(){
       var chips=KINDS.map(function(k){ var m=window.CPRComms.kindMeta(k), on=k===kind;
         return '<button data-pk="'+k+'" style="padding:7px 12px;border:1.5px solid '+(on?m.color:'var(--border)')+';border-radius:999px;background:'+(on?m.color+'20':'#fff')+';color:'+(on?m.color:'var(--dark-grey)')+';font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;cursor:pointer">'+m.icon+' '+m.label+'</button>'; }).join(' ');
-      back.innerHTML='<div style="background:#fff;border-radius:16px;padding:18px 20px;width:100%;max-width:440px;box-shadow:0 20px 50px rgba(0,0,0,.25)">'
+      back.innerHTML='<div style="background:#fff;border-radius:16px;padding:18px 20px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)">'
         +'<div style="display:flex;align-items:center;justify-content:space-between;font-family:Nunito,sans-serif;font-weight:900;font-size:1rem">📣 Post a communication<button data-px style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--grey);line-height:1">×</button></div>'
         +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 12px">Goes to everyone’s dashboard · read receipts on the Communications page</div>'
         +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+chips+'</div>'
         +'<input data-pt placeholder="Title" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.9rem;margin-bottom:9px">'
-        +'<textarea data-pb rows="3" placeholder="Details (optional)" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans,sans-serif;font-size:.86rem;resize:vertical"></textarea>'
+        +window.CPRComms.toolbarHtml()
+        +'<textarea data-pb rows="5" placeholder="Details (optional)" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans,sans-serif;font-size:.86rem;resize:vertical"></textarea>'
         +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button data-px style="padding:9px 14px;border:1px solid var(--border);background:#fff;border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;color:var(--dark-grey)">Cancel</button>'
         +'<button data-pgo style="padding:9px 16px;border:none;background:var(--red);color:#fff;border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer">Post</button></div></div>';
       back.querySelectorAll('[data-px]').forEach(function(b){ b.onclick=function(){ back.remove(); }; });
       back.querySelectorAll('[data-pk]').forEach(function(b){ b.onclick=function(){ kind=b.getAttribute('data-pk');
         var t=back.querySelector('[data-pt]').value, bo=back.querySelector('[data-pb]').value; draw();
         back.querySelector('[data-pt]').value=t; back.querySelector('[data-pb]').value=bo; }; });
+      window.CPRComms.wireToolbar(back,back.querySelector('[data-pb]'));
       back.querySelector('[data-pgo]').onclick=function(){
         var t=String(back.querySelector('[data-pt]').value||'').trim();
         if(!t){ back.querySelector('[data-pt]').style.borderColor='var(--red)'; return; }

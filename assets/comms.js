@@ -19,6 +19,55 @@
   var SB_URL = 'https://' + SB_REF + '.supabase.co';
   var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 
+  /* Body formatting: posts are stored as plain text with light markup —
+     **bold**, *italic*, __underline__, "- " bullets, bare URLs — and rendered
+     safely (HTML is escaped first). Shared by the widget and the page. */
+  function fmtBody(text){
+    var s=String(text==null?'':text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s=s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:#4FB0E3;font-weight:700;word-break:break-all">$1</a>');
+    s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
+    s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
+    s=s.replace(/(^|[\s(])\*([^*\n]+)\*/g,'$1<i>$2</i>');
+    var out='', inUl=false;
+    s.split('\n').forEach(function(ln){
+      var m=/^\s*[-•]\s+(.*)$/.exec(ln);
+      if(m){ if(!inUl){out+='<ul style="margin:4px 0;padding-left:20px">';inUl=true;} out+='<li>'+m[1]+'</li>'; }
+      else{ if(inUl){out+='</ul>';inUl=false;} out+=ln+'<br>'; }
+    });
+    if(inUl)out+='</ul>';
+    return out.replace(/(<br>)+$/,'');
+  }
+  /* textarea helpers for the compose toolbar */
+  function wrapSel(ta,pre,post){
+    var s=ta.selectionStart,e=ta.selectionEnd,v=ta.value,sel=v.slice(s,e)||'text';
+    ta.value=v.slice(0,s)+pre+sel+post+v.slice(e);
+    ta.focus(); ta.selectionStart=s+pre.length; ta.selectionEnd=s+pre.length+sel.length;
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  function bulletSel(ta){
+    var s=ta.selectionStart,e=ta.selectionEnd,v=ta.value;
+    var a=v.lastIndexOf('\n',s-1)+1;                    // expand to whole lines
+    var b=v.indexOf('\n',e); if(b<0)b=v.length;
+    var block=v.slice(a,b).split('\n').map(function(ln){return /^\s*[-•]\s+/.test(ln)?ln.replace(/^\s*[-•]\s+/,''):('- '+ln);}).join('\n');
+    ta.value=v.slice(0,a)+block+v.slice(b);
+    ta.focus(); ta.selectionStart=a; ta.selectionEnd=a+block.length;
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  /* one-line toolbar html + wiring (call wireToolbar(container, textarea)) */
+  function toolbarHtml(){
+    var b=function(k,label,title,extra){return '<button type="button" data-fmt="'+k+'" title="'+title+'" style="min-width:30px;height:28px;border:1px solid #E0E2EA;background:#fff;border-radius:7px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:900;font-size:.78rem;color:#4E4E50;'+(extra||'')+'">'+label+'</button>';};
+    return '<div style="display:flex;gap:5px;margin-bottom:7px">'+b('b','B','Bold')+b('i','I','Italic','font-style:italic;font-weight:600')+b('u','U','Underline','text-decoration:underline')+b('ul','•—','Bullet list')+'</div>';
+  }
+  function wireToolbar(container,ta){
+    container.querySelectorAll('[data-fmt]').forEach(function(btn){
+      btn.onclick=function(ev){ev.preventDefault();
+        var k=btn.getAttribute('data-fmt');
+        if(k==='b')wrapSel(ta,'**','**'); else if(k==='i')wrapSel(ta,'*','*');
+        else if(k==='u')wrapSel(ta,'__','__'); else bulletSel(ta);
+      };
+    });
+  }
+
   var KINDS = {
     announcement:{icon:'📢', label:'Announcement', color:'#DC282E'},
     training:    {icon:'📚', label:'Training',     color:'#4FB0E3'},
@@ -118,5 +167,6 @@
     });
   }
 
-  root.CPRComms = { list:list, post:post, markRead:markRead, addSeconds:addSeconds, dismiss:dismiss, undismiss:undismiss, receipts:receipts, kindMeta:kindMeta };
+  root.CPRComms = { list:list, post:post, markRead:markRead, addSeconds:addSeconds, dismiss:dismiss, undismiss:undismiss, receipts:receipts, kindMeta:kindMeta,
+    fmtBody:fmtBody, toolbarHtml:toolbarHtml, wireToolbar:wireToolbar };
 })(typeof window !== 'undefined' ? window : this);
