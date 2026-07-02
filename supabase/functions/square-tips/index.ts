@@ -115,8 +115,12 @@ async function monthHoursByName(period: string, store: string): Promise<Record<s
   return out;
 }
 async function rollup(store: string, period: string) {
-  const { data: days } = await admin.from("tips_daily").select("amount")
+  const { data: days } = await admin.from("tips_daily").select("biz_date,amount")
     .eq("store", store).gte("biz_date", period + "-01").lte("biz_date", monthEndISO(period));
+  // Only own a month's pool when daily coverage starts at the 1st — a partial
+  // backfill (e.g. adoption mid-month) must never clobber a hand-entered pool.
+  const covered = (days || []).some((r) => String(r.biz_date).slice(0, 10) === period + "-01");
+  if (!covered) return { store, period, skipped: "partial_coverage" };
   const pool = Math.round((days || []).reduce((a, r) => a + (Number(r.amount) || 0), 0) * 100) / 100;
   const auto = await monthHoursByName(period, store);
   const { data: cur } = await admin.from("commission_tips").select("hours")
@@ -218,7 +222,7 @@ Deno.serve(async (req) => {
   const action = url.searchParams.get("action") || "pull";
   try {
     if (action === "pull") {
-      const days = Math.min(31, Math.max(1, Number(url.searchParams.get("days")) || 3));
+      const days = Math.min(62, Math.max(1, Number(url.searchParams.get("days")) || 3));
       return json(await pull(days));
     }
     if (action === "ingest") {
