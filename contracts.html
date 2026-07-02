@@ -296,7 +296,7 @@ function openForm(TMPL){
     +'<div><label class="f">Store</label><select id="ncStore">'+stores.map(s=>'<option value="'+esc(s)+'"'+(s===ME.home_store?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></div>'
     +'<div><label class="f">RepairQ ticket # *</label><input id="ncTicket" type="text" placeholder="required"></div>'
     +'<div><label class="f">Customer name *</label><input id="ncName" type="text"></div>'
-    +'<div><label class="f">Device *</label><input id="ncDevice" type="text" list="ncDevList" placeholder="start typing — e.g. iPhone 15 Pro" autocomplete="off"><datalist id="ncDevList">'+DEVICES.map(d=>'<option>'+esc(d)+'</option>').join('')+'</datalist></div>'
+    +'<div style="position:relative"><label class="f">Device *</label><input id="ncDevice" type="text" placeholder="start typing — e.g. iPhone 15 Pro" autocomplete="off"><div id="ncDevDrop" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:40;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 22px rgba(45,45,59,.16);max-height:230px;overflow:auto;margin-top:2px"></div></div>'
     +'<div><label class="f">Customer email</label><input id="ncEmail" type="text" placeholder="for emailing the link + receipt"></div>'
     +'<div><label class="f">Customer phone</label><input id="ncPhone" type="text" placeholder="optional"></div>'
     +'</div>'
@@ -356,7 +356,33 @@ function openForm(TMPL){
   };
   svcEl.onchange=applySvc;
   if(vendorEl)vendorEl.onchange=rebuildSvc;
-  devEl.oninput=rebuildSvc;
+  (function(){ // device field: type-to-filter dropdown (no giant list), Enter/click to pick
+    const drop=back.querySelector('#ncDevDrop'); let active=-1, matches=[];
+    function close(){drop.style.display='none';active=-1;}
+    function hi(){drop.querySelectorAll('[data-devpick]').forEach((d,i)=>d.style.background=i===active?'var(--light-grey)':'');}
+    function refresh(){
+      const q=devEl.value.trim().toLowerCase();
+      matches=q?DEVICES.filter(m=>m.toLowerCase().indexOf(q)>-1).slice(0,10):[];
+      if(!matches.length){close();return;}
+      active=-1;
+      drop.innerHTML=matches.map((m,i)=>'<div data-devpick="'+i+'" style="padding:8px 11px;cursor:pointer;font-size:.86rem;font-weight:600">'+esc(m)+'</div>').join('');
+      drop.style.display='';
+      drop.querySelectorAll('[data-devpick]').forEach(d=>{
+        d.onmousedown=e=>{e.preventDefault();pick(matches[+d.getAttribute('data-devpick')]);};
+        d.onmouseenter=()=>{active=+d.getAttribute('data-devpick');hi();};
+      });
+    }
+    function pick(name){devEl.value=name;close();rebuildSvc();}
+    devEl.oninput=()=>{refresh();rebuildSvc();};
+    devEl.onfocus=refresh;
+    devEl.onblur=()=>setTimeout(close,150);
+    devEl.onkeydown=e=>{
+      if(e.key==='ArrowDown'){e.preventDefault();if(matches.length){active=Math.min(active+1,matches.length-1);hi();}}
+      else if(e.key==='ArrowUp'){e.preventDefault();if(matches.length){active=Math.max(active-1,0);hi();}}
+      else if(e.key==='Enter'){if(matches.length){e.preventDefault();pick(active>=0?matches[active]:matches[0]);}}
+      else if(e.key==='Escape'){close();}
+    };
+  })();
   priceEl.oninput=calc;diagOn.onchange=calc;diagEl.oninput=calc;
   back.querySelectorAll('input[name=ncPm]').forEach(r=>r.onchange=()=>{
     back.querySelectorAll('.pm-opt').forEach(o=>o.classList.toggle('on',o.querySelector('input').checked));
