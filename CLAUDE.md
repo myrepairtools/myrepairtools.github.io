@@ -217,6 +217,8 @@ When changing a tool's data layer, check which generation it uses first — they
   `‹ ›`, "Jump to this week". The canonical implementation is `openWeekPicker()` in
   `schedule-admin.html` (selected week highlighted, today marked, whole-row hover, popover
   positioned under the anchor). Reuse that shape rather than plain one-week-at-a-time arrows
-  — it lets users jump to a future week in another month. Prime candidates to retrofit:
-  the schedule pages (`schedule.html`, `my-schedule.html`, `time-off.html`,
-  `report-overtime.html`, `time-entries.html`).
+  — it lets users jump to a future week in another month. Done: `schedule-admin.html`,
+  `my-schedule.html` (week picker on both week labels + a month-jump popover on the Month
+  view and the time-off wizard calendar — `openMonthPicker(anchor, get, set)` is reusable).
+  Remaining candidates: `schedule.html`, `time-off.html`, `report-overtime.html`,
+  `time-entries.html`.

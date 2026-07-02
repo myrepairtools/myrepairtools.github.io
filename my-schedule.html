@@ -426,8 +426,9 @@ function renderWknav(){
   if(TAB==='timeoff'){$('#wknav').innerHTML='';return;}
   var end=new Date(WK);end.setDate(end.getDate()+6);
   var label=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate()+', '+end.getFullYear();
-  $('#wknav').innerHTML='<div class="wknav-wrap"><div class="wknav"><button data-wk="-1">‹</button><div class="lbl">'+label+'</div><button data-wk="1">›</button></div></div>';
+  $('#wknav').innerHTML='<div class="wknav-wrap"><div class="wknav"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="border:none;background:transparent;cursor:pointer;font-family:inherit">'+label+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1">›</button></div></div>';
   $('#wknav').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+  var wp=$('#wknav').querySelector('[data-wkpick]');if(wp)wp.onclick=function(ev){ev.stopPropagation();openWeekPicker(wp);};
 }
 function isWeb(){return window.innerWidth>=980;}
 function render(){
@@ -536,24 +537,75 @@ function renderMonth(web){
 /* Month picker: click the month label to jump to any month/year. */
 var MPOP=null;
 function closeMonthPicker(){if(MPOP){MPOP.remove();MPOP=null;}}
-function openMonthPicker(anchor){
+/* month-jump popover (year pager + month grid). Default drives the Month view; pass
+   getM/setM to anchor it to other state (the time-off wizard's calendar uses this). */
+function openMonthPicker(anchor,getM,setM){
   closeMonthPicker();
-  var year=MMON.getFullYear();
-  var back=document.createElement('div');back.style.cssText='position:fixed;inset:0;z-index:1500';back.onclick=closeMonthPicker;
-  var pop=document.createElement('div');pop.style.cssText='position:fixed;z-index:1501;width:252px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 34px rgba(45,45,59,.24);padding:10px';
+  var get=getM||function(){return MMON;};
+  var set=setM||function(d){MMON=d;render();};
+  var year=get().getFullYear();
+  var back=document.createElement('div');back.style.cssText='position:fixed;inset:0;z-index:2100';back.onclick=closeMonthPicker;
+  var pop=document.createElement('div');pop.style.cssText='position:fixed;z-index:2101;width:252px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 34px rgba(45,45,59,.24);padding:10px';
   function draw(){
-    var selY=MMON.getFullYear(),selM=MMON.getMonth();
+    var selY=get().getFullYear(),selM=get().getMonth();
     var grid=MON.map(function(mn,i){var on=(year===selY&&i===selM);
       return '<button data-mo="'+i+'" style="padding:9px 0;border:1px solid '+(on?'#4FB0E3':'transparent')+';border-radius:8px;background:'+(on?hexA('#4FB0E3',0.14):'transparent')+';color:'+(on?'#1E7AA8':'var(--dark)')+';font-family:Nunito,sans-serif;font-weight:800;font-size:.76rem;cursor:pointer">'+mn+'</button>';}).join('');
     pop.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><button data-py="-1" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey)">‹</button><div style="flex:1;text-align:center;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem">'+year+'</div><button data-py="1" style="border:1px solid var(--border);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey)">›</button></div>'
       +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">'+grid+'</div>';
     pop.querySelectorAll('[data-py]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();year+=Number(b.getAttribute('data-py'));draw();};});
-    pop.querySelectorAll('[data-mo]').forEach(function(b){b.onclick=function(){MMON=new Date(year,Number(b.getAttribute('data-mo')),1);closeMonthPicker();render();};});
+    pop.querySelectorAll('[data-mo]').forEach(function(b){b.onclick=function(){set(new Date(year,Number(b.getAttribute('data-mo')),1));closeMonthPicker();};});
   }
   draw();
   document.body.appendChild(back);document.body.appendChild(pop);MPOP={remove:function(){back.remove();pop.remove();}};
   var r=anchor.getBoundingClientRect(),vw=window.innerWidth;
   pop.style.left=Math.max(10,Math.min(r.left,vw-262))+'px';pop.style.top=(r.bottom+6)+'px';
+}
+
+/* week picker: month calendar, click any week row; page months to jump ahead.
+   Ported from Schedule Admin › This Week (the canonical date-picker pattern). */
+var WKPOP=null, WPICKM=null;
+function closeWeekPicker(){if(WKPOP){WKPOP.remove();WKPOP=null;}WPICKM=null;}
+function openWeekPicker(anchor){
+  closeWeekPicker();closeMonthPicker();
+  WPICKM=new Date(WK.getFullYear(),WK.getMonth(),1);
+  var back=document.createElement('div');back.style.cssText='position:fixed;inset:0;z-index:2100';back.onclick=closeWeekPicker;
+  var pop=document.createElement('div');pop.style.cssText='position:fixed;z-index:2101;width:272px;background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 34px rgba(45,45,59,.18);padding:9px';
+  function draw(){
+    var Y=WPICKM.getFullYear(),M=WPICKM.getMonth();
+    var selWk=iso(WK),curWk=iso(weekStart(new Date())),todayISO=iso(new Date());
+    var start=new Date(Y,M,1);start.setDate(start.getDate()-start.getDay());
+    var cur=new Date(start),rows='';
+    for(var w=0;w<6;w++){
+      var rowStart=new Date(cur),inMonth=false,cells='';
+      for(var i=0;i<7;i++){
+        var isM=(cur.getMonth()===M);if(isM)inMonth=true;
+        var isToday=iso(cur)===todayISO;
+        cells+='<td style="text-align:center;padding:5px 0;font-family:\'Nunito Sans\',sans-serif;font-weight:'+(isM?800:600)+';font-size:.72rem;color:'+(isToday?'#DC282E':(isM?'var(--dark)':'#C7CAD4'))+'">'+cur.getDate()+(isToday?'<div style="height:2px;width:12px;background:#DC282E;border-radius:2px;margin:1px auto 0"></div>':'')+'</td>';
+        cur.setDate(cur.getDate()+1);
+      }
+      if(w>0&&!inMonth)break;
+      var rs=iso(rowStart),isSel=rs===selWk;
+      rows+='<tr class="wkrow" data-pwk="'+rs+'" style="cursor:pointer'+(isSel?';background:'+hexA('#4FB0E3',0.16)+';box-shadow:inset 0 0 0 1.5px '+hexA('#4FB0E3',0.55):'')+'">'+cells+'</tr>';
+    }
+    var bstyle='border:1px solid var(--border);background:#fff;border-radius:7px;width:28px;height:28px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey);line-height:1';
+    pop.innerHTML='<div style="display:flex;align-items:center;gap:6px;padding:1px 1px 8px">'
+      +'<button data-pm2="-1" style="'+bstyle+'">‹</button>'
+      +'<div style="flex:1;text-align:center;font-family:\'Nunito\',sans-serif;font-weight:900;font-size:.85rem">'+MONL[M]+' '+Y+'</div>'
+      +'<button data-pm2="1" style="'+bstyle+'">›</button></div>'
+      +'<table style="width:100%;border-collapse:separate;border-spacing:0 2px"><thead><tr>'+DAYS.map(function(d){return '<th style="text-align:center;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.55rem;color:var(--grey);padding-bottom:3px">'+d[0]+'</th>';}).join('')+'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<button data-jump style="width:100%;margin-top:7px;padding:7px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.74rem;color:var(--dark-grey)">↩ Jump to this week</button>';
+    pop.querySelectorAll('.wkrow').forEach(function(tr){
+      var rs=tr.getAttribute('data-pwk');
+      if(rs!==selWk){tr.onmouseenter=function(){tr.style.background=hexA('#4FB0E3',0.09);};tr.onmouseleave=function(){tr.style.background='';};}
+      tr.onclick=function(){var p=rs.split('-').map(Number);WK=new Date(p[0],p[1]-1,p[2]);closeWeekPicker();render();};
+    });
+    pop.querySelectorAll('[data-pm2]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();WPICKM=new Date(WPICKM.getFullYear(),WPICKM.getMonth()+Number(b.getAttribute('data-pm2')),1);draw();};});
+    var jb=pop.querySelector('[data-jump]');if(jb)jb.onclick=function(){WK=weekStart(new Date());closeWeekPicker();render();};
+  }
+  draw();
+  document.body.appendChild(back);document.body.appendChild(pop);WKPOP={remove:function(){back.remove();pop.remove();}};
+  var r=anchor.getBoundingClientRect(),vw=window.innerWidth;
+  pop.style.left=Math.max(10,Math.min(r.left,vw-282))+'px';pop.style.top=(r.bottom+6)+'px';
 }
 
 /* ===== time off ===== */
@@ -639,10 +691,11 @@ function renderWeb(){
   }).join('');
   /* sidebar */
   var side=timeoffPanelHtml(true);
-  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(ME.home_store))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><div class="lbl" style="width:140px">'+wlabel+'</div><button data-wk="1">›</button></div></div></div>'
+  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(ME.home_store))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="width:158px;border:none;background:transparent;cursor:pointer;font-family:inherit">'+wlabel+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1">›</button></div></div></div>'
     +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span><span class="wk-worked" id="wkWorked"></span></div><div class="wkgrid">'+strip+'</div></div>'
     +'<div class="twocol"><div style="min-width:0;display:flex;flex-direction:column;gap:18px"><div class="wsect">Who\'s on with me</div>'+boards+'</div><aside class="side">'+side+'</aside></div>';
   $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+  var wpk=$('#view').querySelector('[data-wkpick]');if(wpk)wpk.onclick=function(ev){ev.stopPropagation();openWeekPicker(wpk);};
   if($('#toMonth'))$('#toMonth').onclick=function(){setTab('month');if(!MMON)MMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1);render();};
   wireTimeoffPanel();
   if($('#openPlanner'))$('#openPlanner').onclick=openPlanner;
@@ -797,7 +850,7 @@ function drawWiz(){
   var titles={1:'Pick your dates',2:'Your schedule for these dates',3:'Review & submit'};
   var back=document.createElement('div');back.id='plback';back.className='pl-back';
   var hdRight=WIZ.step===1
-    ?'<div style="display:inline-flex;flex:none;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden"><button data-pm="-1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">‹</button><span style="display:flex;align-items:center;padding:9px 16px;font-family:Nunito;font-weight:800;font-size:.82rem;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap">'+MONL[WIZ.mon.getMonth()]+' '+WIZ.mon.getFullYear()+'</span><button data-pm="1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">›</button></div>'
+    ?'<div style="display:inline-flex;flex:none;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden"><button data-pm="-1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">‹</button><button data-wmpick title="Jump to a month" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border:none;background:#fff;cursor:pointer;font-family:Nunito;font-weight:800;font-size:.82rem;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap">'+MONL[WIZ.mon.getMonth()]+' '+WIZ.mon.getFullYear()+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-pm="1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">›</button></div>'
     :wizStepDots();
   back.innerHTML='<div class="pl"><div class="pl-hd"><div style="min-width:0"><div class="t">Request Time Off</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);margin-top:1px">Step '+WIZ.step+' of 3 · '+titles[WIZ.step]+'</div></div>'+hdRight
     +'<button id="plx" style="position:absolute;top:50%;transform:translateY(-50%);right:14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);width:32px;height:32px;border-radius:9px;cursor:pointer;font-weight:800;box-shadow:0 1px 3px rgba(45,45,59,.12)">✕</button></div>'
@@ -849,6 +902,8 @@ function wizStep1Html(){
 }
 function wireWizStep1(back){
   back.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){WIZ.mon=new Date(WIZ.mon.getFullYear(),WIZ.mon.getMonth()+Number(b.getAttribute('data-pm')),1);drawWiz();};});
+  var mp=back.querySelector('[data-wmpick]');
+  if(mp)mp.onclick=function(ev){ev.stopPropagation();openMonthPicker(mp,function(){return WIZ.mon;},function(d){WIZ.mon=d;drawWiz();});};
   back.querySelectorAll('[data-wtype]').forEach(function(b){b.onclick=function(){WIZ.type=b.getAttribute('data-wtype');drawWiz();};});
   back.querySelectorAll('[data-day]').forEach(function(b){var di=b.getAttribute('data-day');if(!di)return;b.onclick=function(){
     if(!WIZ.start||(WIZ.start&&WIZ.end)||di<WIZ.start){WIZ.start=di;WIZ.end=null;}else WIZ.end=di;WIZ.days=null;drawWiz();};});
@@ -897,7 +952,7 @@ function wizStep2Html(){
     +note
     +'<div class="pl-grid" style="background:#fafafa;border-bottom:1px solid var(--border)">'+DAYS.map(function(d){return '<div style="padding:9px 8px;font-family:Nunito;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)">'+d+'</div>';}).join('')+'</div>'
     +'<div style="max-height:50vh;overflow:auto"><div class="pl-grid">'+cells+'</div></div>'
-    +(over?'<div style="padding:10px 18px;background:#FBE9EA;border-top:1px solid #F0C9C9;font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--red)">⚠ That\'s <b>'+total+'h</b> but you only have <b>'+bal+'h</b> '+(WIZ.type==='Sick'?'sick time':'PTO')+' — trim <b>'+(Math.round((total-bal)*100)/100)+'h</b> to continue. Hours past your balance wouldn\'t be paid.</div>':'')
+    +(over?'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 18px;background:#FBE9EA;border-top:1px solid #F0C9C9;font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--red)"><span style="flex:1;min-width:220px">⚠ That\'s <b>'+total+'h</b> but you only have <b>'+bal+'h</b> '+(WIZ.type==='Sick'?'sick time':'PTO')+' — hours past your balance wouldn\'t be paid.</span><button class="btn" id="wzTrim" style="width:auto;padding:7px 14px;border:none;background:var(--red);color:#fff;font-size:.76rem">✂ Trim to '+bal+'h</button></div>':'')
     +'<div class="pl-ft"><div style="font-family:Nunito Sans;font-weight:700;font-size:.84rem;color:'+(over?'var(--red)':'var(--dark)')+'">Using <b style="font-family:Nunito;font-size:.95rem">'+total+'h</b>'+(paid?' PTO':' unpaid')+'</div>'
     +'<span id="wzBal" style="font-family:Nunito Sans;font-weight:700;font-size:.76rem;color:var(--grey)">'+(paid?(bal!=null?('Available: <b style="color:var(--dark)">'+bal+' hrs</b>'):'Available: …'):'Not paid time off')+'</span>'
     +'<div style="flex:1"></div><button class="btn" id="wzBack2" style="width:auto;padding:9px 16px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)">← Back</button>'
@@ -922,7 +977,27 @@ function wireWizStep2(back){
       var t=back.querySelector('.pl-ft b');if(t)t.textContent=wizTotal()+'h';};
   });
   back.querySelector('#wzBack2').onclick=function(){WIZ.step=1;drawWiz();};
+  var tr=back.querySelector('#wzTrim');if(tr)tr.onclick=wizTrim;
   var nx=back.querySelector('#wzNext2');if(nx)nx.onclick=function(){if(nx.disabled)return;WIZ.step=3;drawWiz();};
+}
+/* auto-trim paid hours down to the available balance: the LAST days of the range give up
+   hours first, so the start of the trip stays fully paid; a day trimmed to 0 flips to an
+   unpaid day off (still requested off, just no PTO drawn) */
+function wizTrim(){
+  var bal=wizBal();if(bal==null)return;
+  var excess=Math.round((wizTotal()-bal)*100)/100;
+  if(excess<=0)return;
+  var ds=wizDates().slice().reverse();
+  for(var i=0;i<ds.length&&excess>0;i++){
+    var d=WIZ.days[ds[i]];
+    if(d.off||!d.use||!(Number(d.hours)>0))continue;
+    var cut=Math.min(Number(d.hours),excess);
+    d.hours=Math.round((Number(d.hours)-cut)*100)/100;
+    if(!(d.hours>0)){d.hours=0;d.use=false;}
+    excess=Math.round((excess-cut)*100)/100;
+  }
+  drawWiz();
+  toast('✂ Trimmed to your '+bal+'h balance');
 }
 /* ---- step 3: review, description, overlap acknowledgment, submit ---- */
 function wizStep3Html(){
