@@ -417,7 +417,7 @@ function renderHeader(){
   var defs=[{k:'me',l:'Week'},{k:'month',l:'Month'},{k:'store',l:'Store'},{k:'timeoff',l:'Time off'}];
   if(!defs.some(function(t){return t.k===TAB;}))setTab('me');
   $('#tabs').innerHTML=defs.map(function(t){return '<button data-tab="'+t.k+'"'+(t.k===TAB?' class="on"':'')+'>'+t.l+(t.k==='timeoff'&&myPending?' <span class="badge">'+myPending+'</span>':'')+'</button>';}).join('');
-  $('#tabs').querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){setTab(b.getAttribute('data-tab'));REQUESTING=false;renderHeader();render();};});
+  $('#tabs').querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){setTab(b.getAttribute('data-tab'));renderHeader();render();};});
 }
 function renderWknav(){
   if(TAB==='timeoff'){$('#wknav').innerHTML='';return;}
@@ -552,28 +552,7 @@ function openMonthPicker(anchor){
 }
 
 /* ===== time off ===== */
-var REQUESTING=false, FORM={type:'Vacation',start:'',end:'',note:'',ack:false,hours:null};
 function reqDays(s,e){return Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1);}
-function defHours(){return reqDays(FORM.start,FORM.end)*8;}
-/* PTO-hours input + available-balance line, shared by the mobile & web request forms. */
-function hoursFieldHtml(){
-  var paid=isPaidType(FORM.type);
-  return '<label class="lbl">'+(paid?'PTO hours to use':'Hours off (unpaid)')+'</label>'
-    +'<div style="display:flex;align-items:center;gap:11px;margin-bottom:13px">'
-    +'<input type="number" min="0" step="0.25" class="inp" id="fHours" value="'+esc(FORM.hours!=null?FORM.hours:'')+'" style="width:120px">'
-    +'<span id="fBal" style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.78rem;color:var(--grey)">'+(paid?'Available: …':'Not paid time off')+'</span></div>';
-}
-function loadReqBalance(){
-  var el=document.getElementById('fBal'); if(!el)return;
-  if(!isPaidType(FORM.type)){el.textContent='Not paid time off';return;}
-  if(!window.CPRPTO){el.textContent='';return;}
-  CPRPTO.forMe().then(function(s){var e2=document.getElementById('fBal'); if(!e2)return;
-    var pto=((s&&s.balances)||[]).filter(function(b){return /paid time off/i.test(b.name);})[0];
-    var hrs=pto?pto.hours:(s?s.totalHours:null);
-    e2.innerHTML=hrs!=null?('Available: <b style="color:var(--dark)">'+hrs+' hrs</b>'):'Balance unavailable';
-  },function(){});
-}
-function wireHoursField(){ var h=document.getElementById('fHours'); if(h)h.oninput=function(){FORM.hours=this.value===''?null:Number(this.value);}; loadReqBalance(); }
 /* teammates (same store) whose pending/approved time off overlaps the chosen range */
 function conflictsFor(start,end){
   var myStoreNames=myStores();
@@ -582,32 +561,19 @@ function conflictsFor(start,end){
 }
 function conflictText(conflicts){return conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');}
 /* warning + required acknowledgment shown when the request overlaps a teammate */
-function ackBoxHtml(conflictTxt){
+function ackBoxHtml(conflictTxt,acked){
   return '<div class="warnbox" style="flex-direction:column;align-items:stretch;gap:9px">'
-    +'<div style="display:flex;align-items:flex-start;gap:8px"><span>⚠️</span><div>This overlaps with <b>'+esc(conflictTxt)+'</b> — it <b>may not be approved</b>.</div></div>'
-    +'<label class="acklbl"><input type="checkbox" id="fAck"'+(FORM.ack?' checked':'')+'> I understand it may be denied and want to send it to my manager anyway.</label>'
+    +'<div style="display:flex;align-items:flex-start;gap:8px"><span>⚠️</span><div>This overlaps with <b>'+esc(conflictTxt)+'</b> — it <b>may not be approved</b> and may need to change based on employee availability.</div></div>'
+    +'<label class="acklbl"><input type="checkbox" id="fAck"'+(acked?' checked':'')+'> I understand it may be denied and want to send it to my manager anyway.</label>'
     +'</div>';
 }
 function renderTimeoff(){
-  var f=FORM;
-  if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
-  if(f.hours==null)f.hours=defHours();
-  var conflicts=conflictsFor(f.start,f.end);
-  var conflictTxt=conflictText(conflicts);
-  var blockSubmit=conflicts.length&&!f.ack;
-  var form=REQUESTING?(
-    '<div class="card" style="margin-bottom:18px"><div style="font-family:Nunito;font-weight:900;font-size:.95rem;margin-bottom:12px">Request time off</div>'
-    +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:13px">'+['Vacation','Personal','Sick','Unpaid'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
-    +'<div style="display:flex;gap:10px;margin-bottom:13px"><div style="flex:1"><label class="lbl">Start</label><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"></div><div style="flex:1"><label class="lbl">End</label><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div></div>'
-    +hoursFieldHtml()
-    +'<label class="lbl">Note (optional)</label><input class="inp" id="fNote" value="'+esc(f.note)+'" placeholder="e.g. family trip" style="margin-bottom:13px">'
-    +(conflicts.length?ackBoxHtml(conflictTxt):'')
-    +'<div style="display:flex;gap:9px"><button class="btn" id="fCancel" style="flex:1;padding:11px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.84rem">Cancel</button><button class="btn btn-red" id="fSubmit"'+(blockSubmit?' disabled':'')+' style="flex:1.4;width:auto;padding:11px;font-size:.84rem'+(blockSubmit?';opacity:.5;cursor:not-allowed':'')+'">Send to manager</button></div></div>'
-  ):'<button class="btn btn-red" id="openReq" style="margin-bottom:18px">+ Request Time Off</button>';
+  var form='<button class="btn btn-red" id="openReq" style="margin-bottom:18px">+ Request Time Off</button>';
 
   var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
   var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';
-    return '<div class="req" style="border-left:4px solid '+c+'"><div class="meta"><div style="display:flex;align-items:center;gap:7px"><span class="dr">'+esc(fmtRange(r.start_date,r.end_date))+'</span><span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+'">'+esc(r.type)+'</span></div><div class="sm">'+dayCount(r.start_date,r.end_date)+(r.status==='pending'?' · tap to cancel':'')+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'"':'')+'>'+statusLabel(r.status)+'</span></div>';
+    var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';
+    return '<div class="req" style="border-left:4px solid '+c+'"><div class="meta"><div style="display:flex;align-items:center;gap:7px"><span class="dr">'+esc(fmtRange(r.start_date,r.end_date))+'</span><span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+'">'+esc(r.type)+'</span></div><div class="sm">'+dayCount(r.start_date,r.end_date)+hrs+(r.status==='pending'?' · tap to cancel':'')+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'"':'')+'>'+statusLabel(r.status)+'</span></div>';
   }).join(''):'<div class="empty">No requests yet.</div>';
 
   var today=iso(new Date());
@@ -618,26 +584,8 @@ function renderTimeoff(){
 
   $('#view').innerHTML=form+'<div class="sect">My requests</div>'+mineHtml+'<div class="sect">Team time off</div><div class="empty" style="margin:-4px 0 8px">All locations · so you can plan around each other</div>'+teamHtml;
 
-  if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
-  if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
-  $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
-  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;FORM.hours=defHours();render();};
-  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;FORM.hours=defHours();render();};
-  if($('#fAck'))$('#fAck').onchange=function(){FORM.ack=this.checked;render();};
-  if($('#fNote'))$('#fNote').oninput=function(){FORM.note=this.value;};
-  if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
-  wireHoursField();
+  if($('#openReq'))$('#openReq').onclick=openPlanner;   // opens the 3-step wizard
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
-}
-async function submitRequest(){
-  var f=FORM;if(!f.start||!f.end){toast('Pick dates',true);return;}
-  if(conflictsFor(f.start,f.end).length&&!f.ack){toast('Please check the box acknowledging the overlap',true);return;}
-  var hrs=Number(f.hours);if(!(hrs>0)){toast('Enter the hours to use',true);return;}
-  var row={staff_id:ME.id,store:ME.home_store,type:f.type,paid:isPaidType(f.type),start_date:f.start,end_date:f.end,hours:hrs,note:f.note||null,status:'pending'};
-  var r=await sb.from('time_off_requests').insert(row).select().single();
-  if(r.error){toast(r.error.message,true);return;}
-  REQS.push(r.data);REQUESTING=false;FORM={type:'Vacation',start:'',end:'',note:'',ack:false,hours:null};
-  toast('✓ Sent to your manager');renderHeader();render();
 }
 async function cancelRequest(id){
   var r=await sb.from('time_off_requests').delete().eq('id',id);
@@ -752,24 +700,10 @@ function loadPtoBalance(){
 function isMgrRole(r){return ['owner','admin','manager'].indexOf(r)>-1;}
 /* shared time-off panel (web sidebar + reused logic) */
 function timeoffPanelHtml(web){
-  var f=FORM;if(!f.start){var t=new Date();t.setDate(t.getDate()+7);f.start=iso(t);f.end=iso(t);}
-  if(f.hours==null)f.hours=defHours();
-  var myStoreNames=myStores();
-  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
-  var conflicts=conflictsFor(f.start,f.end);
-  var conflictTxt=conflictText(conflicts);
-  var blockSubmit=conflicts.length&&!f.ack;
-  var actions=REQUESTING?'':'<button class="btn btn-red" id="openReq" style="height:48px;width:100%">+ Request Time Off</button>';
-  var form=REQUESTING?(
-    '<div class="card"><div style="font-family:Nunito;font-weight:900;font-size:.92rem;margin-bottom:11px">Request time off</div>'
-    +'<label class="lbl">Type</label><div class="seg" style="margin-bottom:11px">'+['Vacation','Personal','Sick','Unpaid'].map(function(t){var on=f.type===t,c=TYPES[t];return '<button data-type="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div>'
-    +'<div style="display:flex;gap:8px;margin-bottom:11px"><input type="date" class="inp" id="fStart" value="'+esc(f.start)+'"><input type="date" class="inp" id="fEnd" value="'+esc(f.end)+'"></div>'
-    +hoursFieldHtml()
-    +(conflicts.length?ackBoxHtml(conflictTxt):'')
-    +'<div style="display:flex;gap:8px"><button class="btn" id="fCancel" style="flex:1;padding:10px">Cancel</button><button class="btn btn-red" id="fSubmit"'+(blockSubmit?' disabled':'')+' style="flex:1.3;width:auto;padding:10px'+(blockSubmit?';opacity:.5;cursor:not-allowed':'')+'">Submit</button></div></div>'
-  ):'';
+  var actions='<button class="btn btn-red" id="openReq" style="height:48px;width:100%">+ Request Time Off</button>';
+  var form='';
   var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
-  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'" title="Tap to cancel"':'')+'>'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
+  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+hrs+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'" title="Tap to cancel"':'')+'>'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
   var today=iso(new Date());
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
   var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};return '<div style="display:flex;align-items:center;gap:9px"><span class="me-av" style="width:26px;height:26px;font-size:.6rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.76rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No upcoming team time off.</div>';
@@ -780,55 +714,224 @@ function timeoffPanelHtml(web){
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem">Team time off</div><div style="font-family:Nunito Sans;font-weight:600;font-size:.68rem;color:var(--grey);margin-bottom:9px">All locations</div><div style="display:flex;flex-direction:column;gap:9px">'+teamHtml+'</div></div>';
 }
 function wireTimeoffPanel(){
-  if($('#openReq'))$('#openReq').onclick=openPlanner;   // always open the calendar first
-  if($('#fCancel'))$('#fCancel').onclick=function(){REQUESTING=false;render();};
-  $('#view').querySelectorAll('[data-type]').forEach(function(b){b.onclick=function(){FORM.type=b.getAttribute('data-type');render();};});
-  if($('#fStart'))$('#fStart').onchange=function(){FORM.start=this.value;if(FORM.end<FORM.start)FORM.end=FORM.start;FORM.ack=false;FORM.hours=defHours();render();};
-  if($('#fEnd'))$('#fEnd').onchange=function(){FORM.end=this.value;FORM.ack=false;FORM.hours=defHours();render();};
-  if($('#fAck'))$('#fAck').onchange=function(){FORM.ack=this.checked;render();};
-  if($('#fSubmit'))$('#fSubmit').onclick=submitRequest;
-  wireHoursField();
+  if($('#openReq'))$('#openReq').onclick=openPlanner;   // opens the 3-step wizard
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
 }
-/* find-open-dates planner */
-function openPlanner(){PMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1);PSTART=null;PEND=null;renderPlanner();}
-function closePlanner(){var b=document.getElementById('plback');if(b)b.remove();}
-function renderPlanner(){
-  closePlanner();
+/* ===== Request Time Off — 3-step wizard (everything stays in the modal) =====
+   Step 1 pick dates on the calendar (your own booked days now show as ME chips) ·
+   Step 2 your expected schedule for those dates, pick which shifts use PTO and how
+   many hours (capped at the scheduled hours) · Step 3 review, description, overlap
+   acknowledgment, submit. Per-day hours ride along in day_hours -> QB Time. */
+var WIZ=null;
+function openPlanner(){
+  var n=new Date();
+  WIZ={step:1,type:'Vacation',mon:new Date(n.getFullYear(),n.getMonth(),1),start:null,end:null,days:null,note:'',ack:false,saving:false,bal:null};
+  if(window.CPRPTO)CPRPTO.forMe().then(function(s){if(!WIZ)return;
+    var pto=((s&&s.balances)||[]).filter(function(b){return /paid time off/i.test(b.name);})[0];
+    WIZ.bal=pto?pto.hours:(s?s.totalHours:null);
+    var el=document.getElementById('wzBal');if(el&&WIZ.bal!=null)el.innerHTML='PTO available: <b style="color:var(--dark)">'+WIZ.bal+' hrs</b>';
+  },function(){});
+  drawWiz();
+}
+function closePlanner(){var b=document.getElementById('plback');if(b)b.remove();WIZ=null;}
+/* expected schedule for one date: recurring template + this-week override + holiday clamp */
+function wizSched(di){
+  var p=di.split('-').map(Number),wd=new Date(p[0],p[1]-1,p[2]).getDay();
+  var r=effDayRec(ME.id,wd,di);
+  if(r.none||r.off)return {off:true};
+  var v=shiftView(r,wd)||{};
+  var win=shiftWindow(r,wd),cs=win?win[0]:null,ce=win?win[1]:null;
+  var eff=r.store?holEffect(r.store,di):null,holName=eff?(HOLNAME[di]||'Holiday'):null;
+  if(eff){
+    if(eff.closed)return {off:true,holiday:holName};
+    if(cs!=null){cs=Math.max(cs,eff.open);ce=Math.min(ce,eff.close);if(ce<=cs)return {off:true,holiday:holName};}
+  }
+  var hrs=(cs!=null&&ce!=null)?Math.round((ce-cs)/60*100)/100:8;
+  return {off:false,name:v.name||'Shift',time:(cs!=null?rangeMin(cs,ce):(v.time||'')),store:r.store,sched:hrs,holiday:holName,est:cs==null};
+}
+function wizDates(){var out=[],d=WIZ.start,g=0;while(d<=WIZ.end&&g++<62){out.push(d);var p=d.split('-').map(Number);d=iso(new Date(p[0],p[1]-1,p[2]+1));}return out;}
+function wizBuildDays(){
+  var days={};
+  wizDates().forEach(function(d){
+    var prev=WIZ.days&&WIZ.days[d];
+    if(prev){days[d]=prev;return;}                      // keep tweaks if they go back and return
+    var s=wizSched(d);
+    days[d]={off:!!s.off,holiday:s.holiday||null,name:s.name||'',time:s.time||'',store:s.store||'',sched:s.off?0:s.sched,use:!s.off,hours:s.off?0:s.sched,est:!!s.est};
+  });
+  WIZ.days=days;
+}
+function wizTotal(){var t=0;wizDates().forEach(function(d){var x=WIZ.days[d];if(x&&x.use)t+=Number(x.hours)||0;});return Math.round(t*100)/100;}
+function wizDayLabel(di){var p=di.split('-').map(Number),dt=new Date(p[0],p[1]-1,p[2]);return DAYS[dt.getDay()]+', '+MON[p[1]-1]+' '+p[2];}
+function wizStepDots(){
+  return '<div style="display:flex;align-items:center;gap:6px">'+[1,2,3].map(function(n){
+    var on=WIZ.step===n,done=WIZ.step>n;
+    return '<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-family:Nunito;font-weight:800;font-size:.66rem;'
+      +(on?'background:var(--red);color:#fff':done?'background:#E6F4EC;color:var(--green)':'background:var(--light-grey);color:var(--grey)')+'">'+(done?'✓':n)+'</span>';
+  }).join('<span style="width:14px;height:2px;background:var(--border)"></span>')+'</div>';
+}
+var WIZ_DRAWING=false;
+function drawWiz(){
+  // removing the modal blurs a focused hours input; that blur fires `change`, whose
+  // handler calls drawWiz again mid-removal — guard so a redraw can't stack modals
+  if(WIZ_DRAWING)return;
+  WIZ_DRAWING=true;
+  try{
+    var old=document.getElementById('plback');if(old){try{old.remove();}catch(e){}}
+  }finally{WIZ_DRAWING=false;}
+  if(!WIZ)return;
+  var titles={1:'Pick your dates',2:'Your schedule for these dates',3:'Review & submit'};
+  var back=document.createElement('div');back.id='plback';back.className='pl-back';
+  var hdRight=WIZ.step===1
+    ?'<div style="display:inline-flex;flex:none;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden"><button data-pm="-1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">‹</button><span style="display:flex;align-items:center;padding:9px 16px;font-family:Nunito;font-weight:800;font-size:.82rem;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap">'+MONL[WIZ.mon.getMonth()]+' '+WIZ.mon.getFullYear()+'</span><button data-pm="1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">›</button></div>'
+    :wizStepDots();
+  back.innerHTML='<div class="pl"><div class="pl-hd"><div style="min-width:0"><div class="t">Request Time Off</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);margin-top:1px">Step '+WIZ.step+' of 3 · '+titles[WIZ.step]+'</div></div>'+hdRight
+    +'<button id="plx" style="position:absolute;top:50%;transform:translateY(-50%);right:14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);width:32px;height:32px;border-radius:9px;cursor:pointer;font-weight:800;box-shadow:0 1px 3px rgba(45,45,59,.12)">✕</button></div>'
+    +(WIZ.step===1?wizStep1Html():WIZ.step===2?wizStep2Html():wizStep3Html())
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(ev){if(ev.target===back)closePlanner();});
+  back.querySelector('#plx').onclick=closePlanner;
+  if(WIZ.step===1)wireWizStep1(back);else if(WIZ.step===2)wireWizStep2(back);else wireWizStep3(back);
+}
+/* ---- step 1: calendar (now includes YOUR OWN requests as ME chips) ---- */
+function wizStep1Html(){
   var today=iso(new Date());
-  var Y=PMON.getFullYear(),M=PMON.getMonth(),first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
+  var Y=WIZ.mon.getFullYear(),M=WIZ.mon.getMonth(),first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
   var myStoreNames=myStores();
   var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
-  function peopleOn(di){return REQS.filter(function(r){return r.status!=='denied'&&teammates.indexOf(r.staff_id)>-1&&r.start_date<=di&&r.end_date>=di;})
-    .map(function(r){var e=staffById(r.staff_id)||{};return {name:e.display_name||'?',ini:initials(e.display_name),color:(e.avatar_color||avatarBg(r.staff_id)),type:r.type,status:r.status};});}
-  var selStart=PSTART,selEnd=PEND||PSTART;
+  function peopleOn(di){return REQS.filter(function(r){return r.status!=='denied'&&(r.staff_id===ME.id||teammates.indexOf(r.staff_id)>-1)&&r.start_date<=di&&r.end_date>=di;})
+    .map(function(r){var mine=r.staff_id===ME.id;var e=staffById(r.staff_id)||{};return {mine:mine,name:mine?'You':(e.display_name||'?'),ini:mine?'ME':initials(e.display_name),color:mine?(TYPES[r.type]||'#4FB0E3'):(e.avatar_color||avatarBg(r.staff_id)),type:r.type,status:r.status};})
+    .sort(function(a,b){return (a.mine?0:1)-(b.mine?0:1);});}
+  var selStart=WIZ.start,selEnd=WIZ.end||WIZ.start;
   var cells='';
   for(var i=0;i<first;i++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
   for(var d=1;d<=dim;d++){var di=iso(new Date(Y,M,d));var past=di<today;var ppl=peopleOn(di);
-    var booked=ppl.some(function(p){return p.status==='approved';}),pending=ppl.length&&!booked;
+    var others=ppl.filter(function(p){return !p.mine;});
+    var booked=others.some(function(p){return p.status==='approved';}),pending=others.length&&!booked;
     var selected=selStart&&di>=selStart&&di<=selEnd;var isEnd=selStart&&(di===selStart||di===selEnd);var sel=(selected&&isEnd);
     var bg=past?'#FBFBFC':selected?(isEnd?'#4FB0E3':hexA('#4FB0E3',0.16)):(booked?'#FBEDED':pending?'#FCF6EA':'#fff');
     var numC=past?'#cfd2dd':sel?'#fff':'var(--dark)';
-    var chips=ppl.slice(0,3).map(function(p){return '<span class="pl-ini" title="'+esc(p.name+' · '+p.type+(p.status==='pending'?' (pending)':''))+'" style="background:'+esc(p.color)+(sel?';box-shadow:0 0 0 1.5px #fff':'')+'">'+esc(p.ini)+'</span>';}).join('')+(ppl.length>3?'<span class="pl-more"'+(sel?' style="color:#fff"':'')+'>+'+(ppl.length-3)+'</span>':'');
+    var chips=ppl.slice(0,3).map(function(p){return '<span class="pl-ini" title="'+esc(p.name+' · '+p.type+(p.status==='pending'?' (pending)':''))+'" style="background:'+esc(p.color)+(p.mine?';box-shadow:0 0 0 1.5px var(--dark)':(sel?';box-shadow:0 0 0 1.5px #fff':''))+'">'+esc(p.ini)+'</span>';}).join('')+(ppl.length>3?'<span class="pl-more"'+(sel?' style="color:#fff"':'')+'>+'+(ppl.length-3)+'</span>':'');
     var ttl=ppl.length?esc(ppl.map(function(p){return p.name+' · '+p.type+(p.status==='pending'?' (pending)':'');}).join('\n')):'';
     cells+='<button class="pl-cell" data-day="'+(past?'':di)+'" title="'+ttl+'" style="background:'+bg+';cursor:'+(past?'default':'pointer')+'"><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+numC+'">'+d+'</span>'+((!past&&ppl.length)?'<span class="pl-chips">'+chips+'</span>':'')+'</button>';
   }
   var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
-  var back=document.createElement('div');back.id='plback';back.className='pl-back';
-  back.innerHTML='<div class="pl"><div class="pl-hd"><div class="t">Request Time Off</div><div style="display:inline-flex;flex:none;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden"><button data-pm="-1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">‹</button><span style="display:flex;align-items:center;padding:9px 16px;font-family:Nunito;font-weight:800;font-size:.82rem;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap">'+MONL[M]+' '+Y+'</span><button data-pm="1" style="display:flex;align-items:center;padding:0 13px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800">›</button></div><button id="plx" style="position:absolute;top:50%;transform:translateY(-50%);right:14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);width:32px;height:32px;border-radius:9px;cursor:pointer;font-weight:800;box-shadow:0 1px 3px rgba(45,45,59,.12)">✕</button></div>'
+  function lg(sw,label){return '<span style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito;font-weight:800;font-size:.6rem;letter-spacing:.4px;text-transform:uppercase;color:var(--dark-grey)">'+sw+label+'</span>';}
+  return '<div style="display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--border)">'
+    +'<span style="font-family:Nunito;font-weight:800;font-size:.62rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)">Type</span>'
+    +'<div class="seg" style="flex:none">'+['Vacation','Personal','Sick','Unpaid'].map(function(t){var on=WIZ.type===t,c=TYPES[t]||'#8A8F9C';return '<button data-wtype="'+t+'" style="'+(on?'border-color:'+c+';background:'+hexA(c,0.12)+';color:'+c:'')+'">'+t+'</button>';}).join('')+'</div></div>'
     +'<div class="pl-grid" style="background:#fafafa;border-bottom:1px solid var(--border)">'+DAYS.map(function(d){return '<div style="padding:9px 8px;font-family:Nunito;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)">'+d+'</div>';}).join('')+'</div>'
     +'<div class="pl-grid">'+cells+'</div>'
-    +'<div class="pl-ft"><div style="display:flex;gap:14px;align-items:center">'
-    +'<span style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito;font-weight:800;font-size:.6rem;letter-spacing:.4px;text-transform:uppercase;color:var(--dark-grey)"><span style="width:11px;height:11px;border-radius:3px;background:#fff;border:1.5px solid var(--border)"></span>Open</span>'
-    +'<span style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito;font-weight:800;font-size:.6rem;letter-spacing:.4px;text-transform:uppercase;color:var(--dark-grey)"><span style="width:11px;height:11px;border-radius:3px;background:#FCF6EA;border:1.5px solid #EBD9AE"></span>Pending</span>'
-    +'<span style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito;font-weight:800;font-size:.6rem;letter-spacing:.4px;text-transform:uppercase;color:var(--dark-grey)"><span style="width:11px;height:11px;border-radius:3px;background:#FBEDED;border:1.5px solid #F0C9C9"></span>Booked</span></div><div style="flex:1"></div><div style="font-family:Nunito Sans;font-size:.82rem">'+(PSTART?'<b style="font-family:Nunito">'+esc(fmtRange(PSTART,PEND||PSTART))+'</b>':'<span style="color:var(--grey)">Click a start, then an end</span>')+'</div><button class="btn btn-red" id="plUse" style="width:auto;padding:9px 16px;'+(PSTART?'':'opacity:.5;cursor:not-allowed')+'">Use these dates</button></div></div>';
-  document.body.appendChild(back);
-  back.addEventListener('click',function(ev){if(ev.target===back)closePlanner();});
-  back.querySelector('#plx').onclick=closePlanner;
-  back.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){PMON=new Date(PMON.getFullYear(),PMON.getMonth()+Number(b.getAttribute('data-pm')),1);renderPlanner();};});
+    +'<div class="pl-ft"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+    +lg('<span style="width:11px;height:11px;border-radius:3px;background:#fff;border:1.5px solid var(--border)"></span>','Open')
+    +lg('<span style="width:11px;height:11px;border-radius:3px;background:#FCF6EA;border:1.5px solid #EBD9AE"></span>','Pending')
+    +lg('<span style="width:11px;height:11px;border-radius:3px;background:#FBEDED;border:1.5px solid #F0C9C9"></span>','Booked')
+    +lg('<span class="pl-ini" style="background:#4FB0E3;box-shadow:0 0 0 1.5px var(--dark)">ME</span>','Your time off')
+    +'</div><div style="flex:1"></div><div style="font-family:Nunito Sans;font-size:.82rem">'+(WIZ.start?'<b style="font-family:Nunito">'+esc(fmtRange(WIZ.start,WIZ.end||WIZ.start))+'</b>':'<span style="color:var(--grey)">Click a start, then an end</span>')+'</div>'
+    +'<button class="btn btn-red" id="wzNext1" style="width:auto;padding:9px 16px;'+(WIZ.start?'':'opacity:.5;cursor:not-allowed')+'">Next: My schedule →</button></div>';
+}
+function wireWizStep1(back){
+  back.querySelectorAll('[data-pm]').forEach(function(b){b.onclick=function(){WIZ.mon=new Date(WIZ.mon.getFullYear(),WIZ.mon.getMonth()+Number(b.getAttribute('data-pm')),1);drawWiz();};});
+  back.querySelectorAll('[data-wtype]').forEach(function(b){b.onclick=function(){WIZ.type=b.getAttribute('data-wtype');drawWiz();};});
   back.querySelectorAll('[data-day]').forEach(function(b){var di=b.getAttribute('data-day');if(!di)return;b.onclick=function(){
-    if(!PSTART||(PSTART&&PEND)||di<PSTART){PSTART=di;PEND=null;}else PEND=di;renderPlanner();};});
-  back.querySelector('#plUse').onclick=function(){if(!PSTART)return;FORM.start=PSTART;FORM.end=PEND||PSTART;FORM.ack=false;FORM.hours=defHours();REQUESTING=true;closePlanner();render();};
+    if(!WIZ.start||(WIZ.start&&WIZ.end)||di<WIZ.start){WIZ.start=di;WIZ.end=null;}else WIZ.end=di;WIZ.days=null;drawWiz();};});
+  back.querySelector('#wzNext1').onclick=function(){if(!WIZ.start)return;if(!WIZ.end)WIZ.end=WIZ.start;wizBuildDays();WIZ.step=2;drawWiz();};
+}
+/* ---- step 2: expected schedule + per-day PTO hours ---- */
+function wizStep2Html(){
+  var paid=isPaidType(WIZ.type);
+  var rows=wizDates().map(function(di){
+    var d=WIZ.days[di];
+    if(d.off)return '<div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid #F3F2F2;background:#FBFBFC">'
+      +'<span style="width:20px;height:20px;flex:none"></span>'
+      +'<div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.84rem;color:var(--grey)">'+wizDayLabel(di)+'</div>'
+      +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+(d.holiday?('🎉 '+esc(d.holiday)+' — store closed for you'):'Regular day off — no '+(paid?'PTO':'hours')+' needed')+'</div></div></div>';
+    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid #F3F2F2;'+(d.use?'':'background:#FBFBFC')+'">'
+      +'<button data-wday="'+di+'" style="width:20px;height:20px;border-radius:6px;flex:none;cursor:pointer;font-size:.72rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center;'+(d.use?'background:var(--green);border:1.5px solid var(--green);color:#fff':'background:#fff;border:1.5px solid var(--grey);color:transparent')+'">'+(d.use?'✓':'')+'</button>'
+      +'<div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.84rem;color:'+(d.use?'var(--dark)':'var(--grey)')+'">'+wizDayLabel(di)+(d.holiday?' <span style="font-size:.66rem;color:#8a5a00">🎉 '+esc(d.holiday)+'</span>':'')+'</div>'
+      +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--dark-grey)">Scheduled: '+esc(d.name)+(d.time?' · '+esc(d.time):'')+(d.store?' · '+esc(shortStore(d.store)):'')+(d.est?' · est.':'')+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex:none">'
+      +'<input type="number" data-whrs="'+di+'" value="'+esc(d.use?d.hours:'')+'" min="0" max="'+d.sched+'" step="0.25"'+(d.use?'':' disabled')+' style="width:74px;padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:Nunito Sans;font-weight:700;font-size:.86rem;text-align:right;'+(d.use?'':'background:#F5F5F6;color:var(--grey)')+'">'
+      +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);white-space:nowrap">of '+d.sched+'h</span></div></div>';
+  }).join('');
+  var total=wizTotal();
+  var anySched=wizDates().some(function(di){return !WIZ.days[di].off;});
+  var note=anySched?'':'<div style="padding:12px 18px;font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--dark-grey);background:#F7FAFD;border-bottom:1px solid var(--border)">These dates all fall on your regular days off — you can still submit the request so your manager knows, but no '+(paid?'PTO':'hours')+' will be used.</div>';
+  return '<div style="padding:11px 18px;border-bottom:1px solid var(--border);font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--dark-grey)">'
+    +'Check the days you want to use '+(paid?'<b>PTO</b>':'<b>unpaid hours</b>')+' for, and adjust the hours if you like — you can go lower to stretch your bank, never higher than your scheduled shift.</div>'
+    +note
+    +'<div style="max-height:52vh;overflow:auto">'+rows+'</div>'
+    +'<div class="pl-ft"><div style="font-family:Nunito Sans;font-weight:700;font-size:.84rem">Using <b style="font-family:Nunito;font-size:.95rem">'+total+'h</b>'+(paid?' PTO':' unpaid')+'</div>'
+    +'<span id="wzBal" style="font-family:Nunito Sans;font-weight:700;font-size:.76rem;color:var(--grey)">'+(paid?(WIZ.bal!=null?('PTO available: <b style="color:var(--dark)">'+WIZ.bal+' hrs</b>'):'PTO available: …'):'Not paid time off')+'</span>'
+    +'<div style="flex:1"></div><button class="btn" id="wzBack2" style="width:auto;padding:9px 16px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)">← Back</button>'
+    +'<button class="btn btn-red" id="wzNext2" style="width:auto;padding:9px 16px">Next: Review →</button></div>';
+}
+function wireWizStep2(back){
+  back.querySelectorAll('[data-wday]').forEach(function(b){b.onclick=function(){var d=WIZ.days[b.getAttribute('data-wday')];d.use=!d.use;if(d.use&&!(Number(d.hours)>0))d.hours=d.sched;drawWiz();};});
+  back.querySelectorAll('[data-whrs]').forEach(function(inp){
+    inp.onchange=function(){var d=WIZ.days[inp.getAttribute('data-whrs')];var v=Number(inp.value);
+      if(!(v>=0))v=d.sched; if(v>d.sched)v=d.sched;                 // never more than scheduled
+      d.hours=Math.round(v*100)/100; drawWiz();};
+    inp.oninput=function(){var d=WIZ.days[inp.getAttribute('data-whrs')];var v=Number(inp.value);
+      if(v>d.sched){inp.value=d.sched;d.hours=d.sched;}else if(v>=0)d.hours=Math.round(v*100)/100;
+      var t=back.querySelector('.pl-ft b');if(t)t.textContent=wizTotal()+'h';};
+  });
+  back.querySelector('#wzBack2').onclick=function(){WIZ.step=1;drawWiz();};
+  back.querySelector('#wzNext2').onclick=function(){WIZ.step=3;drawWiz();};
+}
+/* ---- step 3: review, description, overlap acknowledgment, submit ---- */
+function wizStep3Html(){
+  var paid=isPaidType(WIZ.type),c=TYPES[WIZ.type]||'#8A8F9C',total=wizTotal();
+  var used=wizDates().filter(function(di){var d=WIZ.days[di];return !d.off&&d.use&&Number(d.hours)>0;});
+  var offs=wizDates().filter(function(di){return WIZ.days[di].off;});
+  var skipped=wizDates().filter(function(di){var d=WIZ.days[di];return !d.off&&(!d.use||!(Number(d.hours)>0));});
+  var conflicts=conflictsFor(WIZ.start,WIZ.end),conflictTxt=conflictText(conflicts);
+  var needNote=(WIZ.type==='Vacation'||WIZ.type==='Personal');
+  var noteLbl=needNote?'Description <span style="color:var(--red)">*</span>'
+    :(WIZ.type==='Sick'?'Description <span style="text-transform:none;font-weight:600;color:var(--grey)">(optional — you never have to share medical details)</span>':'Description <span style="text-transform:none;font-weight:600;color:var(--grey)">(optional)</span>');
+  function line(di,txt,strong){return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #F3F2F2"><span style="font-family:Nunito;font-weight:'+(strong?'800':'700')+';font-size:.8rem;color:'+(strong?'var(--dark)':'var(--grey)')+'">'+wizDayLabel(di)+'</span><span style="font-family:Nunito Sans;font-weight:700;font-size:.76rem;color:'+(strong?'var(--dark-grey)':'var(--grey)')+'">'+txt+'</span></div>';}
+  var dayLines=wizDates().map(function(di){var d=WIZ.days[di];
+    if(d.off)return line(di,d.holiday?'🎉 '+esc(d.holiday):'Regular day off',false);
+    if(!d.use||!(Number(d.hours)>0))return line(di,'Scheduled '+d.sched+'h · no '+(paid?'PTO':'hours')+' used',false);
+    return line(di,(paid?'PTO ':'Unpaid ')+'<b>'+d.hours+'h</b> of '+d.sched+'h scheduled',true);
+  }).join('');
+  return '<div style="max-height:56vh;overflow:auto;padding:16px 18px">'
+    +'<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+';font-size:.72rem;padding:4px 11px">'+esc(WIZ.type)+'</span>'
+    +'<span style="font-family:Nunito;font-weight:900;font-size:1.02rem">'+esc(fmtRange(WIZ.start,WIZ.end))+'</span>'
+    +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.78rem;color:var(--grey)">'+dayCount(WIZ.start,WIZ.end)+'</span></div>'
+    +'<div style="background:#FBFBFC;border:1px solid var(--border);border-radius:11px;padding:6px 14px 10px;margin-bottom:14px">'+dayLines
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0 3px;border-top:1.5px solid var(--border);margin-top:2px"><span style="font-family:Nunito;font-weight:900;font-size:.84rem">Total '+(paid?'PTO':'unpaid hours')+'</span><span style="font-family:Nunito;font-weight:900;font-size:.95rem">'+total+'h</span></div>'
+    +(paid&&WIZ.bal!=null?'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);text-align:right">of '+WIZ.bal+' hrs available</div>':'')+'</div>'
+    +'<label class="lbl" style="display:block;margin-bottom:5px">'+noteLbl+'</label>'
+    +'<input class="inp" id="wzNote" value="'+esc(WIZ.note)+'" placeholder="'+(WIZ.type==='Vacation'?'e.g. family trip':WIZ.type==='Personal'?'e.g. appointment':'optional')+'" style="margin-bottom:13px;width:100%">'
+    +(conflicts.length?ackBoxHtml(conflictTxt,WIZ.ack):'')
+    +'<div id="wzErr" style="color:var(--red);font-family:Nunito;font-weight:800;font-size:.78rem;min-height:1px;margin-top:6px"></div>'
+    +'</div>'
+    +'<div class="pl-ft"><button class="btn" id="wzBack3" style="width:auto;padding:9px 16px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)">← Back</button><div style="flex:1"></div>'
+    +'<button class="btn btn-red" id="wzSubmit" style="width:auto;padding:9px 20px"'+(WIZ.saving?' disabled':'')+'>'+(WIZ.saving?'Sending…':'Send to manager')+'</button></div>';
+}
+function wireWizStep3(back){
+  back.querySelector('#wzBack3').onclick=function(){WIZ.step=2;drawWiz();};
+  var n=back.querySelector('#wzNote');if(n)n.oninput=function(){WIZ.note=this.value;};
+  var a=back.querySelector('#fAck');if(a)a.onchange=function(){WIZ.ack=this.checked;};
+  back.querySelector('#wzSubmit').onclick=wizSubmit;
+}
+async function wizSubmit(){
+  var w=WIZ;if(!w||w.saving)return;
+  function err(t){var e=document.getElementById('wzErr');if(e)e.textContent=t||'';}
+  var needNote=(w.type==='Vacation'||w.type==='Personal');
+  if(needNote&&!String(w.note||'').trim()){err('Add a short description for this request.');return;}
+  var conflicts=conflictsFor(w.start,w.end);
+  if(conflicts.length&&!w.ack){err('Please check the box acknowledging the overlap.');return;}
+  var total=wizTotal(),dayHours={};
+  wizDates().forEach(function(di){var d=w.days[di];if(!d.off&&d.use&&Number(d.hours)>0)dayHours[di]=Number(d.hours);});
+  var row={staff_id:ME.id,store:ME.home_store,type:w.type,paid:isPaidType(w.type),start_date:w.start,end_date:w.end,
+    hours:total,day_hours:Object.keys(dayHours).length?dayHours:null,note:String(w.note||'').trim()||null,status:'pending'};
+  w.saving=true;drawWiz();
+  var r=await sb.from('time_off_requests').insert(row).select().single();
+  if(r.error){w.saving=false;drawWiz();var e=document.getElementById('wzErr');if(e)e.textContent=r.error.message;return;}
+  REQS.push(r.data);closePlanner();toast('✓ Sent to your manager');renderHeader();render();
 }
 
 initAuth();

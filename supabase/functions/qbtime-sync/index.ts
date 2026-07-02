@@ -127,12 +127,21 @@ function daysInRange(start: string, end: string): string[] {
   for (let i = 0; i < 90 && d <= end; i++) { out.push(d); d = addDays(d, 1); }
   return out.length ? out : [start];
 }
-// Create ONE approved QB Time time-off request spanning [start,end]; total `hours` split per day.
-async function createTimeOff(token: string, qbtId: string, jobcodeId: number, start: string, end: string, hours: number) {
+// Create ONE approved QB Time time-off request spanning [start,end]. If the request carries
+// per-day hours (the wizard's day_hours map — only scheduled days, capped at scheduled hours),
+// write exactly those; otherwise fall back to splitting the total evenly across the range.
+async function createTimeOff(token: string, qbtId: string, jobcodeId: number, start: string, end: string, hours: number, dayHours?: Record<string, number> | null) {
   const days = daysInRange(start, end), n = days.length;
-  const totalSec = Math.round(Number(hours) * 3600), per = Math.floor(totalSec / n), rem = totalSec - per * n;
-  const entries = days.map((d, i) => ({ jobcode_id: Number(jobcodeId), date: d, duration: per + (i === 0 ? rem : 0), entry_method: "manual", active: true }))
-    .filter((e) => e.duration > 0);
+  let entries: Array<{ jobcode_id: number; date: string; duration: number; entry_method: string; active: boolean }>;
+  const dh = dayHours && typeof dayHours === "object" ? dayHours : null;
+  const dhDays = dh ? days.filter((d) => Number(dh[d]) > 0) : [];
+  if (dhDays.length) {
+    entries = dhDays.map((d) => ({ jobcode_id: Number(jobcodeId), date: d, duration: Math.round(Number(dh![d]) * 3600), entry_method: "manual", active: true }));
+  } else {
+    const totalSec = Math.round(Number(hours) * 3600), per = Math.floor(totalSec / n), rem = totalSec - per * n;
+    entries = days.map((d, i) => ({ jobcode_id: Number(jobcodeId), date: d, duration: per + (i === 0 ? rem : 0), entry_method: "manual", active: true }))
+      .filter((e) => e.duration > 0);
+  }
   if (!entries.length) return { ok: false, id: null as number | null, msg: "zero_duration", raw: {} };
   const r = await qbtReq("POST", "time_off_requests", token, { data: [{ user_id: Number(qbtId), status: "approved", time_off_request_entries: entries }] });
   const res = Object.values((r.data?.results?.time_off_requests || {}) as Record<string, Record<string, unknown>>)[0] || {};
@@ -545,18 +554,24 @@ Deno.serve(async (req) => {
     const today = ymdIn(new Date(), "America/Los_Angeles");
     // Only sync current/upcoming approvals — never retro-write into already-run payroll.
     const { data: toCreate } = await admin.from("time_off_requests")
-      .select("id,staff_id,type,start_date,end_date,hours,paid,qbt_ids")
+      .select("id,staff_id,type,start_date,end_date,hours,day_hours,paid,qbt_ids")
       .eq("status", "approved").is("qbt_ids", null).gte("end_date", today);
     const { data: toCancel } = await admin.from("time_off_requests")
       .select("id,qbt_ids,status").not("qbt_ids", "is", null).neq("status", "approved");
     let created = 0, canceled = 0; const errors: unknown[] = [];
     for (const r of (toCreate || [])) {
+      // a request can legitimately carry 0 hours (all days fell on regular days off) —
+      // record it as synced with nothing to write instead of falling back to 8h/day
+      if (r.hours != null && Number(r.hours) === 0) {
+        await admin.from("time_off_requests").update({ qbt_ids: [], qbt_synced_at: new Date().toISOString() }).eq("id", r.id);
+        continue;
+      }
       const qbtId = await qbtIdForStaff(String(r.staff_id));
       if (!qbtId) { errors.push({ id: r.id, e: "no_qbt_link" }); continue; }
       const jc = await ptoJobcodeId(r.paid === false ? "Unpaid" : "PTO");
       if (!jc) { errors.push({ id: r.id, e: "no_jobcode" }); continue; }
       const hrs = (r.hours && Number(r.hours) > 0) ? Number(r.hours) : daysInRange(r.start_date, r.end_date).length * 8;
-      const res = await createTimeOff(token, qbtId, jc, r.start_date, r.end_date, hrs);
+      const res = await createTimeOff(token, qbtId, jc, r.start_date, r.end_date, hrs, r.day_hours as Record<string, number> | null);
       if (res.ok && res.id) { await admin.from("time_off_requests").update({ qbt_ids: [res.id], qbt_synced_at: new Date().toISOString() }).eq("id", r.id); created++; }
       else errors.push({ id: r.id, e: "create_failed", msg: res.msg });
     }

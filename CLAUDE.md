@@ -156,6 +156,17 @@ milestones cron writes day-of birthdays/anniversaries; any notification rule rou
 **In-app · Communications** channel (notify function `type='inapp'`) posts here too.
 Distinct from future "Alerts" (personal/actionable, top-right icon — not built).
 
+**Time-off requests:** employees request via a **3-step wizard modal on `my-schedule.html`**
+(never an inline form): 1) calendar date pick — shows teammates' pending/booked days AND the
+requester's own existing requests (ME chips); 2) their expected schedule for those dates
+(recurring + overrides + holiday clamp) with per-day PTO checkboxes and an hours input
+capped at the scheduled hours (lower is allowed to stretch the bank); 3) review + description
+(required for Vacation/Personal; optional for Sick — Oregon sick-time law — and Unpaid) +
+overlap acknowledgment, then submit. Rows carry `hours` (total, what admin pages/QBO use)
+plus `day_hours jsonb` ({date: hours}); `qbtime-sync` writes exactly those per-day entries
+to QB Time (falls back to an even split for legacy rows; a 0-hour request — all days fell
+on regular days off — is marked synced without writing).
+
 **Checklist (store tasks):** `task_templates` **generate** `task_instances` — never render
 templates directly; the checklist shows instances. Template shape: recurrence
 (`oneoff|daily|weekly|monthly|flexible` + weekdays / month_dates / flex N-per-window),
