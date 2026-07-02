@@ -174,6 +174,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue) !i
 <div id="toast" class="toast"></div>
 
 <script src="assets/pin-gate.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/nav.js" data-section="admin"></script>
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -564,7 +565,7 @@ function renderThisWeek(){
 function renderMonthly(){
   var Y=MM.getFullYear(),M=MM.getMonth();
   var first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
-  var html='<div class="toolbar"><div class="navbox"><button data-mm="-1">‹</button><span class="lbl">'+MONL[M]+' '+Y+'</span><button data-mm="1">›</button></div><span style="flex:1"></span>'
+  var html='<div class="toolbar"><div class="navbox"><button data-mm="-1">‹</button><button class="lbl" data-mpick title="Pick a month" style="border:none;background:#fff;cursor:pointer;font-family:inherit">'+MONL[M]+' '+Y+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-mm="1">›</button></div><span style="flex:1"></span>'
     +'<div class="legend"><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--blue)"></span>Vacation</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--purple)"></span>Personal</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--red)"></span>Sick</span><span class="lg" style="color:var(--grey)"><span style="width:10px;height:10px;border-radius:3px;border:1.5px dashed var(--grey)"></span>Pending</span></div></div>';
   /* events by day */
   var evByDay={};
@@ -587,6 +588,8 @@ function renderMonthly(){
     +'<div class="note">The standing weekly schedule repeats underneath; this calendar surfaces the <b>exceptions</b> on real dates — approved vacations, personal &amp; sick days, with per-store coverage pills (red when a store drops below 2 people or has no manager). Pending requests show dashed until approved under Time Off.</div>';
   $('#view').innerHTML=html;
   $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){MM=new Date(MM.getFullYear(),MM.getMonth()+Number(b.getAttribute('data-mm')),1);render();};});
+  var mp=$('#view').querySelector('[data-mpick]');
+  if(mp&&window.CPRPickers)mp.onclick=function(ev){ev.stopPropagation();CPRPickers.month(mp,{get:function(){return MM;},set:function(d){MM=d;render();}});};
 }
 
 /* ===== Holidays ===== */

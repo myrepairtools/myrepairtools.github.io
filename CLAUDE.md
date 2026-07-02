@@ -212,13 +212,12 @@ When changing a tool's data layer, check which generation it uses first — they
   purpose (this is a deterrent-level internal tool on public hosting). `robots.txt`
   disallows all crawlers.
 - **Week/date navigation → use the calendar date-picker pattern.** For any page with a
-  week (or day) navigator, the label between the `‹ ›` arrows should be a clickable button
-  (`data-wkpick`) that opens a month-calendar popover: pick any week row, page months with
-  `‹ ›`, "Jump to this week". The canonical implementation is `openWeekPicker()` in
-  `schedule-admin.html` (selected week highlighted, today marked, whole-row hover, popover
-  positioned under the anchor). Reuse that shape rather than plain one-week-at-a-time arrows
-  — it lets users jump to a future week in another month. Done: `schedule-admin.html`,
-  `my-schedule.html` (week picker on both week labels + a month-jump popover on the Month
-  view and the time-off wizard calendar — `openMonthPicker(anchor, get, set)` is reusable).
-  Remaining candidates: `schedule.html`, `time-off.html`, `report-overtime.html`,
-  `time-entries.html`.
+  week or month navigator, the label between the `‹ ›` arrows is a clickable button that
+  drops down a calendar popover instead of arrow-stepping: week picker = month calendar,
+  pick any week row, page months, "Jump to this week"; month picker = year pager + month
+  grid. **Use `assets/pickers.js`** (`window.CPRPickers.week(anchor,{get,set,maxWeek})` /
+  `.month(anchor,{get,set})`) — `maxWeek` greys future weeks on backward-looking reports.
+  Wired everywhere with date nav: schedule-admin (This Week + Monthly), my-schedule (week
+  labels, Month view, time-off wizard — those predate the lib and keep local copies),
+  time-entries, report-overtime, task-admin (Library calendar + Reporting). New pages with
+  date nav must include pickers.js and wire the label.

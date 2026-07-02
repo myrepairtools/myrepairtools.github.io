@@ -90,6 +90,7 @@ td.drill{padding:0;background:#FBFCFE}
 </div>
 
 <script src="assets/pin-gate.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/locations.js"></script>
 <script src="assets/team-hours-summary.js"></script>
 <script src="assets/nav.js"></script>
@@ -169,7 +170,7 @@ async function render(){
     + stores.map(s=>'<button data-f="'+esc(s)+'" class="'+(FILTER===s?'on':'')+'">'+esc(shortStore(s))+'</button>').join('')+'</div>';
 
   let body='<div class="rephd"><div><h1>Time Entries</h1><div class="sub">Clocked hours per day from QuickBooks Time · click anyone to see their history</div></div>'
-    +'<div class="wknav"><button data-wk="-1">‹</button><div class="lbl">'+fmtWk(sun)+'</div><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
+    +'<div class="wknav"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="border:none;background:transparent;cursor:pointer;font-family:inherit">'+fmtWk(sun)+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
     +'<div class="tiles">'
     +'<div class="tile"><div class="n">'+totHrs+'</div><div class="l">Total hours</div></div>'
     +'<div class="tile"><div class="n" style="color:var(--green)">'+live+'</div><div class="l">On the clock</div></div>'
@@ -200,6 +201,9 @@ async function render(){
 }
 
 function wire(){
+  const wp=$('#repBody').querySelector('[data-wkpick]');
+  if(wp&&window.CPRPickers)wp.onclick=(ev)=>{ev.stopPropagation();
+    CPRPickers.week(wp,{get:()=>WK,maxWeek:new Date(),set:d=>{WK=d;render();}});};
   $('#repBody').querySelectorAll('[data-wk]').forEach(b=>b.onclick=()=>{ if(b.disabled)return;
     WK=new Date(WK.getFullYear(),WK.getMonth(),WK.getDate()+7*Number(b.getAttribute('data-wk'))); render(); });
   $('#repBody').querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ FILTER=b.getAttribute('data-f');

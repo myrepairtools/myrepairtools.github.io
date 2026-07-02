@@ -143,6 +143,7 @@ textarea.inp{resize:vertical}
 <div id="toast" class="toast"></div>
 
 <script src="assets/pin-gate.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/locations.js"></script>
 <script src="assets/nav.js"></script>
 <script type="module">
@@ -329,12 +330,14 @@ function renderCalendar(defs){
     cells+='<div class="calc'+(dISO===TODAY?' today':'')+'"><div class="d">'+day+'</div>'+shown.map(c=>'<div class="chip" style="background:'+c.color+'" title="'+esc(c.label)+'">'+esc(c.label)+'</div>').join('')+(extra>0?'<div style="font-size:.6rem;font-weight:800;color:var(--grey)">+'+extra+' more</div>':'')+'</div>';
   }
   $('#secBody').innerHTML='<div class="card cal">'+
-    '<div class="calhd"><div style="display:flex;align-items:center;gap:10px"><span class="calnav"><button id="calPrev">‹</button><button id="calNext">›</button></span><span class="m">'+MONL[m]+' '+y+'</span></div>'+
+    '<div class="calhd"><div style="display:flex;align-items:center;gap:10px"><span class="calnav"><button id="calPrev">‹</button><button id="calNext">›</button></span><button class="m" id="calPick" title="Pick a month" style="border:none;background:transparent;cursor:pointer;font-family:inherit;padding:0">'+MONL[m]+' '+y+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button></div>'+
     '<div class="leg"><span><i style="background:var(--blue)"></i>Daily</span><span><i style="background:var(--green)"></i>Weekly</span><span><i style="background:var(--purple)"></i>Monthly</span><span><i style="background:var(--amber)"></i>Flexible</span><span><i style="background:var(--grey)"></i>One-off</span></div></div>'+
     '<div class="calgrid">'+DOW.map(d=>'<div class="caldh">'+d+'</div>').join('')+cells+'</div>'+
     '<div style="font-size:.74rem;color:var(--grey);margin-top:12px">This is where monthly planning lives — payroll dates, the inventory count — so employees don’t have to look months ahead on their daily checklist.</div></div>';
   $('#calPrev').onclick=()=>{CALM=new Date(CALM.getFullYear(),CALM.getMonth()-1,1);render();};
   $('#calNext').onclick=()=>{CALM=new Date(CALM.getFullYear(),CALM.getMonth()+1,1);render();};
+  const cp=$('#calPick');
+  if(cp&&window.CPRPickers)cp.onclick=ev=>{ev.stopPropagation();CPRPickers.month(cp,{get:()=>CALM,set:d=>{CALM=d;render();}});};
 }
 
 /* ===== reporting ===== */
@@ -376,7 +379,7 @@ function renderReporting(){
   const pcols='minmax(0,1fr) 90px 90px 70px 130px';
   const qcols='minmax(0,1fr) 170px 130px 100px 240px';
   let html=
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span class="calnav"><button id="repPrev">‹</button><button id="repNext">›</button></span><span style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.02rem">'+MONL[REPM.getMonth()]+' '+REPM.getFullYear()+'</span></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span class="calnav"><button id="repPrev">‹</button><button id="repNext">›</button></span><button id="repPick" title="Pick a month" style="border:none;background:transparent;cursor:pointer;font-family:Nunito,sans-serif;font-weight:900;font-size:1.02rem;padding:0">'+MONL[REPM.getMonth()]+' '+REPM.getFullYear()+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button></div>'+
     '<div class="kpis">'+
     '<div class="stat dk"><div class="l">Completion · '+MON[REPM.getMonth()]+'</div><div class="v">'+completion+'</div><div class="s">of closed-out tasks got done</div></div>'+
     '<div class="stat gn"><div class="l">On-time rate</div><div class="v">'+onRate+'</div><div class="s">of completed tasks</div></div>'+
@@ -416,6 +419,8 @@ function renderReporting(){
   $('#secBody').innerHTML=html;
   $('#repPrev').onclick=async()=>{REPM=new Date(REPM.getFullYear(),REPM.getMonth()-1,1);await loadReport();render();};
   $('#repNext').onclick=async()=>{REPM=new Date(REPM.getFullYear(),REPM.getMonth()+1,1);await loadReport();render();};
+  const rp=$('#repPick');
+  if(rp&&window.CPRPickers)rp.onclick=ev=>{ev.stopPropagation();CPRPickers.month(rp,{get:()=>REPM,set:async d=>{REPM=d;await loadReport();render();}});};
   document.querySelectorAll('[data-reopen]').forEach(b=>{b.onclick=()=>openReopen(+b.dataset.reopen);});
   document.querySelectorAll('[data-closemiss]').forEach(b=>{b.onclick=()=>closeMissed(+b.dataset.closemiss);});
 }

@@ -60,6 +60,7 @@ th.day.today,td.day.today{background:#F4FAFE}
 </div>
 
 <script src="assets/pin-gate.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/locations.js"></script>
 <script src="assets/team-hours-summary.js"></script>
 <script src="assets/nav.js"></script>
@@ -134,7 +135,7 @@ async function renderOvertime(host){
     dayHead+='<th class="day'+(today?' today':'')+'">'+DOW[wd]+'<span class="dnum">'+dt.getDate()+'</span></th>'; }
 
   let body='<div class="rephd"><div><h1>Overtime Report</h1><div class="sub">Worked / scheduled hours per day (Sun–Sat) · projection tracks past worked + upcoming scheduled vs the 40-hour line</div></div>'
-    +'<div class="wknav"><button data-wk="-1">‹</button><div class="lbl">'+fmtWk(sun)+'</div><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
+    +'<div class="wknav"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="border:none;background:transparent;cursor:pointer;font-family:inherit">'+fmtWk(sun)+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
     +'<div class="tiles">'
     +'<div class="tile"><div class="n" style="color:var(--red)">'+otNow+'</div><div class="l">Over 40 now</div></div>'
     +'<div class="tile"><div class="n" style="color:var(--amber)">'+watch+'</div><div class="l">On pace for OT</div></div>'
@@ -165,6 +166,9 @@ async function renderOvertime(host){
   host.innerHTML=body; wireWk(host);
 }
 function wireWk(host){
+  const wp=host.querySelector('[data-wkpick]');
+  if(wp&&window.CPRPickers)wp.onclick=(ev)=>{ev.stopPropagation();
+    CPRPickers.week(wp,{get:()=>OT_WK,maxWeek:new Date(),set:d=>{OT_WK=d;renderOvertime($('#repBody'));}});};
   host.querySelectorAll('[data-wk]').forEach(b=>b.onclick=()=>{
     if(b.disabled)return;
     OT_WK=new Date(OT_WK.getFullYear(),OT_WK.getMonth(),OT_WK.getDate()+7*Number(b.getAttribute('data-wk')));
