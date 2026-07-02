@@ -185,6 +185,21 @@ parser) — both auth by `TIPS_SECRET`. Every write rolls the month up into
 for that store's staff (manual extra names preserved) — so employees' dashboard tips
 update daily without manual entry.
 
+**Micro contracts (microsoldering):** `micro_contracts` (random `token` = the customer's
+capability URL; status draft→sent→signed→paid | void; `terms` jsonb snapshots the template
+at creation so old contracts keep their signed wording; signature png, signed_at/ip/ua,
+square_link_url/order_id, price vs `collect`-at-signing for deposits) +
+`micro_contract_templates` (single master row — intro with {business}/{customer}/{date}
+placeholders, sections jsonb, outcome choices; `approved=false` shows a draft warning in
+the staff tool until the owner reviews). Surfaces: `micro-contract.html` (Operations nav,
+any staff — create, copy/email signing link, void, template editor for managers) and
+`contract-sign.html`, a **public customer page with no gates/nav** (the token is the
+credential): customer picks a repair outcome, signs on a canvas, and is handed straight
+to a Square payment link — sign → pay is one motion. The `contracts` edge function does
+the customer side (view / sign — creates the Square quick-pay link with a redirect back /
+paystatus — flips to paid by checking the Square order / send — emails the link via
+Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);

@@ -48,6 +48,7 @@
   // Operations — store-floor / daily ops.
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵', acc:'cash.view' },
+    { label:'Micro Contracts',     url:'micro-contract.html',      icon:'🖊️' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.

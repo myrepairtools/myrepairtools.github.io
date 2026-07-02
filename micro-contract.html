@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Micro Contracts — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#B45309;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 80px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;line-height:1.05}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.hd-sub{color:var(--dark-grey);font-size:.82rem;font-weight:600;margin-top:2px}
+.hd-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:none;border-radius:9px;padding:9px 15px;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap}
+.btn.alt{background:#fff;color:var(--dark-grey);border:1.5px solid var(--border)}
+.btn.alt:hover{border-color:var(--blue);color:var(--blue)}
+.btn.sm{padding:7px 12px;font-size:.74rem}
+.btn.off,.btn.off:hover{opacity:.45;cursor:not-allowed;border-color:var(--border);color:var(--dark-grey)}
+.btn:disabled{opacity:.5;cursor:default}
+input,select,textarea{font-family:'Nunito Sans',sans-serif;font-size:.86rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--dark);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.warnbar{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:11px 15px;border-radius:11px;font-size:.85rem;font-weight:700;margin-bottom:14px}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pills{display:inline-flex;gap:6px;flex-wrap:wrap}
+.pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1.5px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+.pill.on{background:#EAF6FD;border-color:#CDEAF8;color:#1E7AA8}
+.search{max-width:260px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden}
+.row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.row:last-child{border-bottom:none}
+.rmain{flex:1;min-width:220px}
+.rnm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.95rem}
+.rsub{font-size:.76rem;color:var(--grey);font-weight:600;margin-top:1px}
+.rprice{font-family:'Nunito',sans-serif;font-weight:900;width:90px;text-align:right}
+.chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;border-radius:999px;padding:4px 11px;width:74px;text-align:center;flex:none}
+.c-draft{background:var(--light-grey);color:var(--dark-grey)}
+.c-sent{background:#EAF6FD;color:#1E7AA8}
+.c-signed{background:#FFF1DC;color:#8a5a00}
+.c-paid{background:#EAF7EF;color:#1f7d45}
+.c-void{background:#FEECEC;color:var(--red)}
+.ract{display:flex;gap:6px;flex-wrap:wrap}
+.empty{padding:44px 18px;text-align:center;color:var(--grey);font-family:'Nunito',sans-serif;font-weight:800}
+.mback{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px}
+.modal{background:#fff;border-radius:16px;border-top:3px solid var(--red);padding:20px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.m-hd{display:flex;align-items:center;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:4px}
+.m-x{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--grey);line-height:1}
+.m-sub{font-size:.78rem;color:var(--grey);font-weight:600;margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.g2{grid-template-columns:1fr}}
+label.f{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:12px 0 4px}
+.m-ft{margin-top:16px;display:flex;justify-content:flex-end;gap:8px;background:#fafafa;margin-left:-20px;margin-right:-20px;margin-bottom:-20px;padding:14px 20px;border-top:1px solid var(--border)}
+.linkbox{display:flex;gap:8px;align-items:center;background:var(--light-grey);border-radius:10px;padding:10px 13px;font-size:.8rem;word-break:break-all}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:3000;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.note{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;font-size:.86rem;color:var(--dark-grey)}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="operations"></script>
+<script src="assets/locations.js"></script>
+<main id="app" style="visibility:hidden">
+  <div class="hd">
+    <div>
+      <h1>Micro Contracts</h1>
+      <div class="hd-sub">Microsoldering authorization — customer signs, then pays, in one flow</div>
+    </div>
+    <div class="hd-r">
+      <button class="btn alt sm off" id="tmplBtn" title="Managers &amp; the owner only">📝 Contract template</button>
+      <button class="btn" id="newBtn"><span style="font-size:1.05rem;line-height:1">＋</span>New contract</button>
+    </div>
+  </div>
+  <div class="warnbar hide" id="draftWarn">⚠ The contract template is a <b>draft</b> — several sections still say “OWNER REVIEW”. A manager should open <b>📝 Contract template</b>, paste the exact wording from your Square contract, and mark it approved before sending this to customers.</div>
+  <div class="bar">
+    <span class="pills" id="fPills"></span>
+    <input class="search" id="q" type="text" placeholder="Search name, device, ticket…">
+  </div>
+  <div class="card" id="list"><div class="empty">Loading…</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const FN=SB_URL+'/functions/v1/contracts';
+const SIGN_URL=location.origin+location.pathname.replace(/[^/]*$/,'')+'contract-sign.html?t=';
+
+const $=s=>document.querySelector(s), $all=s=>Array.prototype.slice.call(document.querySelectorAll(s));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2600);}
+const shortStore=s=>window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');
+const isMgr=r=>['admin','manager','owner'].indexOf(r)>-1;
+const token=()=>{const a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('');};
+
+let ME=null, ROWS=[], TMPL=null, FILTER=(function(){try{return localStorage.getItem('cprMcFilter')||'all';}catch(e){return 'all';}})(), Q='';
+
+sb.auth.onAuthStateChange((_e,sess)=>{if(sess&&!ME)resolveMe(sess);});
+async function resolveMe(sess){
+  const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+  if(!r.data)return;
+  ME=r.data;boot();
+}
+async function boot(){
+  $('#app').style.visibility='visible';
+  const [rows,tp]=await Promise.all([
+    sb.from('micro_contracts').select('*').order('created_at',{ascending:false}).limit(300),
+    sb.from('micro_contract_templates').select('*').order('id').limit(1).maybeSingle()
+  ]);
+  ROWS=rows.data||[];TMPL=tp.data||null;
+  $('#draftWarn').classList.toggle('hide',!!(TMPL&&TMPL.approved));
+  const tb=$('#tmplBtn'),ok=isMgr(ME.role);
+  tb.classList.toggle('off',!ok);
+  tb.onclick=ok?openTemplate:()=>toast('Managers & the owner only');
+  $('#newBtn').onclick=openNew;
+  $('#q').oninput=()=>{Q=$('#q').value.toLowerCase();render();};
+  render();
+  refreshSigned();
+}
+/* signed-but-unpaid rows: ask the edge fn to check Square (it flips them to paid) */
+async function refreshSigned(){
+  const open=ROWS.filter(r=>r.status==='signed'&&r.square_order_id);
+  for(const r of open){
+    try{const d=await fetch(FN+'?action=paystatus&t='+encodeURIComponent(r.token)).then(x=>x.json());
+      if(d.ok&&d.status==='paid'){r.status='paid';r.paid_at=d.paid_at;r.paid_amount=d.paid_amount;render();}
+    }catch(e){}
+  }
+}
+
+function render(){
+  const F=[['all','All'],['draft','Draft'],['sent','Sent'],['signed','Signed'],['paid','Paid'],['void','Void']];
+  $('#fPills').innerHTML=F.map(f=>'<button class="pill'+(FILTER===f[0]?' on':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join('');
+  $all('#fPills .pill').forEach(b=>b.onclick=()=>{FILTER=b.getAttribute('data-f');try{localStorage.setItem('cprMcFilter',FILTER);}catch(e){}render();});
+  let rows=ROWS.filter(r=>FILTER==='all'||r.status===FILTER);
+  if(Q)rows=rows.filter(r=>[r.customer_name,r.device,r.ticket_ref,r.customer_email,r.customer_phone].join(' ').toLowerCase().includes(Q));
+  if(!rows.length){$('#list').innerHTML='<div class="empty">'+(ROWS.length?'Nothing matches.':'No contracts yet — hit ＋ New contract.')+'</div>';return;}
+  $('#list').innerHTML=rows.map(r=>{
+    const d=String(r.created_at||'').slice(0,10);
+    return '<div class="row">'
+      +'<span class="chip c-'+esc(r.status)+'">'+esc(r.status)+'</span>'
+      +'<div class="rmain"><div class="rnm">'+esc(r.customer_name)+(r.device?' · <span style="font-weight:700;color:var(--dark-grey)">'+esc(r.device)+'</span>':'')+'</div>'
+      +'<div class="rsub">'+esc(shortStore(r.store))+' · '+d+(r.ticket_ref?' · ticket '+esc(r.ticket_ref):'')+(r.signed_name?' · signed by '+esc(r.signed_name):'')+(r.paid_at?' · paid '+String(r.paid_at).slice(0,10):'')+'</div></div>'
+      +'<div class="rprice">'+money(r.collect||r.price)+'</div>'
+      +'<div class="ract">'
+        +'<button class="btn alt sm" data-copy="'+esc(r.token)+'">🔗 Copy link</button>'
+        +(r.customer_email&&(r.status==='draft'||r.status==='sent')?'<button class="btn alt sm" data-mail="'+esc(r.token)+'">✉️ Email it</button>':'')
+        +'<a class="btn alt sm" style="text-decoration:none" href="'+SIGN_URL+esc(r.token)+'" target="_blank">Open</a>'
+        +(r.status!=='paid'&&r.status!=='void'?'<button class="btn alt sm" data-void="'+r.id+'" style="color:var(--red)">Void</button>':'')
+      +'</div></div>';}).join('');
+  $all('[data-copy]').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(SIGN_URL+b.getAttribute('data-copy')).then(()=>toast('Signing link copied — text or AirDrop it to the customer'),()=>toast('Copy failed',true));});
+  $all('[data-mail]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;
+    const sess=(await sb.auth.getSession()).data.session;
+    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},body:JSON.stringify({t:b.getAttribute('data-mail')})}).then(x=>x.json()).catch(()=>({}));
+    b.disabled=false;
+    if(d.ok){toast('✉️ Signing link emailed');const r=ROWS.find(x=>x.token===b.getAttribute('data-mail'));if(r&&r.status==='draft'){r.status='sent';render();}}
+    else toast('Email failed: '+(d.error||'error'),true);
+  });
+  $all('[data-void]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Void this contract? The customer link stops working.'))return;
+    const id=+b.getAttribute('data-void');
+    const u=await sb.from('micro_contracts').update({status:'void',updated_at:new Date().toISOString()}).eq('id',id);
+    if(u.error){toast(u.error.message,true);return;}
+    const r=ROWS.find(x=>x.id===id);if(r)r.status='void';render();toast('Voided');
+  });
+}
+
+/* ---------- new contract ---------- */
+function myStores(){
+  const set=[];const add=s=>{if(s&&set.indexOf(s)<0)set.push(s);};
+  add(ME.home_store);(ME.authorized_stores||[]).forEach(add);
+  if(ME.role==='owner'&&window.CPRLocations)CPRLocations.names().forEach(add);
+  return window.CPRLocations?CPRLocations.sort(set):set;
+}
+function openNew(){
+  if(!TMPL){toast('No contract template found',true);return;}
+  const stores=myStores();
+  const back=document.createElement('div');back.className='mback';back.id='ncback';
+  back.innerHTML='<div class="modal">'
+    +'<div class="m-hd"><span>＋ New micro contract</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">Uses the current contract template. Price &amp; “collect at signing” can differ (deposit).</div>'
+    +'<div class="g2">'
+    +'<div><label class="f">Store</label><select id="ncStore">'+stores.map(s=>'<option value="'+esc(s)+'"'+(s===ME.home_store?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></div>'
+    +'<div><label class="f">RepairQ ticket #</label><input id="ncTicket" type="text" placeholder="optional"></div>'
+    +'<div><label class="f">Customer name *</label><input id="ncName" type="text"></div>'
+    +'<div><label class="f">Device</label><input id="ncDevice" type="text" placeholder="e.g. iPhone 13 Pro"></div>'
+    +'<div><label class="f">Customer email</label><input id="ncEmail" type="text" placeholder="for emailing the link + receipt"></div>'
+    +'<div><label class="f">Customer phone</label><input id="ncPhone" type="text" placeholder="optional"></div>'
+    +'</div>'
+    +'<label class="f">Repair details / scope *</label><textarea id="ncScope" rows="3" placeholder="What’s wrong and what work is authorized — e.g. no power after liquid exposure; board-level diagnosis & repair, data priority"></textarea>'
+    +'<div class="g2">'
+    +'<div><label class="f">Repair price $ *</label><input id="ncPrice" type="number" step="0.01" min="0"></div>'
+    +'<div><label class="f">Collect at signing $</label><input id="ncCollect" type="number" step="0.01" min="0" placeholder="defaults to price"></div>'
+    +'</div>'
+    +'<div class="m-ft"><button class="btn alt" data-x>Cancel</button><button class="btn" id="ncGo">Create contract</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelector('#ncGo').onclick=async()=>{
+    const name=back.querySelector('#ncName').value.trim();
+    const scope=back.querySelector('#ncScope').value.trim();
+    const price=+back.querySelector('#ncPrice').value||0;
+    let collect=back.querySelector('#ncCollect').value;
+    collect=collect===''?price:(+collect||0);
+    if(!name){toast('Customer name required',true);return;}
+    if(!scope){toast('Describe the repair scope',true);return;}
+    if(price<=0){toast('Enter the repair price',true);return;}
+    const row={token:token(),status:'draft',store:back.querySelector('#ncStore').value,created_by:ME.id,
+      customer_name:name,customer_email:back.querySelector('#ncEmail').value.trim()||null,
+      customer_phone:back.querySelector('#ncPhone').value.trim()||null,
+      device:back.querySelector('#ncDevice').value.trim()||null,ticket_ref:back.querySelector('#ncTicket').value.trim()||null,
+      scope,price,collect,
+      terms:{name:TMPL.name,intro:TMPL.intro,sections:TMPL.sections,outcomes:TMPL.outcomes}};
+    const r=await sb.from('micro_contracts').insert(row).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    ROWS.unshift(r.data);back.remove();render();openShare(r.data);
+  };
+}
+function openShare(r){
+  const link=SIGN_URL+r.token;
+  const back=document.createElement('div');back.className='mback';
+  back.innerHTML='<div class="modal">'
+    +'<div class="m-hd"><span>Contract ready — get it signed</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">'+esc(r.customer_name)+(r.device?' · '+esc(r.device):'')+' · '+money(r.collect)+' at signing. In store: open the link on the counter iPad and hand it over. Remote: send the link — payment happens right after they sign.</div>'
+    +'<div class="linkbox"><span style="flex:1">'+esc(link)+'</span></div>'
+    +'<div class="m-ft">'
+    +(r.customer_email?'<button class="btn alt" id="shMail">✉️ Email it</button>':'')
+    +'<a class="btn alt" style="text-decoration:none" href="'+link+'" target="_blank">Open for signing</a>'
+    +'<button class="btn" id="shCopy">🔗 Copy link</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelector('#shCopy').onclick=()=>navigator.clipboard.writeText(link).then(()=>toast('Link copied'),()=>toast('Copy failed',true));
+  const m=back.querySelector('#shMail');if(m)m.onclick=async()=>{
+    m.disabled=true;
+    const sess=(await sb.auth.getSession()).data.session;
+    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},body:JSON.stringify({t:r.token})}).then(x=>x.json()).catch(()=>({}));
+    m.disabled=false;
+    if(d.ok){toast('✉️ Emailed to '+r.customer_email);r.status='sent';render();}
+    else toast('Email failed: '+(d.error||'error'),true);
+  };
+}
+
+/* ---------- template editor (managers) ---------- */
+function openTemplate(){
+  const t=TMPL;if(!t)return;
+  const secs=(t.sections||[]).map((s,i)=>
+    '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:10px">'
+    +'<input type="text" data-th="'+i+'" value="'+esc(s.h)+'" style="font-weight:800;font-family:Nunito">'
+    +'<textarea data-tb="'+i+'" rows="4" style="margin-top:8px">'+esc(s.body)+'</textarea></div>').join('');
+  const back=document.createElement('div');back.className='mback';
+  back.innerHTML='<div class="modal" style="max-width:700px">'
+    +'<div class="m-hd"><span>📝 Contract template</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">This is the master text every new contract snapshots. Already-created contracts keep the wording they were signed under. Sections marked “OWNER REVIEW” need your real policy text.</div>'
+    +'<label class="f">Contract title</label><input type="text" id="tName" value="'+esc(t.name)+'">'
+    +'<label class="f">Intro ({business}, {customer}, {date} stay as placeholders shown to the customer with their values)</label><textarea id="tIntro" rows="3">'+esc(t.intro)+'</textarea>'
+    +'<label class="f">Repair outcome choices (one per line)</label><textarea id="tOuts" rows="2">'+esc((t.outcomes||[]).join('\n'))+'</textarea>'
+    +'<label class="f">Sections</label>'+secs
+    +'<label class="agreeish" style="display:flex;align-items:center;gap:9px;margin-top:16px;font-size:.88rem;font-weight:700"><input type="checkbox" id="tOk" '+(t.approved?'checked':'')+' style="width:17px;height:17px;accent-color:var(--red)"> Template reviewed &amp; approved for customer use</label>'
+    +'<div class="m-ft"><button class="btn alt" data-x>Cancel</button><button class="btn" id="tSave">Save template</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelector('#tSave').onclick=async()=>{
+    const sections=(t.sections||[]).map((s,i)=>({h:back.querySelector('[data-th="'+i+'"]').value.trim(),body:back.querySelector('[data-tb="'+i+'"]').value.trim()})).filter(s=>s.h||s.body);
+    const outcomes=back.querySelector('#tOuts').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    const patch={name:back.querySelector('#tName').value.trim()||'Micro Soldering Authorization',
+      intro:back.querySelector('#tIntro').value.trim(),sections,outcomes,
+      approved:back.querySelector('#tOk').checked,updated_by:ME.id,updated_at:new Date().toISOString()};
+    const r=await sb.from('micro_contract_templates').update(patch).eq('id',t.id).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    TMPL=r.data||Object.assign({},t,patch);$('#draftWarn').classList.toggle('hide',!!TMPL.approved);
+    back.remove();toast('✓ Template saved'+(TMPL.approved?' & approved':''));
+  };
+}
+</script>
+</body>
+</html>
