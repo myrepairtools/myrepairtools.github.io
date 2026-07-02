@@ -162,10 +162,17 @@ requester's own existing requests (ME chips); 2) their expected schedule for tho
 (recurring + overrides + holiday clamp) with per-day PTO checkboxes and an hours input
 capped at the scheduled hours (lower is allowed to stretch the bank); 3) review + description
 (required for Vacation/Personal; optional for Sick — Oregon sick-time law — and Unpaid) +
-overlap acknowledgment, then submit. Rows carry `hours` (total, what admin pages/QBO use)
-plus `day_hours jsonb` ({date: hours}); `qbtime-sync` writes exactly those per-day entries
-to QB Time (falls back to an even split for legacy rows; a 0-hour request — all days fell
-on regular days off — is marked synced without writing).
+overlap acknowledgment, then submit. Paid hours are **capped at the QB Time balance**
+(Sick draws a Sick bucket when one exists, else PTO; no cap when QB isn't linked). A day
+can be **½ Partial** (`partial_days jsonb`) — away X hours, working the rest: schedule
+views (My Time, Schedule Admin This Week/coverage) show a partial chip and keep the person
+counted/working, and the tasks engine does NOT treat them as off. Dates can be
+**back-dated up to 60 days** (late sick filings). Rows carry `hours` (total, what admin
+pages/QBO use) plus `day_hours jsonb` ({date: hours}); `qbtime-sync` writes exactly those
+per-day entries to QB Time with a **14-day lookback** for late filings (falls back to an
+even split for legacy rows; a 0-hour request — all days fell on regular days off — is
+marked synced without writing). `time-off.html` shows real request hours (hover for
+per-day) with a ½-partial flag.
 
 **Checklist (store tasks):** `task_templates` **generate** `task_instances` — never render
 templates directly; the checklist shows instances. Template shape: recurrence

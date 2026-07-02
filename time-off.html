@@ -120,7 +120,7 @@ async function load(){
   if(!AUTH||!isMgr(AUTH.role)){$('#gate').hidden=false;$('#view').innerHTML='';return;}
   const [stR,rqR]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,role,avatar,avatar_color,active'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,paid,start_date,end_date,status,note,submitted_at')
+    sb.from('time_off_requests').select('id,staff_id,store,type,paid,start_date,end_date,status,note,submitted_at,hours,day_hours,partial_days')
   ]);
   STAFF=(stR.data||[]); REQS=(rqR.data||[]);
   render();
@@ -158,8 +158,14 @@ function render(){
     return true;
   }).sort((a,b)=>{const ap=a.status==='pending'?0:1,bp=b.status==='pending'?0:1;if(ap!==bp)return ap-bp;return ap===0?(a.start_date<b.start_date?-1:1):(a.start_date<b.start_date?1:-1);});
   const body=rows.map(r=>{const e=empById(r.staff_id)||{display_name:'?'};const c=TYPES[r.type]||'#B9BDCB';
-    const ovl=overlapsFor(r), days=dayNum(r.start_date,r.end_date), hrs=days*8;
-    const flags=ovl?'<div class="flagchip" style="color:#1E6FA8;background:#E3F0F7"><span>⧉</span> Overlaps '+esc(ovl)+'</div>':'';
+    const ovl=overlapsFor(r), days=dayNum(r.start_date,r.end_date);
+    // wizard requests carry exact per-day hours; legacy rows fall back to 8/day
+    const hrs=(r.hours!=null)?Number(r.hours):days*8;
+    const dh=r.day_hours||null, pd=r.partial_days||{};
+    const perDay=dh?Object.keys(dh).sort().map(d=>{const p=d.split('-');return MON[+p[1]-1]+' '+(+p[2])+': '+dh[d]+'h'+(pd[d]?' (partial)':'');}).join('\n'):'';
+    const nPart=Object.keys(pd).length;
+    const flags=(ovl?'<div class="flagchip" style="color:#1E6FA8;background:#E3F0F7"><span>⧉</span> Overlaps '+esc(ovl)+'</div>':'')
+      +(nPart?'<div class="flagchip" style="color:#8a5a00;background:#FFF1DC"><span>½</span> '+nPart+' partial day'+(nPart===1?'':'s')+'</div>':'');
     const sub=r.submitted_at?(MON[new Date(r.submitted_at).getMonth()]+' '+new Date(r.submitted_at).getDate()):'';
     const act=r.status==='pending'
       ? '<span class="act"><button class="deny" data-deny="'+r.id+'">Deny</button><button class="appr" data-appr="'+r.id+'">Approve</button></span>'
@@ -167,14 +173,14 @@ function render(){
     return '<tr style="background:'+(r.status==='pending'?'#FFFCF7':'#fff')+'"><td><div class="empname">'+avHtml(e,28,'.66rem')+'<div><div class="nmline" style="font-size:.84rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-size:.68rem;color:var(--grey);font-weight:700">'+esc(shortStore(e.home_store))+'</div>'+flags+'</div></div></td>'
       +'<td><span class="tag" style="font-size:.56rem;color:'+c+';background:'+hexA(c,0.13)+';padding:2px 8px">'+esc(r.type)+'</span></td>'
       +'<td style="white-space:nowrap;font-weight:700;color:var(--dark-grey)">'+esc(fmtRange(r.start_date,r.end_date))+'</td>'
-      +'<td style="white-space:nowrap"><span class="hrs">'+hrs+' hrs<span class="d">'+days+(days===1?' day':' days')+'</span></span></td>'
+      +'<td style="white-space:nowrap"'+(perDay?' title="'+esc(perDay)+'"':'')+'><span class="hrs">'+hrs+' hrs<span class="d">'+days+(days===1?' day':' days')+(dh?' · hover for per-day':'')+'</span></span></td>'
       +'<td style="white-space:nowrap;color:#9aa0b0;font-weight:700">'+esc(sub)+'</td>'
       +'<td><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></td>'
       +'<td style="text-align:right;white-space:nowrap">'+act+'</td></tr>';
   }).join('');
   html+='<div class="totbl"><table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Hours</th><th>Requested</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody>'+body+'</tbody></table>'
     +(rows.length?'':'<div class="empty"><div class="big">🗂️</div><div class="t">No requests match these filters</div><div class="sub" style="margin-top:2px">Try a different status or switch the range to Past or All.</div></div>')
-    +'</div><div class="note" style="font-size:.82rem">Hours estimated at 8 per day. Coverage warnings (does approving leave a store short?) live on the Schedule Admin calendar.</div>';
+    +'</div><div class="note" style="font-size:.82rem">Hours come from the request wizard (exact per-day PTO; hover the hours). Older requests estimate 8/day. Coverage warnings (does approving leave a store short?) live on the Schedule Admin calendar.</div>';
   $('#view').innerHTML=html;
   $('#view').querySelectorAll('[data-ts]').forEach(b=>b.onclick=()=>{TOSTATUS=b.getAttribute('data-ts');render();});
   $('#view').querySelectorAll('[data-tc]').forEach(b=>b.onclick=()=>{TOSCOPE=b.getAttribute('data-tc');render();});

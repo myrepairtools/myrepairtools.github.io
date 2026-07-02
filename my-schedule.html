@@ -374,6 +374,9 @@ function myStores(){
   return Object.keys(set).sort(function(a,b){return order.indexOf(a)-order.indexOf(b);});
 }
 function approvedOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='approved'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
+/* partial day: they're away for some hours but still work the rest of the shift */
+function apPartial(ap,isoDate){return !!(ap&&ap.partial_days&&ap.partial_days[isoDate]);}
+function apAway(ap,isoDate){return (ap&&ap.day_hours&&Number(ap.day_hours[isoDate]))||0;}
 function pendingOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='pending'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
 async function load(){
   var [st,so,sh,hr,sc,rq,ho,hh,ov]=await Promise.all([
@@ -382,7 +385,7 @@ async function load(){
     sb.from('shifts').select('id,name,color,sort,active'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note'),
+    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,hours,paid,day_hours,partial_days'),
     sb.from('holidays').select('id,holiday_date,name'),
     sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id')
@@ -448,7 +451,8 @@ function renderMe(){
     var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isToday=di===todayIso;
     var rail='<div class="drail"><div class="d">'+dy+'</div><div class="n"'+(isToday?' style="color:var(--red)"':'')+'>'+dt.getDate()+'</div>'+(isToday?'<div class="t">TODAY</div>':'')+'</div>';
     var ap=approvedOn(ME.id,di), body;
-    if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div class="shift-nm" style="color:'+c+'"><span class="dot" style="background:'+c+'"></span>Time off</div><div class="shift-tm">'+esc(ap.type)+'</div>';}
+    if(ap&&apPartial(ap,di)){var cp=TYPES[ap.type]||'#B9BDCB';body='<div class="shift-nm" style="color:#8a5a00"><span class="dot" style="background:'+cp+'"></span>½ Partial day</div><div class="shift-tm">'+esc(ap.type)+' · away '+apAway(ap,di)+'h</div>';}
+    else if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div class="shift-nm" style="color:'+c+'"><span class="dot" style="background:'+c+'"></span>Time off</div><div class="shift-tm">'+esc(ap.type)+'</div>';}
     else{
       var r=effDayRec(ME.id,wd,di);
       if(r.none||r.off)body='<span class="shift-nm muted">Day off</span>';
@@ -467,7 +471,7 @@ function renderStore(){
     var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isToday=di===todayIso;
     var working=[];
     STAFF.forEach(function(e){
-      var ap=approvedOn(e.id,di);if(ap)return;
+      var ap=approvedOn(e.id,di);if(ap&&!apPartial(ap,di))return;   // partial-day people still work part of the shift
       var r=effDayRec(e.id,wd,di);if(r.none||r.off||r.store!==store)return;
       var v=holAdjust(shiftView(r,wd),r,wd,di),rd=resolve(r.shift_id,store,wd),pl=parseLabel(r.label);
       var startMin=rd.start!=null?rd.start:(pl?pl[0]:9999);
@@ -484,6 +488,7 @@ function renderStore(){
 /* ===== month view (personal schedule + team-off layers) ===== */
 function monthMineCell(di,wd){
   var ap=approvedOn(ME.id,di);
+  if(ap&&apPartial(ap,di)){var cp=TYPES[ap.type]||'#B9BDCB';return '<div class="mchip" style="background:'+hexA(cp,0.14)+';color:#8a5a00">½ Partial<div class="mt" style="color:'+cp+'">away '+apAway(ap,di)+'h</div></div>';}
   if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="mchip" style="background:'+hexA(c,0.14)+';color:'+c+'">Time off<div class="mt" style="color:'+c+'">'+esc(ap.type)+'</div></div>';}
   var r=effDayRec(ME.id,wd,di);
   if(r.none||r.off)return '<div class="moff">Off</div>';
@@ -597,6 +602,7 @@ async function cancelRequest(id){
 var PMON=null, PSTART=null, PEND=null;
 function weekShiftCell(staffId,wd,di,cardStore){
   var ap=approvedOn(staffId,di);
+  if(ap&&apPartial(ap,di)){var cp=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(cp,0.13)+';border-left:2px solid '+cp+'"><div class="n" style="color:#8a5a00">½ Partial</div><div class="t">away '+apAway(ap,di)+'h</div></div>';}
   if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(c,0.13)+';border-left:2px solid '+c+'"><div class="n" style="color:'+c+'">Off</div><div class="t">'+esc(ap.type)+'</div></div>';}
   var r=effDayRec(staffId,wd,di);
   if(r.none||r.off||(cardStore&&r.store!==cardStore))return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
@@ -611,7 +617,8 @@ function renderWeb(){
   var strip=DAYS.map(function(dy,wd){
     var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isT=di===todayIso;
     var ap=approvedOn(ME.id,di),body;
-    if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div style="border-radius:8px;padding:8px;background:'+hexA(c,0.12)+';border-left:3px solid '+c+'"><div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+c+'">Time off</div><div style="font-size:.68rem;color:#9aa0b0;font-weight:700">'+esc(ap.type)+'</div></div>';}
+    if(ap&&apPartial(ap,di)){var cq=TYPES[ap.type]||'#B9BDCB';body='<div style="border-radius:8px;padding:8px;background:'+hexA(cq,0.12)+';border-left:3px solid '+cq+'"><div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:#8a5a00">½ Partial day</div><div style="font-size:.68rem;color:#9aa0b0;font-weight:700">'+esc(ap.type)+' · away '+apAway(ap,di)+'h</div></div>';}
+    else if(ap){var c=TYPES[ap.type]||'#B9BDCB';body='<div style="border-radius:8px;padding:8px;background:'+hexA(c,0.12)+';border-left:3px solid '+c+'"><div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+c+'">Time off</div><div style="font-size:.68rem;color:#9aa0b0;font-weight:700">'+esc(ap.type)+'</div></div>';}
     else{var r=effDayRec(ME.id,wd,di);
       if(r.none||r.off)body='<div style="font-family:Nunito;font-weight:800;font-size:.78rem;color:#cfd2dd">Off</div>';
       else{var v=holAdjust(shiftView(r,wd),r,wd,di);var pend=pendingOn(ME.id,di);
@@ -725,13 +732,21 @@ function wireTimeoffPanel(){
 var WIZ=null;
 function openPlanner(){
   var n=new Date();
-  WIZ={step:1,type:'Vacation',mon:new Date(n.getFullYear(),n.getMonth(),1),start:null,end:null,days:null,note:'',ack:false,saving:false,bal:null};
+  WIZ={step:1,type:'Vacation',mon:new Date(n.getFullYear(),n.getMonth(),1),start:null,end:null,days:null,note:'',ack:false,saving:false,bals:null};
   if(window.CPRPTO)CPRPTO.forMe().then(function(s){if(!WIZ)return;
-    var pto=((s&&s.balances)||[]).filter(function(b){return /paid time off/i.test(b.name);})[0];
-    WIZ.bal=pto?pto.hours:(s?s.totalHours:null);
-    var el=document.getElementById('wzBal');if(el&&WIZ.bal!=null)el.innerHTML='PTO available: <b style="color:var(--dark)">'+WIZ.bal+' hrs</b>';
+    WIZ.bals=(s&&s.balances)||[];
+    if(WIZ.step>=2)drawWiz();                        // re-render so the balance cap can kick in
   },function(){});
   drawWiz();
+}
+/* available balance for the CURRENT type: Sick draws from a Sick bucket if QB has one,
+   everything else from Paid Time Off. null = unknown (QB not linked) — then we don't cap. */
+function wizBal(){
+  if(!WIZ||!WIZ.bals||!WIZ.bals.length)return null;
+  var want=WIZ.type==='Sick'?/sick/i:/paid time off/i;
+  var b=WIZ.bals.filter(function(x){return want.test(x.name);})[0];
+  if(!b&&WIZ.type==='Sick')b=WIZ.bals.filter(function(x){return /paid time off/i.test(x.name);})[0];
+  return b?b.hours:null;
 }
 function closePlanner(){var b=document.getElementById('plback');if(b)b.remove();WIZ=null;}
 /* expected schedule for one date: recurring template + this-week override + holiday clamp */
@@ -756,7 +771,7 @@ function wizBuildDays(){
     var prev=WIZ.days&&WIZ.days[d];
     if(prev){days[d]=prev;return;}                      // keep tweaks if they go back and return
     var s=wizSched(d);
-    days[d]={off:!!s.off,holiday:s.holiday||null,name:s.name||'',time:s.time||'',store:s.store||'',sched:s.off?0:s.sched,use:!s.off,hours:s.off?0:s.sched,est:!!s.est};
+    days[d]={off:!!s.off,holiday:s.holiday||null,name:s.name||'',time:s.time||'',store:s.store||'',sched:s.off?0:s.sched,use:!s.off,hours:s.off?0:s.sched,partial:false,est:!!s.est};
   });
   WIZ.days=days;
 }
@@ -803,17 +818,19 @@ function wizStep1Html(){
     .map(function(r){var mine=r.staff_id===ME.id;var e=staffById(r.staff_id)||{};return {mine:mine,name:mine?'You':(e.display_name||'?'),ini:mine?'ME':initials(e.display_name),color:mine?(TYPES[r.type]||'#4FB0E3'):(e.avatar_color||avatarBg(r.staff_id)),type:r.type,status:r.status};})
     .sort(function(a,b){return (a.mine?0:1)-(b.mine?0:1);});}
   var selStart=WIZ.start,selEnd=WIZ.end||WIZ.start;
+  // back-dating: sick days often get filed after the fact — allow up to 60 days back
+  var minSel=iso(new Date((new Date()).getFullYear(),(new Date()).getMonth(),(new Date()).getDate()-60));
   var cells='';
   for(var i=0;i<first;i++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
-  for(var d=1;d<=dim;d++){var di=iso(new Date(Y,M,d));var past=di<today;var ppl=peopleOn(di);
+  for(var d=1;d<=dim;d++){var di=iso(new Date(Y,M,d));var past=di<today;var blocked=di<minSel;var ppl=peopleOn(di);
     var others=ppl.filter(function(p){return !p.mine;});
     var booked=others.some(function(p){return p.status==='approved';}),pending=others.length&&!booked;
     var selected=selStart&&di>=selStart&&di<=selEnd;var isEnd=selStart&&(di===selStart||di===selEnd);var sel=(selected&&isEnd);
-    var bg=past?'#FBFBFC':selected?(isEnd?'#4FB0E3':hexA('#4FB0E3',0.16)):(booked?'#FBEDED':pending?'#FCF6EA':'#fff');
-    var numC=past?'#cfd2dd':sel?'#fff':'var(--dark)';
+    var bg=blocked?'#FBFBFC':selected?(isEnd?'#4FB0E3':hexA('#4FB0E3',0.16)):(booked?'#FBEDED':pending?'#FCF6EA':(past?'#FBFBFC':'#fff'));
+    var numC=blocked?'#e3e5ec':sel?'#fff':(past?'#9aa0b0':'var(--dark)');
     var chips=ppl.slice(0,3).map(function(p){return '<span class="pl-ini" title="'+esc(p.name+' · '+p.type+(p.status==='pending'?' (pending)':''))+'" style="background:'+esc(p.color)+(p.mine?';box-shadow:0 0 0 1.5px var(--dark)':(sel?';box-shadow:0 0 0 1.5px #fff':''))+'">'+esc(p.ini)+'</span>';}).join('')+(ppl.length>3?'<span class="pl-more"'+(sel?' style="color:#fff"':'')+'>+'+(ppl.length-3)+'</span>':'');
     var ttl=ppl.length?esc(ppl.map(function(p){return p.name+' · '+p.type+(p.status==='pending'?' (pending)':'');}).join('\n')):'';
-    cells+='<button class="pl-cell" data-day="'+(past?'':di)+'" title="'+ttl+'" style="background:'+bg+';cursor:'+(past?'default':'pointer')+'"><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+numC+'">'+d+'</span>'+((!past&&ppl.length)?'<span class="pl-chips">'+chips+'</span>':'')+'</button>';
+    cells+='<button class="pl-cell" data-day="'+(blocked?'':di)+'" title="'+ttl+'" style="background:'+bg+';cursor:'+(blocked?'default':'pointer')+'"><span style="font-family:Nunito;font-weight:800;font-size:.78rem;color:'+numC+'">'+d+'</span>'+((!blocked&&ppl.length)?'<span class="pl-chips">'+chips+'</span>':'')+'</button>';
   }
   var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<button class="pl-cell" style="background:#FBFBFC;cursor:default"></button>';
   function lg(sw,label){return '<span style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito;font-weight:800;font-size:.6rem;letter-spacing:.4px;text-transform:uppercase;color:var(--dark-grey)">'+sw+label+'</span>';}
@@ -827,7 +844,7 @@ function wizStep1Html(){
     +lg('<span style="width:11px;height:11px;border-radius:3px;background:#FCF6EA;border:1.5px solid #EBD9AE"></span>','Pending')
     +lg('<span style="width:11px;height:11px;border-radius:3px;background:#FBEDED;border:1.5px solid #F0C9C9"></span>','Booked')
     +lg('<span class="pl-ini" style="background:#4FB0E3;box-shadow:0 0 0 1.5px var(--dark)">ME</span>','Your time off')
-    +'</div><div style="flex:1"></div><div style="font-family:Nunito Sans;font-size:.82rem">'+(WIZ.start?'<b style="font-family:Nunito">'+esc(fmtRange(WIZ.start,WIZ.end||WIZ.start))+'</b>':'<span style="color:var(--grey)">Click a start, then an end</span>')+'</div>'
+    +'</div><div style="flex:1"></div><div style="font-family:Nunito Sans;font-size:.82rem">'+(WIZ.start?'<b style="font-family:Nunito">'+esc(fmtRange(WIZ.start,WIZ.end||WIZ.start))+'</b>':'<span style="color:var(--grey)">Click a start, then an end — sick days can be back-dated</span>')+'</div>'
     +'<button class="btn btn-red" id="wzNext1" style="width:auto;padding:9px 16px;'+(WIZ.start?'':'opacity:.5;cursor:not-allowed')+'">Next: My schedule →</button></div>';
 }
 function wireWizStep1(back){
@@ -856,34 +873,46 @@ function wizStep2Html(){
         +'<div style="font-family:Nunito;font-weight:800;font-size:.62rem;letter-spacing:.4px;text-transform:uppercase;color:#cfd2dd;margin-top:4px">'+(d.holiday?'🎉 Closed':'Day off')+'</div>'
         +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);line-height:1.3;margin-top:2px">'+(d.holiday?esc(d.holiday):'No '+(paid?'PTO':'hours')+' needed')+'</div></div>';
     }else{
-      var on=d.use;
-      cells+='<div class="pl-cell" data-wday="'+di+'" style="min-height:104px;cursor:pointer;background:'+(on?'#F1FAF4':'#fff')+';box-shadow:inset 0 0 0 '+(on?'1.5px var(--green)':'0 transparent')+'">'
-        +num+'<span style="width:17px;height:17px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:900;'+(on?'background:var(--green);color:#fff':'background:#fff;border:1.5px solid var(--grey);color:transparent')+'">✓</span></div>'
+      var on=d.use,half=on&&d.partial;
+      var accent=half?'#B45309':'var(--green)';
+      cells+='<div class="pl-cell" data-wday="'+di+'" style="min-height:122px;cursor:pointer;background:'+(on?(half?'#FFF9F1':'#F1FAF4'):'#fff')+';box-shadow:inset 0 0 0 '+(on?'1.5px '+accent:'0 transparent')+'">'
+        +num+'<span style="width:17px;height:17px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:900;'+(on?'background:'+accent+';color:#fff':'background:#fff;border:1.5px solid var(--grey);color:transparent')+'">'+(half?'½':'✓')+'</span></div>'
         +'<div style="font-family:Nunito;font-weight:800;font-size:.7rem;color:'+(on?'var(--dark)':'var(--dark-grey)')+';margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.name)+(d.holiday?' 🎉':'')+'</div>'
         +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.time||'')+(d.est?' · est.':'')+'</div>'
-        +'<div style="display:flex;align-items:center;gap:4px;margin-top:5px">'
+        +(on?'<div style="display:flex;gap:3px;margin-top:4px">'
+          +'<button data-wmode="'+di+'|full" style="flex:1;padding:2px 0;border-radius:6px;font-family:Nunito;font-weight:800;font-size:.54rem;text-transform:uppercase;cursor:pointer;'+(!half?'background:var(--green);border:1px solid var(--green);color:#fff':'background:#fff;border:1px solid var(--border);color:var(--grey)')+'">Full day</button>'
+          +'<button data-wmode="'+di+'|part" style="flex:1;padding:2px 0;border-radius:6px;font-family:Nunito;font-weight:800;font-size:.54rem;text-transform:uppercase;cursor:pointer;'+(half?'background:#B45309;border:1px solid #B45309;color:#fff':'background:#fff;border:1px solid var(--border);color:var(--grey)')+'">½ Partial</button></div>':'')
+        +'<div style="display:flex;align-items:center;gap:4px;margin-top:4px">'
         +'<input type="number" data-whrs="'+di+'" value="'+esc(on?d.hours:'')+'" min="0" max="'+d.sched+'" step="0.25"'+(on?'':' disabled')+' style="width:52px;padding:4px 5px;border:1.5px solid '+(on?'var(--border)':'#EEF0F4')+';border-radius:7px;font-family:Nunito Sans;font-weight:700;font-size:.76rem;text-align:right;'+(on?'background:#fff':'background:#F5F5F6;color:var(--grey)')+'">'
-        +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);white-space:nowrap">of '+d.sched+'h</span></div></div>';
+        +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);white-space:nowrap">'+(half?'away, of ':'of ')+d.sched+'h</span></div></div>';
     }
     cur.setDate(cur.getDate()+1);
   }
-  var total=wizTotal();
+  var total=wizTotal(),bal=wizBal();
+  var over=paid&&bal!=null&&total>bal;
   var anySched=wizDates().some(function(di){return !WIZ.days[di].off;});
   var note=anySched?'':'<div style="padding:12px 18px;font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--dark-grey);background:#F7FAFD;border-bottom:1px solid var(--border)">These dates all fall on your regular days off — you can still submit the request so your manager knows, but no '+(paid?'PTO':'hours')+' will be used.</div>';
   return '<div style="padding:11px 18px;border-bottom:1px solid var(--border);font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--dark-grey)">'
-    +'Tap the days you want to use '+(paid?'<b>PTO</b>':'<b>unpaid hours</b>')+' for, and adjust the hours if you like — you can go lower to stretch your bank, never higher than your scheduled shift.</div>'
+    +'Tap the days you want to use '+(paid?'<b>PTO</b>':'<b>unpaid hours</b>')+' for, and adjust the hours if you like — you can go lower to stretch your bank, never higher than your scheduled shift. Use <b>½ Partial</b> for appointments — you\'re off part of the shift and working the rest.</div>'
     +note
     +'<div class="pl-grid" style="background:#fafafa;border-bottom:1px solid var(--border)">'+DAYS.map(function(d){return '<div style="padding:9px 8px;font-family:Nunito;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)">'+d+'</div>';}).join('')+'</div>'
-    +'<div style="max-height:52vh;overflow:auto"><div class="pl-grid">'+cells+'</div></div>'
-    +'<div class="pl-ft"><div style="font-family:Nunito Sans;font-weight:700;font-size:.84rem">Using <b style="font-family:Nunito;font-size:.95rem">'+total+'h</b>'+(paid?' PTO':' unpaid')+'</div>'
-    +'<span id="wzBal" style="font-family:Nunito Sans;font-weight:700;font-size:.76rem;color:var(--grey)">'+(paid?(WIZ.bal!=null?('PTO available: <b style="color:var(--dark)">'+WIZ.bal+' hrs</b>'):'PTO available: …'):'Not paid time off')+'</span>'
+    +'<div style="max-height:50vh;overflow:auto"><div class="pl-grid">'+cells+'</div></div>'
+    +(over?'<div style="padding:10px 18px;background:#FBE9EA;border-top:1px solid #F0C9C9;font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--red)">⚠ That\'s <b>'+total+'h</b> but you only have <b>'+bal+'h</b> '+(WIZ.type==='Sick'?'sick time':'PTO')+' — trim <b>'+(Math.round((total-bal)*100)/100)+'h</b> to continue. Hours past your balance wouldn\'t be paid.</div>':'')
+    +'<div class="pl-ft"><div style="font-family:Nunito Sans;font-weight:700;font-size:.84rem;color:'+(over?'var(--red)':'var(--dark)')+'">Using <b style="font-family:Nunito;font-size:.95rem">'+total+'h</b>'+(paid?' PTO':' unpaid')+'</div>'
+    +'<span id="wzBal" style="font-family:Nunito Sans;font-weight:700;font-size:.76rem;color:var(--grey)">'+(paid?(bal!=null?('Available: <b style="color:var(--dark)">'+bal+' hrs</b>'):'Available: …'):'Not paid time off')+'</span>'
     +'<div style="flex:1"></div><button class="btn" id="wzBack2" style="width:auto;padding:9px 16px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)">← Back</button>'
-    +'<button class="btn btn-red" id="wzNext2" style="width:auto;padding:9px 16px">Next: Review →</button></div>';
+    +'<button class="btn btn-red" id="wzNext2" style="width:auto;padding:9px 16px'+(over?';opacity:.5;cursor:not-allowed':'')+'"'+(over?' disabled':'')+'>Next: Review →</button></div>';
 }
 function wireWizStep2(back){
   back.querySelectorAll('[data-wday]').forEach(function(cell){cell.onclick=function(ev){
-    if(ev.target.closest('[data-whrs]'))return;                     // clicking the hours input shouldn't toggle the day
-    var d=WIZ.days[cell.getAttribute('data-wday')];d.use=!d.use;if(d.use&&!(Number(d.hours)>0))d.hours=d.sched;drawWiz();};});
+    if(ev.target.closest('[data-whrs]')||ev.target.closest('[data-wmode]'))return;   // inner controls shouldn't toggle the day
+    var d=WIZ.days[cell.getAttribute('data-wday')];d.use=!d.use;if(d.use&&!(Number(d.hours)>0)){d.hours=d.partial?Math.round(d.sched/2*4)/4:d.sched;}drawWiz();};});
+  back.querySelectorAll('[data-wmode]').forEach(function(b){b.onclick=function(){
+    var p=b.getAttribute('data-wmode').split('|'),d=WIZ.days[p[0]],part=p[1]==='part';
+    if(d.partial===part)return;
+    d.partial=part;
+    d.hours=part?Math.round(d.sched/2*4)/4:d.sched;                 // partial defaults to half the shift
+    drawWiz();};});
   back.querySelectorAll('[data-whrs]').forEach(function(inp){
     inp.onchange=function(){var d=WIZ.days[inp.getAttribute('data-whrs')];var v=Number(inp.value);
       if(!(v>=0))v=d.sched; if(v>d.sched)v=d.sched;                 // never more than scheduled
@@ -893,7 +922,7 @@ function wireWizStep2(back){
       var t=back.querySelector('.pl-ft b');if(t)t.textContent=wizTotal()+'h';};
   });
   back.querySelector('#wzBack2').onclick=function(){WIZ.step=1;drawWiz();};
-  back.querySelector('#wzNext2').onclick=function(){WIZ.step=3;drawWiz();};
+  var nx=back.querySelector('#wzNext2');if(nx)nx.onclick=function(){if(nx.disabled)return;WIZ.step=3;drawWiz();};
 }
 /* ---- step 3: review, description, overlap acknowledgment, submit ---- */
 function wizStep3Html(){
@@ -909,6 +938,7 @@ function wizStep3Html(){
   var dayLines=wizDates().map(function(di){var d=WIZ.days[di];
     if(d.off)return line(di,d.holiday?'🎉 '+esc(d.holiday):'Regular day off',false);
     if(!d.use||!(Number(d.hours)>0))return line(di,'Scheduled '+d.sched+'h · no '+(paid?'PTO':'hours')+' used',false);
+    if(d.partial)return line(di,'<span style="color:#8a5a00">½ Partial</span> — away <b>'+d.hours+'h</b> of '+d.sched+'h, working the rest',true);
     return line(di,(paid?'PTO ':'Unpaid ')+'<b>'+d.hours+'h</b> of '+d.sched+'h scheduled',true);
   }).join('');
   return '<div style="max-height:56vh;overflow:auto;padding:16px 18px">'
@@ -918,7 +948,7 @@ function wizStep3Html(){
     +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.78rem;color:var(--grey)">'+dayCount(WIZ.start,WIZ.end)+'</span></div>'
     +'<div style="background:#FBFBFC;border:1px solid var(--border);border-radius:11px;padding:6px 14px 10px;margin-bottom:14px">'+dayLines
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0 3px;border-top:1.5px solid var(--border);margin-top:2px"><span style="font-family:Nunito;font-weight:900;font-size:.84rem">Total '+(paid?'PTO':'unpaid hours')+'</span><span style="font-family:Nunito;font-weight:900;font-size:.95rem">'+total+'h</span></div>'
-    +(paid&&WIZ.bal!=null?'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);text-align:right">of '+WIZ.bal+' hrs available</div>':'')+'</div>'
+    +(paid&&wizBal()!=null?'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);text-align:right">of '+wizBal()+' hrs available</div>':'')+'</div>'
     +'<label class="lbl" style="display:block;margin-bottom:5px">'+noteLbl+'</label>'
     +'<input class="inp" id="wzNote" value="'+esc(WIZ.note)+'" placeholder="'+(WIZ.type==='Vacation'?'e.g. family trip':WIZ.type==='Personal'?'e.g. appointment':'optional')+'" style="margin-bottom:13px;width:100%">'
     +(conflicts.length?ackBoxHtml(conflictTxt,WIZ.ack):'')
@@ -940,10 +970,15 @@ async function wizSubmit(){
   if(needNote&&!String(w.note||'').trim()){err('Add a short description for this request.');return;}
   var conflicts=conflictsFor(w.start,w.end);
   if(conflicts.length&&!w.ack){err('Please check the box acknowledging the overlap.');return;}
-  var total=wizTotal(),dayHours={};
-  wizDates().forEach(function(di){var d=w.days[di];if(!d.off&&d.use&&Number(d.hours)>0)dayHours[di]=Number(d.hours);});
+  var total=wizTotal(),bal=wizBal();
+  if(isPaidType(w.type)&&bal!=null&&total>bal){err('That’s '+total+'h but you only have '+bal+'h available — go back and trim the hours.');return;}
+  var dayHours={},partials={};
+  wizDates().forEach(function(di){var d=w.days[di];
+    if(!d.off&&d.use&&Number(d.hours)>0){dayHours[di]=Number(d.hours);if(d.partial)partials[di]=true;}});
   var row={staff_id:ME.id,store:ME.home_store,type:w.type,paid:isPaidType(w.type),start_date:w.start,end_date:w.end,
-    hours:total,day_hours:Object.keys(dayHours).length?dayHours:null,note:String(w.note||'').trim()||null,status:'pending'};
+    hours:total,day_hours:Object.keys(dayHours).length?dayHours:null,
+    partial_days:Object.keys(partials).length?partials:null,
+    note:String(w.note||'').trim()||null,status:'pending'};
   w.saving=true;drawWiz();
   var r=await sb.from('time_off_requests').insert(row).select().single();
   if(r.error){w.saving=false;drawWiz();var e=document.getElementById('wzErr');if(e)e.textContent=r.error.message;return;}

@@ -65,13 +65,14 @@ async function generate(dateISO: string) {
     admin.from("staff").select("id,display_name,role,home_store,active,hide_from_recurring").eq("active", true),
     admin.from("staff_schedule").select("staff_id,store,shifts"),
     admin.from("shifts").select("id,name"),
-    admin.from("time_off_requests").select("staff_id,status,start_date,end_date").eq("status", "approved").lte("start_date", dateISO).gte("end_date", dateISO),
+    admin.from("time_off_requests").select("staff_id,status,start_date,end_date,partial_days").eq("status", "approved").lte("start_date", dateISO).gte("end_date", dateISO),
   ]);
   const tpls: Tpl[] = tplR.data || [];
   const staff: Staff[] = (stR.data || []) as Staff[];
   const staffById: Record<number, Staff> = {}; staff.forEach((s) => { staffById[s.id] = s; });
   const shiftName: Record<number, string> = {}; (shR.data || []).forEach((s: any) => { shiftName[s.id] = s.name; });
-  const offToday = new Set((toR.data || []).map((r: any) => r.staff_id));
+  // partial days (appointments etc.) don't count as off — they still work part of the shift
+  const offToday = new Set((toR.data || []).filter((r: any) => !(r.partial_days && r.partial_days[dateISO])).map((r: any) => r.staff_id));
 
   // who works shift X at store Y today
   function shiftWorkers(shiftId: number, store: string): number[] {

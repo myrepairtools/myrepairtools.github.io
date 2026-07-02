@@ -552,10 +552,12 @@ Deno.serve(async (req) => {
     // Time Off" code; unpaid → "Unpaid Time Off" (the codes staff are actually assigned).
     if (!privileged) return json({ error: "forbidden" }, 403);
     const today = ymdIn(new Date(), "America/Los_Angeles");
-    // Only sync current/upcoming approvals — never retro-write into already-run payroll.
+    // Sync current/upcoming approvals plus a 14-day lookback — sick days are usually
+    // filed AFTER the person is better, and those still need to reach the open payroll
+    // period. Anything older stays untouched so already-run payroll is never rewritten.
     const { data: toCreate } = await admin.from("time_off_requests")
       .select("id,staff_id,type,start_date,end_date,hours,day_hours,paid,qbt_ids")
-      .eq("status", "approved").is("qbt_ids", null).gte("end_date", today);
+      .eq("status", "approved").is("qbt_ids", null).gte("end_date", addDays(today, -14));
     const { data: toCancel } = await admin.from("time_off_requests")
       .select("id,qbt_ids,status").not("qbt_ids", "is", null).neq("status", "approved");
     let created = 0, canceled = 0; const errors: unknown[] = [];

@@ -274,7 +274,7 @@ async function load(){
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,submitted_at'),
+    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,submitted_at,hours,day_hours,partial_days'),
     sb.from('schedule_membership').select('store,staff_id'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
     sb.from('holidays').select('id,name,holiday_date,is_federal,hours_confirmed,catalog_id').order('holiday_date'),
@@ -307,6 +307,9 @@ async function load(){
 }
 function weekStart(d){var x=new Date(d);x.setDate(x.getDate()-x.getDay());x.setHours(0,0,0,0);return x;}
 function reqOn(empId,isoDate){return REQS.filter(function(r){return r.staff_id===empId&&r.status!=='denied'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
+/* partial day: away for some hours, working the rest of the shift */
+function reqPartial(r,isoDate){return !!(r&&r.partial_days&&r.partial_days[isoDate]);}
+function reqAway(r,isoDate){return (r&&r.day_hours&&Number(r.day_hours[isoDate]))||0;}
 function reqFor(store,wd){
   var s=STORES.filter(function(x){return x.store===store;})[0]||{};
   var we=(wd===0||wd===6);
@@ -316,7 +319,9 @@ function reqFor(store,wd){
 function coverage(store,wd,isoDate){
   var count=0,mgr=0;
   STAFF.forEach(function(e){var a=SCHED[e.id]&&SCHED[e.id].arr[wd];if(!a||a==='off'||a.store!==store||a.away)return;
-    var r=isoDate?reqOn(e.id,isoDate):null;if(r&&r.status==='approved')return;count++;if(isMgr(e.role))mgr++;});
+    var r=isoDate?reqOn(e.id,isoDate):null;
+    if(r&&r.status==='approved'&&!reqPartial(r,isoDate))return;   // partial-day people still cover the store
+    count++;if(isMgr(e.role))mgr++;});
   var req=reqFor(store,wd);
   return {count:count,mgr:mgr,short:(count<req.staff||mgr<req.mgr)};
 }
@@ -520,7 +525,12 @@ function renderThisWeek(){
     var rows=allRows.map(function(row){
       var e=row.e, isExtra=row.x, total=0;
       var cells=DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var a=isExtra?extraCell(e.id,s.store,di):effA(e.id,wd,di);var ovr=isOverridden(e.id,di);var req=reqOn(e.id,di);var inner;
-        if(req&&req.status==='approved'){var c=TYPES[req.type]||'#B9BDCB';inner='<div class="chip" style="background:'+hexA(c,0.13)+';border-left:3px solid '+c+'"><div class="cn" style="color:'+c+'"><span class="av" style="width:8px;height:8px;background:'+c+';border-radius:50%"></span>Off</div><div class="ct">'+esc(req.type)+'</div></div>';}
+        if(req&&req.status==='approved'&&reqPartial(req,di)&&a&&a!=='off'&&!a.away&&a.store===s.store){
+          // partial day: they still work the shift minus the away hours
+          var mP=shiftMeta(a,wd),away=reqAway(req,di),schedH=cellHours(a,s.store,wd),workH=Math.max(0,schedH-away);
+          total+=workH;
+          inner='<div class="chip" style="background:'+hexA(mP.color,0.12)+';border-left:3px solid '+esc(mP.color)+'"><div class="cn">'+esc(mP.name)+' <span style="font-size:.6rem;color:#8a5a00;font-weight:800">½</span></div><div class="ct" style="color:#8a5a00;font-weight:800">away '+away+'h · '+esc(req.type)+'</div></div>';}
+        else if(req&&req.status==='approved'){var c=TYPES[req.type]||'#B9BDCB';inner='<div class="chip" style="background:'+hexA(c,0.13)+';border-left:3px solid '+c+'"><div class="cn" style="color:'+c+'"><span class="av" style="width:8px;height:8px;background:'+c+';border-radius:50%"></span>Off</div><div class="ct">'+esc(req.type)+'</div></div>';}
         else if(a==null)inner='<div class="blankc">'+(SCHEDIT?'+':'·')+'</div>';
         else if(a==='off')inner='<div class="offc">OFF</div>';
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
