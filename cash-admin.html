@@ -671,7 +671,17 @@ $('#auClose').onclick=function(){
   var d=AUDIT.data; if(!d){return;}
   var counts=auditCounts();
   var missing=counts.filter(function(c){return c.counted==null;});
-  if(missing.length){toast('Enter a counted balance for every location first',true);return;}
+  // The safes are readonly (derived from the bill-count grids below) and come up BLANK
+  // when those grids total $0 — offer to close them as $0.00 instead of deadlocking.
+  var SAFES=['Large Safe','Small Safe'];
+  var missReg=missing.filter(function(c){return SAFES.indexOf(c.location)<0;});
+  var missSafe=missing.filter(function(c){return SAFES.indexOf(c.location)>-1;});
+  if(missReg.length){toast('Enter a counted balance for: '+missReg.map(function(c){return c.location;}).join(', '),true);return;}
+  if(missSafe.length){
+    var nm=missSafe.map(function(c){return c.location;}).join(' and ');
+    if(!confirm('No bill counts entered for the '+nm+' (the grids below are empty).\n\nClose with $0.00 counted for the '+nm+'?'))return;
+    counts.forEach(function(c){ if(c.counted==null&&SAFES.indexOf(c.location)>-1) c.counted=0; });
+  }
   var rq=num($('#auRQ').value), petty=num($('#auPetty').value);
   var rows=counts.map(function(c){return {location:c.location,tracked:c.tracked,counted:c.counted,over_short:(c.counted-c.tracked)};});
   var days=collectEnvDays();
