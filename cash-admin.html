@@ -289,6 +289,7 @@ tr.aurow-clk:hover td{background:#f8fafd}
       <button class="btn" id="auClose">Finalize audit…</button>
       <span class="muted">Everything autosaves as you type — you can leave and resume this draft from the audit list.</span>
       <span style="flex:1"></span>
+      <button class="btn alt sm hide" id="auRevertEdit" style="color:var(--red)">↺ Cancel edit — revert to submitted</button>
       <button class="btn alt sm" id="auDeleteDraft" style="color:var(--red)">Delete draft</button>
     </div>
     <p class="hint" id="auClosedNote" style="margin-top:10px"></p>
@@ -610,7 +611,7 @@ function renderAuditLog(osBy){
 /* audit history events (edit_log jsonb on the header) */
 function auEvent(action){return {action:action,by:(AUTH?AUTH.name:''),at:new Date().toISOString()};}
 function auEventLabel(ev){
-  var L={finalized:'✓ Finalized',reopened:'✎ Reopened for editing',deleted:'🗑 Deleted',restored:'↩ Restored'};
+  var L={finalized:'✓ Finalized',reopened:'✎ Reopened for editing',edit_canceled:'↺ Edit canceled — reverted to submitted',deleted:'🗑 Deleted',restored:'↩ Restored'};
   var when=new Date(ev.at);
   return (L[ev.action]||ev.action)+' by <b>'+(ev.by||'—')+'</b> · '+when.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 }
@@ -644,6 +645,9 @@ async function openWork(row){
   showAuView('work');
   $('#auditTitle').textContent=shortStore(STATE.store)+' · '+fmtRange(row.period_start,row.period_end);
   $('#auSaved').textContent='';
+  var isEdit=!!row.prev_snapshot;   // reopened edit vs fresh draft
+  $('#auRevertEdit').classList.toggle('hide',!isEdit);
+  $('#auDeleteDraft').classList.toggle('hide',isEdit);
   $('#auditBody').innerHTML='<tr><td colspan="5" class="muted" style="padding:14px">Loading…</td></tr>';
   try{
     var r=await computeAuditDataRange(STATE.store,row);
@@ -661,6 +665,7 @@ async function openWork(row){
 }
 $('#auBack').onclick=function(){ flushDraftSave(); loadAudit(); };
 $('#auDeleteDraft').onclick=function(){ if(AUDIT.row) deleteAudit(AUDIT.row); };
+$('#auRevertEdit').onclick=revertEdit;
 function renderAudit(){
   var d=AUDIT.data; if(!d)return;
   $('#auditBody').innerHTML=d.locations.map(function(l,i){
@@ -926,7 +931,7 @@ async function finalizeAudit(counts,depBank,depSB,depSL){
   var days=collectEnvDays();
   var log=(row.edit_log||[]).concat([auEvent('finalized')]);
   var up=await sb.from('cash_audits').update({status:'closed',closed_at:now,auditor:(AUTH?AUTH.name:row.auditor),
-    confirmed_by:(AUTH?AUTH.name:''),confirmed_at:now,edit_log:log,
+    confirmed_by:(AUTH?AUTH.name:''),confirmed_at:now,edit_log:log,prev_snapshot:null,
     bank_deposit:depBank,small_to_bank:depSB,small_to_large:depSL,
     repairq_sales:num($('#auRQ').value),petty_cash:num($('#auPetty').value)}).eq('id',row.id);
   if(up.error)throw up.error;
@@ -1000,11 +1005,36 @@ async function openDetail(row){
 }
 /* reopen a closed audit for editing — logged, then it goes back through Finalize */
 async function editAudit(row){
-  if(!confirm('Reopen the '+fmtRange(row.period_start,row.period_end)+' audit for editing?\n\nYou\'ll re-finalize it when done — the reopen and the new finalize are both logged with your name, and the carry-forward (the next audit\'s opening balances) is recalculated.'))return;
+  if(!confirm('Reopen the '+fmtRange(row.period_start,row.period_end)+' audit for editing?\n\nYou can cancel the edit at any time to revert to what was submitted. Re-finalizing recalculates the carry-forward (the next audit\'s opening balances). Both are logged with your name.'))return;
+  // snapshot the submitted state so "Cancel edit" can put everything back exactly as it was
+  var [al,ad]=await Promise.all([
+    sb.from('cash_audit_locations').select('location,tracked,counted,over_short,carry_forward').eq('audit_id',row.id),
+    sb.from('cash_audit_days').select('period,day,location,c100,c50,c20,c10,c5,c2,c1,total').eq('audit_id',row.id)
+  ]);
+  var snap={header:{status:row.status,closed_at:row.closed_at,auditor:row.auditor,confirmed_by:row.confirmed_by,confirmed_at:row.confirmed_at,
+      bank_deposit:row.bank_deposit,small_to_bank:row.small_to_bank,small_to_large:row.small_to_large,
+      repairq_sales:row.repairq_sales,petty_cash:row.petty_cash},
+    locations:(al.error?[]:(al.data||[])), days:(ad.error?[]:(ad.data||[]))};
   var log=(row.edit_log||[]).concat([auEvent('reopened')]);
-  var up=await sb.from('cash_audits').update({status:'draft',edit_log:log}).eq('id',row.id).select('*').single();
+  var up=await sb.from('cash_audits').update({status:'draft',edit_log:log,prev_snapshot:snap}).eq('id',row.id).select('*').single();
   if(up.error){toast(up.error.message,true);return;}
   toast('Reopened for editing'); openWork(up.data);
+}
+/* Cancel an in-progress edit: restore the snapshot taken when the audit was reopened. */
+async function revertEdit(){
+  var row=AUDIT.row; if(!row||!row.prev_snapshot)return;
+  if(!confirm('Cancel this edit and revert to what was submitted?\n\nEvery change since you hit "Edit this audit" is discarded.'))return;
+  clearTimeout(AUDIT.saveTimer); AUDIT.saveTimer=null; row.status='reverting';   // stop autosave clobbering the restore
+  var snap=row.prev_snapshot, log=(row.edit_log||[]).concat([auEvent('edit_canceled')]);
+  try{
+    var patch=Object.assign({},snap.header,{edit_log:log,prev_snapshot:null});
+    var up=await sb.from('cash_audits').update(patch).eq('id',row.id); if(up.error)throw up.error;
+    await sb.from('cash_audit_locations').delete().eq('audit_id',row.id);
+    await sb.from('cash_audit_days').delete().eq('audit_id',row.id);
+    if(snap.locations&&snap.locations.length){var il=await sb.from('cash_audit_locations').insert(snap.locations.map(function(r){return Object.assign({audit_id:row.id,store:row.store},r);}));if(il.error)throw il.error;}
+    if(snap.days&&snap.days.length){var id2=await sb.from('cash_audit_days').insert(snap.days.map(function(r){return Object.assign({audit_id:row.id,store:row.store},r);}));if(id2.error)throw id2.error;}
+    toast('Edit canceled — reverted to the submitted audit'); loadAudit();
+  }catch(e){toast(String(e&&e.message||e),true);row.status='draft';}
 }
 /* soft delete: the audit and every count stays in the database, marked with who deleted it */
 async function deleteAudit(row){
