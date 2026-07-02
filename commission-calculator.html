@@ -75,6 +75,13 @@ td.r{text-align:right;white-space:nowrap}
 .chargebox{margin-top:14px;background:#F6F4FB;border:1px solid #E6E0F4;border-radius:9px;padding:11px 13px}
 .chargebox .h{font-family:'Nunito';font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:#5b3fb0;margin-bottom:6px}
 .field>label{display:block;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin-bottom:4px}
+/* archive modal */
+.avpick-back{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px}
+.avpick{background:#fff;border-radius:16px;padding:18px 20px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.avpick-hd{display:flex;align-items:center;justify-content:space-between;font-family:'Nunito';font-size:1rem}
+.avpick-x{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--grey);line-height:1}
+.avpick-sub{font-size:.78rem;color:var(--grey);font-weight:600;margin:2px 0 12px}
+.avpick-ft{margin-top:14px;display:flex;justify-content:flex-end}
 /* toast + loading */
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito';font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
@@ -152,7 +159,7 @@ async function ensureSession(){
 }
 async function currentStaff(){
   try{const s=(await sb.auth.getSession()).data.session;if(!s)return null;
-    const r=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
+    const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
     return r.data||null;
   }catch(e){return null;}
 }
@@ -197,14 +204,18 @@ async function loadConfig(){
 }
 
 /* ---- run report: aggregate commission_sales over the range, per employee ---- */
-function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,DeviceAttach:0,services:{}};}
+/* totals carry ServiceNet + categories too (unused here, but the month archive
+   snapshots these totals and the dashboard renders both) */
+function blankTotals(){return {Tickets:0,AccyUnits:0,NetAccySales:0,AccyGP:0,DeviceUnits:0,DeviceReturns:0,DeviceRev:0,DeviceGP:0,DeviceAttach:0,ServiceNet:0,services:{},categories:{}};}
 function addInto(t,r){
   t.Tickets+=Number(r.tickets)||0;t.AccyUnits+=Number(r.accy_units)||0;t.NetAccySales+=Number(r.accy_net)||0;t.AccyGP+=Number(r.accy_gp)||0;
   t.DeviceUnits+=Number(r.device_units)||0;t.DeviceReturns+=Number(r.device_returns)||0;
   t.DeviceRev+=(Number(r.device_net)||0)+(Number(r.device_return_net)||0);
   t.DeviceGP+=(Number(r.device_gp)||0)+(Number(r.device_return_gp)||0);
   t.DeviceAttach+=(Number(r.device_attach)||0)-(Number(r.device_attach_return)||0);
+  t.ServiceNet+=Number(r.service_net)||0;
   const sv=r.services||{};for(const k in sv){t.services[k]=(t.services[k]||0)+(Number(sv[k])||0);}
+  const ct=r.categories||{};for(const k in ct){t.categories[k]=(t.categories[k]||0)+(Number(ct[k])||0);}
 }
 async function runReport(){
   const {start,end}=STATE;
@@ -301,13 +312,70 @@ function renderSummary(){
         +'<div style="text-align:right"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)">Tips</div>'
           +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grandT)+'</div></div>'
       +'</div>'
-      +'<button class="btn alt sm" id="payroll">⬇ Payroll summary</button></div>'
+      +'<button class="btn alt sm" id="payroll">⬇ Payroll summary</button>'
+      +(function(){const am=archMonth();
+        return '<button class="btn alt sm" id="archiveBtn"'+(am?'':' disabled title="Set the range to one full past month (Quick range → Last month) to archive"')+'>📸 Archive'+(am?' '+esc(am.mon):' month')+'</button>';})()
+      +'</div>'
     +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead>'
     +'<tbody>'+(body||'<tr><td colspan="5" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
     +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+money(grandC)+'</td><td class="r">'+money(grandT)+'</td><td class="r">'+money(grandG)+'</td></tr></tfoot></table>'
     +(unrostered.length?'<div class="warn">'+unrostered.length+' with sales aren’t active team members (terminated or one-off): '+esc(unrostered.join(', '))+'. Their commission still totals here; add them in Settings → Team Members if they should be on the roster.</div>':'')
     +'</div></div>';
   const pb=$('#payroll');if(pb)pb.onclick=()=>downloadPayroll(rows);
+  const ab=$('#archiveBtn');if(ab&&!ab.disabled)ab.onclick=openArchive;
+}
+
+/* ---- month-end archive: freeze the range's month, as computed right here ----
+   Enabled only when the range is exactly one full, finished calendar month. */
+function archMonth(){
+  const s=STATE.start,e=STATE.end;
+  if(!s||!e||s.slice(8)!=='01')return null;
+  const p=s.split('-').map(Number);
+  const last=new Date(p[0],p[1],0);
+  const lastISO=last.getFullYear()+'-'+('0'+(last.getMonth()+1)).slice(-2)+'-'+('0'+last.getDate()).slice(-2);
+  if(e!==lastISO)return null;
+  const n=new Date(),curISO=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-01';
+  if(s>=curISO)return null; // still running (or future)
+  const d=new Date(p[0],p[1]-1,1);
+  return {monISO:s,label:d.toLocaleString('en-US',{month:'long',year:'numeric'}),mon:d.toLocaleString('en-US',{month:'long'})};
+}
+async function openArchive(){
+  const am=archMonth();if(!am)return;
+  const rows=STATE.report.slice().filter(r=>r.staff_id!=null);
+  const skipped=STATE.report.filter(r=>r.staff_id==null).map(r=>r.name);
+  if(!rows.length){toast('No employees to archive in '+am.label,true);return;}
+  const ex=await sb.from('commission_snapshots').select('staff_id').eq('month',am.monISO);
+  const exN=((ex&&ex.data)||[]).length;
+  const tipsMismatch=STATE.tipsPeriod&&STATE.tipsPeriod!==am.monISO.slice(0,7);
+  const items=rows.map(r=>({r,c:calc(r),tip:tipFor(r.name,null)})).sort((a,b)=>b.c.total-a.c.total);
+  const list=items.map(x=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border)">'
+    +'<span style="flex:1;min-width:0;font-family:Nunito;font-weight:800;font-size:.88rem">'+esc(x.r.name)+'</span>'
+    +'<span style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(shortStore(x.r.store||''))+'</span>'
+    +(x.tip>0?'<span style="font-size:.74rem;color:var(--dark-grey);font-weight:700;white-space:nowrap">+'+money(x.tip)+' tips</span>':'')
+    +'<span style="width:86px;text-align:right;flex:none;font-family:Nunito;font-weight:900">'+money(x.c.total)+'</span></div>').join('');
+  const back=document.createElement('div');back.className='avpick-back';back.id='archback';
+  back.innerHTML='<div class="avpick" style="max-width:470px;max-height:90vh;overflow:auto">'
+    +'<div class="avpick-hd"><b>📸 Archive '+esc(am.label)+'</b><button class="avpick-x" data-ax>×</button></div>'
+    +'<div class="avpick-sub">Freezes exactly what this payroll run computed — commission, tiers, tips, and the rules &amp; goals used — for every employee, all locations. My Commission then shows these as-paid numbers for '+esc(am.mon)+', so what employees see always matches what you paid.</div>'
+    +(exN?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">'+esc(am.label)+' is already archived — saving again overwrites it with the numbers below.</div>':'')
+    +(tipsMismatch?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">Heads up: the tips period is set to '+esc(STATE.tipsPeriod)+', not '+esc(am.monISO.slice(0,7))+' — tips below come from that period.</div>':'')
+    +list
+    +(skipped.length?'<div style="margin-top:10px;font-size:.76rem;color:var(--grey)">Not archived (no linked team member): '+esc(skipped.join(', '))+'</div>':'')
+    +'<div class="avpick-ft" style="justify-content:space-between;align-items:center"><span style="font-size:.74rem;color:var(--grey);font-weight:700">'+rows.length+' employee'+(rows.length===1?'':'s')+' · all locations</span>'
+    +'<span style="display:flex;gap:8px"><button class="btn alt sm" data-ax>Cancel</button><button class="btn sm" data-asave>📸 Archive '+esc(am.mon)+'</button></span></div></div>';
+  const old=document.getElementById('archback');if(old)old.remove();
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-ax]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelector('[data-asave]').onclick=async()=>{
+    const payload=items.map(x=>({staff_id:x.r.staff_id,month:am.monISO,totals:x.r.totals,breakdown:x.c,
+      cfg:{goal:x.r.goal,earns:x.r.earns,rules:x.r.rules,rates:x.r.rates},
+      tips:Math.round(x.tip*100)/100,total:x.c.total,
+      finalized_by:(STATE.me&&STATE.me.id)||null,finalized_at:new Date().toISOString()}));
+    const r=await sb.from('commission_snapshots').upsert(payload,{onConflict:'staff_id,month'});
+    if(r.error){toast(r.error.message,true);return;}
+    toast('✓ '+am.label+' archived — My Commission now shows these as paid');back.remove();
+  };
 }
 function tt(v){return v>0?'+'+pct(v):'—';}
 function tc(v){return v>0?'var(--green)':'var(--grey)';}

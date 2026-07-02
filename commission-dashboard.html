@@ -753,7 +753,7 @@ async function afterGoalChange(){
 }
 
 /* ---- Scoreboard ---- */
-/* live compute for every tech in the viewed month (also feeds the month archive) */
+/* live compute for every tech in the viewed month */
 async function computeMonthAll(){
   const mi=monthInfo();
   const sales=await sb.from('commission_sales').select('*').gte('biz_date',mi.start).lte('biz_date',mi.end);
@@ -782,48 +782,6 @@ async function loadBoard(){
   STATE.board={techs,mi};return STATE.board;
 }
 
-/* ---- month-end archive (managers/owner): freeze the viewed month as paid ---- */
-async function openArchive(){
-  const mi=monthInfo();
-  if(mi.cur){toast('You can archive a month once it ends');return;}
-  $('#status').textContent='Computing '+mi.label+'…';
-  const tp=await sb.from('commission_tips').select('*').eq('period',mi.period);
-  STATE.tips={};((tp&&tp.data)||[]).forEach(x=>{STATE.tips[x.store]={hours:x.hours||{},pool:Number(x.pool)||0};});
-  const {list}=await computeMonthAll();
-  const ex=await sb.from('commission_snapshots').select('staff_id').eq('month',mi.monISO);
-  const exN=((ex&&ex.data)||[]).length;
-  $('#status').textContent='';
-  if(!list.length){toast('No sales data in '+mi.label+' — nothing to archive',true);return;}
-  const rows=list.slice().sort((a,b)=>b.c.total-a.c.total).map(x=>{
-    const tips=tipFor(x.st.display_name);
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border)">'
-      +'<span style="flex:1;min-width:0;font-family:Nunito;font-weight:800;font-size:.88rem">'+esc(x.st.display_name)+'</span>'
-      +'<span style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(shortStore(x.st.home_store))+'</span>'
-      +(tips>0?'<span style="font-size:.74rem;color:var(--dark-grey);font-weight:700;white-space:nowrap">+'+money(tips)+' tips</span>':'')
-      +'<span style="width:86px;text-align:right;flex:none;font-family:Nunito;font-weight:900">'+money(x.c.total)+'</span></div>';}).join('');
-  const back=document.createElement('div');back.className='avpick-back';back.id='archback';
-  back.innerHTML='<div class="avpick" style="max-width:470px;max-height:90vh;overflow:auto">'
-    +'<div class="avpick-hd"><b>📸 Archive '+esc(mi.label)+'</b><button class="avpick-x" data-ax>×</button></div>'
-    +'<div class="avpick-sub">Freezes each person’s final numbers — commission, tiers, tips, and the exact rules &amp; goals used — so later rate or goal changes never rewrite this month. Past months on this page then show the archived, as-paid figures.</div>'
-    +(exN?'<div style="background:#FFF8EE;border:1px solid #F3DBB4;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">'+esc(mi.label)+' is already archived — saving again overwrites it with the numbers below (recomputed under today’s config).</div>':'')
-    +rows
-    +'<div class="avpick-ft" style="justify-content:space-between;align-items:center"><span style="font-size:.74rem;color:var(--grey);font-weight:700">'+list.length+' employee'+(list.length===1?'':'s')+'</span>'
-    +'<span style="display:flex;gap:8px"><button class="btn" data-ax>Cancel</button><button class="btn" data-asave style="background:var(--dark);color:#fff;border-color:var(--dark)">📸 Archive '+esc(mi.mon)+'</button></span></div></div>';
-  const old=document.getElementById('archback');if(old)old.remove();
-  document.body.appendChild(back);
-  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
-  back.querySelectorAll('[data-ax]').forEach(b=>b.onclick=()=>back.remove());
-  back.querySelector('[data-asave]').onclick=async()=>{
-    const payload=list.map(x=>({staff_id:x.id,month:mi.monISO,totals:x.tot,breakdown:x.c,
-      cfg:{goal:x.cfg.goal,earns:x.cfg.earns,rules:x.cfg.rules,rates:x.cfg.rates},
-      tips:Math.round(tipFor(x.st.display_name)*100)/100,total:x.c.total,
-      finalized_by:STATE.me.id,finalized_at:new Date().toISOString()}));
-    const r=await sb.from('commission_snapshots').upsert(payload,{onConflict:'staff_id,month'});
-    if(r.error){toast(r.error.message,true);return;}
-    toast('✓ '+mi.label+' archived');back.remove();
-    STATE.board=null;await loadTarget();
-  };
-}
 function renderBoard(){
   if(!STATE.board){$('#view-board').innerHTML='<div class="card"><div class="card-bd muted">Loading the leaderboard…</div></div>';
     loadBoard().then(()=>{if(STATE.tab==='board')renderBoard();});return;}
@@ -963,14 +921,10 @@ function boardRank(id){if(!STATE.board)return null;const ranked=STATE.board.tech
 function renderHeader(){
   const me=STATE.me, t=STATE.target, calc=STATE.calc;
   if(MGR(normRole(me.role))){
-    const miN=monthInfo();
     const opts=STATE.staffList.map(s=>'<option value="'+s.id+'"'+(s.id===t.id?' selected':'')+'>'+esc(s.display_name)+(s.id===me.id?' (you)':'')+'</option>').join('');
     $('#mgrbar').innerHTML='<div class="mgrbar"><span class="mgrbadge">MANAGER VIEW</span><span style="font-weight:700;color:var(--dark-grey);font-size:.84rem">Viewing</span>'
-      +'<select id="viewAs" style="min-width:190px">'+opts+'</select>'
-      +'<button class="btn" id="archBtn" style="padding:7px 13px;font-size:.76rem"'+(miN.cur?' disabled title="You can archive a month once it ends"':' title="Freeze '+esc(miN.label)+'’s final numbers for every employee"')+'>📸 Archive '+esc(miN.mon)+'</button>'
-      +'<span class="mgrnote">Managers switch employees · employees see only their own</span></div>';
+      +'<select id="viewAs" style="min-width:190px">'+opts+'</select><span class="mgrnote">Managers switch employees · employees see only their own · archive months from the Calculator</span></div>';
     const sel=$('#viewAs');if(sel)sel.onchange=()=>{STATE.target=STATE.staffById[+sel.value]||STATE.me;loadTarget();};
-    const ab=$('#archBtn');if(ab)ab.onclick=openArchive;
   }else $('#mgrbar').innerHTML='';
   const ini=(t.display_name||'?').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase()||'?';
   const rk=normRole(t.role), roleLabel=rk==='team_member'?'Tech':(rk==='admin'?'Manager':(rk==='owner'?'Owner':(t.role||'')));
