@@ -25,6 +25,9 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 a.btnlink{text-decoration:none}
 input,select{font-family:'Nunito Sans',sans-serif;font-size:.86rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--dark)}
 input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+/* number inputs: no spinner arrows (hand-keyed payroll values) */
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
 /* toolbar */
 .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .arrow{font-family:'Nunito';font-weight:800;color:var(--grey)}
@@ -475,31 +478,72 @@ function tipFor(name,onlyStore){
   }
   return total;
 }
-function renderTips(){
+/* worked hours per employee for the tips-period month, straight from QB Time
+   (qbtime_timesheets daily rollups; PTO jobcode seconds excluded) */
+function monthEndISO(period){const p=period.split('-').map(Number);const d=new Date(p[0],p[1],0);return period+'-'+('0'+d.getDate()).slice(-2);}
+async function loadQboHours(){
+  const period=STATE.tipsPeriod||STATE.start.slice(0,7);
+  if(STATE.qboHrsPeriod===period&&STATE.qboHrs)return STATE.qboHrs;
+  const [ts,jc]=await Promise.all([
+    sb.from('qbtime_timesheets').select('staff_id,seconds,jobcodes').gte('biz_date',period+'-01').lte('biz_date',monthEndISO(period)),
+    sb.from('qbtime_jobcodes').select('qbt_id,type').eq('type','pto')
+  ]);
+  const pto=new Set((((jc&&jc.data)||[])).map(x=>String(x.qbt_id)));
+  const secs={};(((ts&&ts.data)||[])).forEach(r=>{
+    if(r.staff_id==null)return;
+    let s=Number(r.seconds)||0;const j=r.jobcodes||{};
+    for(const k in j){if(pto.has(String(k)))s-=Number(j[k])||0;}
+    secs[r.staff_id]=(secs[r.staff_id]||0)+Math.max(0,s);
+  });
+  const byName={};
+  for(const sid in secs){const st=STATE.staffById[sid];if(!st)continue;byName[st.display_name]=Math.round(secs[sid]/3600*100)/100;}
+  STATE.qboHrs=byName;STATE.qboHrsPeriod=period;return byName;
+}
+/* Square daily tips (tips_daily, fed by the square-tips function) for the period */
+async function loadSquareTips(){
+  const period=STATE.tipsPeriod||STATE.start.slice(0,7);
+  if(STATE.sqPeriod===period&&STATE.sq)return STATE.sq;
+  const r=await sb.from('tips_daily').select('store,biz_date,amount').gte('biz_date',period+'-01').lte('biz_date',monthEndISO(period));
+  const by={};(((r&&r.data)||[])).forEach(x=>{const s=by[x.store]=by[x.store]||{sum:0,days:0,last:''};
+    s.sum+=Number(x.amount)||0;s.days++;if(x.biz_date>s.last)s.last=String(x.biz_date).slice(0,10);});
+  STATE.sq=by;STATE.sqPeriod=period;return by;
+}
+async function renderTips(){
   const store=STATE.store==='all'?(STATE.stores[0]||''):STATE.store;
   const emps=STATE.report.filter(r=>r.stores.indexOf(store)>=0||r.store===store);
+  const qbo=await loadQboHours(), sq=await loadSquareTips();
+  const ensure=()=>{const d=STATE.tips[store]||{hours:{},pool:0};d.hours=Object.assign({},d.hours);STATE.tips[store]=d;return d;};
+  // employees with no saved hours get this month's QB Time hours pre-filled (Save persists)
+  const AUTO={};
+  emps.forEach(e=>{const d=STATE.tips[store]||{hours:{}};const h=(d.hours||{})[e.name];
+    const has=h&&(((+h.pp1)||0)+((+h.pp2)||0))>0;
+    if(!has&&qbo[e.name]>0){ensure().hours[e.name]={pp1:qbo[e.name]};AUTO[e.name]=1;}});
   const data=STATE.tips[store]||{hours:{},pool:0};
   let totalHrs=0;emps.forEach(e=>{const h=data.hours[e.name]||{};totalHrs+=(+h.pp1||0)+(+h.pp2||0);});
   const pool=+data.pool||0;
+  const sqs=sq[store];
   const rows=emps.map(e=>{const h=data.hours[e.name]||{};const tot=(+h.pp1||0)+(+h.pp2||0);const tip=totalHrs>0?(tot/totalHrs)*pool:0;
-    return '<tr><td class="nm">'+esc(e.name)+'</td>'
-      +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" data-pp="pp1" value="'+(h.pp1!=null?h.pp1:'')+'" style="width:74px;text-align:right"></td>'
-      +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" data-pp="pp2" value="'+(h.pp2!=null?h.pp2:'')+'" style="width:74px;text-align:right"></td>'
-      +'<td class="r gt">'+tot+'</td><td class="r gt" style="color:var(--green)">'+money(tip)+'</td></tr>';}).join('');
+    const q=qbo[e.name],drift=(q!=null&&!AUTO[e.name]&&Math.abs(q-tot)>0.05);
+    return '<tr><td class="nm">'+esc(e.name)+(AUTO[e.name]?' <span class="flag" style="background:#EAF6FD;color:#1E7AA8">QB Time</span>':'')+'</td>'
+      +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" value="'+(tot||'')+'" step="0.01" style="width:90px;text-align:right'+(AUTO[e.name]?';border-color:#CDEAF8;background:#F5FBFE':'')+'">'
+      +(drift?'<div style="font-size:.64rem;color:var(--amber);font-weight:700;margin-top:2px">QB: '+q+'</div>':'')+'</td>'
+      +'<td class="r gt" style="color:var(--green)">'+money(tip)+'</td></tr>';}).join('');
   $('#view-tips').innerHTML='<div class="card acc-green"><div class="card-hd"><span class="card-t">Tips · '+esc(shortStore(store)||'—')+'</span></div><div class="card-bd">'
-    +'<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px">'
-      +'<div class="field"><label>Pay period</label><input type="text" id="tipsPeriod" value="'+esc(STATE.tipsPeriod)+'" placeholder="e.g. 2026-06" style="width:140px"></div>'
-      +'<div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" value="'+(pool||'')+'" step="0.01" style="width:140px;text-align:right"></div>'
+    +'<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:8px">'
+      +'<div class="field"><label>Pay period</label><input type="text" id="tipsPeriod" value="'+esc(STATE.tipsPeriod)+'" placeholder="e.g. 2026-06" style="width:120px"></div>'
+      +'<div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" value="'+(pool||'')+'" step="0.01" style="width:120px;text-align:right"></div>'
+      +'<button class="btn alt sm" id="qboFill" title="Overwrite every box with this month’s clocked hours from QuickBooks Time (PTO excluded)">↻ Refill from QB Time</button>'
       +'<button class="btn sm" id="saveTips">Save this store</button></div>'
-    +'<table><thead><tr><th>Employee</th><th class="r">PP1 Hrs</th><th class="r">PP2 Hrs</th><th class="r">Total</th><th class="r">Tips</th></tr></thead>'
-    +'<tbody>'+(rows||'<tr><td colspan="5" class="muted" style="padding:18px 6px">Run a report first.</td></tr>')+'</tbody></table>'
-    +'<div class="sub" style="margin-top:10px">Tips split by hours across each store’s pool for the pay period. Per-store pools roll up into the Summary tab’s Tips column.</div>'
+    +(sqs?'<div style="display:inline-flex;align-items:center;gap:8px;background:#EAF7EF;border:1px solid #BFE3CC;border-radius:999px;padding:6px 13px;font-family:Nunito;font-weight:800;font-size:.75rem;color:#1f7d45;margin-bottom:10px">⚡ Square: '+money(sqs.sum)+' in tips · '+sqs.days+' day'+(sqs.days===1?'':'s')+' through '+esc(sqs.last)+' — the pool updates automatically each morning</div>':'')
+    +'<table><thead><tr><th>Employee</th><th class="r">Hours · '+esc(STATE.tipsPeriod||'month')+'</th><th class="r">Tips</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="3" class="muted" style="padding:18px 6px">Run a report first.</td></tr>')+'</tbody></table>'
+    +'<div class="sub" style="margin-top:10px">One box per person — the whole month’s clocked hours, pre-filled from QuickBooks Time (PTO excluded). Adjust if needed, then Save. Tips split by hours across the store pool; pools roll up into the Summary tab’s Tips column.</div>'
     +'</div></div>';
-  const ensure=()=>{const d=STATE.tips[store]||{hours:{},pool:0};d.hours=Object.assign({},d.hours);STATE.tips[store]=d;return d;};
-  const setH=(name,pp,val)=>{const d=ensure();d.hours[name]=Object.assign({},d.hours[name],{[pp]:val});renderTips();};
-  $all('[data-tip]').forEach(inp=>inp.onchange=()=>setH(inp.getAttribute('data-tip'),inp.getAttribute('data-pp'),+inp.value));
+  const setH=(name,val)=>{const d=ensure();d.hours[name]={pp1:val};renderTips();};
+  $all('[data-tip]').forEach(inp=>inp.onchange=()=>setH(inp.getAttribute('data-tip'),+inp.value||0));
   const tp=$('#tipsPeriod');if(tp)tp.onchange=async()=>{STATE.tipsPeriod=tp.value;await loadTips();render();};
   const tpl=$('#tipsPool');if(tpl)tpl.onchange=()=>{ensure().pool=+tpl.value||0;renderTips();};
+  const qf=$('#qboFill');if(qf)qf.onclick=()=>{const d=ensure();emps.forEach(e=>{if(qbo[e.name]!=null)d.hours[e.name]={pp1:qbo[e.name]};});renderTips();};
   const sv=$('#saveTips');if(sv)sv.onclick=()=>saveTips(store);
 }
 async function saveTips(store){

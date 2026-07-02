@@ -169,6 +169,22 @@ archived month there shows the snapshot instead of recomputing: profile header s
 numbers, and the 12-month trend uses archived totals where they exist. The calculator
 itself always stays live — it *generates* payroll; the archive freezes what it produced.
 
+**Tips:** `commission_tips` (store, period 'YYYY-MM', pool, hours jsonb {name:{pp1}}) —
+tip share = (your hours / store hours) × store pool; consumers sum pp1+pp2 so legacy
+two-period rows still read. The calculator's Tips tab has **one hours box per person
+per month**, pre-filled from `qbtime_timesheets` (hourly-synced from QB Time; PTO
+jobcode seconds excluded) with a "↻ Refill from QB Time" overwrite button; number
+inputs are spinner-free site-wide on that page. The pool auto-feeds from Square:
+`tips_daily` (store, biz_date, amount; unique store+date; authenticated read,
+edge-function write) is filled by the **`square-tips` edge function** — `?action=pull`
+hits the Square Payments API per location (needs the `SQUARE_ACCESS_TOKEN` function
+secret; locations auto-matched to stores by name) via the `square-tips-daily` pg_cron
+(9:15 UTC, 3-day lookback), and `?action=ingest` accepts webhook JSON (Zapier/email
+parser) — both auth by `TIPS_SECRET`. Every write rolls the month up into
+`commission_tips`: pool = sum of the month's daily rows, hours refreshed from QB Time
+for that store's staff (manual extra names preserved) — so employees' dashboard tips
+update daily without manual entry.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);
