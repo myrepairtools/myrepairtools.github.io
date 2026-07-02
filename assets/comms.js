@@ -167,6 +167,39 @@
     });
   }
 
+  /* Reader modal — the one true way a post is opened (widget + page). Owns
+     mark-read and time-on-post: timer runs while the modal is open. */
+  var RD_TIMER=null;
+  function rdFlush(){ if(!RD_TIMER)return; var s=(Date.now()-RD_TIMER.started)/1000, id=RD_TIMER.id; RD_TIMER=null; if(s>=1)addSeconds(id,s); }
+  if(typeof document!=='undefined'){
+    root.addEventListener('pagehide',rdFlush);
+    document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden')rdFlush(); });
+  }
+  function escR(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function openReader(item,opts){
+    markRead(item.id); RD_TIMER={id:item.id,started:Date.now()};
+    var k=kindMeta(item.kind);
+    var d=new Date(item.created_at);
+    var when=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    var back=document.createElement('div');
+    back.style.cssText='position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2400;padding:20px';
+    back.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:88vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.3)">'
+      +'<div style="padding:18px 22px 0;display:flex;align-items:flex-start;gap:12px">'
+        +'<span style="font-size:1.6rem;line-height:1.2;flex:none">'+k.icon+'</span>'
+        +'<div style="flex:1;min-width:0"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.15rem;line-height:1.3;color:#2D2D3B">'+escR(item.title)+'</div>'
+        +'<div style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:2px 8px;color:'+k.color+';background:'+k.color+'20">'+k.label+'</span>'
+        +'<span style="font-size:.74rem;font-weight:700;color:#B9BDCB">'+escR(item.author)+' · '+when+'</span></div></div>'
+        +'<button data-rdx style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#B9BDCB;line-height:1;flex:none">×</button></div>'
+      +'<div style="padding:16px 22px 22px;font-family:\'Nunito Sans\',sans-serif;font-size:.95rem;line-height:1.65;color:#4E4E50">'
+        +(item.body?fmtBody(item.body):'<span style="color:#B9BDCB">No details.</span>')+'</div>'
+      +'</div>';
+    function close(){ rdFlush(); back.remove(); if(opts&&opts.onClose)opts.onClose(); }
+    back.addEventListener('click',function(e){ if(e.target===back)close(); });
+    back.querySelector('[data-rdx]').onclick=close;
+    document.body.appendChild(back);
+    return {close:close};
+  }
+
   root.CPRComms = { list:list, post:post, markRead:markRead, addSeconds:addSeconds, dismiss:dismiss, undismiss:undismiss, receipts:receipts, kindMeta:kindMeta,
-    fmtBody:fmtBody, toolbarHtml:toolbarHtml, wireToolbar:wireToolbar };
+    fmtBody:fmtBody, toolbarHtml:toolbarHtml, wireToolbar:wireToolbar, openReader:openReader };
 })(typeof window !== 'undefined' ? window : this);

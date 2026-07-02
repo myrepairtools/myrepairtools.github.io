@@ -81,12 +81,42 @@ var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec
 function fmtWhen(ts){var d=new Date(ts);return MONS[d.getMonth()]+' '+d.getDate()+', '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
 function fmtDur(sec){sec=Math.round(sec);if(sec<60)return sec+'s';var m=Math.floor(sec/60);return m+'m '+(sec%60)+'s';}
 
-var D=null, OPEN=null, RECEIPTS={}, SHOWR=null, TIMER=null;
-function flushTimer(){ if(!TIMER||!window.CPRComms)return; var s=(Date.now()-TIMER.started)/1000, id=TIMER.id; TIMER=null; if(s>=1)CPRComms.addSeconds(id,s); }
-window.addEventListener('pagehide',flushTimer);
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flushTimer();});
+var D=null, RECEIPTS={};
 
 function isMgr(){ return D && ['admin','owner','manager'].indexOf(D.myRole)>-1; }
+
+/* ---- read-receipts hover popover ---- */
+var RCPOP=null, RCHIDE=null;
+function hideRcPop(now){
+  clearTimeout(RCHIDE);
+  if(now){ if(RCPOP){RCPOP.remove();RCPOP=null;} return; }
+  RCHIDE=setTimeout(function(){ if(RCPOP){RCPOP.remove();RCPOP=null;} },220);
+}
+function rcRowsHtml(rc){
+  if(!rc)return '<div style="padding:8px;color:var(--grey);font-weight:700;font-size:.78rem">Loading…</div>';
+  return rc.rows.map(function(r){
+    var read=!!r.read_at;
+    return '<div class="rrow"><span class="av" style="background:'+(read?'#2E9E5B':'#cfd2dd')+'">'+esc(initials(r.name))+'</span>'
+      +'<span class="nm" style="color:'+(read?'var(--dark)':'var(--grey)')+'">'+esc(r.name)+'</span>'
+      +'<span class="tm">'+(read?('read '+fmtWhen(r.read_at)+(r.seconds>=1?' · '+fmtDur(r.seconds)+' on it':'')):'unread')+'</span></div>';
+  }).join('');
+}
+function showRcPop(btn,id){
+  clearTimeout(RCHIDE); hideRcPop(true);
+  var pop=document.createElement('div');
+  pop.style.cssText='position:fixed;z-index:2500;width:320px;max-height:320px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 14px 34px rgba(45,45,59,.24);padding:9px 12px';
+  pop.innerHTML='<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);margin-bottom:5px">Who’s read this</div>'+rcRowsHtml(RECEIPTS[id]);
+  document.body.appendChild(pop);
+  var r=btn.getBoundingClientRect(), vw=window.innerWidth, vh=window.innerHeight;
+  var left=Math.max(10,Math.min(r.left-140,vw-332));
+  var top=(r.bottom+330>vh)?(r.top-Math.min(320,pop.offsetHeight)-8):(r.bottom+6);
+  pop.style.left=left+'px'; pop.style.top=Math.max(10,top)+'px';
+  pop.addEventListener('mouseenter',function(){clearTimeout(RCHIDE);});
+  pop.addEventListener('mouseleave',function(){hideRcPop();});
+  RCPOP=pop;
+  if(!RECEIPTS[id]){ CPRComms.receipts(id).then(function(rc){ RECEIPTS[id]=rc;
+    if(RCPOP===pop)pop.innerHTML='<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);margin-bottom:5px">Who’s read this</div>'+rcRowsHtml(rc); }); }
+}
 
 function draw(){
   var feed=$('#feed');
@@ -94,7 +124,7 @@ function draw(){
   $('#newPost').style.display=isMgr()?'':'none';
   if(!D.items.length){ feed.innerHTML='<div class="empty">Nothing posted yet. Hit ＋ New post to start.</div>'; return; }
   feed.innerHTML=D.items.map(function(i){
-    var k=CPRComms.kindMeta(i.kind), open=OPEN===i.id;
+    var k=CPRComms.kindMeta(i.kind);
     var rc=RECEIPTS[i.id];
     var rcChip='';
     if(isMgr()){
@@ -102,7 +132,7 @@ function draw(){
       var all=rc&&rc.readCount>=rc.total;
       rcChip='<button class="rcount" data-rc="'+i.id+'" title="Who has read this" style="background:'+(rc?(all?'#E9F6EE':'#FBE9EA'):'var(--light-grey)')+';color:'+(rc?(all?'#1E7A45':'#B02329'):'var(--dark-grey)')+'">'+lbl+'</button>';
     }
-    var head='<div class="irow" data-row="'+i.id+'">'
+    return '<div class="item"><div class="irow" data-row="'+i.id+'">'
       +'<span class="iic">'+k.icon+'</span>'
       +(!i.read?'<span class="idot"></span>':'')
       +'<span class="ititle" style="font-weight:'+(i.read?'700':'900')+'">'+esc(i.title)+(i.dismissed?' <span style="font-size:.62rem;color:var(--grey);font-weight:700">(dismissed)</span>':'')+'</span>'
@@ -110,44 +140,27 @@ function draw(){
       +rcChip
       +'<span class="imeta">'+esc(fmtWhen(i.created_at))+'</span>'
       +(i.dismissed?'':'<button class="dismissbtn" data-x="'+i.id+'" title="Dismiss for me">✕</button>')
-      +'</div>';
-    var body='';
-    if(open){
-      body='<div class="ibody">'+(i.body?CPRComms.fmtBody(i.body):'<span style="color:var(--grey)">No details.</span>')
-        +'<div style="margin-top:5px;font-size:.7rem;color:var(--grey);font-weight:700">Posted by '+esc(i.author)+'</div></div>';
-      if(SHOWR===i.id&&rc){
-        body+='<div class="receipts">'+rc.rows.map(function(r){
-          var read=!!r.read_at;
-          return '<div class="rrow"><span class="av" style="background:'+(read?'#2E9E5B':'#cfd2dd')+'">'+esc(initials(r.name))+'</span>'
-            +'<span class="nm" style="color:'+(read?'var(--dark)':'var(--grey)')+'">'+esc(r.name)+'</span>'
-            +'<span class="tm">'+(read?('read '+fmtWhen(r.read_at)+(r.seconds>=1?' · '+fmtDur(r.seconds)+' on it':'')):'unread')+'</span></div>';
-        }).join('')+'</div>';
-      }
-    }
-    return '<div class="item"'+(open?' style="background:#FBFCFE"':'')+'>'+head+body+'</div>';
+      +'</div></div>';
   }).join('');
-  // wiring
+  // wiring: click a row -> reader modal; hover the counter -> receipts popover
   feed.querySelectorAll('[data-row]').forEach(function(r){ r.onclick=function(ev){
     if(ev.target.closest('[data-x],[data-rc]'))return;
     var id=Number(r.getAttribute('data-row'));
-    flushTimer();
-    if(OPEN===id){ OPEN=null; SHOWR=null; }
-    else{ OPEN=id; SHOWR=null; TIMER={id:id,started:Date.now()};
-      CPRComms.markRead(id); var it=D.items.find(function(x){return x.id===id;}); if(it)it.read=true; }
-    draw();
+    var it=D.items.find(function(x){return x.id===id;}); if(!it)return;
+    CPRComms.openReader(it,{onClose:function(){ if(!it.read){it.read=true;} draw(); }});
+    it.read=true;
   };});
   feed.querySelectorAll('[data-x]').forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation();
-    var id=Number(b.getAttribute('data-x')); if(TIMER&&TIMER.id===id)flushTimer();
+    var id=Number(b.getAttribute('data-x'));
     CPRComms.dismiss(id); var it=D.items.find(function(x){return x.id===id;}); if(it){it.dismissed=true;it.read=true;}
-    if(OPEN===id){OPEN=null;SHOWR=null;} draw(); toast('Dismissed from your widget');
+    draw(); toast('Dismissed from your widget');
   };});
-  feed.querySelectorAll('[data-rc]').forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation();
+  feed.querySelectorAll('[data-rc]').forEach(function(b){
     var id=Number(b.getAttribute('data-rc'));
-    if(SHOWR===id){ SHOWR=null; draw(); return; }
-    OPEN=id; SHOWR=id;
-    if(RECEIPTS[id]){ draw(); return; }
-    CPRComms.receipts(id).then(function(rc){ RECEIPTS[id]=rc; draw(); });
-  };});
+    b.addEventListener('mouseenter',function(){ showRcPop(b,id); });
+    b.addEventListener('mouseleave',function(){ hideRcPop(); });
+    b.onclick=function(ev){ ev.stopPropagation(); if(RCPOP)hideRcPop(true); else showRcPop(b,id); };   // touch devices
+  });
 }
 
 function loadReceiptCounts(){
