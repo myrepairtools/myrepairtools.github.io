@@ -570,25 +570,45 @@ function loadAudit(){
     });
   });
 }
+var AU_SHOW_DELETED=false;
+function auLogRow(a,osBy){
+  var closed=a.status==='closed', del=a.status==='deleted';
+  var os=(closed||del)?(osBy[a.id]||0):null;
+  var osHtml=(os!=null)?('<span style="font-family:Nunito;font-weight:800;color:'+(Math.abs(os)<0.005?'var(--green)':'var(--red)')+'">'+money(os)+'</span>'):'—';
+  var dep=(closed||del)?money(num(a.bank_deposit)+num(a.small_to_bank)):'—';
+  var pill=del?('<span class="aupill" style="color:#8a909e;background:var(--light-grey)">Deleted '+String(a.deleted_at||'').slice(0,10)+'</span>')
+    :(closed?('<span class="aupill closed">Closed '+String(a.closed_at||'').slice(0,10)+'</span>'):'<span class="aupill draft">Draft</span>');
+  return '<tr class="aurow-clk" data-aid="'+a.id+'"'+(del?' style="opacity:.55"':'')+'>'
+    +'<td><b style="font-family:Nunito">'+fmtRange(a.period_start,a.period_end)+'</b></td>'
+    +'<td>'+pill+'</td>'
+    +'<td>'+ (del?((a.deleted_by||'—')+' <span class="muted" style="font-weight:600">deleted it</span>'):(closed?(a.confirmed_by||a.auditor||'—'):(a.auditor||'—'))) +'</td>'
+    +'<td class="num">'+osHtml+'</td>'
+    +'<td class="num">'+dep+'</td>'
+    +'<td class="num" style="color:var(--grey)">›</td></tr>';
+}
 function renderAuditLog(osBy){
-  if(!AUDIT.list.length){$('#auLogBody').innerHTML='<tr><td colspan="6" class="muted" style="padding:14px">No audits yet — hit ＋ New Audit to run the first one.</td></tr>';return;}
-  $('#auLogBody').innerHTML=AUDIT.list.map(function(a){
-    var closed=a.status==='closed';
-    var os=closed?(osBy[a.id]||0):null;
-    var osHtml=closed?('<span style="font-family:Nunito;font-weight:800;color:'+(Math.abs(os)<0.005?'var(--green)':'var(--red)')+'">'+money(os)+'</span>'):'—';
-    var dep=closed?money(num(a.bank_deposit)+num(a.small_to_bank)):'—';
-    return '<tr class="aurow-clk" data-aid="'+a.id+'">'
-      +'<td><b style="font-family:Nunito">'+fmtRange(a.period_start,a.period_end)+'</b></td>'
-      +'<td><span class="aupill '+(closed?'closed':'draft')+'">'+(closed?'Closed '+String(a.closed_at||'').slice(0,10):'Draft')+'</span></td>'
-      +'<td>'+ (closed?(a.confirmed_by||a.auditor||'—'):(a.auditor||'—')) +'</td>'
-      +'<td class="num">'+osHtml+'</td>'
-      +'<td class="num">'+dep+'</td>'
-      +'<td class="num" style="color:var(--grey)">›</td></tr>';
-  }).join('');
+  var live=AUDIT.list.filter(function(a){return a.status!=='deleted';});
+  var dels=AUDIT.list.filter(function(a){return a.status==='deleted';});
+  var html='';
+  if(!live.length&&!dels.length)html='<tr><td colspan="6" class="muted" style="padding:14px">No audits yet — hit ＋ New Audit to run the first one.</td></tr>';
+  else html=live.map(function(a){return auLogRow(a,osBy);}).join('');
+  if(dels.length){
+    html+='<tr><td colspan="6" style="padding:8px 10px"><button id="auShowDel" style="border:none;background:none;cursor:pointer;font-family:Nunito;font-weight:800;font-size:.72rem;color:var(--grey)">'+(AU_SHOW_DELETED?'▾ Hide':'▸ Show')+' '+dels.length+' deleted audit'+(dels.length===1?'':'s')+'</button></td></tr>';
+    if(AU_SHOW_DELETED)html+=dels.map(function(a){return auLogRow(a,osBy);}).join('');
+  }
+  $('#auLogBody').innerHTML=html;
+  var sd=$('#auShowDel');if(sd)sd.onclick=function(e){e.stopPropagation();AU_SHOW_DELETED=!AU_SHOW_DELETED;renderAuditLog(osBy);};
   $all('#auLogBody .aurow-clk').forEach(function(tr){tr.onclick=function(){
     var a=AUDIT.list.filter(function(x){return String(x.id)===tr.dataset.aid;})[0]; if(!a)return;
     if(a.status==='draft') openWork(a); else openDetail(a);
   };});
+}
+/* audit history events (edit_log jsonb on the header) */
+function auEvent(action){return {action:action,by:(AUTH?AUTH.name:''),at:new Date().toISOString()};}
+function auEventLabel(ev){
+  var L={finalized:'✓ Finalized',reopened:'✎ Reopened for editing',deleted:'🗑 Deleted',restored:'↩ Restored'};
+  var when=new Date(ev.at);
+  return (L[ev.action]||ev.action)+' by <b>'+(ev.by||'—')+'</b> · '+when.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 }
 /* ---- New Audit ---- */
 $('#auNewBtn').onclick=function(){
@@ -899,8 +919,9 @@ async function finalizeAudit(counts,depBank,depSB,depSL){
   var row=AUDIT.row, now=new Date().toISOString();
   var rows=carryRows(counts,depBank,depSB,depSL);
   var days=collectEnvDays();
+  var log=(row.edit_log||[]).concat([auEvent('finalized')]);
   var up=await sb.from('cash_audits').update({status:'closed',closed_at:now,auditor:(AUTH?AUTH.name:row.auditor),
-    confirmed_by:(AUTH?AUTH.name:''),confirmed_at:now,
+    confirmed_by:(AUTH?AUTH.name:''),confirmed_at:now,edit_log:log,
     bank_deposit:depBank,small_to_bank:depSB,small_to_large:depSL,
     repairq_sales:num($('#auRQ').value),petty_cash:num($('#auPetty').value)}).eq('id',row.id);
   if(up.error)throw up.error;
@@ -930,13 +951,20 @@ async function openDetail(row){
   var envRows=days.filter(function(r){return r.day!=null;});
   var envTotal=0;envRows.forEach(function(r){envTotal+=num(r.total);});
   var smallRow=days.filter(function(r){return r.day==null;})[0];
+  var isDel=row.status==='deleted';
+  var log=(row.edit_log||[]).slice();
+  if(!log.length&&row.confirmed_at)log=[{action:'finalized',by:row.confirmed_by||row.auditor,at:row.confirmed_at}];
+  var histHtml=log.length?log.map(function(ev){return '<div class="rl" style="padding:3px 0"><span>'+auEventLabel(ev)+'</span><span></span></div>';}).join('')
+    :'<div class="muted" style="font-weight:600">No history recorded.</div>';
   host.innerHTML=''
-    +'<div class="card" style="border-top-color:var(--green)">'
+    +'<div class="card" style="border-top-color:'+(isDel?'var(--grey)':'var(--green)')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
-        +'<h2 style="margin:0">'+shortStore(row.store)+' · '+fmtRange(row.period_start,row.period_end)+'</h2>'
+        +'<h2 style="margin:0">'+shortStore(row.store)+' · '+fmtRange(row.period_start,row.period_end)
+        +(isDel?' <span class="aupill" style="color:#8a909e;background:var(--light-grey);vertical-align:middle">Deleted</span>':'')+'</h2>'
         +'<button class="btn alt sm" id="adBack">‹ Back to audits</button></div>'
+      +(isDel?'<p class="hint" style="color:var(--red)">Deleted by '+(row.deleted_by||'—')+' on '+String(row.deleted_at||'').slice(0,10)+'. Its balances no longer carry forward — restore it to bring it back.</p>':'')
       +'<div class="recon" style="padding:12px 0 0">'
-        +'<div class="rl"><span>Status</span><span>Closed '+String(row.closed_at||'').slice(0,10)+'</span></div>'
+        +'<div class="rl"><span>Status</span><span>'+(isDel?'Deleted':'Closed '+String(row.closed_at||'').slice(0,10))+'</span></div>'
         +'<div class="rl"><span>Completed by</span><span>'+(row.auditor||'—')+'</span></div>'
         +'<div class="rl"><span>Starting balances confirmed by</span><span>'+(row.confirmed_by||'—')+(row.confirmed_at?(' · '+String(row.confirmed_at).slice(0,10)):'')+'</span></div>'
         +'<div class="rl"><span>Over / short</span><span class="'+(Math.abs(os)<0.005?'ok':'bad')+'">'+money(os)+'</span></div>'
@@ -955,17 +983,38 @@ async function openDetail(row){
         +envRows.map(function(r){return '<tr><td>'+String(r.day).slice(5)+'</td><td class="num bal">'+money(r.total)+'</td><td class="num">'+(r.c100||'')+'</td><td class="num">'+(r.c50||'')+'</td><td class="num">'+(r.c20||'')+'</td><td class="num">'+(r.c10||'')+'</td><td class="num">'+(r.c5||'')+'</td><td class="num">'+(r.c1||'')+'</td></tr>';}).join('')
         +'</tbody></table></div>'):'')
     +'</div>'
-    +'<div class="save-row"><button class="btn alt sm" id="adDelete" style="color:var(--red)">Delete this audit</button></div>';
+    +'<div class="card"><h2>History</h2>'+histHtml+'</div>'
+    +'<div class="save-row">'
+      +(isDel?'<button class="btn" id="adRestore">↩ Restore this audit</button>'
+        :'<button class="btn alt sm" id="adEdit">✎ Edit this audit</button><button class="btn alt sm" id="adDelete" style="color:var(--red)">Delete this audit</button>')
+    +'</div>';
   $('#adBack').onclick=loadAudit;
-  $('#adDelete').onclick=function(){ deleteAudit(row); };
+  if($('#adEdit'))$('#adEdit').onclick=function(){ editAudit(row); };
+  if($('#adDelete'))$('#adDelete').onclick=function(){ deleteAudit(row); };
+  if($('#adRestore'))$('#adRestore').onclick=function(){ restoreAudit(row); };
 }
+/* reopen a closed audit for editing — logged, then it goes back through Finalize */
+async function editAudit(row){
+  if(!confirm('Reopen the '+fmtRange(row.period_start,row.period_end)+' audit for editing?\n\nYou\'ll re-finalize it when done — the reopen and the new finalize are both logged with your name, and the carry-forward (the next audit\'s opening balances) is recalculated.'))return;
+  var log=(row.edit_log||[]).concat([auEvent('reopened')]);
+  var up=await sb.from('cash_audits').update({status:'draft',edit_log:log}).eq('id',row.id).select('*').single();
+  if(up.error){toast(up.error.message,true);return;}
+  toast('Reopened for editing'); openWork(up.data);
+}
+/* soft delete: the audit and every count stays in the database, marked with who deleted it */
 async function deleteAudit(row){
-  if(!confirm('Delete the '+fmtRange(row.period_start,row.period_end)+' audit for '+shortStore(row.store)+'?\n\nThis removes its counts and carry-forward. The audit before it becomes the source of opening balances again.'))return;
-  await sb.from('cash_audit_locations').delete().eq('audit_id',row.id);
-  await sb.from('cash_audit_days').delete().eq('audit_id',row.id);
-  var d=await sb.from('cash_audits').delete().eq('id',row.id);
+  if(!confirm('Delete the '+fmtRange(row.period_start,row.period_end)+' audit for '+shortStore(row.store)+'?\n\nIt keeps all its data and is logged as deleted by '+(AUTH?AUTH.name:'you')+' — you can restore it later from the audit list. Its balances stop carrying forward.'))return;
+  var log=(row.edit_log||[]).concat([auEvent('deleted')]);
+  var d=await sb.from('cash_audits').update({status:'deleted',deleted_by:(AUTH?AUTH.name:''),deleted_at:new Date().toISOString(),edit_log:log}).eq('id',row.id);
   if(d.error){toast(d.error.message,true);return;}
-  toast('Audit deleted'); loadAudit();
+  toast('Audit deleted — recoverable from the list'); loadAudit();
+}
+async function restoreAudit(row){
+  if(!confirm('Restore the '+fmtRange(row.period_start,row.period_end)+' audit? Its balances will carry forward again.'))return;
+  var log=(row.edit_log||[]).concat([auEvent('restored')]);
+  var d=await sb.from('cash_audits').update({status:'closed',deleted_by:null,deleted_at:null,edit_log:log}).eq('id',row.id);
+  if(d.error){toast(d.error.message,true);return;}
+  toast('Audit restored'); loadAudit();
 }
 $('#largeHead').onclick=function(){
   var hidden=$('#largeBody').classList.toggle('hide');
