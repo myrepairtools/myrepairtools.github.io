@@ -24,6 +24,12 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;padding:8px 16px;border-radius:8px;background:none;border:none;color:#D5D8E0;cursor:pointer}
 .tab.on{background:#fff;color:var(--dark);font-weight:900}
 .status{margin-left:auto;font-size:.74rem;color:var(--grey);font-weight:700}
+/* month navigator: ‹ [Month YYYY ▾] › — label drops the CPRPickers month grid */
+.mnav{display:inline-flex;align-items:center;gap:5px}
+.mnav .marr{width:34px;height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey);line-height:1}
+.mnav .marr:disabled{opacity:.35;cursor:default}
+.mnav .mlbl{height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark);padding:0 14px;white-space:nowrap}
+.mnav .mlbl.past{border-color:#F3DBB4;background:#FFF8EE;color:#8a5a00}
 /* cards */
 .card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);margin-bottom:16px;overflow:hidden}
 .card-hd{display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid var(--border)}
@@ -154,6 +160,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
       <button class="tab" data-t="board">Scoreboard</button>
       <button class="tab" data-t="how">How it works</button>
     </div>
+    <span class="mnav"><button class="marr" id="mPrev" title="Previous month">‹</button><button class="mlbl" id="monthPick"></button><button class="marr" id="mNext" title="Next month">›</button></span>
     <span class="status" id="status"></span>
   </div>
 
@@ -210,8 +217,7 @@ async function currentStaff(){
 
 /* ---- config (shared with the calculator) ---- */
 async function loadConfig(){
-  const curMonthISO=(function(){const n=new Date();return n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-01';})();
-  const [rt,rl,rs,st,rr,pm,rp,ro,so,sch,mg]=await Promise.all([
+  const [rt,rl,rs,st,rr,pm,rp,ro,so,sch]=await Promise.all([
     sb.from('commission_rates').select('*').order('sort'),
     sb.from('commission_rules').select('*'),
     sb.from('commission_roster').select('*'),
@@ -221,11 +227,8 @@ async function loadConfig(){
     sb.from('role_permissions').select('role_id,permission_id'),
     sb.from('commission_role_overrides').select('*'),
     sb.from('stores').select('store,display_order'),
-    sb.from('staff_schedule').select('staff_id,work_days'),
-    sb.from('commission_goals').select('*').eq('month',curMonthISO)
+    sb.from('staff_schedule').select('staff_id,work_days')
   ]);
-  STATE.monthGoals={};STATE.monthGoalRows={};
-  ((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoalRows[g.staff_id]=g;if(g.accy_goal!=null)STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
   STATE.storeOrder={};(so&&so.data||[]).forEach(s=>{STATE.storeOrder[s.store]=s.display_order==null?9990:s.display_order;});
   STATE.schedule={};(sch&&sch.data||[]).forEach(r=>{STATE.schedule[r.staff_id]=Array.isArray(r.work_days)?r.work_days:[];});
   STATE.rates={};STATE.rateLabels={};
@@ -241,18 +244,44 @@ async function loadConfig(){
   STATE.roleOver={};(ro.data||[]).forEach(x=>{const rk=roleKeyById[x.role_id];if(rk)STATE.roleOver[rk]={rules:x.rules||{},rates:x.rates||{}};});
 }
 
-/* ---- month range ---- */
+/* ---- month range: the viewed month (employees can browse past months) ---- */
 function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-function monthInfo(){const n=new Date(),y=n.getFullYear(),m=n.getMonth();
-  return {start:iso(new Date(y,m,1)),end:iso(n),period:y+'-'+('0'+(m+1)).slice(-2),
-    dayOfMonth:n.getDate(),daysInMonth:new Date(y,m+1,0).getDate(),
-    label:n.toLocaleString('en-US',{month:'long',year:'numeric'})};}
+const som=d=>new Date(d.getFullYear(),d.getMonth(),1);
+let VIEWM=(function(){
+  const now=som(new Date());
+  try{const s=sessionStorage.getItem('cprComDashMonth');if(s){const p=s.split('-').map(Number);const d=new Date(p[0],p[1]-1,1);if(!isNaN(d)&&d<=now)return d;}}catch(e){}
+  return now;
+})();
+function isCurMonth(){const n=new Date();return VIEWM.getFullYear()===n.getFullYear()&&VIEWM.getMonth()===n.getMonth();}
+function monthInfo(){const n=new Date(),y=VIEWM.getFullYear(),m=VIEWM.getMonth(),cur=isCurMonth();
+  const dim=new Date(y,m+1,0).getDate();
+  return {start:iso(new Date(y,m,1)),end:iso(cur?n:new Date(y,m,dim)),period:y+'-'+('0'+(m+1)).slice(-2),
+    dayOfMonth:cur?n.getDate():dim,daysInMonth:dim,cur,
+    monISO:y+'-'+('0'+(m+1)).slice(-2)+'-01',
+    label:VIEWM.toLocaleString('en-US',{month:'long',year:'numeric'}),
+    mon:VIEWM.toLocaleString('en-US',{month:'long'})};}
+function setMonth(d){
+  const now=som(new Date());
+  if(som(d)>now){toast('That month hasn’t happened yet');return;}
+  VIEWM=som(d);
+  try{sessionStorage.setItem('cprComDashMonth',iso(VIEWM));}catch(e){}
+  STATE.board=null;loadTarget();
+}
+function renderMonthNav(){
+  const mi=monthInfo();
+  const lbl=$('#monthPick');if(!lbl)return;
+  lbl.textContent=mi.label+' ▾';lbl.classList.toggle('past',!mi.cur);
+  lbl.title=mi.cur?'Pick a month to see past commissions & goals':'Viewing a past month';
+  $('#mNext').disabled=mi.cur;
+}
 
-/* work-day pace: an employee's scheduled work days elapsed vs total this month.
-   work_days = weekday ints [0..6] (0=Sun). Falls back to calendar days if unset. */
+/* work-day pace: an employee's scheduled work days elapsed vs total in the viewed
+   month (a past month is fully elapsed). work_days = weekday ints [0..6] (0=Sun).
+   Falls back to calendar days if unset. */
 function workDayInfo(staffId){
   const arr=(STATE.schedule&&STATE.schedule[staffId])||null;
-  const n=new Date(),y=n.getFullYear(),m=n.getMonth(),today=n.getDate(),dim=new Date(y,m+1,0).getDate();
+  const y=VIEWM.getFullYear(),m=VIEWM.getMonth(),dim=new Date(y,m+1,0).getDate();
+  const today=isCurMonth()?(new Date()).getDate():dim;
   if(!arr||!arr.length)return {elapsed:today,total:dim,left:Math.max(0,dim-today),sched:false};
   const set=new Set(arr);let el=0,tot=0;
   for(let d=1;d<=dim;d++){const wd=new Date(y,m,d).getDay();if(set.has(wd)){tot++;if(d<=today)el++;}}
@@ -295,26 +324,36 @@ function tipFor(name){let total=0;for(const store in STATE.tips){const d=STATE.t
   const h=hrs[name]||{},my=(+h.pp1||0)+(+h.pp2||0);if(totHrs>0&&my>0)total+=(my/totHrs)*pool;}
   return total;}
 
+/* ---- month goals for the viewed month (drives effFor + the Goals tab) ---- */
+async function loadMonthGoals(){
+  const mi=monthInfo();
+  const mg=await sb.from('commission_goals').select('*').eq('month',mi.monISO);
+  STATE.monthGoals={};STATE.monthGoalRows={};
+  ((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoalRows[g.staff_id]=g;if(g.accy_goal!=null)STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
+}
+
 /* ---- load + compute for the current target ---- */
 async function loadTarget(){
   const mi=monthInfo(), t=STATE.target;
+  renderMonthNav();
   $('#status').textContent='Loading…';
+  await loadMonthGoals();
   const sales=await sb.from('commission_sales').select('*').eq('staff_id',t.id).gte('biz_date',mi.start).lte('biz_date',mi.end);
   const totals=blankTotals();(sales.data||[]).forEach(r=>addInto(totals,r));
   const tp=await sb.from('commission_tips').select('*').eq('period',mi.period);
   STATE.tips={};(tp.data||[]).forEach(x=>{STATE.tips[x.store]={hours:x.hours||{},pool:Number(x.pool)||0};});
   const cfg=effFor(t);
   const c=E.computeCommission(totals,{accessoryGoal:cfg.goal,accDeviceUnits:totals.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
-  // trailing 12 months: aggregate per month, run the engine with current config
-  const h0=new Date();h0.setDate(1);h0.setMonth(h0.getMonth()-11);
+  // trailing 12 months ending at the viewed month: aggregate per month, run the engine with current config
+  const h0=new Date(VIEWM.getFullYear(),VIEWM.getMonth()-11,1);
   const hist=await sb.from('commission_sales').select('*').eq('staff_id',t.id).gte('biz_date',iso(h0)).lte('biz_date',mi.end);
   const byMon={};(hist.data||[]).forEach(r=>{const k=String(r.biz_date).slice(0,7);(byMon[k]=byMon[k]||blankTotals());addInto(byMon[k],r);});
   const months=[];for(let i=0;i<12;i++){const d=new Date(h0.getFullYear(),h0.getMonth()+i,1);const k=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
     const tt=byMon[k]||blankTotals();const cc=E.computeCommission(tt,{accessoryGoal:cfg.goal,accDeviceUnits:tt.DeviceAttach,rates:cfg.rates,earns:cfg.earns,rules:cfg.rules});
     months.push({key:k,label:d.toLocaleString('en-US',{month:'short'}),total:cc.total});}
-  const pd=new Date();pd.setDate(1);pd.setMonth(pd.getMonth()-1);
+  const pd=new Date(VIEWM.getFullYear(),VIEWM.getMonth()-1,1);
   const prevKey=pd.getFullYear()+'-'+('0'+(pd.getMonth()+1)).slice(-2);
-  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months,wd:workDayInfo(t.id),prevTotals:byMon[prevKey]||blankTotals()};
+  STATE.calc={totals,cfg,c,tip:tipFor(t.display_name),mi,months,wd:workDayInfo(t.id),prevTotals:byMon[prevKey]||blankTotals(),prevTotal:(months[10]||{}).total||0};
   $('#status').textContent='';
   renderHeader();render();
 }
@@ -353,10 +392,12 @@ function renderOverview(){
 
   const kpi=(cls,l,v,s)=>'<div class="kpi '+cls+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>';
   const kpis='<div class="kpis">'
-    +kpi('k-total','Earned this month',money(c.total),'commission · MTD'+(tip>0?' · +'+money(tip)+' tips':''))
-    +kpi('k-dark','On pace for',money0(proj),'projected month-end')
-    +kpi('k-amber','Left on the table',money0(upside),'still unlockable')
-    +kpi('k-blue','Accessory sales',money0(t.NetAccySales),cfg.goal?'toward your '+money0(cfg.goal)+' goal':'net accessory $')
+    +kpi('k-total',mi.cur?'Earned this month':'Earned in '+esc(mi.mon),money(c.total),'commission · '+(mi.cur?'MTD':'final')+(tip>0?' · +'+money(tip)+' tips':''))
+    +(mi.cur
+      ?kpi('k-dark','On pace for',money0(proj),'projected month-end')
+      :kpi('k-dark','Month before',money0(STATE.calc.prevTotal),'for comparison'))
+    +kpi('k-amber','Left on the table',money0(upside),mi.cur?'still unlockable':'went unclaimed')
+    +kpi('k-blue','Accessory sales',money0(t.NetAccySales),cfg.goal?'toward '+(mi.cur?'your ':'the ')+money0(cfg.goal)+' goal':'net accessory $')
     +'</div>';
 
   // unlocked
@@ -439,9 +480,10 @@ function renderOverview(){
 
   // trend
   const best=months.reduce((a,b)=>b.total>a.total?b:a,{total:0,label:''});
-  const trend='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Commission — trailing 12 months</span></div><div class="card-bd">'
+  const trend='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Commission — 12 months to '+esc(mi.mon)+'</span></div><div class="card-bd">'
     +trendSvg(months)
-    +'<div style="font-size:.78rem;color:var(--dark-grey);margin-top:6px">Best month: <b>'+money0(best.total)+'</b>'+(best.label?' ('+esc(best.label)+')':'')+' · projecting <b style="color:var(--blue)">'+money0(proj)+'</b> this month</div></div></div>';
+    +'<div style="font-size:.78rem;color:var(--dark-grey);margin-top:6px">Best month: <b>'+money0(best.total)+'</b>'+(best.label?' ('+esc(best.label)+')':'')
+    +(mi.cur?' · projecting <b style="color:var(--blue)">'+money0(proj)+'</b> this month':' · <b style="color:var(--blue)">'+money0(c.total)+'</b> in '+esc(mi.label))+'</div></div></div>';
 
   $('#view-overview').innerHTML=kpis+unlockCard+minis+'<div class="twocol">'+catCard+svcCard+'</div>'+trend;
 }
@@ -488,13 +530,19 @@ function renderGoals(){
   const ifGoals=ifAccy+(earns.device?c.devComm*pf:0)+(c.repairComm*pf);
   const heroUpside=Math.max(0,ifGoals-proj);
 
-  let body='<div class="ghero"><div class="gh1">'+esc(first)+', you’re on pace for</div>'
+  let body=mi.cur
+    ?('<div class="ghero"><div class="gh1">'+esc(first)+', you’re on pace for</div>'
     +'<div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap"><div class="gbig">'+money0(proj)+'</div><div style="padding-bottom:6px;font-size:.95rem;font-weight:700;opacity:.92">this month in commission</div></div>'
     +'<div class="grow"><div><div class="gst">Earned so far</div><div class="gsv">'+money(c.total)+'</div></div>'
     +'<div class="sep"><div class="gst">If you hit every tier</div><div class="gsv">'+money0(ifGoals)+'</div></div>'
-    +'<div class="sep"><div class="gst">Upside left</div><div class="gsv">+'+money0(heroUpside)+'</div></div></div></div>';
+    +'<div class="sep"><div class="gst">Upside left</div><div class="gsv">+'+money0(heroUpside)+'</div></div></div></div>')
+    :('<div class="ghero"><div class="gh1">'+esc(first)+', in '+esc(mi.label)+' you earned</div>'
+    +'<div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap"><div class="gbig">'+money(c.total)+'</div><div style="padding-bottom:6px;font-size:.95rem;font-weight:700;opacity:.92">in commission</div></div>'
+    +'<div class="grow"><div><div class="gst">If every tier had hit</div><div class="gsv">'+money0(ifGoals)+'</div></div>'
+    +'<div class="sep"><div class="gst">Left on the table</div><div class="gsv">'+money0(heroUpside)+'</div></div>'
+    +'<div class="sep"><div class="gst">Month before</div><div class="gsv">'+money0(STATE.calc.prevTotal)+'</div></div></div></div>');
 
-  if(earns.accessory){
+  if(earns.accessory&&mi.cur){
     body+='<div class="callout"><div class="cn">'+money0(upside)+'</div><div class="ct">in <b style="color:var(--dark)">unclaimed commission</b> on accessories you’ve <b>already sold</b> this month — clear the next attach/goal threshold and it’s yours.</div></div>';
     const daysLeft=wd.left;
     const need=Math.max(0,(cfg.goal||0)-(t.NetAccySales||0));
@@ -551,7 +599,7 @@ function renderGoals(){
       (c.gateMet?(gap<=0?'Attach requirement met — your device bonus (+'+pct(R.devAttachPct)+' and the volume tiers) is unlocked.':'Sell '+gap+' more accessor'+(gap===1?'y':'ies')+' on device tickets to hit '+pct(R.devAttachReq)+' attach and unlock +'+pct(R.devAttachPct)+'.'):'Clear the '+R.dev1Count+'-device gate first — then '+need+' accessor'+(need===1?'y':'ies')+' on device tickets unlocks the attach bonus.'),'var(--red)');}
   if(earns.services){const svcGoal=20,svcRate=(function(){for(const k in cfg.rates){const r=cfg.rates[k];return (r&&typeof r==='object')?(r.lo||r.hi||0):(Number(r)||0);}return 10;})();
     goals+=goalRow('Services',c.svcUnits,svcGoal,c.svcUnits+' / Goal '+svcGoal,(c.svcUnits>=svcGoal?'Service goal hit.':Math.max(0,svcGoal-c.svcUnits)+' more services ≈ +'+money0(Math.max(0,svcGoal-c.svcUnits)*svcRate)),'var(--purple)');}
-  if(goals)body+='<div class="card acc-green"><div class="card-hd"><span class="card-t">Your goals this month</span></div><div class="card-bd" style="display:flex;flex-direction:column;gap:16px">'+goals+'</div></div>';
+  if(goals)body+='<div class="card acc-green"><div class="card-hd"><span class="card-t">'+(mi.cur?'Your goals this month':'Your goals · '+esc(mi.label))+'</span></div><div class="card-bd" style="display:flex;flex-direction:column;gap:16px">'+goals+'</div></div>';
   // meeting targets: what was agreed in the monthly 1:1 (commission_goals row), with live progress
   const mrow=STATE.monthGoalRows&&STATE.monthGoalRows[STATE.target.id];
   if(mrow){
@@ -571,14 +619,18 @@ function renderGoals(){
       +(mrow.note?'<div style="background:var(--light-grey);border-radius:9px;padding:10px 13px;font-size:.84rem;color:var(--dark-grey)"><b style="font-family:Nunito">From your check-in:</b> '+esc(mrow.note)+'</div>':'')
       +mg2+'</div></div>';
   }
-  // monthly goal review — managers set targets right here during the 1:1
-  const nm=new Date();nm.setDate(1);nm.setMonth(nm.getMonth()+1);const nextMonth=nm.toLocaleString('en-US',{month:'long',year:'numeric'});
+  // monthly goal review — managers set targets right here during the 1:1 (current month only)
   const isMgrViewer=STATE.me&&MGR(STATE.me.role);
-  body+='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Monthly goal review</span></div><div class="card-bd"><div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
-    +'<div style="flex:1;min-width:240px;font-size:.86rem;color:var(--dark-grey);line-height:1.5">'
-    +(isMgrViewer?('Set '+esc(STATE.target.display_name.split(' ')[0])+'’s targets for '+esc(mi.label)+' or lock in '+esc(nextMonth)+' — accessory $, devices, attach %, categories and services.')
-      :('Your monthly check-in: review how '+esc(mi.label)+' is going and set '+esc(nextMonth)+'’s targets together with your manager.'))+'</div>'
-    +'<button class="btn" id="reviewGoals">'+(isMgrViewer?'🎯 Set goals':'Review & set goals')+'</button></div></div></div>';
+  if(mi.cur){
+    const nm=new Date();nm.setDate(1);nm.setMonth(nm.getMonth()+1);const nextMonth=nm.toLocaleString('en-US',{month:'long',year:'numeric'});
+    body+='<div class="card acc-blue"><div class="card-hd"><span class="card-t">Monthly goal review</span></div><div class="card-bd"><div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:240px;font-size:.86rem;color:var(--dark-grey);line-height:1.5">'
+      +(isMgrViewer?('Set '+esc(STATE.target.display_name.split(' ')[0])+'’s targets for '+esc(mi.label)+' or lock in '+esc(nextMonth)+' — accessory $, devices, attach %, categories and services.')
+        :('Your monthly check-in: review how '+esc(mi.label)+' is going and set '+esc(nextMonth)+'’s targets together with your manager.'))+'</div>'
+      +'<button class="btn" id="reviewGoals">'+(isMgrViewer?'🎯 Set goals':'Review & set goals')+'</button></div></div></div>';
+  }else if(!STATE.monthGoalRows[STATE.target.id]){
+    body+='<div class="card acc-blue"><div class="card-bd" style="font-size:.86rem;color:var(--dark-grey)">No meeting targets were set for '+esc(mi.label)+'.</div></div>';
+  }
   $('#view-goals').innerHTML=body;
   const rg=$('#reviewGoals');if(rg)rg.onclick=()=>{ if(isMgrViewer) openGoalEditor(); else toast('Goals are set together with your manager at your monthly check-in'); };
 }
@@ -676,11 +728,7 @@ function stashGoalInputs(){
   GM.rows[GM.monthISO]=row;
 }
 async function afterGoalChange(){
-  // refresh the current-month goal maps + recompute (the accy goal gates the bonus)
-  const curISO=(function(){const n=new Date();return n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-01';})();
-  const mg=await sb.from('commission_goals').select('*').eq('month',curISO);
-  STATE.monthGoals={};STATE.monthGoalRows={};
-  ((mg&&mg.data)||[]).forEach(g=>{STATE.monthGoalRows[g.staff_id]=g;if(g.accy_goal!=null)STATE.monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
+  // reload the viewed month's goal maps + recompute (the accy goal gates the bonus)
   STATE.board=null;
   await loadTarget();
 }
@@ -733,7 +781,7 @@ function renderBoard(){
     +'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
     +'<div style="text-align:center;flex:none;padding-right:20px;border-right:1px solid var(--border)"><div style="font-family:Nunito;font-weight:900;font-size:2.2rem;color:var(--red);line-height:1">$50</div><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800;margin-top:2px">Monthly bonus</div></div>'
     +'<div style="flex:1;min-width:240px"><div style="font-family:Nunito;font-weight:900;font-size:1.05rem">Highest attach rate wins — 20+ tickets</div>'
-    +'<div style="font-size:.82rem;color:var(--dark-grey);margin-top:3px;line-height:1.45">A rate, not a volume — <b>any tech at a slow or busy store can win it.</b> Current leader: <b style="color:var(--dark)">'+esc(winner.name.split(' ')[0])+'</b> at '+pct(winner.attach)+'.'+(meRow&&meRow.tickets>=20?' You’re at '+pct(meRow.attach)+'.':'')+'</div></div></div>'
+    +'<div style="font-size:.82rem;color:var(--dark-grey);margin-top:3px;line-height:1.45">A rate, not a volume — <b>any tech at a slow or busy store can win it.</b> '+(mi.cur?'Current leader':'Top attach')+': <b style="color:var(--dark)">'+esc(winner.name.split(' ')[0])+'</b> at '+pct(winner.attach)+'.'+(meRow&&meRow.tickets>=20?' You’re at '+pct(meRow.attach)+'.':'')+'</div></div></div>'
     +'<div style="margin-top:12px;font-size:.74rem;color:var(--grey);border-top:1px solid var(--border);padding-top:10px">A one-time bonus for this month — the owner can roll it forward or end it anytime in settings.</div></div></div>'):'';
 
   // ---- store leaderboards (metric selector: accessory / device / service) ----
@@ -854,8 +902,8 @@ function renderHeader(){
   const avStyle=(t.avatar_color?'background:'+esc(t.avatar_color)+';':'')+(t.avatar?'font-size:1.65rem;':'')+(own?'cursor:pointer':'');
   $('#profilehd').innerHTML='<div class="profilehd"><div class="av"'+(own?' id="myAv" title="Personalize your avatar"':'')+(avStyle?' style="'+avStyle+'"':'')+'>'+face+'</div>'
     +'<div style="flex:1;min-width:0"><div class="pn">'+esc(t.display_name)+(own?' <span style="font-size:.62rem;font-weight:800;color:var(--blue);cursor:pointer;vertical-align:middle" id="myAvLink">✎ avatar</span>':'')+'</div>'
-    +'<div class="pm">'+esc(shortStore(t.home_store))+' · '+esc(roleLabel)+(mi?' · '+esc(mi.label)+' · Day '+mi.dayOfMonth+' of '+mi.daysInMonth:'')+'</div></div>'
-    +'<div><div class="pl">Commission · MTD</div><div class="pc">'+money(calc?calc.c.total:0)+'</div></div>'
+    +'<div class="pm">'+esc(shortStore(t.home_store))+' · '+esc(roleLabel)+(mi?' · '+esc(mi.label)+(mi.cur?' · Day '+mi.dayOfMonth+' of '+mi.daysInMonth:' · final'):'')+'</div></div>'
+    +'<div><div class="pl">Commission · '+(mi&&!mi.cur?esc(mi.mon):'MTD')+'</div><div class="pc">'+money(calc?calc.c.total:0)+'</div></div>'
     +(rank?'<div class="pr">RANK #'+rank.n+' / '+rank.of+'</div>':'')+'</div>';
   if(own){const a=$('#myAv');if(a)a.onclick=openAvatarPicker;const l=$('#myAvLink');if(l)l.onclick=openAvatarPicker;}
 }
@@ -871,7 +919,12 @@ async function boot(){
   // default to self; if self is excluded (owner), fall back to the first tech
   STATE.target=(!EXCLUDE(STATE.me)&&STATE.staffById[STATE.me.id])?STATE.staffById[STATE.me.id]:(STATE.staffList[0]||STATE.me);
   $('#loading').classList.add('hide');$('#app').classList.remove('hide');
-  $all('#tabs .tab').forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.t;render();});
+  try{const tb=localStorage.getItem('cprComDashTab');if(tb&&['overview','goals','board','how'].indexOf(tb)>-1)STATE.tab=tb;}catch(e){}
+  $all('#tabs .tab').forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.t;try{localStorage.setItem('cprComDashTab',STATE.tab);}catch(e){}render();});
+  // month navigator: browse past months' commissions & goals (‹ › or pick from the calendar)
+  $('#mPrev').onclick=()=>setMonth(new Date(VIEWM.getFullYear(),VIEWM.getMonth()-1,1));
+  $('#mNext').onclick=()=>setMonth(new Date(VIEWM.getFullYear(),VIEWM.getMonth()+1,1));
+  $('#monthPick').onclick=()=>window.CPRPickers&&CPRPickers.month($('#monthPick'),{get:()=>VIEWM,set:d=>setMonth(d)});
   await loadTarget();
   loadBoard().then(()=>renderHeader()); // fill in the header rank once the board is ready
 }
@@ -879,6 +932,7 @@ boot().catch(e=>{$('#loading').textContent='Could not load: '+(e&&e.message||e);
 </script>
 
 <script src="assets/locations.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js" data-section="operations"></script>
 </body>

@@ -147,6 +147,11 @@ pay (it gates the accessory goal bonus); resolution is month goal → `commissio
 default, and a row may carry other targets with `accy_goal` null (consumers must null-check).
 Consumers: commission-dashboard, commission-calculator (range's start month),
 assets/commission-summary.js. There is deliberately no separate goals page.
+The commission dashboard (My Commission) has a **viewed-month navigator** (pickers.js
+month dropdown next to the tabs, future months blocked) — every tab (Overview / Goals /
+Scoreboard) recomputes for the picked month, so employees browse past commissions and
+that month's goals; past months render in final tense (no pace/projection cards, no
+goal-review card) and the month label goes amber as a "viewing history" cue.
 
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
