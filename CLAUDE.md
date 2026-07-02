@@ -153,6 +153,19 @@ Scoreboard) recomputes for the picked month, so employees browse past commission
 that month's goals; past months render in final tense (no pace/projection cards, no
 goal-review card) and the month label goes amber as a "viewing history" cue.
 
+**Month-end archive:** `commission_snapshots` (staff_id, month, totals jsonb,
+breakdown jsonb — the full engine output, cfg jsonb — the exact goal/earns/rules/rates
+used, tips, total, finalized_by/at; unique staff_id+month; RLS: employees read own,
+managers write). Live recompute means a rate/goal/roster change silently rewrites
+history, so at payroll a manager clicks **📸 Archive <month>** in the dashboard's
+manager bar (disabled for the running month) — a confirm modal lists everyone's final
+commission + tips, then upserts one snapshot per person. Viewing an archived month
+shows the snapshot (as-paid) instead of recomputing: profile header says "📸 archived",
+Overview carries an archived pill, the Scoreboard overlays snapshot numbers, and the
+12-month trend uses archived totals where they exist. Re-archiving warns and overwrites
+(recomputed under today's config). The calculator stays live — it *generates* payroll;
+the archive freezes what it produced.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);
