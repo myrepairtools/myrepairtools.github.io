@@ -333,6 +333,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div id="pagePaneSchedule" class="hide"></div>
           <div id="pagePaneConsumption" class="hide"></div>
           <div id="pagePaneHyla" class="hide"></div>
+          <div id="pagePaneMicro" class="hide"></div>
           <div id="pagePaneCash" class="hide">
             <div class="sect-h">Registers &amp; safes
               <select id="regStore" style="width:auto;min-width:200px"></select>
@@ -493,7 +494,8 @@ var PG_PAGES=[
   {key:'damage',label:'Tech Damage Tracker',icon:'🔧',bg:'#E3F0F7',where:'Appears in the Tech Damage Tracker logging form.',options:[{key:'mfr',label:'Manufacturers'},{key:'part',label:'Parts'}]},
   {key:'consumption',label:'Consumption Report',icon:'📊',bg:'#EAF5DD',where:'Appears in the Consumption & Ordering report.',options:[{key:'ptype',label:'Part types'},{key:'flag',label:'Flags'}]},
   {key:'hyla',label:'Hyla Orders',icon:'♻️',bg:'#F0E7F9',where:'Appears across the Hyla Orders workflow.',options:[{key:'label',label:'Label checklist'},{key:'guide',label:'Testing guide'},{key:'rma',label:'RMA defaults'}]},
-  {key:'cash',label:'Cash Tracker',icon:'💵',bg:'#E3F5EC',where:'Registers & safes for the Cash Tracker.',options:[{key:'reg',label:'Registers & safes'}]}
+  {key:'cash',label:'Cash Tracker',icon:'💵',bg:'#E3F5EC',where:'Registers & safes for the Cash Tracker.',options:[{key:'reg',label:'Registers & safes'}]},
+  {key:'micro',label:'Contracts',icon:'🖊️',bg:'#FDEAEA',where:'Templates & service price libraries for the Contracts tool.',options:[{key:'template',label:'Templates'},{key:'services',label:'Service libraries'}]}
   /* 'schedule' (shifts & hours) moved to Schedule Admin › Shifts button */
 ];
 var PTYPES=[], FLAGS=[], SHIFTS=[]; /* consumption: part types + flags; schedule: named shifts */
@@ -501,6 +503,7 @@ var SHIFT_BY_ID={}, HOURS={};        /* HOURS[shift_id][store] = {def:{id,enable
 var SHIFTSEL=lsGet('cprSetShift',null), SHIFTLOC=null; /* selected shift id + location tab in the editor */
 var SHIFTPAL=['#2E9E5B','#4FB0E3','#8B5CF6','#DC282E','#C9820B','#2D2D3B'];
 var HYLA_SET={}, HYLA_LABEL=[], HYLA_GUIDE=[]; /* hyla page settings (hyla_settings kv) */
+var MSVC=[], MTMPLS=[], MTSEL=null; /* contracts: service price libraries + templates */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
 var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
@@ -625,6 +628,8 @@ async function loadPages(){
     sb.from('hyla_settings').select('key,value'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
     sb.from('shift_hours').select('id,shift_id,store,weekday,start_min,end_min,closed,enabled'),
+    sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service'),
+    sb.from('contract_templates').select('*').order('sort').order('name'),
   ]);
   DMFRS=res[0].error?[]:(res[0].data||[]);
   DPARTS=res[1].error?[]:(res[1].data||[]);
@@ -637,6 +642,8 @@ async function loadPages(){
     var row={id:r.id,closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};
     if(r.weekday==null)st.def=row;else st.days[r.weekday]=row;
   });
+  MSVC=res[7]&&!res[7].error?(res[7].data||[]):[];
+  MTMPLS=res[8]&&!res[8].error?(res[8].data||[]):[];
   HYLA_SET={};(res[4].error?[]:(res[4].data||[])).forEach(function(r){HYLA_SET[r.key]=r.value;});
   HYLA_LABEL=hylaParse(HYLA_SET.labelItems,['Battery life','All functions','Audio test','Cleaned']);
   HYLA_GUIDE=hylaParse(HYLA_SET.guideSteps,[]);
@@ -1703,6 +1710,7 @@ function pgOptCount(pageKey,optKey){
   if(pageKey==='hyla'){if(optKey==='label')return String(HYLA_LABEL.length);if(optKey==='guide')return String(HYLA_GUIDE.length);return '';}
   if(pageKey==='schedule')return String(SHIFTS.length);
   if(pageKey==='cash')return ct(REGS);
+  if(pageKey==='micro'){if(optKey==='services')return ct(MSVC);if(optKey==='template')return MTMPLS.filter(function(t){return t.approved;}).length+' / '+MTMPLS.length;}
   return '';
 }
 function curPage(){return PG_PAGES.filter(function(p){return p.key===PGTOOL;})[0]||PG_PAGES[0];}
@@ -1728,18 +1736,20 @@ function renderPages(){
   PGTOOL=page.key;
   if(!page.options.some(function(o){return o.key===PGOPT;}))PGOPT=page.options[0].key;
   pgRenderNav();
-  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption', hylaOn=PGTOOL==='hyla', schedOn=PGTOOL==='schedule';
+  var damageOn=PGTOOL==='damage', cashOn=PGTOOL==='cash', consOn=PGTOOL==='consumption', hylaOn=PGTOOL==='hyla', schedOn=PGTOOL==='schedule', microOn=PGTOOL==='micro';
   $('#pagePane').classList.toggle('hide',!damageOn);
   if($('#pagePaneCash'))$('#pagePaneCash').classList.toggle('hide',!cashOn);
   if($('#pagePaneConsumption'))$('#pagePaneConsumption').classList.toggle('hide',!consOn);
   if($('#pagePaneHyla'))$('#pagePaneHyla').classList.toggle('hide',!hylaOn);
   if($('#pagePaneSchedule'))$('#pagePaneSchedule').classList.toggle('hide',!schedOn);
+  if($('#pagePaneMicro'))$('#pagePaneMicro').classList.toggle('hide',!microOn);
   if(damageOn){
     $('#pagePane').innerHTML=(PGOPT==='part')?pageListEditor('Parts','part',DPARTS):pageListEditor('Manufacturers','mfr',DMFRS);
   }
   if(consOn)renderConsumptionPage();
   if(hylaOn)renderHylaPage();
   if(schedOn)renderSchedule();
+  if(microOn)renderMicroPage();
   renderRegs();
 }
 /* ===== Hyla Orders page settings (writes to hyla_settings kv) ===== */
@@ -1769,6 +1779,128 @@ function renderHylaPage(){
     +'<label class="hlbl">Hyla sales rep (form D8)</label><input class="pgin hfull" data-hkv="rmaSalesRep" value="'+esc(HYLA_SET.rmaSalesRep||'')+'" placeholder="Rep name">'
     +'<label class="hlbl" style="margin-top:12px">Credit or Return (form D9)</label><select class="pgin hfull" data-hkv="rmaCreditReturn"><option'+sel('Credit')+'>Credit</option><option'+sel('Return')+'>Return</option></select>'
     +'</div></div>';
+}
+/* ===== Contracts page settings (contract_templates + contract_services libraries) ===== */
+function renderMicroPage(){
+  var pane=$('#pagePaneMicro');if(!pane)return;
+  if(PGOPT==='services'){renderMicroServices(pane);return;}
+  renderMicroTemplates(pane);
+}
+function renderMicroServices(pane){
+  var head='<div style="display:grid;grid-template-columns:.9fr 1fr 1.5fr 1fr 84px 84px 56px;gap:8px;font-family:Nunito;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding:0 2px"><span>Library</span><span>Vendor</span><span>Service</span><span>Device</span><span style="text-align:right">Price $</span><span style="text-align:right">Cost $</span><span></span></div>';
+  var rows=MSVC.map(function(sv,i){
+    return '<div style="display:grid;grid-template-columns:.9fr 1fr 1.5fr 1fr 84px 84px 56px;gap:8px;align-items:center;margin-top:8px" data-msrow="'+i+'">'
+      +'<input class="pgin" data-ms="library" value="'+esc(sv.library||'')+'" placeholder="Library">'
+      +'<input class="pgin" data-ms="vendor" value="'+esc(sv.vendor||'')+'" placeholder="Vendor">'
+      +'<input class="pgin" data-ms="service" value="'+esc(sv.service||'')+'" placeholder="Service">'
+      +'<input class="pgin" data-ms="device" value="'+esc(sv.device||'')+'" placeholder="Device (optional)">'
+      +'<input class="pgin" data-ms="price" type="number" step="0.01" value="'+(sv.price!=null&&sv.price!==''?sv.price:'')+'" style="text-align:right">'
+      +'<input class="pgin" data-ms="cost" type="number" step="0.01" value="'+(sv.cost!=null?sv.cost:'')+'" style="text-align:right">'
+      +'<label style="display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:800;color:var(--dark-grey)"><input type="checkbox" data-ms="active" '+(sv.active!==false?'checked':'')+'>on</label>'
+      +'</div>';
+  }).join('');
+  pane.innerHTML='<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">Service price libraries</span><span class="pgcard-n">'+MSVC.filter(function(x){return x.active!==false;}).length+' / '+MSVC.length+'</span></div>'
+    +'<div style="padding:14px 16px">'
+    +'<div style="font-size:.78rem;color:var(--dark-grey);margin-bottom:12px">Each contract template points at one <b>library</b> (e.g. “Microsoldering”), and techs pick from that library’s services — the customer <b>Price</b> goes on the contract, <b>Cost</b> (vendor charge) is optional for margin. Same library, different vendors is fine. Untick “on” to retire a service without losing it.</div>'
+    +head+(rows||'<div class="empty" style="padding:14px">No services yet — add your first below.</div>')
+    +'<div style="display:flex;gap:8px;margin-top:14px"><button class="btn alt sm" id="msAdd">＋ Add service</button><span style="flex:1"></span><button class="btn sm" id="msSave">Save libraries</button></div>'
+    +'</div></div>';
+  function stash(){pane.querySelectorAll('[data-msrow]').forEach(function(el){
+    var i=+el.getAttribute('data-msrow'),w=MSVC[i];if(!w)return;
+    el.querySelectorAll('[data-ms]').forEach(function(inp){var k=inp.getAttribute('data-ms');
+      if(k==='active')w.active=inp.checked;
+      else if(k==='price')w.price=inp.value===''?'':+inp.value;
+      else if(k==='cost')w.cost=inp.value===''?null:+inp.value;
+      else w[k]=inp.value.trim();});
+  });}
+  $('#msAdd').onclick=function(){stash();var last=MSVC[MSVC.length-1]||{};MSVC.push({library:last.library||'Microsoldering',vendor:last.vendor||'',service:'',device:'',price:'',cost:null,active:true});renderMicroServices(pane);};
+  $('#msSave').onclick=async function(){
+    stash();
+    var rows2=MSVC.filter(function(w){return w.library&&w.vendor&&w.service&&w.price!==''&&Number(w.price)>=0;});
+    for(var j=0;j<rows2.length;j++){var w=rows2[j];
+      var payload={library:w.library,vendor:w.vendor,service:w.service,device:w.device||null,price:Number(w.price)||0,
+        cost:(w.cost==null||w.cost==='')?null:Number(w.cost),active:w.active!==false,
+        updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
+      var r=w.id?await sb.from('contract_services').update(payload).eq('id',w.id)
+                :await sb.from('contract_services').insert(payload);
+      if(r.error){toast(r.error.message,true);return;}
+    }
+    var fresh=await sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service');
+    if(!fresh.error)MSVC=fresh.data||[];
+    renderMicroServices(pane);pgRenderNav();toast('✓ Libraries saved ('+rows2.length+' services)');
+  };
+}
+/* templates: pick one from the rail, edit clauses inline; New / Duplicate for new scopes */
+function renderMicroTemplates(pane){
+  if(MTSEL==null||!MTMPLS.some(function(t){return t.id===MTSEL;}))MTSEL=MTMPLS.length?MTMPLS[0].id:null;
+  var t=MTMPLS.filter(function(x){return x.id===MTSEL;})[0]||null;
+  var rail=MTMPLS.map(function(x){
+    return '<button class="pg2tool'+(x.id===MTSEL?' on':'')+'" data-mtsel="'+x.id+'" style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(x.name)+'</span><span style="flex:none;font-size:.62rem;color:'+(x.approved?'var(--green)':'#B45309')+'">'+(x.approved?'✓':'draft')+(x.active===false?' · off':'')+'</span></button>';
+  }).join('');
+  var editor='';
+  if(t){
+    var secs=(t.sections||[]).map(function(sc,i){
+      return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:10px" data-mtsec="'+i+'">'
+        +'<div style="display:flex;gap:8px"><input class="pgin hfull" data-mth="'+i+'" value="'+esc(sc.h)+'" style="font-weight:800;font-family:Nunito" placeholder="Clause title">'
+        +'<button class="ord del" data-mtdel="'+i+'" title="Remove clause">✕</button></div>'
+        +'<textarea class="pgin hfull" data-mtb="'+i+'" rows="4" style="margin-top:8px;resize:vertical" placeholder="Clause text">'+esc(sc.body)+'</textarea></div>';
+    }).join('');
+    editor='<div style="font-size:.78rem;color:var(--dark-grey);margin-bottom:12px">Every contract snapshots its template at creation — already-signed contracts keep their wording forever. {business}, {customer} and {date} are filled per contract. Only <b>approved</b> templates can be used to create contracts.</div>'
+      +'<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      +'<div><label class="hlbl">Template name</label><input class="pgin hfull" id="mtName" value="'+esc(t.name)+'"></div>'
+      +'<div><label class="hlbl">Contract type (shows in the list)</label><input class="pgin hfull" id="mtType" value="'+esc(t.contract_type||'')+'" placeholder="e.g. Micro Soldering"></div>'
+      +'<div><label class="hlbl">Service price library (blank = custom pricing)</label><input class="pgin hfull" id="mtLib" value="'+esc(t.library||'')+'" placeholder="e.g. Microsoldering" list="mtLibs"><datalist id="mtLibs">'+[...new Set(MSVC.map(function(x){return x.library;}))].filter(Boolean).map(function(l){return '<option>'+esc(l)+'</option>';}).join('')+'</datalist></div>'
+      +'<div><label class="hlbl">Repair outcome choices (one per line; blank = none)</label><textarea class="pgin hfull" id="mtOuts" rows="2" style="resize:vertical">'+esc((t.outcomes||[]).join('\n'))+'</textarea></div>'
+      +'</div>'
+      +'<label class="hlbl" style="margin-top:12px">Intro</label><textarea class="pgin hfull" id="mtIntro" rows="3" style="resize:vertical">'+esc(t.intro)+'</textarea>'
+      +'<label class="hlbl" style="margin-top:12px">Clauses</label>'+(secs||'<div class="empty" style="padding:12px">No clauses yet.</div>')
+      +'<button class="btn alt sm" id="mtAddSec" style="margin-top:10px">＋ Add clause</button>'
+      +'<div style="display:flex;align-items:center;gap:18px;margin-top:16px;flex-wrap:wrap">'
+      +'<label style="display:flex;align-items:center;gap:9px;font-size:.86rem;font-weight:700"><input type="checkbox" id="mtOk" '+(t.approved?'checked':'')+'> Approved for customer use</label>'
+      +'<label style="display:flex;align-items:center;gap:9px;font-size:.86rem;font-weight:700"><input type="checkbox" id="mtActive" '+(t.active!==false?'checked':'')+'> Active</label>'
+      +'<span style="flex:1"></span><button class="btn sm" id="mtSave">Save template</button></div>';
+  }else{
+    editor='<div class="empty" style="padding:20px">No templates yet — create your first.</div>';
+  }
+  pane.innerHTML='<div style="display:grid;grid-template-columns:230px 1fr;gap:14px;align-items:start">'
+    +'<div><div class="pg2lbl">Templates</div>'+rail
+    +'<button class="btn alt sm" id="mtNew" style="margin-top:10px;width:100%">＋ New template</button>'
+    +(t?'<button class="btn alt sm" id="mtDup" style="margin-top:6px;width:100%">⧉ Duplicate selected</button>':'')
+    +'</div>'
+    +'<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">'+(t?esc(t.name):'Templates')+'</span><span class="pgcard-n">'+(t?(t.approved?'approved ✓':'draft'):'')+'</span></div>'
+    +'<div style="padding:14px 16px">'+editor+'</div></div></div>';
+  pane.querySelectorAll('[data-mtsel]').forEach(function(b){b.onclick=function(){MTSEL=+b.getAttribute('data-mtsel');renderMicroTemplates(pane);};});
+  function readSections(){
+    var out=[];pane.querySelectorAll('[data-mtsec]').forEach(function(el){
+      var i=el.getAttribute('data-mtsec');
+      out.push({h:el.querySelector('[data-mth="'+i+'"]').value.trim(),body:el.querySelector('[data-mtb="'+i+'"]').value.trim()});});
+    return out.filter(function(x){return x.h||x.body;});
+  }
+  var addBtn=$('#mtAddSec');if(addBtn)addBtn.onclick=function(){t.sections=readSections();t.sections.push({h:'',body:''});renderMicroTemplates(pane);};
+  pane.querySelectorAll('[data-mtdel]').forEach(function(b){b.onclick=function(){var secs2=readSections();secs2.splice(+b.getAttribute('data-mtdel'),1);t.sections=secs2;renderMicroTemplates(pane);};});
+  var nw=$('#mtNew');if(nw)nw.onclick=async function(){
+    var r=await sb.from('contract_templates').insert({name:'New template',contract_type:'Service',intro:'This contract is between {business} (the “Business”) and {customer} (the “Client”) dated {date}.',sections:[{h:'Scope of Work',body:''}],outcomes:[],library:null,approved:false,active:true,updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null}).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    MTMPLS.push(r.data);MTSEL=r.data.id;renderMicroTemplates(pane);pgRenderNav();
+  };
+  var dp=$('#mtDup');if(dp)dp.onclick=async function(){
+    if(!t)return;
+    var r=await sb.from('contract_templates').insert({name:t.name+' (copy)',contract_type:t.contract_type,intro:t.intro,sections:t.sections,outcomes:t.outcomes,library:t.library,approved:false,active:true,updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null}).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    MTMPLS.push(r.data);MTSEL=r.data.id;renderMicroTemplates(pane);pgRenderNav();toast('Duplicated — edit the copy for the new scope');
+  };
+  var sv=$('#mtSave');if(sv)sv.onclick=async function(){
+    var outcomes=$('#mtOuts').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
+    var patch={name:$('#mtName').value.trim()||'Untitled template',contract_type:$('#mtType').value.trim()||'Service',
+      library:$('#mtLib').value.trim()||null,intro:$('#mtIntro').value.trim(),sections:readSections(),outcomes:outcomes,
+      approved:$('#mtOk').checked,active:$('#mtActive').checked,
+      updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
+    var r=await sb.from('contract_templates').update(patch).eq('id',t.id).select('*').maybeSingle();
+    if(r.error){toast(r.error.message,true);return;}
+    var updated=r.data||Object.assign({},t,patch);
+    MTMPLS=MTMPLS.map(function(x){return x.id===t.id?updated:x;});
+    renderMicroTemplates(pane);pgRenderNav();toast('✓ Template saved'+(updated.approved?' & approved':''));
+  };
 }
 async function hylaSaveList(k){
   var r=await sb.from('hyla_settings').upsert({key:hylaJsonKey(k),value:JSON.stringify(hylaArr(k))});

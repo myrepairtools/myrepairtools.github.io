@@ -1,6 +1,6 @@
-// Microsoldering contract flow: customer-side signing + Square payment.
+// Contracts platform: customer-side signing + Square payment (any contract type).
 //
-// The staff tool (micro-contract.html) creates rows in micro_contracts directly
+// The staff tool (contracts.html) creates rows in `contracts` directly
 // (authenticated RLS). This function serves the CUSTOMER side, where there is no
 // Supabase session — the contract's random token IS the credential (capability URL).
 //
@@ -52,7 +52,7 @@ async function callerStaff(req: Request): Promise<Record<string, unknown> | null
 
 async function byToken(t: string) {
   if (!t || t.length < 20) return null;
-  const { data } = await admin.from("micro_contracts").select("*").eq("token", t).maybeSingle();
+  const { data } = await admin.from("contracts").select("*").eq("token", t).maybeSingle();
   return data || null;
 }
 
@@ -83,7 +83,7 @@ async function makePayLink(c: Record<string, unknown>) {
   const body = {
     idempotency_key: "mc-" + c.token + "-" + cents,
     quick_pay: {
-      name: "Microsoldering repair" + (c.device ? " — " + c.device : ""),
+      name: (c.contract_type ? c.contract_type + " " : "") + "repair" + (c.device ? " — " + c.device : ""),
       price_money: { amount: cents, currency: "USD" },
       location_id: locId,
     },
@@ -137,7 +137,7 @@ function pub(c: Record<string, unknown>) {
   return {
     status: c.status, store: c.store, customer_name: c.customer_name,
     device: c.device, ticket_ref: c.ticket_ref, scope: c.scope,
-    service_name: c.service_name, pay_mode: c.pay_mode,
+    service_name: c.service_name, pay_mode: c.pay_mode, diag_fee: c.diag_fee, contract_type: c.contract_type,
     price: c.price, collect: c.collect, terms: c.terms, outcome: c.outcome,
     signed_name: c.signed_name, signed_at: c.signed_at, signature: c.signature,
     paid_at: c.paid_at, paid_amount: c.paid_amount, created_at: c.created_at,
@@ -156,7 +156,7 @@ async function checkPaid(c: Record<string, unknown>): Promise<Record<string, unk
   const wanted = Math.round(Number(c.collect) * 100);
   if (paidCents >= wanted && wanted > 0) {
     const patch = { status: "paid", paid_at: new Date().toISOString(), paid_amount: Math.round(paidCents) / 100, updated_at: new Date().toISOString() };
-    await admin.from("micro_contracts").update(patch).eq("id", c.id);
+    await admin.from("contracts").update(patch).eq("id", c.id);
     return { ...c, ...patch };
   }
   return c;
@@ -183,7 +183,8 @@ Deno.serve(async (req) => {
       const outcome = String(b.outcome || "").trim();
       const signature = String(b.signature || "");
       if (!signedName || signedName.length < 2) return json({ ok: false, error: "name_required" }, 400);
-      if (!outcome) return json({ ok: false, error: "outcome_required" }, 400);
+      const outs = ((c.terms as Record<string, unknown>)?.outcomes || []) as unknown[];
+      if (Array.isArray(outs) && outs.length > 0 && !outcome) return json({ ok: false, error: "outcome_required" }, 400);
       if (!signature.startsWith("data:image/png;base64,") || signature.length < 1000 || signature.length > 400000)
         return json({ ok: false, error: "signature_required" }, 400);
       const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
@@ -199,7 +200,7 @@ Deno.serve(async (req) => {
         if (pl.url) { patch.square_link_url = pl.url; patch.square_order_id = pl.order_id; payUrl = pl.url; }
         else payErr = pl.error || "pay_link_failed";
       }
-      const { error } = await admin.from("micro_contracts").update(patch).eq("id", c.id).eq("status", c.status);
+      const { error } = await admin.from("contracts").update(patch).eq("id", c.id).eq("status", c.status);
       if (error) return json({ ok: false, error: "db_" + error.message }, 500);
       return json({ ok: true, pay_url: payUrl, pay_error: payErr });
     }
@@ -221,14 +222,14 @@ Deno.serve(async (req) => {
       if (c.status === "void") return json({ ok: false, error: "void" }, 409);
       const link = SITE + "/contract-sign.html?t=" + c.token;
       const txt = "Hi " + c.customer_name + ",\n\n"
-        + "Here is your microsoldering repair agreement from CPR Cell Phone Repair"
+        + "Here is your " + (c.contract_type ? String(c.contract_type).toLowerCase() + " " : "") + "repair agreement from CPR Cell Phone Repair"
         + (c.store ? " (" + c.store + ")" : "") + (c.device ? " for your " + c.device : "") + ".\n\n"
         + "Review and sign here:\n" + link + "\n\n"
         + (Number(c.collect) > 0 ? "Payment of $" + Number(c.collect).toFixed(2) + " is collected right after signing, on the same page.\n\n" : "")
         + "Questions? Just reply to this email or call the store.\n\n— CPR Cell Phone Repair";
       const r = await sendEmail(String(c.customer_email), "Your CPR repair agreement — review & sign", txt);
       if (!r.ok) return json({ ok: false, error: r.error }, 500);
-      await admin.from("micro_contracts").update({
+      await admin.from("contracts").update({
         status: c.status === "draft" ? "sent" : c.status,
         sent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).eq("id", c.id);

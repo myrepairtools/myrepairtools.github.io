@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contracts — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#B45309;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 80px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;line-height:1.05}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.hd-sub{color:var(--dark-grey);font-size:.82rem;font-weight:600;margin-top:2px}
+.hd-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:none;border-radius:9px;padding:9px 15px;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap}
+.btn.alt{background:#fff;color:var(--dark-grey);border:1.5px solid var(--border)}
+.btn.alt:hover{border-color:var(--blue);color:var(--blue)}
+.btn.sm{padding:7px 12px;font-size:.74rem}
+.btn.off,.btn.off:hover{opacity:.45;cursor:not-allowed;border-color:var(--border);color:var(--dark-grey)}
+.btn:disabled{opacity:.5;cursor:default}
+input,select,textarea{font-family:'Nunito Sans',sans-serif;font-size:.86rem;padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--dark);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.warnbar{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:11px 15px;border-radius:11px;font-size:.85rem;font-weight:700;margin-bottom:14px}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pills{display:inline-flex;gap:6px;flex-wrap:wrap}
+.pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1.5px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;background:#fff;color:var(--dark-grey)}
+.pill.on{background:#EAF6FD;border-color:#CDEAF8;color:#1E7AA8}
+.search{max-width:260px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden}
+.row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.row:last-child{border-bottom:none}
+.rmain{flex:1;min-width:220px}
+.rnm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.95rem}
+.rsub{font-size:.76rem;color:var(--grey);font-weight:600;margin-top:1px}
+.rprice{font-family:'Nunito',sans-serif;font-weight:900;width:90px;text-align:right}
+.chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;border-radius:999px;padding:4px 11px;width:74px;text-align:center;flex:none}
+.c-draft{background:var(--light-grey);color:var(--dark-grey)}
+.c-sent{background:#EAF6FD;color:#1E7AA8}
+.c-signed{background:#FFF1DC;color:#8a5a00}
+.c-paid{background:#EAF7EF;color:#1f7d45}
+.c-void{background:#FEECEC;color:var(--red)}
+.ract{display:flex;gap:6px;flex-wrap:wrap}
+.empty{padding:44px 18px;text-align:center;color:var(--grey);font-family:'Nunito',sans-serif;font-weight:800}
+.mback{position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px}
+.modal{background:#fff;border-radius:16px;border-top:3px solid var(--red);padding:20px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.m-hd{display:flex;align-items:center;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:4px}
+.m-x{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--grey);line-height:1}
+.m-sub{font-size:.78rem;color:var(--grey);font-weight:600;margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.g2{grid-template-columns:1fr}}
+label.f{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:12px 0 4px}
+.m-ft{margin-top:16px;display:flex;justify-content:flex-end;gap:8px;background:#fafafa;margin-left:-20px;margin-right:-20px;margin-bottom:-20px;padding:14px 20px;border-top:1px solid var(--border)}
+.paymode{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+@media(max-width:640px){.paymode{grid-template-columns:1fr}}
+.pm-opt{border:1.5px solid var(--border);border-radius:11px;padding:12px 14px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+.pm-opt input{margin-top:2px;width:16px;height:16px;accent-color:var(--red);flex:none}
+.pm-opt b{font-family:'Nunito',sans-serif;font-size:.86rem;display:block}
+.pm-opt .d{font-size:.72rem;color:var(--grey);font-weight:600;margin-top:2px;line-height:1.4}
+.pm-opt.on{border-color:var(--red);background:#FEF6F6}
+.linkbox{display:flex;gap:8px;align-items:center;background:var(--light-grey);border-radius:10px;padding:10px 13px;font-size:.8rem;word-break:break-all}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:3000;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.note{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;font-size:.86rem;color:var(--dark-grey)}
+.hide{display:none!important}
+.tblwrap{overflow-x:auto}
+table.ct{width:100%;border-collapse:collapse;font-size:.86rem;min-width:900px}
+.ct thead th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.ct tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.ct tbody tr:last-child td{border-bottom:none}
+.ct .nm{font-family:'Nunito',sans-serif;font-weight:800}
+.ct td.r{text-align:right;font-family:'Nunito',sans-serif;font-weight:900;white-space:nowrap}
+.tpl-opt{display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;margin-top:10px}
+.tpl-opt:hover{border-color:var(--blue)}
+.tpl-opt .ic{width:38px;height:38px;border-radius:10px;background:#FDEAEA;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex:none}
+.tpl-opt b{font-family:'Nunito',sans-serif;font-size:.92rem;display:block}
+.tpl-opt .d{font-size:.74rem;color:var(--grey);font-weight:600;margin-top:2px}
+</style>
+</head>
+<body>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="operations"></script>
+<script src="assets/locations.js"></script>
+<main id="app" style="visibility:hidden">
+  <div class="hd">
+    <div>
+      <h1>Contracts</h1>
+      <div class="hd-sub">Signed service agreements — created from approved templates; customer signs, then pays, in one flow</div>
+    </div>
+    <div class="hd-r">
+      <button class="btn" id="newBtn"><span style="font-size:1.05rem;line-height:1">＋</span>New contract</button>
+    </div>
+  </div>
+  <div class="warnbar hide" id="draftWarn">⚠ <b>No approved contract templates yet.</b> For liability, contracts can only be created from an approved template — a manager sets them up in <b>Settings → Page settings → Contracts</b> (templates + service price libraries live there).</div>
+  <div class="bar">
+    <span class="pills" id="fPills"></span>
+    <input class="search" id="q" type="text" placeholder="Search name, device, ticket…">
+  </div>
+  <div class="card" id="list"><div class="empty">Loading…</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const FN=SB_URL+'/functions/v1/contracts';
+const SIGN_URL=location.origin+location.pathname.replace(/[^/]*$/,'')+'contract-sign.html?t=';
+
+const $=s=>document.querySelector(s), $all=s=>Array.prototype.slice.call(document.querySelectorAll(s));
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2600);}
+const shortStore=s=>window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');
+const isMgr=r=>['admin','manager','owner'].indexOf(r)>-1;
+const token=()=>{const a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('');};
+
+let ME=null, ROWS=[], TMPLS=[], SVCS=[], FILTER=(function(){try{return localStorage.getItem('cprMcFilter')||'all';}catch(e){return 'all';}})(), Q='';
+
+sb.auth.onAuthStateChange((_e,sess)=>{if(sess&&!ME)resolveMe(sess);});
+async function resolveMe(sess){
+  const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+  if(!r.data)return;
+  ME=r.data;boot();
+}
+async function boot(){
+  $('#app').style.visibility='visible';
+  const [rows,tp,sv]=await Promise.all([
+    sb.from('contracts').select('*').order('created_at',{ascending:false}).limit(300),
+    sb.from('contract_templates').select('*').order('sort').order('name'),
+    sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service')
+  ]);
+  ROWS=rows.data||[];TMPLS=(tp.data||[]).filter(t=>t.active!==false);SVCS=sv.data||[];
+  $('#draftWarn').classList.toggle('hide',TMPLS.some(t=>t.approved));
+  $('#newBtn').onclick=openNew;
+  $('#q').oninput=()=>{Q=$('#q').value.toLowerCase();render();};
+  render();
+  refreshSigned();
+}
+/* signed-but-unpaid rows: ask the edge fn to check Square (it flips them to paid) */
+async function refreshSigned(){
+  const open=ROWS.filter(r=>r.status==='signed'&&r.square_order_id);
+  for(const r of open){
+    try{const d=await fetch(FN+'?action=paystatus&t='+encodeURIComponent(r.token)).then(x=>x.json());
+      if(d.ok&&d.status==='paid'){r.status='paid';r.paid_at=d.paid_at;r.paid_amount=d.paid_amount;render();}
+    }catch(e){}
+  }
+}
+
+function render(){
+  const F=[['all','All'],['draft','Draft'],['sent','Sent'],['signed','Signed'],['paid','Paid'],['void','Void']];
+  $('#fPills').innerHTML=F.map(f=>'<button class="pill'+(FILTER===f[0]?' on':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join('');
+  $all('#fPills .pill').forEach(b=>b.onclick=()=>{FILTER=b.getAttribute('data-f');try{localStorage.setItem('cprMcFilter',FILTER);}catch(e){}render();});
+  let rows=ROWS.filter(r=>FILTER==='all'||r.status===FILTER);
+  if(Q)rows=rows.filter(r=>[r.customer_name,r.device,r.ticket_ref,r.customer_email,r.customer_phone].join(' ').toLowerCase().includes(Q));
+  if(!rows.length){$('#list').innerHTML='<div class="empty">'+(ROWS.length?'Nothing matches.':'No contracts yet — hit ＋ New contract.')+'</div>';return;}
+  $('#list').innerHTML='<div class="tblwrap"><table class="ct"><thead><tr><th>Date</th><th>Status</th><th>Type</th><th>Customer</th><th>Device</th><th class="r" style="text-align:right">Price</th><th></th></tr></thead><tbody>'
+    +rows.map(r=>{
+    const d=String(r.created_at||'').slice(0,10);
+    return '<tr>'
+      +'<td style="white-space:nowrap">'+d+'</td>'
+      +'<td><span class="chip c-'+esc(r.status)+'">'+esc(r.status)+'</span></td>'
+      +'<td style="font-weight:700">'+esc(r.contract_type||'—')+'</td>'
+      +'<td><span class="nm">'+esc(r.customer_name)+'</span>'
+        +'<div class="rsub">'+esc(shortStore(r.store))+(r.ticket_ref?' · ticket '+esc(r.ticket_ref):'')+(r.service_name?' · '+esc(r.service_name):'')+(r.pay_mode==='instore'?' · 🏪 pays in store':'')+(r.signed_name?' · signed':'')+(r.paid_at?' · paid '+String(r.paid_at).slice(0,10):'')+'</div></td>'
+      +'<td>'+esc(r.device||'—')+'</td>'
+      +'<td class="r">'+money(r.price)+(Number(r.diag_fee)>0?'<div style="font-size:.64rem;font-weight:700;color:var(--grey)">−'+money(r.diag_fee)+' diag</div>':'')+'</td>'
+      +'<td><div class="ract">'
+        +'<button class="btn alt sm" data-copy="'+esc(r.token)+'">🔗 Link</button>'
+        +(r.customer_email&&(r.status==='draft'||r.status==='sent')?'<button class="btn alt sm" data-mail="'+esc(r.token)+'">✉️</button>':'')
+        +'<a class="btn alt sm" style="text-decoration:none" href="'+SIGN_URL+esc(r.token)+'" target="_blank">Open</a>'
+        +'<button class="btn alt sm" data-sheet="'+r.id+'" title="Print the work order that travels with the device">🖨</button>'
+        +(r.pay_mode==='instore'&&r.status==='signed'?'<button class="btn alt sm" data-inpaid="'+r.id+'" style="color:var(--green)">✓ Paid</button>':'')
+        +(r.status!=='paid'&&r.status!=='void'?'<button class="btn alt sm" data-void="'+r.id+'" style="color:var(--red)">Void</button>':'')
+      +'</div></td></tr>';}).join('')+'</tbody></table></div>';
+  $all('[data-copy]').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(SIGN_URL+b.getAttribute('data-copy')).then(()=>toast('Signing link copied — text or AirDrop it to the customer'),()=>toast('Copy failed',true));});
+  $all('[data-mail]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;
+    const sess=(await sb.auth.getSession()).data.session;
+    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},body:JSON.stringify({t:b.getAttribute('data-mail')})}).then(x=>x.json()).catch(()=>({}));
+    b.disabled=false;
+    if(d.ok){toast('✉️ Signing link emailed');const r=ROWS.find(x=>x.token===b.getAttribute('data-mail'));if(r&&r.status==='draft'){r.status='sent';render();}}
+    else toast('Email failed: '+(d.error||'error'),true);
+  });
+  $all('[data-sheet]').forEach(b=>b.onclick=()=>{const r=ROWS.find(x=>x.id===+b.getAttribute('data-sheet'));if(r)printVendorSheet(r);});
+  $all('[data-inpaid]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Payment was taken in RepairQ / Square Terminal — mark this contract paid?'))return;
+    const id=+b.getAttribute('data-inpaid');
+    const r=ROWS.find(x=>x.id===id);
+    const u=await sb.from('contracts').update({status:'paid',paid_at:new Date().toISOString(),paid_amount:r?r.price:null,updated_at:new Date().toISOString()}).eq('id',id);
+    if(u.error){toast(u.error.message,true);return;}
+    if(r){r.status='paid';r.paid_at=new Date().toISOString();}render();toast('✓ Marked paid (in store)');
+  });
+  $all('[data-void]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Void this contract? The customer link stops working.'))return;
+    const id=+b.getAttribute('data-void');
+    const u=await sb.from('contracts').update({status:'void',updated_at:new Date().toISOString()}).eq('id',id);
+    if(u.error){toast(u.error.message,true);return;}
+    const r=ROWS.find(x=>x.id===id);if(r)r.status='void';render();toast('Voided');
+  });
+}
+
+/* ---------- vendor work order: the sheet that travels with the device ---------- */
+function printVendorSheet(r){
+  const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print',true);return;}
+  const t=r.terms||{};
+  const outs=(t.outcomes||[]);
+  const outcomeHtml=r.outcome
+    ?'<div class="big">'+esc(r.outcome)+'</div>'
+    :outs.map(o=>'<div style="margin:4px 0">☐ '+esc(o)+'</div>').join('')+'<div style="color:#777;font-size:11px;margin-top:4px">(customer hadn’t picked yet when this printed)</div>';
+  const css='<style>body{font-family:Arial,sans-serif;color:#1a1a1a;margin:34px;font-size:13px}h1{font-size:19px;margin:0;color:#DC282E}h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:#555;margin:20px 0 5px;border-bottom:2px solid #DC282E;padding-bottom:3px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 26px}.l{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#777}.v{font-weight:bold;font-size:14px}.big{font-weight:bold;font-size:15px}.box{border:1px solid #ccc;border-radius:6px;padding:10px 12px;margin-top:6px;white-space:pre-wrap}@media print{body{margin:14mm}}</style>';
+  w.document.write('<html><head><title>'+esc(r.contract_type||'Service')+' work order — '+esc(r.ticket_ref||'')+'</title>'+css+'</head><body>'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h1>CPR Cell Phone Repair — '+esc(r.contract_type||'Service')+' Work Order</h1>'
+    +'<div style="color:#555;margin-top:2px">'+esc(r.store)+' · printed '+new Date().toLocaleDateString()+'</div></div>'
+    +'<div style="text-align:right"><div class="l">RepairQ ticket</div><div class="v" style="font-size:18px">'+esc(r.ticket_ref||'—')+'</div></div></div>'
+    +'<h2>Send to</h2><div class="big">'+esc(r.service_vendor||'Vendor / in-house')+'</div>'
+    +'<h2>Device</h2><div class="grid">'
+    +'<div><div class="l">Device</div><div class="v">'+esc(r.device||'—')+'</div></div>'
+    +'<div><div class="l">Customer</div><div class="v">'+esc(r.customer_name)+'</div></div>'
+    +'<div><div class="l">Service requested</div><div class="v">'+esc(r.service_name||'—')+'</div></div>'
+    +'<div><div class="l">Contract</div><div class="v">'+esc(String(r.token).slice(0,8))+' · '+esc(r.status)+'</div></div></div>'
+    +'<h2>Customer’s repair goal</h2>'+outcomeHtml
+    +'<h2>Issue & authorized work (tech notes)</h2><div class="box">'+esc(r.scope||'')+'</div>'
+    +'<h2>Return to</h2><div class="v">'+esc(r.store)+' — attn: '+esc(r.contract_type||'service')+' returns · ticket '+esc(r.ticket_ref||'')+'</div>'
+    +'<div style="margin-top:26px;color:#777;font-size:11px">No pricing on this sheet — vendor billing is handled separately. Signed authorization is on file at the store.</div>'
+    +'</body></html>');
+  w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch(e){}},400);
+}
+
+/* ---------- new contract ---------- */
+function myStores(){
+  const set=[];const add=s=>{if(s&&set.indexOf(s)<0)set.push(s);};
+  add(ME.home_store);(ME.authorized_stores||[]).forEach(add);
+  if(ME.role==='owner'&&window.CPRLocations)CPRLocations.names().forEach(add);
+  return window.CPRLocations?CPRLocations.sort(set):set;
+}
+function openNew(){
+  const usable=TMPLS.filter(t=>t.approved&&t.active!==false);
+  if(!usable.length){toast('No approved templates — set one up in Settings → Contracts',true);return;}
+  if(usable.length===1){openForm(usable[0]);return;}
+  const back=document.createElement('div');back.className='mback';
+  back.innerHTML='<div class="modal">'
+    +'<div class="m-hd"><span>＋ New contract — pick the template</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">Contracts are always created from an approved template — the wording is locked in when the customer signs.</div>'
+    +usable.map(t=>'<div class="tpl-opt" data-tpl="'+t.id+'"><span class="ic">🖊️</span><span><b>'+esc(t.name)+'</b><span class="d">'+esc(t.contract_type)+(t.library?' · prices from “'+esc(t.library)+'” library':' · custom pricing')+'</span></span></div>').join('')
+    +'<div class="m-ft"><button class="btn alt" data-x>Cancel</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelectorAll('[data-tpl]').forEach(el=>el.onclick=()=>{const t=usable.find(x=>String(x.id)===el.getAttribute('data-tpl'));back.remove();if(t)openForm(t);});
+}
+function openForm(TMPL){
+  const stores=myStores();
+  const act=SVCS.filter(s=>s.active!==false&&(!TMPL.library||s.library===TMPL.library));
+  const vendors=[...new Set(act.map(s=>s.vendor))];
+  const svcOpts='<option value="">— pick the service —</option>'
+    +vendors.map(v=>'<optgroup label="'+esc(v)+'">'+act.filter(s=>s.vendor===v).map(s=>
+      '<option value="'+s.id+'">'+esc(s.service)+(s.device?' · '+esc(s.device):'')+' — $'+(Number(s.price)||0)+'</option>').join('')+'</optgroup>').join('')
+    +'<option value="custom">Custom / not on the list…</option>';
+  const back=document.createElement('div');back.className='mback';back.id='ncback';
+  back.innerHTML='<div class="modal">'
+    +'<div class="m-hd"><span>＋ '+esc(TMPL.name)+'</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">'+esc(TMPL.contract_type)+' contract'+(TMPL.library?' · services from the “'+esc(TMPL.library)+'” price library':'')+'. Pick the service so the price is right.</div>'
+    +'<div class="g2">'
+    +'<div><label class="f">Store</label><select id="ncStore">'+stores.map(s=>'<option value="'+esc(s)+'"'+(s===ME.home_store?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></div>'
+    +'<div><label class="f">RepairQ ticket # *</label><input id="ncTicket" type="text" placeholder="required"></div>'
+    +'<div><label class="f">Customer name *</label><input id="ncName" type="text"></div>'
+    +'<div><label class="f">Device</label><input id="ncDevice" type="text" placeholder="e.g. iPhone 13 Pro"></div>'
+    +'<div><label class="f">Customer email</label><input id="ncEmail" type="text" placeholder="for emailing the link + receipt"></div>'
+    +'<div><label class="f">Customer phone</label><input id="ncPhone" type="text" placeholder="optional"></div>'
+    +'</div>'
+    +'<label class="f">Service *</label><select id="ncSvc">'+svcOpts+'</select>'
+    +(act.length?'':'<div style="font-size:.74rem;color:var(--amber);font-weight:700;margin-top:4px">No services in this template’s price library yet — managers add them in Settings → Contracts. Using Custom for now.</div>')
+    +'<label class="f">Repair details / scope *</label><textarea id="ncScope" rows="3" placeholder="What’s wrong and what work is authorized — thorough notes; these also print on the vendor work order"></textarea>'
+    +'<label class="f">How does the customer pay?</label>'
+    +'<div class="paymode">'
+    +'<label class="pm-opt on"><input type="radio" name="ncPm" value="remote" checked><span><b>🔗 Remote — pay after signing</b><span class="d">Customer isn’t here (post-diagnostic call). They sign on their phone and a Square payment link opens right after.</span></span></label>'
+    +'<label class="pm-opt"><input type="radio" name="ncPm" value="instore"><span><b>🏪 In store — sign only</b><span class="d">They sign on the counter iPad; take payment in RepairQ → Square Terminal (dip/tap). No pay step on the page.</span></span></label>'
+    +'</div>'
+    +'<div class="g2">'
+    +'<div><label class="f">Repair price $ *</label><input id="ncPrice" type="number" step="0.01" min="0" placeholder="pick a service"></div>'
+    +'<div><label class="f" style="visibility:hidden">.</label>'
+      +'<label style="display:flex;align-items:center;gap:9px;font-size:.84rem;font-weight:700;padding-top:9px"><input type="checkbox" id="ncDiagOn" checked style="width:16px;height:16px;accent-color:var(--red)">Diagnostic fee already collected</label>'
+      +'<input id="ncDiag" type="number" step="0.01" min="0" value="49.99" style="margin-top:6px;text-align:right" title="Edit if a different diagnostic was charged (e.g. computers)"></div>'
+    +'</div>'
+    +'<div id="ncSum" style="margin-top:12px;background:var(--light-grey);border-radius:10px;padding:11px 14px;font-size:.84rem;font-weight:700;color:var(--dark-grey)"></div>'
+    +'<div class="m-ft"><button class="btn alt" data-x>Cancel</button><button class="btn" id="ncGo">Create contract</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  const priceEl=back.querySelector('#ncPrice'), svcEl=back.querySelector('#ncSvc');
+  const diagOn=back.querySelector('#ncDiagOn'), diagEl=back.querySelector('#ncDiag');
+  const calc=()=>{ // price − diagnostic credit = balance the customer still owes
+    const price=+priceEl.value||0;
+    const diag=diagOn.checked?(+diagEl.value||0):0;
+    const due=Math.max(0,Math.round((price-diag)*100)/100);
+    const instore=back.querySelector('input[name=ncPm]:checked').value==='instore';
+    diagEl.style.display=diagOn.checked?'':'none';
+    back.querySelector('#ncSum').innerHTML=price>0
+      ?('Repair price <b>'+money(price)+'</b>'
+        +(diag>0?' − diagnostic already paid <b>'+money(diag)+'</b>':'')
+        +' &nbsp;→&nbsp; <b style="color:var(--red)">'+money(due)+'</b> '
+        +(instore?'balance due at the counter (RepairQ → Square Terminal)':'collected at signing via Square'))
+      :'Pick a service to see the balance.';
+    return {price,diag,due,instore};
+  };
+  // catalog pick fills & locks the price (employees can't fat-finger it); Custom unlocks
+  svcEl.onchange=()=>{
+    const v=svcEl.value;
+    if(v&&v!=='custom'){const s=SVCS.find(x=>String(x.id)===v);if(s){priceEl.value=Number(s.price)||0;priceEl.readOnly=true;priceEl.style.background='var(--light-grey)';}}
+    else{priceEl.readOnly=false;priceEl.style.background='';if(v==='custom')priceEl.focus();}
+    calc();
+  };
+  priceEl.oninput=calc;diagOn.onchange=calc;diagEl.oninput=calc;
+  back.querySelectorAll('input[name=ncPm]').forEach(r=>r.onchange=()=>{
+    back.querySelectorAll('.pm-opt').forEach(o=>o.classList.toggle('on',o.querySelector('input').checked));
+    calc();
+  });
+  calc();
+  back.querySelector('#ncGo').onclick=async()=>{
+    const name=back.querySelector('#ncName').value.trim();
+    const ticket=back.querySelector('#ncTicket').value.trim();
+    const scope=back.querySelector('#ncScope').value.trim();
+    const svcVal=svcEl.value;
+    const svc=(svcVal&&svcVal!=='custom')?SVCS.find(x=>String(x.id)===svcVal):null;
+    const c=calc();
+    const price=svc?(Number(svc.price)||0):c.price;
+    const payMode=c.instore?'instore':'remote';
+    const collect=c.instore?0:c.due;
+    if(!name){toast('Customer name required',true);return;}
+    if(!ticket){toast('RepairQ ticket # is required',true);return;}
+    if(!svcVal){toast('Pick the service (or Custom)',true);return;}
+    if(!scope){toast('Describe the repair scope',true);return;}
+    if(price<=0){toast('Enter the repair price',true);return;}
+    if(c.diag>price){toast('Diagnostic credit can’t exceed the repair price',true);return;}
+    const row={token:token(),status:'draft',store:back.querySelector('#ncStore').value,created_by:ME.id,
+      customer_name:name,customer_email:back.querySelector('#ncEmail').value.trim()||null,
+      customer_phone:back.querySelector('#ncPhone').value.trim()||null,
+      device:back.querySelector('#ncDevice').value.trim()||null,ticket_ref:ticket,
+      scope,price,collect,diag_fee:c.diag,pay_mode:payMode,
+      template_id:TMPL.id,contract_type:TMPL.contract_type,
+      micro_service_id:svc?svc.id:null,service_vendor:svc?svc.vendor:null,
+      service_name:svc?(svc.service+(svc.device?' · '+svc.device:'')):'Custom quote',
+      terms:{name:TMPL.name,intro:TMPL.intro,sections:TMPL.sections,outcomes:TMPL.outcomes}};
+    const r=await sb.from('contracts').insert(row).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    ROWS.unshift(r.data);back.remove();render();openShare(r.data);
+  };
+}
+function openShare(r){
+  const link=SIGN_URL+r.token;
+  const back=document.createElement('div');back.className='mback';
+  back.innerHTML='<div class="modal">'
+    +'<div class="m-hd"><span>Contract ready — get it signed</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">'+esc(r.customer_name)+(r.device?' · '+esc(r.device):'')
+    +(r.pay_mode==='instore'
+      ?' · sign only. Open the link on the counter iPad and hand it over — then take payment in <b>RepairQ → Square Terminal</b> like any repair.'
+      :' · '+money(r.collect)+' collected at signing. Send the link — the Square payment page opens right after they sign.')+'</div>'
+    +'<div class="linkbox"><span style="flex:1">'+esc(link)+'</span></div>'
+    +'<div class="m-ft">'
+    +'<button class="btn alt" id="shSheet">🖨 Vendor sheet</button>'
+    +(r.customer_email?'<button class="btn alt" id="shMail">✉️ Email it</button>':'')
+    +'<a class="btn alt" style="text-decoration:none" href="'+link+'" target="_blank">Open for signing</a>'
+    +'<button class="btn" id="shCopy">🔗 Copy link</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelector('#shCopy').onclick=()=>navigator.clipboard.writeText(link).then(()=>toast('Link copied'),()=>toast('Copy failed',true));
+  back.querySelector('#shSheet').onclick=()=>printVendorSheet(r);
+  const m=back.querySelector('#shMail');if(m)m.onclick=async()=>{
+    m.disabled=true;
+    const sess=(await sb.auth.getSession()).data.session;
+    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},body:JSON.stringify({t:r.token})}).then(x=>x.json()).catch(()=>({}));
+    m.disabled=false;
+    if(d.ok){toast('✉️ Emailed to '+r.customer_email);r.status='sent';render();}
+    else toast('Email failed: '+(d.error||'error'),true);
+  };
+}
+
+</script>
+</body>
+</html>
