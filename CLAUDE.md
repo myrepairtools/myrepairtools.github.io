@@ -72,7 +72,10 @@ these when adding UI so a new tool looks native.
   tool it manages** (Cash Tracker / My Time / Checklist) — not from the nav menus. Keep its
   nav entry with `hidden:true` (stays registered for rail highlighting; never renders in a
   menu). The button is always visible: enabled for admin/owner, greyed (`.off`) with a toast
-  for everyone else; the page itself stays gated. Follow this pattern for new admin pages.
+  for everyone else; the page itself stays gated. The link is **two-way**: the admin page
+  carries a back-to-tool button in the same header spot (Cash Admin → 💵 Cash Tracker,
+  Schedule Admin → 🗓️ My Time, Task Admin → ✅ Checklist), so the button in that spot just
+  toggles between admin and tool. Follow this pattern for new admin pages.
 - **`site-gate.js`** — site-wide front-door password. One shared password, cached forever
   in `localStorage` (`cpr_site_unlocked`). A casual-access deterrent, not real security.
 - **`admin-gate.js`** — per-person passcode overlay for protected pages. Verifies
