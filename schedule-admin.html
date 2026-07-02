@@ -413,8 +413,11 @@ function injectSchedChangeBar(){
   var fp=view.querySelector('[data-fp]');                       // the location filter pills
   var host=fp?fp.closest('.toolbar'):view.querySelector('.toolbar');
   if(!host)return;
-  var sp=document.createElement('span');sp.style.flex='1';       // push the buttons to the right
-  host.appendChild(sp);host.appendChild(makeNotifyBtn());host.appendChild(makeShiftsBtn());host.appendChild(makeSchBtn());
+  // one right-push spacer only — a second one strands whatever sits between them mid-row
+  var hasSpacer=Array.prototype.some.call(host.children,function(c){return c.tagName==='SPAN'&&c.style.flex==='1';});
+  if(!hasSpacer){var sp=document.createElement('span');sp.style.flex='1';host.appendChild(sp);}
+  host.appendChild(makeNotifyBtn());host.appendChild(makeShiftsBtn());host.appendChild(makeSchBtn());
+  var add=host.querySelector('#haddBtn');if(add)host.appendChild(add);   // ＋ Add holiday: red primary stays rightmost
 }
 function filterPillsHtml(){
   var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));
