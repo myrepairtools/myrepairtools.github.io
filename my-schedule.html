@@ -837,37 +837,53 @@ function wireWizStep1(back){
     if(!WIZ.start||(WIZ.start&&WIZ.end)||di<WIZ.start){WIZ.start=di;WIZ.end=null;}else WIZ.end=di;WIZ.days=null;drawWiz();};});
   back.querySelector('#wzNext1').onclick=function(){if(!WIZ.start)return;if(!WIZ.end)WIZ.end=WIZ.start;wizBuildDays();WIZ.step=2;drawWiz();};
 }
-/* ---- step 2: expected schedule + per-day PTO hours ---- */
+/* ---- step 2: expected schedule + per-day PTO hours, laid out as a calendar ---- */
 function wizStep2Html(){
   var paid=isPaidType(WIZ.type);
-  var rows=wizDates().map(function(di){
-    var d=WIZ.days[di];
-    if(d.off)return '<div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid #F3F2F2;background:#FBFBFC">'
-      +'<span style="width:20px;height:20px;flex:none"></span>'
-      +'<div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.84rem;color:var(--grey)">'+wizDayLabel(di)+'</div>'
-      +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+(d.holiday?('🎉 '+esc(d.holiday)+' — store closed for you'):'Regular day off — no '+(paid?'PTO':'hours')+' needed')+'</div></div></div>';
-    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid #F3F2F2;'+(d.use?'':'background:#FBFBFC')+'">'
-      +'<button data-wday="'+di+'" style="width:20px;height:20px;border-radius:6px;flex:none;cursor:pointer;font-size:.72rem;font-weight:900;display:inline-flex;align-items:center;justify-content:center;'+(d.use?'background:var(--green);border:1.5px solid var(--green);color:#fff':'background:#fff;border:1.5px solid var(--grey);color:transparent')+'">'+(d.use?'✓':'')+'</button>'
-      +'<div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.84rem;color:'+(d.use?'var(--dark)':'var(--grey)')+'">'+wizDayLabel(di)+(d.holiday?' <span style="font-size:.66rem;color:#8a5a00">🎉 '+esc(d.holiday)+'</span>':'')+'</div>'
-      +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--dark-grey)">Scheduled: '+esc(d.name)+(d.time?' · '+esc(d.time):'')+(d.store?' · '+esc(shortStore(d.store)):'')+(d.est?' · est.':'')+'</div></div>'
-      +'<div style="display:flex;align-items:center;gap:6px;flex:none">'
-      +'<input type="number" data-whrs="'+di+'" value="'+esc(d.use?d.hours:'')+'" min="0" max="'+d.sched+'" step="0.25"'+(d.use?'':' disabled')+' style="width:74px;padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:Nunito Sans;font-weight:700;font-size:.86rem;text-align:right;'+(d.use?'':'background:#F5F5F6;color:var(--grey)')+'">'
-      +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey);white-space:nowrap">of '+d.sched+'h</span></div></div>';
-  }).join('');
+  // week rows covering the selected range (Sunday-aligned)
+  var sp=WIZ.start.split('-').map(Number),ep=WIZ.end.split('-').map(Number);
+  var gStart=new Date(sp[0],sp[1]-1,sp[2]-new Date(sp[0],sp[1]-1,sp[2]).getDay());
+  var gEnd=new Date(ep[0],ep[1]-1,ep[2]+(6-new Date(ep[0],ep[1]-1,ep[2]).getDay()));
+  var cells='',cur=new Date(gStart),lastMon=-1,guard=0;
+  while(cur<=gEnd&&guard++<77){
+    var di=iso(cur),inRange=di>=WIZ.start&&di<=WIZ.end,d=inRange?WIZ.days[di]:null;
+    var mLbl=(cur.getMonth()!==lastMon)?(MON[cur.getMonth()]+' '):'';lastMon=cur.getMonth();
+    var num='<div style="display:flex;align-items:center;justify-content:space-between;gap:4px"><span style="font-family:Nunito;font-weight:800;font-size:.74rem;color:'+(inRange?(d&&!d.off&&d.use?'var(--dark)':'var(--grey)'):'#d8dbe2')+'">'+mLbl+cur.getDate()+'</span>';
+    if(!inRange){
+      cells+='<div class="pl-cell" style="min-height:104px;background:#FBFBFC;cursor:default">'+num+'</div></div>';
+    }else if(d.off){
+      cells+='<div class="pl-cell" style="min-height:104px;background:#FBFBFC;cursor:default">'+num+'</div>'
+        +'<div style="font-family:Nunito;font-weight:800;font-size:.62rem;letter-spacing:.4px;text-transform:uppercase;color:#cfd2dd;margin-top:4px">'+(d.holiday?'🎉 Closed':'Day off')+'</div>'
+        +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);line-height:1.3;margin-top:2px">'+(d.holiday?esc(d.holiday):'No '+(paid?'PTO':'hours')+' needed')+'</div></div>';
+    }else{
+      var on=d.use;
+      cells+='<div class="pl-cell" data-wday="'+di+'" style="min-height:104px;cursor:pointer;background:'+(on?'#F1FAF4':'#fff')+';box-shadow:inset 0 0 0 '+(on?'1.5px var(--green)':'0 transparent')+'">'
+        +num+'<span style="width:17px;height:17px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:900;'+(on?'background:var(--green);color:#fff':'background:#fff;border:1.5px solid var(--grey);color:transparent')+'">✓</span></div>'
+        +'<div style="font-family:Nunito;font-weight:800;font-size:.7rem;color:'+(on?'var(--dark)':'var(--dark-grey)')+';margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.name)+(d.holiday?' 🎉':'')+'</div>'
+        +'<div style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.time||'')+(d.est?' · est.':'')+'</div>'
+        +'<div style="display:flex;align-items:center;gap:4px;margin-top:5px">'
+        +'<input type="number" data-whrs="'+di+'" value="'+esc(on?d.hours:'')+'" min="0" max="'+d.sched+'" step="0.25"'+(on?'':' disabled')+' style="width:52px;padding:4px 5px;border:1.5px solid '+(on?'var(--border)':'#EEF0F4')+';border-radius:7px;font-family:Nunito Sans;font-weight:700;font-size:.76rem;text-align:right;'+(on?'background:#fff':'background:#F5F5F6;color:var(--grey)')+'">'
+        +'<span style="font-family:Nunito Sans;font-weight:700;font-size:.6rem;color:var(--grey);white-space:nowrap">of '+d.sched+'h</span></div></div>';
+    }
+    cur.setDate(cur.getDate()+1);
+  }
   var total=wizTotal();
   var anySched=wizDates().some(function(di){return !WIZ.days[di].off;});
   var note=anySched?'':'<div style="padding:12px 18px;font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--dark-grey);background:#F7FAFD;border-bottom:1px solid var(--border)">These dates all fall on your regular days off — you can still submit the request so your manager knows, but no '+(paid?'PTO':'hours')+' will be used.</div>';
   return '<div style="padding:11px 18px;border-bottom:1px solid var(--border);font-family:Nunito Sans;font-weight:700;font-size:.8rem;color:var(--dark-grey)">'
-    +'Check the days you want to use '+(paid?'<b>PTO</b>':'<b>unpaid hours</b>')+' for, and adjust the hours if you like — you can go lower to stretch your bank, never higher than your scheduled shift.</div>'
+    +'Tap the days you want to use '+(paid?'<b>PTO</b>':'<b>unpaid hours</b>')+' for, and adjust the hours if you like — you can go lower to stretch your bank, never higher than your scheduled shift.</div>'
     +note
-    +'<div style="max-height:52vh;overflow:auto">'+rows+'</div>'
+    +'<div class="pl-grid" style="background:#fafafa;border-bottom:1px solid var(--border)">'+DAYS.map(function(d){return '<div style="padding:9px 8px;font-family:Nunito;font-weight:800;font-size:.56rem;letter-spacing:.4px;text-transform:uppercase;color:var(--grey)">'+d+'</div>';}).join('')+'</div>'
+    +'<div style="max-height:52vh;overflow:auto"><div class="pl-grid">'+cells+'</div></div>'
     +'<div class="pl-ft"><div style="font-family:Nunito Sans;font-weight:700;font-size:.84rem">Using <b style="font-family:Nunito;font-size:.95rem">'+total+'h</b>'+(paid?' PTO':' unpaid')+'</div>'
     +'<span id="wzBal" style="font-family:Nunito Sans;font-weight:700;font-size:.76rem;color:var(--grey)">'+(paid?(WIZ.bal!=null?('PTO available: <b style="color:var(--dark)">'+WIZ.bal+' hrs</b>'):'PTO available: …'):'Not paid time off')+'</span>'
     +'<div style="flex:1"></div><button class="btn" id="wzBack2" style="width:auto;padding:9px 16px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)">← Back</button>'
     +'<button class="btn btn-red" id="wzNext2" style="width:auto;padding:9px 16px">Next: Review →</button></div>';
 }
 function wireWizStep2(back){
-  back.querySelectorAll('[data-wday]').forEach(function(b){b.onclick=function(){var d=WIZ.days[b.getAttribute('data-wday')];d.use=!d.use;if(d.use&&!(Number(d.hours)>0))d.hours=d.sched;drawWiz();};});
+  back.querySelectorAll('[data-wday]').forEach(function(cell){cell.onclick=function(ev){
+    if(ev.target.closest('[data-whrs]'))return;                     // clicking the hours input shouldn't toggle the day
+    var d=WIZ.days[cell.getAttribute('data-wday')];d.use=!d.use;if(d.use&&!(Number(d.hours)>0))d.hours=d.sched;drawWiz();};});
   back.querySelectorAll('[data-whrs]').forEach(function(inp){
     inp.onchange=function(){var d=WIZ.days[inp.getAttribute('data-whrs')];var v=Number(inp.value);
       if(!(v>=0))v=d.sched; if(v>d.sched)v=d.sched;                 // never more than scheduled
