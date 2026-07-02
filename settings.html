@@ -503,7 +503,7 @@ var SHIFT_BY_ID={}, HOURS={};        /* HOURS[shift_id][store] = {def:{id,enable
 var SHIFTSEL=lsGet('cprSetShift',null), SHIFTLOC=null; /* selected shift id + location tab in the editor */
 var SHIFTPAL=['#2E9E5B','#4FB0E3','#8B5CF6','#DC282E','#C9820B','#2D2D3B'];
 var HYLA_SET={}, HYLA_LABEL=[], HYLA_GUIDE=[]; /* hyla page settings (hyla_settings kv) */
-var MSVC=[], MTMPLS=[], MTSEL=null, MCLAUSES=[], MDEVS=[]; /* contracts: services, templates, clause library, device names */
+var MSVC=[], MTMPLS=[], MTSEL=null, MCLAUSES=[], MDEVS=[], MLIBS=[], MLIBSEL=null; /* contracts: services, templates, clause library, device names, price libraries */
 var MOPEN=null; /* {type:'member'|'store'|'reg'|'role', isNew, draft} */
 /* legacy staff.role text -> new role key, for the "Used by" count only */
 var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
@@ -632,6 +632,7 @@ async function loadPages(){
     sb.from('contract_templates').select('*').order('sort').order('name'),
     sb.from('contract_clauses').select('*').order('sort').order('title'),
     sb.from('device_models').select('manufacturer,model,active').order('manufacturer').order('model'),
+    sb.from('contract_libraries').select('*').order('sort').order('name'),
   ]);
   DMFRS=res[0].error?[]:(res[0].data||[]);
   DPARTS=res[1].error?[]:(res[1].data||[]);
@@ -648,6 +649,7 @@ async function loadPages(){
   MTMPLS=res[8]&&!res[8].error?(res[8].data||[]):[];
   MCLAUSES=res[9]&&!res[9].error?(res[9].data||[]):[];
   MDEVS=(res[10]&&!res[10].error?(res[10].data||[]):[]).filter(function(d){return d.active!==false;}).map(function(d){return d.model;});
+  MLIBS=res[11]&&!res[11].error?(res[11].data||[]):[];
   HYLA_SET={};(res[4].error?[]:(res[4].data||[])).forEach(function(r){HYLA_SET[r.key]=r.value;});
   HYLA_LABEL=hylaParse(HYLA_SET.labelItems,['Battery life','All functions','Audio test','Cleaned']);
   HYLA_GUIDE=hylaParse(HYLA_SET.guideSteps,[]);
@@ -1793,136 +1795,186 @@ function renderMicroPage(){
 }
 function mDevListHtml(id){return '<datalist id="'+id+'">'+MDEVS.map(function(m){return '<option>'+esc(m)+'</option>';}).join('')+'</datalist>';}
 
-/* ---- clause library: shared 1-size-fits-all clauses (refund, warranty, …) ---- */
+/* ---- clause library: master list (rail) + detail pane, like Templates ---- */
+var MCLSEL=null;
+function clauseUsedBy(id){return MTMPLS.filter(function(t){return (t.sections||[]).some(function(x){return x.clause_id===id;});}).length;}
 function renderMicroClauses(pane){
-  var usedBy=function(id){return MTMPLS.filter(function(t){return (t.sections||[]).some(function(x){return x.clause_id===id;});}).length;};
-  var rows=MCLAUSES.map(function(c,i){
-    var n=usedBy(c.id);
-    return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:10px" data-mcrow="'+i+'">'
-      +'<div style="display:flex;gap:8px;align-items:center"><input class="pgin hfull" data-mct="'+i+'" value="'+esc(c.title)+'" style="font-weight:800;font-family:Nunito" placeholder="Clause title (e.g. Refund Policy)">'
-      +'<span style="flex:none;font-size:.68rem;font-weight:800;color:'+(n?'var(--blue)':'var(--grey)')+'">'+n+' template'+(n===1?'':'s')+'</span>'
-      +'<button class="ord del" data-mcdel="'+i+'" title="Delete clause">✕</button></div>'
-      +'<textarea class="pgin hfull" data-mcb="'+i+'" rows="4" style="margin-top:8px;resize:vertical" placeholder="Clause text — used verbatim by every template that links it">'+esc(c.body)+'</textarea></div>';
+  if(MCLSEL==null||!MCLAUSES.some(function(c){return c.id===MCLSEL;}))MCLSEL=MCLAUSES.length?MCLAUSES[0].id:null;
+  var c=MCLAUSES.filter(function(x){return x.id===MCLSEL;})[0]||null;
+  var rail=MCLAUSES.map(function(cl){
+    var n=clauseUsedBy(cl.id);
+    return '<button class="pg2tool'+(cl.id===MCLSEL?' on':'')+'" data-mcsel="'+cl.id+'" style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(cl.title||'(untitled)')+'</span><span style="flex:none;font-size:.62rem;color:'+(n?'var(--blue)':'var(--grey)')+'">'+n+'</span></button>';
   }).join('');
-  pane.innerHTML='<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">Clause library</span><span class="pgcard-n">'+MCLAUSES.length+'</span></div>'
-    +'<div style="padding:14px 16px">'
-    +'<div style="font-size:.78rem;color:var(--dark-grey);margin-bottom:4px">One-size-fits-all clauses (refund policy, warranty, data confidentiality…). Templates <b>link</b> these — edit a clause here and every template using it updates. Contracts that were already created keep the wording they snapshotted at creation.</div>'
-    +(rows||'<div class="empty" style="padding:14px">No shared clauses yet.</div>')
-    +'<div style="display:flex;gap:8px;margin-top:14px"><button class="btn alt sm" id="mcAdd">＋ Add clause</button><span style="flex:1"></span><button class="btn sm" id="mcSave">Save clauses</button></div>'
-    +'</div></div>';
-  function stash(){pane.querySelectorAll('[data-mcrow]').forEach(function(el){
-    var i=+el.getAttribute('data-mcrow'),c=MCLAUSES[i];if(!c)return;
-    c.title=el.querySelector('[data-mct="'+i+'"]').value.trim();
-    c.body=el.querySelector('[data-mcb="'+i+'"]').value.trim();});}
-  $('#mcAdd').onclick=function(){stash();MCLAUSES.push({title:'',body:''});renderMicroClauses(pane);};
-  pane.querySelectorAll('[data-mcdel]').forEach(function(b){b.onclick=async function(){
-    stash();var i=+b.getAttribute('data-mcdel'),c=MCLAUSES[i];
-    var n=c.id?usedBy(c.id):0;
+  var editor;
+  if(c){
+    var n=clauseUsedBy(c.id);
+    editor='<div style="font-size:.78rem;color:var(--dark-grey);margin-bottom:12px">One-size-fits-all clauses (refund, warranty, data confidentiality…). Templates <b>link</b> these — edit here and every template using it updates. Contracts already created keep the wording they snapshotted.</div>'
+      +'<label class="hlbl">Clause title</label><input class="pgin hfull" id="mcTitle" value="'+esc(c.title)+'" placeholder="e.g. Refund Policy">'
+      +'<label class="hlbl" style="margin-top:12px">Clause text</label><textarea class="pgin hfull" id="mcBody" rows="9" style="resize:vertical">'+esc(c.body)+'</textarea>'
+      +'<div style="font-size:.74rem;color:'+(n?'var(--blue)':'var(--grey)')+';font-weight:700;margin-top:8px">'+(n?('📚 Linked by '+n+' template'+(n===1?'':'s')+' — saving updates them.'):'Not linked by any template yet.')+'</div>'
+      +'<div style="display:flex;align-items:center;margin-top:16px"><button class="btn alt sm" id="mcDel" style="color:var(--red)">🗑 Delete clause</button><span style="flex:1"></span><button class="btn sm" id="mcSave">Save clause</button></div>';
+  }else editor='<div class="empty" style="padding:20px">No clauses yet — create your first.</div>';
+  pane.innerHTML='<div style="display:grid;grid-template-columns:230px 1fr;gap:14px;align-items:start">'
+    +'<div><div class="pg2lbl">Clauses</div>'+rail+'<button class="btn alt sm" id="mcNew" style="margin-top:10px;width:100%">＋ New clause</button></div>'
+    +'<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">'+(c?esc(c.title||'Clause'):'Clause library')+'</span></div><div style="padding:14px 16px">'+editor+'</div></div></div>';
+  pane.querySelectorAll('[data-mcsel]').forEach(function(b){b.onclick=function(){MCLSEL=+b.getAttribute('data-mcsel');renderMicroClauses(pane);};});
+  var nw=$('#mcNew');if(nw)nw.onclick=async function(){
+    var r=await sb.from('contract_clauses').insert({title:'New clause',body:'',sort:MCLAUSES.length,updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null}).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    MCLAUSES.push(r.data);MCLSEL=r.data.id;renderMicroClauses(pane);pgRenderNav();
+  };
+  var sv=$('#mcSave');if(sv)sv.onclick=async function(){
+    var patch={title:$('#mcTitle').value.trim()||'Untitled clause',body:$('#mcBody').value.trim(),updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
+    var r=await sb.from('contract_clauses').update(patch).eq('id',c.id).select('*').maybeSingle();
+    if(r.error){toast(r.error.message,true);return;}
+    MCLAUSES=MCLAUSES.map(function(x){return x.id===c.id?(r.data||Object.assign({},x,patch)):x;});
+    renderMicroClauses(pane);pgRenderNav();toast('✓ Clause saved');
+  };
+  var del=$('#mcDel');if(del)del.onclick=async function(){
+    var n=clauseUsedBy(c.id);
     if(!confirm('Delete “'+(c.title||'untitled')+'”?'+(n?' It is linked by '+n+' template'+(n===1?'':'s')+' — they will lose this clause.':'')))return;
-    if(c.id){var r=await sb.from('contract_clauses').delete().eq('id',c.id);if(r.error){toast(r.error.message,true);return;}}
-    MCLAUSES.splice(i,1);renderMicroClauses(pane);pgRenderNav();toast('Clause deleted');
-  };});
-  $('#mcSave').onclick=async function(){
-    stash();
-    var rows2=MCLAUSES.filter(function(c){return c.title;});
-    for(var j=0;j<rows2.length;j++){var c=rows2[j];
-      var payload={title:c.title,body:c.body||'',sort:j,updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
-      var r=c.id?await sb.from('contract_clauses').update(payload).eq('id',c.id)
-                :await sb.from('contract_clauses').insert(payload);
-      if(r.error){toast(r.error.message,true);return;}
-    }
-    var fresh=await sb.from('contract_clauses').select('*').order('sort').order('title');
-    if(!fresh.error)MCLAUSES=fresh.data||[];
-    renderMicroClauses(pane);pgRenderNav();toast('✓ Clause library saved');
+    var r=await sb.from('contract_clauses').delete().eq('id',c.id);
+    if(r.error){toast(r.error.message,true);return;}
+    MCLAUSES=MCLAUSES.filter(function(x){return x.id!==c.id;});MCLSEL=null;
+    renderMicroClauses(pane);pgRenderNav();toast('Clause deleted');
   };
 }
 
-/* ---- service libraries with device price tiers ---- */
-var MSVCOPEN=null; /* index of the service row with the tier editor expanded */
+/* ---- service libraries: master list (rail) + detail pane with device tiers ---- */
+function mLibNames(){return MLIBS.map(function(l){return l.name;});}
+var MSVCSEL=null;
 function renderMicroServices(pane){
-  var head='<div style="display:grid;grid-template-columns:.9fr 1fr 1.5fr 90px 84px 56px 78px;gap:8px;font-family:Nunito;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding:0 2px"><span>Library</span><span>Vendor</span><span>Service</span><span style="text-align:right">Default $</span><span style="text-align:right">Cost $</span><span></span><span></span></div>';
-  var rows=MSVC.map(function(sv,i){
-    var tiers=Array.isArray(sv.tiers)?sv.tiers:[];
-    var open=MSVCOPEN===i;
-    var row='<div style="display:grid;grid-template-columns:.9fr 1fr 1.5fr 90px 84px 56px 78px;gap:8px;align-items:center;margin-top:8px" data-msrow="'+i+'">'
-      +'<input class="pgin" data-ms="library" value="'+esc(sv.library||'')+'" placeholder="Library">'
-      +'<input class="pgin" data-ms="vendor" value="'+esc(sv.vendor||'')+'" placeholder="Vendor">'
-      +'<input class="pgin" data-ms="service" value="'+esc(sv.service||'')+'" placeholder="Service">'
-      +'<input class="pgin" data-ms="price" type="number" step="0.01" value="'+(sv.price!=null&&sv.price!==''?sv.price:'')+'" style="text-align:right" title="Fallback price when no device tier matches. 0 = tier-only service.">'
-      +'<input class="pgin" data-ms="cost" type="number" step="0.01" value="'+(sv.cost!=null?sv.cost:'')+'" style="text-align:right">'
-      +'<label style="display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:800;color:var(--dark-grey)"><input type="checkbox" data-ms="active" '+(sv.active!==false?'checked':'')+'>on</label>'
-      +'<button class="btn alt sm" data-mstier="'+i+'" style="padding:5px 8px">'+(open?'▾':'▸')+' '+tiers.length+' tier'+(tiers.length===1?'':'s')+'</button>'
-      +'</div>';
-    if(open){
-      row+='<div style="border:1px solid var(--border);border-left:3px solid var(--red);border-radius:10px;padding:12px;margin:8px 0 4px" data-mstiers="'+i+'">'
-        +'<div style="font-size:.74rem;color:var(--dark-grey);margin-bottom:8px"><b>Device price tiers</b> — when the contract’s device matches a tier, that price is used; otherwise the default. Device names must match the device list exactly (autocomplete below).</div>'
-        +tiers.map(function(t,ti){
-          return '<div style="border:1px dashed var(--border);border-radius:9px;padding:10px;margin-top:8px" data-tier="'+ti+'">'
-            +'<div style="display:flex;gap:8px;align-items:center"><span style="font-family:Nunito;font-weight:800;font-size:.72rem">Tier price $</span>'
-            +'<input class="pgin" data-tprice value="'+(t.price!=null?t.price:'')+'" type="number" step="0.01" style="width:110px;text-align:right">'
-            +'<span style="flex:1"></span><button class="ord del" data-tdel="'+ti+'" title="Remove tier">✕</button></div>'
-            +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+(t.devices||[]).map(function(d,di){return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--light-grey);border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:700">'+esc(d)+'<button style="border:none;background:none;cursor:pointer;color:var(--grey);font-weight:800" data-ddel="'+ti+'|'+di+'">×</button></span>';}).join('')+'</div>'
-            +'<div style="display:flex;gap:8px;margin-top:8px"><input class="pgin" data-dadd="'+ti+'" list="msDevList" placeholder="Add device… (e.g. iPhone 15 Pro Max)" style="max-width:280px"><button class="btn alt sm" data-daddbtn="'+ti+'">Add</button></div>'
-            +'</div>';
-        }).join('')
-        +'<button class="btn alt sm" data-taddbtn style="margin-top:10px">＋ Add tier</button>'
-        +'</div>';
-    }
-    return row;
+  var libs=mLibNames();
+  if(MLIBSEL==null||libs.indexOf(MLIBSEL)<0)MLIBSEL=libs.length?libs[0]:null;
+  var inLib=MSVC.filter(function(x){return x.library===MLIBSEL;});
+  if(MSVCSEL==null||!inLib.some(function(x){return x.id===MSVCSEL;}))MSVCSEL=inLib.length?inLib[0].id:null;
+  var sv=MSVC.filter(function(x){return x.id===MSVCSEL;})[0]||null;
+  var libOpts=libs.map(function(n){return '<option value="'+esc(n)+'"'+(n===MLIBSEL?' selected':'')+'>'+esc(n)+'</option>';}).join('');
+  var railList=inLib.map(function(s2){
+    var tiers=Array.isArray(s2.tiers)?s2.tiers:[];
+    return '<button class="pg2tool'+(s2.id===MSVCSEL?' on':'')+'" data-svcsel="'+s2.id+'" style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis'+(s2.active===false?';opacity:.5':'')+'">'+esc(s2.service||'(untitled)')+'</span><span style="flex:none;font-size:.62rem;color:var(--grey)">'+(tiers.length?tiers.length+'t':(Number(s2.price)>0?'$'+Number(s2.price):'—'))+'</span></button>';
   }).join('');
-  pane.innerHTML='<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">Service price libraries</span><span class="pgcard-n">'+MSVC.filter(function(x){return x.active!==false;}).length+' / '+MSVC.length+'</span></div>'
-    +'<div style="padding:14px 16px">'
-    +'<div style="font-size:.78rem;color:var(--dark-grey);margin-bottom:12px">Each template points at one <b>library</b>; techs pick the device first and only services priced for that device appear. <b>Default $</b> covers any device without a tier (set 0 for tier-only services). <b>Cost $</b> = vendor charge, optional.</div>'
-    +head+(rows||'<div class="empty" style="padding:14px">No services yet — add your first below.</div>')
-    +'<div style="display:flex;gap:8px;margin-top:14px"><button class="btn alt sm" id="msAdd">＋ Add service</button><span style="flex:1"></span><button class="btn sm" id="msSave">Save libraries</button></div>'
-    +'</div></div>'+mDevListHtml('msDevList');
-  function stash(){
-    pane.querySelectorAll('[data-msrow]').forEach(function(el){
-      var i=+el.getAttribute('data-msrow'),w=MSVC[i];if(!w)return;
-      el.querySelectorAll('[data-ms]').forEach(function(inp){var k=inp.getAttribute('data-ms');
-        if(k==='active')w.active=inp.checked;
-        else if(k==='price')w.price=inp.value===''?'':+inp.value;
-        else if(k==='cost')w.cost=inp.value===''?null:+inp.value;
-        else w[k]=inp.value.trim();});
-    });
-    var tp=pane.querySelector('[data-mstiers]');
-    if(tp){var i=+tp.getAttribute('data-mstiers'),w=MSVC[i];
-      if(w){var tiers=Array.isArray(w.tiers)?w.tiers:[];
-        tp.querySelectorAll('[data-tier]').forEach(function(el){var ti=+el.getAttribute('data-tier');if(tiers[ti])tiers[ti].price=+el.querySelector('[data-tprice]').value||0;});
-        w.tiers=tiers;}}
+  var editor;
+  if(sv){
+    var tiers=Array.isArray(sv.tiers)?sv.tiers:[];
+    var tierHtml=tiers.map(function(t,ti){
+      return '<div style="border:1px dashed var(--border);border-radius:9px;padding:10px;margin-top:8px" data-tier="'+ti+'">'
+        +'<div style="display:flex;gap:8px;align-items:center"><span style="font-family:Nunito;font-weight:800;font-size:.72rem">Tier price $</span>'
+        +'<input class="pgin" data-tprice value="'+(t.price!=null?t.price:'')+'" type="number" step="0.01" style="width:120px;flex:none;text-align:right">'
+        +'<span style="flex:1"></span><button class="btn alt sm" data-tdel="'+ti+'" style="color:var(--red)">🗑</button></div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+(t.devices||[]).map(function(d,di){return '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--light-grey);border-radius:999px;padding:4px 11px;font-size:.76rem;font-weight:700">'+esc(d)+'<button style="border:none;background:none;cursor:pointer;color:var(--grey);font-weight:800" data-ddel="'+ti+'|'+di+'">×</button></span>';}).join('')+'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:8px"><input class="pgin" data-dadd="'+ti+'" list="svcDevList" placeholder="Add device… (e.g. iPhone 15 Pro Max)" style="flex:1"><button class="btn alt sm" data-daddbtn="'+ti+'">Add</button></div>'
+        +'</div>';
+    }).join('');
+    editor='<div class="grid2"><div class="f"><label>Library</label><select class="pgin hfull" id="svLib">'+libOpts+'</select></div>'
+      +'<div class="f"><label>Vendor (optional)</label><input class="pgin hfull" id="svVendor" value="'+esc(sv.vendor||'')+'" placeholder="e.g. Vendor A / in-house"></div></div>'
+      +'<div class="f" style="margin-top:12px"><label>Service name</label><input class="pgin hfull" id="svName" value="'+esc(sv.service||'')+'" placeholder="e.g. Data Recovery"></div>'
+      +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Default $ <span style="font-weight:600;color:var(--grey);text-transform:none;letter-spacing:0">(device w/o a tier; 0 = tier-only)</span></label><input class="pgin hfull" id="svPrice" type="number" step="0.01" value="'+(sv.price!=null&&sv.price!==''?sv.price:'')+'"></div>'
+      +'<div class="f"><label>Cost $ <span style="font-weight:600;color:var(--grey);text-transform:none;letter-spacing:0">(vendor charge, optional)</span></label><input class="pgin hfull" id="svCost" type="number" step="0.01" value="'+(sv.cost!=null?sv.cost:'')+'"></div></div>'
+      +'<label style="display:flex;align-items:center;gap:9px;margin-top:14px;font-size:.86rem;font-weight:700"><input type="checkbox" id="svActive" '+(sv.active!==false?'checked':'')+'> Active (available to pick on contracts)</label>'
+      +'<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px"><div style="font-family:Nunito;font-weight:800;font-size:.8rem">Device price tiers</div>'
+      +'<div style="font-size:.74rem;color:var(--dark-grey);margin:4px 0 2px">When the contract’s device matches a tier, that price wins; otherwise the default. Device names autocomplete from the device list.</div>'
+      +tierHtml+'<button class="btn alt sm" id="svTAdd" style="margin-top:10px">＋ Add tier</button></div>'
+      +'<div style="display:flex;align-items:center;margin-top:16px"><button class="btn alt sm" id="svDel" style="color:var(--red)">🗑 Delete service</button><span style="flex:1"></span><button class="btn sm" id="svSave">Save service</button></div>'
+      +'<datalist id="svcDevList">'+MDEVS.map(function(m){return '<option>'+esc(m)+'</option>';}).join('')+'</datalist>';
+  }else editor='<div class="empty" style="padding:20px">'+(MLIBSEL?'No services in “'+esc(MLIBSEL)+'” — add one.':'Create a library first (⚙ Manage libraries).')+'</div>';
+  pane.innerHTML='<div style="display:grid;grid-template-columns:250px 1fr;gap:14px;align-items:start">'
+    +'<div><div class="pg2lbl">Library</div>'
+    +'<div style="display:flex;gap:6px"><select class="pgin" id="svcLibSel" style="flex:1">'+(libOpts||'<option>—</option>')+'</select><button class="btn alt sm" id="libMgr" title="Add / rename / delete libraries">⚙</button></div>'
+    +'<div class="pg2lbl" style="margin-top:12px">Services</div>'+railList
+    +'<button class="btn alt sm" id="svcNew" style="margin-top:10px;width:100%"'+(MLIBSEL?'':' disabled')+'>＋ New service</button></div>'
+    +'<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">'+(sv?esc(sv.service||'Service'):'Services')+'</span><span class="pgcard-n">'+MSVC.filter(function(x){return x.active!==false;}).length+' / '+MSVC.length+'</span></div><div style="padding:14px 16px">'+editor+'</div></div></div>';
+  var libSel=$('#svcLibSel');if(libSel)libSel.onchange=function(){MLIBSEL=libSel.value;MSVCSEL=null;renderMicroServices(pane);};
+  var mgr=$('#libMgr');if(mgr)mgr.onclick=function(){openLibMgr(pane);};
+  pane.querySelectorAll('[data-svcsel]').forEach(function(b){b.onclick=function(){MSVCSEL=+b.getAttribute('data-svcsel');renderMicroServices(pane);};});
+  var nw=$('#svcNew');if(nw&&!nw.disabled)nw.onclick=async function(){
+    var r=await sb.from('contract_services').insert({library:MLIBSEL,vendor:null,service:'New service',price:0,cost:null,active:true,tiers:[],updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null}).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    MSVC.push(r.data);MSVCSEL=r.data.id;renderMicroServices(pane);pgRenderNav();
+  };
+  if(!sv)return;
+  function stashSvc(){
+    sv.library=$('#svLib').value;sv.vendor=$('#svVendor').value.trim();sv.service=$('#svName').value.trim();
+    sv.price=$('#svPrice').value===''?'':+$('#svPrice').value;sv.cost=$('#svCost').value===''?null:+$('#svCost').value;
+    sv.active=$('#svActive').checked;
+    sv.tiers=Array.isArray(sv.tiers)?sv.tiers:[];
+    pane.querySelectorAll('[data-tier]').forEach(function(el){var ti=+el.getAttribute('data-tier');if(sv.tiers[ti])sv.tiers[ti].price=el.querySelector('[data-tprice]').value===''?'':+el.querySelector('[data-tprice]').value;});
   }
-  $('#msAdd').onclick=function(){stash();var last=MSVC[MSVC.length-1]||{};MSVC.push({library:last.library||'Microsoldering',vendor:last.vendor||'',service:'',device:null,price:'',cost:null,active:true,tiers:[]});MSVCOPEN=null;renderMicroServices(pane);};
-  pane.querySelectorAll('[data-mstier]').forEach(function(b){b.onclick=function(){stash();var i=+b.getAttribute('data-mstier');MSVCOPEN=MSVCOPEN===i?null:i;renderMicroServices(pane);};});
-  var tiersPane=pane.querySelector('[data-mstiers]');
-  if(tiersPane){
-    var ti2=+tiersPane.getAttribute('data-mstiers'),w2=MSVC[ti2];
-    var tadd=tiersPane.querySelector('[data-taddbtn]');
-    if(tadd)tadd.onclick=function(){stash();(w2.tiers=w2.tiers||[]).push({price:'',devices:[]});renderMicroServices(pane);};
-    tiersPane.querySelectorAll('[data-tdel]').forEach(function(b){b.onclick=function(){stash();w2.tiers.splice(+b.getAttribute('data-tdel'),1);renderMicroServices(pane);};});
-    tiersPane.querySelectorAll('[data-ddel]').forEach(function(b){b.onclick=function(){stash();var p=b.getAttribute('data-ddel').split('|');w2.tiers[+p[0]].devices.splice(+p[1],1);renderMicroServices(pane);};});
-    tiersPane.querySelectorAll('[data-daddbtn]').forEach(function(b){b.onclick=function(){
-      stash();var ti=+b.getAttribute('data-daddbtn');
-      var inp=tiersPane.querySelector('[data-dadd="'+ti+'"]');var v=(inp.value||'').trim();if(!v)return;
-      var dl=(w2.tiers[ti].devices=w2.tiers[ti].devices||[]);
-      if(dl.indexOf(v)<0)dl.push(v);renderMicroServices(pane);
-    };});
-  }
-  $('#msSave').onclick=async function(){
-    stash();
-    var rows2=MSVC.filter(function(w){return w.library&&w.vendor&&w.service;});
-    for(var j=0;j<rows2.length;j++){var w=rows2[j];
-      var payload={library:w.library,vendor:w.vendor,service:w.service,device:null,price:Number(w.price)||0,
-        cost:(w.cost==null||w.cost==='')?null:Number(w.cost),active:w.active!==false,
-        tiers:(w.tiers||[]).filter(function(t){return Number(t.price)>0&&(t.devices||[]).length;}).map(function(t){return {price:Number(t.price)||0,devices:t.devices};}),
-        updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
-      var r=w.id?await sb.from('contract_services').update(payload).eq('id',w.id)
-                :await sb.from('contract_services').insert(payload);
-      if(r.error){toast(r.error.message,true);return;}
-    }
+  $('#svLib').onchange=function(){stashSvc();};
+  $('#svTAdd').onclick=function(){stashSvc();(sv.tiers=sv.tiers||[]).push({price:'',devices:[]});renderMicroServices(pane);};
+  pane.querySelectorAll('[data-tdel]').forEach(function(b){b.onclick=function(){stashSvc();sv.tiers.splice(+b.getAttribute('data-tdel'),1);renderMicroServices(pane);};});
+  pane.querySelectorAll('[data-ddel]').forEach(function(b){b.onclick=function(){stashSvc();var pp=b.getAttribute('data-ddel').split('|');sv.tiers[+pp[0]].devices.splice(+pp[1],1);renderMicroServices(pane);};});
+  pane.querySelectorAll('[data-daddbtn]').forEach(function(b){b.onclick=function(){stashSvc();var ti=+b.getAttribute('data-daddbtn');var inp=pane.querySelector('[data-dadd="'+ti+'"]');var v=(inp.value||'').trim();if(!v)return;var dl=(sv.tiers[ti].devices=sv.tiers[ti].devices||[]);if(dl.indexOf(v)<0)dl.push(v);renderMicroServices(pane);};});
+  $('#svDel').onclick=async function(){
+    if(!confirm('Delete “'+(sv.service||'this service')+'”?'))return;
+    var r=await sb.from('contract_services').delete().eq('id',sv.id);
+    if(r.error){toast(r.error.message,true);return;}
+    MSVC=MSVC.filter(function(x){return x.id!==sv.id;});MSVCSEL=null;renderMicroServices(pane);pgRenderNav();toast('Service deleted');
+  };
+  $('#svSave').onclick=async function(){
+    stashSvc();
+    if(!sv.library){toast('Pick a library',true);return;}
+    if(!sv.service){toast('Service name is required',true);return;}
+    var payload={library:sv.library,vendor:sv.vendor||null,service:sv.service,device:null,
+      price:Number(sv.price)||0,cost:(sv.cost==null||sv.cost==='')?null:Number(sv.cost),active:sv.active!==false,
+      tiers:(sv.tiers||[]).filter(function(t){return Number(t.price)>0&&(t.devices||[]).length;}).map(function(t){return {price:Number(t.price)||0,devices:t.devices};}),
+      updated_by:(typeof AUTH!=='undefined'&&AUTH&&AUTH.id)||null,updated_at:new Date().toISOString()};
+    var r=await sb.from('contract_services').update(payload).eq('id',sv.id);
+    if(r.error){toast(r.error.message,true);return;}
     var fresh=await sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service');
     if(!fresh.error)MSVC=fresh.data||[];
-    MSVCOPEN=null;renderMicroServices(pane);pgRenderNav();toast('✓ Libraries saved');
+    MLIBSEL=payload.library;MSVCSEL=sv.id;renderMicroServices(pane);pgRenderNav();toast('✓ Service saved');
   };
+}
+/* ---- manage library names (add / rename / delete) — small modal ---- */
+function openLibMgr(pane){
+  var back=document.createElement('div');back.className='modal-back';
+  var host=document.createElement('div');
+  MLIBS.forEach(function(l){l._old=l.name;});
+  function stash(){host.querySelectorAll('[data-librow]').forEach(function(el){var i=+el.getAttribute('data-librow');if(MLIBS[i])MLIBS[i].name=el.querySelector('[data-libname="'+i+'"]').value.trim();});}
+  function draw(){
+    var rows=MLIBS.map(function(l,i){
+      var used=MSVC.filter(function(x){return x.library===l.name;}).length;
+      return '<div style="display:flex;gap:8px;align-items:center;margin-top:8px" data-librow="'+i+'">'
+        +'<input class="pgin" data-libname="'+i+'" value="'+esc(l.name)+'" style="flex:1;min-width:0">'
+        +'<span style="flex:none;font-size:.68rem;font-weight:800;color:var(--grey);white-space:nowrap">'+used+' svc</span>'
+        +'<button class="btn alt sm" data-libdel="'+i+'" style="color:var(--red)">🗑</button></div>';
+    }).join('');
+    host.innerHTML='<div class="modal sm"><div class="modal-hd"><div class="t">Service libraries</div><button class="modal-x" data-close>×</button></div>'
+      +'<div class="modal-body"><div style="font-size:.8rem;color:var(--dark-grey);margin-bottom:6px">Categories techs pick from. Renaming updates the services and templates that use it.</div>'
+      +(rows||'<div class="empty" style="padding:12px">No libraries yet.</div>')
+      +'<button class="btn alt sm" id="libAdd" style="margin-top:12px">＋ Add library</button></div>'
+      +'<div class="modal-ft"><span></span><button class="btn blue" id="libSave">Save</button></div></div>';
+    host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=close;});
+    host.querySelector('#libAdd').onclick=function(){stash();MLIBS.push({name:''});draw();};
+    host.querySelectorAll('[data-libdel]').forEach(function(b){b.onclick=async function(){
+      stash();var i=+b.getAttribute('data-libdel'),l=MLIBS[i];
+      var used=MSVC.filter(function(x){return x.library===l.name;}).length;
+      if(used){toast('Move or delete its '+used+' service'+(used===1?'':'s')+' first',true);return;}
+      if(!confirm('Delete library “'+(l.name||'untitled')+'”?'))return;
+      if(l.id){var r=await sb.from('contract_libraries').delete().eq('id',l.id);if(r.error){toast(r.error.message,true);return;}}
+      MLIBS.splice(i,1);draw();
+    };});
+    host.querySelector('#libSave').onclick=save;
+  }
+  async function save(){
+    stash();var seen={};
+    for(var i=0;i<MLIBS.length;i++){var l=MLIBS[i];if(!l.name)continue;
+      if(seen[l.name.toLowerCase()]){toast('Duplicate library “'+l.name+'”',true);return;}seen[l.name.toLowerCase()]=1;
+      var payload={name:l.name,sort:i,updated_at:new Date().toISOString()};
+      if(l.id){var old=(l._old!=null)?l._old:l.name;
+        var r=await sb.from('contract_libraries').update(payload).eq('id',l.id);if(r.error){toast(r.error.message,true);return;}
+        if(old!==l.name){await sb.from('contract_services').update({library:l.name}).eq('library',old);await sb.from('contract_templates').update({library:l.name}).eq('library',old);}
+      }else{var r2=await sb.from('contract_libraries').insert(payload);if(r2.error){toast(r2.error.message,true);return;}}
+    }
+    var fl=await sb.from('contract_libraries').select('*').order('sort').order('name');if(!fl.error)MLIBS=fl.data||[];
+    var fs=await sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service');if(!fs.error)MSVC=fs.data||[];
+    close();renderMicroServices(pane);pgRenderNav();toast('✓ Libraries saved');
+  }
+  function close(){back.remove();host.remove();}
+  back.onclick=close;
+  document.body.appendChild(back);document.body.appendChild(host);
+  draw();
 }
 
 /* ---- templates: linked library clauses + custom clauses; New / Duplicate / Delete ---- */
@@ -1956,7 +2008,7 @@ function renderMicroTemplates(pane){
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
       +'<div><label class="hlbl">Template name</label><input class="pgin hfull" id="mtName" value="'+esc(t.name)+'"></div>'
       +'<div><label class="hlbl">Contract type (shows in the list)</label><input class="pgin hfull" id="mtType" value="'+esc(t.contract_type||'')+'" placeholder="e.g. Micro Soldering"></div>'
-      +'<div><label class="hlbl">Service price library (blank = custom pricing)</label><input class="pgin hfull" id="mtLib" value="'+esc(t.library||'')+'" placeholder="e.g. Microsoldering" list="mtLibs"><datalist id="mtLibs">'+[...new Set(MSVC.map(function(x){return x.library;}))].filter(Boolean).map(function(l){return '<option>'+esc(l)+'</option>';}).join('')+'</datalist></div>'
+      +'<div><label class="hlbl">Service price library</label><select class="pgin hfull" id="mtLib"><option value="">— custom pricing (no library) —</option>'+mLibNames().map(function(l){return '<option value="'+esc(l)+'"'+(l===t.library?' selected':'')+'>'+esc(l)+'</option>';}).join('')+'</select></div>'
       +'<div><label class="hlbl">Repair outcome choices (one per line; blank = none)</label><textarea class="pgin hfull" id="mtOuts" rows="2" style="resize:vertical">'+esc((t.outcomes||[]).join('\n'))+'</textarea></div>'
       +'</div>'
       +'<label class="hlbl" style="margin-top:12px">Intro</label><textarea class="pgin hfull" id="mtIntro" rows="3" style="resize:vertical">'+esc(t.intro)+'</textarea>'

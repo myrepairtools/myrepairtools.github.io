@@ -211,8 +211,10 @@ the resolved price locks; table list Date/Status/Type/Customer/Device/Price/acti
 ticket required) and `contract-sign.html`, a **public customer page with no gates/nav**
 (the token is the credential): outcome pick (if the template has outcomes), canvas
 signature, then a payment summary (price − diagnostic = due now) before the Square
-payment link — sign → pay is one motion. Templates + service libraries are managed in
-**Settings → Page settings → Contracts** (managers). The `contracts` edge function does
+payment link — sign → pay is one motion. Templates, the clause library, and service libraries are managed in
+**Settings → Page settings → Contracts** (managers) — each a rail-list + detail-pane
+editor like the Templates tab; `contract_libraries` is the managed category list
+(services and templates reference a library by name, renames cascade). The `contracts` edge function does
 the customer side (view / sign — creates the Square quick-pay link with a redirect back /
 paystatus — flips to paid by checking the Square order / send — emails the link via
 Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
