@@ -203,9 +203,10 @@ to full text in the `terms` snapshot) + `contract_services` (per-`library` price
 lists, grouped by vendor: default customer price + optional vendor cost + `tiers`
 jsonb [{price, cost, devices:[…]}] for device-tiered pricing (per-tier vendor cost optional) — device names match
 `device_models` (the curated model list) exactly). Surfaces: `contracts.html`
-(Operations nav, any staff — template-first New Contract with a **device-first
-workflow**: device autocompletes from device_models, the service list then shows only
-services priced for that device (tier match else default; 0 default = tier-only) and
+(Operations nav, any staff — template-first New Contract with a **device→vendor→service
+workflow**: device autocompletes from device_models; when a library has multiple vendors
+(e.g. VCC Board Repairs vs EZ Fix) the tech picks the vendor, then the service list shows only
+that vendor's services priced for that device (tier match else default; 0 default = tier-only) and
 the resolved price locks; table list Date/Status/Type/Customer/Device/Price/actions,
 🖨 vendor work-order print — no prices on it — that travels with the device, RepairQ
 ticket required) and `contract-sign.html`, a **public customer page with no gates/nav**

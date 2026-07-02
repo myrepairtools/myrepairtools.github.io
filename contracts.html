@@ -277,16 +277,17 @@ function openNew(){
 function openForm(TMPL){
   const stores=myStores();
   const act=SVCS.filter(s=>s.active!==false&&(!TMPL.library||s.library===TMPL.library));
-  // options depend on the picked device: only services priced for it (tier or default) show
-  const svcOptions=(device)=>{
-    const avail=act.map(s=>({s,p:priceFor(s,device)})).filter(x=>x.p!=null);
-    const vendors=[...new Set(avail.map(x=>x.s.vendor))];
+  const vendors=[...new Set(act.map(s=>s.vendor).filter(Boolean))];
+  // service list depends on the picked device AND vendor: only that vendor's services priced for the device
+  const svcOptions=(device,vendor)=>{
+    if(vendors.length>1&&!vendor)return '<option value="">— pick a vendor first —</option><option value="custom">Custom / not on the list…</option>';
+    const avail=act.filter(s=>!vendor||s.vendor===vendor).map(s=>({s,p:priceFor(s,device)})).filter(x=>x.p!=null);
     return '<option value="">— pick the service —</option>'
-      +vendors.map(v=>'<optgroup label="'+esc(v)+'">'+avail.filter(x=>x.s.vendor===v).map(x=>
-        '<option value="'+x.s.id+'">'+esc(x.s.service)+' — $'+x.p+'</option>').join('')+'</optgroup>').join('')
+      +avail.map(x=>'<option value="'+x.s.id+'">'+esc(x.s.service)+' — $'+x.p+'</option>').join('')
       +'<option value="custom">Custom / not on the list…</option>';
   };
-  const svcOpts=svcOptions('');
+  const vendor0=vendors.length===1?vendors[0]:'';
+  const svcOpts=svcOptions('',vendor0);
   const back=document.createElement('div');back.className='mback';back.id='ncback';
   back.innerHTML='<div class="modal">'
     +'<div class="m-hd"><span>＋ '+esc(TMPL.name)+'</span><button class="m-x" data-x>×</button></div>'
@@ -299,8 +300,9 @@ function openForm(TMPL){
     +'<div><label class="f">Customer email</label><input id="ncEmail" type="text" placeholder="for emailing the link + receipt"></div>'
     +'<div><label class="f">Customer phone</label><input id="ncPhone" type="text" placeholder="optional"></div>'
     +'</div>'
+    +(vendors.length>1?'<label class="f">Vendor *</label><select id="ncVendor"><option value="">— pick the microsoldering vendor —</option>'+vendors.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:3px">Which vendor handles this repair — their services &amp; prices load below.</div>':'')
     +'<label class="f">Service *</label><select id="ncSvc">'+svcOpts+'</select>'
-    +'<div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:3px" id="ncSvcHint">Pick the device first — services & prices adjust to it.</div>'
+    +'<div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:3px" id="ncSvcHint">Pick device'+(vendors.length>1?' &amp; vendor':'')+' — services &amp; prices adjust.</div>'
     +(act.length?'':'<div style="font-size:.74rem;color:var(--amber);font-weight:700;margin-top:4px">No services in this template’s price library yet — managers add them in Settings → Contracts. Using Custom for now.</div>')
     +'<label class="f">Repair details / scope *</label><textarea id="ncScope" rows="3" placeholder="What’s wrong and what work is authorized — thorough notes; these also print on the vendor work order"></textarea>'
     +'<label class="f">How does the customer pay?</label>'
@@ -322,6 +324,13 @@ function openForm(TMPL){
   back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
   const priceEl=back.querySelector('#ncPrice'), svcEl=back.querySelector('#ncSvc');
   const devEl=back.querySelector('#ncDevice');
+  const vendorEl=back.querySelector('#ncVendor');
+  const curVendor=()=>vendorEl?vendorEl.value:vendor0;
+  const rebuildSvc=()=>{const keep=svcEl.value;svcEl.innerHTML=svcOptions(devEl.value,curVendor());if([...svcEl.options].some(o=>o.value===keep))svcEl.value=keep;
+    const hint=back.querySelector('#ncSvcHint');
+    if(hint){const parts=[];if(!devEl.value.trim())parts.push('pick the device');if(vendors.length>1&&!curVendor())parts.push('pick the vendor');
+      hint.textContent=parts.length?('Still to choose: '+parts.join(' & ')):('Services priced for “'+devEl.value.trim()+'”'+(curVendor()?' · '+curVendor():'')+(DEVICES.includes(devEl.value.trim())?'':' (device not in list — only default-priced services show)'));}
+    applySvc();};
   const diagOn=back.querySelector('#ncDiagOn'), diagEl=back.querySelector('#ncDiag');
   const calc=()=>{ // price − diagnostic credit = balance the customer still owes
     const price=+priceEl.value||0;
@@ -346,14 +355,8 @@ function openForm(TMPL){
     calc();
   };
   svcEl.onchange=applySvc;
-  devEl.oninput=()=>{ // rebuild the service list for this device, keep the pick when still valid
-    const keep=svcEl.value;
-    svcEl.innerHTML=svcOptions(devEl.value);
-    if([...svcEl.options].some(o=>o.value===keep))svcEl.value=keep;
-    const hint=back.querySelector('#ncSvcHint');
-    if(hint)hint.textContent=devEl.value.trim()?('Services priced for “'+devEl.value.trim()+'”'+(DEVICES.includes(devEl.value.trim())?'':' (device not in the list — only default-priced services show)')):'Pick the device first — services & prices adjust to it.';
-    applySvc();
-  };
+  if(vendorEl)vendorEl.onchange=rebuildSvc;
+  devEl.oninput=rebuildSvc;
   priceEl.oninput=calc;diagOn.onchange=calc;diagEl.oninput=calc;
   back.querySelectorAll('input[name=ncPm]').forEach(r=>r.onchange=()=>{
     back.querySelectorAll('.pm-opt').forEach(o=>o.classList.toggle('on',o.querySelector('input').checked));
