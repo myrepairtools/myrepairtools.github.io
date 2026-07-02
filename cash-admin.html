@@ -218,7 +218,7 @@ tr.aurow-clk:hover td{background:#f8fafd}
           <th class="num">Opening</th>
           <th class="num">Tracked ending</th>
           <th class="num">Counted</th>
-          <th class="num">Over / Short</th>
+          <th class="num">Vs tracker</th>
         </tr></thead>
         <tbody id="auditBody"></tbody>
       </table>
@@ -578,7 +578,7 @@ function loadAudit(){
 var AU_SHOW_DELETED=false;
 function auLogRow(a,osBy){
   var closed=a.status==='closed', del=a.status==='deleted';
-  var os=(closed||del)?(osBy[a.id]||0):null;
+  var os=(closed||del)?(a.over_short!=null?num(a.over_short):(osBy[a.id]||0)):null;
   var osHtml=(os!=null)?('<span style="font-family:Nunito;font-weight:800;color:'+osColor(os)+'">'+money(os)+'</span>'):'—';
   var dep=(closed||del)?money(num(a.bank_deposit)+num(a.small_to_bank)):'—';
   var pill=del?('<span class="aupill" style="color:#8a909e;background:var(--light-grey)">Deleted '+String(a.deleted_at||'').slice(0,10)+'</span>')
@@ -866,6 +866,14 @@ $('#auClose').onclick=function(){
   }
   openFinalizeWizard(counts);
 };
+/* THE audit over/short: counted vs sales (opening + RepairQ − petty). The per-location
+   deltas are only "vs tracker" diagnostics — misleading when the tracker isn't kept daily. */
+function trueOverShort(counts){
+  var opening=0,counted=0;
+  counts.forEach(function(c){opening+=num(c.opening);counted+=num(c.counted);});
+  var rq=num($('#auRQ').value),petty=num($('#auPetty').value);
+  return Math.round((counted-(opening+rq-petty))*100)/100;
+}
 function countedOf(counts,loc){var r=counts.filter(function(c){return c.location===loc;})[0];return r?num(r.counted):0;}
 function carryRows(counts,depBank,depSB,depSL){
   return counts.map(function(c){
@@ -898,7 +906,7 @@ function openFinalizeWizard(counts){
       };
     } else {
       var rows=carryRows(counts,depBank,depSB,depSL);
-      var os=0;rows.forEach(function(r){os+=r.over_short;});
+      var os=trueOverShort(counts);
       var trs=rows.map(function(r){
         var adj=(r.location==='Large Safe'&&(depBank||depSL))?(' <span class="muted" style="font-weight:600">('+(depBank?'−'+money(depBank)+' bank':'')+(depBank&&depSL?', ':'')+(depSL?'+'+money(depSL)+' from small':'')+')</span>')
           :(r.location==='Small Safe'&&(depSB||depSL))?(' <span class="muted" style="font-weight:600">(−'+money(depSB+depSL)+' out)</span>'):'';
@@ -908,7 +916,7 @@ function openFinalizeWizard(counts){
         +'<div class="step">Finalize · step 2 of 2</div><h3>✅ Confirm the new starting balances</h3>'
         +'<p class="hint" style="margin:6px 0 4px">These carry forward as the <b>opening balances for the next audit</b>. Your confirmation is logged with your name.</p>'
         +'<table><thead><tr><th>Location</th><th class="num">Counted</th><th class="num">Starts next period at</th></tr></thead><tbody>'+trs+'</tbody></table>'
-        +'<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem"><span>Audit over / short</span><b style="font-family:Nunito;color:'+osColor(os)+'">'+money(os)+'</b></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem"><span>Audit over / short <span class="muted" style="font-weight:600">(counted vs sales)</span></span><b style="font-family:Nunito;color:'+osColor(os)+'">'+money(os)+'</b></div>'
         +(num(depBank)+num(depSB)>0?'<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:.9rem"><span>Going to the bank</span><b style="font-family:Nunito">'+money(num(depBank)+num(depSB))+'</b></div>':'')
         +'<div class="save-row" style="justify-content:space-between;gap:8px;margin-top:16px"><button class="btn alt sm" data-wb>‹ Back</button><span style="display:flex;gap:8px"><button class="btn alt sm" data-wx>Cancel</button><button class="btn" id="wzGo">Confirm as '+(AUTH?AUTH.name:'')+' &amp; close audit</button></span></div></div>';
       back.querySelector('[data-wb]').onclick=function(){step=1;draw();};
@@ -931,7 +939,7 @@ async function finalizeAudit(counts,depBank,depSB,depSL){
   var days=collectEnvDays();
   var log=(row.edit_log||[]).concat([auEvent('finalized')]);
   var up=await sb.from('cash_audits').update({status:'closed',closed_at:now,auditor:(AUTH?AUTH.name:row.auditor),
-    confirmed_by:(AUTH?AUTH.name:''),confirmed_at:now,edit_log:log,prev_snapshot:null,
+    confirmed_by:(AUTH?AUTH.name:''),confirmed_at:now,edit_log:log,prev_snapshot:null,over_short:trueOverShort(counts),
     bank_deposit:depBank,small_to_bank:depSB,small_to_large:depSL,
     repairq_sales:num($('#auRQ').value),petty_cash:num($('#auPetty').value)}).eq('id',row.id);
   if(up.error)throw up.error;
@@ -952,7 +960,7 @@ async function openDetail(row){
     sb.from('cash_audit_days').select('*').eq('audit_id',row.id).order('day')
   ]);
   var locs=(al.error?[]:(al.data||[])), days=(ad.error?[]:(ad.data||[]));
-  var os=0;locs.forEach(function(r){os+=num(r.over_short);});
+  var os=(row.over_short!=null)?num(row.over_short):(function(){var t=0;locs.forEach(function(r){t+=num(r.over_short);});return t;})();
   var trs=locs.map(function(r){
     return '<tr><td>'+r.location+'</td><td class="num">'+money(r.tracked)+'</td><td class="num">'+money(r.counted)+'</td>'
       +'<td class="num" style="color:'+osColor(num(r.over_short))+'">'+money(r.over_short)+'</td>'
@@ -977,14 +985,14 @@ async function openDetail(row){
         +'<div class="rl"><span>Status</span><span>'+(isDel?'Deleted':'Closed '+String(row.closed_at||'').slice(0,10))+'</span></div>'
         +'<div class="rl"><span>Completed by</span><span>'+(row.auditor||'—')+'</span></div>'
         +'<div class="rl"><span>Starting balances confirmed by</span><span>'+(row.confirmed_by||'—')+(row.confirmed_at?(' · '+String(row.confirmed_at).slice(0,10)):'')+'</span></div>'
-        +'<div class="rl"><span>Over / short</span><span class="'+(Math.abs(os)<0.005?'ok':(os>0?'over':'bad'))+'">'+money(os)+'</span></div>'
+        +'<div class="rl"><span>Over / short <span class="muted" style="font-weight:600">(counted vs sales)</span></span><span class="'+(Math.abs(os)<0.005?'ok':(os>0?'over':'bad'))+'">'+money(os)+'</span></div>'
         +'<div class="rl"><span>RepairQ net sales</span><span>'+money(row.repairq_sales)+'</span></div>'
         +'<div class="rl"><span>Petty cash out</span><span>'+money(row.petty_cash)+'</span></div>'
         +'<div class="rl"><span>Bank deposit (Large Safe)</span><span>'+money(row.bank_deposit)+'</span></div>'
         +'<div class="rl"><span>Small Safe → bank / → Large</span><span>'+money(row.small_to_bank)+' / '+money(row.small_to_large)+'</span></div>'
       +'</div></div>'
     +'<div class="table-card" style="margin-bottom:14px"><table>'
-      +'<thead><tr><th>Location</th><th class="num">Tracked</th><th class="num">Counted</th><th class="num">Over / Short</th><th class="num">Carried forward</th></tr></thead>'
+      +'<thead><tr><th>Location</th><th class="num">Tracked</th><th class="num">Counted</th><th class="num">Vs tracker</th><th class="num">Carried forward</th></tr></thead>'
       +'<tbody>'+(trs||'<tr><td colspan="5" class="muted" style="padding:12px">No location rows.</td></tr>')+'</tbody></table></div>'
     +'<div class="card"><h2>Bill counts</h2>'
       +'<p class="hint">Large Safe envelopes: <b>'+money(envTotal)+'</b> across '+envRows.length+' day'+(envRows.length===1?'':'s')
