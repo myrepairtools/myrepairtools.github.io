@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Admin — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;--purple:#8B5CF6;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+main{max-width:none;margin:0;padding:24px 28px 70px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px}
+.hide{display:none!important}
+button{font-family:inherit}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.hd-sub{color:var(--grey);font-size:.82rem;font-weight:600;margin-top:3px}
+.hd-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.locpills{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
+.locpills button{padding:6px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;background:transparent;color:var(--grey)}
+.locpills button.on{background:var(--blue);color:#fff}
+.navbtn{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey);border:1.5px solid var(--border);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer}
+.navbtn:hover{border-color:var(--blue);color:var(--blue)}
+.ctl{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.tabs{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
+.tabs button{padding:8px 14px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;background:transparent;color:var(--grey)}
+.tabs button:not(.on):hover{color:var(--dark-grey)}
+.tabs button.on{background:var(--dark);color:#fff}
+.sel{padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-family:'Nunito Sans',sans-serif;font-size:.84rem;font-weight:600;color:var(--dark)}
+.lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)}
+.cnt{font-size:.8rem;color:var(--dark-grey);font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:7px;background:var(--red);color:#fff;border:none;border-radius:9px;padding:10px 16px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;cursor:pointer}
+.btn:hover{filter:brightness(1.06)}
+.btn.alt{background:#fff;color:var(--dark-grey);border:1.5px solid var(--border)}
+.btn.alt:hover{border-color:var(--blue);color:var(--blue);filter:none}
+.btn.dark{background:var(--dark)}
+.btn.sm{padding:7px 12px;font-size:.72rem}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.thead,.trow{display:grid;align-items:center}
+.thead{background:#fafafa;border-bottom:1px solid var(--border)}
+.thead div{padding:10px 12px;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--grey)}
+.trow{border-bottom:1px solid rgba(224,226,234,.6);border-left:3px solid transparent}
+.trow:hover{background:rgba(79,176,227,.045)}
+.trow>div{padding:11px 12px;min-width:0}
+.bdg{display:inline-flex;align-items:center;border-radius:20px;padding:2px 9px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.b-daily{background:#EAF5FC;color:#1b6fa3}.b-weekly{background:#E6F4EC;color:var(--green)}.b-monthly{background:#F1EDFC;color:#6d4fc4}.b-flex{background:#FCF3E3;color:var(--amber)}.b-oneoff{background:var(--light-grey);color:var(--dark-grey)}
+.b-must{background:#FBE9EA;color:var(--red)}.b-asap{background:#FCF3E3;color:#B45309}.b-info{background:#EAF5FC;color:#1b6fa3}.b-red{background:#FBE9EA;color:var(--red)}
+.av{border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.icb{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--dark-grey);font-size:.85rem}
+.icb:hover{background:var(--light-grey);color:var(--dark)}
+a.clink{color:var(--blue);font-weight:700;text-decoration:none;border-bottom:1.5px solid rgba(79,176,227,.45)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.stat{background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 16px}
+.stat .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.7px;color:var(--grey)}
+.stat .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.55rem;margin:2px 0 1px}
+.stat .s{font-size:.7rem;color:var(--grey);font-weight:700}
+.stat.dk .v{color:var(--dark)} .stat.rd .v{color:var(--red)} .stat.gn .v{color:var(--green)} .stat.am .v{color:var(--amber)}
+.sechd{padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+.sechd .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem}
+.sechd .s{font-size:.76rem;color:var(--grey);font-weight:600}
+.empty{padding:30px 20px;text-align:center;color:var(--grey)}
+.empty .t{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark-grey)}
+.note{background:#F7FAFD;border:1px solid #DDEBF6;border-radius:11px;padding:13px 15px}
+/* calendar */
+.cal{padding:18px}
+.calhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.calhd .m{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.calnav{display:inline-flex;gap:6px;align-items:center}
+.calnav button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:.9rem;color:var(--dark-grey)}
+.leg{display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;font-weight:700;color:var(--dark-grey)}
+.leg span{display:inline-flex;align-items:center;gap:5px}
+.leg i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.caldh{text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding-bottom:4px}
+.calc{min-height:96px;border:1px solid var(--border);border-radius:9px;padding:6px 7px;background:#fff}
+.calc.today{background:#FFF6F6}
+.calc .d{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--dark);margin-bottom:4px}
+.calc.today .d{color:var(--red)}
+.chip{font-size:.6rem;font-weight:700;color:#fff;border-radius:4px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+/* fairness */
+.fair2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.bar{flex:1;height:8px;border-radius:4px;background:var(--light-grey);overflow:hidden}
+.bar i{display:block;height:100%}
+/* modal */
+.ovl{position:fixed;inset:0;background:rgba(45,45,59,.45);z-index:1200;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto}
+.mdl{width:600px;max-width:100%;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(45,45,59,.3);overflow:hidden}
+.mdl-hd{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px}
+.mdl-x{background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--grey);flex:none}
+.mdl-bd{padding:20px 24px;max-height:66vh;overflow:auto}
+.mdl-ft{padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fafafa;flex-wrap:wrap}
+.fld{display:block;margin-bottom:14px}
+.fld .fl{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);margin-bottom:5px}
+.inp{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-family:'Nunito Sans',sans-serif;font-size:.9rem;color:var(--dark);background:#fff}
+.inp:focus{outline:none;border-color:var(--blue)}
+textarea.inp{resize:vertical}
+.panel{background:var(--light-grey);border-radius:11px;padding:13px 14px;margin-bottom:18px}
+.pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;padding:8px 13px;border-radius:8px;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey)}
+.pill.on{color:#fff}
+.hint{font-size:.76rem;color:var(--dark-grey)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.linkdel{background:none;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;cursor:pointer;padding:0}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:700;font-size:.85rem;padding:12px 22px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:transform .25s;z-index:3000}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
+@media (max-width:1000px){.fair2,.rep2{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<main id="app" style="visibility:hidden">
+  <div class="hd">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px">
+        <a class="navbtn" href="checklist.html" style="padding:5px 10px">← Checklist</a>
+        <h1>Task Admin</h1>
+      </div>
+      <div class="hd-sub">Task library, properties &amp; compliance</div>
+    </div>
+    <div class="hd-r">
+      <span class="locpills" id="locPills"></span>
+      <button class="btn" id="newBtn"><span style="font-size:1.05rem;line-height:1">＋</span>New template</button>
+    </div>
+  </div>
+  <div id="gate" class="note hide" style="max-width:520px">Task Admin is for managers and the owner. The <a class="clink" href="checklist.html">Checklist</a> has your own tasks.</div>
+
+  <div id="body" class="hide">
+    <div class="ctl">
+      <span class="tabs" id="secTabs"></span>
+      <span id="libCtl" style="display:inline-flex;align-items:center;gap:12px">
+        <span class="tabs" id="modeTabs"></span>
+        <span style="display:inline-flex;align-items:center;gap:7px"><span class="lbl">Recurs</span>
+          <select class="sel" id="recurSel"><option value="all">All</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="flexible">Flexible</option><option value="oneoff">One-off</option></select>
+        </span>
+      </span>
+      <span style="flex:1"></span>
+      <span class="cnt" id="secHint"></span>
+    </div>
+    <div id="secBody"></div>
+  </div>
+</main>
+
+<div id="mdlWrap"></div>
+<div id="toast" class="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/locations.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isMgr=r=>['owner','admin'].indexOf(r)>-1;
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function fromISO(s){const p=String(s).slice(0,10).split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
+function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>{t.className='toast';},2400);}
+const AVPAL=['#DC282E','#2E9E5B','#4FB0E3','#C9820B','#7A6FD0','#2D2D3B','#1E7AA8','#C24E8E'];
+function avatarBg(st){return (st&&st.avatar_color)||AVPAL[(st?st.id:0)%AVPAL.length];}
+function initials(n){const p=String(n||'?').trim().split(/\s+/);return (((p[0]||'')[0]||'')+((p[1]||'')[0]||'')).toUpperCase()||'?';}
+function firstName(n){return String(n||'').split(' ')[0];}
+function fmt12(hhmm){const m=/^(\d{1,2}):(\d{2})$/.exec(hhmm||'');if(!m)return hhmm||'';let h=+m[1];const mm=m[2],ap=h<12?'AM':'PM';h=h%12;if(h===0)h=12;return h+':'+mm+' '+ap;}
+function to24(s){const m=/(\d{1,2})(?::(\d{2}))?\s*([AaPp])?/.exec(String(s||'').trim());if(!m)return '18:00';let h=+m[1];const mm=m[2]||'00';if(/p/i.test(m[3]||'')&&h<12)h+=12;if(/a/i.test(m[3]||'')&&h===12)h=0;return ('0'+h).slice(-2)+':'+mm;}
+function ord(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const TOOLS=[
+  {value:'',label:'— none —'},
+  {value:'consumption-report.html',label:'Consumption Report'},
+  {value:'cash-tracker.html',label:'Cash Tracker'},
+  {value:'damage-tracker.html',label:'Damage Tracker'},
+  {value:'hyla-orders.html',label:'Hyla Orders'},
+  {value:'claim-ledger.html',label:'Claim Ledger'},
+  {value:'communications.html',label:'Communications'},
+  {value:'__custom',label:'Paste a URL…'}
+];
+const RECURS=[['oneoff','One-off'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly'],['flexible','Flexible']];
+function recurLabel(t){
+  const r=t.recur;
+  if(r==='weekly')return 'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+t.weekdays.map(d=>DOW[d]).join('/'):'');
+  if(r==='monthly')return 'Monthly'+((t.month_dates&&t.month_dates.length)?' · '+t.month_dates.map(n=>ord(n)).join(', '):'');
+  if(r==='flexible')return 'Flexible · '+(t.flex_n||1)+'×/'+(t.flex_per==='month'?'month':'week');
+  if(r==='daily')return 'Daily';
+  return 'One-off';
+}
+function recurBadgeCls(r){return r==='daily'?'b-daily':r==='weekly'?'b-weekly':r==='monthly'?'b-monthly':r==='flexible'?'b-flex':'b-oneoff';}
+function recurColor(r){return r==='daily'?'var(--blue)':r==='weekly'?'var(--green)':r==='monthly'?'var(--purple)':r==='flexible'?'var(--amber)':'var(--grey)';}
+function prioInfo(p){if(p==='must')return{label:'Must do today',cls:'b-must'};if(p==='asap')return{label:'Please do ASAP',cls:'b-asap'};return null;}
+
+/* ===== auth ===== */
+let ME=null,BOOTED=false;
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){BOOTED=true;ME=sr.data;boot();}
+}
+sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
+
+/* ===== state ===== */
+let STAFF=[],SBID={},SHIFTS=[],TPLS=[],TODAY=iso(new Date());
+let SEC=lsGet('cprTaskAdminSec','library'),MODE=lsGet('cprTaskAdminMode','list'),RECF='all';
+let SEL=null,STORES=[],CALM=null,REPM=null;   // CALM/REPM = displayed calendar/report month Date
+let REP={list:[],comps:{},trend:[]};          // reporting cache for the loaded month
+
+async function boot(){
+  $('#app').style.visibility='visible';
+  if(!isMgr(ME.role)){$('#gate').classList.remove('hide');return;}
+  $('#body').classList.remove('hide');
+  STORES=(window.CPRLocations?CPRLocations.names():[ME.home_store]).filter(Boolean);
+  SEL=lsGet('cprCkStore',ME.home_store||STORES[0]);
+  if(STORES.indexOf(SEL)<0)SEL=STORES[0];
+  const now=new Date();CALM=new Date(now.getFullYear(),now.getMonth(),1);REPM=new Date(now.getFullYear(),now.getMonth(),1);
+  $('#newBtn').onclick=()=>openEditor(null);
+  $('#recurSel').onchange=e=>{RECF=e.target.value;render();};
+  await loadCore();
+  await loadReport();
+  render();
+}
+async function loadCore(){
+  const [st,sh,tp]=await Promise.all([
+    sb.from('staff').select('id,display_name,role,home_store,avatar_color,active,hide_from_recurring').eq('active',true),
+    sb.from('shifts').select('id,name,active'),
+    sb.from('task_templates').select('*').eq('active',true).eq('personal',false)
+  ]);
+  STAFF=(st.data||[]);SBID={};STAFF.forEach(s=>{SBID[s.id]=s;});
+  SHIFTS=(sh.data||[]).filter(s=>s.active!==false);
+  TPLS=(tp.data||[]);
+}
+async function loadReport(){
+  const mS=iso(REPM),mE=iso(new Date(REPM.getFullYear(),REPM.getMonth()+1,0));
+  const sixBack=iso(new Date(REPM.getFullYear(),REPM.getMonth()-5,1));
+  const [inMonth,openOld,trend]=await Promise.all([
+    sb.from('task_instances').select('*').gte('task_date',mS).lte('task_date',mE).eq('personal',false),
+    sb.from('task_instances').select('*').eq('status','open').lt('task_date',TODAY).neq('recur','daily').eq('personal',false),
+    sb.from('task_instances').select('id,store,task_date,status,on_time').gte('task_date',sixBack).lte('task_date',mE).eq('personal',false)
+  ]);
+  const seen={};REP.list=[];
+  [].concat(inMonth.data||[],openOld.data||[]).forEach(r=>{if(!seen[r.id]){seen[r.id]=1;REP.list.push(r);}});
+  REP.trend=(trend.data||[]);
+  REP.comps={};
+  const eachIds=REP.list.filter(i=>i.completion==='each').map(i=>i.id);
+  if(eachIds.length){
+    const c=await sb.from('task_completions').select('*').in('instance_id',eachIds);
+    (c.data||[]).forEach(r=>{(REP.comps[r.instance_id]=REP.comps[r.instance_id]||[]).push(r);});
+  }
+}
+
+/* ===== render shell ===== */
+function render(){
+  $('#locPills').innerHTML=STORES.map(s=>'<button class="'+(s===SEL?'on':'')+'" data-st="'+esc(s)+'">'+esc(shortStore(s))+'</button>').join('');
+  document.querySelectorAll('#locPills button').forEach(b=>{b.onclick=()=>{SEL=b.dataset.st;lsSet('cprCkStore',SEL);render();};});
+  $('#secTabs').innerHTML=[['library','Library'],['reporting','Reporting'],['fairness','Fairness']].map(v=>'<button class="'+(SEC===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
+  document.querySelectorAll('#secTabs button').forEach(b=>{b.onclick=()=>{SEC=b.dataset.v;lsSet('cprTaskAdminSec',SEC);render();};});
+  $('#libCtl').style.display=SEC==='library'?'inline-flex':'none';
+  $('#modeTabs').innerHTML=[['list','List'],['calendar','Calendar']].map(v=>'<button class="'+(MODE===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
+  document.querySelectorAll('#modeTabs button').forEach(b=>{b.onclick=()=>{MODE=b.dataset.v;lsSet('cprTaskAdminMode',MODE);render();};});
+  const defs=TPLS.filter(t=>t.store===SEL&&(RECF==='all'||t.recur===RECF));
+  $('#secHint').textContent=SEC==='library'?(defs.length+' template'+(defs.length===1?'':'s')):SEC==='reporting'?(MONL[REPM.getMonth()]+' '+REPM.getFullYear()+' · standard calendar month'):'Rotation balance across the pool';
+  if(SEC==='library')renderLibrary(defs);
+  else if(SEC==='reporting')renderReporting();
+  else renderFairness();
+}
+
+/* ===== library ===== */
+function assignKindLabel(t){
+  if(t.target==='shift'){const s=SHIFTS.find(x=>x.id===t.shift_id);return (s?s.name:'Shift')+' · '+shortStore(t.store);}
+  if(t.target==='role')return t.role_key==='manager'?'Manager':'Any tech';
+  if(t.target==='group')return t.strategy==='rotate'?'Rotating':'Group';
+  return 'Fixed';
+}
+function assignColor(t){return t.target==='shift'?'#1b6fa3':t.target==='role'?'#5b3fb0':t.target==='group'?'#0f6e56':'#4E4E50';}
+function assignDetail(t){
+  if(t.target==='shift'){const s=SHIFTS.find(x=>x.id===t.shift_id);return 'Whoever works '+(s?s.name:'the shift')+' that day';}
+  if(t.target==='role')return (t.completion==='each'?'Every ':'Any ')+(t.role_key==='manager'?'manager':'tech')+(t.completion==='each'?' — completion grid':'');
+  if(t.target==='group')return (t.strategy==='rotate'?'Rotates: ':'Shared: ')+(t.pool||[]).map(id=>SBID[id]?firstName(SBID[id].display_name):'').filter(Boolean).join(', ');
+  const a=SBID[t.assignee_staff_id];
+  return (a?a.display_name:'—')+(t.fallback_staff_id&&SBID[t.fallback_staff_id]?' · fallback '+firstName(SBID[t.fallback_staff_id].display_name):'');
+}
+function dueLabel(t){
+  if(t.recur==='monthly')return (t.month_dates||[]).map(n=>ord(n)).join(', ')||'—';
+  if(t.recur==='oneoff'){if(t.due_type==='date'&&t.due_date){const d=fromISO(t.due_date);return MON[d.getMonth()]+' '+d.getDate();}if(t.due_type==='after')return 'In '+(t.due_after_n||'?')+' '+(t.due_after_unit||'days');}
+  return fmt12(t.due_time);
+}
+function renderLibrary(defs){
+  if(MODE==='calendar'){renderCalendar(defs);return;}
+  const cols='minmax(0,1fr) 150px 210px 130px 130px 60px';
+  let html='<div class="card"><div class="thead" style="grid-template-columns:'+cols+'"><div>Task template</div><div>Recurs</div><div>Assignment</div><div>Default due</div><div>Priority</div><div></div></div>';
+  if(!defs.length)html+='<div class="empty"><div class="t">No templates yet</div><div style="font-size:.8rem;margin-top:3px">Hit ＋ New template to build the store checklist.</div></div>';
+  defs.forEach(t=>{
+    const prio=prioInfo(t.priority);
+    html+='<div class="trow" style="grid-template-columns:'+cols+';border-left-color:'+recurColor(t.recur)+'">'+
+      '<div><div style="font-weight:700;font-size:.9rem;line-height:1.3">'+esc(t.name)+'</div><div style="font-size:.68rem;color:var(--grey);font-weight:700;margin-top:2px">'+esc(shortStore(t.store))+(t.completion==='each'?' · each person':' · any one')+'</div></div>'+
+      '<div><span class="bdg '+recurBadgeCls(t.recur)+'">'+esc(recurLabel(t))+'</span></div>'+
+      '<div><div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:'+assignColor(t)+'">'+esc(assignKindLabel(t))+'</div><div style="font-size:.76rem;color:var(--dark-grey);margin-top:2px;line-height:1.35">'+esc(assignDetail(t))+'</div></div>'+
+      '<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.82rem">'+esc(dueLabel(t))+'</div>'+
+      '<div>'+(prio?'<span class="bdg '+prio.cls+'">'+prio.label+'</span>':'<span style="color:var(--grey);font-size:.76rem;font-weight:700">Normal</span>')+'</div>'+
+      '<div style="text-align:right"><button class="icb" data-ed="'+t.id+'" title="Edit template">✏️</button></div></div>';
+  });
+  html+='</div>';
+  $('#secBody').innerHTML=html;
+  document.querySelectorAll('#secBody [data-ed]').forEach(b=>{b.onclick=()=>openEditor(TPLS.find(t=>t.id===+b.dataset.ed));});
+}
+function renderCalendar(defs){
+  const y=CALM.getFullYear(),m=CALM.getMonth();
+  const dim=new Date(y,m+1,0).getDate(),lead=new Date(y,m,1).getDay();
+  const dailyN=defs.filter(t=>t.recur==='daily').length;
+  let cells='';
+  for(let i=0;i<lead;i++)cells+='<div></div>';
+  for(let day=1;day<=dim;day++){
+    const dISO=y+'-'+('0'+(m+1)).slice(-2)+'-'+('0'+day).slice(-2);
+    const dow=new Date(y,m,day).getDay();
+    const chips=[];
+    if(dailyN)chips.push({label:'Daily ×'+dailyN,color:'var(--blue)'});
+    defs.forEach(t=>{
+      if(t.recur==='weekly'&&(t.weekdays||[]).indexOf(dow)>-1)chips.push({label:t.name,color:'var(--green)'});
+      if(t.recur==='monthly'&&(t.month_dates||[]).some(n=>Math.min(+n||0,dim)===day))chips.push({label:t.name,color:'var(--purple)'});
+      if(t.recur==='flexible'){
+        const per=t.flex_per==='month'?'month':'week';
+        if((per==='week'&&dow===1)||(per==='month'&&day===1))chips.push({label:t.name+' ('+(t.flex_n||1)+'×/'+per+')',color:'var(--amber)'});
+      }
+      if(t.recur==='oneoff'&&t.due_type==='date'&&String(t.due_date||'').slice(0,10)===dISO)chips.push({label:t.name,color:'var(--grey)'});
+    });
+    const shown=chips.slice(0,3),extra=chips.length-shown.length;
+    cells+='<div class="calc'+(dISO===TODAY?' today':'')+'"><div class="d">'+day+'</div>'+shown.map(c=>'<div class="chip" style="background:'+c.color+'" title="'+esc(c.label)+'">'+esc(c.label)+'</div>').join('')+(extra>0?'<div style="font-size:.6rem;font-weight:800;color:var(--grey)">+'+extra+' more</div>':'')+'</div>';
+  }
+  $('#secBody').innerHTML='<div class="card cal">'+
+    '<div class="calhd"><div style="display:flex;align-items:center;gap:10px"><span class="calnav"><button id="calPrev">‹</button><button id="calNext">›</button></span><span class="m">'+MONL[m]+' '+y+'</span></div>'+
+    '<div class="leg"><span><i style="background:var(--blue)"></i>Daily</span><span><i style="background:var(--green)"></i>Weekly</span><span><i style="background:var(--purple)"></i>Monthly</span><span><i style="background:var(--amber)"></i>Flexible</span><span><i style="background:var(--grey)"></i>One-off</span></div></div>'+
+    '<div class="calgrid">'+DOW.map(d=>'<div class="caldh">'+d+'</div>').join('')+cells+'</div>'+
+    '<div style="font-size:.74rem;color:var(--grey);margin-top:12px">This is where monthly planning lives — payroll dates, the inventory count — so employees don’t have to look months ahead on their daily checklist.</div></div>';
+  $('#calPrev').onclick=()=>{CALM=new Date(CALM.getFullYear(),CALM.getMonth()-1,1);render();};
+  $('#calNext').onclick=()=>{CALM=new Date(CALM.getFullYear(),CALM.getMonth()+1,1);render();};
+}
+
+/* ===== reporting ===== */
+function personStats(){
+  const per={};
+  const add=(sid,onTime)=>{if(!sid||!SBID[sid])return;const p=per[sid]||(per[sid]={done:0,ontime:0,late:0});p.done++;if(onTime)p.ontime++;else p.late++;};
+  REP.list.filter(i=>i.store===SEL).forEach(i=>{
+    if(i.completion==='each'){(REP.comps[i.id]||[]).forEach(c=>add(c.staff_id,c.on_time!==false));}
+    else if(i.status==='done')add(i.done_by||i.assigned_staff_id,i.on_time!==false);
+  });
+  return per;
+}
+function renderReporting(){
+  const list=REP.list.filter(i=>i.store===SEL);
+  const done=list.filter(i=>i.status==='done'),missed=list.filter(i=>i.status==='missed');
+  const late=done.filter(i=>i.on_time===false).length;
+  const sched=done.length+missed.length;
+  const completion=sched?Math.round(done.length/sched*100)+'%':'—';
+  const onRate=done.length?Math.round(done.filter(i=>i.on_time!==false).length/done.length*100)+'%':'—';
+  // by person
+  const per=personStats();
+  const rows=Object.keys(per).map(k=>{const s=SBID[+k],p=per[+k];const rate=p.done?Math.round(p.ontime/p.done*100):0;
+    return {s,done:p.done,ontime:p.ontime,late:p.late,rate};}).filter(r=>r.s).sort((a,b)=>b.done-a.done);
+  // trend: last 6 months ending at REPM
+  const tb=[];
+  for(let k=5;k>=0;k--){
+    const md=new Date(REPM.getFullYear(),REPM.getMonth()-k,1);
+    const mS=iso(md),mE=iso(new Date(md.getFullYear(),md.getMonth()+1,0));
+    const dl=REP.trend.filter(i=>i.store===SEL&&i.task_date>=mS&&i.task_date<=mE&&i.status==='done');
+    const v=dl.length?Math.round(dl.filter(i=>i.on_time!==false).length/dl.length*100):null;
+    tb.push({m:MON[md.getMonth()],v});
+  }
+  // most missed
+  const mm={};missed.forEach(i=>{mm[i.name]=(mm[i.name]||0)+1;});
+  const mmRows=Object.keys(mm).map(n=>({n,c:mm[n]})).sort((a,b)=>b.c-a.c).slice(0,5);
+  // follow-up queue
+  const queue=REP.list.filter(i=>i.store===SEL&&i.status==='open'&&i.recur!=='daily'&&i.task_date<TODAY)
+    .sort((a,b)=>a.task_date<b.task_date?-1:1);
+  const pcols='minmax(0,1fr) 90px 90px 70px 130px';
+  const qcols='minmax(0,1fr) 170px 130px 100px 240px';
+  let html=
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span class="calnav"><button id="repPrev">‹</button><button id="repNext">›</button></span><span style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.02rem">'+MONL[REPM.getMonth()]+' '+REPM.getFullYear()+'</span></div>'+
+    '<div class="kpis">'+
+    '<div class="stat dk"><div class="l">Completion · '+MON[REPM.getMonth()]+'</div><div class="v">'+completion+'</div><div class="s">of closed-out tasks got done</div></div>'+
+    '<div class="stat gn"><div class="l">On-time rate</div><div class="v">'+onRate+'</div><div class="s">of completed tasks</div></div>'+
+    '<div class="stat am"><div class="l">Late</div><div class="v">'+late+'</div><div class="s">done, but past due</div></div>'+
+    '<div class="stat rd"><div class="l">Missed</div><div class="v">'+missed.length+'</div><div class="s">window closed undone</div></div></div>'+
+    '<div class="rep2" style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start">'+
+      '<div class="card"><div class="sechd"><div class="t">By person</div><div class="s">'+MONL[REPM.getMonth()]+' '+REPM.getFullYear()+' · matches the commission payout month</div></div>'+
+      '<div class="thead" style="grid-template-columns:'+pcols+'"><div>Person</div><div style="text-align:center">Done</div><div style="text-align:center">On-time</div><div style="text-align:center">Late</div><div>On-time rate</div></div>'+
+      (rows.length?rows.map(r=>{
+        const col=r.rate>=90?'var(--green)':r.rate>=80?'var(--amber)':'var(--red)';
+        return '<div class="trow" style="grid-template-columns:'+pcols+'">'+
+        '<div style="display:flex;align-items:center;gap:9px"><div class="av" style="width:28px;height:28px;font-size:.62rem;background:'+avatarBg(r.s)+'">'+esc(initials(r.s.display_name))+'</div><div><div style="font-weight:700;font-size:.86rem;white-space:nowrap">'+esc(r.s.display_name)+'</div><div style="font-size:.62rem;color:var(--grey);font-weight:700">'+(r.s.role==='admin'?'Manager':'Tech')+'</div></div></div>'+
+        '<div style="text-align:center;font-family:Nunito,sans-serif;font-weight:800">'+r.done+'</div>'+
+        '<div style="text-align:center;font-family:Nunito,sans-serif;font-weight:800;color:var(--green)">'+r.ontime+'</div>'+
+        '<div style="text-align:center;font-family:Nunito,sans-serif;font-weight:800;color:'+(r.late>=6?'var(--red)':'var(--dark-grey)')+'">'+r.late+'</div>'+
+        '<div><div style="display:flex;align-items:center;gap:8px"><div class="bar"><i style="width:'+r.rate+'%;background:'+col+'"></i></div><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;color:'+col+';width:34px;text-align:right">'+r.rate+'%</span></div></div></div>';
+      }).join(''):'<div class="empty"><div class="t">No completions recorded yet</div></div>')+'</div>'+
+      '<div style="display:flex;flex-direction:column;gap:16px">'+
+        '<div class="card" style="padding:16px"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1rem;margin-bottom:2px">On-time trend</div><div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-bottom:14px">Last 6 months · store-wide</div>'+
+        '<div style="display:flex;align-items:flex-end;gap:10px;height:120px">'+tb.map((b,i2)=>'<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end"><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;color:var(--dark-grey)">'+(b.v==null?'·':b.v+'%')+'</span><div style="width:100%;height:'+(b.v==null?2:Math.max(4,Math.round((b.v-60)/40*100)))+'%;background:'+(i2===tb.length-1?'var(--green)':'var(--blue)')+';border-radius:5px 5px 0 0"></div><span style="font-size:.62rem;font-weight:700;color:var(--grey)">'+b.m+'</span></div>').join('')+'</div></div>'+
+        '<div class="card" style="padding:16px"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1rem;margin-bottom:2px">Most-missed tasks</div><div style="font-size:.74rem;color:var(--grey);font-weight:600;margin-bottom:12px">Where the checklist slips most</div>'+
+        (mmRows.length?mmRows.map(r=>'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border)"><span style="font-size:.82rem;font-weight:700">'+esc(r.n)+'</span><span class="bdg b-red">'+r.c+' missed</span></div>').join(''):'<div style="color:var(--grey);font-size:.82rem;padding:6px 0">Nothing missed this month 🎉</div>')+'</div>'+
+      '</div></div>'+
+    '<div class="card" style="margin-top:18px"><div class="sechd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="t">Missed tasks — needs follow-up</div><div class="s" style="margin-top:2px">Weekly, monthly &amp; one-off tasks that closed undone. Dailies auto-record a miss and regenerate next day — they don’t queue here.</div></div><span class="bdg b-red">'+queue.length+' open</span></div>'+
+    '<div class="thead" style="grid-template-columns:'+qcols+'"><div>Task</div><div>Was assigned to</div><div>Was due</div><div>Days ago</div><div></div></div>'+
+    (queue.length?queue.map(i=>{
+      const p=SBID[i.assigned_staff_id];const dd=fromISO(String(i.due_at).slice(0,10));
+      const ago=Math.round((fromISO(TODAY)-fromISO(i.task_date))/86400000);
+      return '<div class="trow" style="grid-template-columns:'+qcols+';border-left-color:var(--red)">'+
+      '<div><div style="font-weight:700;font-size:.88rem">'+esc(i.name)+'</div><div style="font-size:.66rem;color:var(--grey);font-weight:700;margin-top:2px">'+esc(recurLabel(TPLS.find(t=>t.id===i.template_id)||i))+'</div></div>'+
+      '<div style="display:flex;align-items:center;gap:7px">'+(p?'<div class="av" style="width:24px;height:24px;font-size:.56rem;background:'+avatarBg(p)+'">'+esc(initials(p.display_name))+'</div><span style="font-weight:700;font-size:.8rem;white-space:nowrap">'+esc(p.display_name)+'</span>':'<span style="font-weight:700;font-size:.8rem;color:var(--grey)">Anyone eligible</span>')+'</div>'+
+      '<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;color:var(--red)">'+DOW[dd.getDay()]+' '+MON[dd.getMonth()]+' '+dd.getDate()+'</div>'+
+      '<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem">'+ago+'</div>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn alt sm" data-reopen="'+i.id+'">↺ Reopen &amp; reassign</button><button class="btn dark sm" data-closemiss="'+i.id+'">Close as missed</button></div></div>';
+    }).join(''):'<div class="empty"><div class="t">Queue clear</div><div style="font-size:.8rem;margin-top:3px">Every missed task has been followed up on.</div></div>')+'</div>'+
+    '<div style="font-size:.74rem;color:var(--grey);margin-top:14px;max-width:760px">Nothing is hard-deleted — full history is retained for trends. Employees see only <strong>their own</strong> version of this on the Checklist; managers see everyone. Reporting uses standard calendar months.</div>';
+  $('#secBody').innerHTML=html;
+  $('#repPrev').onclick=async()=>{REPM=new Date(REPM.getFullYear(),REPM.getMonth()-1,1);await loadReport();render();};
+  $('#repNext').onclick=async()=>{REPM=new Date(REPM.getFullYear(),REPM.getMonth()+1,1);await loadReport();render();};
+  document.querySelectorAll('[data-reopen]').forEach(b=>{b.onclick=()=>openReopen(+b.dataset.reopen);});
+  document.querySelectorAll('[data-closemiss]').forEach(b=>{b.onclick=()=>closeMissed(+b.dataset.closemiss);});
+}
+async function closeMissed(id){
+  try{
+    const r=await sb.from('task_instances').update({status:'missed',followup_by:ME.id,followup_at:new Date().toISOString()}).eq('id',id);
+    if(r.error)throw r.error;
+    toast('Closed as missed — recorded for reporting');
+    await loadReport();render();
+  }catch(e){toast(String(e.message||e),true);}
+}
+function openReopen(id){
+  const i=REP.list.find(x=>x.id===id);if(!i)return;
+  const storeStaffL=STAFF.filter(s=>s.home_store===i.store&&s.role!=='owner');
+  openModal('<div class="mdl" style="width:440px;border-top:3px solid var(--red)">'+
+    '<div class="mdl-hd"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem">Reopen on today’s checklist</div><button class="mdl-x" data-close>✕</button></div>'+
+    '<div class="mdl-bd"><div style="font-weight:700;margin-bottom:14px">'+esc(i.name)+'</div>'+
+    '<label class="fld"><span class="fl">Reassign to</span><select class="inp" id="roWho">'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(i.assigned_staff_id===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label>'+
+    '<div class="hint">The old miss is recorded for reporting; a fresh copy lands on today’s list due at '+esc(fmt12(String(new Date(i.due_at).getHours()).padStart(2,'0')+':'+String(new Date(i.due_at).getMinutes()).padStart(2,'0')))+'.</div></div>'+
+    '<div class="mdl-ft"><span></span><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" id="roGo">↺ Reopen</button></div></div></div>');
+  $('#roGo').onclick=async()=>{
+    const who=+$('#roWho').value;
+    try{
+      const old=i;
+      const due=new Date(old.due_at);
+      const nd=new Date();nd.setHours(due.getHours(),due.getMinutes(),0,0);
+      const r1=await sb.from('task_instances').update({status:'missed',followup_by:ME.id,followup_at:new Date().toISOString()}).eq('id',old.id);
+      if(r1.error)throw r1.error;
+      const r2=await sb.from('task_instances').insert({
+        template_id:old.template_id,gen_key:'reopen:'+old.id,store:old.store,task_date:TODAY,due_at:nd.toISOString(),
+        name:old.name,link_text:old.link_text,link_url:old.link_url,priority:old.priority,recur:old.recur,target:old.target,
+        completion:'any',personal:old.personal,assign_kind:'Reassigned',assigned_staff_id:who,eligible:[who],reopened_from:old.id});
+      if(r2.error)throw r2.error;
+      closeModal();toast('Reopened on today’s checklist — reassigned');
+      await loadReport();render();
+    }catch(e){toast(String(e.message||e),true);}
+  };
+}
+
+/* ===== fairness ===== */
+async function renderFairness(){
+  const rot=TPLS.filter(t=>t.store===SEL&&t.target==='group'&&t.strategy==='rotate');
+  if(!rot.length){
+    $('#secBody').innerHTML='<div class="card" style="padding:26px;text-align:center;color:var(--grey)"><div style="font-family:Nunito,sans-serif;font-weight:800;color:var(--dark-grey)">No rotating tasks at '+esc(shortStore(SEL))+'</div><div style="font-size:.82rem;margin-top:4px">Create a Group + Rotate template and the fairness ledger appears here.</div></div>';
+    return;
+  }
+  $('#secBody').innerHTML='<div class="empty">Loading rotation history…</div>';
+  const hist=await sb.from('task_instances').select('template_id,status,done_by,assigned_staff_id').in('template_id',rot.map(t=>t.id));
+  const counts={};
+  (hist.data||[]).forEach(i=>{
+    if(i.status!=='done')return;
+    const who=i.done_by||i.assigned_staff_id;if(!who)return;
+    (counts[i.template_id]=counts[i.template_id]||{})[who]=((counts[i.template_id]||{})[who]||0)+1;
+  });
+  let cards='';
+  rot.forEach(t=>{
+    const pool=(t.pool||[]).filter(id=>SBID[id]);if(!pool.length)return;
+    const c=counts[t.id]||{};
+    const vals=pool.map(id=>c[id]||0),max=Math.max.apply(null,vals.concat([1])),min=Math.min.apply(null,vals);
+    const behind=pool.filter(id=>(c[id]||0)===min&&max-min>1).map(id=>firstName(SBID[id].display_name));
+    const balance=max-min<=1?'Even':behind.join(', ')+' behind';
+    const nextId=pool[((t.rotation_pos||0)%pool.length+pool.length)%pool.length],np=SBID[nextId];
+    cards+='<div class="card" style="padding:18px">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px"><div><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1rem;line-height:1.25">'+esc(t.name)+'</div><div style="font-size:.74rem;color:var(--grey);font-weight:700;margin-top:4px">'+esc(recurLabel(t))+' · rotates</div></div><span class="bdg b-info">'+esc(balance)+'</span></div>'+
+      '<div style="background:#F7FAFD;border:1px solid #DDEBF6;border-radius:10px;padding:11px 13px;display:flex;align-items:center;gap:10px;margin-bottom:14px"><div class="av" style="width:32px;height:32px;font-size:.68rem;background:'+avatarBg(np)+'">'+esc(initials(np?np.display_name:'?'))+'</div><div><div style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#1b6fa3">Up next</div><div style="font-weight:800;font-size:.9rem">'+esc(np?np.display_name:'—')+'</div></div></div>'+
+      pool.map(id=>{const s=SBID[id],n=c[id]||0;
+        return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border)"><div class="av" style="width:24px;height:24px;font-size:.58rem;background:'+avatarBg(s)+'">'+esc(initials(s.display_name))+'</div><span style="font-weight:700;font-size:.84rem;width:80px">'+esc(firstName(s.display_name))+'</span><div class="bar"><i style="width:'+Math.round(n/max*100)+'%;background:'+avatarBg(s)+'"></i></div><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.78rem;width:44px;text-align:right;color:var(--dark-grey)">'+n+'×</span><span style="'+(id===nextId?'color:var(--blue);font-size:.7rem':'display:none')+'">▲</span></div>';}).join('')+
+    '</div>';
+  });
+  $('#secBody').innerHTML=
+    '<div class="card" style="background:var(--dark);color:#fff;padding:18px 20px;margin-bottom:18px;border:none"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.02rem;margin-bottom:4px">Fairness ledger</div><div style="font-size:.86rem;color:var(--grey);line-height:1.5;max-width:720px">For every rotating task: <strong style="color:#fff">who’s up next</strong> and <strong style="color:#fff">how many times each person has done it</strong> — so you can trust the rotation is even and nobody’s quietly stuck with the bathroom.</div></div>'+
+    '<div class="fair2">'+cards+'</div>';
+}
+
+/* ===== template editor (same shape as checklist.html's) ===== */
+let DRAFT=null,EDIT_ID=null;
+function newDraft(){
+  return {name:'',linkText:'',linkUrl:'',customUrl:'',priority:'normal',recur:'daily',
+    weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
+    target:'person',assignee:(STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner')[0]||ME).id,fallback:'',
+    shift:(SHIFTS[0]||{}).id,role:'any',pool:STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner').map(s=>s.id),strategy:'rotate',completion:'any',
+    store:SEL,dueTime:'6:00 PM',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:''};
+}
+function draftFrom(t){
+  return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
+    priority:t.priority||'normal',recur:t.recur||'daily',
+    weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
+    target:t.target||'person',assignee:t.assignee_staff_id||ME.id,fallback:t.fallback_staff_id||'',
+    shift:t.shift_id||(SHIFTS[0]||{}).id,role:t.role_key||'any',pool:(t.pool||[]).slice(),strategy:t.strategy||'rotate',completion:t.completion||'any',
+    store:t.store||SEL,dueTime:fmt12(t.due_time||'18:00'),dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||''};
+}
+function openEditor(t){EDIT_ID=t?t.id:null;DRAFT=t?draftFrom(t):newDraft();drawEditor();}
+function pillRow(items,cur,color,attr){
+  return items.map(o=>'<button class="pill'+(String(cur)===String(o[0])?' on':'')+'" style="'+(String(cur)===String(o[0])?'background:'+(o[2]||color)+';border-color:'+(o[2]||color):'')+'" data-'+attr+'="'+esc(String(o[0]))+'">'+esc(o[1])+'</button>').join('');
+}
+function drawEditor(){
+  const d=DRAFT;
+  const storeStaffL=STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner');
+  const url=d.linkUrl==='__custom'?d.customUrl:d.linkUrl;
+  let prev=esc(d.name||'');
+  if(d.linkText&&url&&(d.name||'').indexOf(d.linkText)>-1){const at=d.name.indexOf(d.linkText);prev=esc(d.name.slice(0,at))+'<span class="clink" style="cursor:default">'+esc(d.linkText)+'</span>'+esc(d.name.slice(at+d.linkText.length));}
+  const wk=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],wkIdx=[1,2,3,4,5,6,0];
+  const recurPanel=
+    d.recur==='weekly'?'<div class="hint" style="margin-bottom:9px">Pick weekdays — choose two for twice a week.</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>':
+    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month (e.g. 5, 20)</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>':
+    d.recur==='flexible'?'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="fld" style="width:80px;margin:0"><span class="fl">Times</span><input class="inp" id="eFlexN" value="'+esc(d.flexN)+'"></label><label class="fld" style="width:150px;margin:0"><span class="fl">per</span><select class="inp" id="eFlexPer"><option value="week"'+(d.flexPer==='week'?' selected':'')+'>week</option><option value="month"'+(d.flexPer==='month'?' selected':'')+'>month</option></select></label><div class="hint" style="padding-bottom:9px">Any day in the window — movable (e.g. clean the bathroom once a week).</div></div>':
+    '<div class="hint">'+(d.recur==='daily'?'Generates fresh every day — overdue ones don’t pile up.':'Happens once. A one-off never auto-expires — it waits until done or a manager closes it.')+'</div>';
+  const assignPanel=
+    d.target==='person'?'<div class="grid2"><label class="fld" style="margin:0"><span class="fl">Person</span><select class="inp" id="eAssignee">'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+d.assignee===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label><label class="fld" style="margin:0"><span class="fl">Fallback if off</span><select class="inp" id="eFallback"><option value="">None</option>'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+d.fallback===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label></div>':
+    d.target==='shift'?'<label class="fld" style="margin:0"><span class="fl">Shift (resolved from the schedule daily)</span><select class="inp" id="eShift">'+SHIFTS.map(s=>'<option value="'+s.id+'"'+(+d.shift===s.id?' selected':'')+'>'+esc(s.name)+' · '+esc(shortStore(d.store))+'</option>').join('')+'</select></label><div class="hint" style="margin-top:8px">e.g. “whoever closes '+esc(shortStore(d.store))+'” — picks the right person each day automatically.</div>':
+    d.target==='role'?'<label class="fld" style="margin:0"><span class="fl">Role</span><select class="inp" id="eRole"><option value="any"'+(d.role!=='manager'?' selected':'')+'>Any tech</option><option value="manager"'+(d.role==='manager'?' selected':'')+'>Manager</option></select></label>':
+    '<div class="hint" style="margin-bottom:9px">Pick the pool.</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+storeStaffL.map(s=>'<button class="pill'+(d.pool.indexOf(s.id)>-1?' on':'')+'" style="'+(d.pool.indexOf(s.id)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-pool="'+s.id+'">'+esc(s.display_name)+'</button>').join('')+'</div>';
+  const showStrat=d.target==='group',showComp=(d.target==='role'||d.target==='group');
+  let sum='';
+  if(d.target==='person'){const a=SBID[+d.assignee];sum='Always '+(a?a.display_name:'—')+(d.fallback&&SBID[+d.fallback]?' — fallback '+SBID[+d.fallback].display_name:'')+'.';}
+  else if(d.target==='shift'){const s=SHIFTS.find(x=>x.id===+d.shift);sum='Resolves to whoever works '+(s?s.name:'the shift')+' at '+shortStore(d.store)+' that day.';}
+  else if(d.target==='role')sum=(d.completion==='each'?'Every ':'Any ')+(d.role==='manager'?'manager':'tech')+(d.completion==='each'?' must complete their own — shows a completion grid.':' completes it for the group.');
+  else sum=(d.strategy==='rotate'?'Round-robin through ':'Shared across ')+d.pool.map(id=>SBID[id]?firstName(SBID[id].display_name):'').filter(Boolean).join(', ')+(d.completion==='each'?' — each must complete.':' — any one completes it.');
+  openModal(
+    '<div class="mdl" style="width:640px;border-top:3px solid var(--red)">'+
+    '<div class="mdl-hd"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.15rem">'+(EDIT_ID?'Edit template':'New template')+'</div><button class="mdl-x" data-close>✕</button></div>'+
+    '<div class="mdl-bd">'+
+      '<label class="fld"><span class="fl">Task name</span><input class="inp" id="eName" value="'+esc(d.name)+'" placeholder="e.g. Complete consumption report and order from MS"></label>'+
+      '<div class="panel"><div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);margin-bottom:8px">🔗 Link a phrase in the name</div>'+
+        '<div class="grid2"><label class="fld" style="margin:0"><span class="fl">Phrase</span><input class="inp" id="eLinkText" value="'+esc(d.linkText)+'" placeholder="Consumption Report"></label>'+
+        '<label class="fld" style="margin:0"><span class="fl">Tool / URL</span><select class="inp" id="eLinkUrl">'+TOOLS.map(o=>'<option value="'+esc(o.value)+'"'+(d.linkUrl===o.value?' selected':'')+'>'+esc(o.label)+'</option>').join('')+'</select></label></div>'+
+        (d.linkUrl==='__custom'?'<label class="fld" style="margin:10px 0 0"><span class="fl">URL</span><input class="inp" id="eCustomUrl" value="'+esc(d.customUrl)+'" placeholder="https://…"></label>':'')+
+        '<div style="margin-top:11px;font-size:.84rem;color:var(--dark-grey)">Renders as: <span style="font-weight:700;color:var(--dark)">'+(prev||'—')+'</span></div></div>'+
+      '<div style="margin-bottom:18px"><span class="fl" style="display:block;margin-bottom:6px">Priority</span><div style="display:flex;gap:8px;flex-wrap:wrap">'+pillRow([['normal','Normal','var(--dark)'],['asap','Please do ASAP','#B45309'],['must','Must do today','var(--red)']],d.priority,'var(--dark)','prio')+'</div></div>'+
+      '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Recurrence</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow(RECURS.map(r=>[r[0],r[1],'var(--dark)']),d.recur,'var(--dark)','recur')+'</div></div>'+
+      '<div class="panel">'+recurPanel+'</div>'+
+      '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assign to</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['person','Person','var(--dark)'],['shift','Shift','var(--dark)'],['role','Role','var(--dark)'],['group','Group','var(--dark)']],d.target,'var(--dark)','tgt')+'</div></div>'+
+      '<div class="panel">'+assignPanel+
+        '<div style="display:flex;gap:18px;margin-top:14px;flex-wrap:wrap">'+
+        (showStrat?'<div><span class="fl" style="display:block;margin-bottom:5px">Strategy</span><div style="display:flex;gap:6px">'+pillRow([['fixed','Fixed','var(--dark)'],['rotate','Rotate','var(--dark)']],d.strategy,'var(--dark)','strat')+'</div></div>':'')+
+        (showComp?'<div><span class="fl" style="display:block;margin-bottom:5px">Who must complete</span><div style="display:flex;gap:6px">'+pillRow([['any','Any one','var(--dark)'],['each','Each person','var(--dark)']],d.completion,'var(--dark)','comp')+'</div></div>':'')+
+        '</div><div class="hint" style="margin-top:11px">'+esc(sum)+'</div></div>'+
+      '<div class="grid2" style="margin-bottom:18px">'+
+        '<label class="fld" style="margin:0"><span class="fl">Store</span><select class="inp" id="eStore">'+STORES.map(s=>'<option value="'+esc(s)+'"'+(d.store===s?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></label>'+
+        '<label class="fld" style="margin:0"><span class="fl">Due time</span><input class="inp" id="eDueTime" value="'+esc(d.dueTime)+'" placeholder="6:00 PM"></label>'+
+      '</div>'+
+      (d.recur==='oneoff'?
+        '<div style="margin-bottom:8px"><span class="fl" style="display:block;margin-bottom:6px">Due</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['same','Today','var(--dark)'],['after','After…','var(--dark)'],['date','On date','var(--dark)']],d.dueType,'var(--dark)','duety')+'</div></div>'+
+        (d.dueType==='after'?'<div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px"><label class="fld" style="width:90px;margin:0"><span class="fl">In</span><input class="inp" id="eDueAfterN" value="'+esc(d.dueAfterN)+'"></label><label class="fld" style="width:140px;margin:0"><span class="fl">&nbsp;</span><select class="inp" id="eDueAfterUnit">'+['days','weeks','months'].map(u=>'<option value="'+u+'"'+(d.dueAfterUnit===u?' selected':'')+'>'+u+'</option>').join('')+'</select></label></div>':'')+
+        (d.dueType==='date'?'<label class="fld" style="width:200px;margin-bottom:18px"><span class="fl">On date</span><input class="inp" type="date" id="eDueDate" value="'+esc(d.dueDate)+'"></label>':'')
+      :'')+
+      '<label class="fld"><span class="fl">Instructions <span style="text-transform:none;font-weight:600;color:var(--grey)">(links are clickable)</span></span><textarea class="inp" id="eInstr" rows="3" placeholder="Add steps, par levels, or paste a knowledge-base link…">'+esc(d.instr)+'</textarea></label>'+
+    '</div>'+
+    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">Applies to future occurrences · '+esc(shortStore(d.store))+'</div>'+(EDIT_ID?'<button class="linkdel" data-arch>Archive template</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?'Save changes':'Create template')+'</button></div></div></div>'
+  );
+  const grab=()=>{
+    const g=id=>{const el=$('#mdlWrap #'+id);return el?el.value:undefined;};
+    if(g('eName')!=null)d.name=g('eName');
+    if(g('eLinkText')!=null)d.linkText=g('eLinkText');
+    if(g('eCustomUrl')!=null)d.customUrl=g('eCustomUrl');
+    if(g('eMonthDates')!=null)d.monthDates=g('eMonthDates');
+    if(g('eFlexN')!=null)d.flexN=g('eFlexN');if(g('eFlexPer')!=null)d.flexPer=g('eFlexPer');
+    if(g('eAssignee')!=null)d.assignee=g('eAssignee');if(g('eFallback')!=null)d.fallback=g('eFallback');
+    if(g('eShift')!=null)d.shift=g('eShift');if(g('eRole')!=null)d.role=g('eRole');
+    if(g('eStore')!=null)d.store=g('eStore');if(g('eDueTime')!=null)d.dueTime=g('eDueTime');
+    if(g('eDueAfterN')!=null)d.dueAfterN=g('eDueAfterN');if(g('eDueAfterUnit')!=null)d.dueAfterUnit=g('eDueAfterUnit');
+    if(g('eDueDate')!=null)d.dueDate=g('eDueDate');if(g('eInstr')!=null)d.instr=g('eInstr');
+  };
+  document.querySelectorAll('#mdlWrap [data-prio]').forEach(b=>b.onclick=()=>{grab();d.priority=b.dataset.prio;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-recur]').forEach(b=>b.onclick=()=>{grab();d.recur=b.dataset.recur;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-tgt]').forEach(b=>b.onclick=()=>{grab();d.target=b.dataset.tgt;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-strat]').forEach(b=>b.onclick=()=>{grab();d.strategy=b.dataset.strat;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-comp]').forEach(b=>b.onclick=()=>{grab();d.completion=b.dataset.comp;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-duety]').forEach(b=>b.onclick=()=>{grab();d.dueType=b.dataset.duety;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-wd]').forEach(b=>b.onclick=()=>{grab();const wd=+b.dataset.wd;const at=d.weekdays.indexOf(wd);if(at>-1)d.weekdays.splice(at,1);else d.weekdays.push(wd);drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const id=+b.dataset.pool;const at=d.pool.indexOf(id);if(at>-1)d.pool.splice(at,1);else d.pool.push(id);drawEditor();});
+  const lu=$('#mdlWrap #eLinkUrl');if(lu)lu.onchange=()=>{grab();d.linkUrl=lu.value;drawEditor();};
+  const st2=$('#mdlWrap #eStore');if(st2)st2.onchange=()=>{grab();d.store=st2.value;d.pool=STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner').map(s=>s.id);d.assignee=(STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner')[0]||ME).id;drawEditor();};
+  const lt=$('#mdlWrap #eLinkText');if(lt)lt.onchange=()=>{grab();drawEditor();};
+  const sv=$('#mdlWrap [data-save]');if(sv)sv.onclick=()=>{grab();saveTemplate();};
+  const ar=$('#mdlWrap [data-arch]');if(ar)ar.onclick=()=>{grab();archiveTemplate();};
+}
+async function saveTemplate(){
+  const d=DRAFT;
+  if(!String(d.name||'').trim()){toast('Give the task a name',true);return;}
+  const url=d.linkUrl==='__custom'?String(d.customUrl||'').trim():d.linkUrl;
+  const row={
+    store:d.store,name:d.name.trim(),
+    link_text:(d.linkText&&url&&d.name.indexOf(d.linkText)>-1)?d.linkText:null,
+    link_url:(d.linkText&&url&&d.name.indexOf(d.linkText)>-1)?url:null,
+    priority:d.priority,recur:d.recur,
+    weekdays:d.recur==='weekly'?d.weekdays.slice().sort():null,
+    month_dates:d.recur==='monthly'?String(d.monthDates||'').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=31):null,
+    flex_n:d.recur==='flexible'?Math.max(1,+d.flexN||1):null,
+    flex_per:d.recur==='flexible'?(d.flexPer==='month'?'month':'week'):null,
+    target:d.target,
+    assignee_staff_id:d.target==='person'?+d.assignee||null:null,
+    fallback_staff_id:(d.target==='person'&&d.fallback)?+d.fallback:null,
+    shift_id:d.target==='shift'?+d.shift||null:null,
+    role_key:d.target==='role'?d.role:null,
+    pool:d.target==='group'?d.pool:null,
+    strategy:d.strategy,completion:(['role','group'].indexOf(d.target)>-1)?d.completion:'any',
+    due_time:to24(d.dueTime),
+    due_type:d.recur==='oneoff'?d.dueType:'same',
+    due_after_n:(d.recur==='oneoff'&&d.dueType==='after')?+d.dueAfterN||null:null,
+    due_after_unit:(d.recur==='oneoff'&&d.dueType==='after')?d.dueAfterUnit:null,
+    due_date:(d.recur==='oneoff'&&d.dueType==='date'&&d.dueDate)?d.dueDate:null,
+    instructions:String(d.instr||'').trim()||null,
+    personal:false,updated_at:new Date().toISOString()
+  };
+  if(row.recur==='weekly'&&!(row.weekdays||[]).length){toast('Pick at least one weekday',true);return;}
+  if(row.recur==='monthly'&&!(row.month_dates||[]).length){toast('Enter at least one date of the month',true);return;}
+  if(row.target==='group'&&!(row.pool||[]).length){toast('Pick at least one person for the pool',true);return;}
+  try{
+    let r;
+    if(EDIT_ID)r=await sb.from('task_templates').update(row).eq('id',EDIT_ID).select().single();
+    else{row.created_by=ME.id;r=await sb.from('task_templates').insert(row).select().single();}
+    if(r.error)throw r.error;
+    closeModal();toast(EDIT_ID?'Template updated':'Template created');
+    const sess=(await sb.auth.getSession()).data.session;
+    if(sess)await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}}).catch(()=>{});
+    await loadCore();await loadReport();render();
+  }catch(e){toast(String(e.message||e),true);}
+}
+async function archiveTemplate(){
+  if(!EDIT_ID)return;
+  if(!confirm('Archive this task template? It stops generating; history is kept.'))return;
+  try{
+    const r=await sb.from('task_templates').update({active:false,updated_at:new Date().toISOString()}).eq('id',EDIT_ID);
+    if(r.error)throw r.error;
+    await sb.from('task_instances').update({status:'missed'}).eq('template_id',EDIT_ID).eq('status','open');
+    closeModal();toast('Template archived');
+    await loadCore();await loadReport();render();
+  }catch(e){toast(String(e.message||e),true);}
+}
+
+/* ===== modal plumbing ===== */
+function openModal(inner){
+  $('#mdlWrap').innerHTML='<div class="ovl">'+inner+'</div>';
+  const ovl=$('#mdlWrap .ovl');
+  ovl.addEventListener('mousedown',e=>{if(e.target===ovl)closeModal();});
+  document.querySelectorAll('#mdlWrap [data-close]').forEach(b=>b.onclick=closeModal);
+}
+function closeModal(){$('#mdlWrap').innerHTML='';DRAFT=null;EDIT_ID=null;}
+</script>
+</body>
+</html>

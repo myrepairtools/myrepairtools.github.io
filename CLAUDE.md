@@ -90,6 +90,10 @@ these when adding UI so a new tool looks native.
   current-month per-tech `{ accy, devUnits, devAccy }` for the viewer's store (RLS
   `can_see_store` scopes it). Powers the Store Leaderboard widget's accessory-$ / device-units
   toggle.
+- **`checklist-summary.js`** — one call (`window.CPRChecklist.forMe()`) returning today's
+  checklist for the signed-in user (`{ tasks, open, done, overdue }`) plus
+  `markDone(id, done)`; mirrors `checklist.html`'s row semantics (assigned-or-eligible,
+  'each' = own completion row). Used by the dashboard's My Tasks widget.
 
 ## Auth & roles
 
@@ -123,7 +127,7 @@ There is **no single backend**. Tools talk to one of two systems:
    `esm.sh/@supabase/supabase-js@2`. Tools on Supabase: cash-tracker, cash-admin,
    consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders,
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
-   time-entries, monthly-goals.
+   time-entries, monthly-goals, checklist, task-admin.
 
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
@@ -145,6 +149,28 @@ is manager/owner (RLS `is_admin()`); reads/dismissals are per-user rows. Automat
 milestones cron writes day-of birthdays/anniversaries; any notification rule routed to an
 **In-app · Communications** channel (notify function `type='inapp'`) posts here too.
 Distinct from future "Alerts" (personal/actionable, top-right icon — not built).
+
+**Checklist (store tasks):** `task_templates` **generate** `task_instances` — never render
+templates directly; the checklist shows instances. Template shape: recurrence
+(`oneoff|daily|weekly|monthly|flexible` + weekdays / month_dates / flex N-per-window),
+target (`person`+fallback / `shift` resolved from the schedule / `role` any-tech-or-manager /
+`group` pool with strategy `fixed|rotate`), completion (`any|each` — each stores per-person
+`task_completions` rows and shows a completion grid), priority (normal/asap/must), a
+linkable phrase in the name (link_text/link_url), due_time, instructions. Generation is the
+**`tasks` edge function** (`?action=generate`, idempotent on `(template_id, gen_key)`):
+pg_cron `tasks-generate-daily` (10:10 UTC) plus a page-load top-up call (any signed-in JWT
+works — safe because idempotent). It resolves the day's assignee (round-robin advances
+`rotation_pos`, skips people on approved time off), snapshots name/priority/assignee onto
+the instance, and auto-closes yesterday's open dailies as `missed` (they regenerate fresh).
+Weekly/monthly/one-off misses stay open and surface in Task Admin's **follow-up queue**
+(Reopen & reassign → old instance `missed` + fresh instance `gen_key reopen:<id>`; or Close
+as missed). Surfaces: `checklist.html` (My Hub, everyone; My tasks/Store views; employees
+can create **personal** tasks — RLS-scoped to creator) and `task-admin.html` (Employees
+nav, managers: Library list+calendar, Reporting by calendar month, Fairness rotation
+ledger). Dashboard My Tasks widget uses `assets/checklist-summary.js`
+(`window.CPRChecklist.forMe()/markDone()`). On-time = done_at ≤ due_at, stored on the
+instance/completion at check-off. Checklist notification triggers (end-of-shift nudges
+etc.) are deliberately deferred to the notifications project.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 

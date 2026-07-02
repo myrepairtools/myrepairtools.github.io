@@ -217,6 +217,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/nav.js"></script>
 <script src="assets/commission-engine.js"></script>
 <script src="assets/commission-summary.js"></script>
+<script src="assets/checklist-summary.js"></script>
 <script src="assets/schedule-summary.js"></script>
 <script src="assets/pto-summary.js"></script>
 <script src="assets/team-hours-summary.js"></script>
@@ -249,14 +250,11 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
   var todayNum=new Date().getDate();
   var REG=[
     { id:'tasks', title:'My Tasks', icon:'✅', accent:'green', defaultSize:'wide',
-      desc:'Today’s checklist items and due tasks.', tag:{t:'preview',x:'Preview'}, link:{href:'#',x:'View all →'},
+      desc:'Today’s checklist items and due tasks.', link:{href:'checklist.html',x:'View all →'},
       render:function(){ return ''
-        +'<ul class="tasklist">'
-        +'<li class="task"><span class="cbx"></span><div><div class="tt">Open registers &amp; count tills</div><div class="tm">Opening · due 10:00 AM</div></div><span class="tg must">Must do</span></li>'
-        +'<li class="task"><span class="cbx"></span><div><div class="tt">Wipe down counters &amp; demo phones</div><div class="tm">Anytime today</div></div><span class="tg asap">ASAP</span></li>'
-        +'<li class="task"><span class="cbx"></span><div><div class="tt">Restock screen protectors</div><div class="tm">Anytime today</div></div></li>'
-        +'<li class="task done"><span class="cbx"></span><div><div class="tt">Check overnight repair queue</div><div class="tm">Completed 9:12 AM</div></div></li>'
-        +'</ul>'; } },
+        +'<div data-tk-list></div>'
+        +'<div class="empty" data-tk-empty style="display:none;padding:14px 4px"><div class="ei">✅</div><div class="et">All clear</div><div class="es">Nothing on your checklist right now.</div></div>'; },
+      mount:function(bd){ loadTasks(bd); } },
 
     { id:'commission', title:'My Commission', icon:'📈', accent:'blue', defaultSize:'narrow',
       desc:'Your commission, tips and goal this period.', link:{href:'commission-dashboard.html',x:'Open →'},
@@ -519,6 +517,32 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
           g.querySelector('[data-g="pct"]').textContent=money0(cur)+' of '+money0(s.goal);
           g.querySelector('[data-g="bar"]').style.width=pct+'%'; } }
     }, function(){});
+  }
+
+  /* ====================== my tasks wiring (real data) ====================== */
+  function loadTasks(bd){
+    if(!window.CPRChecklist || !window.CPRChecklist.forMe){ return; }
+    function draw(d){
+      var list=bd.querySelector('[data-tk-list]'), em=bd.querySelector('[data-tk-empty]');
+      if(!list) return;
+      if(!d || !d.tasks || !d.tasks.length){ list.innerHTML=''; if(em) em.style.display='block'; return; }
+      if(em) em.style.display='none';
+      var shown=d.tasks.slice(0,5);
+      list.innerHTML='<ul class="tasklist">'+shown.map(function(t){
+        var tag=t.priority==='must'?'<span class="tg must">Must do</span>':t.priority==='asap'?'<span class="tg asap">ASAP</span>':'';
+        var meta=t.done?'Done ✓':('Due '+esc(t.dueLabel)+(t.dueSub?(' · '+esc(t.dueSub)):''));
+        return '<li class="task'+(t.done?' done':'')+'" data-tk="'+t.id+'" style="cursor:pointer"><span class="cbx"'+(t.overdue&&!t.done?' style="border-color:var(--red)"':'')+'></span><div><div class="tt">'+esc(t.name)+'</div><div class="tm"'+(t.overdue&&!t.done?' style="color:var(--red);font-weight:700"':'')+'>'+meta+'</div></div>'+tag+'</li>';
+      }).join('')+'</ul>'
+      +(d.tasks.length>shown.length?'<div style="font-size:.74rem;font-weight:700;color:var(--grey);padding:6px 6px 0">+'+(d.tasks.length-shown.length)+' more on the checklist</div>':'');
+      list.querySelectorAll('[data-tk]').forEach(function(li){
+        li.onclick=function(){
+          var id=+li.dataset.tk, t=d.tasks.filter(function(x){return x.id===id;})[0];
+          if(!t) return;
+          window.CPRChecklist.markDone(id,!t.done).then(function(ok){ if(ok) window.CPRChecklist.forMe(true).then(draw); });
+        };
+      });
+    }
+    window.CPRChecklist.forMe().then(draw,function(){});
   }
 
   function loadSchedule(bd){

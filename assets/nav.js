@@ -53,6 +53,7 @@
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
     { label:'Dashboard',           url:'index.html',                icon:'🏠' },
+    { label:'Checklist',           url:'checklist.html',            icon:'✅' },
     { label:'Communications',      url:'communications.html',       icon:'📣' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
@@ -67,6 +68,7 @@
   var EMPLOYEES = [
     { label:'Team Members',   url:'employee-records.html', icon:'📁', minRole:'admin', acc:'staff.view' },
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'🗓️', minRole:'admin', acc:'schedule.admin' },
+    { label:'Task Admin',     url:'task-admin.html',       icon:'🗂️', minRole:'admin' },
     { label:'Time Entries',   url:'time-entries.html',     icon:'🕐', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'🌴', minRole:'admin', acc:'schedule.admin' }
   ];

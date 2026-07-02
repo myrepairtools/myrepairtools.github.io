@@ -238,3 +238,22 @@ them out:
   whatever channels exist, so new types show up there automatically.
 - The keyword field carries through regardless, so Power Automate routing still works
   alongside a native in-app feed.
+
+## Checklist — notification triggers (deferred from the design handoff)
+
+The checklist system (task_templates → task_instances, `tasks` edge function, checklist.html /
+task-admin.html) shipped **without** notification delivery on purpose — it plugs into the
+notifications project once that lands. Triggers documented in the design handoff:
+
+1. **End-of-shift nudge** — outstanding tasks for the store pushed to the store Teams channel
+   (~4:00 PM); the 🔔 popover on checklist.html already shows this exact grouping in-app.
+2. **"Must do today" still open at N hours before close** — escalate to the manager.
+3. **Task missed** (weekly/monthly/one-off window closed undone) — notify the manager;
+   the Task Admin follow-up queue is the in-app surface for this today.
+4. **Reopened/reassigned task** — tell the new assignee it landed on their list.
+5. **Rotation turn** — "you're up this week" for rotating tasks (bathroom etc.).
+
+Build note: emit these as `notification_rules` event keys (e.g. `checklist.shift_end`,
+`checklist.missed`) from the `tasks` edge function / a small cron, so routing (Teams keyword,
+email, in-app Communications) stays configurable per-event in Settings › Notifications like
+everything else.
