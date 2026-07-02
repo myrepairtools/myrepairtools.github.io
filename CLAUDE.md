@@ -193,12 +193,20 @@ editable — credited against the price) and `collect` = the remaining balance;
 `pay_mode` 'remote' = Square pay link right after signing, 'instore' = sign only —
 payment runs through RepairQ → Square Terminal at the counter, closed out with the
 "✓ Paid" list action) + `contract_templates` (many templates, each = intro with
-{business}/{customer}/{date} placeholders + ordered clause sections + optional repair
+{business}/{customer}/{date} placeholders + ordered clauses + optional repair
 outcomes + optional `library` + approved/active — **contracts can only be created from
-approved templates**) + `contract_services` (per-`library` price lists, grouped by
-vendor: customer price + optional vendor cost; a template's library scopes the service
-picker, which locks the price). Surfaces: `contracts.html` (Operations nav, any staff —
-template-first New Contract, table list Date/Status/Type/Customer/Device/Price/actions,
+approved templates**; deletable — existing contracts keep their snapshot) +
+`contract_clauses` (shared one-size-fits-all clauses — refund, warranty… — that
+templates LINK as `{clause_id}` sections alongside inline template-specific clauses;
+editing a library clause updates every linking template, and creation resolves links
+to full text in the `terms` snapshot) + `contract_services` (per-`library` price
+lists, grouped by vendor: default customer price + optional vendor cost + `tiers`
+jsonb [{price, devices:[…]}] for device-tiered pricing — device names match
+`device_models` (the curated model list) exactly). Surfaces: `contracts.html`
+(Operations nav, any staff — template-first New Contract with a **device-first
+workflow**: device autocompletes from device_models, the service list then shows only
+services priced for that device (tier match else default; 0 default = tier-only) and
+the resolved price locks; table list Date/Status/Type/Customer/Device/Price/actions,
 🖨 vendor work-order print — no prices on it — that travels with the device, RepairQ
 ticket required) and `contract-sign.html`, a **public customer page with no gates/nav**
 (the token is the credential): outcome pick (if the template has outcomes), canvas

@@ -120,7 +120,7 @@ const shortStore=s=>window.CPRLocations?CPRLocations.display(s):String(s||'').re
 const isMgr=r=>['admin','manager','owner'].indexOf(r)>-1;
 const token=()=>{const a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('');};
 
-let ME=null, ROWS=[], TMPLS=[], SVCS=[], FILTER=(function(){try{return localStorage.getItem('cprMcFilter')||'all';}catch(e){return 'all';}})(), Q='';
+let ME=null, ROWS=[], TMPLS=[], SVCS=[], CLAUSES=[], DEVICES=[], FILTER=(function(){try{return localStorage.getItem('cprMcFilter')||'all';}catch(e){return 'all';}})(), Q='';
 
 sb.auth.onAuthStateChange((_e,sess)=>{if(sess&&!ME)resolveMe(sess);});
 async function resolveMe(sess){
@@ -130,12 +130,15 @@ async function resolveMe(sess){
 }
 async function boot(){
   $('#app').style.visibility='visible';
-  const [rows,tp,sv]=await Promise.all([
+  const [rows,tp,sv,cl,dm]=await Promise.all([
     sb.from('contracts').select('*').order('created_at',{ascending:false}).limit(300),
     sb.from('contract_templates').select('*').order('sort').order('name'),
-    sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service')
+    sb.from('contract_services').select('*').order('library').order('vendor').order('sort').order('service'),
+    sb.from('contract_clauses').select('*'),
+    sb.from('device_models').select('model,active').order('model')
   ]);
   ROWS=rows.data||[];TMPLS=(tp.data||[]).filter(t=>t.active!==false);SVCS=sv.data||[];
+  CLAUSES=cl.data||[];DEVICES=(dm.data||[]).filter(d=>d.active!==false).map(d=>d.model);
   $('#draftWarn').classList.toggle('hide',TMPLS.some(t=>t.approved));
   $('#newBtn').onclick=openNew;
   $('#q').oninput=()=>{Q=$('#q').value.toLowerCase();render();};
@@ -232,6 +235,22 @@ function printVendorSheet(r){
   w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch(e){}},400);
 }
 
+/* price for a service on a given device: matching tier wins, else the default price */
+function priceFor(svc,device){
+  const dev=String(device||'').trim().toLowerCase();
+  for(const t of (Array.isArray(svc.tiers)?svc.tiers:[])){
+    if((t.devices||[]).some(d=>String(d).trim().toLowerCase()===dev))return Number(t.price)||0;
+  }
+  return Number(svc.price)>0?Number(svc.price):null;
+}
+/* template sections may link library clauses — resolve to full text for the signed snapshot */
+function resolveSections(sections){
+  return (sections||[]).map(sec=>{
+    if(sec.clause_id){const c=CLAUSES.find(x=>x.id===sec.clause_id);return c?{h:c.title,body:c.body}:null;}
+    return sec;
+  }).filter(Boolean);
+}
+
 /* ---------- new contract ---------- */
 function myStores(){
   const set=[];const add=s=>{if(s&&set.indexOf(s)<0)set.push(s);};
@@ -258,11 +277,16 @@ function openNew(){
 function openForm(TMPL){
   const stores=myStores();
   const act=SVCS.filter(s=>s.active!==false&&(!TMPL.library||s.library===TMPL.library));
-  const vendors=[...new Set(act.map(s=>s.vendor))];
-  const svcOpts='<option value="">— pick the service —</option>'
-    +vendors.map(v=>'<optgroup label="'+esc(v)+'">'+act.filter(s=>s.vendor===v).map(s=>
-      '<option value="'+s.id+'">'+esc(s.service)+(s.device?' · '+esc(s.device):'')+' — $'+(Number(s.price)||0)+'</option>').join('')+'</optgroup>').join('')
-    +'<option value="custom">Custom / not on the list…</option>';
+  // options depend on the picked device: only services priced for it (tier or default) show
+  const svcOptions=(device)=>{
+    const avail=act.map(s=>({s,p:priceFor(s,device)})).filter(x=>x.p!=null);
+    const vendors=[...new Set(avail.map(x=>x.s.vendor))];
+    return '<option value="">— pick the service —</option>'
+      +vendors.map(v=>'<optgroup label="'+esc(v)+'">'+avail.filter(x=>x.s.vendor===v).map(x=>
+        '<option value="'+x.s.id+'">'+esc(x.s.service)+' — $'+x.p+'</option>').join('')+'</optgroup>').join('')
+      +'<option value="custom">Custom / not on the list…</option>';
+  };
+  const svcOpts=svcOptions('');
   const back=document.createElement('div');back.className='mback';back.id='ncback';
   back.innerHTML='<div class="modal">'
     +'<div class="m-hd"><span>＋ '+esc(TMPL.name)+'</span><button class="m-x" data-x>×</button></div>'
@@ -271,11 +295,12 @@ function openForm(TMPL){
     +'<div><label class="f">Store</label><select id="ncStore">'+stores.map(s=>'<option value="'+esc(s)+'"'+(s===ME.home_store?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></div>'
     +'<div><label class="f">RepairQ ticket # *</label><input id="ncTicket" type="text" placeholder="required"></div>'
     +'<div><label class="f">Customer name *</label><input id="ncName" type="text"></div>'
-    +'<div><label class="f">Device</label><input id="ncDevice" type="text" placeholder="e.g. iPhone 13 Pro"></div>'
+    +'<div><label class="f">Device *</label><input id="ncDevice" type="text" list="ncDevList" placeholder="start typing — e.g. iPhone 15 Pro" autocomplete="off"><datalist id="ncDevList">'+DEVICES.map(d=>'<option>'+esc(d)+'</option>').join('')+'</datalist></div>'
     +'<div><label class="f">Customer email</label><input id="ncEmail" type="text" placeholder="for emailing the link + receipt"></div>'
     +'<div><label class="f">Customer phone</label><input id="ncPhone" type="text" placeholder="optional"></div>'
     +'</div>'
     +'<label class="f">Service *</label><select id="ncSvc">'+svcOpts+'</select>'
+    +'<div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:3px" id="ncSvcHint">Pick the device first — services & prices adjust to it.</div>'
     +(act.length?'':'<div style="font-size:.74rem;color:var(--amber);font-weight:700;margin-top:4px">No services in this template’s price library yet — managers add them in Settings → Contracts. Using Custom for now.</div>')
     +'<label class="f">Repair details / scope *</label><textarea id="ncScope" rows="3" placeholder="What’s wrong and what work is authorized — thorough notes; these also print on the vendor work order"></textarea>'
     +'<label class="f">How does the customer pay?</label>'
@@ -296,6 +321,7 @@ function openForm(TMPL){
   back.addEventListener('click',e=>{if(e.target===back)back.remove();});
   back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
   const priceEl=back.querySelector('#ncPrice'), svcEl=back.querySelector('#ncSvc');
+  const devEl=back.querySelector('#ncDevice');
   const diagOn=back.querySelector('#ncDiagOn'), diagEl=back.querySelector('#ncDiag');
   const calc=()=>{ // price − diagnostic credit = balance the customer still owes
     const price=+priceEl.value||0;
@@ -311,12 +337,22 @@ function openForm(TMPL){
       :'Pick a service to see the balance.';
     return {price,diag,due,instore};
   };
-  // catalog pick fills & locks the price (employees can't fat-finger it); Custom unlocks
-  svcEl.onchange=()=>{
+  // catalog pick fills & locks the price for the CURRENT device; Custom unlocks
+  const applySvc=()=>{
     const v=svcEl.value;
-    if(v&&v!=='custom'){const s=SVCS.find(x=>String(x.id)===v);if(s){priceEl.value=Number(s.price)||0;priceEl.readOnly=true;priceEl.style.background='var(--light-grey)';}}
+    if(v&&v!=='custom'){const s=SVCS.find(x=>String(x.id)===v);const p=s?priceFor(s,devEl.value):null;
+      if(p!=null){priceEl.value=p;priceEl.readOnly=true;priceEl.style.background='var(--light-grey)';}}
     else{priceEl.readOnly=false;priceEl.style.background='';if(v==='custom')priceEl.focus();}
     calc();
+  };
+  svcEl.onchange=applySvc;
+  devEl.oninput=()=>{ // rebuild the service list for this device, keep the pick when still valid
+    const keep=svcEl.value;
+    svcEl.innerHTML=svcOptions(devEl.value);
+    if([...svcEl.options].some(o=>o.value===keep))svcEl.value=keep;
+    const hint=back.querySelector('#ncSvcHint');
+    if(hint)hint.textContent=devEl.value.trim()?('Services priced for “'+devEl.value.trim()+'”'+(DEVICES.includes(devEl.value.trim())?'':' (device not in the list — only default-priced services show)')):'Pick the device first — services & prices adjust to it.';
+    applySvc();
   };
   priceEl.oninput=calc;diagOn.onchange=calc;diagEl.oninput=calc;
   back.querySelectorAll('input[name=ncPm]').forEach(r=>r.onchange=()=>{
@@ -328,13 +364,15 @@ function openForm(TMPL){
     const name=back.querySelector('#ncName').value.trim();
     const ticket=back.querySelector('#ncTicket').value.trim();
     const scope=back.querySelector('#ncScope').value.trim();
+    const device=back.querySelector('#ncDevice').value.trim();
     const svcVal=svcEl.value;
     const svc=(svcVal&&svcVal!=='custom')?SVCS.find(x=>String(x.id)===svcVal):null;
     const c=calc();
-    const price=svc?(Number(svc.price)||0):c.price;
+    const price=svc?(priceFor(svc,device)??0):c.price;
     const payMode=c.instore?'instore':'remote';
     const collect=c.instore?0:c.due;
     if(!name){toast('Customer name required',true);return;}
+    if(!device){toast('Device is required',true);return;}
     if(!ticket){toast('RepairQ ticket # is required',true);return;}
     if(!svcVal){toast('Pick the service (or Custom)',true);return;}
     if(!scope){toast('Describe the repair scope',true);return;}
@@ -343,12 +381,12 @@ function openForm(TMPL){
     const row={token:token(),status:'draft',store:back.querySelector('#ncStore').value,created_by:ME.id,
       customer_name:name,customer_email:back.querySelector('#ncEmail').value.trim()||null,
       customer_phone:back.querySelector('#ncPhone').value.trim()||null,
-      device:back.querySelector('#ncDevice').value.trim()||null,ticket_ref:ticket,
+      device:device,ticket_ref:ticket,
       scope,price,collect,diag_fee:c.diag,pay_mode:payMode,
       template_id:TMPL.id,contract_type:TMPL.contract_type,
       micro_service_id:svc?svc.id:null,service_vendor:svc?svc.vendor:null,
-      service_name:svc?(svc.service+(svc.device?' · '+svc.device:'')):'Custom quote',
-      terms:{name:TMPL.name,intro:TMPL.intro,sections:TMPL.sections,outcomes:TMPL.outcomes}};
+      service_name:svc?svc.service:'Custom quote',
+      terms:{name:TMPL.name,intro:TMPL.intro,sections:resolveSections(TMPL.sections),outcomes:TMPL.outcomes}};
     const r=await sb.from('contracts').insert(row).select('*').single();
     if(r.error){toast(r.error.message,true);return;}
     ROWS.unshift(r.data);back.remove();render();openShare(r.data);
