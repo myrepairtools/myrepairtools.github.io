@@ -234,6 +234,12 @@ async function runReport(){
   const monthGoals={};((mgRes&&mgRes.data)||[]).forEach(g=>{if(g.accy_goal!=null)monthGoals[g.staff_id]=Number(g.accy_goal)||0;});
   const byEmp={};
   (data||[]).forEach(r=>{
+    // RepairQ emits all-zero rows (a login at another store, terminated stragglers).
+    // They carry no pay and must not create report rows or store membership.
+    const sv0=r.services||{};
+    const live=['tickets','accy_units','accy_net','accy_gp','device_units','device_returns','device_net','device_gp','device_attach','service_net'].some(k=>Number(r[k]))
+      ||Object.keys(sv0).some(k=>Number(sv0[k]));
+    if(!live)return;
     const key=r.staff_id!=null?('sid:'+r.staff_id):('nm:'+r.employee);
     let e=byEmp[key];
     if(!e){const sf=r.staff_id!=null?STATE.staffById[r.staff_id]:null;
@@ -510,7 +516,9 @@ async function loadSquareTips(){
 }
 async function renderTips(){
   const store=STATE.store==='all'?(STATE.stores[0]||''):STATE.store;
-  const emps=STATE.report.filter(r=>r.stores.indexOf(store)>=0||r.store===store);
+  // tips list = active roster members with real activity at this store; terminated
+  // people drop off, but names already saved in this month's hours still render below
+  const emps=STATE.report.filter(r=>(r.stores.indexOf(store)>=0||r.store===store)&&r.inRoster);
   const qbo=await loadQboHours(), sq=await loadSquareTips();
   const ensure=()=>{const d=STATE.tips[store]||{hours:{},pool:0};d.hours=Object.assign({},d.hours);STATE.tips[store]=d;return d;};
   // employees with no saved hours get this month's QB Time hours pre-filled (Save persists)
@@ -519,15 +527,21 @@ async function renderTips(){
     const has=h&&(((+h.pp1)||0)+((+h.pp2)||0))>0;
     if(!has&&qbo[e.name]>0){ensure().hours[e.name]={pp1:qbo[e.name]};AUTO[e.name]=1;}});
   const data=STATE.tips[store]||{hours:{},pool:0};
-  let totalHrs=0;emps.forEach(e=>{const h=data.hours[e.name]||{};totalHrs+=(+h.pp1||0)+(+h.pp2||0);});
+  // names saved in this month's hours that aren't on the active report (someone who
+  // left mid-month, a manual add, an old period) still render + count in the split
+  const extras=Object.keys(data.hours||{}).filter(n=>!emps.some(e=>e.name===n)&&(((+((data.hours[n]||{}).pp1))||0)+((+((data.hours[n]||{}).pp2))||0))>0);
+  let totalHrs=0;emps.concat(extras.map(n=>({name:n}))).forEach(e=>{const h=data.hours[e.name]||{};totalHrs+=(+h.pp1||0)+(+h.pp2||0);});
   const pool=+data.pool||0;
   const sqs=sq[store];
-  const rows=emps.map(e=>{const h=data.hours[e.name]||{};const tot=(+h.pp1||0)+(+h.pp2||0);const tip=totalHrs>0?(tot/totalHrs)*pool:0;
-    const q=qbo[e.name],drift=(q!=null&&!AUTO[e.name]&&Math.abs(q-tot)>0.05);
-    return '<tr><td class="nm">'+esc(e.name)+(AUTO[e.name]?' <span class="flag" style="background:#EAF6FD;color:#1E7AA8">QB Time</span>':'')+'</td>'
-      +'<td class="r"><input type="number" data-tip="'+esc(e.name)+'" value="'+(tot||'')+'" step="0.01" style="width:90px;text-align:right'+(AUTO[e.name]?';border-color:#CDEAF8;background:#F5FBFE':'')+'">'
+  const rowFor=(name,extra)=>{const h=data.hours[name]||{};const tot=(+h.pp1||0)+(+h.pp2||0);const tip=totalHrs>0?(tot/totalHrs)*pool:0;
+    const q=qbo[name],drift=(q!=null&&!AUTO[name]&&Math.abs(q-tot)>0.05);
+    return '<tr><td class="nm">'+esc(name)
+      +(AUTO[name]?' <span class="flag" style="background:#EAF6FD;color:#1E7AA8">QB Time</span>':'')
+      +(extra?' <span class="flag">not on this report</span>':'')+'</td>'
+      +'<td class="r"><input type="number" data-tip="'+esc(name)+'" value="'+(tot||'')+'" step="0.01" style="width:90px;text-align:right'+(AUTO[name]?';border-color:#CDEAF8;background:#F5FBFE':'')+'">'
       +(drift?'<div style="font-size:.64rem;color:var(--amber);font-weight:700;margin-top:2px">QB: '+q+'</div>':'')+'</td>'
-      +'<td class="r gt" style="color:var(--green)">'+money(tip)+'</td></tr>';}).join('');
+      +'<td class="r gt" style="color:var(--green)">'+money(tip)+'</td></tr>';};
+  const rows=emps.map(e=>rowFor(e.name,false)).join('')+extras.map(n=>rowFor(n,true)).join('');
   $('#view-tips').innerHTML='<div class="card acc-green"><div class="card-hd"><span class="card-t">Tips · '+esc(shortStore(store)||'—')+'</span></div><div class="card-bd">'
     +'<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:8px">'
       +'<div class="field"><label>Pay period</label><input type="text" id="tipsPeriod" value="'+esc(STATE.tipsPeriod)+'" placeholder="e.g. 2026-06" style="width:120px"></div>'

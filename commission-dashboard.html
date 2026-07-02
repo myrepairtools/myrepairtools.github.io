@@ -757,7 +757,14 @@ async function afterGoalChange(){
 async function computeMonthAll(){
   const mi=monthInfo();
   const sales=await sb.from('commission_sales').select('*').gte('biz_date',mi.start).lte('biz_date',mi.end);
-  const byStaff={};(sales.data||[]).forEach(r=>{if(r.staff_id==null)return;(byStaff[r.staff_id]=byStaff[r.staff_id]||blankTotals());addInto(byStaff[r.staff_id],r);});
+  const byStaff={};(sales.data||[]).forEach(r=>{
+    if(r.staff_id==null)return;
+    // skip RepairQ's all-zero rows — they'd put $0 phantoms on the scoreboard
+    const sv0=r.services||{};
+    const live=['tickets','accy_units','accy_net','accy_gp','device_units','device_returns','device_net','device_gp','device_attach','service_net'].some(k=>Number(r[k]))
+      ||Object.keys(sv0).some(k=>Number(sv0[k]));
+    if(!live)return;
+    (byStaff[r.staff_id]=byStaff[r.staff_id]||blankTotals());addInto(byStaff[r.staff_id],r);});
   const list=[];
   for(const sid in byStaff){const st=STATE.staffById[sid];if(!st||EXCLUDE(st))continue;
     const cfg=effFor(st),tot=byStaff[sid];
