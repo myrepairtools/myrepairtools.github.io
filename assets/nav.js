@@ -624,12 +624,14 @@
   function updateAdminIcon(){
     var b = rail && rail.querySelector('.cpr-areabtn[data-area="admin"]');
     if (b) b.style.display = hasAdminArea() ? '' : 'none';
+    updateAdminDivider();
   }
   // Reports rail icon: managers/owner (team data). Gated by role rank so it doesn't depend on a
   // DB permission yet; add a 'reports.view' permission later for finer RBAC.
   function updateReportsIcon(){
     var b = rail && rail.querySelector('.cpr-reportsbtn');
     if (b) b.style.display = (rank() >= RANK.admin) ? '' : 'none';
+    updateAdminDivider();
   }
   // Employees rail icon: shows if the user can see any Employees tool (fall back to rank).
   function updateEmployeesIcon(){
@@ -637,6 +639,19 @@
     if (!b) return;
     var show = (NAV_PERMS === null) ? (rank() >= RANK.admin) : EMPLOYEES.some(canSee);
     b.style.display = show ? '' : 'none';
+    updateAdminDivider();
+  }
+  // divider between employee-facing and admin-side rail icons: only show when
+  // at least one admin-side icon (Employees / Reports / Admin) is visible
+  function updateAdminDivider(){
+    if (!rail) return;
+    var d = rail.querySelector('.cpr-admindiv');
+    if (!d) return;
+    var any = ['.cpr-employeesbtn','.cpr-reportsbtn','.cpr-areabtn[data-area="admin"]'].some(function(sel){
+      var b = rail.querySelector(sel);
+      return b && b.style.display !== 'none';
+    });
+    d.style.display = any ? '' : 'none';
   }
   // the rail-bottom gear → Settings shows only for users who can actually use it
   function updateGearIcon(){
@@ -753,6 +768,7 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
+      + '<span class="cpr-raildiv cpr-admindiv" style="display:none"></span>'
       + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'</button>'
       + '<button class="cpr-areabtn cpr-reportsbtn'+(ACTIVE_AREA==='reports'?' active':'')+'" data-area="reports" title="Reports" style="display:none">'+railIcon('chart')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
