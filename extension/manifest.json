@@ -1,0 +1,124 @@
+{
+  "manifest_version": 3,
+  "name": "myRepairTools",
+  "version": "2.0.0",
+  "description": "CPR Oregon's RepairQ companion: LCD buyback capture & send labels, price calculator, pattern labels, quick links and more.",
+  "icons": {
+    "16": "images/mrt16.png",
+    "48": "images/mrt48.png",
+    "128": "images/mrt128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "myRepairTools",
+    "default_icon": {
+      "16": "images/mrt16.png",
+      "48": "images/mrt48.png",
+      "128": "images/mrt128.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "scripts/bg.js"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://cpr.repairq.io/*",
+    "https://xuvsehrevxackuhmbmry.supabase.co/*"
+  ],
+  "content_scripts": [
+    {
+      "js": ["scripts/lcdCapture.js"],
+      "css": ["style/lcd.css"],
+      "matches": ["https://cpr.repairq.io/ticket/*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/printGate.js"],
+      "matches": ["https://cpr.repairq.io/ticket/printLabel/*"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "js": ["scripts/qrcode.js", "scripts/lcdLabel.js"],
+      "matches": ["https://cpr.repairq.io/ticket/printLabel/*"],
+      "run_at": "document_start"
+    },
+    {
+      "css": ["style/fixTheCatalogDropdown.css"],
+      "js": ["scripts/serialNumberReminders.js"],
+      "matches": ["https://cpr.repairq.io/ticket/*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/quoteReminders.js"],
+      "matches": [
+        "https://cpr.repairq.io/customers/*",
+        "https://cpr.repairq.io/ticket/claim*",
+        "https://cpr.repairq.io/ticket/repair*",
+        "https://cpr.repairq.io/ticket/add"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/ticketViewClickTargets.js"],
+      "matches": ["https://cpr.repairq.io/ticket*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/inventoryViewClickTargets.js"],
+      "matches": ["https://cpr.repairq.io/inventory*"],
+      "run_at": "document_end"
+    },
+    {
+      "css": ["style/customQuickFrame.css"],
+      "js": ["scripts/customQuickLink.js"],
+      "matches": ["https://cpr.repairq.io/*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/quickSearchMouseFocus.js"],
+      "matches": ["https://cpr.repairq.io/*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/patternRecorder.js"],
+      "matches": [
+        "https://cpr.repairq.io/ticket/edit/*",
+        "https://cpr.repairq.io/ticket/repair*"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/patternPrinter.js"],
+      "matches": ["https://cpr.repairq.io/ticket/printLabel/*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/highlightDueToday.js"],
+      "matches": ["https://cpr.repairq.io/ticket*"],
+      "run_at": "document_end"
+    },
+    {
+      "js": ["scripts/customBinText.js"],
+      "matches": ["https://cpr.repairq.io/ticket/*"],
+      "run_at": "document_end"
+    },
+    {
+      "css": ["style/betterQuickSearch.css"],
+      "matches": ["https://cpr.repairq.io/*"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "matches": ["https://cpr.repairq.io/*"],
+      "resources": ["/images/*", "/options.html"]
+    }
+  ]
+}

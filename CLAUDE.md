@@ -87,6 +87,8 @@ these when adding UI so a new tool looks native.
   `sort`, `options`, `find`). Store `name` must match RepairQ/sheet exports exactly;
   `aliases` resolve older spellings. Add/rename/remove stores **only here**.
 - **`hyla/rq-device-catalog.json`** — RepairQ device catalog consumed by `hyla-orders.html`.
+- **`qrcode.js`** — vendored qrcode-generator (MIT); global `qrcode(type, ecc)`. Used by
+  `lcd-buyback.html` for send-display labels; the extension carries its own copy.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
   source of truth for the Commission Calculator + Dashboard. Never re-implement the math.
 - **`commission-summary.js`** — one call (`window.CPRCommissionSummary.forMe()`) returning the
@@ -219,6 +221,47 @@ editor like the Templates tab; `contract_libraries` is the managed category list
 the customer side (view / sign — creates the Square quick-pay link with a redirect back /
 paystatus — flips to paid by checking the Square order / send — emails the link via
 Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
+
+**LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
+Galaxy Note / Pixel screen repair gets graded, labeled, boxed, and audited when the
+recycler buys. Tables: `lcd_displays` (**ticket_no = the display's serial and the QR
+content**; item_key disambiguates 2+ pulls on one ticket; store, model, status
+good|bad, graded_by + resolved staff_id, status_history jsonb, label_prints,
+audit_id/audit_result/audited_at, missing, deleted) + `lcd_audits` (store null = all,
+start/end window, open→closed, summary jsonb frozen at close) + `lcd_audit_scans`
+(bucket good|bad|aftermarket, recorded_status snapshot, is_match; unique
+audit+ticket). Capture happens in the **myRepairTools Chrome extension** (see below):
+adding a matching screen-repair line item pops a Good/Bad modal — the trigger is
+text-based on the item NAME (family regex + "screen repair/replacement") so new
+models need no update; families toggle in extension Options. Answers POST to the
+**`lcd-buyback` edge function** (`x-cpr-secret` = `LCD_SECRET` function secret,
+service-role writes; actions capture/get/printed/status). On a brand-new ticket the
+answer waits in tab sessionStorage until the save produces a ticket number. Printing
+the ticket label auto-appends a **Dymo 30334 send-display label** per logged display
+(store, GOOD/BAD pill, model, ticket #, date, QR = ticket number, post-removal
+checkboxes) — the extension's print gate holds RepairQ's auto-print until the label
+is injected (4s safety net). Surface: `lcd-buyback.html` (Operations nav, all staff):
+Queue (in the box) / Audits / All records tabs + store chips; managers get inline
+status flip (appends to status_history), soft delete, and 🖨 label reprint
+(assets/qrcode.js). **Audits** (managers, one per recycler visit): window = last
+audit's end → picked date; three scan tabs (Good/Bad/Aftermarket) with a scan bar —
+scan each label's QR into the bucket the recycler sorted it into; expected = every
+unaudited display captured by the window end (plus still-missing strays, so lost
+screens stay findable); closing stamps scanned displays, flags unscanned as
+**missing** (keeping their recorded status — that's the theft/loss signal), and
+freezes the summary jsonb (counts, grade accuracy, missing list). Scorecard /
+commission tie-in deliberately deferred.
+
+**Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
+`cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
+and Ben's RQ Mods (all its content scripts absorbed as-is; feature toggles preserved
+in Options). New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
+edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
+watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
+/ticket/printLabel), vendored `scripts/qrcode.js`. Install unpacked or publish to the
+Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
+the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
+sync.
 
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,

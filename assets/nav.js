@@ -49,6 +49,7 @@
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵', acc:'cash.view' },
     { label:'Contracts',            url:'contracts.html',           icon:'🖊️' },
+    { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'📱' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.

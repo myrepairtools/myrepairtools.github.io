@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LCD Buyback · CPR Oregon</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--light-grey)}
+.wrap{padding:22px 26px 60px;max-width:1250px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spacing:-.4px;margin:0}
+.sub{font-weight:700;font-size:.85rem;color:var(--grey);margin-top:4px}
+.hd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.hd .sp{margin-left:auto;display:flex;gap:8px}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1px solid var(--border);background:#fff;color:var(--dark);border-radius:10px;cursor:pointer}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff}
+.btn.dk{background:var(--dark);border-color:var(--dark);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:9px 18px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:999px;cursor:pointer}
+.tabs button.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+.tabs .cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:999px;background:var(--red);color:#fff;font-size:.68rem;line-height:1.5}
+.filter{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px;align-items:center}
+.filter button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;padding:7px 13px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);border-radius:999px;cursor:pointer}
+.filter button.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+.filter input{margin-left:auto;font-family:'Nunito Sans',sans-serif;font-size:.85rem;padding:8px 12px;border:1px solid var(--border);border-radius:10px;min-width:220px}
+.tiles{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+.tile{flex:1;min-width:130px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+.tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem}
+.tile .l{font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);margin-top:2px}
+.scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+table.rep{width:100%;border-collapse:collapse}
+table.rep th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);background:#F0F1F4;white-space:nowrap}
+table.rep td{padding:10px 14px;border-bottom:1px solid var(--light-grey);font-size:.87rem;vertical-align:middle}
+.serial{font-family:'Nunito',sans-serif;font-weight:900}
+.serial small{display:block;font-family:'Nunito Sans',sans-serif;font-weight:600;color:var(--grey);font-size:.72rem}
+.pill{display:inline-block;font-family:'Nunito',sans-serif;font-weight:900;font-size:.68rem;letter-spacing:.06em;padding:3px 11px;border-radius:999px}
+.pill.good{background:#E7F6EE;color:var(--green)}
+.pill.bad{background:#FDEBEC;color:var(--red)}
+.pill.aftermarket{background:#FFF4E0;color:var(--amber)}
+.pill.missing{background:var(--red);color:#fff}
+.pill.click{cursor:pointer}
+.pill.click:hover{outline:2px solid var(--blue)}
+.chip{display:inline-block;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:999px;background:#EEF0F5;color:var(--dark-grey)}
+.chip.warn{background:#FFF4E0;color:var(--amber)}
+.chip.err{background:#FDEBEC;color:var(--red)}
+.chip.ok{background:#E7F6EE;color:var(--green)}
+.act{display:flex;gap:6px}
+.act button{width:32px;height:30px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.85rem}
+.act button:hover{background:#F6F8FC}
+.empty{padding:32px;text-align:center;color:var(--grey);font-weight:700}
+.note{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;font-weight:700;color:var(--dark-grey)}
+/* audits */
+.audit-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:15px 18px;margin-bottom:10px;cursor:pointer}
+.audit-card:hover{border-color:var(--blue)}
+.audit-card .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.audit-card .m{font-size:.8rem;color:var(--dark-grey);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap}
+.stat{font-weight:800}
+/* modal */
+.ovl{position:fixed;inset:0;background:rgba(45,45,59,.55);display:flex;align-items:center;justify-content:center;z-index:400;padding:16px}
+.mod{background:#fff;border-radius:16px;width:640px;max-width:100%;max-height:92vh;overflow:auto;padding:20px 22px}
+.mod h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin:0 0 12px}
+.mod label{display:block;font-weight:800;font-size:.75rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:12px 0 4px}
+.mod select,.mod input[type=date]{font-family:'Nunito Sans',sans-serif;font-size:.9rem;padding:9px 12px;border:1px solid var(--border);border-radius:10px;width:100%}
+.mod .row{display:flex;gap:12px}
+.mod .row>div{flex:1}
+.mod .ft{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+/* audit detail */
+.adet{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px}
+.adet .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.adet h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.1rem;margin:0}
+.scan-tabs{display:flex;gap:6px;margin:10px 0}
+.scan-tabs button{flex:1;font-family:'Nunito',sans-serif;font-weight:900;font-size:.85rem;padding:11px;border:2px solid var(--border);background:#fff;border-radius:12px;cursor:pointer}
+.scan-tabs button.on.g{background:#E7F6EE;border-color:var(--green);color:var(--green)}
+.scan-tabs button.on.b{background:#FDEBEC;border-color:var(--red);color:var(--red)}
+.scan-tabs button.on.a{background:#FFF4E0;border-color:var(--amber);color:var(--amber)}
+.scanbar{display:flex;gap:8px;margin:10px 0}
+.scanbar input{flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:1.05rem;padding:12px 15px;border:2px solid var(--dark);border-radius:12px}
+.scanbar input:focus{outline:3px solid rgba(79,176,227,.35)}
+.flash-ok{animation:fok .5s}
+.flash-err{animation:ferr .5s}
+@keyframes fok{0%{box-shadow:0 0 0 6px rgba(46,158,91,.55)}100%{box-shadow:none}}
+@keyframes ferr{0%{box-shadow:0 0 0 6px rgba(220,40,46,.55)}100%{box-shadow:none}}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.twocol{grid-template-columns:1fr}}
+.panel{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel .ph{font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;background:#F0F1F4;padding:9px 13px;color:var(--dark-grey)}
+.panel .pb{max-height:330px;overflow:auto}
+.srow{display:flex;align-items:center;gap:9px;padding:8px 13px;border-bottom:1px solid var(--light-grey);font-size:.83rem}
+.srow b{font-family:'Nunito',sans-serif}
+.srow .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0}
+.sumbox{border:1px solid var(--border);border-radius:10px;padding:10px 13px}
+.sumbox .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem}
+.sumbox .k{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:var(--dark);color:#fff;border-left:4px solid var(--green);padding:11px 18px;border-radius:10px;font-size:.85rem;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:opacity .25s,transform .25s;z-index:500}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{border-left-color:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <div>
+      <h1>📱 LCD Buyback</h1>
+      <div class="sub">Harvested displays — graded at ticket time, labeled at print, audited when the recycler buys.</div>
+    </div>
+    <div class="sp">
+      <button class="btn dk" id="btnNewAudit" hidden>➕ New Audit</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button data-tab="queue">Queue<span class="cnt" id="cntQueue" hidden></span></button>
+    <button data-tab="audits">Audits</button>
+    <button data-tab="all">All records</button>
+  </div>
+
+  <div class="filter" id="storeChips"></div>
+
+  <div id="view"><div class="empty">Loading…</div></div>
+  <div id="gate" class="note" hidden>Sign in to see the LCD Buyback log.</div>
+</div>
+
+<div id="modal"></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/locations.js"></script>
+<script src="assets/qrcode.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isMgr=r=>['owner','admin','manager'].indexOf(r)>-1;
+const disp=s=>window.CPRLocations?CPRLocations.display(s):String(s||'');
+function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function fmtD(x){ if(!x)return ''; const d=new Date(x); if(isNaN(d))return String(x).slice(0,10);
+  return ('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+'/'+String(d.getFullYear()).slice(-2); }
+function toast(m,err){ const t=$('#toast'); t.textContent=m; t.classList.toggle('err',!!err); t.classList.add('show');
+  clearTimeout(toast._h); toast._h=setTimeout(()=>t.classList.remove('show'),4200); }
+function beep(ok){ try{ const ctx=beep._c||(beep._c=new (window.AudioContext||window.webkitAudioContext)());
+  const o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g); g.connect(ctx.destination);
+  o.frequency.value=ok?880:220; g.gain.value=.08; o.start(); o.stop(ctx.currentTime+(ok?.09:.25)); }catch(e){} }
+
+/* ===== auth ===== */
+let AUTH=null, BOOTED=false;
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){ BOOTED=true; AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role}; boot(); }
+}
+sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
+(async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
+
+/* ===== state ===== */
+let TAB=(function(){try{return localStorage.getItem('cprLcdTab')||'queue';}catch(e){return 'queue';}})();
+let STORE=(function(){try{return localStorage.getItem('cprLcdStore')||'All';}catch(e){return 'All';}})();
+let SEARCH='';
+let ROWS=[];            // lcd_displays (all, deleted=false)
+let AUDITS=[];          // lcd_audits
+let OPEN_AUDIT=null;    // audit row being viewed (detail mode inside Audits tab)
+let SCANS=[];           // scans for OPEN_AUDIT
+let SCAN_BUCKET='good';
+
+function boot(){
+  if(!AUTH){ $('#gate').hidden=false; return; }
+  if(isMgr(AUTH.role)) $('#btnNewAudit').hidden=false;
+  wireChrome();
+  refresh();
+}
+
+async function refresh(){
+  const [d,a]=await Promise.all([
+    sb.from('lcd_displays').select('*').eq('deleted',false).order('captured_at',{ascending:false}).limit(3000),
+    sb.from('lcd_audits').select('*').order('created_at',{ascending:false})
+  ]);
+  ROWS=d.data||[]; AUDITS=a.data||[];
+  if(OPEN_AUDIT){ const cur=AUDITS.find(x=>x.id===OPEN_AUDIT.id); if(cur) OPEN_AUDIT=cur; }
+  render();
+}
+
+/* ===== chrome (tabs + chips) ===== */
+function wireChrome(){
+  document.querySelectorAll('#tabs button').forEach(b=>{
+    b.addEventListener('click',()=>{ TAB=b.dataset.tab; OPEN_AUDIT=null;
+      try{localStorage.setItem('cprLcdTab',TAB);}catch(e){} render(); });
+  });
+  $('#btnNewAudit').addEventListener('click',newAuditModal);
+}
+function storeChips(){
+  const names=['All'].concat(storesPresent());
+  $('#storeChips').innerHTML=names.map(n=>'<button data-s="'+esc(n)+'" class="'+(STORE===n?'on':'')+'">'+esc(n==='All'?'All':disp(n))+'</button>').join('')
+    +(TAB!=='audits'?'<input id="q" placeholder="Search ticket / model / tech…" value="'+esc(SEARCH)+'">':'');
+  document.querySelectorAll('#storeChips button').forEach(b=>{
+    b.addEventListener('click',()=>{ STORE=b.dataset.s; try{localStorage.setItem('cprLcdStore',STORE);}catch(e){} render(); });
+  });
+  const q=$('#q'); if(q){ q.addEventListener('input',()=>{ SEARCH=q.value; renderView(); }); }
+}
+function storesPresent(){
+  const set={}; ROWS.forEach(r=>set[r.store]=1);
+  const names=Object.keys(set);
+  return window.CPRLocations?CPRLocations.sort(names):names.sort();
+}
+function storeMatch(r){ return STORE==='All'||r.store===STORE; }
+
+/* ===== queue / records ===== */
+function queueRows(){ return ROWS.filter(r=>!r.audit_id&&storeMatch(r)); }
+function searchMatch(r){
+  if(!SEARCH)return true;
+  const s=SEARCH.toLowerCase();
+  return String(r.ticket_no).indexOf(s)>-1||(r.model||'').toLowerCase().indexOf(s)>-1||(r.graded_by||'').toLowerCase().indexOf(s)>-1;
+}
+function statusPill(r){
+  const cls=r.missing?'missing':r.status;
+  const txt=r.missing?'MISSING ('+r.status.toUpperCase()+')':r.status.toUpperCase();
+  const click=isMgr(AUTH.role)&&!r.missing?' click" title="Click to change':'';
+  return '<span class="pill '+cls+click+'" data-edit="'+r.id+'">'+txt+'</span>';
+}
+function rowsTable(list,showAudit){
+  if(!list.length) return '<div class="empty">No displays here.</div>';
+  return '<div class="scroll"><table class="rep"><thead><tr>'
+    +'<th>Ticket / Serial</th><th>Date</th><th>Model</th><th>Store</th><th>Status</th><th>Graded by</th>'
+    +(showAudit?'<th>Audit</th>':'')+'<th>Prints</th><th>Actions</th>'
+    +'</tr></thead><tbody>'
+    +list.map(r=>{
+      const aud=r.audit_id?(AUDITS.find(a=>a.id===r.audit_id)||null):null;
+      const audTxt=r.audit_id?(r.audit_result?('<span class="pill '+r.audit_result+'">'+r.audit_result.toUpperCase()+'</span>'):'<span class="chip err">not found</span>')
+        +(aud?' <span class="chip">'+fmtD(aud.end_date)+'</span>':''):'<span class="chip">in box</span>';
+      return '<tr>'
+      +'<td class="serial">#'+esc(r.ticket_no)+(r.item_key&&ROWS.some(x=>x.ticket_no===r.ticket_no&&x.id!==r.id)?'<small>'+esc(r.item_key)+'</small>':'')+'</td>'
+      +'<td>'+fmtD(r.captured_at)+'</td>'
+      +'<td>'+esc(r.model)+'</td>'
+      +'<td>'+esc(disp(r.store))+'</td>'
+      +'<td>'+statusPill(r)+'</td>'
+      +'<td>'+esc(r.graded_by||'—')+'</td>'
+      +(showAudit?'<td>'+audTxt+'</td>':'')
+      +'<td>'+(r.label_prints||0)+'</td>'
+      +'<td><div class="act">'
+        +'<button title="Print send-display label" data-print="'+r.id+'">🖨</button>'
+        +(isMgr(AUTH.role)?'<button title="Delete record" data-del="'+r.id+'">🗑</button>':'')
+      +'</div></td>'
+      +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+function wireRowActions(){
+  document.querySelectorAll('[data-print]').forEach(b=>b.addEventListener('click',()=>printLabel(Number(b.dataset.print))));
+  document.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>delRow(Number(b.dataset.del))));
+  document.querySelectorAll('[data-edit]').forEach(p=>{
+    if(p.classList.contains('click')) p.addEventListener('click',()=>editStatus(Number(p.dataset.edit)));
+  });
+}
+async function editStatus(id){
+  const r=ROWS.find(x=>x.id===id); if(!r)return;
+  const to=r.status==='good'?'bad':'good';
+  if(!confirm('Change #'+r.ticket_no+' ('+r.model+') from '+r.status.toUpperCase()+' to '+to.toUpperCase()+'?'))return;
+  const hist=(Array.isArray(r.status_history)?r.status_history:[]).concat([{from:r.status,to,by:AUTH.name,at:new Date().toISOString()}]);
+  const {error}=await sb.from('lcd_displays').update({status:to,status_history:hist}).eq('id',id);
+  if(error){ toast('Update failed: '+error.message,true); return; }
+  toast('#'+r.ticket_no+' → '+to.toUpperCase());
+  refresh();
+}
+async function delRow(id){
+  const r=ROWS.find(x=>x.id===id); if(!r)return;
+  if(!confirm('Delete display record #'+r.ticket_no+' ('+r.model+')? It disappears from the log and audits.'))return;
+  const {error}=await sb.from('lcd_displays').update({deleted:true}).eq('id',id);
+  if(error){ toast('Delete failed: '+error.message,true); return; }
+  toast('#'+r.ticket_no+' deleted'); refresh();
+}
+
+/* ===== send-display label (Dymo 30334 · 2.25 x 1.25 in) ===== */
+function labelHtml(r){
+  let svg='';
+  try{ const q=qrcode(0,'M'); q.addData(String(r.ticket_no)); q.make(); svg=q.createSvgTag({cellSize:2,margin:0,scalable:true}); }catch(e){}
+  const store=disp(r.store).toUpperCase();
+  return '<!DOCTYPE html><html><head><title>Label #'+esc(r.ticket_no)+'</title><style>'
+    +'@page{size:2.25in 1.25in;margin:0}html,body{margin:0;padding:0}'
+    +'.lb{width:2.25in;height:1.2in;box-sizing:border-box;padding:0.05in 0.08in 0 0.08in;font-family:"Segoe UI",Arial,sans-serif;color:#000}'
+    +'.top{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #000;padding-bottom:1px;margin-bottom:2px}'
+    +'.st{font-size:12pt;font-weight:800}.gr{font-size:9pt;font-weight:800;border:2px solid #000;border-radius:99px;padding:0 7px;line-height:1.35}'
+    +'.md{font-size:10pt;font-weight:800;line-height:1.1;white-space:nowrap}'
+    +'.tk{font-size:8pt;color:#222;margin:1px 0 2px}'
+    +'.rw{display:flex;align-items:center;gap:8px}.rw svg{width:0.52in;height:0.52in;display:block}'
+    +'.po{font-size:7pt;font-weight:800;display:flex;align-items:center;gap:4px;white-space:nowrap}'
+    +'.bx{display:inline-block;width:9px;height:9px;border:1.5px solid #000}'
+    +'</style></head><body>'
+    +'<div class="lb"><div class="top"><span class="st">'+esc(store)+'</span><span class="gr">'+esc(r.status.toUpperCase())+'</span></div>'
+    +'<div class="md">'+esc(r.model)+'</div>'
+    +'<div class="tk">Ticket #'+esc(r.ticket_no)+' · '+fmtD(r.captured_at)+'</div>'
+    +'<div class="rw">'+svg+'<span class="po">POST-REMOVAL<span><span class="bx"></span> GOOD</span><span><span class="bx"></span> BAD</span></span></div>'
+    +'</div><script>window.onload=function(){setTimeout(function(){window.print();},150);};<\/script></body></html>';
+}
+async function printLabel(id){
+  const r=ROWS.find(x=>x.id===id); if(!r)return;
+  const w=window.open('','_blank','width=430,height=280');
+  if(!w){ toast('Pop-up blocked — allow pop-ups to print labels.',true); return; }
+  w.document.write(labelHtml(r)); w.document.close();
+  sb.from('lcd_displays').update({label_prints:(r.label_prints||0)+1}).eq('id',id)
+    .then(res=>{ if(!res.error) refresh(); });
+}
+
+/* ===== audits ===== */
+function newAuditModal(){
+  const last=AUDITS.filter(a=>a.status==='closed').sort((a,b)=>b.end_date<a.end_date?-1:1)[0];
+  const start=last?last.end_date:(ROWS.length?iso(new Date(ROWS[ROWS.length-1].captured_at)):iso(new Date()));
+  const stores=storesPresent();
+  $('#modal').innerHTML='<div class="ovl"><div class="mod">'
+    +'<h2>🧾 New Audit</h2>'
+    +'<p style="font-size:.85rem;color:var(--dark-grey)">One audit per recycler visit. Scan every display he sorts into the bucket he put it in — Good, Bad, or Aftermarket. Anything expected that never gets scanned is flagged <b>missing</b> with the status it was recorded at.</p>'
+    +'<div class="row"><div><label>Store</label><select id="aStore"><option value="">All stores</option>'
+    +stores.map(s=>'<option value="'+esc(s)+'">'+esc(disp(s))+'</option>').join('')+'</select></div>'
+    +'<div><label>Window start (last audit)</label><input type="date" id="aStart" value="'+esc(start)+'"></div>'
+    +'<div><label>Window end</label><input type="date" id="aEnd" value="'+iso(new Date())+'"></div></div>'
+    +'<div class="ft"><button class="btn" id="aCancel">Cancel</button><button class="btn pri" id="aCreate">Start audit</button></div>'
+    +'</div></div>';
+  $('#aCancel').addEventListener('click',()=>$('#modal').innerHTML='');
+  $('#aCreate').addEventListener('click',async()=>{
+    const store=$('#aStore').value||null, s=$('#aStart').value, e=$('#aEnd').value;
+    if(!s||!e||s>e){ toast('Check the dates.',true); return; }
+    const {data,error}=await sb.from('lcd_audits').insert({store,start_date:s,end_date:e,created_by:AUTH.id}).select().single();
+    if(error){ toast('Could not create audit: '+error.message,true); return; }
+    $('#modal').innerHTML=''; TAB='audits'; OPEN_AUDIT=data;
+    try{localStorage.setItem('cprLcdTab',TAB);}catch(e2){}
+    refresh();
+  });
+}
+function expectedFor(a){
+  // everything unaudited captured on/before the window end (+ still-missing strays), store-scoped
+  return ROWS.filter(r=>{
+    if(a.store&&r.store!==a.store)return false;
+    const cap=String(r.captured_at).slice(0,10);
+    if(cap>a.end_date)return false;
+    return !r.audit_id||r.missing;
+  });
+}
+async function loadScans(){
+  if(!OPEN_AUDIT){SCANS=[];return;}
+  const {data}=await sb.from('lcd_audit_scans').select('*').eq('audit_id',OPEN_AUDIT.id).order('scanned_at',{ascending:false});
+  SCANS=data||[];
+}
+async function doScan(raw){
+  const t=String(raw||'').replace(/\D/g,'');
+  const inp=$('#scanInp');
+  function flash(ok){ if(inp){inp.classList.remove('flash-ok','flash-err'); void inp.offsetWidth; inp.classList.add(ok?'flash-ok':'flash-err');} beep(ok); }
+  if(!t){ flash(false); return; }
+  if(SCANS.some(s=>s.ticket_no===t)){ const b=SCANS.find(s=>s.ticket_no===t).bucket; toast('#'+t+' already scanned into '+b.toUpperCase(),true); flash(false); return; }
+  const d=ROWS.find(r=>r.ticket_no===t&&(!OPEN_AUDIT.store||r.store===OPEN_AUDIT.store));
+  const rec=d?d.status:null;
+  const match=d?(SCAN_BUCKET!=='aftermarket'&&d.status===SCAN_BUCKET):null;
+  const {data,error}=await sb.from('lcd_audit_scans').insert({
+    audit_id:OPEN_AUDIT.id,ticket_no:t,bucket:SCAN_BUCKET,display_id:d?d.id:null,
+    recorded_status:rec,is_match:match,scanned_by:AUTH.id
+  }).select().single();
+  if(error){ toast('Scan failed: '+error.message,true); flash(false); return; }
+  SCANS.unshift(data);
+  flash(true);
+  if(!d) toast('#'+t+' isn’t in the log — recorded as unknown',true);
+  else if(match===false) toast('#'+t+' was recorded '+String(rec).toUpperCase()+', recycler says '+SCAN_BUCKET.toUpperCase(),true);
+  renderView();
+}
+async function undoScan(id){
+  await sb.from('lcd_audit_scans').delete().eq('id',id);
+  SCANS=SCANS.filter(s=>s.id!==id);
+  renderView();
+}
+function auditSummary(a,exp,scans){
+  const scannedTix={}; scans.forEach(s=>scannedTix[s.ticket_no]=s);
+  const missing=exp.filter(r=>!scannedTix[r.ticket_no]);
+  const bucket=(b)=>scans.filter(s=>s.bucket===b);
+  const cnt=(list,st)=>list.filter(s=>s.recorded_status===st).length;
+  const g=bucket('good'),b=bucket('bad'),am=bucket('aftermarket');
+  return {
+    expected:exp.length, scanned:scans.length,
+    unknown:scans.filter(s=>!s.display_id).length,
+    missing:missing.length,
+    missing_list:missing.map(r=>({ticket:r.ticket_no,model:r.model,status:r.status,graded_by:r.graded_by,store:r.store})),
+    buckets:{
+      good:{recorded_good:cnt(g,'good'),recorded_bad:cnt(g,'bad'),unknown:g.filter(s=>!s.recorded_status).length},
+      bad:{recorded_good:cnt(b,'good'),recorded_bad:cnt(b,'bad'),unknown:b.filter(s=>!s.recorded_status).length},
+      aftermarket:{recorded_good:cnt(am,'good'),recorded_bad:cnt(am,'bad'),unknown:am.filter(s=>!s.recorded_status).length}
+    },
+    accuracy:{
+      good_right:cnt(g,'good'), good_wrong:cnt(g,'bad'),
+      bad_right:cnt(b,'bad'),   bad_wrong:cnt(b,'good'),
+      aftermarket:am.length
+    }
+  };
+}
+async function closeAudit(){
+  const exp=expectedFor(OPEN_AUDIT);
+  const sum=auditSummary(OPEN_AUDIT,exp,SCANS);
+  const okMsg='Close this audit?\n\n'
+    +'Scanned: '+sum.scanned+' of '+sum.expected+' expected\n'
+    +'Missing: '+sum.missing+(sum.missing?' (they get flagged MISSING)':'')+'\n'
+    +'Unknown scans: '+sum.unknown;
+  if(!confirm(okMsg))return;
+  // stamp scanned displays
+  for(const s of SCANS){
+    if(!s.display_id)continue;
+    await sb.from('lcd_displays').update({
+      audit_id:OPEN_AUDIT.id,audit_result:s.bucket,audited_at:s.scanned_at,missing:false
+    }).eq('id',s.display_id);
+  }
+  // flag missing
+  const scanned={}; SCANS.forEach(s=>scanned[s.ticket_no]=1);
+  for(const r of exp){
+    if(scanned[r.ticket_no])continue;
+    await sb.from('lcd_displays').update({audit_id:OPEN_AUDIT.id,missing:true}).eq('id',r.id);
+  }
+  const {error}=await sb.from('lcd_audits').update({status:'closed',closed_at:new Date().toISOString(),summary:sum}).eq('id',OPEN_AUDIT.id);
+  if(error){ toast('Close failed: '+error.message,true); return; }
+  toast('Audit closed — '+sum.scanned+' scanned, '+sum.missing+' missing');
+  refresh();
+}
+async function deleteAudit(){
+  if(!confirm('Delete this audit and its scans? Displays already stamped by it keep their result.'))return;
+  await sb.from('lcd_audit_scans').delete().eq('audit_id',OPEN_AUDIT.id);
+  const {error}=await sb.from('lcd_audits').delete().eq('id',OPEN_AUDIT.id);
+  if(error){ toast('Delete failed: '+error.message,true); return; }
+  OPEN_AUDIT=null; refresh();
+}
+
+/* ===== render ===== */
+function render(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===TAB));
+  const qn=ROWS.filter(r=>!r.audit_id).length;
+  const c=$('#cntQueue'); c.hidden=!qn; c.textContent=qn;
+  storeChips();
+  renderView();
+}
+async function renderView(){
+  const v=$('#view');
+  if(TAB==='queue'){
+    const list=queueRows().filter(searchMatch);
+    const good=list.filter(r=>r.status==='good').length;
+    v.innerHTML='<div class="tiles">'
+      +'<div class="tile"><div class="n">'+list.length+'</div><div class="l">In the box</div></div>'
+      +'<div class="tile"><div class="n" style="color:var(--green)">'+good+'</div><div class="l">Good</div></div>'
+      +'<div class="tile"><div class="n" style="color:var(--red)">'+(list.length-good)+'</div><div class="l">Bad</div></div>'
+      +'<div class="tile"><div class="n">'+lastAuditLabel()+'</div><div class="l">Last audit</div></div>'
+      +'</div>'
+      +rowsTable(list,false);
+    wireRowActions();
+  } else if(TAB==='all'){
+    const list=ROWS.filter(r=>storeMatch(r)&&searchMatch(r));
+    const missing=list.filter(r=>r.missing).length;
+    v.innerHTML='<div class="tiles">'
+      +'<div class="tile"><div class="n">'+list.length+'</div><div class="l">Total logged</div></div>'
+      +'<div class="tile"><div class="n">'+list.filter(r=>r.audit_id&&!r.missing).length+'</div><div class="l">Audited / sold</div></div>'
+      +'<div class="tile"><div class="n" style="color:var(--red)">'+missing+'</div><div class="l">Missing</div></div>'
+      +'</div>'
+      +rowsTable(list,true);
+    wireRowActions();
+  } else if(TAB==='audits'){
+    if(OPEN_AUDIT){ await renderAuditDetail(v); return; }
+    const list=AUDITS.filter(a=>STORE==='All'||!a.store||a.store===STORE);
+    v.innerHTML=(list.length?'':'<div class="empty">No audits yet. Run one each time the recycler comes to buy.</div>')
+      +list.map(a=>{
+        const s=a.summary||{};
+        return '<div class="audit-card" data-a="'+a.id+'">'
+        +'<div class="t">'+(a.status==='open'?'<span class="chip warn">OPEN</span>':'<span class="chip ok">CLOSED</span>')
+        +' '+fmtD(a.start_date)+' → '+fmtD(a.end_date)+' · '+(a.store?esc(disp(a.store)):'All stores')+'</div>'
+        +(a.status==='closed'
+          ?'<div class="m"><span class="stat">'+(s.scanned||0)+'/'+(s.expected||0)+' scanned</span>'
+           +'<span class="stat" style="color:var(--red)">'+(s.missing||0)+' missing</span>'
+           +'<span class="stat" style="color:var(--amber)">'+((s.accuracy&&s.accuracy.aftermarket)||0)+' aftermarket</span>'
+           +'<span class="stat">grade accuracy '+gradeAcc(s)+'</span></div>'
+          :'<div class="m">Click to continue scanning.</div>')
+        +'</div>';
+      }).join('');
+    document.querySelectorAll('.audit-card').forEach(el=>el.addEventListener('click',async()=>{
+      OPEN_AUDIT=AUDITS.find(a=>a.id===Number(el.dataset.a)); await loadScans(); renderView();
+    }));
+  }
+}
+function gradeAcc(s){
+  if(!s.accuracy)return '—';
+  const right=(s.accuracy.good_right||0)+(s.accuracy.bad_right||0);
+  const graded=right+(s.accuracy.good_wrong||0)+(s.accuracy.bad_wrong||0);
+  return graded?Math.round(right/graded*100)+'%':'—';
+}
+function lastAuditLabel(){
+  const last=AUDITS.filter(a=>a.status==='closed')[0];
+  return last?fmtD(last.end_date):'never';
+}
+async function renderAuditDetail(v){
+  const a=OPEN_AUDIT;
+  if(!SCANS.length&&!renderAuditDetail._loaded){ await loadScans(); renderAuditDetail._loaded=true; }
+  const open=a.status==='open';
+  const exp=expectedFor(a);
+  const scannedTix={}; SCANS.forEach(s=>scannedTix[s.ticket_no]=s);
+  const sum=!open&&a.summary?a.summary:auditSummary(a,exp,SCANS);
+  // open: live compute; closed: freeze to what the close recorded
+  const missing=open?exp.filter(r=>!scannedTix[r.ticket_no])
+    :(sum.missing_list||[]).map(m=>({ticket_no:m.ticket,model:m.model,status:m.status,graded_by:m.graded_by,missing:false}));
+  const bScans=SCANS.filter(s=>s.bucket===SCAN_BUCKET);
+  v.innerHTML='<div class="adet">'
+    +'<div class="top"><button class="btn" id="aBack">‹ Audits</button>'
+    +'<h2>'+(open?'🧾 Auditing':'🧾 Audit')+' '+fmtD(a.start_date)+' → '+fmtD(a.end_date)+' · '+(a.store?esc(disp(a.store)):'All stores')+'</h2>'
+    +(open?'<span class="chip warn">OPEN</span>':'<span class="chip ok">CLOSED</span>')
+    +'<span style="margin-left:auto;display:flex;gap:8px">'
+    +(open&&isMgr(AUTH.role)?'<button class="btn" id="aDelete">Delete</button><button class="btn pri" id="aClose">Close audit</button>':'')
+    +'</span></div>'
+    +'<div class="sumgrid">'
+    +'<div class="sumbox"><div class="v">'+sum.expected+'</div><div class="k">Expected</div></div>'
+    +'<div class="sumbox"><div class="v">'+sum.scanned+'</div><div class="k">Scanned</div></div>'
+    +'<div class="sumbox"><div class="v" style="color:var(--red)">'+sum.missing+'</div><div class="k">Missing</div></div>'
+    +'<div class="sumbox"><div class="v" style="color:var(--amber)">'+(sum.accuracy.aftermarket||0)+'</div><div class="k">Aftermarket</div></div>'
+    +'<div class="sumbox"><div class="v">'+gradeAcc(sum)+'</div><div class="k">Grade accuracy</div></div>'
+    +'</div>'
+    +(open?'<div class="scan-tabs">'
+      +'<button class="g '+(SCAN_BUCKET==='good'?'on':'')+'" data-b="good">✓ GOOD <span class="chip">'+SCANS.filter(s=>s.bucket==='good').length+'</span></button>'
+      +'<button class="b '+(SCAN_BUCKET==='bad'?'on':'')+'" data-b="bad">✕ BAD <span class="chip">'+SCANS.filter(s=>s.bucket==='bad').length+'</span></button>'
+      +'<button class="a '+(SCAN_BUCKET==='aftermarket'?'on':'')+'" data-b="aftermarket">◇ AFTERMARKET <span class="chip">'+SCANS.filter(s=>s.bucket==='aftermarket').length+'</span></button>'
+      +'</div>'
+      +'<div class="scanbar"><input id="scanInp" placeholder="Scan QR / type ticket # + Enter → logs into '+SCAN_BUCKET.toUpperCase()+'" autocomplete="off"></div>'
+      :'')
+    +'<div class="twocol">'
+    +'<div class="panel"><div class="ph">Scanned into '+SCAN_BUCKET.toUpperCase()+' ('+bScans.length+')</div><div class="pb">'
+      +(bScans.length?bScans.map(s=>{
+        const d=ROWS.find(r=>r.id===s.display_id);
+        const chip=!s.display_id?'<span class="chip err">unknown</span>'
+          :s.bucket==='aftermarket'?'<span class="chip warn">was '+esc(String(s.recorded_status||'?').toUpperCase())+'</span>'
+          :s.is_match?'<span class="chip ok">match</span>'
+          :'<span class="chip err">was '+esc(String(s.recorded_status||'?').toUpperCase())+'</span>';
+        return '<div class="srow"><b>#'+esc(s.ticket_no)+'</b> '+(d?esc(d.model):'')+'<span class="r">'+chip
+          +(open?'<button class="btn" style="padding:2px 9px;font-size:.68rem" data-undo="'+s.id+'">undo</button>':'')+'</span></div>';
+      }).join(''):'<div class="empty">Nothing scanned into this bucket yet.</div>')
+    +'</div></div>'
+    +'<div class="panel"><div class="ph">'+(open?'Not scanned yet — will be MISSING':'Missing from this audit')+' ('+missing.length+')</div><div class="pb">'
+      +(missing.length?missing.map(r=>'<div class="srow"><b>#'+esc(r.ticket_no)+'</b> '+esc(r.model)
+        +'<span class="r"><span class="pill '+r.status+'">'+r.status.toUpperCase()+'</span>'
+        +(r.missing?'<span class="chip err">missing since before</span>':'')
+        +'<span class="chip">'+esc(r.graded_by||'')+'</span></span></div>').join('')
+        :'<div class="empty">Everything expected has been scanned. 🎉</div>')
+    +'</div></div>'
+    +'</div></div>';
+  $('#aBack').addEventListener('click',()=>{ OPEN_AUDIT=null; renderAuditDetail._loaded=false; renderView(); });
+  document.querySelectorAll('.scan-tabs button').forEach(b=>b.addEventListener('click',()=>{ SCAN_BUCKET=b.dataset.b; renderView(); }));
+  const inp=$('#scanInp');
+  if(inp){ inp.focus();
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const val=inp.value; inp.value=''; doScan(val); } }); }
+  const cl=$('#aClose'); if(cl)cl.addEventListener('click',closeAudit);
+  const dl=$('#aDelete'); if(dl)dl.addEventListener('click',deleteAudit);
+  document.querySelectorAll('[data-undo]').forEach(b=>b.addEventListener('click',()=>undoScan(Number(b.dataset.undo))));
+}
+</script>
+</body>
+</html>
