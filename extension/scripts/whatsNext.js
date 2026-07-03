@@ -237,21 +237,35 @@
     function close() { overlay.classList.remove('open'); }
 
     function build() {
-        // launcher: try to sit in RQ's top nav, else float
-        var btn = document.createElement('button');
+        // launcher: sit just left of the Tickets search group, styled as a
+        // native RepairQ btn (Bootstrap 2 + FontAwesome 3, like its
+        // neighbors); float as our own pill only if the header isn't there
+        var btn = document.createElement('a');
         btn.className = 'mrt-wn-btn';
-        btn.innerHTML = '🍔 What’s next?';
+        btn.href = '#';
+        btn.innerHTML = '<i class="icon-list-ol"></i> <span class="mrt-wn-btnlbl">What’s next?</span>';
         btn.title = 'What should I work on right now?';
-        btn.addEventListener('click', function () { overlay.classList.contains('open') ? close() : open(); });
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            overlay.classList.contains('open') ? close() : open();
+        });
         var navSpot = document.getElementById('globalSearches');
-        if (navSpot && navSpot.parentElement) { btn.classList.add('innav'); navSpot.parentElement.insertBefore(btn, navSpot); }
-        else document.body.appendChild(btn);
+        var form = navSpot && navSpot.querySelector('#quickSearch');
+        if (form) {
+            btn.classList.add('innav', 'btn', 'btn-small');
+            form.insertBefore(btn, form.firstChild);
+        } else if (navSpot && navSpot.parentElement) {
+            btn.classList.add('innav', 'btn', 'btn-small');
+            navSpot.parentElement.insertBefore(btn, navSpot);
+        } else {
+            document.body.appendChild(btn);
+        }
 
         overlay = document.createElement('div');
         overlay.className = 'mrt-wn-overlay';
         overlay.innerHTML =
             '<div class="mrt-wn-panel">' +
-              '<div class="mrt-wn-hd">🍔 What’s next?' +
+              '<div class="mrt-wn-hd"><i class="icon-list-ol"></i>&nbsp;What’s next?' +
                 '<button class="bd" title="Order board view">📺 board</button>' +
                 '<button class="rf" title="Refresh">↻</button>' +
                 '<button class="x" title="Close">✕</button>' +
