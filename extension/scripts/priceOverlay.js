@@ -94,7 +94,7 @@
             display:        'flex',
             justifyContent: 'center',
             gap:            '10px',
-            marginTop:      '4px',
+            margin:         '2px 0 10px',   /* lifted off the price row — sits centered between SKU and Add */
             padding:        '4px 6px',
             background:     '#2D2D3B',
             color:          '#fff',
