@@ -373,6 +373,7 @@ function drawEditor(){
     +'<div class="togglerow">'
       +'<label><input type="checkbox" id="eReq" '+(a&&a.require_ack?'checked':'')+'> 🎓 Required reading (read &amp; acknowledge)</label>'
       +'<label><input type="checkbox" id="eMgr" '+(a&&a.min_role==='manager'?'checked':'')+'> 🔒 Managers only</label>'
+      +(!(a&&a.published_at)?'<label><input type="checkbox" id="eAnnounce" checked> 📣 Announce to Communications on publish</label>':'')
     +'</div>'
     +'<div class="ft">'
       +(a&&a.require_ack&&a.status==='published'?'<button class="btn" id="eRecert" title="Everyone must re-read and re-acknowledge">🔁 Reset acknowledgments</button>':'')
@@ -443,8 +444,12 @@ function drawEditor(){
     }
     await sb.from('kb_article_versions').insert({article_id:saved.id,version:saved.version,
       title:saved.title,summary:saved.summary,body:saved.body,tags:saved.tags,edited_by:AUTH.id});
-    if(status==='published'&&!(a&&a.published_at)) announcePublish(saved,true);  // first publish → team feed
-    toast(status==='published'?'Published ✔ — announced to the team.':'Draft saved.');
+    const annEl=document.getElementById('eAnnounce');
+    const wantAnnounce=!annEl||annEl.checked;               // checkbox only shows pre-first-publish
+    if(status==='published'&&!(a&&a.published_at)&&wantAnnounce) announcePublish(saved,true);
+    toast(status==='published'
+      ?(!(a&&a.published_at)&&wantAnnounce?'Published ✔ — announced to the team.':'Published ✔')
+      :'Draft saved.');
     OPEN=saved; MODE='article';
     await refresh();
   }
