@@ -58,7 +58,7 @@ function saveOptions() {
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
     const wn = { enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked' };
     // RepairQ workflow tools (absorbed from MyCPRTools)
-    const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
+    const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
     let mcpr = {};
     for (const k in mcprIds) {
         mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked';
@@ -139,8 +139,8 @@ function restoreOptions() {
         wnEl.className = 'lcd-checkmark ' + (wnOn ? 'checked' : 'unchecked');
         // RepairQ workflow tools — safe tools default ON, aggressive ones OFF
         const mcpr = result.mcpr || {};
-        const mcprDefaults = { partsGate: true, updateAssignee: true, stockBadges: true, popupBlocker: false, clockGuard: false };
-        const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
+        const mcprDefaults = { partsGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, popupBlocker: false, clockGuard: false };
+        const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
         for (const k in mcprIds) {
             const el = document.getElementById(mcprIds[k]);
             const on = mcpr[k] === undefined ? mcprDefaults[k] : mcpr[k] !== false;

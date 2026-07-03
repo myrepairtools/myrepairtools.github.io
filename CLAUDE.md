@@ -284,7 +284,10 @@ Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lack
 bundled "Part - X"; a "no part needed" note or diagnostic/unlock keywords exempt; claims
 with "without frame" screens also need front+back adhesive — default ON), Update
 Assignee (one-click assign-to-me, default ON), Stock Badges (on-hand qty badges on
-MobileSentrix/cpr.parts tiles, default ON), Popup Blocker (auto-advances claim
+MobileSentrix/cpr.parts tiles, default ON), Price Overlay (`priceOverlay.js`, ours not
+MyCPRTools', default ON — customer Repair price (part+$100 labor, fee-loaded,
+CPR-rounded) + Add-on price (2×/1.5×/+$25 markup, fee-loaded) under each supplier tile;
+math mirrors `popup/popup.js`, keep in sync), Popup Blocker (auto-advances claim
 walkthrough / T&C / signature — bg.js injects a jSignature stroke MAIN-world — **default
 OFF** because it signs forms), and Clock Guard (blocks early clock-in, configurable
 time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). Install unpacked or publish to the

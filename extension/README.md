@@ -38,6 +38,13 @@ CPR Oregon's RepairQ companion. One extension, three ancestries:
   - **Stock Badges** (`scripts/stockBadges.js`, default ON) — paints the
     hidden on-hand quantity onto MobileSentrix / cpr.parts product tiles
     (red 0 / orange ≤2 / green).
+  - **Price Overlay** (`scripts/priceOverlay.js`, default ON — ours, not
+    from MyCPRTools) — under each supplier product tile, shows what we'd
+    charge the customer: **Repair** (part + $100 labor, fee-loaded,
+    CPR-rounded) and **Add-on** (2× / 1.5× / +$25 tiered markup,
+    fee-loaded). The math mirrors `popup/popup.js` — keep them in sync.
+    Prefers the sale price when a tile shows one; stays silent on tiles
+    with no readable price.
   - **Popup Blocker** (`scripts/popupBlocker.js`, **default OFF**) —
     auto-dismisses yellow banners (keeps "Find My" warnings) and
     auto-advances the claim walkthrough, T&C + signature flow (bg.js
@@ -107,6 +114,8 @@ unpacked folders, and no more waiting on anyone else to publish updates.
   `scripts/updateAssignee.js`, `scripts/stockBadges.js`,
   `scripts/popupBlocker.js`, `scripts/clockGuard.js` — the RepairQ workflow
   tools (from MyCPRTools). Settings live in the synced `mcpr` object.
+- `scripts/priceOverlay.js` — customer Repair/Add-on prices on supplier
+  tiles (Price Calculator math; also toggled via the `mcpr` object).
 - `scripts/qrcode.js` — vendored [qrcode-generator](https://www.npmjs.com/package/qrcode-generator) (MIT).
 - everything else in `scripts/` + `style/` — RQ Mods features, unmodified;
   their on/off switches are the checkbox list in Options (`options.html`).
