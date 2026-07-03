@@ -1,361 +1,149 @@
 /*
-    Pattern Recorder:
-    Adds a graphical input form to record customer's unlock
-    patterns. Works on every repair ticket. It copies the
-    pattern to the clipboard rather than just directly
-    injecting it into the relevant input field on the page,
-    because the "relevant" field can change several times
-    during the creation of a ticket in RQ, and this way
-    gives the user more flexibility.
+    Pattern Recorder (myRepairTools)
+
+    Runs on: cpr.repairq.io/ticket/edit/*, /ticket/repair*
+
+    Records a customer's Android unlock pattern. Originally (RQ Mods) a
+    sidebar "UNLOCK PATTERN" button that copied ###pattern to the clipboard;
+    now a small 3×3-grid icon sitting right next to each device Password
+    field. Clicking it opens the pattern pad; saving writes ###<pattern>
+    straight into that row's password box (and still copies it to the
+    clipboard as backup).
+
+    Toggle: the "Pattern recorder" checkbox in Options (legacy positional
+    `enabled[6]`, same as before the rewrite).
 */
 
-// Check the user's sync storage to see if they've disabled this
-// whole feature. If they have, don't run any other code in this file.
-function checkIfPREnabled() {
-    chrome.storage.sync.get(['enabled'])
-    .then((result => {
-        if (result.enabled == undefined) {
-            initialize();
-        } else if (result.enabled[6] == 1) {
-            initialize();
-        } else {
-            return;
+(function () {
+    'use strict';
+
+    var PASS_SEL = 'input[placeholder^="Password"], input[placeholder^="password"]';
+    var pattern = '';
+    var drawing = false;
+    var targetInput = null;
+    var modal = null;
+
+    /* ---------------- per-field icon ---------------- */
+
+    function decorate() {
+        document.querySelectorAll(PASS_SEL).forEach(function (input) {
+            if (input.dataset.mrtPr) return;
+            input.dataset.mrtPr = '1';
+
+            var icon = document.createElement('a');
+            icon.className = 'mrt-pr-icon';
+            icon.href = '#';
+            icon.title = 'Record unlock pattern';
+            icon.innerHTML = '<i class="icon-th"></i>';
+            icon.style.cssText = 'display:inline-block;min-width:16px;min-height:16px;margin-left:6px;vertical-align:middle;cursor:pointer;font-size:15px;line-height:1;color:#4FB0E3;text-decoration:none;';
+            icon.addEventListener('click', function (e) {
+                e.preventDefault();
+                openPad(input);
+            });
+            input.insertAdjacentElement('afterend', icon);
+        });
+    }
+
+    /* ---------------- pattern pad ---------------- */
+
+    function buildModal() {
+        if (modal) return;
+        modal = document.createElement('div');
+        modal.id = 'mrtPatternPad';
+        modal.innerHTML =
+            '<style>' +
+            '#mrtPatternPad{position:fixed;inset:0;z-index:2147483580;display:none;background:rgba(45,45,59,.6);align-items:center;justify-content:center;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif}' +
+            '#mrtPatternPad.open{display:flex}' +
+            '.mrt-pr-card{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);padding:18px 20px;width:330px;text-align:center}' +
+            '.mrt-pr-card h4{margin:0 0 4px;font-size:16px;color:#2D2D3B}' +
+            '.mrt-pr-card .sub{font-size:11.5px;color:#8A8FA3;margin-bottom:12px}' +
+            '.mrt-pr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;padding:10px 26px 16px;touch-action:none;user-select:none}' +
+            '.mrt-pr-dot{width:58px;height:58px;border-radius:50%;border:2.5px solid #B9BDCB;display:flex;align-items:center;justify-content:center;font-size:13px;color:#B9BDCB;cursor:pointer;user-select:none}' +
+            '.mrt-pr-dot.on{border-color:#4FB0E3;background:#EAF6FD;color:#1E7AA8;font-weight:bold}' +
+            '.mrt-pr-read{font-size:22px;letter-spacing:.2em;color:#2D2D3B;min-height:30px;font-weight:bold}' +
+            '.mrt-pr-btns{display:flex;gap:10px;margin-top:12px}' +
+            '.mrt-pr-btns button{flex:1;border-radius:9px;padding:9px 0;font-size:13px;cursor:pointer;border:1.5px solid #E0E2EA;background:#fff;color:#4E4E50}' +
+            '.mrt-pr-btns .save{background:#DC282E;border-color:#DC282E;color:#fff;font-weight:bold}' +
+            '</style>' +
+            '<div class="mrt-pr-card">' +
+              '<h4>Unlock pattern</h4>' +
+              '<div class="sub">Click-drag through the dots like the customer draws it</div>' +
+              '<div class="mrt-pr-grid">' +
+                [1,2,3,4,5,6,7,8,9].map(function (n) {
+                    return '<div class="mrt-pr-dot" data-n="' + n + '">' + n + '</div>';
+                }).join('') +
+              '</div>' +
+              '<div class="mrt-pr-read">&nbsp;</div>' +
+              '<div class="mrt-pr-btns">' +
+                '<button type="button" class="clear">Clear</button>' +
+                '<button type="button" class="save">Save to field</button>' +
+              '</div>' +
+            '</div>';
+        document.body.appendChild(modal);
+
+        var read = modal.querySelector('.mrt-pr-read');
+
+        function refresh() {
+            read.innerHTML = pattern || '&nbsp;';
+            modal.querySelectorAll('.mrt-pr-dot').forEach(function (d) {
+                d.classList.toggle('on', pattern.indexOf(d.getAttribute('data-n')) !== -1);
+            });
         }
-    }));
+        function clear() { pattern = ''; refresh(); }
+        function hit(dot) {
+            var n = dot.getAttribute('data-n');
+            if (pattern.indexOf(n) === -1) { pattern += n; refresh(); }
+        }
 
-}
+        modal.querySelectorAll('.mrt-pr-dot').forEach(function (dot) {
+            dot.addEventListener('mousedown', function (e) { e.preventDefault(); drawing = true; clear(); hit(dot); });
+            dot.addEventListener('mouseenter', function () { if (drawing) hit(dot); });
+        });
+        document.addEventListener('mouseup', function () { drawing = false; });
 
-window.onload = () => {
-    checkIfPREnabled();
-};
-
-// Initialize some variables that going to be passed around by various 
-// functions in a little bit
-let patternDrawer;
-
-let mouseCheck = false;
-
-let pattern = '';
- 
-let patternDisplay;
-
-let coordinates = [];
-
-let positions = [];
-
-let drawing;
-
-// Start creating all the necessary page elements
-function initialize() {
-    // Create a button the user can click to open the
-    // pattern recorder
-    let openButton = document.createElement('li');
-        // Use existing class name to make this element look
-        // like its neighbors
-        openButton.classList.add('active');
-        openButton.classList.add('in');
-        openButton.id = 'prOpen';
-        openButton.addEventListener('click', showPatternDrawer);
-    
-    // Place the button in the sidebar
-    let injectPoint = document.getElementById('tab');
-    injectPoint.appendChild(openButton);
-
-    // Add some finishing touches to the button, again to
-    // make it match its neighbors' appearance
-    let buttonEdit = document.getElementById('prOpen');
-    if (buttonEdit != undefined) {
-        let addition1 = document.createElement('div');
-        addition1.classList.add('arrow-left');
-
-        let addition2 = document.createElement('a');
-        addition2.innerText = '\u270E UNLOCK PATTERN';
-
-        buttonEdit.appendChild(addition1);
-        buttonEdit.appendChild(addition2);
-
+        modal.querySelector('.clear').addEventListener('click', clear);
+        modal.querySelector('.save').addEventListener('click', function () {
+            var code = '###' + pattern;
+            if (pattern && targetInput) {
+                targetInput.value = code;
+                targetInput.dispatchEvent(new Event('input',  { bubbles: true }));
+                targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (pattern) {
+                try { navigator.clipboard.writeText(code); } catch (e) { /* clipboard optional */ }
+            }
+            closePad();
+        });
+        modal.addEventListener('click', function (e) { if (e.target === modal) closePad(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modal.classList.contains('open')) closePad();
+        });
     }
 
-    spawnPatternDrawer();
-}
-
-// This function toggles the pattern recorder to appear or disappear
-function showPatternDrawer() {
-    let bgBlocker = document.getElementById('bgBlocker');
-    if (patternDrawer.style.display == 'block') {
-        patternDrawer.style.display = 'none';
-        bgBlocker.style.display = 'none';
-    } else {
-        bgBlocker.style.display = 'block';
-        patternDrawer.style.display = 'block';        
+    function openPad(input) {
+        buildModal();
+        targetInput = input;
+        pattern = '';
+        modal.querySelector('.mrt-pr-read').innerHTML = '&nbsp;';
+        modal.querySelectorAll('.mrt-pr-dot').forEach(function (d) { d.classList.remove('on'); });
+        modal.classList.add('open');
     }
-}
+    function closePad() { if (modal) modal.classList.remove('open'); }
 
-// Creat the pattern recorder. This will be a little complicated
-function spawnPatternDrawer() {
-    // This is where the pattern recorder will spawn
-    let popUpPoint = document.getElementById('ticketForm');
+    /* ---------------- boot ---------------- */
 
-    // bgBlocker creates a faded, mostly-opaque backdrop to 
-    // improve visual contrast when the pattern recorder
-    // 'pops up'
-    let bgBlocker = document.createElement('div');
-    bgBlocker.style.width = '100vw';
-    bgBlocker.style.height = '100%';
-    bgBlocker.style.backgroundColor = 'black';
-    bgBlocker.style.opacity = '90%';
-    bgBlocker.style.position = 'absolute';
-    bgBlocker.style.top = '0';
-    bgBlocker.style.left = '0';
-    bgBlocker.id = 'bgBlocker';
-    bgBlocker.style.display = 'none';
-    popUpPoint.appendChild(bgBlocker);
-
-    /*
-        This is the actual pattern recorder itself. It is a 5-by-5 grid
-        of divs. Nine of them are interactable, and the rest are filler.
-        It's essentially a tic-tac-toe board.
-    */
-    let framei = document.createElement('div');
-    framei.id = 'patternRecorder';
-
-    framei.innerHTML = `
-        <style>
-            #patternRecorder {
-                font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-                text-align: center;
-                position: fixed;
-                top: calc(40vh - 15vw);
-                left: 35vw;
-                background-color: #C7D4DA;
-                width: calc(30vw + 10px);
-                height: calc(30vw + 10px);
-                border: solid 5px #275163;
-                display: none;
-                z-index: 369;
-            }            
-            #patternDrawer {
-                width: 30vw;
-                height: 30vw;
-                margin: 0 auto;
-                display: flex;
-                flex-wrap: wrap;
-                position: absolute;
-                top: 5;
-                left: 5;
-                
-            }
-            
-            .gridItem {
-                width: 6vw;
-                height: 6vw;
-                font-size: 2rem;
-                color: #030608;
-            }
-            
-            .gridInput {
-                display: flex;
-                background-color: transparent;
-                line-height: 1rem;
-                font-size: 6vw;
-                justify-content: center;
-                align-items: center;
-
-                cursor: pointer;
-            
-                -webkit-touch-callout: none; 
-                -webkit-user-select: none; 
-                -khtml-user-select: none; 
-                -moz-user-select: none; 
-                    -ms-user-select: none; 
-                        user-select: none;
-            }
-            
-            .gridLine {
-                background-color: transparent;
-            }
-            
-            #currentPattern {
-                font-size: 3rem;
-                color: #275163;
-                width: calc(30vw + 5px);
-                height: 4vw;
-                position: absolute;
-                top: 32vw;
-                left: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-
-                background-color: #C7D4DA;
-                border: solid 5px #275163;
-                border-radius: 10px;
-            }
-            
-            #patternCanvas {
-                position: absolute;
-                top: 5;
-                left: 5;
-            }
-            
-            #patternSubmitButton {
-                font-size: 2rem;
-                color: #030608;
-            
-                background-color: #C7D4DA;
-                border: solid 5px #C7D4DA;
-                border-radius: 10px;
-            
-                width: calc(30vw + 10px);
-                height: 4vw;
-                position: absolute;
-                left: 0;
-                top: 38vw;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-
-                cursor: pointer;
-            }
-            
-            #patternSubmitButton:hover {
-                border-color: #275163;
-                transition: 0.2s;
-            }
-        </style>
-
-        <div id="patternDrawer" draggable="false">
-
-            <div draggable="false" class="gridItem gridInput" id="gi-1">&#9678;</div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridInput" id="gi-2">&#9678;</div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridInput" id="gi-3">&#9678;</div>
-
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-
-            <div draggable="false" class="gridItem gridInput" id="gi-4">&#9678;</div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridInput" id="gi-5">&#9678;</div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridInput" id="gi-6">&#9678;</div>
-
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridLine"></div>
-
-            <div draggable="false" class="gridItem gridInput" id="gi-7">&#9678;</div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridInput" id="gi-8">&#9678;</div>
-            <div draggable="false" class="gridItem gridLine"></div>
-            <div draggable="false" class="gridItem gridInput" id="gi-9">&#9678;</div>
-
-        </div>
-
-
-        
-        <div id="currentPattern">0000</div>
-
-        <div id="patternSubmitButton">Copy & close</div>
-    `;
-
-
-    popUpPoint.appendChild(framei);
-
-    patternDrawer = document.getElementById('patternRecorder');
-
-    let saveButton = document.getElementById('patternSubmitButton');
-    saveButton.addEventListener('click', savePattern);
-
-    initializePatternRecorder();
-
-}
-
-// Add the necessary code for recording user inputs on 
-// the pattern recorder
-function initializePatternRecorder() {
-    // Clear the pattern whenever the user starts to
-    // draw again
-    document.addEventListener('mousedown', resetPattern);
-    // Reveal the pattern whenever the user releases the mouse
-    document.addEventListener('mouseup', showPattern);
-    patternDisplay = document.getElementById('currentPattern');
-
-    let inputs = document.getElementsByClassName('gridInput');
-    for (let i=0; i<9; i++) {
-        // Register an input whenever the user drags their mouse over
-        // a target or releases the mouse over a target
-        inputs[i].addEventListener('mouseleave', receiveInput);
-        inputs[i].addEventListener('mouseup', receiveLastInput);
-
-        // Register the coordinates of the user's inputs, so we
-        // can later draw a line between them
-        let leftCoord = inputs[i].offsetLeft;
-        let inputWidth = inputs[i].offsetWidth;
-        let topCoord = inputs[i].offsetTop;
-        let inputHeight = inputs[i].offsetHeight;
-        coordinates[i] = [(leftCoord + (inputWidth * 0.5)), (topCoord + (inputHeight * 0.5))];
-    }
-    
-    
-}
-
-function resetPattern() {
-    mouseCheck = true;
-    pattern = '';
-    positions = [];
-
-
-    let boldReset = document.getElementsByClassName('gridInput');
-    for (let b = 0; b < boldReset.length; b++) {
-        boldReset[b].innerText = '\u25CE';
-    }
-}
-
-function showPattern() {
-    mouseCheck = false;
-
-    for (let i = 0; i < pattern.length; i++) {
-        let position = parseInt(pattern.charAt(i)) - 1;
-        positions[i] = position;
+    function start() {
+        decorate();
+        // device rows are added/re-rendered dynamically as the ticket is edited
+        new MutationObserver(decorate).observe(document.body, { childList: true, subtree: true });
     }
 
-    
-}
-
-function receiveInput() {
-    if (mouseCheck == true) {
-        pattern += (this.id.replace('gi-', ''));
-        patternDisplay.innerText = pattern;
-        this.innerText = '\u25C9';
-    }
-    
-}
-
-function receiveLastInput() {
-    pattern += (this.id.replace('gi-', ''));
-    patternDisplay.innerText = pattern;
-    this.innerText = '\u25C9';
-}
-
-// When the user clicks the save button, close the pattern
-// recorder and copy the pattern to the clipboard. They
-// can then paste it wherever they'd like.
-function savePattern() {
-    let savedpattern = document.getElementById('currentPattern').innerText;
-    let passcode = `###${savedpattern}`;
-    navigator.clipboard.writeText(passcode);
-
-    showPatternDrawer();
-    
-
-    // Final passocde with look something like:
-    // ###12569
-}
-
+    // Legacy positional toggle — slot 6 of the RQ Mods `enabled` array
+    try {
+        chrome.storage.sync.get(['enabled']).then(function (res) {
+            if (res && res.enabled !== undefined && Number(res.enabled[6]) !== 1) return;
+            if (document.body) start();
+            else document.addEventListener('DOMContentLoaded', start);
+        }).catch(start);
+    } catch (e) { start(); }
+})();
