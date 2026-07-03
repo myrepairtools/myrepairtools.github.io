@@ -15,6 +15,12 @@
        Supabase directly, so page CSP/CORS can never interfere. The lcd-buyback
        edge function authenticates with the shared LCD secret (deterrent-level,
        same convention as the rest of the MRT stack).
+
+    3. Signature injector (mcpr:signature, for the Popup Blocker's T&C flow):
+       jSignature keeps its stroke data in jQuery data on the page, which a
+       content script can't touch — executeScript in the MAIN world can.
+       Injects one straight-line stroke and fills the hidden signature input.
+       (Ported from the MyCPRTools extension.)
 */
 
 var LCD_FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/lcd-buyback';
@@ -83,5 +89,49 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 
     p.then(sendResponse)
      .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    return true; // async sendResponse
+});
+
+/* ---------------- signature injector (Popup Blocker) ---------------- */
+
+// Serialized and run in the PAGE's MAIN world — has jQuery + jSignature.
+function injectSignature() {
+    try {
+        var canvas = document.querySelector('#modal-signature .jSignature');
+        if (!canvas) return { success: false, reason: 'canvas not found' };
+
+        // A simple horizontal line stroke in jSignature's internal format
+        var fakeStroke = [{
+            x: [100, 130, 160, 190, 220, 250, 280, 310],
+            y: [120, 120, 120, 120, 120, 120, 120, 120]
+        }];
+
+        $(canvas).data('jSignature.data', fakeStroke);
+
+        // Read it back — jSignature encodes the strokes to base30
+        var sigData = $(canvas).jSignature('getData', 'base30');
+
+        var hiddenInput = document.querySelector('#modal-signature .signature-data');
+        if (hiddenInput && sigData && sigData[1]) {
+            hiddenInput.value = sigData[0] + ',' + sigData[1];
+            return { success: true };
+        }
+        return { success: false, reason: 'empty sigData' };
+    } catch (e) {
+        return { success: false, reason: e.message };
+    }
+}
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'mcpr:signature' || !sender.tab) return;
+    chrome.scripting.executeScript({
+        target: { tabId: sender.tab.id },
+        world: 'MAIN',
+        func: injectSignature
+    }).then(function (results) {
+        sendResponse({ result: results && results[0] && results[0].result });
+    }).catch(function (err) {
+        sendResponse({ error: String(err && err.message || err) });
+    });
     return true; // async sendResponse
 });

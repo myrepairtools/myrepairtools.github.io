@@ -15,6 +15,37 @@ CPR Oregon's RepairQ companion. One extension, three ancestries:
   store, tech, line items) into the chat so questions are pre-grounded. Auth
   rides the MRT origin's session — sign in to myRepairTools once per browser.
   Toggle in Options.
+- **What's Next?** (new) — the "McDonald's order board". A 🍔 button in
+  RepairQ's top bar (`scripts/whatsNext.js`) fetches RepairQ's own ticket
+  list (same-origin, follows pagination), keeps only workable tickets
+  (New / New Claim / In Diagnosis / Ready for Repair — never Waiting for
+  Part, Pending Notification, pickup or closed), and ranks them: express →
+  overdue → due-soonest → oldest. The card says exactly which ticket to
+  grab, with Open/Skip; 📺 board mode shows the whole ranked queue with
+  urgency colors (drop a tab of it on the shop TV). Toggle in Options.
+- **RepairQ workflow tools** (absorbed from **MyCPRTools**, another CPR
+  franchisee's extension) — `scripts/mcprUtils.js` + `scripts/mcprConfig.js`
+  carry the shared plumbing (axios replaced with fetch; the hardcoded
+  employee roster replaced by a dynamic assignee lookup). Five tools, all
+  toggleable in Options → RepairQ workflow tools:
+  - **Parts Gate** (`scripts/partsGate.js`, default ON) — blocks closing a
+    ticket when a "Repair - X" labor line has no matching "Part - X"
+    bundled. Exemptions: diagnostic/unlock keywords (`mcprConfig.js`), a
+    ticket note saying "no part needed"; claims with a "without frame"
+    panel screen also require front + back adhesive.
+  - **Update Assignee** (`scripts/updateAssignee.js`, default ON) — a
+    one-click "assign this ticket to me" button on ticket view pages.
+  - **Stock Badges** (`scripts/stockBadges.js`, default ON) — paints the
+    hidden on-hand quantity onto MobileSentrix / cpr.parts product tiles
+    (red 0 / orange ≤2 / green).
+  - **Popup Blocker** (`scripts/popupBlocker.js`, **default OFF**) —
+    auto-dismisses yellow banners (keeps "Find My" warnings) and
+    auto-advances the claim walkthrough, T&C + signature flow (bg.js
+    injects a jSignature stroke in MAIN world), and Samsung Genuine Parts
+    form. Off by default because it signs forms automatically — enable
+    deliberately.
+  - **Clock Guard** (`scripts/clockGuard.js`, **default OFF**) — blocks
+    clocking in before an Options-configurable time (default 9:40 AM).
 
 ## LCD Buyback
 
@@ -63,11 +94,19 @@ unpacked folders, and no more waiting on anyone else to publish updates.
 
 ## Layout
 
-- `manifest.json` — MV3; content scripts run only on `cpr.repairq.io`.
-- `scripts/bg.js` — service worker: print gate injector + LCD API proxy
-  (edge-function URL + shared secret live here).
+- `manifest.json` — MV3; content scripts run on `cpr.repairq.io` (plus
+  `mobilesentrix.com` / `cpr.parts` for Stock Badges only).
+- `scripts/bg.js` — service worker: print gate injector, LCD API proxy
+  (edge-function URL + shared secret live here), and the Popup Blocker's
+  jSignature injector (MAIN-world executeScript).
 - `scripts/lcdCapture.js`, `scripts/lcdLabel.js`, `scripts/printGate.js`,
   `style/lcd.css` — the LCD buyback feature.
+- `scripts/whatsNext.js` + `style/whatsnext.css` — the What's Next queue.
+- `scripts/assistantOverlay.js` + `style/assistant.css` — the AI overlay.
+- `scripts/mcprConfig.js`, `scripts/mcprUtils.js`, `scripts/partsGate.js`,
+  `scripts/updateAssignee.js`, `scripts/stockBadges.js`,
+  `scripts/popupBlocker.js`, `scripts/clockGuard.js` — the RepairQ workflow
+  tools (from MyCPRTools). Settings live in the synced `mcpr` object.
 - `scripts/qrcode.js` — vendored [qrcode-generator](https://www.npmjs.com/package/qrcode-generator) (MIT).
 - everything else in `scripts/` + `style/` — RQ Mods features, unmodified;
   their on/off switches are the checkbox list in Options (`options.html`).

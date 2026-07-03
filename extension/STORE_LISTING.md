@@ -9,25 +9,34 @@ the zip root: `cd extension && zip -r ../myrepairtools.zip . -x '*.md'`).
 **Name:** myRepairTools
 
 **Summary (132 chars max):**
-CPR Oregon's RepairQ companion — LCD buyback capture & send labels, price
-calculator, pattern labels, quick links and more.
+CPR Oregon's RepairQ companion — LCD buyback labels, What's Next queue, AI
+assistant, parts gate, price calculator and more.
 
 **Description:**
 Internal tool for CPR Oregon staff. myRepairTools extends RepairQ
 (cpr.repairq.io) with the workflows our stores run every day:
 
-• LCD Buyback — adding an iPhone, Galaxy S, Galaxy Note, or Pixel screen
-repair to a ticket pops a Good/Bad display grading modal, logs the answer to
-our internal LCD Buyback Log, and prints a send-display label (with a
-scannable QR serial) alongside the ticket label. Device families can be
-toggled in Options.
+• LCD Buyback — adding an iPhone, Galaxy S, Galaxy Note, Galaxy Z, or Pixel
+screen repair to a ticket pops a Good/Bad display grading modal, logs the
+answer to our internal LCD Buyback Log, and prints a send-display label
+(with a scannable QR serial) alongside the ticket label. Device families
+can be toggled in Options.
+• What's Next? — a button in the RepairQ top bar that ranks the workable
+ticket queue (express → overdue → due-soonest) and tells the tech which
+repair to grab next, with an order-board view for the shop TV.
+• CPR Assistant — the company AI assistant inside RepairQ; answers come
+from our Knowledge Base with citations, grounded in the ticket on screen.
+• Workflow gates: a Parts Gate that stops tickets closing without the
+matching part bundled, one-click Update Assignee, supplier stock badges on
+MobileSentrix / cpr.parts, and optional popup auto-advance + clock-in guard.
 • Price Calculator & Price Guide in the toolbar popup.
 • Quality-of-life RepairQ mods: serial number and quote reminders, bigger
 click targets, custom quick links, unlock-pattern recording and label
 printing, due-today highlighting, custom bin label text, quick-search fixes.
 
-Only runs on cpr.repairq.io. Intended for CPR Oregon employees; it does
-nothing useful on other sites or for other organizations.
+Only runs on cpr.repairq.io and our parts suppliers' catalogs. Intended for
+CPR Oregon employees; it does nothing useful on other sites or for other
+organizations.
 
 **Category:** Workflow & Planning (or Tools)
 **Language:** English
@@ -53,6 +62,9 @@ shortcuts).
 - Host `cpr.repairq.io` — the site this extension exists to extend.
 - Host `xuvsehrevxackuhmbmry.supabase.co` — our own backend; display grades
   are logged there and read back at label-print time.
+- Hosts `mobilesentrix.com` / `cpr.parts` — our parts suppliers; the Stock
+  Badges tool displays each product tile's on-hand quantity (read from the
+  page itself; nothing is sent anywhere).
 
 **Remote code:** No, all code is packaged.
 

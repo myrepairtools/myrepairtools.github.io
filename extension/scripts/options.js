@@ -56,6 +56,14 @@ function saveOptions() {
         lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
     }
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
+    const wn = { enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked' };
+    // RepairQ workflow tools (absorbed from MyCPRTools)
+    const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
+    let mcpr = {};
+    for (const k in mcprIds) {
+        mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked';
+    }
+    mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
     let customQuickLinkFrame1 = false;
     if (document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked') {
         customQuickLinkFrame1 = true;
@@ -82,7 +90,9 @@ function saveOptions() {
             enabled: checkedBoxes,
             cbt: {enabled: true, text: cbtText},
             lcd: lcd,
-            ai: ai
+            ai: ai,
+            wn: wn,
+            mcpr: mcpr
         }, () => {
             alert('Options saved!');
         }
@@ -94,7 +104,7 @@ function restoreOptions() {
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
         'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
-        'enabled', 'cbt', 'lcd', 'ai'
+        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr'
     ])
     .then((result => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
@@ -123,6 +133,21 @@ function restoreOptions() {
         const aiOn = !result.ai || result.ai.enabled !== false;
         aiEl.setAttribute('data-checked', aiOn ? 'checked' : 'unchecked');
         aiEl.className = 'lcd-checkmark ' + (aiOn ? 'checked' : 'unchecked');
+        const wnEl = document.getElementById('wnEnabled');
+        const wnOn = !result.wn || result.wn.enabled !== false;
+        wnEl.setAttribute('data-checked', wnOn ? 'checked' : 'unchecked');
+        wnEl.className = 'lcd-checkmark ' + (wnOn ? 'checked' : 'unchecked');
+        // RepairQ workflow tools — safe tools default ON, aggressive ones OFF
+        const mcpr = result.mcpr || {};
+        const mcprDefaults = { partsGate: true, updateAssignee: true, stockBadges: true, popupBlocker: false, clockGuard: false };
+        const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
+        for (const k in mcprIds) {
+            const el = document.getElementById(mcprIds[k]);
+            const on = mcpr[k] === undefined ? mcprDefaults[k] : mcpr[k] !== false;
+            el.setAttribute('data-checked', on ? 'checked' : 'unchecked');
+            el.className = 'lcd-checkmark ' + (on ? 'checked' : 'unchecked');
+        }
+        document.getElementById('mcprClockTime').value = mcpr.clockTime || '09:40';
         const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
         for (const k in lcdIds) {
             const el = document.getElementById(lcdIds[k]);

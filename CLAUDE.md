@@ -269,7 +269,25 @@ watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 (`window.CPR_ASSISTANT_EMBED`, full-viewport, auto-open, iframe-allowed), with
 the RepairQ page context (ticket #, store, tech, line items) posted in via
 postMessage and prepended to the first message. Auth rides the MRT origin's
-Supabase session (sign in once per browser); Options has an AI Assistant toggle. Install unpacked or publish to the
+Supabase session (sign in once per browser); Options has an AI Assistant toggle.
+**What's Next?** (`scripts/whatsNext.js`) — the "McDonald's order board": a 🍔 button in
+RepairQ's top bar fetches RepairQ's own ticket list (same-origin, follows the
+`Ticket_page` pager), keeps workable tickets only (New / New Claim / In Diagnosis /
+Ready for Repair; excludes Waiting*, Pending Notification, pickup/closed — those "Est."
+times are customer appointments, not repair dues), ranks express → overdue → due-soonest
+→ oldest, and shows NEXT UP with Open/Skip plus a 📺 board mode (top 12, urgency colors).
+Rows parse defensively from `tr[data-id]` + `td[data-column]` (id/items/status/est);
+tuned against a saved copy of the real Active Repair Queue view. **RepairQ workflow
+tools** (absorbed from MyCPRTools, a fellow franchisee's extension): `mcprUtils.js` +
+`mcprConfig.js` (fetch-based; dynamic assignee lookup — no hardcoded roster) power
+Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lacks a
+bundled "Part - X"; a "no part needed" note or diagnostic/unlock keywords exempt; claims
+with "without frame" screens also need front+back adhesive — default ON), Update
+Assignee (one-click assign-to-me, default ON), Stock Badges (on-hand qty badges on
+MobileSentrix/cpr.parts tiles, default ON), Popup Blocker (auto-advances claim
+walkthrough / T&C / signature — bg.js injects a jSignature stroke MAIN-world — **default
+OFF** because it signs forms), and Clock Guard (blocks early clock-in, configurable
+time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). Install unpacked or publish to the
 Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
 the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
 sync.
