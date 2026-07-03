@@ -268,6 +268,33 @@ Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, u
 the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
 sync.
 
+**Knowledge Base ("the brain"):** `kb_categories` + `kb_articles` (light-markup body —
+same family as Communications, plus # headings, [links](url), ![images](url) from the
+public `kb-media` storage bucket; tags, summary, status draft→published→archived,
+`min_role` employee|manager, `require_ack`, trigger-maintained weighted tsvector) +
+`kb_article_versions` (snapshot on every save) + `kb_reads` (per-person first_read_at +
+acknowledged_at — the compliance record) + `kb_feedback` (👍/👎 per person). Authoring is
+**manager-only** (RLS `is_admin()`); employees read published `min_role='employee'`
+articles. Surface: `knowledge.html` (My Hub, everyone) — search-first (RPC `kb_search`:
+strict websearch + loose OR fallback, both role-safe via RLS), category pills, cards
+with unread dots, article view records the read and shows the ack bar for required
+articles, 👍/👎 footer; managers additionally get the inline editor (toolbar + image
+upload to kb-media + preview; publish/unpublish/archive), a Drafts pill, and a
+**Compliance tab** (per required article: acknowledged vs outstanding roster with
+"read but not acked" / "never opened" flags, overall % tiles). First publish (and
+🔁 Reset acknowledgments — re-certification) auto-posts to Communications
+(`source_key 'kb:<id>:…'`). Deep links: `knowledge.html#a=<slug>`. Dashboard
+**Knowledge widget** (`assets/kb-summary.js`, `window.CPRKnowledge.forMe()`) shows
+required-reading queue + newest articles. **AI: the `cpr-assistant` edge function does
+KB RAG** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
+from browser roles; strict-then-loose FTS) and injects the top articles into the system
+prompt with citation rules (`from: [title](link)`); the assistant must never state
+CPR-specific policy that isn't in the KB. cpr-assistant's source now lives in
+`supabase/functions/cpr-assistant/` (recovered from the deployed eszip — keep it
+committed). Nag reminders for unacknowledged required reading are deliberately deferred
+to the notifications project. Importing existing docs: give them to Claude in a session —
+it converts and inserts articles directly.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);

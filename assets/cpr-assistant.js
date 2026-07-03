@@ -37,6 +37,8 @@
     var lines = String(t).split('\n'), out = [], inList = false;
     function inline(s) {
       return esc(s)
+        .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener" style="color:#4FB0E3;font-weight:700">$1</a>')
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(/`([^`]+)`/g, '<code>$1</code>');
     }

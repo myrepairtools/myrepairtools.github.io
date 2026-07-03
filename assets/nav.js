@@ -57,6 +57,7 @@
     { label:'Dashboard',           url:'index.html',                icon:'🏠' },
     { label:'Checklist',           url:'checklist.html',            icon:'✅' },
     { label:'Communications',      url:'communications.html',       icon:'📣' },
+    { label:'Knowledge Base',      url:'knowledge.html',            icon:'📚' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
   ];

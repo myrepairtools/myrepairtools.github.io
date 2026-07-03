@@ -218,6 +218,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/commission-engine.js"></script>
 <script src="assets/commission-summary.js"></script>
 <script src="assets/checklist-summary.js"></script>
+<script src="assets/kb-summary.js"></script>
 <script src="assets/schedule-summary.js"></script>
 <script src="assets/pto-summary.js"></script>
 <script src="assets/team-hours-summary.js"></script>
@@ -300,9 +301,18 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'<a class="ql" href="my-schedule.html"><span class="qi">🗓️</span><span class="qn">My Schedule</span></a>'
         +'<a class="ql" href="damage-tracker.html"><span class="qi">🔧</span><span class="qn">Damage Tracker</span></a>'
         +'<a class="ql" href="lcd-buyback.html"><span class="qi">📱</span><span class="qn">LCD Buyback</span></a>'
+        +'<a class="ql" href="knowledge.html"><span class="qi">📚</span><span class="qn">Knowledge Base</span></a>'
         +'</div>'; } },
 
     /* ---- library extras (not in the default board; available from the gallery) ---- */
+    { id:'kb', title:'Knowledge', icon:'📚', accent:'blue', defaultSize:'narrow',
+      desc:'Required reading and what\u2019s new in the Knowledge Base.', link:{href:'knowledge.html',x:'Open \u2192'},
+      render:function(){ return ''
+        +'<div data-kb-req></div>'
+        +'<div data-kb-list></div>'
+        +'<div class="empty" data-kb-empty style="display:none;padding:14px 4px"><div class="et" data-kb-msg>Sign in to see the Knowledge Base.</div></div>'; },
+      mount:function(bd){ loadKb(bd); } },
+
     { id:'pto', title:'My PTO', icon:'🌴', accent:'green', defaultSize:'narrow',
       desc:'Your paid time-off balances from QuickBooks Time.', link:{href:'my-schedule.html',x:'Request →'},
       render:function(){ return ''
@@ -560,6 +570,25 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         var off=bd.querySelector('[data-sched-off]'); if(off){ off.style.display='block';
           off.querySelector('[data-s="offmsg"]').textContent = t.kind==='timeoff' ? ('Time off today'+(t.type?(' · '+t.type):'')) : 'Day off today'; }
       }
+    }, function(){});
+  }
+
+  function loadKb(bd){
+    if(!window.CPRKnowledge || !window.CPRKnowledge.forMe){ return; }
+    window.CPRKnowledge.forMe().then(function(s){
+      var req=bd.querySelector('[data-kb-req]'), list=bd.querySelector('[data-kb-list]'),
+          em=bd.querySelector('[data-kb-empty]'), msg=bd.querySelector('[data-kb-msg]');
+      if(!s){ if(em)em.style.display='block'; return; }
+      if(em)em.style.display='none';
+      if(req) req.innerHTML = (s.required&&s.required.length)
+        ? '<div style="background:#FDF6E7;border:1px solid #F2DFAE;border-radius:10px;padding:9px 12px;margin-bottom:8px;font-size:.8rem;font-weight:800;color:#7A5A08">\uD83C\uDF93 '+s.required.length+' required read'+(s.required.length>1?'s':'')+' waiting</div>'
+          + s.required.slice(0,3).map(function(a){ return '<a href="knowledge.html#a='+esc(a.slug||'')+'" style="display:block;font-weight:800;font-size:.84rem;color:inherit;text-decoration:none;padding:4px 2px">\u2022 '+esc(a.title)+'</a>'; }).join('')
+        : '';
+      if(list) list.innerHTML = (s.fresh||[]).map(function(a){
+        return '<a href="knowledge.html#a='+esc(a.slug||'')+'" style="display:flex;gap:7px;align-items:center;font-size:.84rem;color:inherit;text-decoration:none;padding:5px 2px;border-top:1px solid #F3F2F2">'
+          +(a.unread?'<span style="width:7px;height:7px;border-radius:50%;background:#4FB0E3;flex:none"></span>':'<span style="width:7px;flex:none"></span>')
+          +'<span style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.title)+'</span></a>';
+      }).join('') || '<div class="empty" style="padding:12px 4px"><div class="et">No articles yet.</div></div>';
     }, function(){});
   }
 
