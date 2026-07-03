@@ -57,7 +57,6 @@
     { label:'Dashboard',           url:'index.html',                icon:'🏠' },
     { label:'Checklist',           url:'checklist.html',            icon:'✅' },
     { label:'Communications',      url:'communications.html',       icon:'📣' },
-    { label:'Knowledge Base',      url:'knowledge.html',            icon:'📚' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
   ];
@@ -428,7 +427,8 @@
     lock:  'M6.5 10.5V7.5a5.5 5.5 0 0 1 11 0v3M5 10.5h14v9.5H5zM12 14.5v2.5',
     gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z',
     chart: 'M3 21h18M6.5 21V11M12 21V5M17.5 21v-7',
-    people: 'M9 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM2.5 19.5v-.3c0-2.7 2.6-4.3 6.5-4.3s6.5 1.6 6.5 4.3v.3M16 5.3a3.2 3.2 0 0 1 0 6.2M17.5 14.6c2.5.5 4 1.9 4 4v.3'
+    people: 'M9 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM2.5 19.5v-.3c0-2.7 2.6-4.3 6.5-4.3s6.5 1.6 6.5 4.3v.3M16 5.3a3.2 3.2 0 0 1 0 6.2M17.5 14.6c2.5.5 4 1.9 4 4v.3',
+    book:  'M3 5.5h5.2c1.6 0 3 .7 3.8 1.9.8-1.2 2.2-1.9 3.8-1.9H21v13h-5.2c-1.5 0-2.9.6-3.8 1.7-.9-1.1-2.3-1.7-3.8-1.7H3v-13ZM12 7.4V20.2'
   };
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
@@ -587,6 +587,7 @@
   function paneMobileInner(){
     var h = '<div class="cpr-mhd"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></div>';
+    h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'📚' });
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
     var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -746,6 +747,7 @@
     rail.innerHTML = ''
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
+      + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'</a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
