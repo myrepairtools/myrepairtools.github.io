@@ -8,6 +8,13 @@ CPR Oregon's RepairQ companion. One extension, three ancestries:
   number + quote reminders, click targets, quick links/frames, pattern
   recorder/printer, due-today highlighting, custom bin text, quick-search fixes.
 - **LCD Buyback** (new) — see below.
+- **CPR Assistant overlay** (new) — a ✨ button inside RepairQ that opens the
+  company AI assistant (`scripts/assistantOverlay.js` + iframe of
+  myrepairtools.github.io/assistant.html). Answers come from the Knowledge Base
+  with citations; the overlay posts the current page's context (ticket #,
+  store, tech, line items) into the chat so questions are pre-grounded. Auth
+  rides the MRT origin's session — sign in to myRepairTools once per browser.
+  Toggle in Options.
 
 ## LCD Buyback
 

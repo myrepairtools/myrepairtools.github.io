@@ -10,7 +10,8 @@
  * ========================================================================= */
 (function () {
   'use strict';
-  if (window.self !== window.top) return;            // never inside an embedded iframe
+  var EMBED = window.CPR_ASSISTANT_EMBED === true;   // assistant.html (RepairQ overlay iframe)
+  if (window.self !== window.top && !EMBED) return;   // never inside an iframe unless embedding
   if (window.__cprAssistantLoaded) return;
   window.__cprAssistantLoaded = true;
 
@@ -84,9 +85,16 @@
     '.cpra-foot textarea:focus{border-color:#4FB0E3}' +
     '.cpra-send{flex:none;width:40px;height:40px;border:none;border-radius:11px;background:#DC282E;color:#fff;cursor:pointer;font-size:17px;font-weight:800}' +
     '.cpra-send:disabled{background:#E4A6A8;cursor:default}' +
-    '@media(max-width:520px){.cpra-panel{right:0;bottom:0;width:100vw;height:88vh;border-radius:16px 16px 0 0}.cpra-fab{right:16px;bottom:16px}}';
+    '@media(max-width:520px){.cpra-panel{right:0;bottom:0;width:100vw;height:88vh;border-radius:16px 16px 0 0}.cpra-fab{right:16px;bottom:16px}}' +
+    /* embed mode: the panel IS the page (RepairQ overlay hosts us in an iframe) */
+    'body.cpra-embed .cpra-fab{display:none!important}' +
+    'body.cpra-embed .cpra-panel{right:0;bottom:0;top:0;left:0;width:100%;height:100%;max-width:none;border:none;border-radius:0;box-shadow:none}' +
+    'body.cpra-embed .cpra-panel .x{display:none}' +
+    'body.cpra-embed .cpra-hd{display:none}' +
+    '.cpra-ctx{margin:8px 12px 0;padding:7px 11px;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:9px;font-size:.74rem;font-weight:700;color:#1E7AA8}';
 
   var MSGS = [];        // {role, content}
+  var CTX = null, CTX_SENT = false;   // RepairQ page context (embed mode)
   var busy = false;
   var els = {};
 
@@ -118,13 +126,30 @@
     panel.querySelector('.x').onclick = close;
     // expose so other UI (e.g. the dashboard "Ask AI" button) can open the panel
     window.CPRAssistant = { open: open, close: close };
+    if (EMBED) {
+      document.body.classList.add('cpra-embed');
+      open();
+      // the RepairQ overlay posts page context (ticket #, device, store, tech)
+      window.addEventListener('message', function (ev) {
+        var d = ev.data;
+        if (!d || d.type !== 'cpr-ctx' || typeof d.text !== 'string') return;
+        CTX = String(d.text).slice(0, 600); CTX_SENT = false;
+        if (els.ctx) { els.ctx.textContent = '📎 ' + CTX; }
+        else {
+          els.ctx = document.createElement('div');
+          els.ctx.className = 'cpra-ctx';
+          els.ctx.textContent = '📎 ' + CTX;
+          els.panel.insertBefore(els.ctx, els.body);
+        }
+      });
+    }
     els.send.onclick = onSend;
     els.ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } });
     els.ta.addEventListener('input', function () { els.ta.style.height = 'auto'; els.ta.style.height = Math.min(els.ta.scrollHeight, 120) + 'px'; });
   }
 
   function greet() {
-    addHint('Hi! I can help draft customer replies, read panic logs, and answer repair questions. Paste anything to get started. (I can’t see live store data yet — that’s coming.)');
+    addHint('Hi! Ask me anything — I answer from our Knowledge Base (policies, repair guides, SOPs) with links, plus customer replies and panic logs. (Live store data is coming soon.)');
   }
   function scroll() { els.body.scrollTop = els.body.scrollHeight; }
   function addHint(t) { var d = document.createElement('div'); d.className = 'cpra-hint'; d.textContent = t; els.body.appendChild(d); scroll(); }
@@ -143,7 +168,9 @@
     if (!tok) { addHint('Please unlock the site with your PIN first, then try again.'); return; }
 
     els.ta.value = ''; els.ta.style.height = 'auto';
-    MSGS.push({ role: 'user', content: text });
+    var outgoing = text;
+    if (CTX && !CTX_SENT) { outgoing = '[Where I am in RepairQ right now: ' + CTX + ']\n\n' + text; CTX_SENT = true; }
+    MSGS.push({ role: 'user', content: outgoing });
     addMsg('user', md(text));
 
     var bot = addMsg('assistant', '<span class="cpra-dots"><span></span><span></span><span></span></span>');

@@ -55,6 +55,7 @@ function saveOptions() {
     for (const k in lcdIds) {
         lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
     }
+    const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
     let customQuickLinkFrame1 = false;
     if (document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked') {
         customQuickLinkFrame1 = true;
@@ -80,7 +81,8 @@ function saveOptions() {
             customQuickLinkFrame3: customQuickLinkFrame3,
             enabled: checkedBoxes,
             cbt: {enabled: true, text: cbtText},
-            lcd: lcd
+            lcd: lcd,
+            ai: ai
         }, () => {
             alert('Options saved!');
         }
@@ -92,7 +94,7 @@ function restoreOptions() {
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
         'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
-        'enabled', 'cbt', 'lcd'
+        'enabled', 'cbt', 'lcd', 'ai'
     ])
     .then((result => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
@@ -117,6 +119,10 @@ function restoreOptions() {
                 el.className = 'ql-checkmark unchecked';
             }
         }
+        const aiEl = document.getElementById('aiEnabled');
+        const aiOn = !result.ai || result.ai.enabled !== false;
+        aiEl.setAttribute('data-checked', aiOn ? 'checked' : 'unchecked');
+        aiEl.className = 'lcd-checkmark ' + (aiOn ? 'checked' : 'unchecked');
         const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
         for (const k in lcdIds) {
             const el = document.getElementById(lcdIds[k]);

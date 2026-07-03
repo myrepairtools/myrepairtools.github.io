@@ -263,7 +263,13 @@ and Ben's RQ Mods (all its content scripts absorbed as-is; feature toggles prese
 in Options). New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
 edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
 watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
-/ticket/printLabel), vendored `scripts/qrcode.js`. Install unpacked or publish to the
+/ticket/printLabel), vendored `scripts/qrcode.js`, and
+`scripts/assistantOverlay.js` — a ✨ FAB in RepairQ opening `assistant.html`
+(iframe): the same cpr-assistant chat widget in embed mode
+(`window.CPR_ASSISTANT_EMBED`, full-viewport, auto-open, iframe-allowed), with
+the RepairQ page context (ticket #, store, tech, line items) posted in via
+postMessage and prepended to the first message. Auth rides the MRT origin's
+Supabase session (sign in once per browser); Options has an AI Assistant toggle. Install unpacked or publish to the
 Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
 the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
 sync.
