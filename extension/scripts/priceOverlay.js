@@ -92,22 +92,29 @@
 
         Object.assign(strip.style, {
             display:        'flex',
-            justifyContent: 'center',
-            gap:            '10px',
-            margin:         '2px 0 10px',   /* lifted off the price row — sits centered between SKU and Add */
-            padding:        '4px 6px',
+            /* margin-top:auto pins the strip to the card's bottom cluster
+               (flex-column cards), so a 1-line vs 2-line title no longer
+               moves it; in non-flex layouts it behaves like margin-top:0 */
+            margin:         'auto 0 10px',
+            padding:        '5px 6px',
             background:     '#2D2D3B',
             color:          '#fff',
             borderRadius:   '7px',
-            fontSize:       '11.5px',
-            fontWeight:     'bold',
-            lineHeight:     '1.2',
+            lineHeight:     '1.25',
             textAlign:      'center',
         });
 
+        // Fixed two-column, label-over-price layout — identical at every
+        // tile width (never collapses to one line or wraps unevenly)
+        function col(icon, label, price) {
+            return '<span style="flex:1 1 0;min-width:0;display:flex;flex-direction:column">' +
+                '<span style="font-size:10.5px;color:#B9BDCB;white-space:nowrap">' + icon + ' ' + label + '</span>' +
+                '<span style="font-size:12.5px;font-weight:bold;white-space:nowrap">' + price + '</span>' +
+            '</span>';
+        }
         strip.innerHTML =
-            '<span>🔧 <span style="color:#B9BDCB;font-weight:normal">Repair</span> ' + fmt(repairPrice(cost)) + '</span>' +
-            '<span>➕ <span style="color:#B9BDCB;font-weight:normal">Add-on</span> ' + fmt(addonPrice(cost)) + '</span>';
+            col('🔧', 'Repair', fmt(repairPrice(cost))) +
+            col('➕', 'Add-on', fmt(addonPrice(cost)));
         return strip;
     }
 
