@@ -11,8 +11,8 @@ CPR Oregon's RepairQ companion. One extension, three ancestries:
 
 ## LCD Buyback
 
-1. A tech adds a screen-repair line item for an **iPhone / Galaxy S /
-   Galaxy Note / Pixel** on a RepairQ ticket (`scripts/lcdCapture.js` watches
+1. A tech adds a screen-repair line item for an **iPhone / Galaxy S / Galaxy Note /
+   Galaxy Z (Fold/Flip) / Pixel** on a RepairQ ticket (`scripts/lcdCapture.js` watches
    `tr.ticket-item-row` on `/ticket/*`). Matching is by item **name**
    (device family + "screen repair/replacement"), so new models trigger
    automatically — no update needed. Families toggle in Options.

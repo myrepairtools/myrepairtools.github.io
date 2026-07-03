@@ -24,6 +24,7 @@
         { key: 'iphone',     label: 'iPhone',      re: /\biphone\b/i },
         { key: 'galaxys',    label: 'Galaxy S',    re: /galaxy\s*s\s*\d{1,2}\b/i },
         { key: 'galaxynote', label: 'Galaxy Note', re: /galaxy\s*note/i },
+        { key: 'galaxyz',    label: 'Galaxy Z',    re: /galaxy\s*z?\s*(fold|flip)/i },
         { key: 'pixel',      label: 'Pixel',       re: /\bpixel\b/i }
     ];
     var SCREEN_RE = /screen\s*(repair|replacement)/i;
@@ -31,7 +32,7 @@
     var PENDING_KEY = 'mrt_lcd_pending';   // answers waiting for a ticket number
     var DONE_KEY    = 'mrt_lcd_done';      // item names already asked (this tab)
 
-    var settings = { enabled: true, iphone: true, galaxys: true, galaxynote: true, pixel: true };
+    var settings = { enabled: true, iphone: true, galaxys: true, galaxynote: true, galaxyz: true, pixel: true };
     var queue = [];          // items waiting for the modal
     var modalOpen = false;
 

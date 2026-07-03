@@ -118,6 +118,7 @@ table.rep td{padding:10px 14px;border-bottom:1px solid var(--light-grey);font-si
     <button data-tab="queue">Queue<span class="cnt" id="cntQueue" hidden></span></button>
     <button data-tab="audits">Audits</button>
     <button data-tab="all">All records</button>
+    <button data-tab="prices" id="tabPrices" hidden>Prices</button>
   </div>
 
   <div class="filter" id="storeChips"></div>
@@ -167,23 +168,27 @@ let STORE=(function(){try{return localStorage.getItem('cprLcdStore')||'All';}cat
 let SEARCH='';
 let ROWS=[];            // lcd_displays (all, deleted=false)
 let AUDITS=[];          // lcd_audits
+let PRICES=null;        // model -> {id,value}; managers only (RLS), null = not loaded
 let OPEN_AUDIT=null;    // audit row being viewed (detail mode inside Audits tab)
 let SCANS=[];           // scans for OPEN_AUDIT
 let SCAN_BUCKET='good';
 
 function boot(){
   if(!AUTH){ $('#gate').hidden=false; return; }
-  if(isMgr(AUTH.role)) $('#btnNewAudit').hidden=false;
+  if(isMgr(AUTH.role)){ $('#btnNewAudit').hidden=false; $('#tabPrices').hidden=false; }
+  else if(TAB==='prices'){ TAB='queue'; }
   wireChrome();
   refresh();
 }
 
 async function refresh(){
-  const [d,a]=await Promise.all([
+  const [d,a,p]=await Promise.all([
     sb.from('lcd_displays').select('*').eq('deleted',false).order('captured_at',{ascending:false}).limit(3000),
-    sb.from('lcd_audits').select('*').order('created_at',{ascending:false})
+    sb.from('lcd_audits').select('*').order('created_at',{ascending:false}),
+    isMgr(AUTH.role)?sb.from('lcd_prices').select('*'):Promise.resolve({data:null})
   ]);
   ROWS=d.data||[]; AUDITS=a.data||[];
+  if(p.data){ PRICES={}; p.data.forEach(r=>PRICES[normKey(r.model)]={id:r.id,value:Number(r.value)||0,model:normModel(r.model)}); }
   if(OPEN_AUDIT){ const cur=AUDITS.find(x=>x.id===OPEN_AUDIT.id); if(cur) OPEN_AUDIT=cur; }
   render();
 }
@@ -212,6 +217,19 @@ function storesPresent(){
 }
 function storeMatch(r){ return STORE==='All'||r.store===STORE; }
 
+/* ===== prices (managers only — PRICES stays null for techs via RLS) ===== */
+function normModel(m){
+  return String(m||'').replace(/\s+/g,' ').trim().replace(/\s+(5G|4G)$/i,'');
+}
+function normKey(m){ return normModel(m).toLowerCase(); }   // case-insensitive price match
+function priceFor(r){
+  if(!PRICES||r.status!=='good')return null;           // good-only pricing
+  const p=PRICES[normKey(r.model)];
+  return p?p.value:null;
+}
+function fmt$(n){ return n==null?'—':'$'+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
+function sumValue(list){ let t=0; list.forEach(r=>{ const v=priceFor(r); if(v)t+=v; }); return t; }
+
 /* ===== queue / records ===== */
 function queueRows(){ return ROWS.filter(r=>!r.audit_id&&storeMatch(r)); }
 function searchMatch(r){
@@ -228,7 +246,8 @@ function statusPill(r){
 function rowsTable(list,showAudit){
   if(!list.length) return '<div class="empty">No displays here.</div>';
   return '<div class="scroll"><table class="rep"><thead><tr>'
-    +'<th>Ticket / Serial</th><th>Date</th><th>Model</th><th>Store</th><th>Status</th><th>Graded by</th>'
+    +'<th>Ticket / Serial</th><th>Date</th><th>Model</th><th>Store</th><th>Status</th>'
+    +(PRICES?'<th>Est. value</th>':'')+'<th>Graded by</th>'
     +(showAudit?'<th>Audit</th>':'')+'<th>Prints</th><th>Actions</th>'
     +'</tr></thead><tbody>'
     +list.map(r=>{
@@ -241,6 +260,7 @@ function rowsTable(list,showAudit){
       +'<td>'+esc(r.model)+'</td>'
       +'<td>'+esc(disp(r.store))+'</td>'
       +'<td>'+statusPill(r)+'</td>'
+      +(PRICES?'<td style="font-variant-numeric:tabular-nums;font-weight:700">'+fmt$(priceFor(r))+'</td>':'')
       +'<td>'+esc(r.graded_by||'—')+'</td>'
       +(showAudit?'<td>'+audTxt+'</td>':'')
       +'<td>'+(r.label_prints||0)+'</td>'
@@ -392,7 +412,11 @@ function auditSummary(a,exp,scans){
       good_right:cnt(g,'good'), good_wrong:cnt(g,'bad'),
       bad_right:cnt(b,'bad'),   bad_wrong:cnt(b,'good'),
       aftermarket:am.length
-    }
+    },
+    // dollars (only when the closer can see prices; frozen into the summary at close)
+    est_value_scanned:PRICES?g.reduce((t,s)=>{const d=ROWS.find(r=>r.id===s.display_id);
+      const p=d&&PRICES[normKey(d.model)];return t+(p?p.value:0);},0):null,
+    est_value_missing:PRICES?missing.reduce((t,r)=>t+(priceFor(r)||0),0):null
   };
 }
 async function closeAudit(){
@@ -446,6 +470,7 @@ async function renderView(){
       +'<div class="tile"><div class="n">'+list.length+'</div><div class="l">In the box</div></div>'
       +'<div class="tile"><div class="n" style="color:var(--green)">'+good+'</div><div class="l">Good</div></div>'
       +'<div class="tile"><div class="n" style="color:var(--red)">'+(list.length-good)+'</div><div class="l">Bad</div></div>'
+      +(PRICES?'<div class="tile"><div class="n" style="color:var(--green)">'+fmt$(sumValue(list))+'</div><div class="l">Est. box value</div></div>':'')
       +'<div class="tile"><div class="n">'+lastAuditLabel()+'</div><div class="l">Last audit</div></div>'
       +'</div>'
       +rowsTable(list,false);
@@ -457,9 +482,12 @@ async function renderView(){
       +'<div class="tile"><div class="n">'+list.length+'</div><div class="l">Total logged</div></div>'
       +'<div class="tile"><div class="n">'+list.filter(r=>r.audit_id&&!r.missing).length+'</div><div class="l">Audited / sold</div></div>'
       +'<div class="tile"><div class="n" style="color:var(--red)">'+missing+'</div><div class="l">Missing</div></div>'
+      +(PRICES?'<div class="tile"><div class="n" style="color:var(--red)">'+fmt$(sumValue(list.filter(r=>r.missing)))+'</div><div class="l">Missing value</div></div>':'')
       +'</div>'
       +rowsTable(list,true);
     wireRowActions();
+  } else if(TAB==='prices'){
+    renderPrices(v);
   } else if(TAB==='audits'){
     if(OPEN_AUDIT){ await renderAuditDetail(v); return; }
     const list=AUDITS.filter(a=>STORE==='All'||!a.store||a.store===STORE);
@@ -482,6 +510,45 @@ async function renderView(){
     }));
   }
 }
+/* ===== prices tab (managers) ===== */
+function renderPrices(v){
+  if(!PRICES){ v.innerHTML='<div class="note">Prices are manager-only.</div>'; return; }
+  const captured={};
+  ROWS.forEach(r=>{ const k=normKey(r.model); (captured[k]=captured[k]||{count:0,label:normModel(r.model)}).count++; });
+  const keys=Object.keys(Object.assign({},captured,PRICES)).sort((a,b)=>{
+    const ua=!(PRICES[a]&&PRICES[a].value>0)&&captured[a]?0:1, ub=!(PRICES[b]&&PRICES[b].value>0)&&captured[b]?0:1;
+    return ua-ub||a.localeCompare(b);
+  });
+  v.innerHTML='<div class="note" style="margin-bottom:12px">Recycler pays for <b>GOOD</b> pulls only — bad and aftermarket always count as $0. '
+    +'Every model that has ever been captured shows here; unpriced ones float to the top. Prices are estimates for the box value and audits.</div>'
+    +'<div class="scroll"><table class="rep"><thead><tr><th>Model</th><th>Captured</th><th>Good value</th><th></th></tr></thead><tbody>'
+    +keys.map(k=>{
+      const p=PRICES[k], c=captured[k];
+      const label=(p&&p.model)||(c&&c.label)||k;
+      const unpriced=!(p&&p.value>0)&&c;
+      return '<tr>'
+        +'<td style="font-weight:700">'+esc(label)+(unpriced?' <span class="chip warn">unpriced</span>':'')+'</td>'
+        +'<td>'+(c?c.count:'—')+'</td>'
+        +'<td><input type="number" min="0" step="0.01" data-price="'+esc(label)+'" value="'+(p?p.value:'')+'" placeholder="0.00" '
+          +'style="width:110px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem;padding:7px 10px;border:1px solid var(--border);border-radius:9px"></td>'
+        +'<td style="color:var(--grey);font-size:.75rem">'+(p?'':'not saved')+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+  document.querySelectorAll('[data-price]').forEach(inp=>{
+    inp.addEventListener('change',async()=>{
+      const label=inp.dataset.price, k=normKey(label), val=Number(inp.value)||0;
+      const p=PRICES[k];
+      const res=p
+        ?await sb.from('lcd_prices').update({value:val,updated_by:AUTH.id,updated_at:new Date().toISOString()}).eq('id',p.id).select().single()
+        :await sb.from('lcd_prices').insert({model:label,value:val,updated_by:AUTH.id}).select().single();
+      if(res.error){ toast('Save failed: '+res.error.message,true); return; }
+      PRICES[k]={id:res.data.id,value:val,model:label};
+      toast(label+' → '+fmt$(val));
+    });
+  });
+}
+
 function gradeAcc(s){
   if(!s.accuracy)return '—';
   const right=(s.accuracy.good_right||0)+(s.accuracy.bad_right||0);
@@ -516,6 +583,8 @@ async function renderAuditDetail(v){
     +'<div class="sumbox"><div class="v" style="color:var(--red)">'+sum.missing+'</div><div class="k">Missing</div></div>'
     +'<div class="sumbox"><div class="v" style="color:var(--amber)">'+(sum.accuracy.aftermarket||0)+'</div><div class="k">Aftermarket</div></div>'
     +'<div class="sumbox"><div class="v">'+gradeAcc(sum)+'</div><div class="k">Grade accuracy</div></div>'
+    +(PRICES&&sum.est_value_scanned!=null?'<div class="sumbox"><div class="v" style="color:var(--green)">'+fmt$(sum.est_value_scanned)+'</div><div class="k">Est. payout (good)</div></div>':'')
+    +(PRICES&&sum.est_value_missing!=null&&sum.est_value_missing>0?'<div class="sumbox"><div class="v" style="color:var(--red)">'+fmt$(sum.est_value_missing)+'</div><div class="k">Missing value</div></div>':'')
     +'</div>'
     +(open?'<div class="scan-tabs">'
       +'<button class="g '+(SCAN_BUCKET==='good'?'on':'')+'" data-b="good">✓ GOOD <span class="chip">'+SCANS.filter(s=>s.bucket==='good').length+'</span></button>'

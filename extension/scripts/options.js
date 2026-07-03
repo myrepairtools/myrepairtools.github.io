@@ -50,7 +50,7 @@ function saveOptions() {
     const customQuickLinkUrl3 = document.getElementById('customQuickLinkUrl3').value;
     const cbtText = document.getElementById('binLabelName').value;
     // LCD Buyback toggles (own storage key so the legacy `enabled` array is untouched)
-    const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', pixel: 'lcdPixel' };
+    const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
     let lcd = {};
     for (const k in lcdIds) {
         lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
@@ -117,7 +117,7 @@ function restoreOptions() {
                 el.className = 'ql-checkmark unchecked';
             }
         }
-        const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', pixel: 'lcdPixel' };
+        const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
         for (const k in lcdIds) {
             const el = document.getElementById(lcdIds[k]);
             const on = !result.lcd || result.lcd[k] !== false;   // default: everything on

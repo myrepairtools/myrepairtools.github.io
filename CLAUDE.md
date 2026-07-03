@@ -223,14 +223,19 @@ paystatus — flips to paid by checking the Square order / send — emails the l
 Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
 
 **LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
-Galaxy Note / Pixel screen repair gets graded, labeled, boxed, and audited when the
+Galaxy Note / Galaxy Z / Pixel screen repair gets graded, labeled, boxed, and audited when the
 recycler buys. Tables: `lcd_displays` (**ticket_no = the display's serial and the QR
 content**; item_key disambiguates 2+ pulls on one ticket; store, model, status
 good|bad, graded_by + resolved staff_id, status_history jsonb, label_prints,
 audit_id/audit_result/audited_at, missing, deleted) + `lcd_audits` (store null = all,
 start/end window, open→closed, summary jsonb frozen at close) + `lcd_audit_scans`
 (bucket good|bad|aftermarket, recorded_status snapshot, is_match; unique
-audit+ticket). Capture happens in the **myRepairTools Chrome extension** (see below):
+audit+ticket) + `lcd_prices` (per-model GOOD-pull value; key normalized —
+whitespace collapsed, trailing 5G/4G stripped, case-insensitive match; **manager-only
+by RLS** so techs never see dollars; edited on the page's Prices tab, unpriced
+captured models float to the top; seeded from the recycler's cpr.parts sheet, OEM
+column). Est. value shows managers a value column, box-value/missing-value tiles,
+and payout + missing dollars frozen into the audit summary at close. Capture happens in the **myRepairTools Chrome extension** (see below):
 adding a matching screen-repair line item pops a Good/Bad modal — the trigger is
 text-based on the item NAME (family regex + "screen repair/replacement") so new
 models need no update; families toggle in extension Options. Answers POST to the
