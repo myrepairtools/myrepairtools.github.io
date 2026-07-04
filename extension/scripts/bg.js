@@ -122,6 +122,65 @@ function injectSignature() {
     }
 }
 
+/* ---------------- Promised-on setter (Promise-Time Advisor) ---------------- */
+
+// Runs in the PAGE's MAIN world: uses RepairQ's own jQuery datepicker so its
+// change handlers fire and populate the estimate-time dropdown, then picks
+// the closest not-earlier slot to the requested time.
+function setEstimate(dateStr, timeText) {
+    try {
+        var $ = window.jQuery;
+        var d = document.getElementById('TicketForm_repair_estimated_day_local');
+        if (!d) return { ok: false, reason: 'no estimate field' };
+        if ($ && $(d).hasClass('hasDatepicker')) {
+            $(d).datepicker('setDate', dateStr);
+            $(d).trigger('change');
+        } else {
+            d.value = dateStr;
+            d.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        function toMins(s) {
+            var m = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(s || '');
+            if (!m) return -1;
+            var h = +m[1] % 12; if (/pm/i.test(m[3] || '')) h += 12;
+            return h * 60 + (+m[2]);
+        }
+        var want = toMins(timeText), tries = 0;
+        (function pick() {
+            var sel = document.querySelector('select[name="TicketForm[repair_estimated_time]"]');
+            if (sel && sel.options.length) {
+                sel.disabled = false;
+                var best = null, bestM = 1e9;
+                for (var i = 0; i < sel.options.length; i++) {
+                    var mm = toMins(sel.options[i].text);
+                    if (mm >= want && mm < bestM) { bestM = mm; best = sel.options[i]; }
+                }
+                if (!best) best = sel.options[sel.options.length - 1];   // past last slot → latest
+                sel.value = best.value;
+                if ($) $(sel).trigger('change');
+                else sel.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+            if (++tries < 20) setTimeout(pick, 150);
+        })();
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, reason: String(e && e.message || e) };
+    }
+}
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'mrt:setEstimate' || !sender.tab) return;
+    chrome.scripting.executeScript({
+        target: { tabId: sender.tab.id },
+        world: 'MAIN',
+        func: setEstimate,
+        args: [String(msg.dateStr || ''), String(msg.timeText || '')]
+    }).then(function (r) { sendResponse({ result: r && r[0] && r[0].result }); })
+      .catch(function (err) { sendResponse({ error: String(err && err.message || err) }); });
+    return true;
+});
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || msg.type !== 'mcpr:signature' || !sender.tab) return;
     chrome.scripting.executeScript({

@@ -277,7 +277,17 @@ Ready for Repair; excludes Waiting*, Pending Notification, pickup/closed — tho
 times are customer appointments, not repair dues), ranks express → overdue → due-soonest
 → oldest, and shows NEXT UP with Open/Skip plus a 📺 board mode (top 12, urgency colors).
 Rows parse defensively from `tr[data-id]` + `td[data-column]` (id/items/status/est);
-tuned against a saved copy of the real Active Repair Queue view. **RepairQ workflow
+tuned against a saved copy of the real Active Repair Queue view. Workable tickets with
+no due time get a red pill + a "⚠ N without a promise time" banner. **Promise-Time
+Advisor** (`promiseTime.js`): every RepairQ tab keeps a 5-min queue snapshot
+(chrome.storage.local `mrt_queue_snapshot`); ticket create/edit pages show a chip —
+"N repairs in the queue → tell the customer <time>" (lead = (depth+1)×minsPer, rounded
+up to :30, rolled past close−30min to open+1h next day, never before opening) — whose
+"Use it" writes RepairQ's OWN Promised-on fields (bg.js MAIN-world: jQuery
+datepicker.setDate then picks the nearest not-earlier slot in the dynamically-populated
+`TicketForm[repair_estimated_time]` select). Saving with no promise time opens a soft
+gate (suggested/+2h/+4h/EOD/tomorrow, skip allowed). Config in Options (wn.promise,
+wn.minsPer 45, wn.open/wn.close). **RepairQ workflow
 tools** (absorbed from MyCPRTools, a fellow franchisee's extension): `mcprUtils.js` +
 `mcprConfig.js` (fetch-based; dynamic assignee lookup — no hardcoded roster) power
 Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lacks a

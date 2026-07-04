@@ -121,6 +121,10 @@ unpacked folders, and no more waiting on anyone else to publish updates.
 - `scripts/lcdCapture.js`, `scripts/lcdLabel.js`, `scripts/printGate.js`,
   `style/lcd.css` — the LCD buyback feature.
 - `scripts/whatsNext.js` + `style/whatsnext.css` — the What's Next queue.
+- `scripts/promiseTime.js` — the Promise-Time Advisor: rolling queue
+  snapshot + suggested pickup time on new tickets, one tap writes
+  RepairQ's Promised-on date/time (bg.js MAIN-world datepicker driver),
+  soft nudge when saving without one. Settings live in the `wn` object.
 - `scripts/assistantOverlay.js` + `style/assistant.css` — the AI overlay.
 - `scripts/mcprConfig.js`, `scripts/mcprUtils.js`, `scripts/partsGate.js`,
   `scripts/updateAssignee.js`, `scripts/stockBadges.js`,

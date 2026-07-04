@@ -56,7 +56,13 @@ function saveOptions() {
         lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
     }
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
-    const wn = { enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked' };
+    const wn = {
+        enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked',
+        promise: document.getElementById('wnPromise').getAttribute('data-checked') === 'checked',
+        minsPer: Number(document.getElementById('wnMinsPer').value) || 45,
+        open: document.getElementById('wnOpen').value || '10:00',
+        close: document.getElementById('wnClose').value || '19:00'
+    };
     // RepairQ workflow tools (absorbed from MyCPRTools)
     const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
     let mcpr = {};
@@ -137,6 +143,13 @@ function restoreOptions() {
         const wnOn = !result.wn || result.wn.enabled !== false;
         wnEl.setAttribute('data-checked', wnOn ? 'checked' : 'unchecked');
         wnEl.className = 'lcd-checkmark ' + (wnOn ? 'checked' : 'unchecked');
+        const wnP = document.getElementById('wnPromise');
+        const wnPOn = !result.wn || result.wn.promise !== false;
+        wnP.setAttribute('data-checked', wnPOn ? 'checked' : 'unchecked');
+        wnP.className = 'lcd-checkmark ' + (wnPOn ? 'checked' : 'unchecked');
+        document.getElementById('wnMinsPer').value = (result.wn && result.wn.minsPer) || 45;
+        document.getElementById('wnOpen').value = (result.wn && result.wn.open) || '10:00';
+        document.getElementById('wnClose').value = (result.wn && result.wn.close) || '19:00';
         // RepairQ workflow tools — safe tools default ON, aggressive ones OFF
         const mcpr = result.mcpr || {};
         const mcprDefaults = { partsGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false };

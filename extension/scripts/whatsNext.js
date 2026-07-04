@@ -164,8 +164,9 @@
     }
     function urgency(t) {
         if (t.express) return 'express';
-        if (t.due && t.due.getTime() < Date.now()) return 'overdue';
-        if (t.due && t.due.getTime() - Date.now() < 3600000) return 'soon';
+        if (!t.due) return 'nodue';
+        if (t.due.getTime() < Date.now()) return 'overdue';
+        if (t.due.getTime() - Date.now() < 3600000) return 'soon';
         return 'ok';
     }
     function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -195,13 +196,19 @@
                 '.<br><span>Either you\'re caught up, or the parser needs tuning for this view — tell a manager.</span></div>';
             return;
         }
+        var noDue = q.filter(function (t) { return !t.due; }).length;
+        var noDueLine = noDue
+            ? '<div class="mrt-wn-nodue">⚠ ' + noDue + ' workable ticket' + (noDue > 1 ? 's have' : ' has') +
+              ' no promise time — set one on the ticket\'s ESTIMATE box</div>'
+            : '';
         if (boardMode) {
-            box.innerHTML = '<div class="mrt-wn-boardlist">' + q.slice(0, 12).map(function (t, i) {
+            box.innerHTML = noDueLine + '<div class="mrt-wn-boardlist">' + q.slice(0, 12).map(function (t, i) {
                 return '<div class="row"><span class="rank">' + (i + 1) + '</span>' + card(t) + '</div>';
             }).join('') + '</div>';
         } else {
             var next = q[0];
             box.innerHTML =
+                noDueLine +
                 '<div class="mrt-wn-nextlbl">NEXT UP</div>' + card(next, true) +
                 '<div class="mrt-wn-actions">' +
                   '<button class="go" data-go="' + esc(next.href) + '">Open ticket #' + esc(next.no) + ' →</button>' +
