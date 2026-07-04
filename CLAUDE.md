@@ -287,7 +287,12 @@ Assignee (one-click assign-to-me, default ON), Stock Badges (on-hand qty badges 
 MobileSentrix/cpr.parts tiles, default ON), Price Overlay (`priceOverlay.js`, ours not
 MyCPRTools', default ON — customer Repair price (part+$100 labor, fee-loaded,
 CPR-rounded) + Add-on price (2×/1.5×/+$25 markup, fee-loaded) under each supplier tile;
-math mirrors `popup/popup.js`, keep in sync), Popup Blocker (auto-advances claim
+math mirrors `popup/popup.js`, keep in sync), KBB Returns (`kbbReturns.js`, default ON —
+Apple Known-Bad-Board return matcher across cpr.parts `/kbbprocessing` + RepairQ
+`/rmaTracking`: scan return-order #s once → ticks matching cpr.parts rows and harvests each
+row's RQ ticket # + KBB serial into a chrome.storage.local batch → on RepairQ ticks rows by
+KBB serial (identical cross-system) else ticket # for no-serial parts; turns ~1hr of manual
+cross-referencing into seconds), Popup Blocker (auto-advances claim
 walkthrough / T&C / signature — bg.js injects a jSignature stroke MAIN-world — **default
 OFF** because it signs forms), and Clock Guard (blocks early clock-in, configurable
 time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). Install unpacked or publish to the

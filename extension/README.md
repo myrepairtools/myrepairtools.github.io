@@ -45,6 +45,18 @@ CPR Oregon's RepairQ companion. One extension, three ancestries:
     fee-loaded). The math mirrors `popup/popup.js` — keep them in sync.
     Prefers the sale price when a tile shows one; stays silent on tiles
     with no readable price.
+  - **KBB Returns** (`scripts/kbbReturns.js` + `style/kbb.css`, default ON —
+    ours) — automates checking off Apple Known-Bad-Board returns across
+    **cpr.parts** (`/kbbprocessing`) and **RepairQ** (`/rmaTracking`). A
+    📦 KBB panel: scan your return-order numbers (HAL…) once; on cpr.parts
+    it ticks every matching row's checkbox *and harvests* that row's RQ
+    ticket # + KBB serial into a shared batch (chrome.storage.local); on
+    RepairQ it ticks the matching rows using the harvested KBB serial
+    (identical across both systems) — falling back to ticket # for
+    no-serial parts, consumed one row at a time so multiple no-serial
+    parts on one ticket still line up. You still process the returns
+    manually; the tool only does the cross-reference + check-off that used
+    to take ~an hour.
   - **Popup Blocker** (`scripts/popupBlocker.js`, **default OFF**) —
     auto-dismisses yellow banners (keeps "Find My" warnings) and
     auto-advances the claim walkthrough, T&C + signature flow (bg.js
@@ -116,6 +128,9 @@ unpacked folders, and no more waiting on anyone else to publish updates.
   tools (from MyCPRTools). Settings live in the synced `mcpr` object.
 - `scripts/priceOverlay.js` — customer Repair/Add-on prices on supplier
   tiles (Price Calculator math; also toggled via the `mcpr` object).
+- `scripts/kbbReturns.js` + `style/kbb.css` — the KBB Returns matcher
+  (cpr.parts /kbbprocessing + RepairQ /rmaTracking; batch in
+  chrome.storage.local; toggled via the `mcpr` object).
 - `scripts/qrcode.js` — vendored [qrcode-generator](https://www.npmjs.com/package/qrcode-generator) (MIT).
 - everything else in `scripts/` + `style/` — RQ Mods features, unmodified;
   their on/off switches are the checkbox list in Options (`options.html`).
