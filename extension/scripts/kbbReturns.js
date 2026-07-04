@@ -43,7 +43,8 @@
     function txt(el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
     function normSerial(s) {
         s = (s || '').replace(/\s+/g, ' ').trim();
-        if (/^(-|n\/?a|no ?serial|old ?serial)$/i.test(s)) return '';   // "no serial" sentinels
+        // "no serial" sentinels either side may use
+        if (/^(-|n\/?a|no ?serial( ?number)?|old ?serial( ?number)?)$/i.test(s)) return '';
         return s.toUpperCase();
     }
     function normRet(s) { return (s || '').replace(/\s+/g, '').toUpperCase(); }
@@ -81,6 +82,10 @@
             }
             var ret = normRet(txt(retLi).replace(/^Return order #\s*/i, ''));
             var serial = normSerial(txt(serLi).replace(/^KBB Serial\s*/i, ''));
+            // No-serial parts: Mobile Sentrix substitutes the RETURN ORDER # into
+            // the KBB Serial spot. That's not a serial — blank it so the RepairQ
+            // side knows to bridge return order # → ticket # instead.
+            if (serial && normRet(serial) === ret) serial = '';
             var sku = txt(ul.querySelector('li.sku')).replace(/^SKU\s*/i, '');
             if (ret) out.push({ ret: ret, ticket: ticket, serial: serial, sku: sku, box: box, checked: box && box.checked });
         });
