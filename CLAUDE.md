@@ -286,8 +286,13 @@ up to :30, rolled past close−30min to open+1h next day, never before opening) 
 "Use it" writes RepairQ's OWN Promised-on fields (bg.js MAIN-world: jQuery
 datepicker.setDate then picks the nearest not-earlier slot in the dynamically-populated
 `TicketForm[repair_estimated_time]` select). Saving with no promise time opens a soft
-gate (suggested/+2h/+4h/EOD/tomorrow, skip allowed). Config in Options (wn.promise,
-wn.minsPer 45, wn.open/wn.close). **RepairQ workflow
+gate (suggested/+2h/+4h/EOD/tomorrow, skip allowed). A 🕐 pill in the header (the spot
+left of the search bar) is the always-on clock: "New repairs by <time> · N in queue ·
+~M min/repair", re-rendered every minute and on snapshot changes. Pace is LIVE: each
+refresh diffs workable ticket-ids vs the previous snapshot — departures over a 90-min
+window set observed mins/repair (≥2 departures, clamped 10..2×minsPer, else the
+configured default), so banging out repairs pulls promises in and a growing queue
+pushes them out. Config in Options (wn.promise, wn.minsPer 45, wn.open/wn.close). **RepairQ workflow
 tools** (absorbed from MyCPRTools, a fellow franchisee's extension): `mcprUtils.js` +
 `mcprConfig.js` (fetch-based; dynamic assignee lookup — no hardcoded roster) power
 Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lacks a

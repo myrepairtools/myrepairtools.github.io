@@ -45,7 +45,7 @@
     function parseCount(html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var scope = doc.getElementById('mainModelList') || doc;
-        var workable = 0, noDue = 0;
+        var workable = 0, noDue = 0, ids = [];
         scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
             var cols = {};
             tr.querySelectorAll('td[data-column]').forEach(function (td) {
@@ -54,26 +54,61 @@
             var status = cols.status || '';
             if (!status || EXCLUDE.test(status) || !INCLUDE.test(status)) return;
             workable++;
+            ids.push(tr.getAttribute('data-id'));
             if (!cols.est || cols.est === '-') noDue++;
         });
         var next = doc.querySelector('#gridPagination .next:not(.disabled) a[href]');
-        return { workable: workable, noDue: noDue, next: next ? next.getAttribute('href') : null };
+        return { workable: workable, noDue: noDue, ids: ids, next: next ? next.getAttribute('href') : null };
+    }
+
+    /*  Live pace: each refresh diffs the workable ticket-id set against the
+        previous snapshot. Tickets that LEFT the workable queue = capacity
+        freed (finished, or parked waiting) — those departures, over a
+        90-minute window, set the observed minutes-per-repair. Bust out three
+        screens and the window shows 3 gone → ~30 min pace → new promise
+        times pull in (but only by what the remaining queue allows — the
+        backlog still has to be chewed through). Quiet spell → pace decays
+        back toward the configured default. */
+    var PACE_WINDOW = 90 * 60 * 1000;
+
+    function computePace(events, now) {
+        var gone = 0;
+        events.forEach(function (e) { if (now - e.t <= PACE_WINDOW) gone += e.gone; });
+        if (gone < 2) return cfg.minsPer;                       // not enough signal — use the dial
+        var pace = (PACE_WINDOW / 60000) / gone;                // window minutes per departure
+        return Math.max(10, Math.min(cfg.minsPer * 2, pace));   // clamp to sane bounds
     }
 
     function refreshSnapshot() {
-        var total = { workable: 0, noDue: 0 };
+        var total = { workable: 0, noDue: 0, ids: [] };
         function pageIn(url, depth) {
             return fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.text(); })
                 .then(function (html) {
                     var p = parseCount(html);
                     total.workable += p.workable; total.noDue += p.noDue;
+                    total.ids = total.ids.concat(p.ids);
                     if (p.next && depth < 3) return pageIn(p.next, depth + 1);
                 });
         }
-        return pageIn('/ticket', 1).then(function () {
-            snapshot = { when: Date.now(), workable: total.workable, noDue: total.noDue };
-            try { chrome.storage.local.set({ [SNAP_KEY]: snapshot }); } catch (e) {}
-            return snapshot;
+        return new Promise(function (res) {
+            chrome.storage.local.get([SNAP_KEY]).then(function (r) { res((r && r[SNAP_KEY]) || null); })
+                .catch(function () { res(null); });
+        }).then(function (prev) {
+            return pageIn('/ticket', 1).then(function () {
+                var now = Date.now();
+                var events = (prev && prev.events || []).filter(function (e) { return now - e.t <= PACE_WINDOW * 2; });
+                if (prev && prev.ids && prev.ids.length) {
+                    var cur = {}; total.ids.forEach(function (id) { cur[id] = 1; });
+                    var gone = prev.ids.filter(function (id) { return !cur[id]; }).length;
+                    if (gone > 0) events.push({ t: now, gone: gone });
+                }
+                snapshot = {
+                    when: now, workable: total.workable, noDue: total.noDue,
+                    ids: total.ids, events: events, effMins: computePace(events, now)
+                };
+                try { chrome.storage.local.set({ [SNAP_KEY]: snapshot }); } catch (e) {}
+                return snapshot;
+            });
         });
     }
 
@@ -94,10 +129,11 @@
         return m ? { h: +m[1], m: +m[2] } : dflt;
     }
 
-    function suggest(workable, now) {
+    function suggest(workable, now, effMins) {
         now = now || new Date();
+        var per = effMins || (snapshot && snapshot.effMins) || cfg.minsPer;
         var open = hm(cfg.open, { h: 10, m: 0 }), close = hm(cfg.close, { h: 19, m: 0 });
-        var lead = Math.max(90, (workable + 1) * cfg.minsPer);   // this ticket joins the line
+        var lead = Math.max(90, (workable + 1) * per);           // this ticket joins the line
         var t = new Date(now.getTime() + lead * 60000);
         t.setSeconds(0, 0);
         t.setMinutes(Math.ceil(t.getMinutes() / 30) * 30);       // round UP to :00/:30
@@ -241,12 +277,71 @@
         }, true);   // capture, ahead of RepairQ's handlers
     }
 
+    /* ---------------- the live pickup-time pill ---------------- */
+    // Sits in the header spot left of the search bar (where the What's Next
+    // button first lived) — a constant clock everyone can see, re-derived
+    // from the queue snapshot: finish repairs fast and it pulls in, pile
+    // tickets on and it pushes out.
+
+    var pill = null;
+
+    function pillText() {
+        if (!snapshot) return '';
+        var t = suggest(snapshot.workable, new Date(), snapshot.effMins);
+        return '🕐 New repairs by <b>' + fmtWhen(t) + '</b>' +
+               '<span class="mrt-pt-pill-sub">' + snapshot.workable + ' in queue · ~' +
+               Math.round(snapshot.effMins || cfg.minsPer) + ' min/repair</span>';
+    }
+
+    function placePill() {
+        var navSpot = document.getElementById('globalSearches');
+        if (!navSpot || !navSpot.parentElement) return;
+        if (document.querySelector('.mrt-pt-pill')) return;
+
+        pill = document.createElement('span');
+        pill.className = 'mrt-pt-pill';
+        pill.title = 'Recommended pickup time for a repair dropped off right now — live from the workable queue and the last 90 minutes of completions';
+        navSpot.parentElement.insertBefore(pill, navSpot);
+
+        function tick() {
+            if (!document.querySelector('.mrt-pt-pill')) return;
+            var html = pillText();
+            if (html) { pill.innerHTML = html; pill.style.display = ''; }
+            else pill.style.display = 'none';
+        }
+        getSnapshot().then(tick);
+        setInterval(tick, 60000);                       // the clock keeps walking
+        try {                                           // any tab's refresh updates every tab
+            chrome.storage.onChanged.addListener(function (ch, area) {
+                if (area === 'local' && ch[SNAP_KEY]) { snapshot = ch[SNAP_KEY].newValue; tick(); }
+            });
+        } catch (e) {}
+    }
+
+    function injectPillStyles() {
+        if (document.getElementById('mrtPtPillStyles')) return;
+        var s = document.createElement('style'); s.id = 'mrtPtPillStyles';
+        s.textContent =
+        '.mrt-pt-pill{display:inline-block;vertical-align:middle;margin:4px 12px 0 0;padding:5px 13px;' +
+          'background:#2D2D3B;color:#fff;border-radius:999px;font-family:"Nunito","Segoe UI",sans-serif;' +
+          'font-weight:800;font-size:12.5px;line-height:1.25;box-shadow:0 2px 8px rgba(45,45,59,.3);white-space:nowrap}' +
+        '.mrt-pt-pill b{color:#7FD4A0}' +
+        '.mrt-pt-pill .mrt-pt-pill-sub{display:block;font-weight:700;font-size:10px;color:#B9BDCB}';
+        document.head.appendChild(s);
+    }
+
     /* ---------------- boot ---------------- */
 
     function start() {
         // every RepairQ tab keeps the snapshot warm
         getSnapshot();
         setInterval(function () { refreshSnapshot().catch(function () {}); }, SNAP_TTL);
+
+        // the always-on pickup-time clock (skip the returns page — KBB panel lives there)
+        if (!/rmaTracking/i.test(location.pathname)) {
+            injectPillStyles();
+            placePill();
+        }
 
         // advisor UI only where the ESTIMATE box lives
         if (/\/ticket\/(repair|add|edit)/.test(location.pathname)) {
