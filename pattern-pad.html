@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Unlock Pattern</title>
+<style>
+  :root { --dot:#c3c8d4; --dot-on:#4FB0E3; --line:#4FB0E3; --ink:#2D2D3B; }
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  html, body { margin: 0; height: 100%; font-family: 'Nunito Sans', -apple-system, 'Segoe UI', Arial, sans-serif; background: #fff; color: var(--ink); }
+  .wrap { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px; }
+  h1 { font-size: 17px; margin: 0 0 2px; font-weight: 800; }
+  p.sub { font-size: 13px; color: #8A8FA3; margin: 0 0 10px; text-align: center; }
+  .padwrap { position: relative; touch-action: none; }
+  svg { display: block; touch-action: none; }
+  .dot { fill: var(--dot); transition: fill .06s; }
+  .dot.on { fill: var(--dot-on); }
+  .halo { fill: rgba(79,176,227,.18); opacity: 0; transition: opacity .06s; }
+  .halo.on { opacity: 1; }
+  .path { fill: none; stroke: var(--line); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  .readout { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 26px; letter-spacing: .14em; min-height: 34px; margin: 12px 0 4px; color: var(--ink); }
+  .readout .ph { color: #C3C8D4; font-weight: 700; letter-spacing: normal; font-size: 15px; }
+  .btns { display: flex; gap: 12px; margin-top: 6px; }
+  button { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; border-radius: 12px; padding: 12px 22px; cursor: pointer; border: 1.5px solid #E0E2EA; background: #fff; color: #4E4E50; }
+  button.go { background: #DC282E; border-color: #DC282E; color: #fff; }
+  button:disabled { opacity: .45; }
+  .done { display: none; text-align: center; }
+  .done.show { display: block; }
+  .done .big { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 30px; letter-spacing: .16em; color: #2E9E5B; margin: 6px 0 2px; }
+  .saved { color: #2E9E5B; font-weight: 800; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Draw your unlock pattern</h1>
+  <p class="sub">Trace it exactly the way you unlock your phone.</p>
+
+  <div class="padwrap" id="padwrap">
+    <svg id="pad" width="300" height="300" viewBox="0 0 300 300" aria-label="unlock pattern pad">
+      <path class="path" id="livePath" d=""></path>
+      <g id="nodes"></g>
+    </svg>
+  </div>
+
+  <div class="readout" id="readout"><span class="ph">tap-drag the dots…</span></div>
+  <div class="btns" id="btns">
+    <button id="clearBtn" disabled>Clear</button>
+    <button id="doneBtn" class="go" disabled>Done</button>
+  </div>
+
+  <div class="done" id="doneCard">
+    <div class="sub">Pattern recorded</div>
+    <div class="big" id="doneDigits"></div>
+    <div class="saved" id="savedMsg"></div>
+    <div class="btns"><button id="redoBtn">Draw again</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // 3x3 node centers (viewBox 300); ids 1..9 left-to-right, top-to-bottom
+  var CX = [70, 150, 230], seq = [], drawing = false;
+  var pad = document.getElementById('pad'), nodes = document.getElementById('nodes'),
+      livePath = document.getElementById('livePath'), readout = document.getElementById('readout'),
+      clearBtn = document.getElementById('clearBtn'), doneBtn = document.getElementById('doneBtn'),
+      doneCard = document.getElementById('doneCard'), padwrap = document.getElementById('padwrap');
+  var NODES = [];
+  for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+    var n = r * 3 + c + 1, x = CX[c], y = CX[r];
+    NODES.push({ n: n, x: x, y: y });
+    nodes.insertAdjacentHTML('beforeend',
+      '<circle class="halo" data-h="' + n + '" cx="' + x + '" cy="' + y + '" r="34"></circle>' +
+      '<circle class="dot" data-d="' + n + '" cx="' + x + '" cy="' + y + '" r="12"></circle>');
+  }
+  function node(n) { return NODES[n - 1]; }
+  function ptFromEvent(e) {
+    var rect = pad.getBoundingClientRect();
+    var t = (e.touches && e.touches[0]) || e;
+    return { x: (t.clientX - rect.left) / rect.width * 300, y: (t.clientY - rect.top) / rect.height * 300 };
+  }
+  function hitNode(p) {
+    for (var i = 0; i < NODES.length; i++) {
+      var dx = p.x - NODES[i].x, dy = p.y - NODES[i].y;
+      if (dx * dx + dy * dy <= 30 * 30) return NODES[i].n;
+    }
+    return 0;
+  }
+  // Android rule: crossing the midpoint between two dots auto-selects it
+  function midBetween(a, b) {
+    var A = node(a), B = node(b);
+    var mr = (Math.round((A.y === B.y) ? A.y : -1)); // not used; explicit table below
+    var mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    for (var i = 0; i < NODES.length; i++) {
+      if (Math.abs(NODES[i].x - mx) < 1 && Math.abs(NODES[i].y - my) < 1) return NODES[i].n;
+    }
+    return 0;
+  }
+  function addNode(n) {
+    if (!n || seq.indexOf(n) !== -1) return;
+    if (seq.length) {
+      var mid = midBetween(seq[seq.length - 1], n);
+      if (mid && seq.indexOf(mid) === -1) select(mid);
+    }
+    select(n);
+  }
+  function select(n) {
+    seq.push(n);
+    pad.querySelector('[data-d="' + n + '"]').classList.add('on');
+    pad.querySelector('[data-h="' + n + '"]').classList.add('on');
+    render();
+    clearBtn.disabled = false;
+    doneBtn.disabled = seq.length < 2;
+  }
+  function render(livePoint) {
+    var d = '';
+    seq.forEach(function (n, i) { var p = node(n); d += (i ? 'L' : 'M') + p.x + ' ' + p.y + ' '; });
+    if (livePoint && seq.length) d += 'L' + livePoint.x + ' ' + livePoint.y;
+    livePath.setAttribute('d', d.trim());
+    readout.textContent = seq.join('');
+    if (!seq.length) readout.innerHTML = '<span class="ph">tap-drag the dots…</span>';
+  }
+  function clear() {
+    seq = []; drawing = false;
+    pad.querySelectorAll('.on').forEach(function (el) { el.classList.remove('on'); });
+    livePath.setAttribute('d', '');
+    render(); clearBtn.disabled = true; doneBtn.disabled = true;
+  }
+  function down(e) { e.preventDefault(); clear(); drawing = true; var p = ptFromEvent(e); addNode(hitNode(p)); render(p); }
+  function move(e) { if (!drawing) return; e.preventDefault(); var p = ptFromEvent(e); addNode(hitNode(p)); render(p); }
+  function up(e) { if (!drawing) return; drawing = false; render(); }
+  padwrap.addEventListener('touchstart', down, { passive: false });
+  padwrap.addEventListener('touchmove', move, { passive: false });
+  padwrap.addEventListener('touchend', up);
+  padwrap.addEventListener('mousedown', down);
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+  clearBtn.addEventListener('click', clear);
+  document.getElementById('redoBtn').addEventListener('click', function () {
+    doneCard.classList.remove('show'); document.getElementById('btns').style.display = '';
+    document.querySelector('.padwrap').style.display = ''; readout.style.display = '';
+    document.querySelector('h1').style.display = ''; document.querySelector('.sub').style.display = '';
+    clear();
+  });
+
+  doneBtn.addEventListener('click', function () {
+    var digits = seq.join('');
+    if (digits.length < 2) return;
+    document.getElementById('doneDigits').textContent = digits;
+    // Hide the pad, show confirmation
+    document.querySelector('.padwrap').style.display = 'none';
+    readout.style.display = 'none';
+    document.getElementById('btns').style.display = 'none';
+    document.querySelector('h1').style.display = 'none';
+    document.querySelector('.sub').style.display = 'none';
+    doneCard.classList.add('show');
+    // Tell any parent (extension / opener) — used later for auto-fill
+    try { (window.parent || window).postMessage({ type: 'cpr-pattern', digits: digits }, '*'); } catch (e) {}
+    // If a handoff token is present, persist to Supabase (wired in the next step)
+    var token = new URLSearchParams(location.hash.slice(1)).get('t') ||
+                new URLSearchParams(location.search).get('t');
+    var saved = document.getElementById('savedMsg');
+    if (token && window.__savePattern) {
+      window.__savePattern(token, digits).then(function () { saved.textContent = '✓ Sent to the ticket'; })
+                                         .catch(function () { saved.textContent = 'Saved on screen — read it to your tech'; });
+    } else {
+      saved.textContent = 'Show this to your technician';
+    }
+  });
+})();
+</script>
+</body>
+</html>
