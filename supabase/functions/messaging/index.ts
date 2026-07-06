@@ -204,6 +204,42 @@ async function actionSubscribe() {
   return json({ ok: true, subscription_id: data.id, status: data.status, expires: data.expirationTime });
 }
 
+/* ---------------- per-ticket follow-up contact ---------------- */
+
+async function actionContactSet(payload: any, sentBy: { id?: string; name?: string }) {
+  const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
+  if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
+  const method = ["text", "call", "email", "return"].includes(payload?.method) ? payload.method : "text";
+  const row = {
+    ticket_no: ticket,
+    store: payload?.store || null,
+    method,
+    contact_name: payload?.name || null,
+    contact_number: method === "email" ? null : (e164(payload?.number || "") || payload?.number || null),
+    contact_email: payload?.email || null,
+    note: payload?.note || null,
+    set_by_name: sentBy.name || payload?.agent_name || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await admin.from("ticket_contacts").upsert(row, { onConflict: "ticket_no" });
+  if (error) return json({ ok: false, error: error.message }, 500);
+  return json({ ok: true });
+}
+
+async function actionContactGet(payload: any) {
+  const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
+  if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
+  const { data } = await admin.from("ticket_contacts").select("*").eq("ticket_no", ticket).maybeSingle();
+  return json({ ok: true, contact: data || null });
+}
+
+async function actionContactDelete(payload: any) {
+  const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
+  if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
+  await admin.from("ticket_contacts").delete().eq("ticket_no", ticket);
+  return json({ ok: true });
+}
+
 async function actionPoll(hours?: number) {
   // No-webhook path: read recent inbound SMS from the message store and
   // record any we haven't seen (dedup on rc_message_id). Honors STOP/START.
@@ -297,6 +333,9 @@ Deno.serve(async (req) => {
     if (payload?.action === "subscribe") return await actionSubscribe();
     if (payload?.action === "subscriptions") return await actionSubscriptions();
     if (payload?.action === "poll") return await actionPoll(payload?.hours);
+    if (payload?.action === "contact_set") return await actionContactSet(payload, sentBy);
+    if (payload?.action === "contact_get") return await actionContactGet(payload);
+    if (payload?.action === "contact_delete") return await actionContactDelete(payload);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
