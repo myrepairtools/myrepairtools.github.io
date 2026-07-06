@@ -163,6 +163,79 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   return ok ? json({ ok: true, id: rcId, to }) : json({ ok: false, error: err }, 502);
 }
 
+const SELF_URL = `${SB_URL.replace(".supabase.co", ".functions.supabase.co")}/messaging`;
+
+async function actionSubscriptions() {
+  const r = await rcGet("/restapi/v1.0/subscription");
+  const subs = (r.data?.records || []).map((s: any) => ({
+    id: s.id, status: s.status, address: s.deliveryMode?.address, filters: s.eventFilters, expires: s.expirationTime,
+  }));
+  return json({ ok: true, subscriptions: subs });
+}
+
+async function actionSubscribe() {
+  // (re)create the inbound-SMS webhook pointing back at this function
+  const t = await rcToken();
+  // clear stale subscriptions to our endpoint first
+  const existing = await rcGet("/restapi/v1.0/subscription");
+  for (const s of (existing.data?.records || [])) {
+    if (s.deliveryMode?.address?.includes("/messaging")) {
+      await fetch(`${RC_SERVER}/restapi/v1.0/subscription/${s.id}`, {
+        method: "DELETE", headers: { "Authorization": `Bearer ${t}` },
+      });
+    }
+  }
+  const r = await fetch(`${RC_SERVER}/restapi/v1.0/subscription`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${t}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      eventFilters: ["/restapi/v1.0/account/~/extension/~/message-store/instant?type=SMS"],
+      deliveryMode: {
+        transportType: "WebHook",
+        address: `${SELF_URL}?webhook=${encodeURIComponent(WEBHOOK_SECRET)}`,
+      },
+      expiresIn: 630720000, // ~20y; RC caps it, renew action can refresh
+    }),
+  });
+  const data = await r.json();
+  if (!r.ok) return json({ ok: false, error: data.message || JSON.stringify(data), detail: data }, 502);
+  return json({ ok: true, subscription_id: data.id, status: data.status, expires: data.expirationTime });
+}
+
+async function actionPoll(hours?: number) {
+  // No-webhook path: read recent inbound SMS from the message store and
+  // record any we haven't seen (dedup on rc_message_id). Honors STOP/START.
+  // Default 24h window (plenty for the frequent cron); pass hours for a
+  // wider one-time catch-up.
+  const back = Math.max(1, Math.min(720, hours || 24)) * 3600e3;
+  const r = await rcGet(
+    "/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&direction=Inbound&perPage=100&dateFrom=" +
+    new Date(Date.now() - back).toISOString(),
+  );
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, detail: r.data }, 502);
+  // Apply in CHRONOLOGICAL order so the customer's most recent STOP/START wins
+  // (RingCentral returns newest-first).
+  const recs = (r.data?.records || []).slice().sort((a: any, b: any) =>
+    String(a.creationTime || a.id).localeCompare(String(b.creationTime || b.id)));
+  let recorded = 0, optOuts = 0;
+  for (const m of recs) {
+    const rcId = String(m.id);
+    const { data: seen } = await admin.from("sms_log").select("id").eq("rc_message_id", rcId).maybeSingle();
+    if (seen) continue;
+    const from = e164(m.from?.phoneNumber || "");
+    const text = (m.subject || "").toString();
+    if (!from) continue;
+    if (STOP_RE.test(text)) { await admin.from("sms_opt_outs").upsert({ phone: from, source: "sms:STOP" }); optOuts++; }
+    if (START_RE.test(text)) await admin.from("sms_opt_outs").delete().eq("phone", from);
+    await admin.from("sms_log").insert({
+      direction: "in", to_number: RC_FROM, from_number: from, body: text,
+      status: "received", rc_message_id: rcId,
+    });
+    recorded++;
+  }
+  return json({ ok: true, scanned: recs.length, recorded, opt_outs: optOuts });
+}
+
 async function actionInbound(req: Request, raw: any) {
   // RingCentral webhook — validation handshake + inbound message store
   const vt = req.headers.get("validation-token");
@@ -188,10 +261,15 @@ Deno.serve(async (req) => {
   let payload: any = {};
   try { payload = await req.json(); } catch { /* webhook may send empty */ }
 
-  // webhook path: authenticated by shared header secret, not a user JWT
-  const hookSecret = req.headers.get("x-cpr-webhook");
-  if (payload?.action === "inbound" || hookSecret) {
-    if (WEBHOOK_SECRET && hookSecret !== WEBHOOK_SECRET && !req.headers.get("validation-token")) {
+  // webhook path: RingCentral posts here (no user JWT). It authenticates via
+  // the ?webhook=<secret> query param (RC can't set custom headers), or the
+  // Validation-Token handshake header on subscription creation.
+  const url = new URL(req.url);
+  const qSecret = url.searchParams.get("webhook");
+  const hookSecret = req.headers.get("x-cpr-webhook") || qSecret;
+  const isValidation = !!req.headers.get("validation-token");
+  if (payload?.action === "inbound" || hookSecret || isValidation) {
+    if (!isValidation && WEBHOOK_SECRET && hookSecret !== WEBHOOK_SECRET) {
       return json({ ok: false, error: "bad webhook secret" }, 401);
     }
     return actionInbound(req, payload);
@@ -214,6 +292,9 @@ Deno.serve(async (req) => {
   try {
     if (payload?.action === "test") return await actionTest();
     if (payload?.action === "send") return await actionSend(payload, sentBy);
+    if (payload?.action === "subscribe") return await actionSubscribe();
+    if (payload?.action === "subscriptions") return await actionSubscriptions();
+    if (payload?.action === "poll") return await actionPoll(payload?.hours);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
