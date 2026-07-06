@@ -153,16 +153,36 @@ function injectSignature() {
 // the closest not-earlier slot to the requested time.
 function setEstimate(dateStr, timeText) {
     try {
-        var $ = window.jQuery;
+        var $ = window.jQuery || window.$;
         var d = document.getElementById('TicketForm_repair_estimated_day_local');
         if (!d) return { ok: false, reason: 'no estimate field' };
-        if ($ && $(d).hasClass('hasDatepicker')) {
-            $(d).datepicker('setDate', dateStr);
-            $(d).trigger('change');
-        } else {
-            d.value = dateStr;
-            d.dispatchEvent(new Event('change', { bubbles: true }));
+
+        var p = dateStr.split('/');                       // M/D/YYYY
+        var dt = new Date(+p[2], +p[0] - 1, +p[1]);
+
+        var viaPicker = false;
+        try {
+            // jQuery UI datepicker: setDate a real Date so it also fills the
+            // hidden altField and fires onSelect (which populates the time list)
+            if ($ && $.fn && $.fn.datepicker && $(d).data('datepicker')) {
+                $(d).datepicker('setDate', dt);
+                viaPicker = true;
+            }
+        } catch (e) { /* fall through to native set */ }
+
+        if (!viaPicker) {
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            if (setter && setter.set) setter.set.call(d, dateStr); else d.value = dateStr;
         }
+        ['input', 'change', 'blur'].forEach(function (ev) { d.dispatchEvent(new Event(ev, { bubbles: true })); });
+
+        // the hidden field RepairQ actually submits
+        var hid = document.getElementById('TicketForm_repair_estimated_day');
+        if (hid && !hid.value) {
+            hid.value = dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2) + '-' + ('0' + dt.getDate()).slice(-2);
+            hid.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
         function toMins(s) {
             var m = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(s || '');
             if (!m) return -1;

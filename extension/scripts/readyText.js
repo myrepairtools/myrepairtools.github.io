@@ -34,13 +34,49 @@
         return d.length === 10 ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : n;
     }
 
+    // Read a value out of RepairQ's read-only <dl> customer summary by its
+    // <dt> label ("Contact Number:", "Contact Method:", "Customer Name:").
+    function ddFor(label) {
+        var dts = document.querySelectorAll('dt');
+        for (var i = 0; i < dts.length; i++) {
+            var t = dts[i].textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+            if (t.indexOf(label.toLowerCase()) === 0) {
+                var dd = dts[i].nextElementSibling;
+                if (dd && dd.tagName === 'DD') return dd;
+            }
+        }
+        return null;
+    }
+
+    function summaryPhones() {
+        var dd = ddFor('contact number');
+        if (!dd) return [];
+        // the <dd> may hold several numbers separated by <br>
+        return dd.innerHTML.split(/<br\s*\/?>/i)
+            .map(function (s) { return s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim(); })
+            .filter(function (x) { return digits(x).length >= 10; });
+    }
+
     function customer() {
+        var phones = summaryPhones();
+        // fallback: the Edit-Customer form inputs, if that form is open
+        if (!phones.length) {
+            [val('Customer_pri_phone'), val('Customer_alt_phone'), val('Customer_sms_phone')].forEach(function (p) {
+                if (digits(p).length >= 10 && phones.indexOf(p) === -1) phones.push(p);
+            });
+        }
+        // de-dup by digits
+        var seen = {}, uniq = [];
+        phones.forEach(function (p) { var d = digits(p); if (!seen[d]) { seen[d] = 1; uniq.push(p); } });
+
+        var nameDd = ddFor('customer name');
+        var name = nameDd ? nameDd.textContent.replace(/\s+/g, ' ').trim()
+                          : (val('Customer_first_name') + ' ' + val('Customer_last_name')).trim();
+        var methodDd = ddFor('contact method');
         return {
-            first: val('Customer_first_name'),
-            last: val('Customer_last_name'),
-            pri: val('Customer_pri_phone'),
-            alt: val('Customer_alt_phone'),
-            sms: val('Customer_sms_phone'),
+            first: (name.split(/\s+/)[0] || ''),
+            phones: uniq,
+            method: methodDd ? methodDd.textContent.replace(/\s+/g, ' ').trim() : '',
         };
     }
 
@@ -113,10 +149,12 @@
     function popup(btn) {
         closePopup();
         var c = customer();
-        var choices = [];
-        if (c.sms) choices.push({ label: '📱 SMS ' + pretty(c.sms), num: c.sms });
-        if (c.pri) choices.push({ label: '📞 Primary ' + pretty(c.pri), num: c.pri });
-        if (c.alt) choices.push({ label: '📞 Alt ' + pretty(c.alt), num: c.alt });
+        var isText = /text|sms/i.test(c.method);
+        var choices = c.phones.map(function (num, i) {
+            var icon = (isText || i === 0) ? '📱' : '📞';
+            var tag = (i === 0 && c.method) ? '  (' + c.method + ')' : '';
+            return { label: icon + ' ' + pretty(num) + tag, num: num };
+        });
 
         var pop = document.createElement('div');
         pop.id = 'mrt-rfp-pop';
