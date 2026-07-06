@@ -160,61 +160,30 @@ function setEstimate(dateStr, timeText) {
         var p = dateStr.split('/');                       // M/D/YYYY
         var dt = new Date(+p[2], +p[0] - 1, +p[1]);
 
+        // Fill the DATE only, through RepairQ's own datepicker so it manages
+        // its own hidden submit field + format. We deliberately do NOT set the
+        // hidden field or force a time-<select> value — RepairQ's time widget
+        // re-parses those and rendered "NaN:ll am" when we did. Instead we ask
+        // the datepicker to populate the time list (onSelect) and leave the
+        // tech to pick the slot (the toast tells them which). Once we have a
+        // captured populated dropdown we can select it cleanly too.
         var viaPicker = false;
         try {
-            // jQuery UI datepicker: setDate fills the box + hidden altField, but
-            // does NOT fire RepairQ's onSelect (which builds the time list), so
-            // we call onSelect ourselves with the formatted value.
             if ($ && $.fn && $.fn.datepicker && $(d).data('datepicker')) {
                 $(d).datepicker('setDate', dt);
                 viaPicker = true;
                 var inst = $(d).data('datepicker');
                 var onSel = $(d).datepicker('option', 'onSelect');
-                if (typeof onSel === 'function') onSel.call(d, d.value, inst);
-                var onClose = $(d).datepicker('option', 'onClose');
-                if (typeof onClose === 'function') onClose.call(d, d.value, inst);
+                if (typeof onSel === 'function') onSel.call(d, d.value, inst);   // build the time list
             }
         } catch (e) { /* fall through to native set */ }
 
         if (!viaPicker) {
             var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
             if (setter && setter.set) setter.set.call(d, dateStr); else d.value = dateStr;
+            d.dispatchEvent(new Event('change', { bubbles: true }));
         }
-        ['input', 'change', 'blur', 'keyup'].forEach(function (ev) { d.dispatchEvent(new Event(ev, { bubbles: true })); });
-        if ($) { try { $(d).trigger('change'); } catch (e) {} }
-
-        // the hidden field RepairQ actually submits
-        var hid = document.getElementById('TicketForm_repair_estimated_day');
-        if (hid && !hid.value) {
-            hid.value = dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2) + '-' + ('0' + dt.getDate()).slice(-2);
-            hid.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        function toMins(s) {
-            var m = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(s || '');
-            if (!m) return -1;
-            var h = +m[1] % 12; if (/pm/i.test(m[3] || '')) h += 12;
-            return h * 60 + (+m[2]);
-        }
-        var want = toMins(timeText), tries = 0;
-        (function pick() {
-            var sel = document.querySelector('select[name="TicketForm[repair_estimated_time]"]');
-            if (sel && sel.options.length) {
-                sel.disabled = false;
-                var best = null, bestM = 1e9;
-                for (var i = 0; i < sel.options.length; i++) {
-                    var mm = toMins(sel.options[i].text);
-                    if (mm >= want && mm < bestM) { bestM = mm; best = sel.options[i]; }
-                }
-                if (!best) best = sel.options[sel.options.length - 1];   // past last slot → latest
-                sel.value = best.value;
-                if ($) $(sel).trigger('change');
-                else sel.dispatchEvent(new Event('change', { bubbles: true }));
-                return;
-            }
-            if (++tries < 20) setTimeout(pick, 150);
-        })();
-        return { ok: true };
+        return { ok: true, value: d.value };
     } catch (e) {
         return { ok: false, reason: String(e && e.message || e) };
     }
