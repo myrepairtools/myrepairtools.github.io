@@ -1,0 +1,285 @@
+/*
+    Check-in follow-up capture (myRepairTools)
+
+    Runs on: cpr.repairq.io/ticket/* (view + edit pages).
+
+    At check-in we record how the customer wants to hear their repair is
+    ready, and the contact info FOR THIS VISIT (not the customer profile —
+    it may be a different phone/person each time). Stored per-ticket in
+    Supabase `ticket_contacts` + written to a RepairQ ticket note as a
+    permanent backup; the Supabase row is deleted when the ticket closes.
+
+    Flow:
+      - New ticket → right after the first save the ticket page loads; if no
+        follow-up is set yet we pop the capture modal (once per ticket).
+      - A "📞 Follow-up: …" chip sits by the customer summary on every visit,
+        so a tech can change it later (number changed, switched to a call).
+      - Ready-for-Pickup (readyText.js) reads the saved method: text →
+        auto-send; call → (Twilio, later); email/return → skip.
+
+    Toggle: Options → RingCentral SMS (storage.sync sms.followUp, default ON).
+*/
+
+(function () {
+    'use strict';
+
+    var METHODS = [
+        { v: 'text',   label: '💬 Text' },
+        { v: 'call',   label: '📞 Call' },
+        { v: 'email',  label: '✉️ Email' },
+        { v: 'return', label: '🚶 Customer to Return' },
+    ];
+
+    function digits(s) { return (s || '').replace(/\D/g, ''); }
+    function pretty(n) {
+        var d = digits(n); if (d.length === 11 && d[0] === '1') d = d.slice(1);
+        return d.length === 10 ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : (n || '');
+    }
+    function ticketNo() {
+        var m = location.pathname.match(/\/ticket\/(?:edit\/|view\/)?(\d+)\b/);
+        return m ? m[1] : '';
+    }
+    function isClosedPage() {
+        var s = document.querySelector('#summary > div:nth-child(2) > span, #summary .status');
+        var t = (s ? s.textContent : document.body.textContent).toLowerCase();
+        // only used to avoid auto-popping on finished tickets
+        return /\b(closed|invoiced|void|picked up)\b/.test((s && s.textContent || '').toLowerCase());
+    }
+
+    /* --- scrape the ticket's own numbers/email for suggestions --- */
+    function ddFor(label) {
+        var dts = document.querySelectorAll('dt');
+        for (var i = 0; i < dts.length; i++) {
+            if (dts[i].textContent.replace(/\s+/g, ' ').trim().toLowerCase().indexOf(label.toLowerCase()) === 0) {
+                var dd = dts[i].nextElementSibling;
+                if (dd && dd.tagName === 'DD') return dd;
+            }
+        }
+        return null;
+    }
+    function suggestedPhones() {
+        var out = [], dd = ddFor('contact number');
+        if (dd) dd.innerHTML.split(/<br\s*\/?>/i).forEach(function (s) {
+            var v = s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+            if (digits(v).length >= 10) out.push(v);
+        });
+        ['Customer_pri_phone', 'Customer_alt_phone', 'Customer_sms_phone'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el && digits(el.value).length >= 10 && out.indexOf(el.value) === -1) out.push(el.value);
+        });
+        var seen = {}, uniq = [];
+        out.forEach(function (p) { var d = digits(p); if (!seen[d]) { seen[d] = 1; uniq.push(p); } });
+        return uniq.map(function (p, i) { return { num: p, tag: i === 0 ? 'Primary' : 'Alt' }; });
+    }
+    function suggestedEmail() {
+        var dd = ddFor('email address'); if (dd) { var t = dd.textContent.trim(); if (/@/.test(t)) return t; }
+        var el = document.getElementById('Customer_email'); return (el && el.value) || '';
+    }
+    function customerFirst() {
+        var dd = ddFor('customer name'); var n = dd ? dd.textContent.trim()
+            : ((document.getElementById('Customer_first_name') || {}).value || '');
+        return (n.split(/\s+/)[0] || '');
+    }
+    function storeName() {
+        var t = document.querySelector('.location.tooltip-toggle span'); return (t && t.textContent.trim()) || '';
+    }
+    function techName() {
+        var el = document.getElementById('user_dropdown'); if (!el) return '';
+        var raw = el.textContent.replace(/\s+/g, ' ').trim(), m = raw.match(/^([^,]+),\s*(.+)$/);
+        return m ? (m[2] + ' ' + m[1]).trim() : raw;
+    }
+
+    /* --- backend via bg.js → messaging function --- */
+    function fn(action, payload) {
+        return new Promise(function (res) {
+            try {
+                chrome.runtime.sendMessage({ type: 'sms:' + action, payload: payload }, function (r) {
+                    res(chrome.runtime.lastError ? { ok: false } : r);
+                });
+            } catch (e) { res({ ok: false }); }
+        });
+    }
+
+    /* --- write the ticket-note backup (best effort) --- */
+    function writeNote(text) {
+        var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
+        var id = ticketNo();
+        if (!csrf || !id) return;
+        var body = new URLSearchParams({
+            YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0',
+        });
+        fetch('/ajax/ticketNote/save', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+            body: body.toString(),
+        }).catch(function () { /* backup only */ });
+    }
+
+    function methodLabel(v) { var m = METHODS.filter(function (x) { return x.v === v; })[0]; return m ? m.label : v; }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    /* ---------------- modal ---------------- */
+
+    var current = null;   // last-known contact for this ticket
+
+    function openModal(existing) {
+        closeModal();
+        var phones = suggestedPhones();
+        var pick = existing || {};
+        var method = pick.method || (phones.length ? 'text' : 'text');
+        var number = pick.contact_number || (phones[0] && phones[0].num) || '';
+        var name = pick.contact_name || customerFirst();
+        var email = pick.contact_email || suggestedEmail();
+
+        var ov = document.createElement('div'); ov.id = 'mrt-fu-modal';
+        ov.innerHTML =
+            '<div class="mrt-fu-card">' +
+              '<h4>📣 How should we follow up?</h4>' +
+              '<div class="mrt-fu-sub">Saved to this ticket for this visit.</div>' +
+              '<div class="mrt-fu-methods">' + METHODS.map(function (m) {
+                  return '<button type="button" class="mrt-fu-m' + (m.v === method ? ' on' : '') + '" data-m="' + m.v + '">' + m.label + '</button>';
+              }).join('') + '</div>' +
+              '<div class="mrt-fu-field mrt-fu-numwrap">' +
+                '<label>Contact number</label>' +
+                '<input type="text" class="mrt-fu-num" placeholder="Type a number…" autocomplete="off" value="' + esc(pretty(number)) + '" data-raw="' + esc(digits(number)) + '">' +
+                '<div class="mrt-fu-suggest"></div>' +
+              '</div>' +
+              '<div class="mrt-fu-field mrt-fu-emailwrap" style="display:none">' +
+                '<label>Email</label><input type="email" class="mrt-fu-email" value="' + esc(email) + '">' +
+              '</div>' +
+              '<div class="mrt-fu-field mrt-fu-namewrap">' +
+                '<label>Name (who to reach)</label><input type="text" class="mrt-fu-name" value="' + esc(name) + '">' +
+              '</div>' +
+              '<div class="mrt-fu-btns">' +
+                '<button type="button" class="mrt-fu-save">Save follow-up</button>' +
+                '<button type="button" class="mrt-fu-skip">Skip</button>' +
+              '</div>' +
+            '</div>';
+        document.body.appendChild(ov);
+
+        var numInput = ov.querySelector('.mrt-fu-num');
+        var suggest = ov.querySelector('.mrt-fu-suggest');
+        var sel = { method: method };
+
+        function applyMethod(m) {
+            sel.method = m;
+            ov.querySelectorAll('.mrt-fu-m').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === m); });
+            ov.querySelector('.mrt-fu-numwrap').style.display = (m === 'text' || m === 'call') ? '' : 'none';
+            ov.querySelector('.mrt-fu-emailwrap').style.display = (m === 'email') ? '' : 'none';
+            ov.querySelector('.mrt-fu-namewrap').style.display = (m === 'return') ? 'none' : '';
+        }
+        applyMethod(method);
+        ov.querySelectorAll('.mrt-fu-m').forEach(function (b) {
+            b.addEventListener('click', function () { applyMethod(b.getAttribute('data-m')); });
+        });
+
+        // number combobox: focus → drop Primary/Alt suggestions
+        function showSuggest() {
+            if (!phones.length) { suggest.classList.remove('open'); return; }
+            suggest.innerHTML = phones.map(function (p) {
+                return '<div class="mrt-fu-opt" data-num="' + digits(p.num) + '"><b>' + p.tag + '</b> ' + pretty(p.num) + '</div>';
+            }).join('');
+            suggest.classList.add('open');
+            suggest.querySelectorAll('.mrt-fu-opt').forEach(function (o) {
+                o.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    numInput.value = pretty(o.getAttribute('data-num'));
+                    numInput.setAttribute('data-raw', o.getAttribute('data-num'));
+                    suggest.classList.remove('open');
+                });
+            });
+        }
+        numInput.addEventListener('focus', showSuggest);
+        numInput.addEventListener('input', function () { numInput.setAttribute('data-raw', digits(numInput.value)); });
+        numInput.addEventListener('blur', function () { setTimeout(function () { suggest.classList.remove('open'); }, 150); });
+
+        ov.querySelector('.mrt-fu-save').addEventListener('click', function () {
+            var m = sel.method;
+            var payload = {
+                ticket_no: ticketNo(), store: storeName(), method: m,
+                name: ov.querySelector('.mrt-fu-name').value.trim(),
+                number: (m === 'text' || m === 'call') ? (numInput.getAttribute('data-raw') || digits(numInput.value)) : '',
+                email: (m === 'email') ? ov.querySelector('.mrt-fu-email').value.trim() : '',
+                agent_name: techName(),
+            };
+            current = { method: m, contact_number: payload.number, contact_name: payload.name, contact_email: payload.email };
+            fn('contact_set', payload);
+            // permanent backup note
+            var who = payload.name || 'customer';
+            var how = m === 'email' ? 'EMAIL → ' + payload.email
+                    : m === 'return' ? 'CUSTOMER TO RETURN'
+                    : (m.toUpperCase() + ' → ' + pretty(payload.number));
+            writeNote('📣 Follow-up: ' + how + (payload.name ? ' (' + who + ')' : '') + ' — set by ' + (techName() || 'staff'));
+            markPrompted();
+            renderChip();
+            closeModal();
+        });
+        ov.querySelector('.mrt-fu-skip').addEventListener('click', function () { markPrompted(); closeModal(); });
+        ov.addEventListener('click', function (e) { if (e.target === ov) { markPrompted(); closeModal(); } });
+    }
+    function closeModal() { var m = document.getElementById('mrt-fu-modal'); if (m) m.remove(); }
+
+    /* ---------------- chip ---------------- */
+
+    function renderChip() {
+        var old = document.querySelector('.mrt-fu-chip'); if (old) old.remove();
+        var anchor = ddFor('contact number');
+        anchor = anchor ? (anchor.closest('dl') || anchor.parentElement) : null;
+        if (!anchor) { var h = [].slice.call(document.querySelectorAll('h2,h3')).filter(function (x) { return /customer/i.test(x.textContent); })[0]; anchor = h && h.parentElement; }
+        if (!anchor) return;
+
+        var chip = document.createElement('div');
+        chip.className = 'mrt-fu-chip';
+        if (current) {
+            var txt = current.method === 'email' ? '✉️ ' + (current.contact_email || 'Email')
+                    : current.method === 'return' ? '🚶 Customer to Return'
+                    : methodLabel(current.method) + ' · ' + pretty(current.contact_number);
+            chip.innerHTML = '<span class="mrt-fu-chip-lbl">Follow-up:</span> ' + esc(txt) + ' <span class="mrt-fu-edit">✎ edit</span>';
+        } else {
+            chip.innerHTML = '<span class="mrt-fu-chip-lbl">＋ Set follow-up preference</span>';
+            chip.classList.add('empty');
+        }
+        chip.addEventListener('click', function () { openModal(current); });
+        anchor.appendChild(chip);
+    }
+
+    /* ---------------- lifecycle ---------------- */
+
+    function promptedKey() { return 'mrt_fu_prompted_' + ticketNo(); }
+    function markPrompted() { try { localStorage.setItem(promptedKey(), '1'); } catch (e) {} }
+    function wasPrompted() { try { return localStorage.getItem(promptedKey()) === '1'; } catch (e) { return false; } }
+
+    function watchClose() {
+        // when the ticket is set Closed, drop the per-visit contact row
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest && e.target.closest('a.save-ticket');
+            if (!btn) return;
+            var act = (btn.getAttribute('action') || btn.className || '').toLowerCase();
+            if (/closed|void/.test(act)) { var t = ticketNo(); if (t) fn('contact_delete', { ticket_no: t }); }
+        }, true);
+    }
+
+    function boot() {
+        var t = ticketNo();
+        if (!t) return;                                   // new ticket, no number yet — wait for the post-save load
+        fn('contact_get', { ticket_no: t }).then(function (r) {
+            current = (r && r.contact) || null;
+            renderChip();
+            watchClose();
+            if (!current && !wasPrompted() && !isClosedPage()) {
+                setTimeout(function () { openModal(null); }, 600);   // right after check-in save
+            }
+        });
+    }
+
+    function start() {
+        if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
+    }
+    try {
+        chrome.storage.sync.get(['sms']).then(function (res) {
+            var s = (res && res.sms) || {};
+            if (s.followUp === false) return;
+            start();
+        }).catch(start);
+    } catch (e) { start(); }
+})();

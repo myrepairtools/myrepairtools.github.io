@@ -257,6 +257,35 @@ screens stay findable); closing stamps scanned displays, flags unscanned as
 freezes the summary jsonb (counts, grade accuracy, missing list). Scorecard /
 commission tie-in deliberately deferred.
 
+**Customer messaging (RingCentral SMS):** texting customers runs through our own
+RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
+RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_JWT/_SERVER/_FROM_NUMBER/
+_WEBHOOK_SECRET`) stay server-side; it JWT-auths to a cached access token, sends via the
+RC SMS API from the store line, screens opt-outs, and logs every send to `sms_log`.
+Inbound SMS + STOP/START opt-outs (`sms_opt_outs`) are polled from the RC message-store
+by a `messaging-poll-inbound` pg_cron (webhook subscribe is blocked — the app lacks that
+permission), applying STOP/START in chronological order. **The browser never holds a
+RingCentral secret** — the extension calls the function through `bg.js` (`sms:<action>`
+messages → `messaging` with the public anon key). Actions: `send` (E.164 validate,
+opt-out screen, `agent_name` audit trail), `poll`, `contact_set/get/delete`.
+`ticket_contacts` (ticket_no PK, method `text|call|email|return`, contact_name/number/
+email, note, set_by_name) is the **per-visit follow-up preference** — how THIS customer
+wants to hear their repair is ready, saved to the ticket only (never the customer
+profile), deleted when the ticket closes. Two extension surfaces (both under Options →
+RingCentral SMS, default ON): **`readyText.js`** intercepts RepairQ's **Ready for
+Pickup** button — reads the saved `ticket_contacts` preference: `text` auto-sends the
+ready message with a 5-second Undo, `call`/`email`/`return` show a reminder toast (no
+send), nothing-saved falls back to a manual Primary/Alt chooser; **`followUp.js`** pops
+a capture modal right after a ticket's first save (method + number combobox that drops
+the ticket's Primary/Alt on focus + name), writes `contact_set` **and** a RepairQ ticket
+note as a permanent backup, and drops an editable "📣 Follow-up" chip by the customer
+summary. Numbers/name are scraped from RepairQ's read-only customer `<dl>` (Contact
+Number / Customer Name / Contact Method / Email). Automated **voice calls** (method
+`call`) are reserved for a planned Twilio integration (verified caller ID = store number)
+— not built yet. A top-bar SMS inbox/compose panel is likewise deferred. When changing
+SMS behavior, keep `readyText.js` + `followUp.js` + `bg.js`'s `sms:` proxy + the
+`messaging` function in sync.
+
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
 and Ben's RQ Mods (all its content scripts absorbed as-is; feature toggles preserved
