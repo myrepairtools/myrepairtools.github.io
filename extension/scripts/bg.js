@@ -162,11 +162,17 @@ function setEstimate(dateStr, timeText) {
 
         var viaPicker = false;
         try {
-            // jQuery UI datepicker: setDate a real Date so it also fills the
-            // hidden altField and fires onSelect (which populates the time list)
+            // jQuery UI datepicker: setDate fills the box + hidden altField, but
+            // does NOT fire RepairQ's onSelect (which builds the time list), so
+            // we call onSelect ourselves with the formatted value.
             if ($ && $.fn && $.fn.datepicker && $(d).data('datepicker')) {
                 $(d).datepicker('setDate', dt);
                 viaPicker = true;
+                var inst = $(d).data('datepicker');
+                var onSel = $(d).datepicker('option', 'onSelect');
+                if (typeof onSel === 'function') onSel.call(d, d.value, inst);
+                var onClose = $(d).datepicker('option', 'onClose');
+                if (typeof onClose === 'function') onClose.call(d, d.value, inst);
             }
         } catch (e) { /* fall through to native set */ }
 
@@ -174,7 +180,8 @@ function setEstimate(dateStr, timeText) {
             var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
             if (setter && setter.set) setter.set.call(d, dateStr); else d.value = dateStr;
         }
-        ['input', 'change', 'blur'].forEach(function (ev) { d.dispatchEvent(new Event(ev, { bubbles: true })); });
+        ['input', 'change', 'blur', 'keyup'].forEach(function (ev) { d.dispatchEvent(new Event(ev, { bubbles: true })); });
+        if ($) { try { $(d).trigger('change'); } catch (e) {} }
 
         // the hidden field RepairQ actually submits
         var hid = document.getElementById('TicketForm_repair_estimated_day');
