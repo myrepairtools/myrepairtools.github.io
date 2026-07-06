@@ -157,7 +157,9 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   await admin.from("sms_log").insert({
     to_number: to, from_number: RC_FROM, body: finalBody, ticket_no: payload?.ticket_no || null,
     template_key: payload?.template_key || null, status: ok ? "sent" : "failed",
-    rc_message_id: rcId, error: err, sent_by: sentBy.id || null, sent_by_name: sentBy.name || null,
+    rc_message_id: rcId, error: err, sent_by: sentBy.id || null,
+    // extension sends (no Supabase session) pass the RepairQ tech name for the audit trail
+    sent_by_name: sentBy.name || payload?.agent_name || null,
   });
 
   return ok ? json({ ok: true, id: rcId, to }) : json({ ok: false, error: err }, 502);
