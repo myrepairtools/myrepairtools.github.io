@@ -183,18 +183,23 @@
         return { open: hm(cfg.open, { h: 10, m: 0 }), close: hm(cfg.close, { h: 19, m: 0 }) };
     }
 
-    // advance t to the next moment the store is open & promisable (≥30m before close)
+    // advance t to the next moment we'd actually promise a pickup: at least an
+    // hour after opening (never right at open — the overnight queue comes
+    // first) and ≥30 min before close.
     function rollIntoHours(t) {
         t = new Date(t);
         for (var g = 0; g < 14; g++) {
             var dh = dayHours(t);
             if (dh && dh.open && dh.close) {
-                var openT = new Date(t); openT.setHours(dh.open.h, dh.open.m, 0, 0);
+                var earliest = new Date(t); earliest.setHours(dh.open.h + 1, dh.open.m, 0, 0);   // open + 1h
                 var cut = new Date(t); cut.setHours(dh.close.h, dh.close.m - 30, 0, 0);
-                if (t < openT) return openT;                      // before open → open time
-                if (t <= cut) return t;                           // within hours → good
+                if (earliest <= cut) {                            // this day has a usable window
+                    if (t < earliest) return earliest;            // before open+1h → open+1h
+                    if (t <= cut) return t;                       // within the window → good
+                }
             }
-            // closed day or past close → jump to the next day at open
+            // closed day / no window / past close → next day at midnight; the
+            // loop then returns that day's open+1h
             t.setDate(t.getDate() + 1); t.setHours(0, 0, 0, 0);
         }
         return t;
