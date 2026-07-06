@@ -181,7 +181,7 @@
                 var num = b.getAttribute('data-num');
                 b.textContent = 'Sending…'; b.disabled = true;
                 var payload = {
-                    to: num, body: defaultMessage(c), ticket_no: ticketNo(),
+                    to: num, body: defaultMessage(c), ticket_no: ticketNo(), store: storeName(),
                     template_key: 'ready_for_pickup', agent_name: techName(),
                 };
                 sendSms(payload, function (res) {
@@ -247,7 +247,7 @@
             if (cancelled) return;
             msg.textContent = 'Sending…';
             if (undo) undo.remove();
-            sendSms({ to: num, body: body, ticket_no: ticketNo(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
+            sendSms({ to: num, body: body, ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
                 var ok = res && res.ok;
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
                 setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 1500);

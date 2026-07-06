@@ -5,17 +5,31 @@
     flow) as function secrets; the browser never sees them. Every send is
     logged to sms_log and screened against sms_opt_outs (STOP handling).
 
+    MULTI-STORE: each store texts from its own line. `store_lines` (Supabase)
+    maps the canonical RepairQ store name → { sms_number, jwt_secret_key,
+    aliases }. One RingCentral app (client id/secret); one Personal JWT per
+    store user, stored as the function secret named in jwt_secret_key
+    (Salem = the original RINGCENTRAL_JWT). A store whose JWT secret isn't
+    set yet falls back to the default line so sends never fail on setup lag.
+
     Actions (POST JSON { action, ... }):
-      - test            → { ok, from, extension }   auth + identity check, no send
-      - send            → { to, body, ticket_no?, template_key? }  send one SMS
-      - inbound         → RingCentral webhook receiver (records replies, STOP)
+      - test            → auth + identity per store line (no send)
+      - send            → { to, body, store?, ticket_no?, template_key? }
+      - poll            → sweep every store's inbox (message-store) for
+                          inbound SMS + STOP/START; used by the pg_cron
+      - contact_set/get/delete → per-ticket follow-up preference
+      - inbound         → RingCentral webhook receiver (kept for the day the
+                          app gets webhook permission)
 
     Auth: browser calls carry the user's Supabase JWT (verify_jwt on); we
     resolve the staff row for the audit trail. The RingCentral webhook path
-    authenticates with a shared header secret instead.
+    authenticates with a shared secret instead.
 
-    Secrets: RINGCENTRAL_CLIENT_ID / _CLIENT_SECRET / _JWT / _SERVER /
-    _FROM_NUMBER, plus SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY.
+    Secrets: RINGCENTRAL_CLIENT_ID / _CLIENT_SECRET / _SERVER, per-store JWTs
+    (RINGCENTRAL_JWT = Salem/default, RINGCENTRAL_JWT_EUGENE,
+    RINGCENTRAL_JWT_CLACKAMAS, …named in store_lines.jwt_secret_key),
+    RINGCENTRAL_FROM_NUMBER (default line), plus SUPABASE_URL /
+    SUPABASE_SERVICE_ROLE_KEY.
 */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -23,8 +37,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const RC_SERVER = Deno.env.get("RINGCENTRAL_SERVER") || "https://platform.ringcentral.com";
 const RC_ID = Deno.env.get("RINGCENTRAL_CLIENT_ID") || "";
 const RC_SECRET = Deno.env.get("RINGCENTRAL_CLIENT_SECRET") || "";
-const RC_JWT = Deno.env.get("RINGCENTRAL_JWT") || "";
-const RC_FROM = Deno.env.get("RINGCENTRAL_FROM_NUMBER") || "";
+const RC_JWT_DEFAULT = Deno.env.get("RINGCENTRAL_JWT") || "";
+const RC_FROM_DEFAULT = Deno.env.get("RINGCENTRAL_FROM_NUMBER") || "";
 const WEBHOOK_SECRET = Deno.env.get("RINGCENTRAL_WEBHOOK_SECRET") || "";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
@@ -40,15 +54,64 @@ const json = (b: unknown, status = 200) =>
 
 const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
-/* ---------------- RingCentral auth (JWT → access token, cached) ---------------- */
+/* ---------------- store lines (store → number + JWT) ---------------- */
 
-let tokenCache: { token: string; exp: number } | null = null;
+type StoreLine = {
+  store: string;
+  sms_number: string;
+  jwt_secret_key: string | null;
+  aliases: string[];
+  active: boolean;
+  jwt: string;          // resolved secret value ('' when not set yet)
+  is_default: boolean;  // this line's JWT === the default JWT
+};
 
-async function rcToken(): Promise<string> {
-  if (tokenCache && Date.now() < tokenCache.exp - 60_000) return tokenCache.token;
+let linesCache: { lines: StoreLine[]; exp: number } | null = null;
+
+async function storeLines(): Promise<StoreLine[]> {
+  if (linesCache && Date.now() < linesCache.exp) return linesCache.lines;
+  const { data } = await admin.from("store_lines").select("*").eq("active", true);
+  const lines: StoreLine[] = (data || []).map((r: any) => {
+    const jwt = r.jwt_secret_key ? (Deno.env.get(r.jwt_secret_key) || "") : "";
+    return {
+      store: r.store,
+      sms_number: r.sms_number,
+      jwt_secret_key: r.jwt_secret_key,
+      aliases: Array.isArray(r.aliases) ? r.aliases : [],
+      active: r.active,
+      jwt,
+      is_default: !!jwt && jwt === RC_JWT_DEFAULT,
+    };
+  });
+  linesCache = { lines, exp: Date.now() + 60_000 };   // 1-min cache per instance
+  return lines;
+}
+
+// Resolve any raw store string (canonical name, alias, RC label) to its line.
+async function lineForStore(raw: string | null | undefined): Promise<StoreLine | null> {
+  if (!raw) return null;
+  const q = String(raw).trim().toLowerCase();
+  if (!q) return null;
+  for (const l of await storeLines()) {
+    if (l.store.toLowerCase() === q) return l;
+    if (l.aliases.some((a) => String(a).toLowerCase() === q)) return l;
+  }
+  return null;
+}
+
+/* ---------------- RingCentral auth (JWT → access token, cached per JWT) ---------------- */
+
+const tokenCache = new Map<string, { token: string; exp: number }>();
+
+async function rcToken(jwt?: string): Promise<string> {
+  const assertion = jwt || RC_JWT_DEFAULT;
+  if (!assertion) throw new Error("No RingCentral JWT configured");
+  const key = assertion.slice(-24);   // cache key: JWT tail, never logged
+  const hit = tokenCache.get(key);
+  if (hit && Date.now() < hit.exp - 60_000) return hit.token;
   const body = new URLSearchParams();
   body.set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
-  body.set("assertion", RC_JWT);
+  body.set("assertion", assertion);
   const r = await fetch(`${RC_SERVER}/restapi/oauth/token`, {
     method: "POST",
     headers: {
@@ -61,12 +124,12 @@ async function rcToken(): Promise<string> {
   if (!r.ok || !data.access_token) {
     throw new Error("RingCentral auth failed: " + (data.error_description || data.message || JSON.stringify(data)));
   }
-  tokenCache = { token: data.access_token, exp: Date.now() + (data.expires_in || 3600) * 1000 };
+  tokenCache.set(key, { token: data.access_token, exp: Date.now() + (data.expires_in || 3600) * 1000 });
   return data.access_token;
 }
 
-async function rcGet(path: string) {
-  const t = await rcToken();
+async function rcGet(path: string, jwt?: string) {
+  const t = await rcToken(jwt);
   const r = await fetch(`${RC_SERVER}${path}`, { headers: { "Authorization": `Bearer ${t}` } });
   return { ok: r.ok, status: r.status, data: await r.json() };
 }
@@ -93,29 +156,47 @@ const START_RE = /^\s*(start|unstop|subscribe|yes)\s*$/i;
 /* ---------------- actions ---------------- */
 
 async function actionTest() {
-  // exercises auth + identity without sending
-  const info = await rcGet("/restapi/v1.0/account/~/extension/~");
-  // account-wide numbers (tells us if every store's number is reachable
-  // from this one login, which decides one-setup vs per-store creds)
-  const acct = await rcGet("/restapi/v1.0/account/~/phone-number?perPage=1000");
-  const smsNumbers = (acct.data?.records || [])
-    .filter((r: any) => (r.features || []).includes("SmsSender"))
-    .map((r: any) => ({
-      number: r.phoneNumber,
-      label: r.label || null,
-      extension: r.extension?.name || null,
-      extensionNumber: r.extension?.extensionNumber || null,
-      usageType: r.usageType,
-    }));
+  // Per-store line status: which stores have a JWT in place, and whether it
+  // authenticates. No sends. Used by Settings → Integrations → RingCentral.
+  const lines = await storeLines();
+  const stores: any[] = [];
+  for (const l of lines) {
+    const entry: any = {
+      store: l.store,
+      number: l.sms_number,
+      jwt_secret_key: l.jwt_secret_key,
+      jwt_set: !!l.jwt,
+      fallback: !l.jwt,          // sends fall back to the default line
+      authenticated: false as boolean | null,
+      extension: null as string | null,
+      error: null as string | null,
+    };
+    if (l.jwt) {
+      try {
+        const info = await rcGet("/restapi/v1.0/account/~/extension/~", l.jwt);
+        entry.authenticated = info.ok;
+        entry.extension = info.data?.name || info.data?.extensionNumber || null;
+        if (!info.ok) entry.error = info.data?.message || `HTTP ${info.status}`;
+      } catch (e) {
+        entry.error = String((e as Error).message || e);
+      }
+    }
+    stores.push(entry);
+  }
+  // default-line identity (what fallback sends go out as)
+  let defaultExt: string | null = null, defaultOk = false, defaultErr: string | null = null;
+  try {
+    const info = await rcGet("/restapi/v1.0/account/~/extension/~");
+    defaultOk = info.ok;
+    defaultExt = info.data?.name || info.data?.extensionNumber || null;
+    if (!info.ok) defaultErr = info.data?.message || `HTTP ${info.status}`;
+  } catch (e) {
+    defaultErr = String((e as Error).message || e);
+  }
   return json({
     ok: true,
-    authenticated: true,
-    this_extension: info.data?.name || info.data?.extensionNumber || null,
-    from_configured: RC_FROM || null,
-    account_sms_numbers: smsNumbers,
-    note: smsNumbers.length > 1
-      ? "Multiple SMS numbers visible on one login — per-store sending from one setup is possible."
-      : "One SMS number visible from this login.",
+    default_line: { number: RC_FROM_DEFAULT || null, authenticated: defaultOk, extension: defaultExt, error: defaultErr },
+    stores,
   });
 }
 
@@ -124,11 +205,19 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   const body = (payload?.body || "").toString().trim();
   if (!to) return json({ ok: false, error: "Invalid destination number" }, 400);
   if (!body) return json({ ok: false, error: "Empty message" }, 400);
-  if (!RC_FROM) return json({ ok: false, error: "RINGCENTRAL_FROM_NUMBER not set" }, 400);
+
+  // Resolve the sending line from the store (extension passes the RepairQ
+  // header name, which IS the canonical store name). Unknown store or a
+  // store whose JWT isn't minted yet → default line, so sends never bounce.
+  const line = await lineForStore(payload?.store);
+  const from = (line && line.jwt) ? line.sms_number : RC_FROM_DEFAULT;
+  const jwt = (line && line.jwt) ? line.jwt : RC_JWT_DEFAULT;
+  const store = line ? line.store : (payload?.store || null);
+  if (!from) return json({ ok: false, error: "No sending line configured (RINGCENTRAL_FROM_NUMBER)" }, 400);
 
   if (await isOptedOut(to)) {
     await admin.from("sms_log").insert({
-      to_number: to, from_number: RC_FROM, body, ticket_no: payload?.ticket_no || null,
+      to_number: to, from_number: from, store, body, ticket_no: payload?.ticket_no || null,
       template_key: payload?.template_key || null, status: "failed",
       error: "recipient opted out", sent_by: sentBy.id || null, sent_by_name: sentBy.name || null,
     });
@@ -140,11 +229,11 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
 
   let rc: any, ok = false, rcId: string | null = null, err: string | null = null;
   try {
-    const t = await rcToken();
+    const t = await rcToken(jwt);
     const r = await fetch(`${RC_SERVER}/restapi/v1.0/account/~/extension/~/sms`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${t}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: { phoneNumber: RC_FROM }, to: [{ phoneNumber: to }], text: finalBody }),
+      body: JSON.stringify({ from: { phoneNumber: from }, to: [{ phoneNumber: to }], text: finalBody }),
     });
     rc = await r.json();
     ok = r.ok;
@@ -155,14 +244,14 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   }
 
   await admin.from("sms_log").insert({
-    to_number: to, from_number: RC_FROM, body: finalBody, ticket_no: payload?.ticket_no || null,
+    to_number: to, from_number: from, store, body: finalBody, ticket_no: payload?.ticket_no || null,
     template_key: payload?.template_key || null, status: ok ? "sent" : "failed",
     rc_message_id: rcId, error: err, sent_by: sentBy.id || null,
     // extension sends (no Supabase session) pass the RepairQ tech name for the audit trail
     sent_by_name: sentBy.name || payload?.agent_name || null,
   });
 
-  return ok ? json({ ok: true, id: rcId, to }) : json({ ok: false, error: err }, 502);
+  return ok ? json({ ok: true, id: rcId, to, from, store }) : json({ ok: false, error: err }, 502);
 }
 
 const SELF_URL = `${SB_URL.replace(".supabase.co", ".functions.supabase.co")}/messaging`;
@@ -210,9 +299,11 @@ async function actionContactSet(payload: any, sentBy: { id?: string; name?: stri
   const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
   if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
   const method = ["text", "call", "email", "return"].includes(payload?.method) ? payload.method : "text";
+  // normalize the store to its canonical name when we recognize it
+  const line = await lineForStore(payload?.store);
   const row = {
     ticket_no: ticket,
-    store: payload?.store || null,
+    store: line ? line.store : (payload?.store || null),
     method,
     contact_name: payload?.name || null,
     contact_number: method === "email" ? null : (e164(payload?.number || "") || payload?.number || null),
@@ -240,17 +331,16 @@ async function actionContactDelete(payload: any) {
   return json({ ok: true });
 }
 
-async function actionPoll(hours?: number) {
-  // No-webhook path: read recent inbound SMS from the message store and
-  // record any we haven't seen (dedup on rc_message_id). Honors STOP/START.
-  // Default 24h window (plenty for the frequent cron); pass hours for a
-  // wider one-time catch-up.
-  const back = Math.max(1, Math.min(720, hours || 24)) * 3600e3;
+/* ---------------- inbound ---------------- */
+
+async function pollInbox(jwt: string, store: string | null, toNumber: string | null, back: number) {
+  // One extension's inbox: record unseen inbound SMS, honor STOP/START.
   const r = await rcGet(
     "/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&direction=Inbound&perPage=100&dateFrom=" +
     new Date(Date.now() - back).toISOString(),
+    jwt,
   );
-  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, detail: r.data }, 502);
+  if (!r.ok) return { store, ok: false, error: r.data?.message || `HTTP ${r.status}`, scanned: 0, recorded: 0, opt_outs: 0 };
   // Apply in CHRONOLOGICAL order so the customer's most recent STOP/START wins
   // (RingCentral returns newest-first).
   const recs = (r.data?.records || []).slice().sort((a: any, b: any) =>
@@ -266,12 +356,39 @@ async function actionPoll(hours?: number) {
     if (STOP_RE.test(text)) { await admin.from("sms_opt_outs").upsert({ phone: from, source: "sms:STOP" }); optOuts++; }
     if (START_RE.test(text)) await admin.from("sms_opt_outs").delete().eq("phone", from);
     await admin.from("sms_log").insert({
-      direction: "in", to_number: RC_FROM, from_number: from, body: text,
+      direction: "in", to_number: toNumber, from_number: from, store, body: text,
       status: "received", rc_message_id: rcId,
     });
     recorded++;
   }
-  return json({ ok: true, scanned: recs.length, recorded, opt_outs: optOuts });
+  return { store, ok: true, scanned: recs.length, recorded, opt_outs: optOuts };
+}
+
+async function actionPoll(hours?: number) {
+  // No-webhook path: sweep EVERY configured store's inbox. Stores without a
+  // minted JWT are skipped (their line's texts land in the default inbox only
+  // if the numbers share an extension — they don't — so those stores simply
+  // have no inbound until their JWT goes in). The default JWT's inbox is
+  // always swept, deduped against any store line using the same JWT.
+  const back = Math.max(1, Math.min(720, hours || 24)) * 3600e3;
+  const lines = await storeLines();
+  const results: any[] = [];
+  const sweptJwtTails = new Set<string>();
+  for (const l of lines) {
+    if (!l.jwt) { results.push({ store: l.store, ok: false, skipped: true, error: "JWT not set" }); continue; }
+    const tail = l.jwt.slice(-24);
+    if (sweptJwtTails.has(tail)) continue;    // two stores on one JWT — sweep once
+    sweptJwtTails.add(tail);
+    results.push(await pollInbox(l.jwt, l.store, l.sms_number, back));
+  }
+  // the default JWT, if no store line claimed it (pre-migration safety)
+  if (RC_JWT_DEFAULT && !sweptJwtTails.has(RC_JWT_DEFAULT.slice(-24))) {
+    results.push(await pollInbox(RC_JWT_DEFAULT, null, RC_FROM_DEFAULT || null, back));
+  }
+  const totals = results.reduce((t, r) => ({
+    scanned: t.scanned + (r.scanned || 0), recorded: t.recorded + (r.recorded || 0), opt_outs: t.opt_outs + (r.opt_outs || 0),
+  }), { scanned: 0, recorded: 0, opt_outs: 0 });
+  return json({ ok: true, ...totals, stores: results });
 }
 
 async function actionInbound(req: Request, raw: any) {
@@ -282,11 +399,14 @@ async function actionInbound(req: Request, raw: any) {
   for (const ev of raw?.body?.length ? raw.body : [raw?.body].filter(Boolean)) {
     const from = e164(ev?.from?.phoneNumber || "");
     const text = (ev?.subject || "").toString();
+    const to = e164(ev?.to?.[0]?.phoneNumber || "") || RC_FROM_DEFAULT;
     if (!from) continue;
     if (STOP_RE.test(text)) await admin.from("sms_opt_outs").upsert({ phone: from, source: "sms:STOP" });
     if (START_RE.test(text)) await admin.from("sms_opt_outs").delete().eq("phone", from);
+    const lines = await storeLines();
+    const line = lines.find((l) => l.sms_number === to) || null;
     await admin.from("sms_log").insert({
-      direction: "in", to_number: RC_FROM, from_number: from, body: text, status: "received",
+      direction: "in", to_number: to, from_number: from, store: line?.store || null, body: text, status: "received",
     });
   }
   return json({ ok: true });

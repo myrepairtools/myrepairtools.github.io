@@ -259,12 +259,23 @@ commission tie-in deliberately deferred.
 
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
-RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_JWT/_SERVER/_FROM_NUMBER/
-_WEBHOOK_SECRET`) stay server-side; it JWT-auths to a cached access token, sends via the
-RC SMS API from the store line, screens opt-outs, and logs every send to `sms_log`.
-Inbound SMS + STOP/START opt-outs (`sms_opt_outs`) are polled from the RC message-store
-by a `messaging-poll-inbound` pg_cron (webhook subscribe is blocked — the app lacks that
-permission), applying STOP/START in chronological order. **The browser never holds a
+RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_SERVER/_WEBHOOK_SECRET` +
+per-store JWTs) stay server-side; it JWT-auths to cached access tokens, sends via the
+RC SMS API from the store's own line, screens opt-outs, and logs every send to `sms_log`
+(store-tagged). **Multi-store:** `store_lines` (store PK = canonical RepairQ name,
+sms_number, jwt_secret_key, aliases jsonb, active) maps each store to its line + the
+function secret holding that store user's Personal JWT — one RC *app*, one JWT per
+store user (`RINGCENTRAL_JWT` = Salem/default, `RINGCENTRAL_JWT_EUGENE`,
+`RINGCENTRAL_JWT_CLACKAMAS`). Send resolves store → line via aliases; a store whose
+JWT isn't minted yet **falls back to the default line** (`RINGCENTRAL_FROM_NUMBER`)
+so sends never bounce. Status/monitoring: **Settings → Integrations → RingCentral**
+(owner tab) — per-store LIVE/FALLBACK/AUTH-ERROR pills via the `test` action, per-store
+test-send, month send counts + opt-outs. New store = RC user + number, mint Personal JWT
+(developers.ringcentral.com as that store's user), add secret, `store_lines` row, A2P/TCR
+registration. Inbound SMS + STOP/START opt-outs (`sms_opt_outs`) are polled from every
+configured store's RC message-store by a `messaging-poll-inbound` pg_cron (webhook
+subscribe is blocked — the app lacks that permission), applying STOP/START in
+chronological order. **The browser never holds a
 RingCentral secret** — the extension calls the function through `bg.js` (`sms:<action>`
 messages → `messaging` with the public anon key). Actions: `send` (E.164 validate,
 opt-out screen, `agent_name` audit trail), `poll`, `contact_set/get/delete`.
