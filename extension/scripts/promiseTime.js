@@ -237,12 +237,18 @@
         var now = new Date();
         var eod = new Date(now); var close = hm(cfg.close, { h: 19, m: 0 }); eod.setHours(close.h, close.m - 60, 0, 0);
         var tom = new Date(now.getTime() + 86400000); var open = hm(cfg.open, { h: 10, m: 0 }); tom.setHours(open.h + 1, 0, 0, 0);
+        var plus2 = new Date(Math.ceil((now.getTime() + 2 * 3600000) / 1800000) * 1800000);
+        var plus4 = new Date(Math.ceil((now.getTime() + 4 * 3600000) / 1800000) * 1800000);
+        var clock = function (t) {
+            var h = t.getHours() % 12 || 12, m = ('0' + t.getMinutes()).slice(-2);
+            return h + ':' + m + ' ' + (t.getHours() >= 12 ? 'PM' : 'AM');
+        };
         var presets = [
             mk('⭐ ' + fmtWhen(sug) + ' (suggested)', sug),
-            mk('+2 hrs', new Date(Math.ceil((now.getTime() + 2 * 3600000) / 1800000) * 1800000)),
-            mk('+4 hrs', new Date(Math.ceil((now.getTime() + 4 * 3600000) / 1800000) * 1800000)),
-            mk('End of day', eod),
-            mk('Tomorrow ' + ((open.h + 1) % 12 || 12) + ':00', tom),
+            mk('+2 hrs · ' + clock(plus2), plus2),
+            mk('+4 hrs · ' + clock(plus4), plus4),
+            mk('End of day · ' + clock(eod), eod),
+            mk('Tomorrow ' + clock(tom), tom),
         ];
         var ov = document.createElement('div'); ov.id = 'mrtPtGate';
         ov.innerHTML = '<div class="card"><h4>⏰ No promise time on this ticket</h4>' +
@@ -289,19 +295,19 @@
         if (!snapshot) return '';
         var t = suggest(snapshot.workable, new Date(), snapshot.effMins);
         return '🕐 New repairs by <b>' + fmtWhen(t) + '</b>' +
-               '<span class="mrt-pt-pill-sub">' + snapshot.workable + ' in queue · ~' +
-               Math.round(snapshot.effMins || cfg.minsPer) + ' min/repair</span>';
+               '<span class="mrt-pt-pill-sub"> · ' + snapshot.workable + ' in queue · ~' +
+               Math.round(snapshot.effMins || cfg.minsPer) + ' min</span>';
     }
 
     function placePill() {
-        var navSpot = document.getElementById('globalSearches');
-        if (!navSpot || !navSpot.parentElement) return;
         if (document.querySelector('.mrt-pt-pill')) return;
 
-        pill = document.createElement('span');
+        // Fixed overlay in the top nav's empty center — never touches RepairQ's
+        // layout flow (an in-flow insert pushed the ticket toolbar off-screen).
+        pill = document.createElement('div');
         pill.className = 'mrt-pt-pill';
         pill.title = 'Recommended pickup time for a repair dropped off right now — live from the workable queue and the last 90 minutes of completions';
-        navSpot.parentElement.insertBefore(pill, navSpot);
+        document.body.appendChild(pill);
 
         function tick() {
             if (!document.querySelector('.mrt-pt-pill')) return;
@@ -322,11 +328,13 @@
         if (document.getElementById('mrtPtPillStyles')) return;
         var s = document.createElement('style'); s.id = 'mrtPtPillStyles';
         s.textContent =
-        '.mrt-pt-pill{display:inline-block;vertical-align:middle;margin:4px 12px 0 0;padding:5px 13px;' +
-          'background:#2D2D3B;color:#fff;border-radius:999px;font-family:"Nunito","Segoe UI",sans-serif;' +
-          'font-weight:800;font-size:12.5px;line-height:1.25;box-shadow:0 2px 8px rgba(45,45,59,.3);white-space:nowrap}' +
+        '.mrt-pt-pill{position:fixed;top:9px;left:50%;transform:translateX(-50%);z-index:2147483300;' +
+          'padding:6px 15px;background:#1F1F2A;color:#fff;border:1px solid rgba(255,255,255,.14);' +
+          'border-radius:999px;font-family:"Nunito","Segoe UI",sans-serif;font-weight:800;font-size:12.5px;' +
+          'line-height:1.2;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none}' +
         '.mrt-pt-pill b{color:#7FD4A0}' +
-        '.mrt-pt-pill .mrt-pt-pill-sub{display:block;font-weight:700;font-size:10px;color:#B9BDCB}';
+        '.mrt-pt-pill .mrt-pt-pill-sub{font-weight:700;color:#B9BDCB}' +
+        '@media (max-width:1100px){.mrt-pt-pill{display:none}}';   // hide on tight widths so it never collides
         document.head.appendChild(s);
     }
 
