@@ -183,6 +183,38 @@ function setEstimate(dateStr, timeText) {
             if (setter && setter.set) setter.set.call(d, dateStr); else d.value = dateStr;
             d.dispatchEvent(new Event('change', { bubbles: true }));
         }
+
+        // The time list is a plain <select> of "10:15 am" options (15-min
+        // steps) that onSelect just populated. Pick the nearest not-earlier
+        // slot by its TEXT and set selectedIndex (clean for a native select —
+        // no hidden-field poking, which is what corrupted it before).
+        function toMins(s) {
+            var m = /(\d{1,2}):(\d{2})\s*(a|p)\.?m/i.exec(s || '');
+            if (!m) return -1;
+            var h = +m[1] % 12; if (/p/i.test(m[3])) h += 12;
+            return h * 60 + (+m[2]);
+        }
+        var want = toMins(timeText), tries = 0;
+        (function pick() {
+            var sel = document.querySelector('select[name="TicketForm[repair_estimated_time]"]');
+            if (sel && sel.options.length > 1) {
+                var best = -1, bestM = 1e9;
+                for (var i = 0; i < sel.options.length; i++) {
+                    var mm = toMins(sel.options[i].text);
+                    if (mm >= 0 && mm >= want && mm < bestM) { bestM = mm; best = i; }
+                }
+                if (best < 0) {   // past the last slot → latest valid option
+                    for (var j = sel.options.length - 1; j >= 0; j--) { if (toMins(sel.options[j].text) >= 0) { best = j; break; } }
+                }
+                if (best >= 0) {
+                    sel.selectedIndex = best;
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    if ($) { try { $(sel).trigger('change'); } catch (e) {} }
+                }
+                return;
+            }
+            if (++tries < 20) setTimeout(pick, 150);
+        })();
         return { ok: true, value: d.value };
     } catch (e) {
         return { ok: false, reason: String(e && e.message || e) };

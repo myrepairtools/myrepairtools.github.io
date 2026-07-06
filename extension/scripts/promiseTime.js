@@ -222,7 +222,7 @@
                 fmtWhen(t) + '</b></span><button type="button">Use it</button>';
             chip.querySelector('button').addEventListener('click', function () {
                 setPromise(t);
-                chip.innerHTML = '✅ <span>Date set — now pick <b>' + fmtWhen(t) + '</b> in the time box →</span>';
+                chip.innerHTML = '✅ <span>Promised for <b>' + fmtWhen(t) + '</b></span>';
             });
             well.appendChild(chip);
         });
