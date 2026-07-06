@@ -122,32 +122,92 @@
         });
     }
 
-    /* ---------------- suggestion math ---------------- */
+    /* ---------------- store hours (from RepairQ's own page) ---------------- */
+    // RepairQ embeds the store's per-day hours in the ticket page's
+    // $.app.page.init({... location:{ monday_start, monday_end, … } …}). We
+    // parse them from the inline script (content scripts can read it), cache
+    // per store name, and use today's real hours — Sat closes early, Sun may
+    // be closed. Falls back to the Options default when unavailable.
+
+    var HRS_KEY = 'mrt_store_hours';
+    var storeHoursCache = {};                                    // { storeName: {days:{0..6:{open,close}|null}, when} }
 
     function hm(str, dflt) {
         var m = /^(\d{1,2}):(\d{2})$/.exec(str || '');
         return m ? { h: +m[1], m: +m[2] } : dflt;
     }
 
+    function currentStore() {
+        var t = document.querySelector('.location.tooltip-toggle span, #location option:checked, #filter_location option:checked');
+        var name = t && t.textContent.replace(/\s+/g, ' ').trim();
+        return name || '';
+    }
+
+    function readStoreHoursFromPage() {
+        var scripts = document.querySelectorAll('script:not([src])');
+        var src = '';
+        for (var i = 0; i < scripts.length; i++) {
+            if (scripts[i].textContent.indexOf('app.page.init') > -1) { src = scripts[i].textContent; break; }
+        }
+        if (!src) for (var j = 0; j < scripts.length; j++) {
+            if (scripts[j].textContent.indexOf('monday_start') > -1) { src = scripts[j].textContent; break; }
+        }
+        if (!src) return null;
+        var map = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+        var days = {}, found = 0;
+        for (var name in map) {
+            var s = new RegExp('"' + name + '_start":\\s*(?:"([^"]*)"|null)').exec(src);
+            var e = new RegExp('"' + name + '_end":\\s*(?:"([^"]*)"|null)').exec(src);
+            if (!s || !e) continue;
+            found++;
+            days[map[name]] = (s[1] && e[1]) ? { open: s[1], close: e[1] } : null;   // null = closed
+        }
+        if (found < 5) return null;
+        var sn = /"short_name":"([^"]*)"/.exec(src);
+        var rec = { days: days, when: Date.now() };
+        var store = (sn && sn[1]) || currentStore() || 'default';
+        storeHoursCache[store] = rec;
+        try { chrome.storage.local.set({ [HRS_KEY]: storeHoursCache }); } catch (e) {}
+        return rec;
+    }
+
+    // today-or-given-date hours for the current store, else the Options default
+    function dayHours(date) {
+        var store = currentStore();
+        var rec = (store && storeHoursCache[store]) || storeHoursCache['default'];
+        if (rec && rec.days) {
+            var d = rec.days[date.getDay()];
+            if (d === null) return null;                          // closed that day
+            if (d) return { open: hm(d.open), close: hm(d.close) };
+        }
+        return { open: hm(cfg.open, { h: 10, m: 0 }), close: hm(cfg.close, { h: 19, m: 0 }) };
+    }
+
+    // advance t to the next moment the store is open & promisable (≥30m before close)
+    function rollIntoHours(t) {
+        t = new Date(t);
+        for (var g = 0; g < 14; g++) {
+            var dh = dayHours(t);
+            if (dh && dh.open && dh.close) {
+                var openT = new Date(t); openT.setHours(dh.open.h, dh.open.m, 0, 0);
+                var cut = new Date(t); cut.setHours(dh.close.h, dh.close.m - 30, 0, 0);
+                if (t < openT) return openT;                      // before open → open time
+                if (t <= cut) return t;                           // within hours → good
+            }
+            // closed day or past close → jump to the next day at open
+            t.setDate(t.getDate() + 1); t.setHours(0, 0, 0, 0);
+        }
+        return t;
+    }
+
     function suggest(workable, now, effMins) {
         now = now || new Date();
         var per = effMins || (snapshot && snapshot.effMins) || cfg.minsPer;
-        var open = hm(cfg.open, { h: 10, m: 0 }), close = hm(cfg.close, { h: 19, m: 0 });
         var lead = Math.max(90, (workable + 1) * per);           // this ticket joins the line
         var t = new Date(now.getTime() + lead * 60000);
         t.setSeconds(0, 0);
         t.setMinutes(Math.ceil(t.getMinutes() / 30) * 30);       // round UP to :00/:30
-
-        // must be promisable ≥30 min before closing, else tomorrow morning
-        var cutoff = new Date(t); cutoff.setHours(close.h, close.m - 30, 0, 0);
-        if (t > cutoff) {
-            t.setDate(t.getDate() + 1);
-            t.setHours(open.h + 1, 0, 0, 0);                     // an hour after open — queue carries over
-        }
-        // never promise before the store is open (big queues can cross midnight)
-        var openT = new Date(t); openT.setHours(open.h, open.m, 0, 0);
-        if (t < openT) t.setHours(open.h + 1, 0, 0, 0);
-        return t;
+        return rollIntoHours(t);                                 // clamp into real store hours
     }
 
     function fmtWhen(t) {
@@ -235,11 +295,14 @@
         var sug = suggest(s.workable);
         var mk = function (label, t) { return { label: label, t: t }; };
         var now = new Date();
-        var close = hm(cfg.close, { h: 19, m: 0 }), open = hm(cfg.open, { h: 10, m: 0 });
-        var closeToday = new Date(now); closeToday.setHours(close.h, close.m, 0, 0);
-        var minFuture = now.getTime() + 5 * 60000;         // must be at least a few min out
-        var eod = new Date(closeToday);                    // "by end of today" = closing time
-        var tom = new Date(now.getTime() + 86400000); tom.setHours(open.h + 1, 0, 0, 0);
+        var today = dayHours(now);                          // null if closed today
+        var minFuture = now.getTime() + 5 * 60000;          // must be at least a few min out
+        var closeToday = today ? (function () { var c = new Date(now); c.setHours(today.close.h, today.close.m, 0, 0); return c; })()
+                               : new Date(now.getTime() - 1);   // closed today → no same-day presets
+        var eod = new Date(closeToday);                     // "by end of today" = closing time
+        // next open day: roll a time past today's close forward into hours
+        var tomRaw = new Date(now); tomRaw.setDate(tomRaw.getDate() + 1); tomRaw.setHours(0, 0, 0, 0);
+        var tom = rollIntoHours(tomRaw);
         var plus2 = new Date(Math.ceil((now.getTime() + 2 * 3600000) / 1800000) * 1800000);
         var plus4 = new Date(Math.ceil((now.getTime() + 4 * 3600000) / 1800000) * 1800000);
         var clock = function (t) {
@@ -252,7 +315,9 @@
         if (fits(plus2)) presets.push(mk('+2 hrs · ' + clock(plus2), plus2));
         if (fits(plus4)) presets.push(mk('+4 hrs · ' + clock(plus4), plus4));
         if (fits(eod))   presets.push(mk('End of day · ' + clock(eod), eod));
-        presets.push(mk('Tomorrow ' + clock(tom), tom));
+        // "tomorrow" may actually be the next OPEN day (skips a closed Sunday)
+        var tomLbl = fmtWhen(tom);
+        presets.push(mk((tomLbl.indexOf('tomorrow') === 0 ? 'Tomorrow ' + clock(tom) : 'Next: ' + tomLbl), tom));
         var ov = document.createElement('div'); ov.id = 'mrtPtGate';
         ov.innerHTML = '<div class="card"><h4>⏰ No promise time on this ticket</h4>' +
             '<div class="sub">' + (s.workable ? s.workable + ' repairs already in the queue. ' : '') +
@@ -344,6 +409,14 @@
     /* ---------------- boot ---------------- */
 
     function start() {
+        // load cached store hours, then read fresh from this page if it carries them
+        try {
+            chrome.storage.local.get([HRS_KEY]).then(function (r) {
+                if (r && r[HRS_KEY]) storeHoursCache = r[HRS_KEY];
+                readStoreHoursFromPage();
+            }).catch(function () { readStoreHoursFromPage(); });
+        } catch (e) { readStoreHoursFromPage(); }
+
         // every RepairQ tab keeps the snapshot warm
         getSnapshot();
         setInterval(function () { refreshSnapshot().catch(function () {}); }, SNAP_TTL);

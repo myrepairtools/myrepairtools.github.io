@@ -292,7 +292,7 @@ left of the search bar) is the always-on clock: "New repairs by <time> · N in q
 refresh diffs workable ticket-ids vs the previous snapshot — departures over a 90-min
 window set observed mins/repair (≥2 departures, clamped 10..2×minsPer, else the
 configured default), so banging out repairs pulls promises in and a growing queue
-pushes them out. Config in Options (wn.promise, wn.minsPer 45, wn.open/wn.close). **RepairQ workflow
+pushes them out. Store hours come from RepairQ's own page (the `$.app.page.init` location object's per-day `monday_start/end`… fields), parsed from the inline script and cached per store name (chrome.storage.local `mrt_store_hours`); today's real hours drive the suggestion + presets (Sat closes early, Sun closed → rolls to next open day). Falls back to the Options default (wn.open/wn.close) only when unread. Config in Options (wn.promise, wn.minsPer 45, wn.open/wn.close fallback). **RepairQ workflow
 tools** (absorbed from MyCPRTools, a fellow franchisee's extension): `mcprUtils.js` +
 `mcprConfig.js` (fetch-based; dynamic assignee lookup — no hardcoded roster) power
 Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lacks a
