@@ -235,21 +235,24 @@
         var sug = suggest(s.workable);
         var mk = function (label, t) { return { label: label, t: t }; };
         var now = new Date();
-        var eod = new Date(now); var close = hm(cfg.close, { h: 19, m: 0 }); eod.setHours(close.h, close.m - 60, 0, 0);
-        var tom = new Date(now.getTime() + 86400000); var open = hm(cfg.open, { h: 10, m: 0 }); tom.setHours(open.h + 1, 0, 0, 0);
+        var close = hm(cfg.close, { h: 19, m: 0 }), open = hm(cfg.open, { h: 10, m: 0 });
+        var closeToday = new Date(now); closeToday.setHours(close.h, close.m, 0, 0);
+        var minFuture = now.getTime() + 5 * 60000;         // must be at least a few min out
+        var eod = new Date(closeToday);                    // "by end of today" = closing time
+        var tom = new Date(now.getTime() + 86400000); tom.setHours(open.h + 1, 0, 0, 0);
         var plus2 = new Date(Math.ceil((now.getTime() + 2 * 3600000) / 1800000) * 1800000);
         var plus4 = new Date(Math.ceil((now.getTime() + 4 * 3600000) / 1800000) * 1800000);
         var clock = function (t) {
             var h = t.getHours() % 12 || 12, m = ('0' + t.getMinutes()).slice(-2);
             return h + ':' + m + ' ' + (t.getHours() >= 12 ? 'PM' : 'AM');
         };
-        var presets = [
-            mk('⭐ ' + fmtWhen(sug) + ' (suggested)', sug),
-            mk('+2 hrs · ' + clock(plus2), plus2),
-            mk('+4 hrs · ' + clock(plus4), plus4),
-            mk('End of day · ' + clock(eod), eod),
-            mk('Tomorrow ' + clock(tom), tom),
-        ];
+        // a same-day preset only shows if it lands in the future AND before we close
+        var fits = function (t) { return t.getTime() > minFuture && t <= closeToday; };
+        var presets = [ mk('⭐ ' + fmtWhen(sug) + ' (suggested)', sug) ];
+        if (fits(plus2)) presets.push(mk('+2 hrs · ' + clock(plus2), plus2));
+        if (fits(plus4)) presets.push(mk('+4 hrs · ' + clock(plus4), plus4));
+        if (fits(eod))   presets.push(mk('End of day · ' + clock(eod), eod));
+        presets.push(mk('Tomorrow ' + clock(tom), tom));
         var ov = document.createElement('div'); ov.id = 'mrtPtGate';
         ov.innerHTML = '<div class="card"><h4>⏰ No promise time on this ticket</h4>' +
             '<div class="sub">' + (s.workable ? s.workable + ' repairs already in the queue. ' : '') +
