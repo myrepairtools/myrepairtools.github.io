@@ -95,19 +95,27 @@ const START_RE = /^\s*(start|unstop|subscribe|yes)\s*$/i;
 async function actionTest() {
   // exercises auth + identity without sending
   const info = await rcGet("/restapi/v1.0/account/~/extension/~");
-  const num = await rcGet("/restapi/v1.0/account/~/extension/~/phone-number?usageType=DirectNumber&perPage=50");
-  const smsNumbers = (num.data?.records || [])
+  // account-wide numbers (tells us if every store's number is reachable
+  // from this one login, which decides one-setup vs per-store creds)
+  const acct = await rcGet("/restapi/v1.0/account/~/phone-number?perPage=1000");
+  const smsNumbers = (acct.data?.records || [])
     .filter((r: any) => (r.features || []).includes("SmsSender"))
-    .map((r: any) => r.phoneNumber);
+    .map((r: any) => ({
+      number: r.phoneNumber,
+      label: r.label || null,
+      extension: r.extension?.name || null,
+      extensionNumber: r.extension?.extensionNumber || null,
+      usageType: r.usageType,
+    }));
   return json({
     ok: true,
     authenticated: true,
-    extension: info.data?.name || info.data?.extensionNumber || null,
+    this_extension: info.data?.name || info.data?.extensionNumber || null,
     from_configured: RC_FROM || null,
-    sms_capable_numbers: smsNumbers,
-    note: smsNumbers.length
-      ? "Set RINGCENTRAL_FROM_NUMBER to one of sms_capable_numbers."
-      : "No SMS-capable numbers found on this extension.",
+    account_sms_numbers: smsNumbers,
+    note: smsNumbers.length > 1
+      ? "Multiple SMS numbers visible on one login — per-store sending from one setup is possible."
+      : "One SMS number visible from this login.",
   });
 }
 
