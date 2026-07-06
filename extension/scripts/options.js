@@ -56,6 +56,7 @@ function saveOptions() {
         lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
     }
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
+    const sms = { readyText: document.getElementById('smsReadyText').getAttribute('data-checked') === 'checked' };
     const wn = {
         enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked',
         promise: document.getElementById('wnPromise').getAttribute('data-checked') === 'checked',
@@ -98,7 +99,8 @@ function saveOptions() {
             lcd: lcd,
             ai: ai,
             wn: wn,
-            mcpr: mcpr
+            mcpr: mcpr,
+            sms: sms
         }, () => {
             alert('Options saved!');
         }
@@ -110,7 +112,7 @@ function restoreOptions() {
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
         'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
-        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr'
+        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms'
     ])
     .then((result => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
@@ -139,6 +141,10 @@ function restoreOptions() {
         const aiOn = !result.ai || result.ai.enabled !== false;
         aiEl.setAttribute('data-checked', aiOn ? 'checked' : 'unchecked');
         aiEl.className = 'lcd-checkmark ' + (aiOn ? 'checked' : 'unchecked');
+        const smsRt = document.getElementById('smsReadyText');
+        const smsRtOn = !result.sms || result.sms.readyText !== false;
+        smsRt.setAttribute('data-checked', smsRtOn ? 'checked' : 'unchecked');
+        smsRt.className = 'lcd-checkmark ' + (smsRtOn ? 'checked' : 'unchecked');
         const wnEl = document.getElementById('wnEnabled');
         const wnOn = !result.wn || result.wn.enabled !== false;
         wnEl.setAttribute('data-checked', wnOn ? 'checked' : 'unchecked');

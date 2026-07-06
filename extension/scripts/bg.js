@@ -26,6 +26,11 @@
 var LCD_FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/lcd-buyback';
 var LCD_SECRET = '77a715da8c43ebc3bf59b5f41ac9f7c80a71c6063be4530a';
 
+// Supabase anon key (public — same one committed across the site) for the
+// messaging function gateway. RingCentral creds stay server-side only.
+var SB_FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1';
+var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+
 /* ---------------- print gate ---------------- */
 
 // Serialized and run in the PAGE's MAIN world.
@@ -77,6 +82,25 @@ function lcdFetch(action, opts) {
         body: opts.body ? JSON.stringify(opts.body) : undefined
     }).then(function (r) { return r.json(); });
 }
+
+/* ---------------- messaging (RingCentral SMS) proxy ---------------- */
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('sms:') !== 0) return;
+    var action = msg.type.slice(4);            // sms:send -> send, sms:unread -> unread
+    fetch(SB_FN + '/messaging', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + SB_ANON,
+            'apikey': SB_ANON
+        },
+        body: JSON.stringify(Object.assign({ action: action }, msg.payload || {}))
+    }).then(function (r) { return r.json(); })
+      .then(sendResponse)
+      .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    return true; // async
+});
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('lcd:') !== 0) return;

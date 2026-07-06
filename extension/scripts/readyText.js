@@ -1,0 +1,189 @@
+/*
+    Ready-for-Pickup text (myRepairTools)
+
+    Runs on: cpr.repairq.io ticket edit / repair pages.
+
+    Clicking RepairQ's "Ready for Pickup" status button pops a small chooser
+    right off the button:
+
+        Send "ready for pickup" text to:
+          📱 SMS 541-…      (Customer[sms_phone], if set)
+          📞 Primary 541-…  (Customer[pri_phone])
+          📞 Alt 541-…      (Customer[alt_phone], if set)
+          Don't send SMS
+
+    Pick a number → the ready-for-pickup text goes out from the store line
+    (logged with the tech's name + ticket #), then the status change
+    proceeds. "Don't send" just proceeds. Numbers are read straight from the
+    ticket's own customer fields — no profile lookup.
+
+    Toggle: Options → RingCentral SMS (storage.sync sms.readyText, default ON).
+*/
+
+(function () {
+    'use strict';
+
+    var BTN_SEL = 'a.save-ticket.ready_for_pickup, #Btnready_for_pickup, a.save-ticket[action="ready_for_pickup"]';
+    var bypass = false;   // set true to let our re-fired click through
+
+    function val(id) { var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; }
+    function digits(s) { return (s || '').replace(/\D/g, ''); }
+    function pretty(n) {
+        var d = digits(n);
+        if (d.length === 11 && d[0] === '1') d = d.slice(1);
+        return d.length === 10 ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : n;
+    }
+
+    function customer() {
+        return {
+            first: val('Customer_first_name'),
+            last: val('Customer_last_name'),
+            pri: val('Customer_pri_phone'),
+            alt: val('Customer_alt_phone'),
+            sms: val('Customer_sms_phone'),
+        };
+    }
+
+    function ticketNo() {
+        var m = location.pathname.match(/\/ticket\/(?:edit|view)\/(\d+)/);
+        if (m) return m[1];
+        var h = document.querySelector('#ticket h2 span, .ticket-number, [data-ticket-id]');
+        var t = h && (h.getAttribute('data-ticket-id') || h.textContent);
+        var mm = t && t.match(/(\d{5,})/);
+        return mm ? mm[1] : '';
+    }
+
+    function device() {
+        // repair line name, trimmed down to just the device model — cut off at
+        // the repair-type keyword so "iPhone 17 Pro Max Screen Repair (OLED)…"
+        // becomes "iPhone 17 Pro Max"
+        var cell = document.querySelector('tr.ticket-item-row td.catalog-item-col, .repair-device .catalog-item');
+        var raw = '';
+        if (cell) {
+            var clone = cell.cloneNode(true);
+            clone.querySelectorAll('em, a, div, select, input').forEach(function (n) { n.remove(); });
+            raw = clone.textContent.replace(/\s+/g, ' ').trim();
+        }
+        if (!raw) return '';
+        var cut = raw.split(/\b(?:screen|battery|charging|back\s*glass|lcd|oled|camera|glass|board)?\s*(?:repair|replacement)\b/i)[0].trim();
+        cut = cut.replace(/^Apple\s+|^Samsung\s+|^Google\s+/i, '').trim();   // drop the brand prefix, friendlier
+        return (cut.length >= 3 && cut.length <= 34) ? cut : '';
+    }
+
+    function storeName() {
+        var t = document.querySelector('.location.tooltip-toggle span');
+        return (t && t.textContent.trim()) || 'CPR';
+    }
+
+    function techName() {
+        var el = document.getElementById('user_dropdown');
+        if (!el) return '';
+        var raw = el.textContent.replace(/\s+/g, ' ').trim();
+        var m = raw.match(/^([^,]+),\s*(.+)$/);
+        return m ? (m[2] + ' ' + m[1]).trim() : raw;
+    }
+
+    function defaultMessage(c) {
+        var name = c.first ? c.first : 'there';
+        var dev = device();
+        var subj = dev ? 'your ' + dev + ' is' : 'your repair is';
+        return 'Hi ' + name + ', ' + subj + ' ready for pickup at ' + storeName() +
+               '! Come by during business hours — see you soon.';
+    }
+
+    /* ---------------- popup ---------------- */
+
+    function closePopup() {
+        var p = document.getElementById('mrt-rfp-pop');
+        if (p) p.remove();
+        document.removeEventListener('click', outsideClose, true);
+    }
+    function outsideClose(e) {
+        var p = document.getElementById('mrt-rfp-pop');
+        if (p && !p.contains(e.target)) closePopup();
+    }
+
+    function proceed(btn) {
+        bypass = true;
+        closePopup();
+        btn.click();                 // re-fire the real status change
+        setTimeout(function () { bypass = false; }, 1500);
+    }
+
+    function popup(btn) {
+        closePopup();
+        var c = customer();
+        var choices = [];
+        if (c.sms) choices.push({ label: '📱 SMS ' + pretty(c.sms), num: c.sms });
+        if (c.pri) choices.push({ label: '📞 Primary ' + pretty(c.pri), num: c.pri });
+        if (c.alt) choices.push({ label: '📞 Alt ' + pretty(c.alt), num: c.alt });
+
+        var pop = document.createElement('div');
+        pop.id = 'mrt-rfp-pop';
+        pop.className = 'mrt-rfp-pop';
+        var rows = choices.length
+            ? choices.map(function (ch, i) {
+                return '<button class="mrt-rfp-num" data-num="' + digits(ch.num) + '">' + ch.label + '</button>';
+              }).join('')
+            : '<div class="mrt-rfp-none">No phone number on this ticket</div>';
+        pop.innerHTML =
+            '<div class="mrt-rfp-hd">Send “ready for pickup” text to:</div>' +
+            rows +
+            '<button class="mrt-rfp-skip">Don’t send SMS →</button>';
+
+        // anchor above the button
+        var r = btn.getBoundingClientRect();
+        pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 280)) + 'px';
+        pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+        document.body.appendChild(pop);
+        setTimeout(function () { document.addEventListener('click', outsideClose, true); }, 0);
+
+        pop.querySelectorAll('.mrt-rfp-num').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var num = b.getAttribute('data-num');
+                b.textContent = 'Sending…'; b.disabled = true;
+                var payload = {
+                    to: num, body: defaultMessage(c), ticket_no: ticketNo(),
+                    template_key: 'ready_for_pickup', agent_name: techName(),
+                };
+                sendSms(payload, function (res) {
+                    if (res && res.ok) { b.textContent = '✓ Sent'; }
+                    else { b.textContent = '⚠ ' + ((res && res.error) || 'failed') + ' — proceeding'; }
+                    setTimeout(function () { proceed(btn); }, res && res.ok ? 550 : 1400);
+                });
+            });
+        });
+        pop.querySelector('.mrt-rfp-skip').addEventListener('click', function () { proceed(btn); });
+    }
+
+    function sendSms(payload, cb) {
+        try {
+            chrome.runtime.sendMessage({ type: 'sms:send', payload: payload }, function (res) {
+                cb(chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res);
+            });
+        } catch (e) { cb({ ok: false, error: String(e && e.message || e) }); }
+    }
+
+    /* ---------------- intercept ---------------- */
+
+    function onClick(e) {
+        if (bypass) return;
+        var btn = e.target.closest && e.target.closest(BTN_SEL);
+        if (!btn) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        popup(btn);
+    }
+
+    function start() {
+        document.addEventListener('click', onClick, true);   // capture, ahead of RepairQ
+    }
+
+    try {
+        chrome.storage.sync.get(['sms']).then(function (res) {
+            var s = (res && res.sms) || {};
+            if (s.readyText === false) return;
+            if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+        }).catch(start);
+    } catch (e) { start(); }
+})();
