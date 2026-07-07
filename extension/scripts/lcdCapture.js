@@ -151,6 +151,7 @@
             send(payload).then(function (res) {
                 toast(res && res.ok
                     ? item.model + ' logged — ' + answer.toUpperCase() + ' display'
+                      + (answer === 'bad' ? ' (no label — bad pulls aren’t boxed)' : '')
                     : 'LCD log failed: ' + (res && res.error || 'network'), !(res && res.ok));
             });
         } else {

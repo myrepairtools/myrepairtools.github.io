@@ -223,8 +223,13 @@ paystatus — flips to paid by checking the Square order / send — emails the l
 Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
 
 **LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
-Galaxy Note / Galaxy Z / Pixel screen repair gets graded, labeled, boxed, and audited when the
-recycler buys. Tables: `lcd_displays` (**ticket_no = the display's serial and the QR
+Galaxy Note / Galaxy Z / Pixel screen repair gets graded good/bad; **only GOOD pulls are
+physical inventory** — labeled, boxed, expected by audits, valued. Bad pulls are
+log-only (worth ~quarters; Apple KBB claims also require sending them back, which made
+tracking them as inventory produce false "missing" flags). The accountability signal on
+bads is statistical instead: a per-tech good/bad/bad-rate table on the page's All
+records tab (managers) — a tech misgrading good screens to pocket them surfaces as an
+outlier bad-rate. Audited when the recycler buys. Tables: `lcd_displays` (**ticket_no = the display's serial and the QR
 content**; item_key disambiguates 2+ pulls on one ticket; store, model, status
 good|bad, graded_by + resolved staff_id, status_history jsonb, label_prints,
 audit_id/audit_result/audited_at, missing, deleted) + `lcd_audits` (store null = all,
