@@ -594,7 +594,7 @@ function newDraft(){
     weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
     target:'person',assignee:mgr?(STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner')[0]||ME).id:ME.id,fallback:'',
     shift:(SHIFTS[0]||{}).id,role:'any',pool:STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner').map(s=>s.id),strategy:'rotate',completion:'any',
-    store:SEL,dueTime:'6:00 PM',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',personal:!mgr};
+    store:SEL,dueTime:'18:00',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',personal:!mgr};
 }
 function draftFrom(t){
   return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
@@ -602,7 +602,7 @@ function draftFrom(t){
     weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
     target:t.target||'person',assignee:t.assignee_staff_id||ME.id,fallback:t.fallback_staff_id||'',
     shift:t.shift_id||(SHIFTS[0]||{}).id,role:t.role_key||'any',pool:(t.pool||[]).slice(),strategy:t.strategy||'rotate',completion:t.completion||'any',
-    store:t.store||SEL,dueTime:fmt12(t.due_time||'18:00'),dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',personal:!!t.personal};
+    store:t.store||SEL,dueTime:t.due_time||'18:00',dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',personal:!!t.personal};
 }
 function openEditor(t){
   const mgr=isMgr(ME.role);
@@ -662,7 +662,7 @@ function drawEditor(){
         '</div><div class="hint" style="margin-top:11px">'+esc(sum)+'</div></div>'))+
       '<div class="grid2" style="margin-bottom:18px">'+
         (personal?'<div></div>':'<label class="fld" style="margin:0"><span class="fl">Store</span><select class="inp" id="eStore">'+STORES.map(s=>'<option value="'+esc(s)+'"'+(d.store===s?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></label>')+
-        '<label class="fld" style="margin:0"><span class="fl">Due time</span><input class="inp" id="eDueTime" value="'+esc(d.dueTime)+'" placeholder="6:00 PM"></label>'+
+        '<label class="fld" style="margin:0"><span class="fl">Due time</span><input class="inp" type="time" id="eDueTime" value="'+esc(to24(d.dueTime))+'"></label>'+
       '</div>'+
       (d.recur==='oneoff'?
         '<div style="margin-bottom:8px"><span class="fl" style="display:block;margin-bottom:6px">Due</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['same','Today','var(--dark)'],['after','After…','var(--dark)'],['date','On date','var(--dark)']],d.dueType,'var(--dark)','duety')+'</div></div>'+
