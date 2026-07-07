@@ -91,7 +91,7 @@ font-weight:700;font-size:.85rem;margin-bottom:16px}
 
   <div class="hd">
     <div class="chips" id="storeChips"></div>
-    <div class="coverwrap">Keep <input type="number" id="cover" min="7" max="120" step="1"> days of supply</div>
+    <div class="coverwrap" title="Capped at 30 — phones depreciate too fast to hold more; order small and often">Keep <input type="number" id="cover" min="7" max="30" step="1"> days of supply</div>
     <div class="spacer"></div>
     <input id="srch" placeholder="Search model…">
     <button class="btn blue" id="copyOrder">📋 Copy order list</button>
@@ -136,7 +136,10 @@ var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6I
 var sb=createClient(SB_URL,ANON);
 
 var SALES=[],INV=[],STORE='All',SEARCH='',OPEN={};
-var COVER=(function(){try{return Number(localStorage.getItem('do_cover'))||30;}catch(e){return 30;}})();
+/* cover is CAPPED at 30 days: used phones depreciate fast — one price drop
+   and you're holding a pile you can only move at a loss. Order small, often. */
+function clampCover(n){return Math.max(7,Math.min(30,Number(n)||30));}
+var COVER=(function(){try{return clampCover(localStorage.getItem('do_cover'));}catch(e){return 30;}})();
 try{STORE=localStorage.getItem('do_store')||'All';}catch(e){}
 
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2800);}
@@ -400,7 +403,7 @@ $('#file').addEventListener('change',function(){if(this.files.length)importFiles
 ['dragleave','drop'].forEach(function(ev){$('#drop').addEventListener(ev,function(e){e.preventDefault();$('#drop').classList.remove('over');});});
 $('#drop').addEventListener('drop',function(e){if(e.dataTransfer.files.length)importFiles([].slice.call(e.dataTransfer.files));});
 $('#cover').addEventListener('change',function(){
-  COVER=Math.max(7,Math.min(120,Number(this.value)||30));this.value=COVER;
+  COVER=clampCover(this.value);this.value=COVER;
   try{localStorage.setItem('do_cover',String(COVER));}catch(e){}render();
 });
 $('#srch').addEventListener('input',function(){SEARCH=this.value.trim();render();});
