@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Device Ordering — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#6B6F80;--border:#E0E2EA;--green:#1E9E5B;--amber:#C98A00;--white:#fff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark);padding-left:64px}
+@media(max-width:760px){body{padding-left:0}}
+main{max-width:1180px;margin:0 auto;padding:26px 20px 60px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;margin-bottom:2px}
+.sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin-bottom:16px}
+.hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.hd .spacer{flex:1}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;border:none;border-radius:10px;
+padding:9px 15px;cursor:pointer;background:var(--dark);color:#fff}
+.btn.blue{background:var(--blue)}.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+.btn:disabled{opacity:.5;cursor:default}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;padding:7px 13px;border-radius:999px;
+border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.chip.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.coverwrap{display:flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;color:var(--dark-grey)}
+.coverwrap input{width:58px;padding:7px 9px;border:1.5px solid var(--border);border-radius:9px;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;text-align:center;color:var(--dark)}
+.coverwrap input::-webkit-outer-spin-button,.coverwrap input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.coverwrap input[type=number]{-moz-appearance:textfield}
+.tiles{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.tile{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 18px;min-width:128px}
+.tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem}
+.tile .l{font-size:.7rem;font-weight:800;color:var(--grey);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;
+color:#8A8F9C;text-align:left;padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:#FAFAFB}
+td{padding:10px 12px;border-bottom:1px solid #F0F1F4;vertical-align:middle}
+tr.model{cursor:pointer}
+tr.model:hover td{background:#FAFBFD}
+tr.model.open td{background:#F4F9FD}
+td.mdl{font-family:'Nunito',sans-serif;font-weight:800}
+td.mdl .chev{display:inline-block;color:var(--grey);margin-right:6px;transition:transform .12s}
+tr.model.open .chev{transform:rotate(90deg)}
+td.ctr{text-align:center}
+.sugg{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
+.sugg.go{color:var(--red)}.sugg.zero{color:var(--grey)}
+.agebad{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;border-radius:999px;padding:3px 9px;background:var(--light-grey);color:var(--dark-grey)}
+.agebad.stale{background:#FBE9E9;color:var(--red)}
+tr.unit td{background:#FBFBFC;font-size:.8rem;color:var(--dark-grey)}
+tr.unit td:first-child{padding-left:34px}
+.statuspill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:3px 9px}
+.st-instock{background:#E9F6EE;color:var(--green)}.st-ordered{background:#EAF6FD;color:#1E7AA8}
+.st-pendingrefurb{background:#FBF1DC;color:var(--amber)}.st-pulled{background:var(--light-grey);color:var(--dark-grey)}
+.st-sold{background:#EAF6FD;color:#1E7AA8}
+.empty{padding:40px;text-align:center;color:var(--grey);font-weight:700}
+.fresh{font-size:.74rem;color:var(--grey);font-weight:700}
+.fresh b{color:var(--dark-grey)}
+.fresh .warn{color:var(--amber)}
+#drop{border:2px dashed var(--border);border-radius:14px;background:#fff;padding:18px;text-align:center;
+color:var(--dark-grey);font-weight:700;font-size:.85rem;margin-bottom:16px;cursor:pointer}
+#drop.over{border-color:var(--blue);background:#EAF6FD}
+#drop b{font-family:'Nunito',sans-serif}
+#drop .mini{font-size:.74rem;color:var(--grey);margin-top:4px}
+#srch{padding:9px 13px;border:1.5px solid var(--border);border-radius:10px;font-family:'Nunito Sans',sans-serif;
+font-size:.85rem;font-weight:700;min-width:220px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.notice{background:#FBF1DC;border:1px solid #F0E2B6;color:#7A5B10;border-radius:12px;padding:12px 16px;
+font-weight:700;font-size:.85rem;margin-bottom:16px}
+</style>
+</head>
+<body>
+<main>
+  <h1>📲 Device Ordering</h1>
+  <div class="sub">Used-device consumption &amp; suggested orders — drop the two RepairQ exports (Sold + Inventory) to refresh.</div>
+
+  <div class="notice" id="authNotice" style="display:none">Sign in from the Dashboard first — device data needs your staff session.</div>
+
+  <div id="drop">
+    <b>⬆ Drop the RepairQ exports here</b> (zip or csv — Sold list and/or Device Inventory list) or click to pick files
+    <div class="mini" id="freshLine">No uploads yet.</div>
+    <input type="file" id="file" accept=".zip,.csv" multiple style="display:none">
+  </div>
+
+  <div class="hd">
+    <div class="chips" id="storeChips"></div>
+    <div class="coverwrap">Keep <input type="number" id="cover" min="7" max="120" step="1"> days of supply</div>
+    <div class="spacer"></div>
+    <input id="srch" placeholder="Search model…">
+    <button class="btn blue" id="copyOrder">📋 Copy order list</button>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+  <div class="card"><div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Model</th>
+        <th class="ctr">Sold 30d</th>
+        <th class="ctr">In stock</th>
+        <th class="ctr">Refurb</th>
+        <th class="ctr">Ordered</th>
+        <th class="ctr">Days of cover</th>
+        <th class="ctr">Oldest unit</th>
+        <th class="ctr">Suggest</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty" style="display:none">No device data yet — drop the RepairQ exports above.</div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { unzipSync, strFromU8 } from "https://esm.sh/fflate@0.8.2";
+/* ============================================================
+   Device Ordering — used-device consumption + suggested orders.
+   Data: device_sales (accumulating history, upserted on RepairQ ID)
+       + device_inventory (full snapshot, replaced on each upload).
+   Uploads are the RepairQ dashboard exports:
+     "Device Inventory List (Sold)"  -> device_sales
+     "Device Inventory List"         -> device_inventory
+   Suggest = ceil(sold30 × coverDays/30) − (instock + refurb + ordered).
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+
+var SALES=[],INV=[],STORE='All',SEARCH='',OPEN={};
+var COVER=(function(){try{return Number(localStorage.getItem('do_cover'))||30;}catch(e){return 30;}})();
+try{STORE=localStorage.getItem('do_store')||'All';}catch(e){}
+
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2800);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmt$(n){return '$'+Math.round(n).toLocaleString();}
+
+/* Adopt the shared front-door session so RLS reads/writes run as staff. */
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+/* ---------------- model grouping ---------------- */
+/* "iPhone 15 Pro Max 512 GB - Blue Titanium" -> "iPhone 15 Pro Max"
+   (strip storage + color; keep everything else, incl. Motorola model codes) */
+function modelKey(name){
+  var k=String(name||'').replace(/\s+\d+\s*(GB|TB)\b.*$/i,'').trim();
+  return k||String(name||'');
+}
+function moneyNum(s){var n=parseFloat(String(s||'').replace(/[$,%]/g,''));return isNaN(n)?null:n;}
+
+/* ---------------- CSV / zip import ---------------- */
+function parseCSV(text){
+  var rows=[],row=[],cur='',q=false;
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"')q=true;
+    else if(c===','){row.push(cur);cur='';}
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++; row.push(cur);cur=''; if(row.length>1||row[0]!=='')rows.push(row); row=[]; }
+    else cur+=c;
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  if(!rows.length)return [];
+  var hdr=rows[0].map(function(h){return h.trim();});
+  return rows.slice(1).map(function(r){var o={};hdr.forEach(function(h,i){o[h]=(r[i]||'').trim();});return o;});
+}
+function classify(recs){
+  if(!recs.length)return null;
+  var keys=Object.keys(recs[0]);
+  if(keys.indexOf('Sold Date')>-1)return 'sales';
+  if(keys.indexOf('Status')>-1&&keys.indexOf('Added Date')>-1)return 'inventory';
+  return null;
+}
+async function importFiles(files){
+  var texts=[];
+  for(var i=0;i<files.length;i++){
+    var f=files[i];
+    if(/\.zip$/i.test(f.name)){
+      var buf=new Uint8Array(await f.arrayBuffer());
+      var entries=unzipSync(buf);
+      Object.keys(entries).forEach(function(name){
+        if(/device_inventory_list\.csv$/i.test(name))texts.push(strFromU8(entries[name]));
+      });
+    } else if(/\.csv$/i.test(f.name)){
+      texts.push(await f.text());
+    }
+  }
+  if(!texts.length){toast('No device_inventory_list.csv found in those files',true);return;}
+  var didSales=0,didInv=0;
+  for(var t=0;t<texts.length;t++){
+    var recs=parseCSV(texts[t]).filter(function(r){return r.ID&&r.Location;});
+    var kind=classify(recs);
+    if(kind==='sales'){
+      var rows=recs.map(function(r){return {
+        rq_id:Number(r.ID),store:r.Location,manufacturer:r.Manufacturer||null,device:r.Device,
+        model_key:modelKey(r.Device),serial:r['Serial/IMEI']||null,supplier:r.Supplier||null,note:r.Note||null,
+        days_in_stock:r['Days In Stock']?Number(r['Days In Stock']):null,sold_date:r['Sold Date']||null,
+        cost:moneyNum(r.Cost),price:moneyNum(r.Price),uploaded_at:new Date().toISOString()};});
+      var r1=await sb.from('device_sales').upsert(rows,{onConflict:'rq_id'});
+      if(r1.error){toast('Sales upload failed: '+r1.error.message,true);return;}
+      didSales=rows.length;
+    } else if(kind==='inventory'){
+      var rows2=recs.map(function(r){return {
+        rq_id:Number(r.ID),store:r.Location,manufacturer:r.Manufacturer||null,device:r.Device,
+        model_key:modelKey(r.Device),serial:r['Serial/IMEI']||null,supplier:r.Supplier||null,note:r.Note||null,
+        status:r.Status||null,added_date:r['Added Date']||null,
+        days_in_stock:r['Days In Stock']?Number(r['Days In Stock']):null,
+        cost:moneyNum(r.Cost),price:moneyNum(r.Price),uploaded_at:new Date().toISOString()};});
+      // full snapshot: replace everything
+      var del=await sb.from('device_inventory').delete().gte('rq_id',0);
+      if(del.error){toast('Inventory refresh failed: '+del.error.message,true);return;}
+      var r2=await sb.from('device_inventory').insert(rows2);
+      if(r2.error){toast('Inventory upload failed: '+r2.error.message,true);return;}
+      didInv=rows2.length;
+    }
+  }
+  if(!didSales&&!didInv){toast('Those files didn’t look like RepairQ device exports',true);return;}
+  toast((didSales?didSales+' sales':'')+(didSales&&didInv?' + ':'')+(didInv?didInv+' inventory rows':'')+' loaded ✓');
+  await loadAll();
+}
+
+/* ---------------- load + compute ---------------- */
+async function loadAll(){
+  var cutoff=new Date(Date.now()-30*86400e3).toISOString().slice(0,10);
+  var res=await Promise.all([
+    sb.from('device_sales').select('*').gte('sold_date',cutoff),
+    sb.from('device_inventory').select('*')
+  ]);
+  SALES=(res[0].data||[]);INV=(res[1].data||[]);
+  if(res[0].error&&res[1].error)$('#authNotice').style.display='';
+  render();
+}
+function storeMatch(r){return STORE==='All'||r.store===STORE;}
+function stores(){
+  var set={};SALES.forEach(function(r){if(r.store)set[r.store]=1;});INV.forEach(function(r){if(r.store)set[r.store]=1;});
+  var names=Object.keys(set);
+  if(window.CPRLocations)names=window.CPRLocations.sort(names);
+  return names;
+}
+function ageOf(r){
+  if(r.added_date){var d=Math.floor((Date.now()-new Date(r.added_date+'T00:00:00').getTime())/86400e3);if(d>=0)return d;}
+  return r.days_in_stock||0;
+}
+function buildModels(){
+  var by={};
+  function slot(r){
+    var k=(r.manufacturer||'')+'|'+r.model_key;
+    return by[k]||(by[k]={mfr:r.manufacturer||'',model:r.model_key,sold:0,rev:0,cost:0,
+      instock:0,refurb:0,ordered:0,pulled:0,oldest:0,units:[],soldUnits:[]});
+  }
+  SALES.filter(storeMatch).forEach(function(r){
+    var m=slot(r);m.sold++;m.rev+=(r.price||0);m.cost+=(r.cost||0);m.soldUnits.push(r);
+  });
+  INV.filter(storeMatch).forEach(function(r){
+    var m=slot(r),st=String(r.status||'').toLowerCase();
+    if(st==='instock'){m.instock++;m.oldest=Math.max(m.oldest,ageOf(r));}
+    else if(st==='pending refurb')m.refurb++;
+    else if(st==='ordered')m.ordered++;
+    else if(st==='pulled')m.pulled++;
+    m.units.push(r);
+  });
+  var out=Object.keys(by).map(function(k){
+    var m=by[k];
+    var have=m.instock+m.refurb+m.ordered;
+    m.suggest=Math.max(0,Math.ceil(m.sold*COVER/30)-have);
+    m.coverDays=m.sold>0?Math.round(have/(m.sold/30)):(have>0?999:0);
+    return m;
+  });
+  out.sort(function(a,b){return b.suggest-a.suggest||b.sold-a.sold||a.model.localeCompare(b.model);});
+  return out;
+}
+
+/* ---------------- render ---------------- */
+function statusPill(st){
+  var k=String(st||'').toLowerCase().replace(/\s+/g,'');
+  return '<span class="statuspill st-'+k+'">'+esc(st||'—')+'</span>';
+}
+function render(){
+  // store chips
+  var names=stores();
+  $('#storeChips').innerHTML=['All'].concat(names).map(function(s){
+    var lbl=s==='All'?'All stores':(window.CPRLocations?window.CPRLocations.display(s):s.replace('CPR ',''));
+    return '<button class="chip'+(s===STORE?' on':'')+'" data-s="'+esc(s)+'">'+esc(lbl)+'</button>';
+  }).join('');
+  document.querySelectorAll('#storeChips .chip').forEach(function(b){
+    b.addEventListener('click',function(){STORE=b.getAttribute('data-s');try{localStorage.setItem('do_store',STORE);}catch(e){}render();});
+  });
+  $('#cover').value=COVER;
+
+  var models=buildModels().filter(function(m){
+    if(!SEARCH)return true;
+    return (m.mfr+' '+m.model).toLowerCase().indexOf(SEARCH.toLowerCase())>-1;
+  });
+
+  // tiles
+  var sold=0,rev=0,gp=0,gpBase=0,instock=0,stale=0,suggTot=0;
+  models.forEach(function(m){
+    sold+=m.sold;rev+=m.rev;instock+=m.instock+m.refurb;suggTot+=m.suggest;
+    if(m.rev>0){gp+=m.rev-m.cost;gpBase+=m.rev;}
+    m.units.forEach(function(u){if(String(u.status||'').toLowerCase()==='instock'&&ageOf(u)>60)stale++;});
+  });
+  $('#tiles').innerHTML=
+    '<div class="tile"><div class="n">'+sold+'</div><div class="l">Sold · 30 days</div></div>'
+    +'<div class="tile"><div class="n">'+fmt$(rev)+'</div><div class="l">Revenue · 30 days</div></div>'
+    +'<div class="tile"><div class="n">'+(gpBase?Math.round(100*gp/gpBase):0)+'%</div><div class="l">Avg GP</div></div>'
+    +'<div class="tile"><div class="n">'+instock+'</div><div class="l">Sellable stock</div></div>'
+    +'<div class="tile"><div class="n" style="color:'+(stale?'var(--red)':'var(--dark)')+'">'+stale+'</div><div class="l">Stale &gt; 60d</div></div>'
+    +'<div class="tile"><div class="n" style="color:'+(suggTot?'var(--red)':'var(--dark)')+'">'+suggTot+'</div><div class="l">Suggested buys</div></div>';
+
+  // freshness line
+  var lastInv=INV.reduce(function(t,r){return r.uploaded_at>t?r.uploaded_at:t;},'');
+  var lastSale=SALES.reduce(function(t,r){return r.uploaded_at>t?r.uploaded_at:t;},'');
+  function ago(iso){
+    if(!iso)return null;var h=(Date.now()-new Date(iso).getTime())/3600e3;
+    return h<1?'just now':(h<48?Math.round(h)+'h ago':Math.round(h/24)+'d ago');
+  }
+  var iAgo=ago(lastInv),sAgo=ago(lastSale);
+  var staleUpload=lastInv&&(Date.now()-new Date(lastInv).getTime())>3*86400e3;
+  $('#freshLine').innerHTML=(iAgo||sAgo)
+    ?('Inventory: <b'+(staleUpload?' class="warn"':'')+'>'+(iAgo||'never')+(staleUpload?' — refresh me':'')+'</b> · Sales: <b>'+(sAgo||'never')+'</b>')
+    :'No uploads yet.';
+
+  // table
+  var tb=$('#rows');tb.innerHTML='';
+  $('#empty').style.display=models.length?'none':'';
+  models.forEach(function(m){
+    var key=m.mfr+'|'+m.model;
+    var tr=document.createElement('tr');
+    tr.className='model'+(OPEN[key]?' open':'');
+    tr.innerHTML='<td class="mdl"><span class="chev">›</span>'+esc(m.model)
+        +(m.pulled?' <span class="agebad" title="Pulled units (not sellable)">'+m.pulled+' pulled</span>':'')+'</td>'
+      +'<td class="ctr"><b>'+m.sold+'</b></td>'
+      +'<td class="ctr">'+m.instock+'</td>'
+      +'<td class="ctr">'+(m.refurb||'—')+'</td>'
+      +'<td class="ctr">'+(m.ordered||'—')+'</td>'
+      +'<td class="ctr">'+(m.coverDays===999?'∞':m.coverDays+'d')+'</td>'
+      +'<td class="ctr">'+(m.instock?('<span class="agebad'+(m.oldest>60?' stale':'')+'">'+m.oldest+'d</span>'):'—')+'</td>'
+      +'<td class="ctr"><span class="sugg '+(m.suggest>0?'go':'zero')+'">'+m.suggest+'</span></td>';
+    tb.appendChild(tr);
+    var detail=[];
+    if(OPEN[key]){
+      m.units.sort(function(a,b){return ageOf(b)-ageOf(a);}).forEach(function(u){
+        var utr=document.createElement('tr');utr.className='unit';
+        utr.innerHTML='<td>'+esc(u.device)+(STORE==='All'?' <span style="color:var(--grey)">· '+esc((window.CPRLocations?window.CPRLocations.display(u.store):u.store))+'</span>':'')+'</td>'
+          +'<td class="ctr" colspan="4">'+statusPill(u.status)+'</td>'
+          +'<td class="ctr">'+(u.price!=null?fmt$(u.price):'—')+'</td>'
+          +'<td class="ctr"><span class="agebad'+(String(u.status||'').toLowerCase()==='instock'&&ageOf(u)>60?' stale':'')+'">'+ageOf(u)+'d</span></td>'
+          +'<td></td>';
+        tb.appendChild(utr);detail.push(utr);
+      });
+      if(m.soldUnits.length){
+        var str=document.createElement('tr');str.className='unit';
+        str.innerHTML='<td colspan="8" style="color:var(--grey)">Sold last 30d: '
+          +m.soldUnits.map(function(u){return esc(u.device.replace(m.model,'').trim()||u.device)+' ('+fmt$(u.price||0)+')';}).join(' · ')+'</td>';
+        tb.appendChild(str);detail.push(str);
+      }
+    }
+    tr.addEventListener('click',function(){OPEN[key]=!OPEN[key];render();});
+  });
+}
+
+/* ---------------- order list ---------------- */
+function copyOrder(){
+  var lines=[];
+  var per=STORE==='All'?stores():[STORE];
+  per.forEach(function(st){
+    var save=STORE;STORE=st;
+    var ms=buildModels().filter(function(m){return m.suggest>0;});
+    STORE=save;
+    if(!ms.length)return;
+    lines.push((window.CPRLocations?window.CPRLocations.display(st):st)+':');
+    ms.forEach(function(m){lines.push('  '+m.suggest+' × '+(m.mfr?m.mfr+' ':'')+m.model);});
+  });
+  if(!lines.length){toast('Nothing to order — everything has cover');return;}
+  var txt='Device order — '+new Date().toLocaleDateString()+' (keep '+COVER+'d of supply)\n'+lines.join('\n');
+  navigator.clipboard.writeText(txt).then(function(){toast('Order list copied ✓');},function(){toast('Copy failed',true);});
+}
+
+/* ---------------- wiring ---------------- */
+$('#drop').addEventListener('click',function(){$('#file').click();});
+$('#file').addEventListener('change',function(){if(this.files.length)importFiles([].slice.call(this.files));this.value='';});
+['dragover','dragenter'].forEach(function(ev){$('#drop').addEventListener(ev,function(e){e.preventDefault();$('#drop').classList.add('over');});});
+['dragleave','drop'].forEach(function(ev){$('#drop').addEventListener(ev,function(e){e.preventDefault();$('#drop').classList.remove('over');});});
+$('#drop').addEventListener('drop',function(e){if(e.dataTransfer.files.length)importFiles([].slice.call(e.dataTransfer.files));});
+$('#cover').addEventListener('change',function(){
+  COVER=Math.max(7,Math.min(120,Number(this.value)||30));this.value=COVER;
+  try{localStorage.setItem('do_cover',String(COVER));}catch(e){}render();
+});
+$('#srch').addEventListener('input',function(){SEARCH=this.value.trim();render();});
+$('#copyOrder').addEventListener('click',copyOrder);
+
+await ensureSession();
+loadAll();
+</script>
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js"></script>
+</body>
+</html>

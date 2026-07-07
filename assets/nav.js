@@ -36,6 +36,7 @@
   // Ordering & Inventory — parts/supplier ordering and stock.
   var ORDERING = [
     { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
+    { label:'Device Ordering',     url:'device-orders.html',       icon:'📲', acc:'consumption.view' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋', acc:'orders.jerryding' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦', acc:'orders.po' },
     { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' }

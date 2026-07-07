@@ -138,7 +138,21 @@ There is **no single backend**. Tools talk to one of two systems:
    `esm.sh/@supabase/supabase-js@2`. Tools on Supabase: cash-tracker, cash-admin,
    consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders,
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
-   time-entries, monthly-goals, checklist, task-admin.
+   time-entries, monthly-goals, checklist, task-admin, device-orders.
+
+**Device ordering (`device-orders.html`, Ordering & Inventory nav):** used-device
+consumption + suggested buys, the device-side sibling of the parts consumption report.
+Data arrives by dropping the two RepairQ dashboard exports on the page (zip or csv):
+"Device Inventory List (Sold)" → `device_sales` (upserted on RepairQ ID — history
+accumulates across uploads) and "Device Inventory List" → `device_inventory` (full
+snapshot, replaced each upload). Rows group by `model_key` (device name minus
+storage/color, e.g. "iPhone 15 Pro Max"); per model: sold-30d, sellable stock
+(Instock + Pending Refurb), Ordered, days of cover, oldest-unit age (stale > 60d),
+and suggest = ceil(sold30 × coverDays/30) − stock − ordered, with the keep-N-days
+cover dial persisted in localStorage. 📋 Copy order list emits a per-store buy list
+(devices are ordered through Hyla/vendor portals — no quick-order export). Store
+chips normalize through CPRLocations; page adopts the shared PIN session
+(authenticated RLS on both tables).
 
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
