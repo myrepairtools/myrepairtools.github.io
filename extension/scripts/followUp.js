@@ -173,8 +173,14 @@
             b.addEventListener('click', function () { applyMethod(b.getAttribute('data-m')); });
         });
 
-        // number combobox: focus → drop Primary/Alt suggestions
+        // number combobox: focus → drop Primary/Alt suggestions.
+        // Re-scan the page NOW — the modal can auto-open before RepairQ has
+        // rendered the customer summary, so the list computed at open may be
+        // empty even though the numbers are on screen by the time the tech
+        // clicks into the field.
         function showSuggest() {
+            var fresh = suggestedPhones();
+            if (fresh.length) phones = fresh;
             if (!phones.length) { suggest.classList.remove('open'); return; }
             suggest.innerHTML = phones.map(function (p) {
                 return '<div class="mrt-fu-opt" data-num="' + digits(p.num) + '"><b>' + p.tag + '</b> ' + pretty(p.num) + '</div>';
@@ -264,11 +270,17 @@
         if (!t) return;                                   // new ticket, no number yet — wait for the post-save load
         fn('contact_get', { ticket_no: t }).then(function (r) {
             current = (r && r.contact) || null;
-            renderChip();
             watchClose();
-            if (!current && !wasPrompted() && !isClosedPage()) {
-                setTimeout(function () { openModal(null); }, 600);   // right after check-in save
-            }
+            // Wait for RepairQ to render the customer summary before drawing
+            // anything — on slower machines it arrives well after our 600ms,
+            // which left the modal with no number suggestions and the chip on
+            // a fallback anchor. Cap the wait at ~6s and proceed regardless.
+            var tries = 0;
+            (function whenSummaryReady() {
+                if (!ddFor('contact number') && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
+                renderChip();
+                if (!current && !wasPrompted() && !isClosedPage()) openModal(null);
+            })();
         });
     }
 
