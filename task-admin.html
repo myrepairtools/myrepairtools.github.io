@@ -100,6 +100,17 @@ textarea.inp{resize:vertical}
 .hint{font-size:.76rem;color:var(--dark-grey)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .linkdel{background:none;border:none;color:var(--red);font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;cursor:pointer;padding:0}
+/* locations picker (template create) */
+.locsug{display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(45,45,59,.18);overflow:hidden;z-index:30;max-height:200px;overflow-y:auto}
+.locsug.open{display:block}
+.locopt{padding:9px 13px;cursor:pointer;font-size:.85rem;font-weight:700;color:var(--dark)}
+.locopt:hover{background:var(--light-grey)}
+.locrow{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#fafafa}
+.locrow .locname{flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem}
+.locrow .loctime{width:110px;text-align:center}
+.locrow .locx{margin-left:2px;width:28px;height:28px;border:none;border-radius:8px;background:none;color:var(--grey);font-weight:800;cursor:pointer;font-size:.85rem}
+.locrow .locx:hover:not(:disabled){background:#FBE9E9;color:var(--red)}
+.locrow .locx:disabled{opacity:.35;cursor:default}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:700;font-size:.85rem;padding:12px 22px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:transform .25s;z-index:3000}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.err{background:var(--red)}
@@ -202,7 +213,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 
 /* ===== state ===== */
 let STAFF=[],SBID={},SHIFTS=[],TPLS=[],TODAY=iso(new Date());
-let SEC=lsGet('cprTaskAdminSec','library'),MODE=lsGet('cprTaskAdminMode','list'),RECF='all';
+let SEC=lsGet('cprTaskAdminSec','library'),MODE=lsGet('cprTaskAdminMode','list'),RECF=lsGet('cprTaskAdminRecf','all');
 let SEL=null,STORES=[],CALM=null,REPM=null;   // CALM/REPM = displayed calendar/report month Date
 let REP={list:[],comps:{},trend:[]};          // reporting cache for the loaded month
 
@@ -215,7 +226,8 @@ async function boot(){
   if(STORES.indexOf(SEL)<0)SEL=STORES[0];
   const now=new Date();CALM=new Date(now.getFullYear(),now.getMonth(),1);REPM=new Date(now.getFullYear(),now.getMonth(),1);
   $('#newBtn').onclick=()=>openEditor(null);
-  $('#recurSel').onchange=e=>{RECF=e.target.value;render();};
+  const rsel=$('#recurSel');rsel.value=RECF;
+  rsel.onchange=()=>{RECF=rsel.value;lsSet('cprTaskAdminRecf',RECF);render();};
   await loadCore();
   await loadReport();
   render();
@@ -258,7 +270,8 @@ function render(){
   $('#libCtl').style.display=SEC==='library'?'inline-flex':'none';
   $('#modeTabs').innerHTML=[['list','List'],['calendar','Calendar']].map(v=>'<button class="'+(MODE===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
   document.querySelectorAll('#modeTabs button').forEach(b=>{b.onclick=()=>{MODE=b.dataset.v;lsSet('cprTaskAdminMode',MODE);render();};});
-  const defs=TPLS.filter(t=>t.store===SEL&&(RECF==='all'||t.recur===RECF));
+  const defs=TPLS.filter(t=>t.store===SEL&&(RECF==='all'||t.recur===RECF))
+    .slice().sort((a,b)=>String(a.due_time||'99:99').localeCompare(String(b.due_time||'99:99'))||String(a.name).localeCompare(String(b.name)));
   $('#secHint').textContent=SEC==='library'?(defs.length+' template'+(defs.length===1?'':'s')):SEC==='reporting'?(MONL[REPM.getMonth()]+' '+REPM.getFullYear()+' · standard calendar month'):'Rotation balance across the pool';
   if(SEC==='library')renderLibrary(defs);
   else if(SEC==='reporting')renderReporting();
@@ -500,7 +513,8 @@ function newDraft(){
     weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
     target:'person',assignee:(STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner')[0]||ME).id,fallback:'',
     shift:(SHIFTS[0]||{}).id,role:'any',pool:STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner').map(s=>s.id),strategy:'rotate',completion:'any',
-    store:SEL,dueTime:'6:00 PM',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:''};
+    store:SEL,dueTime:'6:00 PM',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',
+    locs:[{store:SEL,dueTime:'6:00 PM'}]};   // create mode: one template per location, each with its own due time
 }
 function draftFrom(t){
   return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
@@ -556,10 +570,25 @@ function drawEditor(){
         (showStrat?'<div><span class="fl" style="display:block;margin-bottom:5px">Strategy</span><div style="display:flex;gap:6px">'+pillRow([['fixed','Fixed','var(--dark)'],['rotate','Rotate','var(--dark)']],d.strategy,'var(--dark)','strat')+'</div></div>':'')+
         (showComp?'<div><span class="fl" style="display:block;margin-bottom:5px">Who must complete</span><div style="display:flex;gap:6px">'+pillRow([['any','Any one','var(--dark)'],['each','Each person','var(--dark)']],d.completion,'var(--dark)','comp')+'</div></div>':'')+
         '</div><div class="hint" style="margin-top:11px">'+esc(sum)+'</div></div>'+
+      (EDIT_ID?
       '<div class="grid2" style="margin-bottom:18px">'+
         '<label class="fld" style="margin:0"><span class="fl">Store</span><select class="inp" id="eStore">'+STORES.map(s=>'<option value="'+esc(s)+'"'+(d.store===s?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></label>'+
         '<label class="fld" style="margin:0"><span class="fl">Due time</span><input class="inp" id="eDueTime" value="'+esc(d.dueTime)+'" placeholder="6:00 PM"></label>'+
-      '</div>'+
+      '</div>'
+      :
+      '<div class="fld" style="margin-bottom:18px"><span class="fl">Locations &amp; due times</span>'+
+        '<div style="position:relative">'+
+          '<input class="inp" id="eLocSearch" placeholder="Search locations to add…" autocomplete="off">'+
+          '<div class="locsug" id="eLocSug"></div>'+
+        '</div>'+
+        '<div id="eLocList">'+d.locs.map((L,i)=>
+          '<div class="locrow">'+
+            '<span class="locname">'+esc(shortStore(L.store))+'</span>'+
+            '<input class="inp loctime" data-li="'+i+'" value="'+esc(L.dueTime)+'" placeholder="6:00 PM" title="Due time at '+esc(shortStore(L.store))+'">'+
+            '<button type="button" class="locx" data-li="'+i+'" title="Remove '+esc(shortStore(L.store))+'"'+(d.locs.length<2?' disabled':'')+'>✕</button>'+
+          '</div>').join('')+'</div>'+
+        '<div class="hint" style="margin-top:7px">One template is created per location — same task, that location’s own due time (e.g. Salem closes earlier).</div>'+
+      '</div>')+
       (d.recur==='oneoff'?
         '<div style="margin-bottom:8px"><span class="fl" style="display:block;margin-bottom:6px">Due</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['same','Today','var(--dark)'],['after','After…','var(--dark)'],['date','On date','var(--dark)']],d.dueType,'var(--dark)','duety')+'</div></div>'+
         (d.dueType==='after'?'<div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:18px"><label class="fld" style="width:90px;margin:0"><span class="fl">In</span><input class="inp" id="eDueAfterN" value="'+esc(d.dueAfterN)+'"></label><label class="fld" style="width:140px;margin:0"><span class="fl">&nbsp;</span><select class="inp" id="eDueAfterUnit">'+['days','weeks','months'].map(u=>'<option value="'+u+'"'+(d.dueAfterUnit===u?' selected':'')+'>'+u+'</option>').join('')+'</select></label></div>':'')+
@@ -567,7 +596,7 @@ function drawEditor(){
       :'')+
       '<label class="fld"><span class="fl">Instructions <span style="text-transform:none;font-weight:600;color:var(--grey)">(links are clickable)</span></span><textarea class="inp" id="eInstr" rows="3" placeholder="Add steps, par levels, or paste a knowledge-base link…">'+esc(d.instr)+'</textarea></label>'+
     '</div>'+
-    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">Applies to future occurrences · '+esc(shortStore(d.store))+'</div>'+(EDIT_ID?'<button class="linkdel" data-arch>Archive template</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?'Save changes':'Create template')+'</button></div></div></div>'
+    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">'+(EDIT_ID?('Applies to future occurrences · '+esc(shortStore(d.store))):('Applies to future occurrences · '+d.locs.length+' location'+(d.locs.length===1?'':'s')))+'</div>'+(EDIT_ID?'<button class="linkdel" data-arch>Archive template</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?'Save changes':(d.locs.length>1?'Create '+d.locs.length+' templates':'Create template'))+'</button></div></div></div>'
   );
   const grab=()=>{
     const g=id=>{const el=$('#mdlWrap #'+id);return el?el.value:undefined;};
@@ -579,6 +608,7 @@ function drawEditor(){
     if(g('eAssignee')!=null)d.assignee=g('eAssignee');if(g('eFallback')!=null)d.fallback=g('eFallback');
     if(g('eShift')!=null)d.shift=g('eShift');if(g('eRole')!=null)d.role=g('eRole');
     if(g('eStore')!=null)d.store=g('eStore');if(g('eDueTime')!=null)d.dueTime=g('eDueTime');
+    document.querySelectorAll('#mdlWrap .loctime').forEach(el=>{const i=+el.dataset.li;if(d.locs&&d.locs[i])d.locs[i].dueTime=el.value;});
     if(g('eDueAfterN')!=null)d.dueAfterN=g('eDueAfterN');if(g('eDueAfterUnit')!=null)d.dueAfterUnit=g('eDueAfterUnit');
     if(g('eDueDate')!=null)d.dueDate=g('eDueDate');if(g('eInstr')!=null)d.instr=g('eInstr');
   };
@@ -592,6 +622,31 @@ function drawEditor(){
   document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const id=+b.dataset.pool;const at=d.pool.indexOf(id);if(at>-1)d.pool.splice(at,1);else d.pool.push(id);drawEditor();});
   const lu=$('#mdlWrap #eLinkUrl');if(lu)lu.onchange=()=>{grab();d.linkUrl=lu.value;drawEditor();};
   const st2=$('#mdlWrap #eStore');if(st2)st2.onchange=()=>{grab();d.store=st2.value;d.pool=STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner').map(s=>s.id);d.assignee=(STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner')[0]||ME).id;drawEditor();};
+  // locations search-add / per-location due time / remove (create mode)
+  const ls=$('#mdlWrap #eLocSearch');
+  if(ls){
+    const sug=$('#mdlWrap #eLocSug');
+    const renderSug=()=>{
+      const q=ls.value.trim().toLowerCase();
+      const have={};d.locs.forEach(L=>have[L.store]=1);
+      const hits=STORES.filter(s=>!have[s]&&(!q||s.toLowerCase().indexOf(q)>-1||shortStore(s).toLowerCase().indexOf(q)>-1));
+      sug.innerHTML=hits.map(s=>'<div class="locopt" data-s="'+esc(s)+'">'+esc(shortStore(s))+'</div>').join('');
+      sug.classList.toggle('open',hits.length>0&&document.activeElement===ls);
+      sug.querySelectorAll('.locopt').forEach(o=>o.addEventListener('mousedown',e=>{
+        e.preventDefault();grab();
+        d.locs.push({store:o.dataset.s,dueTime:(d.locs[d.locs.length-1]||{}).dueTime||'6:00 PM'});
+        d.store=d.locs[0].store;drawEditor();
+        const nls=$('#mdlWrap #eLocSearch');if(nls)nls.focus();
+      }));
+    };
+    ls.addEventListener('focus',renderSug);
+    ls.addEventListener('input',renderSug);
+    ls.addEventListener('blur',()=>setTimeout(()=>{sug.classList.remove('open');},150));
+    document.querySelectorAll('#mdlWrap .locx').forEach(b=>b.onclick=()=>{
+      if(d.locs.length<2)return;
+      grab();d.locs.splice(+b.dataset.li,1);d.store=d.locs[0].store;drawEditor();
+    });
+  }
   const lt=$('#mdlWrap #eLinkText');if(lt)lt.onchange=()=>{grab();drawEditor();};
   const sv=$('#mdlWrap [data-save]');if(sv)sv.onclick=()=>{grab();saveTemplate();};
   const ar=$('#mdlWrap [data-arch]');if(ar)ar.onclick=()=>{grab();archiveTemplate();};
@@ -627,12 +682,20 @@ async function saveTemplate(){
   if(row.recur==='weekly'&&!(row.weekdays||[]).length){toast('Pick at least one weekday',true);return;}
   if(row.recur==='monthly'&&!(row.month_dates||[]).length){toast('Enter at least one date of the month',true);return;}
   if(row.target==='group'&&!(row.pool||[]).length){toast('Pick at least one person for the pool',true);return;}
+  const locs=(!EDIT_ID&&d.locs&&d.locs.length)?d.locs:[{store:d.store,dueTime:d.dueTime}];
+  // fixed-person and group pools are store-specific people — they can't fan
+  // out to other stores. Shift/role targets resolve per store, so they can.
+  if(locs.length>1&&(row.target==='person'||row.target==='group')){
+    toast('Fixed-person and group tasks are store-specific — use Shift or Role for multi-location, or create per store',true);return;
+  }
   try{
     let r;
-    if(EDIT_ID)r=await sb.from('task_templates').update(row).eq('id',EDIT_ID).select().single();
-    else{row.created_by=ME.id;r=await sb.from('task_templates').insert(row).select().single();}
-    if(r.error)throw r.error;
-    closeModal();toast(EDIT_ID?'Template updated':'Template created');
+    if(EDIT_ID){r=await sb.from('task_templates').update(row).eq('id',EDIT_ID).select().single();if(r.error)throw r.error;}
+    else{
+      const rows=locs.map(L=>Object.assign({},row,{store:L.store,due_time:to24(L.dueTime),created_by:ME.id}));
+      r=await sb.from('task_templates').insert(rows).select();if(r.error)throw r.error;
+    }
+    closeModal();toast(EDIT_ID?'Template updated':(locs.length>1?locs.length+' templates created — one per location':'Template created'));
     const sess=(await sb.auth.getSession()).data.session;
     if(sess)await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}}).catch(()=>{});
     await loadCore();await loadReport();render();
