@@ -458,6 +458,78 @@ Deno.serve(async (req) => {
       return J({ ok: true, feed, rows_written: out.length, undated });
     }
 
+    // ---------- DEVICE ORDERING (device-orders.html) ----------
+    // Per-UNIT rows from RepairQ's "Device Inventory List" reports (unlike
+    // commission_device, which is per-employee/day aggregates). model_key
+    // derivation MUST mirror device-orders.html's modelKey().
+    const modelKey = (name: string) => {
+      const k = String(name ?? "").replace(/\s+\d+\s*(GB|TB)\b.*$/i, "").trim();
+      return k || String(name ?? "");
+    };
+
+    // Sold list -> device_sales (upsert on RepairQ ID; history accumulates)
+    if (feed === "device_sales" || feed === "devices_sold") {
+      if (!rows.some((r) => "Sold Date" in r)) {
+        await admin.from("ingest_debug").insert({ feed: "reject:device_sales", payload: { reason: "no Sold Date column — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a device SOLD report; refused" });
+      }
+      const out: any[] = [];
+      for (const r of rows) {
+        const id = num(pick(r, "ID", "Device ID"));
+        // device tables key on the RAW RepairQ location name (locations.js
+        // canon) — do NOT norm() through the legacy stores mapping, which
+        // renames "CPR Clackamas OR" and desyncs from the page/extension
+        const store = pick(r, "Location", "Store");
+        const device = pick(r, "Device");
+        if (!id || !store || !device) continue;
+        out.push({
+          rq_id: id, store, manufacturer: pick(r, "Manufacturer") || null, device,
+          model_key: modelKey(device), serial: pick(r, "Serial/IMEI", "Serial") || null,
+          supplier: pick(r, "Supplier") || null, note: pick(r, "Note") || null,
+          days_in_stock: num(pick(r, "Days In Stock")) || null,
+          sold_date: dnorm(pick(r, "Sold Date")),
+          cost: money(pick(r, "Cost")), price: money(pick(r, "Price")),
+          uploaded_at: new Date().toISOString(),
+        });
+      }
+      if (out.length) { const { error } = await admin.from("device_sales").upsert(out as any, { onConflict: "rq_id" }); if (error) return J({ ok: false, table: "device_sales", error: error.message }); }
+      return J({ ok: true, feed, rows_written: out.length });
+    }
+
+    // Inventory list -> device_inventory (snapshot; replaced PER STORE present
+    // in the payload, so a single-store delivery can't wipe the other stores)
+    if (feed === "device_inventory" || feed === "device_stock") {
+      if (!rows.some((r) => "Status" in r && "Added Date" in r)) {
+        await admin.from("ingest_debug").insert({ feed: "reject:device_inventory", payload: { reason: "no Status/Added Date columns — wrong feed?", keys: rows[0] ? Object.keys(rows[0]) : [] } });
+        return J({ ok: false, reason: "not a device INVENTORY report; refused" });
+      }
+      const out: any[] = []; const storesSeen = new Set<string>();
+      for (const r of rows) {
+        const id = num(pick(r, "ID", "Device ID"));
+        // raw RepairQ name, same reason as device_sales above
+        const store = pick(r, "Location", "Store");
+        const device = pick(r, "Device");
+        if (!id || !store || !device) continue;
+        storesSeen.add(store);
+        out.push({
+          rq_id: id, store, manufacturer: pick(r, "Manufacturer") || null, device,
+          model_key: modelKey(device), serial: pick(r, "Serial/IMEI", "Serial") || null,
+          supplier: pick(r, "Supplier") || null, note: pick(r, "Note") || null,
+          status: pick(r, "Status") || null, added_date: dnorm(pick(r, "Added Date")),
+          days_in_stock: num(pick(r, "Days In Stock")) || null,
+          cost: money(pick(r, "Cost")), price: money(pick(r, "Price")),
+          uploaded_at: new Date().toISOString(),
+        });
+      }
+      if (out.length) {
+        const del = await admin.from("device_inventory").delete().in("store", Array.from(storesSeen));
+        if (del.error) return J({ ok: false, table: "device_inventory", error: del.error.message });
+        const { error } = await admin.from("device_inventory").insert(out as any);
+        if (error) return J({ ok: false, table: "device_inventory", error: error.message });
+      }
+      return J({ ok: true, feed, rows_written: out.length, stores: Array.from(storesSeen) });
+    }
+
     await admin.from("ingest_debug").insert({ feed, payload: body });
     return J({ ok: false, reason: "unknown feed; saved to ingest_debug" });
   } catch (e) { return J({ ok: false, crash: String(e) }); }
