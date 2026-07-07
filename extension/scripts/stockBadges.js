@@ -34,9 +34,22 @@
         return '#27ae60';                          // green
     }
 
+    // Cart drawer / checkout reuse li.item — a "0" badge over cart rows is
+    // noise (their thumbnails carry no stock data). Catalog tiles never sit
+    // inside a cart-ish ancestor, so walk up and bail.
+    function inCartUi(el) {
+        for (var n = el; n && n !== document.body; n = n.parentElement) {
+            var s = ((typeof n.className === 'string' ? n.className : '') + ' ' + (n.id || '')).toLowerCase();
+            if (s.indexOf('cart') > -1 || s.indexOf('checkout') > -1) return true;
+        }
+        return false;
+    }
+
     function addStockBadges() {
+        if (/checkout|cart/i.test(location.pathname)) return;
         document.querySelectorAll('li.item').forEach(function (item) {
             if (item.querySelector('.' + BADGE_CLASS)) return;
+            if (inCartUi(item)) return;
 
             var qty = getStockValue(item);
             var badge = document.createElement('span');

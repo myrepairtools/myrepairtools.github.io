@@ -118,9 +118,22 @@
         return strip;
     }
 
+    // The mini-cart drawer / cart / checkout reuse the same li.item markup as
+    // catalog tiles — quote strips there print over qty controls. Catalog
+    // tiles never sit INSIDE a cart-ish ancestor, so walk up and bail.
+    function inCartUi(el) {
+        for (var n = el; n && n !== document.body; n = n.parentElement) {
+            var s = ((typeof n.className === 'string' ? n.className : '') + ' ' + (n.id || '')).toLowerCase();
+            if (s.indexOf('cart') > -1 || s.indexOf('checkout') > -1) return true;
+        }
+        return false;
+    }
+
     function addPriceStrips() {
+        if (/checkout|cart/i.test(location.pathname)) return;
         document.querySelectorAll('li.item').forEach(function (item) {
             if (item.querySelector('.' + STRIP_CLASS)) return;
+            if (inCartUi(item)) return;
 
             var cost = tilePrice(item);
             if (!(cost > 0)) return;   // no readable price — stay silent
