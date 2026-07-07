@@ -179,6 +179,11 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .sugg.zero{color:var(--grey)}
 .buysku{font-size:.74rem;color:var(--dark-grey)}
 .buysku select{font-size:.74rem;padding:4px 6px;border-radius:6px}
+/* "already ordered" — kept on the list, excluded from the MS export */
+.expchk{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;vertical-align:middle}
+tr.skipped .sugg,tr.skipped .buysku{text-decoration:line-through;opacity:.45}
+tr.skipped td.itm .nm{opacity:.6}
+.skiptag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.4px;color:var(--amber);background:#FBF1DC;border-radius:999px;padding:2px 7px;margin-left:6px;white-space:nowrap}
 .empty{padding:34px;text-align:center;color:var(--grey);font-weight:700}
 
 /* modal */
@@ -419,6 +424,7 @@ tr.samchild .nm{color:var(--dark-grey)}
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
+        <th class="ctr" title="Unchecked = already ordered today — stays on the list, left out of the MobileSentrix export">MS ⬇</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -475,6 +481,7 @@ tr.samchild .nm{color:var(--dark-grey)}
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
+        <th class="ctr" title="Unchecked = already ordered today — stays on the list, left out of the MobileSentrix export">MS ⬇</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -566,6 +573,10 @@ var IDLE_MS=24*60*60*1000;
 var STORES=['CPR Eugene','CPR Salem Northeast','CPR Clackamas'];
 var STATE={store:null,me:null,stores:[]};
 var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
+var SKIPS={};   /* orderSku → 1: "already ordered" — stays on the list, excluded
+                   from the MS export. Per store+day in consumption_export_skips
+                   (the 3:30 PT MobileSentrix cutoff means afternoon parts may be
+                   ordered before they hit that day's report). */
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
@@ -861,7 +872,8 @@ async function loadAll(){
     sb.from('sku_flags').select('sku,flag_key').eq('store',store),
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
-    loadSamsungRows()
+    loadSamsungRows(),
+    sb.from('consumption_export_skips').select('sku').eq('store',store).eq('day',day)
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
@@ -873,6 +885,7 @@ async function loadAll(){
   var sf={};(res[8].data||[]).forEach(function(r){(sf[r.sku]||(sf[r.sku]=[])).push(r.flag_key);});SKUFLAGS[store]=sf;
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
+  SKIPS={};((res[12]&&res[12].data)||[]).forEach(function(r){SKIPS[r.sku]=1;});
   pills();render();renderStock();renderNoParts();renderFresh();renderCoverage();
   var atab=$('#viewTabs')&&$('#viewTabs').querySelector('.tab.active');
   if(atab&&atab.getAttribute('data-v')==='battery')loadBatteries();
@@ -1211,10 +1224,15 @@ function renderOrderRows(tb, rows){
     var skuCell=(r.type==='group')
       ? (r.usedSkus.length?(r.usedSkus.length===1?r.usedSkus[0]:r.usedSkus[0]+' <span style="color:var(--grey)">+'+(r.usedSkus.length-1)+'</span>'):'<span style="color:var(--grey)">—</span>')
       : r.sku;
+    var skipped=r.suggest>0&&SKIPS[r.orderSku];
+    var expCell=r.suggest>0
+      ? '<input type="checkbox" class="expchk" data-osku="'+r.orderSku+'"'+(skipped?'':' checked')+' title="'+(skipped?'Already ordered — excluded from the MobileSentrix export':'Included in the MobileSentrix export — uncheck if already ordered')+'">'
+      : '';
     var tr=document.createElement('tr');
     if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild';
+    if(skipped)tr.classList.add('skipped');
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
-      +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
+      +'<td class="itm"><span class="nm">'+nameHtml+'</span>'+(skipped?'<span class="skiptag">ordered</span>':'')+'</td>'
       +'<td class="ctr"><b>'+r.used+'</b></td>'
       +'<td class="ctr">'+r.instock+'</td>'
       +'<td class="ctr">'+claimPill(r.claimElig)+'</td>'
@@ -1222,6 +1240,7 @@ function renderOrderRows(tb, rows){
       +'<td class="ctr">'+maxCell(r.type==='group'?'gidstore':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
       +'<td class="ctr"><span class="sugg '+sCls+'">'+r.suggest+'</span></td>'
       +'<td class="ctr">'+orderCell+'</td>'
+      +'<td class="ctr">'+expCell+'</td>'
       +'<td>'+flags+'</td>'
       +'<td class="optcell"><button class="opt" data-sku="'+r.flagSku+'" aria-label="Options">⋮</button></td>';
     tb.appendChild(tr);
@@ -1236,13 +1255,13 @@ function renderOrderRows(tb, rows){
           +'<td class="ctr">'+m.instock+'</td>'
           +'<td class="ctr"></td>'
           +'<td class="ctr">'+m.onorder+'</td>'
-          +'<td class="ctr"></td><td class="ctr"></td><td></td><td></td><td></td>';
+          +'<td class="ctr"></td><td class="ctr"></td><td></td><td></td><td></td><td></td>';
         tb.appendChild(mtr);detailRows.push(mtr);
       });
     }
     if(hasDetail){
       tr.addEventListener('click',function(e){
-        if(e.target.closest('.opt')||e.target.closest('.maxwrap'))return;
+        if(e.target.closest('.opt')||e.target.closest('.maxwrap')||e.target.closest('.expchk'))return;
         tr.classList.toggle('open');
         var open=tr.classList.contains('open');
         detailRows.forEach(function(d){d.style.display=open?'':'none';});
@@ -1252,14 +1271,45 @@ function renderOrderRows(tb, rows){
   tb.querySelectorAll('.opt').forEach(function(b){
     b.addEventListener('click',function(e){e.stopPropagation();openOptMenu(b);});
   });
+  tb.querySelectorAll('.expchk').forEach(function(c){
+    c.addEventListener('click',function(e){e.stopPropagation();});
+    c.addEventListener('change',function(){
+      var inc=c.checked;
+      toggleExportSkip(c.getAttribute('data-osku'),inc);
+      var tr=c.closest('tr');
+      tr.classList.toggle('skipped',!inc);
+      var tag=tr.querySelector('.skiptag');
+      if(!inc&&!tag){var sp=document.createElement('span');sp.className='skiptag';sp.textContent='ordered';tr.querySelector('td.itm').appendChild(sp);}
+      if(inc&&tag)tag.remove();
+      c.title=inc?'Included in the MobileSentrix export — uncheck if already ordered':'Already ordered — excluded from the MobileSentrix export';
+      refreshOrderKpis();
+    });
+  });
   wireMaxEdit(tb);
+}
+
+/* "already ordered" toggle — persists per store+day so it syncs across
+   devices and clears itself on the next day's report */
+async function toggleExportSkip(osku,include){
+  var store=STATE.store, day=$('#day').value||todayISO();
+  if(include){ delete SKIPS[osku]; await sb.from('consumption_export_skips').delete().eq('store',store).eq('day',day).eq('sku',osku); }
+  else { SKIPS[osku]=1; await sb.from('consumption_export_skips').upsert({store:store,day:day,sku:osku,marked_by:(window.CPRNavName||null)},{onConflict:'store,day,sku'}); }
+}
+function refreshOrderKpis(){
+  var rows=buildRows(),tot=0;
+  rows.forEach(function(r){if(r.suggest>0&&!SKIPS[r.orderSku])tot+=r.suggest;});
+  var k=$('#kOrder'); if(k)k.textContent=tot;
+  if(BATROWS&&BATROWS.length){
+    var bt=0;BATROWS.forEach(function(r){if(r.suggest>0&&!SKIPS[r.orderSku])bt+=r.suggest;});
+    var b=$('#batOrder'); if(b)b.textContent=bt;
+  }
 }
 
 function render(){
   var rows=buildRows();
   renderOrderRows($('#rows'), clusterSamsung(rows));
   var totUsed=0,totOrder=0,below=0;
-  rows.forEach(function(r){totUsed+=r.used;totOrder+=r.suggest;if(r.instock===0)below++;});
+  rows.forEach(function(r){totUsed+=r.used;if(!SKIPS[r.orderSku])totOrder+=r.suggest;if(r.instock===0)below++;});
   $('#kUsed').textContent=totUsed;
   $('#kLines').textContent=rows.length;
   $('#kBelow').textContent=below;
@@ -1319,8 +1369,9 @@ async function buildMSExport(rows,label){
 }
 
 async function exportOrder(withBatteries){
-  var rows=mergeOrders(orderList(withBatteries), adhesiveOrderList());
-  if(!rows.length){alert(withBatteries===false?'Nothing to order once batteries are excluded.':'Nothing to order — everything is at max.');return;}
+  var rows=mergeOrders(orderList(withBatteries), adhesiveOrderList())
+    .filter(function(p){return !SKIPS[p[0]];});   // "already ordered" skips
+  if(!rows.length){alert(withBatteries===false?'Nothing to order once batteries are excluded.':'Nothing to order — everything is at max or already ordered.');return;}
   buildMSExport(rows, withBatteries===false?'order-no-batteries':'order');
 }
 
@@ -1340,7 +1391,7 @@ function renderBatteries(){
   var rows=buildRows(BATUSED, function(r){return hasBatteryFlag(r.flagSku);});
   BATROWS=rows;
   renderOrderRows($('#batRows'), rows);
-  var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;totOrder+=r.suggest;});
+  var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;if(!SKIPS[r.orderSku])totOrder+=r.suggest;});
   $('#batUnits').textContent=totUsed;
   $('#batSkus').textContent=rows.length;
   $('#batOrder').textContent=totOrder;
@@ -1348,8 +1399,8 @@ function renderBatteries(){
   $('#batRange').textContent=(($('#batSince').value||isoDaysAgo(7))+' → '+todayISO());
 }
 async function exportBatteries(){
-  var out=BATROWS.filter(function(r){return r.suggest>0;}).map(function(r){return [r.orderSku, r.suggest];});
-  if(!out.length){alert('Nothing to order — batteries are at or above max.');return;}
+  var out=BATROWS.filter(function(r){return r.suggest>0&&!SKIPS[r.orderSku];}).map(function(r){return [r.orderSku, r.suggest];});
+  if(!out.length){alert('Nothing to order — batteries are at or above max, or already ordered.');return;}
   buildMSExport(out, 'batteries');
 }
 
