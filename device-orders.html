@@ -92,6 +92,7 @@ font-weight:700;font-size:.85rem;margin-bottom:16px}
   <div class="hd">
     <div class="chips" id="storeChips"></div>
     <div class="coverwrap" title="Capped at 30 — phones depreciate too fast to hold more; order small and often">Keep <input type="number" id="cover" min="7" max="30" step="1"> days of supply</div>
+    <div class="coverwrap" title="Risk cap — never suggest more than this many of one model for one store, no matter how fast it sells">Max <input type="number" id="skucap" min="1" max="10" step="1"> per model / store</div>
     <div class="spacer"></div>
     <input id="srch" placeholder="Search model…">
     <button class="btn blue" id="copyOrder">📋 Copy order list</button>
@@ -140,6 +141,10 @@ var SALES=[],INV=[],STORE='All',SEARCH='',OPEN={};
    and you're holding a pile you can only move at a loss. Order small, often. */
 function clampCover(n){return Math.max(7,Math.min(30,Number(n)||30));}
 var COVER=(function(){try{return clampCover(localStorage.getItem('do_cover'));}catch(e){return 30;}})();
+/* per-model risk cap: never suggest more than N of one model for one store —
+   ten iPhone 14s in one store is one price drop away from being a problem */
+function clampCap(n){return Math.max(1,Math.min(10,Number(n)||4));}
+var SKUCAP=(function(){try{return clampCap(localStorage.getItem('do_skucap'));}catch(e){return 4;}})();
 try{STORE=localStorage.getItem('do_store')||'All';}catch(e){}
 
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2800);}
@@ -241,7 +246,9 @@ async function importFiles(files){
 
 /* ---------------- load + compute ---------------- */
 async function loadAll(){
-  var cutoff=new Date(Date.now()-30*86400e3).toISOString().slice(0,10);
+  // 60-day demand window: long enough to catch slower movers, short enough
+  // that a dead model ages out of the suggestion quickly
+  var cutoff=new Date(Date.now()-60*86400e3).toISOString().slice(0,10);
   var res=await Promise.all([
     sb.from('device_sales').select('*').gte('sold_date',cutoff),
     sb.from('device_inventory').select('*')
@@ -251,6 +258,16 @@ async function loadAll(){
   render();
 }
 function storeMatch(r){return STORE==='All'||r.store===STORE;}
+/* Days of history the sales data actually covers (uploads may only go back
+   30 days until re-uploads accumulate) — the demand rate divides by THIS, so
+   a 30-day dataset isn't mistaken for "half the sales of a 60-day one". */
+function historyDays(){
+  var earliest=null;
+  SALES.forEach(function(r){if(r.sold_date&&(!earliest||r.sold_date<earliest))earliest=r.sold_date;});
+  if(!earliest)return 30;
+  var d=Math.ceil((Date.now()-new Date(earliest+'T00:00:00').getTime())/86400e3);
+  return Math.max(30,Math.min(60,d));
+}
 function stores(){
   var set={};SALES.forEach(function(r){if(r.store)set[r.store]=1;});INV.forEach(function(r){if(r.store)set[r.store]=1;});
   var names=Object.keys(set);
@@ -261,17 +278,23 @@ function ageOf(r){
   if(r.added_date){var d=Math.floor((Date.now()-new Date(r.added_date+'T00:00:00').getTime())/86400e3);if(d>=0)return d;}
   return r.days_in_stock||0;
 }
-function buildModels(){
-  var by={};
+/* One store's models. Demand rate = sales over the full history window
+   normalized to per-30d; suggest = rate-scaled target minus what we have,
+   HARD-CAPPED at SKUCAP units per model per store (single-SKU risk limit). */
+function buildModelsFor(store){
+  var by={},hist=historyDays(),cut30=new Date(Date.now()-30*86400e3).toISOString().slice(0,10);
   function slot(r){
     var k=(r.manufacturer||'')+'|'+r.model_key;
-    return by[k]||(by[k]={mfr:r.manufacturer||'',model:r.model_key,sold:0,rev:0,cost:0,
+    return by[k]||(by[k]={mfr:r.manufacturer||'',model:r.model_key,sold:0,soldAll:0,rev:0,rev30:0,cost:0,
       instock:0,refurb:0,ordered:0,pulled:0,oldest:0,units:[],soldUnits:[]});
   }
-  SALES.filter(storeMatch).forEach(function(r){
-    var m=slot(r);m.sold++;m.rev+=(r.price||0);m.cost+=(r.cost||0);m.soldUnits.push(r);
+  SALES.forEach(function(r){
+    if(store!=='All'&&r.store!==store)return;
+    var m=slot(r);m.soldAll++;m.rev+=(r.price||0);m.cost+=(r.cost||0);m.soldUnits.push(r);
+    if((r.sold_date||'')>=cut30){m.sold++;m.rev30+=(r.price||0);}
   });
-  INV.filter(storeMatch).forEach(function(r){
+  INV.forEach(function(r){
+    if(store!=='All'&&r.store!==store)return;
     var m=slot(r),st=String(r.status||'').toLowerCase();
     if(st==='instock'){m.instock++;m.oldest=Math.max(m.oldest,ageOf(r));}
     else if(st==='pending refurb')m.refurb++;
@@ -279,13 +302,49 @@ function buildModels(){
     else if(st==='pulled')m.pulled++;
     m.units.push(r);
   });
-  var out=Object.keys(by).map(function(k){
+  Object.keys(by).forEach(function(k){
     var m=by[k];
+    m.rate30=m.soldAll*30/hist;                       // per-30d demand rate
     var have=m.instock+m.refurb+m.ordered;
-    m.suggest=Math.max(0,Math.ceil(m.sold*COVER/30)-have);
-    m.coverDays=m.sold>0?Math.round(have/(m.sold/30)):(have>0?999:0);
-    return m;
+    m.suggest=Math.min(SKUCAP,Math.max(0,Math.ceil(m.rate30*COVER/30)-have));
+    m.capped=(Math.ceil(m.rate30*COVER/30)-have)>SKUCAP;
+    m.coverDays=m.rate30>0?Math.round(have/(m.rate30/30)):(have>0?999:0);
+    // 🔥 hot mover: sells 3+/month AND the units we sold moved fast off the shelf
+    var turns=m.soldUnits.map(function(u){return u.days_in_stock;}).filter(function(d){return d!=null;});
+    m.turn=turns.length?Math.round(turns.reduce(function(a,b){return a+b;},0)/turns.length):null;
+    m.hot=m.rate30>=3&&m.turn!=null&&m.turn<=14;
   });
+  return by;
+}
+function buildModels(){
+  var by;
+  if(STORE!=='All'){ by=buildModelsFor(STORE); }
+  else {
+    // All view = per-store computations SUMMED, so the cap applies per store
+    // (matching the copy list) instead of letting three stores' demand pool
+    // into one uncapped number
+    by={};
+    stores().forEach(function(st){
+      var one=buildModelsFor(st);
+      Object.keys(one).forEach(function(k){
+        var s=one[k];
+        if(!by[k]){by[k]=s;return;}
+        var t=by[k];
+        ['sold','soldAll','rev','rev30','cost','instock','refurb','ordered','pulled','suggest'].forEach(function(f){t[f]+=s[f];});
+        t.capped=t.capped||s.capped;
+        t.hot=t.hot||s.hot;
+        if(s.turn!=null)t.turn=t.turn==null?s.turn:Math.round((t.turn+s.turn)/2);
+        t.oldest=Math.max(t.oldest,s.oldest);
+        t.units=t.units.concat(s.units);t.soldUnits=t.soldUnits.concat(s.soldUnits);
+        t.rate30+=s.rate30;
+      });
+    });
+    Object.keys(by).forEach(function(k){
+      var m=by[k],have=m.instock+m.refurb+m.ordered;
+      m.coverDays=m.rate30>0?Math.round(have/(m.rate30/30)):(have>0?999:0);
+    });
+  }
+  var out=Object.keys(by).map(function(k){return by[k];});
   out.sort(function(a,b){return b.suggest-a.suggest||b.sold-a.sold||a.model.localeCompare(b.model);});
   return out;
 }
@@ -306,6 +365,7 @@ function render(){
     b.addEventListener('click',function(){STORE=b.getAttribute('data-s');try{localStorage.setItem('do_store',STORE);}catch(e){}render();});
   });
   $('#cover').value=COVER;
+  $('#skucap').value=SKUCAP;
 
   var models=buildModels().filter(function(m){
     if(!SEARCH)return true;
@@ -313,15 +373,15 @@ function render(){
   });
 
   // tiles
-  var sold=0,rev=0,gp=0,gpBase=0,instock=0,stale=0,suggTot=0;
+  var sold=0,rev30=0,gp=0,gpBase=0,instock=0,stale=0,suggTot=0;
   models.forEach(function(m){
-    sold+=m.sold;rev+=m.rev;instock+=m.instock+m.refurb;suggTot+=m.suggest;
+    sold+=m.sold;rev30+=m.rev30;instock+=m.instock+m.refurb;suggTot+=m.suggest;
     if(m.rev>0){gp+=m.rev-m.cost;gpBase+=m.rev;}
     m.units.forEach(function(u){if(String(u.status||'').toLowerCase()==='instock'&&ageOf(u)>60)stale++;});
   });
   $('#tiles').innerHTML=
     '<div class="tile"><div class="n">'+sold+'</div><div class="l">Sold · 30 days</div></div>'
-    +'<div class="tile"><div class="n">'+fmt$(rev)+'</div><div class="l">Revenue · 30 days</div></div>'
+    +'<div class="tile"><div class="n">'+fmt$(rev30)+'</div><div class="l">Revenue · 30 days</div></div>'
     +'<div class="tile"><div class="n">'+(gpBase?Math.round(100*gp/gpBase):0)+'%</div><div class="l">Avg GP</div></div>'
     +'<div class="tile"><div class="n">'+instock+'</div><div class="l">Sellable stock</div></div>'
     +'<div class="tile"><div class="n" style="color:'+(stale?'var(--red)':'var(--dark)')+'">'+stale+'</div><div class="l">Stale &gt; 60d</div></div>'
@@ -348,14 +408,15 @@ function render(){
     var tr=document.createElement('tr');
     tr.className='model'+(OPEN[key]?' open':'');
     tr.innerHTML='<td class="mdl"><span class="chev">›</span>'+esc(m.model)
+        +(m.hot?' <span title="Hot mover — sells '+(Math.round(m.rate30*10)/10)+'/mo, turns in ~'+m.turn+' days">🔥</span>':'')
         +(m.pulled?' <span class="agebad" title="Pulled units (not sellable)">'+m.pulled+' pulled</span>':'')+'</td>'
-      +'<td class="ctr"><b>'+m.sold+'</b></td>'
+      +'<td class="ctr"><b title="'+esc(m.soldAll+' over the last '+historyDays()+'d · demand ≈ '+(Math.round(m.rate30*10)/10)+'/30d')+'">'+m.sold+'</b></td>'
       +'<td class="ctr">'+m.instock+'</td>'
       +'<td class="ctr">'+(m.refurb||'—')+'</td>'
       +'<td class="ctr">'+(m.ordered||'—')+'</td>'
       +'<td class="ctr">'+(m.coverDays===999?'∞':m.coverDays+'d')+'</td>'
       +'<td class="ctr">'+(m.instock?('<span class="agebad'+(m.oldest>60?' stale':'')+'">'+m.oldest+'d</span>'):'—')+'</td>'
-      +'<td class="ctr"><span class="sugg '+(m.suggest>0?'go':'zero')+'">'+m.suggest+'</span></td>';
+      +'<td class="ctr"><span class="sugg '+(m.suggest>0?'go':'zero')+'"'+(m.capped?' title="Demand suggests more — capped at '+m.suggest+' to limit single-model risk"':'')+'>'+m.suggest+(m.capped?'<span style="color:var(--amber)">▪</span>':'')+'</span></td>';
     tb.appendChild(tr);
     var detail=[];
     if(OPEN[key]){
@@ -370,7 +431,7 @@ function render(){
       });
       if(m.soldUnits.length){
         var str=document.createElement('tr');str.className='unit';
-        str.innerHTML='<td colspan="8" style="color:var(--grey)">Sold last 30d: '
+        str.innerHTML='<td colspan="8" style="color:var(--grey)">Sold (last '+historyDays()+'d): '
           +m.soldUnits.map(function(u){return esc(u.device.replace(m.model,'').trim()||u.device)+' ('+fmt$(u.price||0)+')';}).join(' · ')+'</td>';
         tb.appendChild(str);detail.push(str);
       }
@@ -384,15 +445,15 @@ function copyOrder(){
   var lines=[];
   var per=STORE==='All'?stores():[STORE];
   per.forEach(function(st){
-    var save=STORE;STORE=st;
-    var ms=buildModels().filter(function(m){return m.suggest>0;});
-    STORE=save;
+    var by=buildModelsFor(st);
+    var ms=Object.keys(by).map(function(k){return by[k];}).filter(function(m){return m.suggest>0;})
+      .sort(function(a,b){return b.suggest-a.suggest||a.model.localeCompare(b.model);});
     if(!ms.length)return;
     lines.push((window.CPRLocations?window.CPRLocations.display(st):st)+':');
-    ms.forEach(function(m){lines.push('  '+m.suggest+' × '+(m.mfr?m.mfr+' ':'')+m.model);});
+    ms.forEach(function(m){lines.push('  '+m.suggest+' × '+(m.mfr?m.mfr+' ':'')+m.model+(m.hot?' 🔥':''));});
   });
   if(!lines.length){toast('Nothing to order — everything has cover');return;}
-  var txt='Device order — '+new Date().toLocaleDateString()+' (keep '+COVER+'d of supply)\n'+lines.join('\n');
+  var txt='Device order — '+new Date().toLocaleDateString()+' (keep '+COVER+'d of supply · max '+SKUCAP+'/model/store)\n'+lines.join('\n');
   navigator.clipboard.writeText(txt).then(function(){toast('Order list copied ✓');},function(){toast('Copy failed',true);});
 }
 
@@ -405,6 +466,10 @@ $('#drop').addEventListener('drop',function(e){if(e.dataTransfer.files.length)im
 $('#cover').addEventListener('change',function(){
   COVER=clampCover(this.value);this.value=COVER;
   try{localStorage.setItem('do_cover',String(COVER));}catch(e){}render();
+});
+$('#skucap').addEventListener('change',function(){
+  SKUCAP=clampCap(this.value);this.value=SKUCAP;
+  try{localStorage.setItem('do_skucap',String(SKUCAP));}catch(e){}render();
 });
 $('#srch').addEventListener('input',function(){SEARCH=this.value.trim();render();});
 $('#copyOrder').addEventListener('click',copyOrder);

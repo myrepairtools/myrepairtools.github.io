@@ -148,8 +148,13 @@ accumulates across uploads) and "Device Inventory List" → `device_inventory` (
 snapshot, replaced each upload). Rows group by `model_key` (device name minus
 storage/color, e.g. "iPhone 15 Pro Max"); per model: sold-30d, sellable stock
 (Instock + Pending Refurb), Ordered, days of cover, oldest-unit age (stale > 60d),
-and suggest = ceil(sold30 × coverDays/30) − stock − ordered, with the keep-N-days
-cover dial persisted in localStorage. 📋 Copy order list emits a per-store buy list
+and a suggested buy from a per-30d demand rate over up to 60 days of history
+(normalized by how much history the uploads actually cover), computed **per store**
+(All view sums the per-store numbers) and **hard-capped per model per store**
+(default 4 — phones depreciate; never concentrate risk in one SKU). Cover dial is
+capped at 30 days for the same reason; both dials persist in localStorage. 🔥 marks
+hot movers (3+/month and avg shelf-turn ≤ 14d); ▪ on a suggestion means demand
+wanted more but the cap held it. 📋 Copy order list emits a per-store buy list
 (devices are ordered through Hyla/vendor portals — no quick-order export). Store
 chips normalize through CPRLocations; page adopts the shared PIN session
 (authenticated RLS on both tables).
