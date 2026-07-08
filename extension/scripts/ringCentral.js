@@ -175,8 +175,9 @@
              '</div>');
         q('#mrt-rc-back').addEventListener('click', function () { S.thread = null; renderInbox(); });
         q('#mrt-rc-send').addEventListener('click', sendThread);
-        q('#mrt-rc-ai').addEventListener('click', aiHelp);
+        q('#mrt-rc-ai').addEventListener('click', openAiMenu);
         loadMsgs();
+        var ta = q('#mrt-rc-text'); if (ta && S.pendingDraft) { ta.value = S.pendingDraft; S.pendingDraft = null; cstatus('ok', '✨ Drafted — edit or Send'); }
     }
     function loadMsgs() {
         fn('thread', { store: S.store, number: S.thread.number, days: 60 }).then(function (r) {
@@ -202,15 +203,90 @@
             loadMsgs();
         });
     }
-    function aiHelp() {
+    /* --- ✨ menu: polish, or a guided scenario --- */
+    var templatesCache = null;
+    function loadTemplates(cb) {
+        if (templatesCache) { cb(templatesCache); return; }
+        ai({ action: 'templates' }).then(function (r) { templatesCache = (r && r.ok && r.templates) || []; cb(templatesCache); });
+    }
+    function openAiMenu() {
+        var ex = q('#mrt-rc-aimenu'); if (ex) { ex.remove(); return; }
+        loadTemplates(function (tpls) {
+            var menu = document.createElement('div'); menu.id = 'mrt-rc-aimenu'; menu.className = 'mrt-rc-aimenu';
+            var hasText = ((q('#mrt-rc-text') || {}).value || '').trim();
+            var html = '';
+            if (hasText) html += '<button data-act="polish">✨ Polish what I typed</button>';
+            html += '<div class="mrt-rc-aihd">Guided write</div>';
+            html += tpls.map(function (t) {
+                return '<button data-tpl="' + t.id + '" data-name="' + esc(t.name) + '">' + esc((t.icon || '✍️') + ' ' + t.name) + '</button>';
+            }).join('') || '<div class="mrt-rc-aihd" style="opacity:.6">No scenarios yet</div>';
+            menu.innerHTML = html;
+            q('.mrt-rc-compose').appendChild(menu);
+            menu.querySelectorAll('button').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    menu.remove();
+                    if (b.getAttribute('data-act') === 'polish') { aiPolish(); return; }
+                    openGuided(b.getAttribute('data-tpl'), b.getAttribute('data-name'));
+                });
+            });
+        });
+    }
+    function aiPolish() {
         var ta = q('#mrt-rc-text'); var text = (ta.value || '').trim();
-        if (!text) { cstatus('err', 'Type a rough note first, then ✨'); return; }
-        var btn = q('#mrt-rc-ai'); btn.disabled = true; cstatus('wait', '✨ Writing…');
+        if (!text) { cstatus('err', 'Type a rough note first'); return; }
+        cstatus('wait', '✨ Writing…');
         var mode = text.split(/\s+/).length <= 4 ? 'draft' : 'polish';
         ai({ mode: mode, text: text, customer_name: (S.thread && S.thread.name) || '', store: S.store }).then(function (r) {
-            btn.disabled = false;
             if (!r || !r.ok) { cstatus('err', (r && r.error) || 'AI unavailable'); return; }
             ta.value = r.message || text; cstatus('ok', '✨ Rewritten — edit or Send'); setTimeout(function () { cstatus('', ''); }, 2200);
+        });
+    }
+
+    // Guided: pick a scenario → answer questions (base + AI follow-ups) → compose.
+    function openGuided(id, name) {
+        var note = ((q('#mrt-rc-text') || {}).value || '').trim();
+        body('<div class="mrt-rc-load">✨ Preparing questions…</div>');
+        ai({ action: 'guided_questions', scenario_id: Number(id), note: note, customer_name: (S.thread && S.thread.name) || '' }).then(function (r) {
+            if (!r || !r.ok) { renderThread(); setTimeout(function () { cstatus('err', (r && r.error) || 'Could not load'); }, 60); return; }
+            var qs = r.questions || [];
+            var h = '<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-gback">‹ Back</button><span class="mrt-rc-who">' + esc(name) + '</span></div>' +
+                '<div class="mrt-rc-gform">';
+            qs.forEach(function (qq) {
+                h += '<div class="mrt-rc-gq"><label>' + esc(qq.label) +
+                    (qq.optional ? ' <span class="opt">(optional)</span>' : '') +
+                    (qq.ai ? ' <span class="aitag" title="AI suggested">✨</span>' : '') + '</label>';
+                if (qq.type === 'choice') {
+                    h += '<div class="mrt-rc-gchoices" data-key="' + esc(qq.key) + '">' +
+                        (qq.options || []).map(function (o) { return '<button type="button" class="mrt-rc-gchip" data-val="' + esc(o) + '">' + esc(o) + '</button>'; }).join('') + '</div>';
+                } else {
+                    h += '<input type="text" class="mrt-rc-gin" data-key="' + esc(qq.key) + '" placeholder="' + esc(qq.placeholder || '') + '">';
+                }
+                h += '</div>';
+            });
+            h += '</div><div class="mrt-rc-compose"><button class="mrt-rc-send" id="mrt-rc-gwrite" style="width:100%">✨ Write the message</button><div class="mrt-rc-cstatus" id="mrt-rc-gstatus"></div></div>';
+            body(h);
+            panel.querySelectorAll('.mrt-rc-gchoices').forEach(function (grp) {
+                grp.querySelectorAll('.mrt-rc-gchip').forEach(function (chip) {
+                    chip.addEventListener('click', function () {
+                        grp.querySelectorAll('.mrt-rc-gchip').forEach(function (c) { c.classList.remove('on'); });
+                        chip.classList.add('on'); grp.setAttribute('data-val', chip.getAttribute('data-val'));
+                    });
+                });
+            });
+            q('#mrt-rc-gback').addEventListener('click', function () { renderThread(); });
+            q('#mrt-rc-gwrite').addEventListener('click', function () { submitGuided(id); });
+        });
+    }
+    function submitGuided(id) {
+        var answers = {};
+        panel.querySelectorAll('.mrt-rc-gin').forEach(function (i) { if (i.value.trim()) answers[i.getAttribute('data-key')] = i.value.trim(); });
+        panel.querySelectorAll('.mrt-rc-gchoices').forEach(function (g) { var v = g.getAttribute('data-val'); if (v) answers[g.getAttribute('data-key')] = v; });
+        var gs = q('#mrt-rc-gstatus'); var btn = q('#mrt-rc-gwrite'); if (btn) btn.disabled = true;
+        if (gs) gs.innerHTML = '<span class="wait">✨ Writing…</span>';
+        ai({ action: 'guided_compose', scenario_id: Number(id), answers: answers, customer_name: (S.thread && S.thread.name) || '', store: S.store }).then(function (r) {
+            if (!r || !r.ok) { if (btn) btn.disabled = false; if (gs) gs.innerHTML = '<span class="err">' + esc((r && r.error) || 'Failed') + '</span>'; return; }
+            S.pendingDraft = r.message || '';
+            renderThread();   // rebuilds the compose box; renderThread drops pendingDraft into the textarea
         });
     }
 
