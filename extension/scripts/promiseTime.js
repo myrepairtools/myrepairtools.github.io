@@ -40,6 +40,16 @@
     var cfg = { minsPer: 45, open: '10:00', close: '19:00' };
     var snapshot = null, gateSkipped = false;
 
+    // RepairQ locked (idle-timeout overlay) or on the login page — our UI
+    // must not sit on top of the lock/login screen.
+    function isLockedOut() {
+        try {
+            if (/\/site\/login/.test(location.pathname)) return true;
+            if (document.body && document.body.classList.contains('session-timeout-overlay-active')) return true;
+        } catch (e) {}
+        return false;
+    }
+
     /* ---------------- queue snapshot ---------------- */
 
     function parseCount(html) {
@@ -272,6 +282,7 @@
     }
 
     function placeChip() {
+        if (isLockedOut()) { var old = document.querySelector('.mrt-pt-chip'); if (old) old.remove(); return; }
         var d = estimateDateInput();
         if (!d) return;                                     // no ESTIMATE box on this page
         if (document.querySelector('.mrt-pt-chip')) return;
@@ -396,12 +407,15 @@
 
         function tick() {
             if (!document.querySelector('.mrt-pt-pill')) return;
+            if (isLockedOut()) { pill.style.display = 'none'; return; }   // hide over lock/login
             var html = pillText();
             if (html) { pill.innerHTML = html; pill.style.display = ''; }
             else pill.style.display = 'none';
         }
         getSnapshot().then(tick);
         setInterval(tick, 60000);                       // the clock keeps walking
+        // re-evaluate the instant RepairQ locks or unlocks (body class toggles)
+        try { new MutationObserver(tick).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         try {                                           // any tab's refresh updates every tab
             chrome.storage.onChanged.addListener(function (ch, area) {
                 if (area === 'local' && ch[SNAP_KEY]) { snapshot = ch[SNAP_KEY].newValue; tick(); }
