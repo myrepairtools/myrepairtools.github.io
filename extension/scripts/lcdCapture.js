@@ -208,18 +208,17 @@
         wrap.className = 'mrt-lcd-overlay';
         wrap.innerHTML =
             '<div class="mrt-lcd-modal" role="dialog" aria-label="LCD Buyback">' +
-              '<div class="mrt-lcd-head">' +
-                '<span class="mrt-lcd-logo">my<b>Repair</b>Tools</span>' +
-                '<span class="mrt-lcd-tag">LCD BUYBACK</span>' +
+              '<div class="mrt-lcd-head"><h4>LCD Buyback</h4><span class="mrt-lcd-hdsub">display grading</span></div>' +
+              '<div class="mrt-lcd-body">' +
+                '<div class="mrt-lcd-model"></div>' +
+                '<div class="mrt-lcd-q">Is the display coming off this phone GOOD?<br>' +
+                  '<span class="mrt-lcd-hint">Good = screen lights up fine, no cracks in the OLED itself (glass-only damage is still good).</span></div>' +
+                '<div class="mrt-lcd-btns">' +
+                  '<button type="button" class="mrt-lcd-good">Good</button>' +
+                  '<button type="button" class="mrt-lcd-bad">Bad</button>' +
+                '</div>' +
               '</div>' +
-              '<div class="mrt-lcd-model"></div>' +
-              '<div class="mrt-lcd-q">Is the display coming <u>off</u> this phone GOOD?<br>' +
-                '<span class="mrt-lcd-hint">Good = screen lights up fine, no cracks in the OLED itself (glass-only damage is still GOOD).</span></div>' +
-              '<div class="mrt-lcd-btns">' +
-                '<button type="button" class="mrt-lcd-good">✓ GOOD</button>' +
-                '<button type="button" class="mrt-lcd-bad">✕ BAD</button>' +
-              '</div>' +
-              '<button type="button" class="mrt-lcd-skip">Not a buyback pull (don’t log)</button>' +
+              '<div class="mrt-lcd-ft"><button type="button" class="mrt-lcd-skip">Not a buyback pull — don’t log</button></div>' +
             '</div>';
         wrap.querySelector('.mrt-lcd-model').textContent = item.model;
 

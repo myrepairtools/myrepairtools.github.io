@@ -125,7 +125,7 @@
     function openModal(existing) {
         closeModal();
         var phones = suggestedPhones();
-        var pick = existing || {};
+        var pick = (existing && existing.method !== 'skip') ? existing : {};
         var method = pick.method || (phones.length ? 'text' : 'text');
         var number = pick.contact_number || (phones[0] && phones[0].num) || '';
         var name = pick.contact_name || customerFirst();
@@ -222,7 +222,15 @@
             renderChip();
             closeModal();
         });
-        ov.querySelector('.mrt-fu-skip').addEventListener('click', function () { markPrompted(); closeModal(); });
+        ov.querySelector('.mrt-fu-skip').addEventListener('click', function () {
+            // remember the skip ON THE TICKET so it never re-asks anywhere
+            if (!current) {
+                current = { method: 'skip' };
+                fn('contact_set', { ticket_no: ticketNo(), store: storeName(), method: 'skip', agent_name: techName() });
+                renderChip();
+            }
+            markPrompted(); closeModal();
+        });
         ov.addEventListener('click', function (e) { if (e.target === ov) { markPrompted(); closeModal(); } });
     }
     function closeModal() { var m = document.getElementById('mrt-fu-modal'); if (m) m.remove(); }
@@ -258,7 +266,7 @@
         var blk = document.createElement('div');
         blk.className = 'block mrt-fu-block' + (native ? '' : ' mrt-fu-selfstyle');
         var body;
-        if (current) {
+        if (current && current.method !== 'skip') {
             var line = current.method === 'email' ? 'Email · ' + esc(current.contact_email || '—')
                      : current.method === 'return' ? 'Customer to Return'
                      : (current.method === 'call' ? 'Call' : 'Text') + ' · ' + esc(pretty(current.contact_number || ''));
