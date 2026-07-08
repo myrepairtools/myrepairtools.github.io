@@ -275,6 +275,7 @@
         // Check the follow-up preference captured at check-in.
         fn('contact_get', { ticket_no: t }).then(function (r) {
             var ct = r && r.contact;
+            if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
             if (ct && ct.method === 'text') { autoSend(btn, ct); return; }
             if (ct && ct.method === 'call') {
                 infoToast('📞 Customer asked for a <b>call</b> — ' + pretty(ct.contact_number || ''), 3200);

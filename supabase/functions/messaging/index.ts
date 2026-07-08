@@ -298,7 +298,7 @@ async function actionSubscribe() {
 async function actionContactSet(payload: any, sentBy: { id?: string; name?: string }) {
   const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
   if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
-  const method = ["text", "call", "email", "return"].includes(payload?.method) ? payload.method : "text";
+  const method = ["text", "call", "email", "return", "skip"].includes(payload?.method) ? payload.method : "text";
   // normalize the store to its canonical name when we recognize it
   const line = await lineForStore(payload?.store);
   const row = {
