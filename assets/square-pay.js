@@ -422,7 +422,13 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
   /* ---------------- open/close ---------------- */
   function open() {
     S.open = true;
-    if (!S.config) call('config').then(function (r) { S.config = r || {}; if (S.open) render(); });
+    // re-check config on EVERY open — a freshly added SQUARE_APP_ID lights up
+    // the keyed tab without needing a page refresh
+    call('config').then(function (r) {
+      var was = S.config && S.config.keyed_ready;
+      S.config = r || {};
+      if (S.open && S.config.keyed_ready !== was) render();
+    });
     panel.classList.add('show');
     var b = document.querySelector('.cpr-tb-sq'); if (b) b.classList.add('open');
     // multi-store default: this tab's earlier pick > today's schedule > picker
