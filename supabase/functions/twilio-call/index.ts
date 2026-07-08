@@ -12,11 +12,16 @@
 // Actions:
 //   status       — account type (trial/full), verified caller IDs, owned
 //                  numbers, per-store from-number readiness (Settings)
-//   verify_start — {store} | {number}: kick off Twilio's Validation Request
-//                  for the store's RingCentral number. Twilio calls that
-//                  number and reads a 6-digit code; we return the code so the
-//                  person at the store phone can key it in. Once entered, the
-//                  number becomes a Verified Caller ID and calls present it.
+//   verify_start — {store} | {number}, extension?: kick off Twilio's
+//                  Validation Request for the store's RingCentral number.
+//                  Twilio calls that number and reads a 6-digit code; we
+//                  return the code so the person at the store phone can key
+//                  it in. Once entered, the number becomes a Verified Caller
+//                  ID and calls present it. `extension` = DTMF keys Twilio
+//                  dials after the line answers (digits/#/*, w = half-second
+//                  pause, e.g. "ww1") — REQUIRED in practice for lines where
+//                  an auto-attendant/IVR answers, so the verification call
+//                  reaches a human instead of the menu.
 //   call         — {to, store, ticket_no, template_key, agent_name,
 //                  customer_name, device} → place the ready-for-pickup call
 //
@@ -131,11 +136,16 @@ async function actionVerifyStart(payload: any) {
   if (verified.has(num)) return json({ ok: true, already: true, number: num, store });
 
   // POST a Validation Request → Twilio calls `num` and reads back the code.
+  // `Extension` navigates an auto-attendant: Twilio dials these keys after
+  // the line answers (w = half-second pause), so the call punches through the
+  // IVR menu to a human who can hear the prompt and enter the code.
+  const ext = String(payload?.extension || "").replace(/[^0-9#*wW]/g, "").slice(0, 40);
   const body = new URLSearchParams({
     PhoneNumber: num,
     FriendlyName: String(store || "CPR store line").slice(0, 64),
     CallDelay: "0",
   });
+  if (ext) body.set("Extension", ext);
   const r = await tw("/OutgoingCallerIds.json", { method: "POST", body: body.toString() });
   if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, number: num, store }, 502);
 
@@ -144,6 +154,7 @@ async function actionVerifyStart(payload: any) {
     ok: true,
     number: num,
     store,
+    extension: ext || null,
     validation_code: r.data?.validation_code || null,
     call_sid: r.data?.call_sid || null,
     friendly_name: r.data?.friendly_name || null,
