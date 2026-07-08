@@ -24,10 +24,10 @@
     'use strict';
 
     var METHODS = [
-        { v: 'text',   label: '💬 Text' },
-        { v: 'call',   label: '📞 Call' },
-        { v: 'email',  label: '✉️ Email' },
-        { v: 'return', label: '🚶 Customer to Return' },
+        { v: 'text',   label: 'Text' },
+        { v: 'call',   label: 'Call' },
+        { v: 'email',  label: 'Email' },
+        { v: 'return', label: 'Customer to Return' },
     ];
 
     function digits(s) { return (s || '').replace(/\D/g, ''); }
@@ -134,25 +134,27 @@
         var ov = document.createElement('div'); ov.id = 'mrt-fu-modal';
         ov.innerHTML =
             '<div class="mrt-fu-card">' +
-              '<h4>📣 How should we follow up?</h4>' +
-              '<div class="mrt-fu-sub">Saved to this ticket for this visit.</div>' +
-              '<div class="mrt-fu-methods">' + METHODS.map(function (m) {
-                  return '<button type="button" class="mrt-fu-m' + (m.v === method ? ' on' : '') + '" data-m="' + m.v + '">' + m.label + '</button>';
-              }).join('') + '</div>' +
-              '<div class="mrt-fu-field mrt-fu-numwrap">' +
-                '<label>Contact number</label>' +
-                '<input type="text" class="mrt-fu-num" placeholder="Type a number…" autocomplete="off" value="' + esc(pretty(number)) + '" data-raw="' + esc(digits(number)) + '">' +
-                '<div class="mrt-fu-suggest"></div>' +
+              '<div class="mrt-fu-hd"><h4>Follow Up</h4><span class="mrt-fu-hdsub">saved to this ticket only</span></div>' +
+              '<div class="mrt-fu-body">' +
+                '<div class="mrt-fu-q">How should we let the customer know their repair is ready?</div>' +
+                '<div class="mrt-fu-methods">' + METHODS.map(function (m) {
+                    return '<button type="button" class="mrt-fu-m' + (m.v === method ? ' on' : '') + '" data-m="' + m.v + '">' + m.label + '</button>';
+                }).join('') + '</div>' +
+                '<div class="mrt-fu-field mrt-fu-numwrap">' +
+                  '<label>Contact number</label>' +
+                  '<input type="text" class="mrt-fu-num" placeholder="Type a number…" autocomplete="off" value="' + esc(pretty(number)) + '" data-raw="' + esc(digits(number)) + '">' +
+                  '<div class="mrt-fu-suggest"></div>' +
+                '</div>' +
+                '<div class="mrt-fu-field mrt-fu-emailwrap" style="display:none">' +
+                  '<label>Email</label><input type="email" class="mrt-fu-email" value="' + esc(email) + '">' +
+                '</div>' +
+                '<div class="mrt-fu-field mrt-fu-namewrap">' +
+                  '<label>Name (who to reach)</label><input type="text" class="mrt-fu-name" value="' + esc(name) + '">' +
+                '</div>' +
               '</div>' +
-              '<div class="mrt-fu-field mrt-fu-emailwrap" style="display:none">' +
-                '<label>Email</label><input type="email" class="mrt-fu-email" value="' + esc(email) + '">' +
-              '</div>' +
-              '<div class="mrt-fu-field mrt-fu-namewrap">' +
-                '<label>Name (who to reach)</label><input type="text" class="mrt-fu-name" value="' + esc(name) + '">' +
-              '</div>' +
-              '<div class="mrt-fu-btns">' +
-                '<button type="button" class="mrt-fu-save">Save follow-up</button>' +
+              '<div class="mrt-fu-ft">' +
                 '<button type="button" class="mrt-fu-skip">Skip</button>' +
+                '<button type="button" class="mrt-fu-save">Save Follow Up</button>' +
               '</div>' +
             '</div>';
         document.body.appendChild(ov);
@@ -257,9 +259,9 @@
         blk.className = 'block mrt-fu-block' + (native ? '' : ' mrt-fu-selfstyle');
         var body;
         if (current) {
-            var line = current.method === 'email' ? '✉️ Email · ' + esc(current.contact_email || '—')
-                     : current.method === 'return' ? '🚶 Customer to Return'
-                     : (current.method === 'call' ? '📞 Call' : '💬 Text') + ' · ' + esc(pretty(current.contact_number || ''));
+            var line = current.method === 'email' ? 'Email · ' + esc(current.contact_email || '—')
+                     : current.method === 'return' ? 'Customer to Return'
+                     : (current.method === 'call' ? 'Call' : 'Text') + ' · ' + esc(pretty(current.contact_number || ''));
             body = '<div class="mrt-fu-line">' + line + '</div>'
                  + (current.contact_name ? '<div class="mrt-fu-sub2">for ' + esc(current.contact_name) + '</div>' : '')
                  + (current.set_by_name ? '<div class="mrt-fu-sub2">set by ' + esc(current.set_by_name) + '</div>' : '')
@@ -269,7 +271,7 @@
                  + '<button type="button" class="btn btn-primary mrt-fu-editbtn">Set follow up</button>';
         }
         blk.innerHTML =
-            '<div class="head"><h2>📣 Follow Up</h2></div>' +
+            '<div class="head"><h2>Follow Up</h2></div>' +
             '<div class="block-content mrt-fu-bc">' + body + '</div>';
         blk.querySelector('.mrt-fu-editbtn').addEventListener('click', function () { openModal(current); });
 
