@@ -302,27 +302,47 @@
     // scrape source for suggestions (the customer section's content element)
     function customerBlock() { var a = customerAnchor(); return a ? a.content : null; }
 
+    function savedLine() {
+        if (!(current && current.method !== 'skip')) return '';
+        return current.method === 'email' ? 'Email · ' + esc(current.contact_email || '—')
+             : current.method === 'return' ? 'Customer to Return'
+             : (current.method === 'call' ? 'Call' : 'Text') + ' · ' + esc(pretty(current.contact_number || ''));
+    }
+
     function renderChip() {   // kept name — called from boot/save paths
-        var old = document.querySelector('.mrt-fu-block'); if (old) old.remove();
+        document.querySelectorAll('.mrt-fu-block').forEach(function (n) { n.remove(); });
 
         var anchor = customerAnchor();
-        var host = null, native = false, subhead = false;
-        if (anchor) { host = anchor.insertAfter; native = true; subhead = anchor.mode === 'subhead'; }
-        else {
-            // edit pages / unexpected layouts: hang it under the contact <dl>
+        if (!anchor) {
+            // Edit pages have no sidebar Customer widget — add ONE summary row
+            // to RepairQ's own customer <dl> instead (matches the dt/dd rows
+            // around it; a full block there ate too much space).
             var dd = ddFor('contact number');
-            host = dd ? (dd.closest('dl') || dd.parentElement) : null;
-            if (!host) return;   // nowhere safe — render nothing, never hijack
+            var dl = dd ? dd.closest('dl') : null;
+            if (!dl) return;   // nowhere safe — render nothing, never hijack
+            var line = savedLine();
+            var html = line
+                ? line + (current.contact_name ? ' <span class="mrt-fu-dim">(' + esc(current.contact_name) + ')</span>' : '')
+                       + ' <a href="#" class="mrt-fu-editlink">edit</a>'
+                : '<a href="#" class="mrt-fu-editlink">Set follow up</a>';
+            var dt = document.createElement('dt');
+            dt.className = 'mrt-fu-block'; dt.textContent = 'Follow Up:';
+            var d2 = document.createElement('dd');
+            d2.className = 'mrt-fu-block'; d2.innerHTML = html;
+            dl.appendChild(dt); dl.appendChild(d2);
+            d2.querySelector('.mrt-fu-editlink').addEventListener('click', function (e) {
+                e.preventDefault(); openModal(current);
+            });
+            return;
         }
 
+        var subhead = anchor.mode === 'subhead';
         var blk = document.createElement('div');
-        blk.className = 'mrt-fu-block' + (native ? '' : ' mrt-fu-selfstyle');
+        blk.className = 'mrt-fu-block';
         var body;
-        if (current && current.method !== 'skip') {
-            var line = current.method === 'email' ? 'Email · ' + esc(current.contact_email || '—')
-                     : current.method === 'return' ? 'Customer to Return'
-                     : (current.method === 'call' ? 'Call' : 'Text') + ' · ' + esc(pretty(current.contact_number || ''));
-            body = '<div class="mrt-fu-line">' + line + '</div>'
+        var line2 = savedLine();
+        if (line2) {
+            body = '<div class="mrt-fu-line">' + line2 + '</div>'
                  + (current.contact_name ? '<div class="mrt-fu-sub2">for ' + esc(current.contact_name) + '</div>' : '')
                  + (current.set_by_name ? '<div class="mrt-fu-sub2">set by ' + esc(current.set_by_name) + '</div>' : '')
                  + '<button type="button" class="btn btn-primary mrt-fu-editbtn">Edit follow up</button>';
@@ -338,8 +358,7 @@
             '<div class="block-content mrt-fu-bc">' + body + '</div>';
         blk.querySelector('.mrt-fu-editbtn').addEventListener('click', function () { openModal(current); });
 
-        if (native) host.insertAdjacentElement('afterend', blk);
-        else host.appendChild(blk);
+        anchor.insertAfter.insertAdjacentElement('afterend', blk);
     }
 
     /* ---------------- lifecycle ---------------- */
