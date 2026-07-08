@@ -517,7 +517,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
             <span style="flex:1"></span>
             <button class="btn alt sm" id="twRefresh">↻ Re-check</button>
           </div>
-          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 6px">Ready-for-Pickup calls (for customers whose follow-up preference is <b>Call</b>) go out through Twilio but present the store&rsquo;s own RingCentral number as caller&nbsp;ID &mdash; <b>once that number is verified</b>. Until then those calls fall back to a generic number. Verify each line below: Twilio will ring the store phone and read a 6&#8209;digit code &mdash; <b>have someone standing at that store&rsquo;s phone</b>, then type the code it reads into the phone keypad.</p>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 6px">Ready-for-Pickup calls (for customers whose follow-up preference is <b>Call</b>) go out through Twilio but present the store&rsquo;s own RingCentral number as caller&nbsp;ID &mdash; <b>once that number is verified</b>. Until then those calls fall back to a generic number. Verify each line below: Twilio will ring the store phone and read a 6&#8209;digit code &mdash; <b>have someone standing at that store&rsquo;s phone</b>, then type the code it reads into the phone keypad. <b>If an auto-attendant menu answers the line</b>, give the verify prompt the keys a caller presses to reach a person (e.g. <code>ww1</code> &mdash; w&nbsp;=&nbsp;half-second pause) so the call dials through the menu instead of getting stuck in it. If the menu can&rsquo;t be beaten by keypress, temporarily set that store&rsquo;s RingCentral auto-receptionist to ring a desk phone directly, verify, then put it back &mdash; it&rsquo;s one-time per store.</p>
           <div id="twStores" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey);margin-top:10px">Loading…</div>
           <div id="twHint" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin-top:12px"></div>
         </div>
@@ -930,14 +930,15 @@ async function twRenderStatus(){
   $all('.tw-verify').forEach(function(b){ b.onclick=function(){ twVerify(b.getAttribute('data-store'),b.getAttribute('data-num')); }; });
 }
 async function twVerify(store,num){
-  if(!confirm('Twilio will call '+store+' at '+rcPhone(num)+' right now and read a 6-digit code.\n\nMake sure someone is standing at that store\'s phone to answer and key in the code. Ready?'))return;
+  var ivr=prompt('Verifying '+store+' — Twilio will call '+rcPhone(num)+' and read a 6-digit code.\n\nDoes an auto-attendant menu answer this line? The call gets STUCK in the menu unless it dials through.\n\n• Menu answers → type the keys a caller presses to reach a person (0-9, * or #; w = half-second pause). Example: ww1\n• A person answers directly → clear this box.\n\nMake sure someone is at that store\'s phone, then press OK.','ww1');
+  if(ivr===null)return;
   var hint=$('#twHint'); if(hint)hint.innerHTML='<span style="color:var(--grey)">Starting verification for '+esc(store)+'…</span>';
-  var d=await twilioCall({action:'verify_start',store:store});
+  var d=await twilioCall({action:'verify_start',store:store,extension:(ivr||'').trim()});
   if(!d||!d.ok){ if(hint)hint.innerHTML='<span style="color:#C0392B">⚠ '+esc((d&&d.error)||'verification failed')+'</span>'; return; }
   if(d.already){ if(hint)hint.innerHTML='<span style="color:#1E9E5B">✓ '+esc(store)+' is already verified.</span>'; twRenderStatus(); return; }
   if(hint)hint.innerHTML='<div style="border:2px solid #4FB0E3;border-radius:12px;padding:14px 16px;background:#F3FAFE">'
-    +'<div style="font-family:\'Nunito\',sans-serif;font-weight:900;color:var(--dark)">📞 Calling '+esc(store)+' now — '+rcPhone(d.number)+'</div>'
-    +'<div style="margin:8px 0 2px;font-family:\'Nunito Sans\',sans-serif;color:var(--dark-grey)">When it rings, answer and enter this code on the keypad:</div>'
+    +'<div style="font-family:\'Nunito\',sans-serif;font-weight:900;color:var(--dark)">📞 Calling '+esc(store)+' now — '+rcPhone(d.number)+(d.extension?(' <span style="font-weight:700;color:#1E7AA8">(dialing '+esc(d.extension)+' through the menu)</span>'):'')+'</div>'
+    +'<div style="margin:8px 0 2px;font-family:\'Nunito Sans\',sans-serif;color:var(--dark-grey)">When it rings through, answer and enter this code on the keypad:</div>'
     +'<div style="font-family:\'Nunito\',sans-serif;font-weight:900;font-size:2rem;letter-spacing:.2em;color:#1E7AA8">'+esc(d.validation_code||'—')+'</div>'
     +'<div style="font-family:\'Nunito Sans\',sans-serif;font-size:.8rem;color:var(--grey);margin-top:6px">Waiting for verification… this updates automatically.</div>'
     +'</div>';
