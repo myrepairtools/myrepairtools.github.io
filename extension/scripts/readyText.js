@@ -282,6 +282,54 @@
         setTimeout(function () { t.remove(); }, ms || 2600);
     }
 
+    // Auto-place the ready-for-pickup VOICE call (Twilio, from the store's
+    // own number once it's a verified caller ID) to the number the customer
+    // gave at check-in — same 5-second undo window as texts.
+    function autoCall(btn, contact) {
+        var c = customer();
+        var first = (contact.contact_name && contact.contact_name.trim().split(/\s+/)[0]) || c.first;
+        var num = digits(contact.contact_number);
+        if (num.length < 10) { popup(btn); return; }   // saved number looks bad — let them pick
+
+        var cancelled = false, timer;
+        var toast = document.createElement('div');
+        toast.id = 'mrt-rfp-toast'; toast.className = 'mrt-rfp-toast';
+        toast.innerHTML =
+            '<span class="mrt-rfp-toast-msg">Calling <b>' + pretty(num) + '</b>…</span>' +
+            '<button class="mrt-rfp-undo">Undo</button>';
+        document.body.appendChild(toast);
+        var msg = toast.querySelector('.mrt-rfp-toast-msg');
+        var undo = toast.querySelector('.mrt-rfp-undo');
+
+        function commit() {
+            if (cancelled) return;
+            msg.textContent = 'Placing call…';
+            if (undo) undo.remove();
+            try {
+                chrome.runtime.sendMessage({ type: 'call:place', payload: {
+                    to: num, store: storeName(), ticket_no: ticketNo(),
+                    template_key: 'ready_for_pickup', agent_name: techName(),
+                    customer_name: first, device: device(),
+                } }, function (res) {
+                    var r = chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res;
+                    var ok = r && r.ok;
+                    msg.textContent = ok ? '✓ Call placed' : '⚠ ' + ((r && r.error) || 'call failed');
+                    if (ok) writeNote('📣 Automated ready-for-pickup call placed to ' + pretty(num) + ' (saved follow-up) — myRepairTools (' + (techName() || 'staff') + ')');
+                    setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 2200);
+                });
+            } catch (e) {
+                msg.textContent = '⚠ ' + String(e && e.message || e);
+                setTimeout(function () { toast.remove(); proceed(btn); }, 2200);
+            }
+        }
+        undo.addEventListener('click', function () {
+            cancelled = true; clearTimeout(timer);
+            msg.textContent = 'Call canceled'; undo.remove();
+            setTimeout(function () { toast.remove(); proceed(btn); }, 700);
+        });
+        timer = setTimeout(commit, 5000);
+    }
+
     // Auto-send the ready text to the number the customer gave at check-in,
     // with a 5-second undo window before it actually goes out.
     function autoSend(btn, contact) {
@@ -336,10 +384,7 @@
             var ct = r && r.contact;
             if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
             if (ct && ct.method === 'text') { autoSend(btn, ct); return; }
-            if (ct && ct.method === 'call') {
-                infoToast('Customer asked for a <b>call</b> — ' + pretty(ct.contact_number || ''), 3600);
-                proceed(btn); return;
-            }
+            if (ct && ct.method === 'call') { autoCall(btn, ct); return; }
             if (ct && ct.method === 'email') {
                 infoToast('Customer prefers <b>email</b> — <b>' + esc(ct.contact_email || '') + '</b>', 3600);
                 proceed(btn); return;

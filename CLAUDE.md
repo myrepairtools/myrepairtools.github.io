@@ -339,10 +339,18 @@ the ticket's Primary/Alt on focus + name), writes `contact_set` **and** a Repair
 note as a permanent backup, and drops an editable "📣 Follow-up" chip by the customer
 summary. Numbers/name are scraped from RepairQ's read-only customer `<dl>` (Contact
 Number / Customer Name / Contact Method / Email). Automated **voice calls** (method
-`call`) are reserved for a planned Twilio integration (verified caller ID = store number)
-— not built yet. A top-bar SMS inbox/compose panel is likewise deferred. When changing
-SMS behavior, keep `readyText.js` + `followUp.js` + `bg.js`'s `sms:` proxy + the
-`messaging` function in sync.
+`call`): Ready-for-Pickup on a ticket whose saved preference is `call` places an
+automated Twilio voice call (same 5-second Undo as texts, ticket note logged) via the
+**`twilio-call` edge function** (secrets `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`;
+actions `status` / `call`; logs to `call_log`, authenticated read). The call speaks a
+ready-for-pickup message twice (voicemail-friendly, Polly voice) and presents the
+store's own RingCentral number as caller ID once that number is added as a Twilio
+**Verified Caller ID** (Console → Phone Numbers → Verified Caller IDs — Twilio calls
+the store, someone enters the code; per store, one time); unverified stores fall back
+to a Twilio-owned number if any exist, else the call errors and the toast says so.
+bg.js proxies `call:place`/`call:status`. A top-bar SMS inbox/compose panel is still
+deferred. When changing SMS/call behavior, keep `readyText.js` + `followUp.js` +
+`bg.js`'s `sms:`/`call:` proxies + the `messaging` and `twilio-call` functions in sync.
 
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
