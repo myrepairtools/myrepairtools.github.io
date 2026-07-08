@@ -568,6 +568,76 @@ async function actionVoicemails(payload: any) {
   return json({ ok: true, store: line?.store || a.store, voicemails: out });
 }
 
+// Read-only routing diagnosis: where does each store line ACTUALLY route?
+// Pulls every store user's answering rules (work-hours / after-hours /
+// custom / forward-all) plus the account-wide number→extension map, so a
+// hidden IVR forward can be SEEN instead of hunted through the admin UI.
+// Needs only the ReadAccounts scope the store apps already have.
+async function actionDiagRouting() {
+  // extension directory (id → name/type) via the default/admin JWT, so
+  // transfer targets resolve to names ("IVR Menu", "Location Call Queue"…)
+  const dir = new Map<string, any>();
+  try {
+    const d = await rcGet("/restapi/v1.0/account/~/extension?perPage=500");
+    for (const x of (d.data?.records || [])) {
+      const e = { ext: x.extensionNumber || null, name: x.name || null, type: x.type || null };
+      dir.set(String(x.id), e);
+      if (x.extensionNumber) dir.set(`#${x.extensionNumber}`, e);
+    }
+  } catch { /* directory optional */ }
+  const lines = await storeLines();
+  const stores: any[] = [];
+  for (const l of lines) {
+    const entry: any = { store: l.store, number: l.sms_number, ok: false, extension: null, error: null };
+    if (!l.jwt) { entry.error = "no JWT configured"; stores.push(entry); continue; }
+    try {
+      const info = await rcGet("/restapi/v1.0/account/~/extension/~", l.jwt, l.app_key, l.app_secret);
+      if (!info.ok) throw new Error(info.data?.message || `extension HTTP ${info.status}`);
+      entry.extension = { id: info.data.id, ext: info.data.extensionNumber, name: info.data.name, type: info.data.type };
+      // This account runs RingCentral's NEW call handling engine
+      // (NewCallHandlingAndForwarding) — the v1.0 answering-rule API is
+      // disabled; routing lives in v2 comm-handling state rules (work-hours /
+      // after-hours / forward-all-calls / dnd / agent) + custom interaction
+      // rules. Strip greeting blobs, keep everything else raw for diagnosis.
+      const prune = (o: any): any => {
+        if (Array.isArray(o)) return o.map(prune);
+        if (o && typeof o === "object") {
+          const out: any = {};
+          for (const [k, v] of Object.entries(o)) {
+            if (/greeting|audio|prompt/i.test(k)) continue;
+            out[k] = prune(v);
+          }
+          return out;
+        }
+        return o;
+      };
+      const extId = info.data.id;
+      const states = await rcGet(`/restapi/v2/accounts/~/extensions/${extId}/comm-handling/voice/state-rules`, l.jwt, l.app_key, l.app_secret);
+      entry.state_rules = states.ok ? prune(states.data) : { error: states.data?.message || states.data?.errors?.[0]?.message || `HTTP ${states.status}` };
+      const custom = await rcGet(`/restapi/v2/accounts/~/extensions/${extId}/comm-handling/voice/interaction-rules`, l.jwt, l.app_key, l.app_secret);
+      entry.interaction_rules = custom.ok ? prune(custom.data) : { error: custom.data?.message || custom.data?.errors?.[0]?.message || `HTTP ${custom.status}` };
+      entry.ok = states.ok || custom.ok;
+    } catch (e) { entry.error = String((e as Error).message || e); }
+    stores.push(entry);
+  }
+
+  // account number map — which extension each number rings (voice routing truth)
+  let numbers: any = null;
+  try {
+    const n = await rcGet("/restapi/v1.0/account/~/phone-number?perPage=200");
+    numbers = n.ok
+      ? (n.data?.records || []).map((x: any) => ({
+          number: x.phoneNumber, usageType: x.usageType || null,
+          extension: x.extension ? { ext: x.extension.extensionNumber || null, name: x.extension.name || null, type: x.extension.type || null } : null,
+        }))
+      : { error: n.data?.message || `HTTP ${n.status}` };
+  } catch (e) { numbers = { error: String((e as Error).message || e) }; }
+
+  // directory dump so target extension ids in the rules resolve to names
+  const directory = [...dir.entries()].filter(([k]) => !k.startsWith("#")).map(([id, e]) => ({ id, ...e }));
+  return json({ ok: true, stores, numbers, directory });
+}
+
 /* ---------------- inbound ---------------- */
 
 async function pollInbox(jwt: string, store: string | null, toNumber: string | null, back: number, appKey?: string, appSecret?: string) {
@@ -697,6 +767,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "thread") return await actionThread(payload);
     if (payload?.action === "calls") return await actionCalls(payload);
     if (payload?.action === "voicemails") return await actionVoicemails(payload);
+    if (payload?.action === "diag_routing") return await actionDiagRouting();
     if (payload?.action === "sla_check") return await actionSlaCheck();
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
