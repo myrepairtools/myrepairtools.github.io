@@ -509,6 +509,19 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           </div>
         </div>
 
+        <!-- Automated calls (Twilio caller-ID verification) -->
+        <div style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Automated calls</div>
+            <span id="twPill" class="hide" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px"></span>
+            <span style="flex:1"></span>
+            <button class="btn alt sm" id="twRefresh">↻ Re-check</button>
+          </div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 6px">Ready-for-Pickup calls (for customers whose follow-up preference is <b>Call</b>) go out through Twilio but present the store&rsquo;s own RingCentral number as caller&nbsp;ID &mdash; <b>once that number is verified</b>. Until then those calls fall back to a generic number. Verify each line below: Twilio will ring the store phone and read a 6&#8209;digit code &mdash; <b>have someone standing at that store&rsquo;s phone</b>, then type the code it reads into the phone keypad.</p>
+          <div id="twStores" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey);margin-top:10px">Loading…</div>
+          <div id="twHint" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin-top:12px"></div>
+        </div>
+
         <!-- Activity -->
         <div style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
           <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Activity</div>
@@ -877,6 +890,70 @@ function rcCardPill(txt,on){
   if(on){c.style.color='#1E9E5B';c.style.background='#E9F6EE';c.style.border='1px solid #CFE9D8';}
   else{c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
 }
+/* --- Automated calls: Twilio caller-ID verification --- */
+var TWILIO_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/twilio-call';
+var TW_STATUS=null, twPoll=null;
+async function twilioCall(payload){
+  return fetch(TWILIO_FN,{method:'POST',headers:{'Authorization':'Bearer '+ANON,'apikey':ANON,'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json().catch(function(){return {ok:false,error:'bad response'};});});
+}
+function twSetPill(txt,on){
+  var p=$('#twPill'); if(!p)return;
+  p.textContent=txt; p.classList.remove('hide');
+  p.style.color=on?'#1E9E5B':'#B8860B';
+  p.style.background=on?'#E9F6EE':'#FDF6E3';
+  p.style.border='1px solid '+(on?'#CFE9D8':'#F0E2B6');
+}
+var TW_TH="<th style=\"padding:6px 8px;font-family:'Nunito',sans-serif;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:#8A8F9C\">";
+async function twRenderStatus(){
+  if(INTEG_OPEN!=='ringcentral')return;
+  var box=$('#twStores'); if(!box)return;
+  box.textContent='Checking Twilio…';
+  var d=await twilioCall({action:'status'});
+  TW_STATUS=d;
+  if(!d||!d.ok){ twSetPill('Error',false); box.textContent='Could not reach Twilio'+(d&&d.error?(' — '+d.error):'')+'.'; return; }
+  var stores=d.stores||[], ok=stores.filter(function(s){return s.verified;}).length;
+  twSetPill(ok+'/'+stores.length+' verified', stores.length>0&&ok===stores.length);
+  box.innerHTML='<table style="width:100%;border-collapse:collapse">'
+    +'<tr style="text-align:left">'+TW_TH+'Store</th>'+TW_TH+'Line</th>'+TW_TH+'Caller ID</th><th></th></tr>'
+    +stores.map(function(s){
+      var pill=s.verified
+        ?'<span style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.62rem;border-radius:999px;padding:3px 9px;color:#1E9E5B;background:#E9F6EE;border:1px solid #CFE9D8">VERIFIED</span>'
+        :'<span style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.62rem;border-radius:999px;padding:3px 9px;color:#B8860B;background:#FDF6E3;border:1px solid #F0E2B6">Not verified</span>';
+      return '<tr style="border-top:1px solid var(--border)">'
+        +'<td style="padding:9px 8px;font-weight:800;color:var(--dark)">'+esc(s.store)+'</td>'
+        +'<td style="padding:9px 8px;color:var(--dark-grey);font-weight:700;white-space:nowrap">'+rcPhone(s.number)+'</td>'
+        +'<td style="padding:9px 8px">'+pill+'</td>'
+        +'<td style="padding:9px 8px;text-align:right">'+(s.verified?'':'<button class="btn sm tw-verify" data-store="'+esc(s.store)+'" data-num="'+esc(s.number)+'">Verify caller ID</button>')+'</td>'
+        +'</tr>';
+    }).join('')+'</table>';
+  $all('.tw-verify').forEach(function(b){ b.onclick=function(){ twVerify(b.getAttribute('data-store'),b.getAttribute('data-num')); }; });
+}
+async function twVerify(store,num){
+  if(!confirm('Twilio will call '+store+' at '+rcPhone(num)+' right now and read a 6-digit code.\n\nMake sure someone is standing at that store\'s phone to answer and key in the code. Ready?'))return;
+  var hint=$('#twHint'); if(hint)hint.innerHTML='<span style="color:var(--grey)">Starting verification for '+esc(store)+'…</span>';
+  var d=await twilioCall({action:'verify_start',store:store});
+  if(!d||!d.ok){ if(hint)hint.innerHTML='<span style="color:#C0392B">⚠ '+esc((d&&d.error)||'verification failed')+'</span>'; return; }
+  if(d.already){ if(hint)hint.innerHTML='<span style="color:#1E9E5B">✓ '+esc(store)+' is already verified.</span>'; twRenderStatus(); return; }
+  if(hint)hint.innerHTML='<div style="border:2px solid #4FB0E3;border-radius:12px;padding:14px 16px;background:#F3FAFE">'
+    +'<div style="font-family:\'Nunito\',sans-serif;font-weight:900;color:var(--dark)">📞 Calling '+esc(store)+' now — '+rcPhone(d.number)+'</div>'
+    +'<div style="margin:8px 0 2px;font-family:\'Nunito Sans\',sans-serif;color:var(--dark-grey)">When it rings, answer and enter this code on the keypad:</div>'
+    +'<div style="font-family:\'Nunito\',sans-serif;font-weight:900;font-size:2rem;letter-spacing:.2em;color:#1E7AA8">'+esc(d.validation_code||'—')+'</div>'
+    +'<div style="font-family:\'Nunito Sans\',sans-serif;font-size:.8rem;color:var(--grey);margin-top:6px">Waiting for verification… this updates automatically.</div>'
+    +'</div>';
+  if(twPoll)clearInterval(twPoll);
+  var tries=0;
+  twPoll=setInterval(async function(){
+    tries++;
+    var s=await twilioCall({action:'status'});
+    var row=((s&&s.stores)||[]).filter(function(x){return x.store===store;})[0];
+    if(row&&row.verified){
+      clearInterval(twPoll); twPoll=null;
+      if(hint)hint.innerHTML='<span style="color:#1E9E5B;font-weight:800">✓ '+esc(store)+' verified! Ready-for-Pickup calls will now show its number.</span>';
+      twRenderStatus();
+    } else if(tries>=18){ clearInterval(twPoll); twPoll=null; if(hint)hint.innerHTML+='<div style="color:var(--grey);font-size:.8rem;margin-top:6px">(Still not verified — if the code didn\'t go through, tap Verify again.)</div>'; }
+  },5000);
+}
 function rcPhone(n){var d=String(n||'').replace(/\D/g,'');if(d.length===11&&d[0]==='1')d=d.slice(1);return d.length===10?('('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6)):String(n||'');}
 var RC_TEST=null; /* last test-action result */
 async function rcRenderStatus(){
@@ -926,6 +1003,7 @@ async function rcRenderStatus(){
   }
   rcRenderActivity();
   rcRenderSla();
+  twRenderStatus();
 }
 
 /* --- Response-time alerts (unanswered-text watchdog) --- */
@@ -2706,6 +2784,7 @@ function initUI(){
   var rcR=$('#rcRefresh'); if(rcR)rcR.onclick=function(){rcRenderStatus();};
   var slaC=$('#slaSaveCfg'); if(slaC)slaC.onclick=slaSaveCfg;
   var slaA=$('#slaAdd'); if(slaA)slaA.onclick=slaAdd;
+  var twR=$('#twRefresh'); if(twR)twR.onclick=function(){twRenderStatus();};
   $all('.integ-card').forEach(function(card){
     card.style.cursor='pointer';
     card.addEventListener('click',function(e){

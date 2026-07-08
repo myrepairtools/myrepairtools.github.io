@@ -10,10 +10,15 @@
 //
 // Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN.
 // Actions:
-//   status — account type (trial/full), verified caller IDs, owned numbers,
-//            per-store from-number readiness (for Settings → Integrations)
-//   call   — {to, store, ticket_no, template_key, agent_name,
-//             customer_name, device} → place the ready-for-pickup call
+//   status       — account type (trial/full), verified caller IDs, owned
+//                  numbers, per-store from-number readiness (Settings)
+//   verify_start — {store} | {number}: kick off Twilio's Validation Request
+//                  for the store's RingCentral number. Twilio calls that
+//                  number and reads a 6-digit code; we return the code so the
+//                  person at the store phone can key it in. Once entered, the
+//                  number becomes a Verified Caller ID and calls present it.
+//   call         — {to, store, ticket_no, template_key, agent_name,
+//                  customer_name, device} → place the ready-for-pickup call
 //
 // Deploy with verify_jwt OFF — the extension calls through bg.js with the
 // public anon key (same trust model as `messaging`; the Twilio creds never
@@ -111,6 +116,40 @@ async function actionStatus() {
   });
 }
 
+async function actionVerifyStart(payload: any) {
+  if (!TW_SID || !TW_TOKEN) return json({ ok: false, error: "Twilio secrets not configured" }, 500);
+
+  // resolve the number to verify — a store's RingCentral line, or a raw number
+  const line = await lineFor(payload?.store);
+  const raw = line?.sms_number || payload?.number || "";
+  const num = e164(raw);
+  if (!num) return json({ ok: false, error: "No valid number to verify (pass a store with an sms_number, or a number)" }, 400);
+  const store = line ? line.store : (payload?.store || null);
+
+  // already verified? nothing to do.
+  const verified = await verifiedCallerIds();
+  if (verified.has(num)) return json({ ok: true, already: true, number: num, store });
+
+  // POST a Validation Request → Twilio calls `num` and reads back the code.
+  const body = new URLSearchParams({
+    PhoneNumber: num,
+    FriendlyName: String(store || "CPR store line").slice(0, 64),
+    CallDelay: "0",
+  });
+  const r = await tw("/OutgoingCallerIds.json", { method: "POST", body: body.toString() });
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, number: num, store }, 502);
+
+  // Twilio returns the code we must key in when the number rings.
+  return json({
+    ok: true,
+    number: num,
+    store,
+    validation_code: r.data?.validation_code || null,
+    call_sid: r.data?.call_sid || null,
+    friendly_name: r.data?.friendly_name || null,
+  });
+}
+
 async function actionCall(payload: any, sentBy: { id?: string; name?: string }) {
   if (!TW_SID || !TW_TOKEN) return json({ ok: false, error: "Twilio secrets not configured" }, 500);
   const to = e164(payload?.to || "");
@@ -181,6 +220,7 @@ Deno.serve(async (req) => {
 
   try {
     if (payload?.action === "status") return await actionStatus();
+    if (payload?.action === "verify_start") return await actionVerifyStart(payload);
     if (payload?.action === "call") return await actionCall(payload, sentBy);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
