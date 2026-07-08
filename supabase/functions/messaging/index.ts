@@ -146,6 +146,16 @@ async function rcGet(path: string, jwt?: string, appKey?: string, appSecret?: st
   return { ok: r.ok, status: r.status, data: await r.json() };
 }
 
+async function rcPut(path: string, body: unknown, jwt?: string, appKey?: string, appSecret?: string) {
+  const t = await rcToken(jwt, appKey, appSecret);
+  const r = await fetch(`${RC_SERVER}${path}`, {
+    method: "PUT",
+    headers: { "Authorization": `Bearer ${t}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+}
+
 /* ---------------- helpers ---------------- */
 
 function e164(raw: string): string | null {
@@ -568,6 +578,34 @@ async function actionVoicemails(payload: any) {
   return json({ ok: true, store: line?.store || a.store, voicemails: out });
 }
 
+// Mark a conversation READ in RingCentral (needs the Edit Messages scope):
+// flips every unread inbound SMS from this number to Read, which clears the
+// unread state everywhere — our panel badge AND the RingCentral apps.
+async function actionThreadRead(payload: any) {
+  const line = await lineForStore(payload?.store);
+  const a = lineAuth(line);
+  const want = e164(payload?.number || "");
+  if (!want) return json({ ok: false, error: "number required" }, 400);
+  const dateFrom = new Date(Date.now() - 90 * 864e5).toISOString();
+  const r = await rcGet(
+    `/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&direction=Inbound&readStatus=Unread&perPage=100&dateFrom=${dateFrom}`,
+    a.jwt, a.appKey, a.appSecret,
+  );
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status });
+  let marked = 0, failed = 0;
+  for (const m of (r.data?.records || [])) {
+    const from = e164(m.from?.phoneNumber || "");
+    if (from !== want) continue;
+    const u = await rcPut(`/restapi/v1.0/account/~/extension/~/message-store/${m.id}`, { readStatus: "Read" }, a.jwt, a.appKey, a.appSecret);
+    if (u.ok) marked++;
+    else failed++;
+  }
+  return json({
+    ok: failed === 0, marked, failed,
+    scope_hint: failed ? "add the Edit Messages scope to the store's RC app" : undefined,
+  });
+}
+
 // Read-only routing diagnosis: where does each store line ACTUALLY route?
 // Pulls every store user's answering rules (work-hours / after-hours /
 // custom / forward-all) plus the account-wide number→extension map, so a
@@ -767,6 +805,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "thread") return await actionThread(payload);
     if (payload?.action === "calls") return await actionCalls(payload);
     if (payload?.action === "voicemails") return await actionVoicemails(payload);
+    if (payload?.action === "thread_read") return await actionThreadRead(payload);
     if (payload?.action === "diag_routing") return await actionDiagRouting();
     if (payload?.action === "sla_check") return await actionSlaCheck();
     return json({ ok: false, error: "unknown action" }, 400);
