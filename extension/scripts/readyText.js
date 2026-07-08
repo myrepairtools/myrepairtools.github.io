@@ -57,6 +57,18 @@
             .filter(function (x) { return digits(x).length >= 10; });
     }
 
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+    function customerEmail() {
+        var dd = ddFor('email address');
+        if (dd) { var t = dd.textContent.trim(); if (/@/.test(t)) return t; }
+        var el = document.getElementById('Customer_email');
+        if (el && /@/.test(el.value || '')) return el.value.trim();
+        var a = document.querySelector('a[href^="mailto:"]');
+        if (a) return a.getAttribute('href').replace(/^mailto:/, '').trim();
+        return '';
+    }
+
     function customer() {
         var phones = summaryPhones();
         // fallback: the Edit-Customer form inputs, if that form is open
@@ -146,49 +158,73 @@
         setTimeout(function () { bypass = false; }, 1500);
     }
 
+    // The manual chooser (no saved follow-up, or the tech skipped at
+    // check-in): every way to reach the customer this ticket knows about —
+    // text either number, call either number, email, or nothing.
     function popup(btn) {
         closePopup();
         var c = customer();
-        var isText = /text|sms/i.test(c.method);
-        var choices = c.phones.map(function (num, i) {
-            var icon = (isText || i === 0) ? '📱' : '📞';
-            var tag = (i === 0 && c.method) ? '  (' + c.method + ')' : '';
-            return { label: icon + ' ' + pretty(num) + tag, num: num };
+        var email = customerEmail();
+        var tag = function (i) { return i === 0 ? 'Primary' : 'Alt'; };
+
+        var rows = '';
+        c.phones.forEach(function (num, i) {
+            rows += '<button class="mrt-rfp-row" data-act="text" data-num="' + digits(num) + '">' +
+                    '<b>Text</b>' + pretty(num) + '<span class="mrt-rfp-tag">' + tag(i) + '</span></button>';
         });
+        c.phones.forEach(function (num, i) {
+            rows += '<button class="mrt-rfp-row" data-act="call" data-num="' + digits(num) + '">' +
+                    '<b>Call</b>' + pretty(num) + '<span class="mrt-rfp-tag">' + tag(i) + '</span></button>';
+        });
+        if (email) {
+            rows += '<button class="mrt-rfp-row" data-act="email" data-email="' + esc(email) + '">' +
+                    '<b>Email</b><span class="mrt-rfp-em">' + esc(email) + '</span></button>';
+        }
+        if (!rows) rows = '<div class="mrt-rfp-none">No contact info on this ticket</div>';
 
         var pop = document.createElement('div');
         pop.id = 'mrt-rfp-pop';
         pop.className = 'mrt-rfp-pop';
-        var rows = choices.length
-            ? choices.map(function (ch, i) {
-                return '<button class="mrt-rfp-num" data-num="' + digits(ch.num) + '">' + ch.label + '</button>';
-              }).join('')
-            : '<div class="mrt-rfp-none">No phone number on this ticket</div>';
         pop.innerHTML =
-            '<div class="mrt-rfp-hd">Send “ready for pickup” text to:</div>' +
-            rows +
-            '<button class="mrt-rfp-skip">Don’t send SMS →</button>';
+            '<div class="mrt-rfp-hd"><h4>Ready For Pickup</h4></div>' +
+            '<div class="mrt-rfp-body">' +
+              '<div class="mrt-rfp-q">How should we let the customer know?</div>' +
+              (c.method ? '<div class="mrt-rfp-note">Ticket contact method: ' + esc(c.method) + '</div>' : '') +
+              rows +
+            '</div>' +
+            '<button class="mrt-rfp-skip">Don’t Send Anything — Just Change Status</button>';
 
         // anchor above the button
         var r = btn.getBoundingClientRect();
-        pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 280)) + 'px';
+        pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 320)) + 'px';
         pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
         document.body.appendChild(pop);
         setTimeout(function () { document.addEventListener('click', outsideClose, true); }, 0);
 
-        pop.querySelectorAll('.mrt-rfp-num').forEach(function (b) {
+        pop.querySelectorAll('.mrt-rfp-row').forEach(function (b) {
             b.addEventListener('click', function () {
-                var num = b.getAttribute('data-num');
-                b.textContent = 'Sending…'; b.disabled = true;
-                var payload = {
-                    to: num, body: defaultMessage(c), ticket_no: ticketNo(), store: storeName(),
-                    template_key: 'ready_for_pickup', agent_name: techName(),
-                };
-                sendSms(payload, function (res) {
-                    if (res && res.ok) { b.textContent = '✓ Sent'; }
-                    else { b.textContent = '⚠ ' + ((res && res.error) || 'failed') + ' — proceeding'; }
-                    setTimeout(function () { proceed(btn); }, res && res.ok ? 550 : 1400);
-                });
+                var act = b.getAttribute('data-act');
+                if (act === 'text') {
+                    var num = b.getAttribute('data-num');
+                    b.innerHTML = 'Sending…'; b.disabled = true;
+                    var payload = {
+                        to: num, body: defaultMessage(c), ticket_no: ticketNo(), store: storeName(),
+                        template_key: 'ready_for_pickup', agent_name: techName(),
+                    };
+                    sendSms(payload, function (res) {
+                        if (res && res.ok) { b.innerHTML = '✓ Sent'; }
+                        else { b.innerHTML = ((res && res.error) || 'Failed') + ' — proceeding'; }
+                        setTimeout(function () { proceed(btn); }, res && res.ok ? 550 : 1400);
+                    });
+                } else if (act === 'call') {
+                    infoToast('Call the customer: <b>' + pretty(b.getAttribute('data-num')) + '</b>', 4200);
+                    proceed(btn);
+                } else if (act === 'email') {
+                    var em = b.getAttribute('data-email') || '';
+                    try { navigator.clipboard.writeText(em); } catch (e) {}
+                    infoToast('Email the customer: <b>' + esc(em) + '</b> (copied)', 4200);
+                    proceed(btn);
+                }
             });
         });
         pop.querySelector('.mrt-rfp-skip').addEventListener('click', function () { proceed(btn); });
@@ -237,7 +273,7 @@
         var toast = document.createElement('div');
         toast.id = 'mrt-rfp-toast'; toast.className = 'mrt-rfp-toast';
         toast.innerHTML =
-            '<span class="mrt-rfp-toast-msg">📲 Texting ' + pretty(num) + '…</span>' +
+            '<span class="mrt-rfp-toast-msg">Texting <b>' + pretty(num) + '</b>…</span>' +
             '<button class="mrt-rfp-undo">Undo</button>';
         document.body.appendChild(toast);
         var msg = toast.querySelector('.mrt-rfp-toast-msg');
@@ -278,15 +314,15 @@
             if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
             if (ct && ct.method === 'text') { autoSend(btn, ct); return; }
             if (ct && ct.method === 'call') {
-                infoToast('📞 Customer asked for a <b>call</b> — ' + pretty(ct.contact_number || ''), 3200);
+                infoToast('Customer asked for a <b>call</b> — ' + pretty(ct.contact_number || ''), 3600);
                 proceed(btn); return;
             }
             if (ct && ct.method === 'email') {
-                infoToast('✉️ Customer prefers <b>email</b> — ' + (ct.contact_email || ''), 3200);
+                infoToast('Customer prefers <b>email</b> — <b>' + esc(ct.contact_email || '') + '</b>', 3600);
                 proceed(btn); return;
             }
             if (ct && ct.method === 'return') {
-                infoToast('🚶 Customer will <b>return</b> — no message sent', 2600);
+                infoToast('Customer will <b>return</b> — no message sent', 2800);
                 proceed(btn); return;
             }
             popup(btn);   // no saved preference — the manual chooser
