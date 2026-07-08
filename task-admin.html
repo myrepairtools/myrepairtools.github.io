@@ -221,7 +221,16 @@ async function boot(){
   $('#app').style.visibility='visible';
   if(!isMgr(ME.role)){$('#gate').classList.remove('hide');return;}
   $('#body').classList.remove('hide');
-  STORES=(window.CPRLocations?CPRLocations.names():[ME.home_store]).filter(Boolean);
+  // Store list from the stores TABLE — the same names staff.home_store,
+  // staff_schedule and can_see_store use. (CPRLocations' canonical names are
+  // the RepairQ spellings — 'CPR Clackamas OR' — which the task universe does
+  // NOT use; templates created under those names were invisible to the
+  // store's own staff and unassignable by the shift resolver.)
+  try{
+    const str=await sb.from('stores').select('store,display_order,active').eq('active',true).order('display_order');
+    STORES=(str.data||[]).map(x=>x.store);
+  }catch(e){STORES=[];}
+  if(!STORES.length)STORES=[ME.home_store].filter(Boolean);
   SEL=lsGet('cprCkStore',ME.home_store||STORES[0]);
   if(STORES.indexOf(SEL)<0)SEL=STORES[0];
   const now=new Date();CALM=new Date(now.getFullYear(),now.getMonth(),1);REPM=new Date(now.getFullYear(),now.getMonth(),1);
