@@ -281,6 +281,22 @@ screens stay findable); closing stamps scanned displays, flags unscanned as
 freezes the summary jsonb (counts, grade accuracy, missing list). Scorecard /
 commission tie-in deliberately deferred.
 
+**Square virtual terminal (backup register):** a Square-logo button in the top bar
+(nav.js, lazy-loads `assets/square-pay.js`) opens a **persistent** pop-down — closes
+only on ✕ (dirty-confirm), never on outside clicks (menu-bar-app style, after Square's
+discontinued Mac app). Store defaults from the signed-in tech (`window.CPRNavStaff`);
+multi-store staff pick first. Three tabs: **To terminal** (Terminal API pushes the
+charge to the store's Square wedge — card-present rates, live status poll + cancel;
+the RepairQ-down backup), **Payment link** (quick-pay link, texted from the store's
+RingCentral line via `messaging` or copied), **Key in card** (Web Payments SDK; tab
+self-enables once the `SQUARE_APP_ID` secret is set — card-not-present rates, for
+phone payments). Backend: **`square-pay` edge function** (same `SQUARE_ACCESS_TOKEN`
+as square-tips/contracts; store→location fuzzy name-match; devices from paired
+device codes). Every attempt logs to `square_payments` (store, mode, amount, ticket,
+taken_by, Square ids, status — authenticated read). Payments taken here still need
+manual entry on the RepairQ ticket; `reference_id` carries the ticket # for
+reconciliation. Refunds deliberately stay in Square's dashboard.
+
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
 RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_SERVER/_WEBHOOK_SECRET` +
