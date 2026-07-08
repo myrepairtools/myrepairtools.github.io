@@ -355,6 +355,129 @@ async function actionContactDelete(payload: any) {
   return json({ ok: true });
 }
 
+/* ---------------- read views (RC panel: inbox / calls / voicemail) ---------------- */
+
+// Resolve the store to a usable (jwt, app creds) tuple; fall back to the
+// default line so a store without its own JWT still shows *something*.
+function lineAuth(line: StoreLine | null) {
+  if (line && line.jwt) return { jwt: line.jwt, appKey: line.app_key, appSecret: line.app_secret, from: line.sms_number, store: line.store };
+  return { jwt: RC_JWT_DEFAULT, appKey: undefined as string | undefined, appSecret: undefined as string | undefined, from: RC_FROM_DEFAULT, store: null as string | null };
+}
+
+function prettyName(rec: any, party: any): string {
+  const n = (party?.name || "").toString().trim();
+  return n;
+}
+
+// SMS conversations — newest message per counterparty, with unread counts.
+async function actionConversations(payload: any) {
+  const line = await lineForStore(payload?.store);
+  const a = lineAuth(line);
+  if (!a.jwt) return json({ ok: false, error: "No line configured for this store" }, 400);
+  const days = Math.max(1, Math.min(90, Number(payload?.days) || 30));
+  const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
+  const r = await rcGet(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&perPage=250&dateFrom=${dateFrom}`, a.jwt, a.appKey, a.appSecret);
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status });
+
+  const threads: Record<string, any> = {};
+  for (const m of (r.data?.records || [])) {
+    const inbound = m.direction === "Inbound";
+    const party = inbound ? m.from : (Array.isArray(m.to) ? m.to[0] : m.to);
+    const num = e164(party?.phoneNumber || "");
+    if (!num) continue;
+    const key = num;
+    const t = threads[key] || (threads[key] = { number: num, name: prettyName(m, party), last_text: "", last_time: "", last_dir: "", unread: 0 });
+    if (!t.name) t.name = prettyName(m, party);
+    if (inbound && /unread/i.test(m.readStatus || "")) t.unread++;
+    if (!t.last_time || String(m.creationTime) > t.last_time) {
+      t.last_time = m.creationTime; t.last_text = (m.subject || "").toString(); t.last_dir = inbound ? "in" : "out";
+    }
+  }
+  const list = Object.values(threads).sort((x: any, y: any) => String(y.last_time).localeCompare(String(x.last_time)));
+  return json({ ok: true, store: line?.store || a.store, conversations: list });
+}
+
+// One conversation's messages (filtered by counterparty number).
+async function actionThread(payload: any) {
+  const line = await lineForStore(payload?.store);
+  const a = lineAuth(line);
+  const want = e164(payload?.number || "");
+  if (!want) return json({ ok: false, error: "number required" }, 400);
+  const days = Math.max(1, Math.min(180, Number(payload?.days) || 60));
+  const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
+  const r = await rcGet(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&perPage=250&dateFrom=${dateFrom}`, a.jwt, a.appKey, a.appSecret);
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status });
+  const msgs = (r.data?.records || []).filter((m: any) => {
+    const party = m.direction === "Inbound" ? m.from : (Array.isArray(m.to) ? m.to[0] : m.to);
+    return e164(party?.phoneNumber || "") === want;
+  }).map((m: any) => ({
+    id: String(m.id), dir: m.direction === "Inbound" ? "in" : "out",
+    text: (m.subject || "").toString(), time: m.creationTime,
+    status: m.messageStatus || m.readStatus || null,
+  })).sort((x: any, y: any) => String(x.time).localeCompare(String(y.time)));
+  return json({ ok: true, number: want, messages: msgs });
+}
+
+// Call log — missed-call focus. Needs the "ReadCallLog" scope on the app.
+async function actionCalls(payload: any) {
+  const line = await lineForStore(payload?.store);
+  const a = lineAuth(line);
+  const days = Math.max(1, Math.min(90, Number(payload?.days) || 14));
+  const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
+  const r = await rcGet(`/restapi/v1.0/account/~/extension/~/call-log?perPage=100&view=Simple&dateFrom=${dateFrom}`, a.jwt, a.appKey, a.appSecret);
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status, scope_hint: r.status === 403 ? "add ReadCallLog scope to the store's RC app" : undefined });
+  const calls = (r.data?.records || []).map((c: any) => {
+    const inbound = c.direction === "Inbound";
+    const party = inbound ? c.from : c.to;
+    return {
+      id: String(c.id), dir: inbound ? "in" : "out",
+      number: e164(party?.phoneNumber || "") || (party?.phoneNumber || ""),
+      name: (party?.name || "").toString(),
+      result: c.result || "",              // Missed, Accepted, Voicemail, ...
+      missed: /missed|no answer|voicemail|busy|rejected/i.test(c.result || ""),
+      time: c.startTime, duration: c.duration || 0,
+    };
+  });
+  return json({ ok: true, store: line?.store || a.store, calls });
+}
+
+// Voicemails + transcripts (RingCentral voicemail transcription, if the plan has it).
+async function actionVoicemails(payload: any) {
+  const line = await lineForStore(payload?.store);
+  const a = lineAuth(line);
+  const days = Math.max(1, Math.min(90, Number(payload?.days) || 30));
+  const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
+  const r = await rcGet(`/restapi/v1.0/account/~/extension/~/message-store?messageType=VoiceMail&perPage=50&dateFrom=${dateFrom}`, a.jwt, a.appKey, a.appSecret);
+  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status });
+
+  const token = await rcToken(a.jwt, a.appKey, a.appSecret);
+  const out: any[] = [];
+  for (const m of (r.data?.records || [])) {
+    const from = e164(m.from?.phoneNumber || "") || (m.from?.phoneNumber || "");
+    let transcript: string | null = null;
+    let audioId: string | null = null;
+    const atts = Array.isArray(m.attachments) ? m.attachments : [];
+    for (const at of atts) {
+      if (/transcription/i.test(at.type || "")) {
+        try {
+          const tr = await fetch(`${RC_SERVER}${at.uri.replace(RC_SERVER, "")}`.startsWith("http") ? at.uri : `${RC_SERVER}${at.uri}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (tr.ok) transcript = (await tr.text()).trim();
+        } catch { /* transcript optional */ }
+      } else if (/audio/i.test(at.contentType || "") || at.type === "AudioRecording") {
+        audioId = String(at.id);
+      }
+    }
+    out.push({
+      id: String(m.id), from, name: (m.from?.name || "").toString(),
+      time: m.creationTime, duration: m.vmDuration || 0,
+      read: !/unread/i.test(m.readStatus || ""),
+      transcript, transcription_status: m.vmTranscriptionStatus || null,
+      audio_uri: audioId ? `/restapi/v1.0/account/~/extension/~/message-store/${m.id}/content/${audioId}` : null,
+    });
+  }
+  return json({ ok: true, store: line?.store || a.store, voicemails: out });
+}
+
 /* ---------------- inbound ---------------- */
 
 async function pollInbox(jwt: string, store: string | null, toNumber: string | null, back: number, appKey?: string, appSecret?: string) {
@@ -480,6 +603,10 @@ Deno.serve(async (req) => {
     if (payload?.action === "contact_set") return await actionContactSet(payload, sentBy);
     if (payload?.action === "contact_get") return await actionContactGet(payload);
     if (payload?.action === "contact_delete") return await actionContactDelete(payload);
+    if (payload?.action === "conversations") return await actionConversations(payload);
+    if (payload?.action === "thread") return await actionThread(payload);
+    if (payload?.action === "calls") return await actionCalls(payload);
+    if (payload?.action === "voicemails") return await actionVoicemails(payload);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
