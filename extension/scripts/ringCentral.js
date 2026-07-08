@@ -141,8 +141,11 @@
         if (bar) {
             var li = document.createElement('li');
             li.id = 'mrt-rc-nav'; li.className = 'mrt-rc-nav';
+            // Badge rides a wrapper around the ICON (not the padded link box),
+            // so it hugs the logo's top-right corner at any icon size.
             li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
-                RC_LOGO + '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></a>';
+                '<span class="mrt-rc-iconwrap">' + RC_LOGO +
+                '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></span></a>';
             bar.insertBefore(li, bar.firstChild);
             // Copy the COMPUTED box of a real sibling ("English") onto our
             // link — padding/line-height/display — so we match its exact
