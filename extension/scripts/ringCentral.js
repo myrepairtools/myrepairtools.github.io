@@ -95,7 +95,7 @@
     // RingCentral brand mark — orange rounded square + white phone (the
     // recognizable RC logo, same idea as the Square logo on the MRT rail).
     var RC_LOGO =
-        '<svg class="mrt-rc-logo" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">' +
+        '<svg class="mrt-rc-logo" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">' +
           '<rect width="24" height="24" rx="5" fill="#FF7A00"/>' +
           '<g transform="translate(4.5 4.5) scale(0.62)">' +
             '<path fill="#fff" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>' +
@@ -112,17 +112,9 @@
             li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
                 RC_LOGO + '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></a>';
             bar.insertBefore(li, bar.firstChild);
-            // Center the icon by matching a native sibling's FULL rendered
-            // height and flex-centering inside it (icon vs text height differ,
-            // so copying padding alone left it a hair high).
-            try {
-                var sib = bar.querySelector('li:not(.mrt-rc-nav) > a');
-                var a = document.getElementById('mrt-rc-btn');
-                if (sib && a) {
-                    a.style.height = sib.offsetHeight + 'px';
-                    a.style.paddingTop = '0'; a.style.paddingBottom = '0';
-                }
-            } catch (e) {}
+            // No inline sizing: the <a> inherits RepairQ's own .nav>li>a
+            // padding (what vertically centers "English"), and the icon is
+            // kept ≤ the text line-height so it sits in the same box.
         } else {
             // fallback: the toolbar row, with a label
             var btn = document.createElement('a');
