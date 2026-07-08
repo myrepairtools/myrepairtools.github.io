@@ -304,15 +304,22 @@ per-store JWTs) stay server-side; it JWT-auths to cached access tokens, sends vi
 RC SMS API from the store's own line, screens opt-outs, and logs every send to `sms_log`
 (store-tagged). **Multi-store:** `store_lines` (store PK = canonical RepairQ name,
 sms_number, jwt_secret_key, aliases jsonb, active) maps each store to its line + the
-function secret holding that store user's Personal JWT — one RC *app*, one JWT per
-store user (`RINGCENTRAL_JWT` = Salem/default, `RINGCENTRAL_JWT_EUGENE`,
-`RINGCENTRAL_JWT_CLACKAMAS`). Send resolves store → line via aliases; a store whose
-JWT isn't minted yet **falls back to the default line** (`RINGCENTRAL_FROM_NUMBER`)
-so sends never bounce. Status/monitoring: **Settings → Integrations → RingCentral**
-(owner tab) — per-store LIVE/FALLBACK/AUTH-ERROR pills via the `test` action, per-store
-test-send, month send counts + opt-outs. New store = RC user + number, mint Personal JWT
-(developers.ringcentral.com as that store's user), add secret, `store_lines` row, A2P/TCR
-registration. Inbound SMS + STOP/START opt-outs (`sms_opt_outs`) are polled from every
+function secret holding that store user's Personal JWT (`RINGCENTRAL_JWT` =
+Salem/default, `RINGCENTRAL_JWT_EUGENE`, `RINGCENTRAL_JWT_CLACKAMAS`). Store users'
+developer-portal logins are **separate dev orgs that cannot authorize the main app**
+(three failed attempts proved it), so each store runs its own tiny RC app (JWT auth
+flow; scopes SMS + Read Messages + Read Accounts) and mints its JWT against THAT app:
+optional secrets `RINGCENTRAL_APP_KEY_<suffix>` / `RINGCENTRAL_APP_SECRET_<suffix>`
+(suffix from jwt_secret_key, e.g. `_CLACKAMAS`) switch that line's token exchange to
+the store's own app; unset → main-app creds. Send resolves store → line via aliases; a
+store whose JWT is missing **or fails auth falls back to the default line**
+(`RINGCENTRAL_FROM_NUMBER`) so sends never bounce. Warm edge instances keep boot-time
+env — after changing an RC secret, redeploy `messaging` to pick it up.
+Status/monitoring: **Settings → Integrations → RingCentral** (owner tab) — per-store
+LIVE/FALLBACK/AUTH-ERROR pills via the `test` action, per-store test-send, month send
+counts + opt-outs. New store = RC user + number, create the store's app + Personal JWT
+(developers.ringcentral.com as that store's user), add the three secrets, `store_lines`
+row, A2P/TCR registration. Inbound SMS + STOP/START opt-outs (`sms_opt_outs`) are polled from every
 configured store's RC message-store by a `messaging-poll-inbound` pg_cron (webhook
 subscribe is blocked — the app lacks that permission), applying STOP/START in
 chronological order. **The browser never holds a
