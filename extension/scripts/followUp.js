@@ -265,16 +265,21 @@
     // .block > .head > h2 + .block-content. We insert our own .block right
     // after it so the header bar and spacing inherit RepairQ's styling.
     function customerBlock() {
-        // section headers vary (h2/h3/h4, with or without a .block wrapper) —
-        // find a heading that says "Customer" and take its section container
+        // Find the SIDEBAR Customer widget. Guards matter: a "Customer"
+        // heading also exists in some main-column layouts, and anchoring
+        // there makes the block hijack the whole page. Accept a container
+        // only if it's sidebar-sized AND actually holds the customer.
         var heads = document.querySelectorAll('.head h2, .head h3, .head h4, h2, h3, h4');
         for (var i = 0; i < heads.length; i++) {
             var txt = heads[i].textContent.replace(/\s+/g, ' ').trim();
             if (!/^customer\b/i.test(txt) || /billing/i.test(txt)) continue;
             var b = heads[i].closest('.block') || heads[i].closest('.widget');
-            if (b) return b;
-            var hd = heads[i].closest('.head');
-            if (hd && hd.parentElement) return hd.parentElement;
+            if (!b) { var hd = heads[i].closest('.head'); b = hd && hd.parentElement; }
+            if (!b) continue;
+            var w = b.offsetWidth || 0;
+            var hasCust = !!b.querySelector('a[href*="/customers/"]') ||
+                          /\(?\d{3}\)?[\s.-]?\d{3}[-.\s]?\d{4}/.test(b.textContent || '');
+            if (w > 0 && w <= 480 && hasCust) return b;
         }
         return null;
     }
