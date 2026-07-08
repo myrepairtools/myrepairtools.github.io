@@ -21,16 +21,27 @@
 //   REPAIRQ_LOGIN_LOCATION                         — a location id to auth under (e.g. 1089)
 //
 // Actions (POST JSON):
-//   ping   → login (or reuse cached session), confirm it's valid. No data.
-//   raw    → { method?, path, body?, headers?, form? } proxy ONE authenticated
-//            request to cpr.repairq.io and return status + body. This is how we
-//            replay a captured query payload: path = the "query/…" URL, body =
-//            the captured payload. Session is attached + auto-refreshed on 401.
+//   ping         → login (or reuse cached session), confirm it's valid. No data.
+//   raw          → { method?, path, body?, headers?, form? } proxy ONE
+//                  authenticated request to cpr.repairq.io and return status +
+//                  body. This is how we FIRST replay a captured query payload:
+//                  path = the "query/…" URL, body = the captured payload.
+//                  Session is attached + auto-refreshed on 401.
+//   save_query   → { name, path, description?, method?, body_template? } store a
+//                  captured payload as a reusable template in repairq_queries.
+//   list_queries → the saved templates.
+//   query        → { name, location?, params?, cache?:true } run a saved
+//                  template (substituting {loc}/{param} tokens), optionally
+//                  cache the result into repairq_cache, return the data. This is
+//                  the demand pull crons + tools call — capture once, replay
+//                  forever.
 //
 // Guard rails: this holds real credentials and hits an undocumented internal
 // API. It is admin-gated (X-CPR-RQ-SECRET must match REPAIRQ_PROXY_SECRET) so
 // only our own server-side callers (crons, admin tools) can drive it — never
 // the public browser. Deploy with verify_jwt OFF; auth is the shared secret.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RQ_BASE = "https://cpr.repairq.io";
 const USERNAME = Deno.env.get("REPAIRQ_USERNAME") || "";
@@ -38,6 +49,10 @@ const PASSWORD = Deno.env.get("REPAIRQ_PASSWORD") || "";
 const WORKSTATION_KEY = Deno.env.get("REPAIRQ_WORKSTATION_KEY") || "";
 const LOGIN_LOCATION = Deno.env.get("REPAIRQ_LOGIN_LOCATION") || "";
 const PROXY_SECRET = Deno.env.get("REPAIRQ_PROXY_SECRET") || "";
+
+const SB_URL = Deno.env.get("SUPABASE_URL")!;
+const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
@@ -154,6 +169,95 @@ async function rqRequest(opts: { method?: string; path: string; body?: string; f
   return { status: res.status, body: text, json: parsed };
 }
 
+/* ---------------- saved templates + demand pull ---------------- */
+
+// Replace {loc}, {user}, and any {param} tokens in a string. `loc` maps to
+// {loc}; everything in `params` maps to its own {key}.
+function subst(s: string, loc: string | null, params: Record<string, unknown>): string {
+  let out = s;
+  if (loc != null) out = out.split("{loc}").join(String(loc));
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+// A location "location" param can be a store name (resolve to its RQ loc id via
+// store_lines.rq_location_id if present) or a raw id. Falls back to the raw
+// value. Returns null when nothing was passed (use the template as-is).
+async function resolveLoc(location: string | null | undefined): Promise<string | null> {
+  if (location == null || location === "") return null;
+  const raw = String(location).trim();
+  if (/^\d+$/.test(raw)) return raw;   // already a numeric RQ location id
+  // try to map a store name → rq_location_id
+  try {
+    const { data } = await admin.from("store_lines").select("store, aliases, rq_location_id").eq("active", true);
+    const q = raw.toLowerCase();
+    for (const l of (data || [])) {
+      const hit = l.store?.toLowerCase() === q ||
+        (Array.isArray(l.aliases) ? l.aliases : []).some((a: string) => String(a).toLowerCase() === q);
+      if (hit && l.rq_location_id) return String(l.rq_location_id);
+    }
+  } catch { /* column may not exist yet — fall through */ }
+  return raw;
+}
+
+async function actionSaveQuery(p: any) {
+  if (!p?.name || !p?.path) return json({ ok: false, error: "name and path required" }, 400);
+  const row = {
+    name: String(p.name),
+    description: p.description ? String(p.description) : null,
+    method: p.method ? String(p.method).toUpperCase() : "POST",
+    path: String(p.path),
+    body_template: p.body_template ?? null,
+    active: p.active !== false,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await admin.from("repairq_queries")
+    .upsert(row, { onConflict: "name" }).select().maybeSingle();
+  if (error) return json({ ok: false, error: error.message }, 500);
+  return json({ ok: true, query: data });
+}
+
+async function actionListQueries() {
+  const { data, error } = await admin.from("repairq_queries")
+    .select("id, name, description, method, path, active, updated_at").order("name");
+  if (error) return json({ ok: false, error: error.message }, 500);
+  return json({ ok: true, queries: data || [] });
+}
+
+async function actionQuery(p: any) {
+  if (!p?.name) return json({ ok: false, error: "name required" }, 400);
+  const { data: tpl, error } = await admin.from("repairq_queries")
+    .select("*").eq("name", String(p.name)).eq("active", true).maybeSingle();
+  if (error) return json({ ok: false, error: error.message }, 500);
+  if (!tpl) return json({ ok: false, error: `no active saved query named "${p.name}"` }, 404);
+
+  const loc = await resolveLoc(p.location);
+  const params = (p.params && typeof p.params === "object") ? p.params : {};
+  const path = subst(String(tpl.path), loc, params);
+  let body: string | undefined;
+  if (tpl.body_template != null) {
+    body = subst(JSON.stringify(tpl.body_template), loc, params);
+  }
+
+  const r = await rqRequest({ method: tpl.method || "POST", path, body });
+  const okStatus = r.status >= 200 && r.status < 300;
+  const rowCount = Array.isArray(r.json) ? r.json.length
+    : (r.json && Array.isArray(r.json.data) ? r.json.data.length : null);
+
+  // cache unless explicitly disabled or the pull failed
+  if (p.cache !== false && okStatus && r.json !== undefined) {
+    await admin.from("repairq_cache").insert({
+      query_name: String(p.name), location: p.location ?? null, params,
+      status: r.status, data: r.json, row_count: rowCount,
+    });
+  }
+  return json({
+    ok: okStatus, status: r.status, query: p.name, location: p.location ?? null,
+    row_count: rowCount, cached: p.cache !== false && okStatus,
+    data: r.json ?? null, body: r.json ? undefined : r.body?.slice(0, 2000),
+  });
+}
+
 /* ---------------- entry ---------------- */
 
 Deno.serve(async (req) => {
@@ -180,6 +284,9 @@ Deno.serve(async (req) => {
       });
       return json({ ok: r.status >= 200 && r.status < 300, status: r.status, data: r.json ?? null, body: r.json ? undefined : r.body });
     }
+    if (payload?.action === "save_query") return await actionSaveQuery(payload);
+    if (payload?.action === "list_queries") return await actionListQueries();
+    if (payload?.action === "query") return await actionQuery(payload);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
