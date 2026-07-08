@@ -257,3 +257,155 @@ Build note: emit these as `notification_rules` event keys (e.g. `checklist.shift
 `checklist.missed`) from the `tasks` edge function / a small cron, so routing (Teams keyword,
 email, in-app Communications) stays configurable per-event in Settings › Notifications like
 everything else.
+
+## Lead connect — email lead → ring-out with whisper (Twilio warm transfer)
+
+Turn a website lead into a **prepared phone call** instead of a scramble. Leads come to
+the owner **by email from the CPR Cell Phone Repair website**; the email landing is the
+trigger.
+
+**The flow**
+1. Lead email lands → **auto-forward** to an inbound-parse address (SendGrid Inbound
+   Parse / Mailgun / Zapier email parser) that extracts name, phone, device, request.
+2. Parser POSTs clean JSON to a new **`lead-connect` edge function** (same pattern as the
+   Square-tips email→webhook ingest we already run).
+3. `lead-connect` writes a `leads` row and **rings the store** (Twilio, the `twilio-call`
+   function we built): a tech answers → Twilio plays a **private "whisper"** only the tech
+   hears ("New lead — Sarah, cracked 15 Pro screen, asking same-day pricing. Press 1 to
+   connect") → tech presses 1 → Twilio **bridges them to the customer.** Prepared, no
+   scramble, no computer.
+4. Belt-and-suspenders: simultaneously **text the brief to the store phone** (RingCentral
+   `messaging`) and **drop a dashboard Alert**, so the tech gets it three ways.
+5. Safety valve: no answer / nobody presses 1 within N seconds → roll to next store, or
+   text the owner "lead unclaimed." A hot lead never falls through the floor.
+
+**What's needed to start:** one **real sample lead email** (or a couple, to confirm the
+format is consistent) so the parser reliably pulls fields; keep the original email
+reaching the owner regardless so nothing's ever lost if parsing hiccups.
+
+**Notes:** email-triggered parsing is inherently a bit fragile (a corporate redesign
+breaks it) — anchor on the real sample, make it defensive, always keep the raw email.
+Twilio call flows are fully programmable, so interactive variants (press 1 confirm pickup
+/ press 2 hold) are easy extensions once the base flow works.
+
+## Contact-method bridge — pull it from RepairQ until the "short code" ships
+
+RepairQ doesn't yet expose the customer's **contact method** as a merge field ("short
+code") in its notification/lead emails — confirmed coming in a future release (est. 1–3
+months). Until then the emails **do** include the **ticket link**, so we bridge the gap
+ourselves and don't wait.
+
+**The flow**
+1. Automation extracts the **ticket number** from the ticket link in the email
+   (`/ticket/<id>`).
+2. **`repairq-query`** (built this session — logs in with Brett's session method, holds
+   creds server-side) fetches that ticket.
+3. Read the **contact method** off the ticket and **branch the automation** (text / call /
+   email) accordingly. We already read this exact field client-side today (the extension's
+   `ddFor('contact method')` in followUp.js / readyText.js), so server-side it's the same
+   proven read — fetch the ticket page/endpoint with the session, parse the same field.
+4. When RepairQ finally ships the short code, **delete the lookup step** and read it
+   straight from the email — the rest of the automation is unchanged.
+
+**What's needed to start:** `REPAIRQ_USERNAME` + `REPAIRQ_PASSWORD` secrets (then
+`repairq-query` goes live), and one real ticket fetched through the function to confirm
+where the contact-method field sits in the response. Pairs with the RepairQ on-demand
+work in `docs/REPAIRQ_ONDEMAND.md`.
+
+## Custom case designer — customer-facing "design your own case" web tool
+
+Let customers design their own phone case online (in-store kiosk **and** at-home link) and
+export a **print-ready transparent PNG** that drops straight into the existing AcroRIP
+workflow. Goal: sell more cases by letting customers play with it themselves — and it must
+look **real, like Apple's product shots, not crappy vector mockups.** Big project; phase it.
+
+**Why it's more de-risked than it looks:** we already do the manual version through Canva
+brand templates (KB article 63 "UV Case Printing — Clear Case w/ Removable Camera Ring").
+Per-model print dimensions are **hand-measured with calipers** (article 63), AcroRIP
+settings are documented (article 31), jig coordinates are documented (article 62). The app
+just replaces the Canva step and outputs the **same transparent PNG at the same per-model
+dimensions**, landing in `Google Drive > UV Printer > Image to Printer`. The staff/RIP
+steps (rotate 180°, set W/H/X/Y, White+Color) don't change. **The app never talks to the
+printer** — it just hands over the file.
+
+**On "integrate Canva":** you can't embed Canva's actual editor (they don't license it).
+The real answer is a **Canva-level editor we own** — the **Polotno SDK** (Canva-style
+editor as a hostable component: text/images/shapes/stickers/layers/templates, we control
+export) is the shortcut; **Fabric.js / Konva.js** are the build-it-ourselves route. Either
+gives the powerful editor with no Canva login friction and full control of the PNG output.
+
+**The realistic preview (the selling point) — layered real photos, not 3D/vectors:**
+1. Bottom: a real high-quality photo of the chosen **phone model + color**.
+2. Middle: the customer's artwork, **clipped to the exact case print area** (so it can't
+   spill past the print lines — this *is* the auto-trim, and they see it live as they
+   move/resize).
+3. Top: a transparent PNG of the **clear case shell** — glossy edges, camera ring,
+   highlights — with the camera cutout punched out.
+Stack them and it looks photoreal because top+bottom are real photos. Model+color pickers
+just swap which bottom photo + top overlay show — pure data from a `case_models` table
+(article 63 turned into a table: model, width_mm, height_mm, print-area mask, phone photos,
+case overlay, DPI, status).
+
+**The honest cost — not code, it's assets:** the "looks like Apple" quality lives in the
+**photography + masking** (a clean back photo per model+color; a transparent shell overlay
++ print mask per case). That's a photo-booth-afternoon + Photoshop job per model, and it's
+where the realism budget goes. Code can composite photos beautifully; it can't invent them.
+
+**Phasing (owner's framing):**
+1. Image upload only, one/two hot models, artwork clipped to print area, **realistic
+   preview from day one** (the preview is the whole point — don't defer it).
+2. Model + color picker swapping the photoreal mockup; more case models.
+3. Full editor — text, stickers, shapes, store logos/artwork library (mostly free if built
+   on the right editor foundation).
+
+**What's needed to start:** one existing **print file** for one model (or its exact
+dimensions + DPI) to match output to a proven-good file; decide **300 vs 600 DPI**; one
+real phone back-photo + case overlay to prove the layered-preview technique.
+
+## Company track — turn the tools into a real product (parked, big-picture)
+
+Standing intent (see the "build like a future product" directive in CLAUDE.md): eventually
+turn myRepairTools into a product other CPR franchisees — and eventually any repair shop —
+could use. Not building the "company" now; finishing the operation site first. Captured so
+the vision compounds in every build.
+
+**The honest gap between internal tool and product (bank these):**
+- **Hardening** — today's "deterrent-level gates + committed anon key + shared passwords"
+  is a deliberate interim posture for an internal tool; a commercial product holding other
+  shops' customer data needs real auth, tenant isolation, PCI/PII discipline. Don't extend
+  the interim pattern to anything a paying customer would touch.
+- **RepairQ dependency** — scraping + the undocumented internal API are great hacks but a
+  shaky product *foundation*; keep that coupling isolated/swappable (extension,
+  `repairq-query`), not woven through every tool.
+- **Support/uptime** — the moment someone pays, an outage is their outage; that's a team,
+  not a side project.
+
+**Biggest strategic factor to verify:** as best understood, **Assurant owns both CPR and
+RepairQ** — the franchisor you'd sell to and the POS you build on are the same parent.
+Huge opportunity (they value repair-shop software) *and* risk (your foundation is their
+product; they could build/buy/block). Two different motions: **sell to fellow franchisees**
+(grassroots, you control it) vs **partner with corporate/Assurant** (distribution, but
+negotiating with the giant). Verify the ownership before betting on it.
+
+**Unfair advantage:** operator-built (you live the pains), a working product already in 3
+live stores, and a peer network proving demand (Brett shares code; the MyCPRTools
+franchisee built his own version).
+
+**Lowest-risk validation move:** don't quit/incorporate/tell corporate anything yet — get
+**2–3 other franchisees actually using it and paying something** (even $50/mo). Real usage
++ real dollars tells you more than a year of theorizing (does it hold up outside our walls,
+do people pay, does support crush us, does the RepairQ dependency survive other setups).
+
+## Interactive Twilio call flows (extension of the ready-call + lead connect)
+
+Twilio outbound voice is fully programmable (TwiML), so beyond the ready-for-pickup call
+we can build interactive flows whenever wanted:
+- Ready-for-pickup with **"press 1 to confirm you'll pick up today, press 2 and we'll
+  hold it"** → capture the answer back into RepairQ/our tables.
+- Custom recorded audio in a real store voice instead of the robot voice.
+- Different scripts per call type (ready / quote-approved / abandonment reminder).
+
+Note: the **caller-ID name** ("CPR Cell Phone Repair" on the customer's screen) is
+carrier-locked (CNAM / branded calling — registration + money, and iPhone shows it
+inconsistently), NOT a software feature. The **number** showing correctly (once caller IDs
+are verified in Twilio) is the reliable part.
