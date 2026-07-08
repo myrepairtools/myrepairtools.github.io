@@ -27,9 +27,27 @@
     var S = { open: false, tab: 'inbox', store: '', thread: null, loading: false };
 
     /* ---------------- helpers ---------------- */
+    // The LOGGED-IN store = the top-bar location switcher, present on every
+    // page. NOT .location.tooltip-toggle — that's a TICKET's own location
+    // (differs from where you're working, and is absent on list pages).
     function storeName() {
+        var sel = document.getElementById('location');
+        if (sel && sel.tagName === 'SELECT' && sel.selectedIndex >= 0) {
+            var o = sel.options[sel.selectedIndex];
+            if (o && o.textContent.trim()) return o.textContent.trim();
+        }
+        var menu = document.querySelector('.location-menu.dropdown > a.dropdown-toggle');
+        if (menu) { var txt = menu.textContent.replace(/\s+/g, ' ').trim(); if (txt) return txt; }
         var t = document.querySelector('.location.tooltip-toggle span');
         return (t && t.textContent.trim()) || '';
+    }
+    // RepairQ locked (idle timeout) or logged out — hide our UI then.
+    function isLocked() {
+        try {
+            if (/\/site\/login/.test(location.pathname)) return true;
+            if (document.body && document.body.classList.contains('session-timeout-overlay-active')) return true;
+        } catch (e) {}
+        return false;
     }
     function techName() {
         var el = document.getElementById('user_dropdown'); if (!el) return '';
@@ -85,16 +103,28 @@
         '</svg>';
 
     function build() {
-        var btn = document.createElement('a');
-        btn.id = 'mrt-rc-btn'; btn.className = 'mrt-rc-btn btn btn-small innav'; btn.href = '#';
-        btn.innerHTML = RC_LOGO + ' <span>Phone</span> <span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span>';
-        btn.title = 'RingCentral — texts, calls, voicemail';
-        btn.addEventListener('click', function (e) { e.preventDefault(); toggle(); });
-        var navSpot = document.getElementById('globalSearches');
-        var form = navSpot && navSpot.querySelector('#quickSearch');
-        if (form) form.insertBefore(btn, form.firstChild);
-        else if (navSpot && navSpot.parentElement) navSpot.parentElement.insertBefore(btn, navSpot);
-        else document.body.appendChild(btn);
+        // Icon-only, up in RepairQ's black top bar (left of English), matching
+        // the native workstation-menu items.
+        var bar = document.querySelector('ul.nav.pull-right.workstation-menu');
+        if (bar) {
+            var li = document.createElement('li');
+            li.id = 'mrt-rc-nav'; li.className = 'mrt-rc-nav';
+            li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
+                RC_LOGO + '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></a>';
+            bar.insertBefore(li, bar.firstChild);
+        } else {
+            // fallback: the toolbar row, with a label
+            var btn = document.createElement('a');
+            btn.id = 'mrt-rc-btn'; btn.className = 'mrt-rc-btn btn btn-small innav'; btn.href = '#';
+            btn.innerHTML = RC_LOGO + ' <span>Phone</span> <span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span>';
+            btn.title = 'RingCentral — texts, calls, voicemail';
+            var navSpot = document.getElementById('globalSearches');
+            var form = navSpot && navSpot.querySelector('#quickSearch');
+            if (form) form.insertBefore(btn, form.firstChild);
+            else if (navSpot && navSpot.parentElement) navSpot.parentElement.insertBefore(btn, navSpot);
+            else document.body.appendChild(btn);
+        }
+        document.getElementById('mrt-rc-btn').addEventListener('click', function (e) { e.preventDefault(); toggle(); });
 
         panel = document.createElement('div');
         panel.id = 'mrt-rc-panel'; panel.className = 'mrt-rc-panel';
@@ -422,9 +452,17 @@
     }
     function toggle() { S.open ? close() : open(); }
 
+    function applyLockState() {
+        var li = document.getElementById('mrt-rc-nav') || document.getElementById('mrt-rc-btn');
+        if (!li) return;
+        if (isLocked()) { li.style.display = 'none'; if (S.open) close(); }
+        else li.style.display = '';
+    }
     function start() {
         build();
         S.store = storeName();
+        applyLockState();
+        try { new MutationObserver(applyLockState).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         pollUnread();
         setInterval(pollUnread, 120000);   // refresh the unread badge every 2 min
     }
