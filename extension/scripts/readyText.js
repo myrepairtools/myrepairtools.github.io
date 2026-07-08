@@ -212,7 +212,10 @@
                         template_key: 'ready_for_pickup', agent_name: techName(),
                     };
                     sendSms(payload, function (res) {
-                        if (res && res.ok) { b.innerHTML = '✓ Sent'; }
+                        if (res && res.ok) {
+                            b.innerHTML = '✓ Sent';
+                            writeNote('📣 Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')');
+                        }
                         else { b.innerHTML = ((res && res.error) || 'Failed') + ' — proceeding'; }
                         setTimeout(function () { proceed(btn); }, res && res.ok ? 550 : 1400);
                     });
@@ -236,6 +239,23 @@
                 cb(chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res);
             });
         } catch (e) { cb({ ok: false, error: String(e && e.message || e) }); }
+    }
+
+    // Every automated send gets logged on the ticket itself (Kade's rule) —
+    // the note is the record techs actually read. keepalive lets the write
+    // survive the page turn that follows the status change.
+    function writeNote(text) {
+        var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
+        var id = ticketNo();
+        if (!csrf || !id) return;
+        var body = new URLSearchParams({
+            YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0',
+        });
+        fetch('/ajax/ticketNote/save', {
+            method: 'POST', credentials: 'same-origin', keepalive: true,
+            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+            body: body.toString(),
+        }).catch(function () { /* log only */ });
     }
 
     function fn(action, payload) {
@@ -286,6 +306,7 @@
             sendSms({ to: num, body: body, ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
                 var ok = res && res.ok;
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
+                if (ok) writeNote('📣 Ready-for-pickup text auto-sent to ' + pretty(num) + ' (saved follow-up) — myRepairTools (' + (techName() || 'staff') + ')');
                 setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 1500);
             });
         }
