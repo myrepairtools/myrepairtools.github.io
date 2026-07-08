@@ -936,4 +936,11 @@
     s.src = 'assets/cpr-assistant.js'; s.defer = true; s.setAttribute('data-cpr-assistant', '1');
     document.head.appendChild(s);
   })();
+
+  (function loadComposeHelper(){
+    if (document.querySelector('script[data-cpr-compose]')) return;
+    var s = document.createElement('script');
+    s.src = 'assets/compose-helper.js'; s.defer = true; s.setAttribute('data-cpr-compose', '1');
+    document.head.appendChild(s);
+  })();
 })();

@@ -67,7 +67,9 @@
     '.cpra-hd .ic{width:30px;height:30px;border-radius:8px;background:#DC282E;display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}' +
     '.cpra-hd .t{font-family:"Nunito",system-ui,sans-serif;font-weight:900;font-size:.95rem;line-height:1.1}' +
     '.cpra-hd .s{font-size:.62rem;color:rgba(255,255,255,.6);font-weight:700;margin-top:1px}' +
-    '.cpra-hd .x{margin-left:auto;background:rgba(255,255,255,.12);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:800}' +
+    '.cpra-hd .cpra-write{margin-left:auto;background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-family:"Nunito",sans-serif;font-size:.72rem;font-weight:800;white-space:nowrap}' +
+    '.cpra-hd .cpra-write:hover{background:rgba(255,255,255,.22)}' +
+    '.cpra-hd .x{background:rgba(255,255,255,.12);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:800}' +
     '.cpra-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;background:#F7F7F9}' +
     '.cpra-msg{max-width:88%;padding:9px 12px;border-radius:13px;font-size:.86rem;line-height:1.45}' +
     '.cpra-msg p{margin:0 0 6px}.cpra-msg p:last-child{margin:0}.cpra-msg ul{margin:4px 0 6px;padding-left:18px}.cpra-msg li{margin:1px 0}' +
@@ -108,7 +110,7 @@
     var panel = document.createElement('div');
     panel.className = 'cpra-panel';
     panel.innerHTML =
-      '<div class="cpra-hd"><div class="ic">✨</div><div><div class="t">CPR Assistant</div><div class="s">AI helper · ' + esc(MODEL.indexOf('haiku') >= 0 ? 'fast' : 'Opus') + '</div></div><button class="x" title="Close">✕</button></div>' +
+      '<div class="cpra-hd"><div class="ic">✨</div><div><div class="t">CPR Assistant</div><div class="s">AI helper · ' + esc(MODEL.indexOf('haiku') >= 0 ? 'fast' : 'Opus') + '</div></div><button class="cpra-write" title="Help me write a customer text">✍️ Write a text</button><button class="x" title="Close">✕</button></div>' +
       '<div class="cpra-body"></div>' +
       '<div class="cpra-foot"><textarea rows="1" placeholder="Ask anything — customer replies, panic logs, repairs…"></textarea><button class="cpra-send" title="Send">↑</button></div>';
 
@@ -124,6 +126,8 @@
     function close() { panel.classList.remove('open'); fab.style.display = 'flex'; }
     fab.onclick = open;
     panel.querySelector('.x').onclick = close;
+    var writeBtn = panel.querySelector('.cpra-write');
+    if (writeBtn) writeBtn.onclick = function () { if (window.CPRCompose) window.CPRCompose.open({ store: window.CPRNavStore || '' }); };
     // expose so other UI (e.g. the dashboard "Ask AI" button) can open the panel
     window.CPRAssistant = { open: open, close: close };
     if (EMBED) {
