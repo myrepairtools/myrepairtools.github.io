@@ -194,17 +194,12 @@
   }
   .amount-val.zero { color: var(--border); }
 
-  /* Copy column */
-  .td-copy { text-align: right; width: 80px; }
-  .copy-btn {
-    padding: 5px 12px; font-family: 'Nunito', sans-serif;
-    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
-    background: var(--light-grey); color: var(--dark-grey);
-    border: 1.5px solid var(--border); border-radius: 5px;
-    cursor: pointer; transition: all 0.15s; white-space: nowrap;
-  }
-  .copy-btn:hover { border-color: var(--blue); color: var(--blue); }
-  .copy-btn.copied { background: var(--green); color: white; border-color: var(--green); }
+  /* Click-to-copy amounts (the Copy buttons died on locked-down browsers;
+     the number itself is now the button, with a legacy-copy fallback) */
+  .copyable { cursor: pointer; border-bottom: 1.5px dashed transparent; transition: border-color .15s; }
+  .copyable:hover { border-bottom-color: var(--blue); }
+  .copyable.copied { color: var(--green) !important; }
+  .copyable.copyfail { color: var(--red) !important; }
 
   /* OpEx breakdown sub-row */
   tr.breakdown-row { background: #fafafa; }
@@ -306,7 +301,7 @@
   <!-- ALLOCATION BASE (shown only for Non-Capped) -->
   <div class="alloc-base-row hidden" id="alloc-base-row">
     <div class="alloc-base-label">Allocation Base (after 5.8% royalty)</div>
-    <div class="alloc-base-val" id="alloc-base-val">$0.00</div>
+    <div class="alloc-base-val copyable" id="alloc-base-val" onclick="copyAmount(this)" title="Click to copy">$0.00</div>
   </div>
 
   <!-- TABLE -->
@@ -317,45 +312,40 @@
           <th>Account</th>
           <th>%</th>
           <th>Amount</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
         <tr class="main-row">
           <td><div class="td-account"><div class="acct-dot dot-profit"></div><div class="acct-name">Profit</div></div></td>
           <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-profit" value="10" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
-          <td class="td-amount"><div class="amount-val val-profit zero" id="amt-profit">$0.00</div></td>
-          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-profit', this)">Copy</button></td>
+          <td class="td-amount"><div class="amount-val val-profit zero copyable" id="amt-profit" onclick="copyAmount(this)" title="Click to copy">$0.00</div></td>
         </tr>
         <tr class="main-row">
           <td><div class="td-account"><div class="acct-dot dot-owner"></div><div class="acct-name">Owner's Comp</div></div></td>
           <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-owner" value="5" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
-          <td class="td-amount"><div class="amount-val val-owner zero" id="amt-owner">$0.00</div></td>
-          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-owner', this)">Copy</button></td>
+          <td class="td-amount"><div class="amount-val val-owner zero copyable" id="amt-owner" onclick="copyAmount(this)" title="Click to copy">$0.00</div></td>
         </tr>
         <tr class="main-row">
           <td><div class="td-account"><div class="acct-dot dot-tax"></div><div class="acct-name">Tax</div></div></td>
           <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-tax" value="5" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
-          <td class="td-amount"><div class="amount-val val-tax zero" id="amt-tax">$0.00</div></td>
-          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-tax', this)">Copy</button></td>
+          <td class="td-amount"><div class="amount-val val-tax zero copyable" id="amt-tax" onclick="copyAmount(this)" title="Click to copy">$0.00</div></td>
         </tr>
         <tr class="main-row">
           <td><div class="td-account"><div class="acct-dot dot-opex"></div><div class="acct-name">OpEx</div></div></td>
           <td class="td-pct"><div class="pct-wrap"><input type="number" class="pct-input" id="pct-opex" value="80" min="0" max="100" step="0.1" oninput="calculate()" /><span class="pct-sym">%</span></div></td>
-          <td class="td-amount"><div class="amount-val val-opex zero" id="amt-opex">$0.00</div></td>
-          <td class="td-copy"><button class="copy-btn" onclick="copyAmount('amt-opex', this)">Copy</button></td>
+          <td class="td-amount"><div class="amount-val val-opex zero copyable" id="amt-opex" onclick="copyAmount(this)" title="Click to copy">$0.00</div></td>
         </tr>
         <!-- OpEx breakdown (Non-Capped only) -->
         <tr class="breakdown-row hidden" id="opex-breakdown">
-          <td colspan="4">
+          <td colspan="3">
             <div class="breakdown-wrap">
               <div class="breakdown-line">
                 <div class="breakdown-left"><div class="breakdown-dot opex"></div>OpEx allocation</div>
-                <div class="breakdown-amt" id="bd-opex-pure">$0.00</div>
+                <div class="breakdown-amt copyable" id="bd-opex-pure" onclick="copyAmount(this)" title="Click to copy">$0.00</div>
               </div>
               <div class="breakdown-line">
                 <div class="breakdown-left"><div class="breakdown-dot royalty"></div>Royalty (5.8% of income)</div>
-                <div class="breakdown-amt" id="bd-royalty">$0.00</div>
+                <div class="breakdown-amt copyable" id="bd-royalty" onclick="copyAmount(this)" title="Click to copy">$0.00</div>
               </div>
             </div>
           </td>
@@ -465,13 +455,40 @@ function calculate() {
   }
 }
 
-function copyAmount(amtId, btn) {
-  const text = document.getElementById(amtId).textContent.replace('$','').replace(/,/g,'');
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
-  });
+// Click the number to copy it. navigator.clipboard is blocked on some of
+// our locked-down office browsers (and used to fail silently) — fall back
+// to the old-school textarea + execCommand copy, and always show feedback.
+function legacyCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed'; ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove();
+  return ok;
+}
+
+function copyAmount(el) {
+  const original = el.textContent;
+  const text = original.replace('$','').replace(/,/g,'').trim();
+  const done = (ok) => {
+    el.classList.add(ok ? 'copied' : 'copyfail');
+    el.textContent = ok ? 'Copied!' : 'Copy failed';
+    setTimeout(() => {
+      el.classList.remove('copied', 'copyfail');
+      el.textContent = original;
+    }, 900);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text)
+      .then(() => done(true))
+      .catch(() => done(legacyCopy(text)));
+  } else {
+    done(legacyCopy(text));
+  }
 }
 
 function clearAll() {
