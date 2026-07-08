@@ -35,6 +35,11 @@
     var settings = { enabled: true, iphone: true, galaxys: true, galaxynote: true, galaxyz: true, pixel: true };
     var queue = [];          // items waiting for the modal
     var modalOpen = false;
+    var EXISTING = {};       // item_keys already logged for THIS ticket (from the
+                             // DB + this tab's answers) — the durable "already
+                             // asked" memory. sessionStorage alone re-asked after
+                             // the new-ticket save renamed the key, and in every
+                             // fresh tab/day.
 
     /* ---------------- page context ---------------- */
 
@@ -114,11 +119,13 @@
             if (!name) continue;
             row.setAttribute('data-mrt-lcd', '1');
             if (!matchFamily(name)) continue;
+            var model = modelFromName(name);
+            if (EXISTING[itemKeyFor(model)]) continue;      // already logged for this ticket
             var dedupe = (ticketNo() || 'new') + '|' + name;
             if (done[dedupe]) continue;
             done[dedupe] = 1;
             writeJson(DONE_KEY, done);
-            queue.push({ item_name: name, model: modelFromName(name) });
+            queue.push({ item_name: name, model: model });
         }
         if (queue.length && !modalOpen) showModal(queue.shift());
     }
@@ -137,6 +144,7 @@
     }
 
     function record(answer, item) {
+        EXISTING[itemKeyFor(item.model)] = 1;               // never re-ask this pull
         var payload = {
             item_key: itemKeyFor(item.model),
             store: storeName(),
@@ -229,15 +237,34 @@
 
     /* ---------------- boot ---------------- */
 
+    // Build the durable "already asked" set BEFORE the first scan: answers
+    // stashed in this tab (a just-saved new ticket, not yet flushed) plus
+    // everything the DB already has for this ticket number.
+    function loadExisting(cb) {
+        readJson(PENDING_KEY, []).forEach(function (p) { if (p.item_key) EXISTING[p.item_key] = 1; });
+        var tn = ticketNo();
+        if (!tn) { cb(); return; }
+        try {
+            chrome.runtime.sendMessage({ type: 'lcd:get', ticket: tn }, function (res) {
+                if (!chrome.runtime.lastError && res && res.ok && res.rows) {
+                    res.rows.forEach(function (r) { if (r.item_key) EXISTING[r.item_key] = 1; });
+                }
+                cb();
+            });
+        } catch (e) { cb(); }
+    }
+
     function start() {
-        flushPending();
-        scan();
-        var pending = false;
-        new MutationObserver(function () {
-            if (pending) return;
-            pending = true;
-            setTimeout(function () { pending = false; scan(); }, 350);
-        }).observe(document.body, { childList: true, subtree: true });
+        loadExisting(function () {
+            flushPending();
+            scan();
+            var pending = false;
+            new MutationObserver(function () {
+                if (pending) return;
+                pending = true;
+                setTimeout(function () { pending = false; scan(); }, 350);
+            }).observe(document.body, { childList: true, subtree: true });
+        });
     }
 
     chrome.storage.sync.get(['lcd']).then(function (res) {
