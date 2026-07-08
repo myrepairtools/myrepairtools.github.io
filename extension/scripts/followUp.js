@@ -414,8 +414,24 @@
                     if (fresh) sessionStorage.removeItem(CHECKIN_KEY);   // consume — one pop only
                 } catch (e) {}
                 if ((isEdit || fresh) && !current && !wasPrompted() && !isClosedPage()) openModal(null);
+                keepBlockAlive();
             })();
         });
+    }
+
+    // RepairQ re-renders the customer summary in place (Edit Customer →
+    // save swaps the <dl>), which silently takes our card with it. Watch
+    // for the card going missing and re-render once the summary is back;
+    // renderChip() no-ops while the edit form has the <dl> torn down.
+    var keepTimer = null;
+    function keepBlockAlive() {
+        new MutationObserver(function () {
+            if (document.querySelector('.mrt-fu-block')) return;
+            clearTimeout(keepTimer);
+            keepTimer = setTimeout(function () {
+                if (!document.querySelector('.mrt-fu-block')) renderChip();
+            }, 400);
+        }).observe(document.body, { childList: true, subtree: true });
     }
 
     function start() {
