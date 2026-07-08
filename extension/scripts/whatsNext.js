@@ -293,7 +293,18 @@
         document.body.appendChild(overlay);
     }
 
+    // Never on the login / lock screen — with no header to dock into, the
+    // button floats as a pill right on top of RepairQ's sign-in form.
+    function isLoginPage() {
+        try {
+            if (/\/site\/login/i.test(location.pathname)) return true;
+            if (document.body && document.body.classList.contains('login')) return true;
+        } catch (e) {}
+        return false;
+    }
+
     function start() {
+        if (isLoginPage()) return;
         if (document.body) build();
         else document.addEventListener('DOMContentLoaded', build);
     }
