@@ -113,6 +113,17 @@ async function lineForStore(raw: string | null | undefined): Promise<StoreLine |
 
 const tokenCache = new Map<string, { token: string; exp: number }>();
 
+// Read the cross-instance token cache (rc_tokens, service-role only).
+async function dbToken(key: string): Promise<{ token: string; exp: number } | null> {
+  try {
+    const { data } = await admin.from("rc_tokens").select("token, exp").eq("cache_key", key).maybeSingle();
+    if (data && new Date(data.exp).getTime() - 60_000 > Date.now()) {
+      return { token: data.token, exp: new Date(data.exp).getTime() };
+    }
+  } catch { /* cache optional */ }
+  return null;
+}
+
 async function rcToken(jwt?: string, appKey?: string, appSecret?: string): Promise<string> {
   const assertion = jwt || RC_JWT_DEFAULT;
   const cid = appKey || RC_ID;
@@ -121,6 +132,15 @@ async function rcToken(jwt?: string, appKey?: string, appSecret?: string): Promi
   const key = cid.slice(-8) + ":" + assertion.slice(-24);   // cache key: app + JWT tails, never logged
   const hit = tokenCache.get(key);
   if (hit && Date.now() < hit.exp - 60_000) return hit.token;
+
+  // Cross-instance cache: every cold edge instance starts with an empty
+  // memory cache, and RingCentral rate-limits the token endpoint hard — a
+  // redeploy (or scale-up) used to stampede it with one exchange per store
+  // per instance. Share tokens through Postgres so the whole fleet re-uses
+  // one token per line.
+  const shared = await dbToken(key);
+  if (shared) { tokenCache.set(key, shared); return shared.token; }
+
   const body = new URLSearchParams();
   body.set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
   body.set("assertion", assertion);
@@ -134,9 +154,24 @@ async function rcToken(jwt?: string, appKey?: string, appSecret?: string): Promi
   });
   const data = await r.json();
   if (!r.ok || !data.access_token) {
-    throw new Error("RingCentral auth failed: " + (data.error_description || data.message || JSON.stringify(data)));
+    const msg = data.error_description || data.message || JSON.stringify(data);
+    // Rate-limited? Another instance is likely mid-exchange for this same
+    // line — give it a beat and trust ITS token instead of failing the user.
+    if (/rate/i.test(String(msg))) {
+      await new Promise((res) => setTimeout(res, 2000));
+      const again = await dbToken(key);
+      if (again) { tokenCache.set(key, again); return again.token; }
+    }
+    throw new Error("RingCentral auth failed: " + msg);
   }
-  tokenCache.set(key, { token: data.access_token, exp: Date.now() + (data.expires_in || 3600) * 1000 });
+  const exp = Date.now() + (data.expires_in || 3600) * 1000;
+  tokenCache.set(key, { token: data.access_token, exp });
+  try {
+    await admin.from("rc_tokens").upsert({
+      cache_key: key, token: data.access_token,
+      exp: new Date(exp).toISOString(), updated_at: new Date().toISOString(),
+    });
+  } catch { /* cache optional */ }
   return data.access_token;
 }
 
