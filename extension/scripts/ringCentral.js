@@ -121,6 +121,20 @@
             var sz = Math.max(20, Math.min(30, Math.round(inner * 1.4)));
             svg.setAttribute('width', sz); svg.setAttribute('height', sz);
             svg.style.verticalAlign = 'middle';
+            // No box behind the mark, PERIOD. RepairQ paints its nav items
+            // with rules we can't reliably out-cascade from a content-script
+            // stylesheet, so pin transparency inline with !important — that
+            // wins against any stylesheet rule in any state.
+            var li = a.parentElement;
+            [a, li].forEach(function (el) {
+                if (!el || !el.style) return;
+                el.style.setProperty('background', 'transparent', 'important');
+                el.style.setProperty('background-image', 'none', 'important');
+                el.style.setProperty('box-shadow', 'none', 'important');
+                el.style.setProperty('border', 'none', 'important');
+                el.style.setProperty('border-radius', '0', 'important');
+                el.style.setProperty('outline', 'none', 'important');
+            });
         } catch (e) {}
     }
 
