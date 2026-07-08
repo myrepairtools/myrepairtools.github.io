@@ -409,3 +409,34 @@ Note: the **caller-ID name** ("CPR Cell Phone Repair" on the customer's screen) 
 carrier-locked (CNAM / branded calling — registration + money, and iPhone shows it
 inconsistently), NOT a software feature. The **number** showing correctly (once caller IDs
 are verified in Twilio) is the reliable part.
+
+## Lead-engagement AI — the facts layer ("close the NOW")
+
+The `ai-compose` function (shipped v2.5.28) is a *writing* helper — tone/clarity — and is
+deliberately **fact-safe** (its system prompt forbids inventing prices, dates, warranty, or
+promises). To make an AI that helps staff *close leads* by stating real facts (price,
+warranty, turnaround, and "yes, we can do it TODAY"), it needs a **facts layer** feeding it
+true numbers. Audit (2026-07): the knowledge exists but is mostly unreachable.
+
+**Quick unlock (do first — ~20 min, no build):** KB is 63 draft / 2 published, and the
+assistant only RAGs **published** articles. Publish the lead-facing ones so the assistant
+can cite them: **#3 Price Quoting & SKUs, #53 Repair Warranties, #11 Express Repairs,
+#27 Setting Due Times** (and #32 price drops). That alone lets the assistant answer price /
+warranty / turnaround accurately.
+
+**The real project — the "NOW" piece (same-day availability):** no static article can say
+"we can do it today" — that's live state:
+1. **Queue depth** — how backed up are we right now. Lives in the extension's
+   `mrt_queue_snapshot` (chrome.storage.local, browser-only today). Needs to be pushed to a
+   Supabase table so a server-side AI/automation can read it.
+2. **Part in stock** — do we have the screen. RepairQ inventory + stock badges; reachable
+   via `repairq-query` (once creds land) or a synced stock table.
+3. **Store hours / open now** — from RepairQ's location object (extension reads it) or
+   `store_lines`; needs to be server-side too.
+With those three reachable, the lead-connect automation (and the assistant) can truthfully
+say "yes, today, ~45 min" — the highest-converting thing we can tell a lead.
+
+**Build notes:** give the assistant scoped tools (like the KB retrieve tool) for
+`live_queue(store)`, `part_in_stock(device, repair, store)`, `store_open_now(store)`; and
+have the lead-connect flow call them to compose the first response. Ties directly into the
+lead-connect + contact-method-bridge items above.
