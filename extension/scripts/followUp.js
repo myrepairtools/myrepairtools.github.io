@@ -225,28 +225,56 @@
     }
     function closeModal() { var m = document.getElementById('mrt-fu-modal'); if (m) m.remove(); }
 
-    /* ---------------- chip ---------------- */
+    /* ---------------- sidebar block (Summary / Customer / Follow Up) ---------------- */
 
-    function renderChip() {
-        var old = document.querySelector('.mrt-fu-chip'); if (old) old.remove();
-        var anchor = ddFor('contact number');
-        anchor = anchor ? (anchor.closest('dl') || anchor.parentElement) : null;
-        if (!anchor) { var h = [].slice.call(document.querySelectorAll('h2,h3')).filter(function (x) { return /customer/i.test(x.textContent); })[0]; anchor = h && h.parentElement; }
-        if (!anchor) return;
-
-        var chip = document.createElement('div');
-        chip.className = 'mrt-fu-chip';
-        if (current) {
-            var txt = current.method === 'email' ? '✉️ ' + (current.contact_email || 'Email')
-                    : current.method === 'return' ? '🚶 Customer to Return'
-                    : methodLabel(current.method) + ' · ' + pretty(current.contact_number);
-            chip.innerHTML = '<span class="mrt-fu-chip-lbl">Follow-up:</span> ' + esc(txt) + ' <span class="mrt-fu-edit">✎ edit</span>';
-        } else {
-            chip.innerHTML = '<span class="mrt-fu-chip-lbl">＋ Set follow-up preference</span>';
-            chip.classList.add('empty');
+    // Find the sidebar "Customer" widget: RepairQ sections are
+    // .block > .head > h2 + .block-content. We insert our own .block right
+    // after it so the header bar and spacing inherit RepairQ's styling.
+    function customerBlock() {
+        var heads = document.querySelectorAll('.block .head h2, .block .head h3');
+        for (var i = 0; i < heads.length; i++) {
+            if (/^\s*customer\b/i.test(heads[i].textContent.replace(/\s+/g, ' ').trim())) {
+                var b = heads[i].closest('.block');
+                if (b) return b;
+            }
         }
-        chip.addEventListener('click', function () { openModal(current); });
-        anchor.appendChild(chip);
+        return null;
+    }
+
+    function renderChip() {   // kept name — called from boot/save paths
+        var old = document.querySelector('.mrt-fu-block'); if (old) old.remove();
+
+        var host = customerBlock();
+        var native = !!host;
+        if (!host) {
+            // edit pages / unexpected layouts: hang it under the contact <dl>
+            var dd = ddFor('contact number');
+            host = dd ? (dd.closest('dl') || dd.parentElement) : null;
+            if (!host) return;
+        }
+
+        var blk = document.createElement('div');
+        blk.className = 'block mrt-fu-block' + (native ? '' : ' mrt-fu-selfstyle');
+        var body;
+        if (current) {
+            var line = current.method === 'email' ? '✉️ Email · ' + esc(current.contact_email || '—')
+                     : current.method === 'return' ? '🚶 Customer to Return'
+                     : (current.method === 'call' ? '📞 Call' : '💬 Text') + ' · ' + esc(pretty(current.contact_number || ''));
+            body = '<div class="mrt-fu-line">' + line + '</div>'
+                 + (current.contact_name ? '<div class="mrt-fu-sub2">for ' + esc(current.contact_name) + '</div>' : '')
+                 + (current.set_by_name ? '<div class="mrt-fu-sub2">set by ' + esc(current.set_by_name) + '</div>' : '')
+                 + '<button type="button" class="btn btn-primary mrt-fu-editbtn">Edit follow up</button>';
+        } else {
+            body = '<div class="mrt-fu-sub2">No follow-up preference saved for this visit.</div>'
+                 + '<button type="button" class="btn btn-primary mrt-fu-editbtn">Set follow up</button>';
+        }
+        blk.innerHTML =
+            '<div class="head"><h2>📣 Follow Up</h2></div>' +
+            '<div class="block-content mrt-fu-bc">' + body + '</div>';
+        blk.querySelector('.mrt-fu-editbtn').addEventListener('click', function () { openModal(current); });
+
+        if (native) host.insertAdjacentElement('afterend', blk);
+        else host.appendChild(blk);
     }
 
     /* ---------------- lifecycle ---------------- */
