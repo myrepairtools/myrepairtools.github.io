@@ -36,6 +36,31 @@ re-requested:
 - When adding a feature, ask "how would the assistant see or do this?" and leave the
   data model and permissions in a state that answers it.
 
+## Standing directive: build like a future product
+
+**The long-term aim is to turn these tools into a real product other CPR franchisees (and
+eventually any repair shop) could use — a company, not just CPR Oregon's internal site.**
+That's a *someday*, not a mandate to over-engineer today; the job right now is still a
+fast, working internal tool. But when a choice is a coin-flip, pick the one that doesn't
+paint a future product into a corner:
+
+- **Don't hard-code CPR-Oregon specifics** where a table, config, or `CPRLocations`/`stores`
+  lookup would let another shop use the same code. Stores, roles, rates, goals, hours,
+  templates — data, not literals. (We already fought the two-store-name problem; keep new
+  code multi-tenant-friendly by default.)
+- **Secrets stay server-side, always.** The browser never holds an API key/JWT — every
+  integration goes through an edge function (messaging, twilio-call, square-pay,
+  repairq-query, cpr-assistant all follow this). Never add a new browser-held secret. The
+  committed anon key + deterrent-level gates are a deliberate *interim* posture for an
+  internal tool; don't extend that pattern to anything a paying customer would touch.
+- **Isolate the RepairQ dependency.** Scraping + the undocumented internal API are great
+  hacks but a shaky product foundation — keep that coupling behind a clear seam (the
+  extension, `repairq-query`) so it's swappable, not woven through every tool.
+- **Clean, well-named, RLS'd data** (see the AI directive above) is also the product
+  foundation — the same tables that make the assistant work make multi-tenant later possible.
+- This is a lens, not a checklist. Note in passing when a shortcut would be hard to undo
+  at product scale; don't block internal velocity over it.
+
 ## Page model
 
 Each tool is **one self-contained HTML file** at the repo root (e.g. `cash-tracker.html`,
