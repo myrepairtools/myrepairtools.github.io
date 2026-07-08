@@ -150,7 +150,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
       if (opts.length === 1) S.store = opts[0];
       else if (d.store && opts.indexOf(d.store) > -1) S.store = d.store;
     }
-    var hd = '<div class="hd"><b>Square · backup register</b>'
+    var hd = '<div class="hd"><b>Square · Backup Register</b>'
       + (S.store ? '<button class="st" id="sqStore" title="Switch store">' + esc(shortStore(S.store)) + ' ▾</button>' : '')
       + '<button class="x" id="sqClose" title="Close">✕</button></div>';
 
@@ -167,9 +167,9 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     var keyedReady = S.config && S.config.keyed_ready;
     panel.innerHTML = hd
       + '<div class="tabs">'
-      + '<button data-tab="terminal" class="' + (S.tab === 'terminal' ? 'on' : '') + '">🖥 To terminal</button>'
-      + '<button data-tab="link" class="' + (S.tab === 'link' ? 'on' : '') + '">🔗 Payment link</button>'
-      + '<button data-tab="keyed" class="' + (S.tab === 'keyed' ? 'on' : '') + '" ' + (keyedReady ? '' : 'title="Needs the SQUARE_APP_ID secret — see hint inside"') + '>⌨ Key in card</button>'
+      + '<button data-tab="terminal" class="' + (S.tab === 'terminal' ? 'on' : '') + '">🖥 To Terminal</button>'
+      + '<button data-tab="link" class="' + (S.tab === 'link' ? 'on' : '') + '">🔗 Payment Link</button>'
+      + '<button data-tab="keyed" class="' + (S.tab === 'keyed' ? 'on' : '') + '" ' + (keyedReady ? '' : 'title="Needs the SQUARE_APP_ID secret — see hint inside"') + '>⌨ Key in Card</button>'
       + '</div><div class="bd">'
       + '<label><span>Amount</span><input id="sqAmount" inputmode="decimal" placeholder="$0.00" value="' + esc(d.amount || '') + '"></label>'
       + '<div style="display:flex;gap:10px"><label style="flex:1"><span>RepairQ ticket #</span><input id="sqTicket" placeholder="optional" value="' + esc(d.ticket || '') + '"></label>'
