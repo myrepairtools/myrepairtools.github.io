@@ -63,8 +63,33 @@
     var out = [];
     if (st.home_store) out.push(st.home_store);
     (st.authorized_stores || []).forEach(function (s) { if (out.indexOf(s) < 0) out.push(s); });
-    if (window.CPRLocations) out = window.CPRLocations.sort(out).map(window.CPRLocations.normalize);
+    // owners run every store — always give them the full list (and the switcher)
+    if (window.CPRNavRole === 'owner' && window.CPRLocations) {
+      window.CPRLocations.names().forEach(function (s) {
+        if (!out.some(function (x) { return window.CPRLocations.normalize(x) === window.CPRLocations.normalize(s); })) out.push(s);
+      });
+    }
+    if (window.CPRLocations) out = window.CPRLocations.sort(out);
     return out;
+  }
+
+  // Where the SCHEDULE says this person is today — used as the DEFAULT store
+  // for multi-store staff (a default, not a gate: the header pill still
+  // switches to any authorized store for unscheduled coverage days).
+  function scheduledStoreToday() {
+    var st = window.CPRNavStaff || {};
+    var t = token();
+    if (!st.id || !t) return Promise.resolve(null);
+    var dow = String(new Date().getDay());
+    return fetch(SB_URL + '/rest/v1/staff_schedule?staff_id=eq.' + st.id + '&select=store,shifts', {
+      headers: { 'apikey': ANON, 'Authorization': 'Bearer ' + t },
+    }).then(function (r) { return r.json(); }).then(function (rows) {
+      var hits = (Array.isArray(rows) ? rows : []).filter(function (row) {
+        var v = (row.shifts || {})[dow];
+        return v != null && v !== false && v !== '';
+      }).map(function (row) { return row.store; });
+      return hits.length === 1 ? hits[0] : null;    // none or ambiguous → fall through
+    }).catch(function () { return null; });
   }
   function shortStore(s) { return window.CPRLocations ? window.CPRLocations.display(s) : String(s || '').replace('CPR ', ''); }
   function dollars(cents) { return '$' + (cents / 100).toFixed(2); }
@@ -395,6 +420,16 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     if (!S.config) call('config').then(function (r) { S.config = r || {}; if (S.open) render(); });
     panel.classList.add('show');
     var b = document.querySelector('.cpr-tb-sq'); if (b) b.classList.add('open');
+    // multi-store default: this tab's earlier pick > today's schedule > picker
+    var opts = stores(), d = draftLoad();
+    if (!S.store && opts.length > 1 && !(d.store && opts.indexOf(d.store) > -1)) {
+      scheduledStoreToday().then(function (st) {
+        if (S.store || !S.open || !st) return;
+        var norm = window.CPRLocations ? window.CPRLocations.normalize : function (x) { return x; };
+        var hit = opts.filter(function (o) { return norm(o) === norm(st); })[0];
+        if (hit) { S.store = hit; render(); }
+      });
+    }
     render();
   }
   function close() {
