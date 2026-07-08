@@ -102,6 +102,24 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return true; // async
 });
 
+/* ---------------- desktop notifications (new SMS / missed calls) ---------------- */
+// Content scripts can't call chrome.notifications; they message here.
+
+chrome.runtime.onMessage.addListener(function (msg) {
+    if (!msg || msg.type !== 'notify:show') return;
+    var p = msg.payload || {};
+    try {
+        chrome.notifications.create('mrt-rc-' + Date.now(), {
+            type: 'basic',
+            iconUrl: chrome.runtime.getURL('images/mrt128.png'),
+            title: p.title || 'myRepairTools',
+            message: p.message || '',
+            priority: 2
+        });
+    } catch (e) { /* notifications unavailable */ }
+    // no async response
+});
+
 /* ---------------- AI compose (help write texts) proxy ---------------- */
 // ai:compose → the ai-compose edge function (ANTHROPIC_API_KEY stays server-side).
 

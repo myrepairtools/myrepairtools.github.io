@@ -74,10 +74,20 @@
     var panel;
     function q(sel) { return panel ? panel.querySelector(sel) : null; }
 
+    // RingCentral brand mark — orange rounded square + white phone (the
+    // recognizable RC logo, same idea as the Square logo on the MRT rail).
+    var RC_LOGO =
+        '<svg class="mrt-rc-logo" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">' +
+          '<rect width="24" height="24" rx="5" fill="#FF7A00"/>' +
+          '<g transform="translate(4.5 4.5) scale(0.62)">' +
+            '<path fill="#fff" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>' +
+          '</g>' +
+        '</svg>';
+
     function build() {
         var btn = document.createElement('a');
         btn.id = 'mrt-rc-btn'; btn.className = 'mrt-rc-btn btn btn-small innav'; btn.href = '#';
-        btn.innerHTML = '<i class="icon-phone"></i> <span>Phone</span> <span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span>';
+        btn.innerHTML = RC_LOGO + ' <span>Phone</span> <span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span>';
         btn.title = 'RingCentral — texts, calls, voicemail';
         btn.addEventListener('click', function (e) { e.preventDefault(); toggle(); });
         var navSpot = document.getElementById('globalSearches');
@@ -270,10 +280,55 @@
         if (n > 0) { d.textContent = n > 9 ? '9+' : String(n); d.style.display = ''; }
         else d.style.display = 'none';
     }
+    // Desktop notifications for new inbound texts + new missed calls. State
+    // is shared across RepairQ tabs via storage.local so we notify once, and
+    // the FIRST poll only seeds "seen" (no flood of old items on load).
+    var SEEN_KEY = 'mrt_rc_seen';
+    function getSeen() {
+        return new Promise(function (res) {
+            try { chrome.storage.local.get([SEEN_KEY]).then(function (r) { res((r && r[SEEN_KEY]) || null); }).catch(function () { res(null); }); }
+            catch (e) { res(null); }
+        });
+    }
+    function setSeen(s) { try { chrome.storage.local.set((function () { var o = {}; o[SEEN_KEY] = s; return o; })()); } catch (e) {} }
+    function notify(title, message) {
+        try { chrome.runtime.sendMessage({ type: 'notify:show', payload: { title: title, message: message } }); } catch (e) {}
+    }
+
     function pollUnread() {
         if (!S.store) return;
-        fn('conversations', { store: S.store, days: 14 }).then(function (r) {
-            if (r && r.ok) updateDot((r.conversations || []).reduce(function (a, c) { return a + (c.unread || 0); }, 0));
+        getSeen().then(function (seen) {
+            var seeded = !!(seen && seen.seeded);
+            var smsTimes = (seen && seen.sms) || {};   // { number: lastNotifiedISO }
+            var callIds = (seen && seen.calls) || [];   // notified missed-call ids
+
+            fn('conversations', { store: S.store, days: 14 }).then(function (r) {
+                if (!r || !r.ok) return;
+                var convs = r.conversations || [];
+                updateDot(convs.reduce(function (a, c) { return a + (c.unread || 0); }, 0));
+                convs.forEach(function (c) {
+                    if (c.last_dir !== 'in' || !c.unread) return;
+                    var prev = smsTimes[c.number];
+                    if (seeded && (!prev || String(c.last_time) > String(prev))) {
+                        notify('New text — ' + (c.name || pretty(c.number)), (c.last_text || '').slice(0, 120));
+                    }
+                    smsTimes[c.number] = c.last_time;
+                });
+
+                // missed calls (silently skips until ReadCallLog scope is added)
+                fn('calls', { store: S.store, days: 3 }).then(function (cr) {
+                    var newCallIds = callIds.slice();
+                    if (cr && cr.ok) {
+                        (cr.calls || []).forEach(function (c) {
+                            if (!c.missed) return;
+                            if (newCallIds.indexOf(c.id) > -1) return;
+                            if (seeded) notify('Missed call — ' + (c.name || pretty(c.number)), 'Tap the Phone panel to text them back');
+                            newCallIds.push(c.id);
+                        });
+                    }
+                    setSeen({ seeded: true, sms: smsTimes, calls: newCallIds.slice(-200) });
+                });
+            });
         });
     }
 
