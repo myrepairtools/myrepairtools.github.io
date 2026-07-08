@@ -181,7 +181,7 @@
                 var num = b.getAttribute('data-num');
                 b.textContent = 'Sending…'; b.disabled = true;
                 var payload = {
-                    to: num, body: defaultMessage(c), ticket_no: ticketNo(),
+                    to: num, body: defaultMessage(c), ticket_no: ticketNo(), store: storeName(),
                     template_key: 'ready_for_pickup', agent_name: techName(),
                 };
                 sendSms(payload, function (res) {
@@ -202,6 +202,65 @@
         } catch (e) { cb({ ok: false, error: String(e && e.message || e) }); }
     }
 
+    function fn(action, payload) {
+        return new Promise(function (res) {
+            try {
+                chrome.runtime.sendMessage({ type: 'sms:' + action, payload: payload }, function (r) {
+                    res(chrome.runtime.lastError ? { ok: false } : r);
+                });
+            } catch (e) { res({ ok: false }); }
+        });
+    }
+
+    /* ---------------- saved follow-up preference ---------------- */
+
+    // A quick, self-dismissing toast (used for call/email/return, where we
+    // don't send an SMS but want to remind the tech what the customer picked).
+    function infoToast(html, ms) {
+        var t = document.createElement('div');
+        t.id = 'mrt-rfp-toast'; t.className = 'mrt-rfp-toast';
+        t.innerHTML = html;
+        document.body.appendChild(t);
+        setTimeout(function () { t.remove(); }, ms || 2600);
+    }
+
+    // Auto-send the ready text to the number the customer gave at check-in,
+    // with a 5-second undo window before it actually goes out.
+    function autoSend(btn, contact) {
+        var c = customer();
+        var first = (contact.contact_name && contact.contact_name.trim().split(/\s+/)[0]) || c.first;
+        var num = digits(contact.contact_number);
+        if (num.length < 10) { popup(btn); return; }   // saved number looks bad — let them pick
+        var body = defaultMessage({ first: first });
+
+        var cancelled = false, timer;
+        var toast = document.createElement('div');
+        toast.id = 'mrt-rfp-toast'; toast.className = 'mrt-rfp-toast';
+        toast.innerHTML =
+            '<span class="mrt-rfp-toast-msg">📲 Texting ' + pretty(num) + '…</span>' +
+            '<button class="mrt-rfp-undo">Undo</button>';
+        document.body.appendChild(toast);
+        var msg = toast.querySelector('.mrt-rfp-toast-msg');
+        var undo = toast.querySelector('.mrt-rfp-undo');
+
+        function commit() {
+            if (cancelled) return;
+            msg.textContent = 'Sending…';
+            if (undo) undo.remove();
+            sendSms({ to: num, body: body, ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
+                var ok = res && res.ok;
+                msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
+                setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 1500);
+            });
+        }
+        undo.addEventListener('click', function () {
+            cancelled = true; clearTimeout(timer);
+            msg.textContent = 'Text canceled'; undo.remove();
+            setTimeout(function () { toast.remove(); proceed(btn); }, 700);
+        });
+        timer = setTimeout(commit, 5000);
+    }
+
     /* ---------------- intercept ---------------- */
 
     function onClick(e) {
@@ -210,7 +269,27 @@
         if (!btn) return;
         e.preventDefault();
         e.stopImmediatePropagation();
-        popup(btn);
+
+        var t = ticketNo();
+        if (!t) { popup(btn); return; }
+        // Check the follow-up preference captured at check-in.
+        fn('contact_get', { ticket_no: t }).then(function (r) {
+            var ct = r && r.contact;
+            if (ct && ct.method === 'text') { autoSend(btn, ct); return; }
+            if (ct && ct.method === 'call') {
+                infoToast('📞 Customer asked for a <b>call</b> — ' + pretty(ct.contact_number || ''), 3200);
+                proceed(btn); return;
+            }
+            if (ct && ct.method === 'email') {
+                infoToast('✉️ Customer prefers <b>email</b> — ' + (ct.contact_email || ''), 3200);
+                proceed(btn); return;
+            }
+            if (ct && ct.method === 'return') {
+                infoToast('🚶 Customer will <b>return</b> — no message sent', 2600);
+                proceed(btn); return;
+            }
+            popup(btn);   // no saved preference — the manual chooser
+        });
     }
 
     function start() {

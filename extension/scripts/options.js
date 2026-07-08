@@ -56,7 +56,10 @@ function saveOptions() {
         lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
     }
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
-    const sms = { readyText: document.getElementById('smsReadyText').getAttribute('data-checked') === 'checked' };
+    const sms = {
+        readyText: document.getElementById('smsReadyText').getAttribute('data-checked') === 'checked',
+        followUp: document.getElementById('smsFollowUp').getAttribute('data-checked') === 'checked'
+    };
     const wn = {
         enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked',
         promise: document.getElementById('wnPromise').getAttribute('data-checked') === 'checked',
@@ -145,6 +148,10 @@ function restoreOptions() {
         const smsRtOn = !result.sms || result.sms.readyText !== false;
         smsRt.setAttribute('data-checked', smsRtOn ? 'checked' : 'unchecked');
         smsRt.className = 'lcd-checkmark ' + (smsRtOn ? 'checked' : 'unchecked');
+        const smsFu = document.getElementById('smsFollowUp');
+        const smsFuOn = !result.sms || result.sms.followUp !== false;
+        smsFu.setAttribute('data-checked', smsFuOn ? 'checked' : 'unchecked');
+        smsFu.className = 'lcd-checkmark ' + (smsFuOn ? 'checked' : 'unchecked');
         const wnEl = document.getElementById('wnEnabled');
         const wnOn = !result.wn || result.wn.enabled !== false;
         wnEl.setAttribute('data-checked', wnOn ? 'checked' : 'unchecked');

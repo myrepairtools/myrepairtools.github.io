@@ -138,7 +138,26 @@ There is **no single backend**. Tools talk to one of two systems:
    `esm.sh/@supabase/supabase-js@2`. Tools on Supabase: cash-tracker, cash-admin,
    consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders,
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
-   time-entries, monthly-goals, checklist, task-admin.
+   time-entries, monthly-goals, checklist, task-admin, device-orders.
+
+**Device ordering (`device-orders.html`, Ordering & Inventory nav):** used-device
+consumption + suggested buys, the device-side sibling of the parts consumption report.
+Data arrives by dropping the two RepairQ dashboard exports on the page (zip or csv):
+"Device Inventory List (Sold)" → `device_sales` (upserted on RepairQ ID — history
+accumulates across uploads) and "Device Inventory List" → `device_inventory` (full
+snapshot, replaced each upload). Rows group by `model_key` (device name minus
+storage/color, e.g. "iPhone 15 Pro Max"); per model: sold-30d, sellable stock
+(Instock + Pending Refurb), Ordered, days of cover, oldest-unit age (stale > 60d),
+and a suggested buy from a per-30d demand rate over up to 60 days of history
+(normalized by how much history the uploads actually cover), computed **per store**
+(All view sums the per-store numbers) and **hard-capped per model per store**
+(default 4 — phones depreciate; never concentrate risk in one SKU). Cover dial is
+capped at 30 days for the same reason; both dials persist in localStorage. 🔥 marks
+hot movers (3+/month and avg shelf-turn ≤ 14d); ▪ on a suggestion means demand
+wanted more but the cap held it. 📋 Copy order list emits a per-store buy list
+(devices are ordered through Hyla/vendor portals — no quick-order export). Store
+chips normalize through CPRLocations; page adopts the shared PIN session
+(authenticated RLS on both tables).
 
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
@@ -223,8 +242,13 @@ paystatus — flips to paid by checking the Square order / send — emails the l
 Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
 
 **LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
-Galaxy Note / Galaxy Z / Pixel screen repair gets graded, labeled, boxed, and audited when the
-recycler buys. Tables: `lcd_displays` (**ticket_no = the display's serial and the QR
+Galaxy Note / Galaxy Z / Pixel screen repair gets graded good/bad; **only GOOD pulls are
+physical inventory** — labeled, boxed, expected by audits, valued. Bad pulls are
+log-only (worth ~quarters; Apple KBB claims also require sending them back, which made
+tracking them as inventory produce false "missing" flags). The accountability signal on
+bads is statistical instead: a per-tech good/bad/bad-rate table on the page's All
+records tab (managers) — a tech misgrading good screens to pocket them surfaces as an
+outlier bad-rate. Audited when the recycler buys. Tables: `lcd_displays` (**ticket_no = the display's serial and the QR
 content**; item_key disambiguates 2+ pulls on one ticket; store, model, status
 good|bad, graded_by + resolved staff_id, status_history jsonb, label_prints,
 audit_id/audit_result/audited_at, missing, deleted) + `lcd_audits` (store null = all,
@@ -256,6 +280,62 @@ screens stay findable); closing stamps scanned displays, flags unscanned as
 **missing** (keeping their recorded status — that's the theft/loss signal), and
 freezes the summary jsonb (counts, grade accuracy, missing list). Scorecard /
 commission tie-in deliberately deferred.
+
+**Square virtual terminal (backup register):** a Square-logo button in the top bar
+(nav.js, lazy-loads `assets/square-pay.js`) opens a **persistent** pop-down — closes
+only on ✕ (dirty-confirm), never on outside clicks (menu-bar-app style, after Square's
+discontinued Mac app). Store defaults from the signed-in tech (`window.CPRNavStaff`);
+multi-store staff pick first. Three tabs: **To terminal** (Terminal API pushes the
+charge to the store's Square wedge — card-present rates, live status poll + cancel;
+the RepairQ-down backup), **Payment link** (quick-pay link, texted from the store's
+RingCentral line via `messaging` or copied), **Key in card** (Web Payments SDK; tab
+self-enables once the `SQUARE_APP_ID` secret is set — card-not-present rates, for
+phone payments). Backend: **`square-pay` edge function** (same `SQUARE_ACCESS_TOKEN`
+as square-tips/contracts; store→location fuzzy name-match; devices from paired
+device codes). Every attempt logs to `square_payments` (store, mode, amount, ticket,
+taken_by, Square ids, status — authenticated read). Payments taken here still need
+manual entry on the RepairQ ticket; `reference_id` carries the ticket # for
+reconciliation. Refunds deliberately stay in Square's dashboard.
+
+**Customer messaging (RingCentral SMS):** texting customers runs through our own
+RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
+RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_SERVER/_WEBHOOK_SECRET` +
+per-store JWTs) stay server-side; it JWT-auths to cached access tokens, sends via the
+RC SMS API from the store's own line, screens opt-outs, and logs every send to `sms_log`
+(store-tagged). **Multi-store:** `store_lines` (store PK = canonical RepairQ name,
+sms_number, jwt_secret_key, aliases jsonb, active) maps each store to its line + the
+function secret holding that store user's Personal JWT — one RC *app*, one JWT per
+store user (`RINGCENTRAL_JWT` = Salem/default, `RINGCENTRAL_JWT_EUGENE`,
+`RINGCENTRAL_JWT_CLACKAMAS`). Send resolves store → line via aliases; a store whose
+JWT isn't minted yet **falls back to the default line** (`RINGCENTRAL_FROM_NUMBER`)
+so sends never bounce. Status/monitoring: **Settings → Integrations → RingCentral**
+(owner tab) — per-store LIVE/FALLBACK/AUTH-ERROR pills via the `test` action, per-store
+test-send, month send counts + opt-outs. New store = RC user + number, mint Personal JWT
+(developers.ringcentral.com as that store's user), add secret, `store_lines` row, A2P/TCR
+registration. Inbound SMS + STOP/START opt-outs (`sms_opt_outs`) are polled from every
+configured store's RC message-store by a `messaging-poll-inbound` pg_cron (webhook
+subscribe is blocked — the app lacks that permission), applying STOP/START in
+chronological order. **The browser never holds a
+RingCentral secret** — the extension calls the function through `bg.js` (`sms:<action>`
+messages → `messaging` with the public anon key). Actions: `send` (E.164 validate,
+opt-out screen, `agent_name` audit trail), `poll`, `contact_set/get/delete`.
+`ticket_contacts` (ticket_no PK, method `text|call|email|return`, contact_name/number/
+email, note, set_by_name) is the **per-visit follow-up preference** — how THIS customer
+wants to hear their repair is ready, saved to the ticket only (never the customer
+profile), deleted when the ticket closes. Two extension surfaces (both under Options →
+RingCentral SMS, default ON): **`readyText.js`** intercepts RepairQ's **Ready for
+Pickup** button — reads the saved `ticket_contacts` preference: `text` auto-sends the
+ready message with a 5-second Undo, `call`/`email`/`return` show a reminder toast (no
+send), nothing-saved falls back to a manual Primary/Alt chooser; **`followUp.js`** pops
+a capture modal right after a ticket's first save (method + number combobox that drops
+the ticket's Primary/Alt on focus + name), writes `contact_set` **and** a RepairQ ticket
+note as a permanent backup, and drops an editable "📣 Follow-up" chip by the customer
+summary. Numbers/name are scraped from RepairQ's read-only customer `<dl>` (Contact
+Number / Customer Name / Contact Method / Email). Automated **voice calls** (method
+`call`) are reserved for a planned Twilio integration (verified caller ID = store number)
+— not built yet. A top-bar SMS inbox/compose panel is likewise deferred. When changing
+SMS behavior, keep `readyText.js` + `followUp.js` + `bg.js`'s `sms:` proxy + the
+`messaging` function in sync.
 
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")

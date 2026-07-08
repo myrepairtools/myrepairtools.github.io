@@ -36,6 +36,7 @@
   // Ordering & Inventory — parts/supplier ordering and stock.
   var ORDERING = [
     { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
+    { label:'Device Ordering',     url:'device-orders.html',       icon:'📲', acc:'consumption.view' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋', acc:'orders.jerryding' },
     { label:'PO Converter',        url:'po-converter.html',        icon:'📦', acc:'orders.po' },
     { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' }
@@ -106,6 +107,7 @@
   function broadcastRole(){
     window.CPRNavRole = NAV_ROLE;
     window.CPRNavName = NAV_NAME || '';
+    window.CPRNavStaff = NAV_STAFF;   // { id, home_store, authorized_stores } — Square panel & co.
     window.CPRPerms = NAV_PERMS ? Array.from(NAV_PERMS) : null;
     try { window.dispatchEvent(new CustomEvent('cprnav:auth', { detail:{ role:NAV_ROLE, name:NAV_NAME||'', perms:window.CPRPerms } })); } catch(_){}
   }
@@ -372,6 +374,9 @@
   .cpr-clockpop button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; padding:9px 12px; border-radius:8px; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:800; font-size:.82rem; color:#2D2D3B; }
   .cpr-clockpop button:hover{ background:#F3F2F2; }
   .cpr-clockpop .sdot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .cpr-tb-sq{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-sq:hover{ background:rgba(255,255,255,.16); }
+  .cpr-tb-sq.open{ background:rgba(255,255,255,.22); }
   .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
   .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell .bdg{ position:absolute; top:5px; right:6px; min-width:8px; height:8px; border-radius:999px; background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; }
@@ -783,6 +788,9 @@
       + '<button class="cpr-tb-burger" aria-label="Menu">☰</button>'
       + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home">'+navLogoTop()+'</a>'
       + '<span class="cpr-tb-sp"></span>'
+      + '<button class="cpr-tb-sq" data-square title="Square — take a payment (backup register)" aria-label="Square virtual terminal">'
+      +   '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
+      + '</button>'
       + '<button class="cpr-tb-clock" data-clock title="Time clock — click to clock in/out"><span class="dot"></span><span class="lbl">🕐 Clock in</span></button>'
       + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">🔔<span class="bdg"></span></button>'
       + '<span class="cpr-tb-role" data-roleslot>' + roleSlotHtml() + '</span>';
@@ -795,6 +803,19 @@
     });
     wireTop();
     wireClock();
+
+    // ── Square virtual terminal (backup register) — lazy-loaded panel ────
+    var sqBtn = top.querySelector('.cpr-tb-sq');
+    if (sqBtn) sqBtn.addEventListener('click', function(){
+      if (!window.CPRNavRole){ toastNav('Unlock myRepairTools first'); return; }
+      if (window.CPRSquarePay){ window.CPRSquarePay.toggle(); return; }
+      sqBtn.style.opacity = '.5';
+      var s = document.createElement('script');
+      s.src = 'assets/square-pay.js';
+      s.onload = function(){ sqBtn.style.opacity = ''; if (window.CPRSquarePay) window.CPRSquarePay.open(); };
+      s.onerror = function(){ sqBtn.style.opacity = ''; toastNav('Could not load the Square panel'); };
+      document.head.appendChild(s);
+    });
 
     // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
     var collapseBtn = rail.querySelector('.cpr-collapse');

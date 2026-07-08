@@ -115,6 +115,9 @@
 
         msg({ type: 'lcd:get', ticket: ticket }).then(function (res) {
             var rows = (res && res.ok && res.rows) || [];
+            // good-only tracking: bad displays are graded for the stats but
+            // aren't box inventory — no send-display label for them
+            rows = rows.filter(function (r) { return String(r.status).toLowerCase() === 'good'; });
             if (!rows.length) { releasePrint(); return; }
 
             var receipt = document.getElementsByClassName('print-receipt')[0];

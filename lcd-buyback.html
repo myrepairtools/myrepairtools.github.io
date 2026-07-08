@@ -232,7 +232,9 @@ function fmt$(n){ return n==null?'—':'$'+(Math.round(n*100)/100).toLocaleStrin
 function sumValue(list){ let t=0; list.forEach(r=>{ const v=priceFor(r); if(v)t+=v; }); return t; }
 
 /* ===== queue / records ===== */
-function queueRows(){ return ROWS.filter(r=>!r.audit_id&&storeMatch(r)); }
+/* good-only tracking: bad pulls are graded (accountability stats) but aren't
+   box inventory — the box, the audits and the labels only cover GOOD pulls */
+function queueRows(){ return ROWS.filter(r=>r.status==='good'&&!r.audit_id&&storeMatch(r)); }
 function searchMatch(r){
   if(!SEARCH)return true;
   const s=SEARCH.toLowerCase();
@@ -244,6 +246,32 @@ function statusPill(r){
   const click=isMgr(AUTH.role)&&!r.missing?' click" title="Click to change':'';
   return '<span class="pill '+cls+click+'" data-edit="'+r.id+'">'+txt+'</span>';
 }
+/* per-tech grading accountability (managers): with bad pulls no longer boxed
+   or audited, a tech's bad-rate is the remaining funny-business signal — a
+   good screen graded "bad" walks out invisibly, but it shows up here as an
+   outlier rate over time */
+function gradingTable(list){
+  if(!isMgr(AUTH.role))return '';
+  const by={};
+  list.forEach(r=>{
+    const t=r.graded_by||'(unknown)';
+    const b=by[t]||(by[t]={good:0,bad:0});
+    if(r.status==='good')b.good++;else b.bad++;
+  });
+  const techs=Object.keys(by).sort((a,b)=>(by[b].good+by[b].bad)-(by[a].good+by[a].bad));
+  if(!techs.length)return '';
+  return '<div class="scroll" style="margin-bottom:14px"><table class="rep"><thead><tr>'
+    +'<th>Grading by tech</th><th>Good</th><th>Bad</th><th>Bad rate</th>'
+    +'</tr></thead><tbody>'
+    +techs.map(t=>{
+      const b=by[t],tot=b.good+b.bad,rate=tot?Math.round(100*b.bad/tot):0;
+      return '<tr><td>'+esc(t)+'</td><td style="color:var(--green);font-weight:800">'+b.good+'</td>'
+        +'<td style="color:var(--red);font-weight:800">'+b.bad+'</td>'
+        +'<td><b>'+rate+'%</b> <span style="color:var(--grey)">of '+tot+'</span></td></tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+
 function rowsTable(list,showAudit){
   if(!list.length) return '<div class="empty">No displays here.</div>';
   return '<div class="scroll"><table class="rep"><thead><tr>'
@@ -336,7 +364,7 @@ function newAuditModal(){
   const stores=storesPresent();
   $('#modal').innerHTML='<div class="ovl"><div class="mod">'
     +'<h2>🧾 New Audit</h2>'
-    +'<p style="font-size:.85rem;color:var(--dark-grey)">One audit per recycler visit. Scan every display he sorts into the bucket he put it in — Good, Bad, or Aftermarket. Anything expected that never gets scanned is flagged <b>missing</b> with the status it was recorded at. Window start defaults to the day of the last audit.</p>'
+    +'<p style="font-size:.85rem;color:var(--dark-grey)">One audit per recycler visit. Scan every display he sorts into the bucket he put it in — Good, Bad, or Aftermarket. Only <b>GOOD pulls</b> are expected in the box (bad pulls are graded for the stats but not tracked as inventory); any expected display that never gets scanned is flagged <b>missing</b>. Window start defaults to the day of the last audit.</p>'
     +'<div class="row"><div><label>Store</label><select id="aStore"><option value="">All stores</option>'
     +stores.map(s=>'<option value="'+esc(s)+'">'+esc(disp(s))+'</option>').join('')+'</select></div>'
     +'<div><label>Window start</label><input type="date" id="aStart" value="'+esc(start)+'"></div>'
@@ -355,8 +383,10 @@ function newAuditModal(){
   });
 }
 function expectedFor(a){
-  // everything unaudited captured on/before the window end (+ still-missing strays), store-scoped
+  // every unaudited GOOD pull captured on/before the window end (+ still-missing
+  // strays), store-scoped — bad pulls aren't box inventory and are never expected
   return ROWS.filter(r=>{
+    if(r.status!=='good')return false;
     if(a.store&&r.store!==a.store)return false;
     const cap=String(r.captured_at).slice(0,10);
     if(cap>a.end_date)return false;
@@ -457,7 +487,7 @@ async function deleteAudit(){
 /* ===== render ===== */
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===TAB));
-  const qn=ROWS.filter(r=>!r.audit_id).length;
+  const qn=ROWS.filter(r=>r.status==='good'&&!r.audit_id).length;
   const c=$('#cntQueue'); c.hidden=!qn; c.textContent=qn;
   storeChips();
   renderView();
@@ -466,11 +496,8 @@ async function renderView(){
   const v=$('#view');
   if(TAB==='queue'){
     const list=queueRows().filter(searchMatch);
-    const good=list.filter(r=>r.status==='good').length;
     v.innerHTML='<div class="tiles">'
-      +'<div class="tile"><div class="n">'+list.length+'</div><div class="l">In the box</div></div>'
-      +'<div class="tile"><div class="n" style="color:var(--green)">'+good+'</div><div class="l">Good</div></div>'
-      +'<div class="tile"><div class="n" style="color:var(--red)">'+(list.length-good)+'</div><div class="l">Bad</div></div>'
+      +'<div class="tile"><div class="n">'+list.length+'</div><div class="l">In the box (good pulls)</div></div>'
       +(PRICES?'<div class="tile"><div class="n" style="color:var(--green)">'+fmt$(sumValue(list))+'</div><div class="l">Est. box value</div></div>':'')
       +'<div class="tile"><div class="n">'+lastAuditLabel()+'</div><div class="l">Last audit</div></div>'
       +'</div>'
@@ -485,6 +512,7 @@ async function renderView(){
       +'<div class="tile"><div class="n" style="color:var(--red)">'+missing+'</div><div class="l">Missing</div></div>'
       +(PRICES?'<div class="tile"><div class="n" style="color:var(--red)">'+fmt$(sumValue(list.filter(r=>r.missing)))+'</div><div class="l">Missing value</div></div>':'')
       +'</div>'
+      +gradingTable(list)
       +rowsTable(list,true);
     wireRowActions();
   } else if(TAB==='prices'){

@@ -106,6 +106,10 @@
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
             if (row.getAttribute('data-mrt-lcd')) continue;
+            // one pull per REPAIR: the labor line triggers; the auto-bundled
+            // part row (.bundled-item) repeats the model + "screen repair" and
+            // must never pop a second modal
+            if (row.classList.contains('bundled-item')) { row.setAttribute('data-mrt-lcd', '1'); continue; }
             var name = itemNameFromRow(row);
             if (!name) continue;
             row.setAttribute('data-mrt-lcd', '1');
@@ -147,6 +151,7 @@
             send(payload).then(function (res) {
                 toast(res && res.ok
                     ? item.model + ' logged — ' + answer.toUpperCase() + ' display'
+                      + (answer === 'bad' ? ' (no label — bad pulls aren’t boxed)' : '')
                     : 'LCD log failed: ' + (res && res.error || 'network'), !(res && res.ok));
             });
         } else {

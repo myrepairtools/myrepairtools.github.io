@@ -1,6 +1,6 @@
-# Commission ingest feeds — webhook reference
+# Ingest feeds — webhook reference
 
-All commission reports POST to one Supabase edge function. Only the `feed=`
+All RepairQ Looker deliveries POST to one Supabase edge function. Only the `feed=`
 query param changes per report; the base URL and token are the same everywhere.
 
 - **Base URL:** `https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ingest`
@@ -16,6 +16,8 @@ query param changes per report; the base URL and token are the same everywhere.
 | Accessory sales (tickets, units, $, GP) | `commission_accessory` | `https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ingest?feed=commission_accessory&token=cpr-ingest-2026-x7k9` |
 | Services (per-SKU counts + service $) | `commission_service` | `https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ingest?feed=commission_service&token=cpr-ingest-2026-x7k9` |
 | Accessory categories (per-category units) | `commission_category` | `https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ingest?feed=commission_category&token=cpr-ingest-2026-x7k9` |
+| Device Inventory List (Sold) — per-unit, feeds Device Ordering | `device_sales` | `https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ingest?feed=device_sales&token=cpr-ingest-2026-x7k9` |
+| Device Inventory List — per-unit snapshot, feeds Device Ordering | `device_inventory` | `https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ingest?feed=device_inventory&token=cpr-ingest-2026-x7k9` |
 
 ## How it behaves
 
@@ -36,6 +38,25 @@ query param changes per report; the base URL and token are the same everywhere.
 - **Accessory returns** — no `commission_accessory_return` feed exists. If you want
   accessory refunds netted the same way devices are, it's a quick add (its own feed
   + columns, mirroring the device-returns design).
+
+## Device Ordering feeds (device-orders.html)
+
+Unlike `commission_device` (per-employee/day aggregates), these two carry
+**one row per physical device** and fill the Device Ordering page's tables —
+the same data as dropping the exports on the page by hand, so the drag-drop
+stays as a manual fallback/backfill.
+
+- `device_sales` ← the **"Device Inventory List (Sold)"** report. Upserts on the
+  RepairQ device ID — history accumulates, resend anytime. Requires a
+  `Sold Date` column (guard refuses otherwise).
+- `device_inventory` ← the **"Device Inventory List"** report. Snapshot semantics:
+  rows are replaced **per store present in the payload** (a one-store delivery
+  can't wipe the others). Requires `Status` + `Added Date` columns.
+- Store names are kept as the **raw RepairQ location name** (`CPR Clackamas OR`),
+  NOT normalized through the `stores` table like the commission feeds — the
+  device tables key on the locations.js canonical names.
+- Schedule both nightly (any time after close); the page's freshness line shows
+  when each last arrived.
 
 ## Column expectations (per feed)
 
