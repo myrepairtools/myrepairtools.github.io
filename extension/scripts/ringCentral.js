@@ -112,10 +112,13 @@
             a.style.lineHeight = cs.lineHeight;
             a.style.height = cs.height;
             a.style.verticalAlign = cs.verticalAlign || 'middle';
-            // inner (content) height of the sibling = where its text lives
+            // inner (content) height of the sibling = where its text lives.
+            // An icon reads well a bit larger than text x-height, so scale up
+            // and clamp — it still centers on the line's middle via
+            // vertical-align, just fills more of the bar.
             var pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0;
             var inner = (sib.clientHeight || parseFloat(cs.height) || 38) - pt - pb;
-            var sz = Math.max(14, Math.min(24, Math.round(inner)));
+            var sz = Math.max(20, Math.min(30, Math.round(inner * 1.4)));
             svg.setAttribute('width', sz); svg.setAttribute('height', sz);
             svg.style.verticalAlign = 'middle';
         } catch (e) {}
@@ -124,7 +127,7 @@
     // RingCentral brand mark — orange rounded square + white phone (the
     // recognizable RC logo, same idea as the Square logo on the MRT rail).
     var RC_LOGO =
-        '<svg class="mrt-rc-logo" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">' +
+        '<svg class="mrt-rc-logo" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">' +
           '<rect width="24" height="24" rx="5" fill="#FF7A00"/>' +
           '<g transform="translate(4.5 4.5) scale(0.62)">' +
             '<path fill="#fff" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>' +
