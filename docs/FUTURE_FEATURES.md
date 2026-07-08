@@ -440,3 +440,30 @@ say "yes, today, ~45 min" — the highest-converting thing we can tell a lead.
 `live_queue(store)`, `part_in_stock(device, repair, store)`, `store_open_now(store)`; and
 have the lead-connect flow call them to compose the first response. Ties directly into the
 lead-connect + contact-method-bridge items above.
+
+## Guided compose — auto-fill the facts from live data (pre-fill, not auto-send)
+
+The guided "Help me write" flow (shipped, lead/sales scenarios) asks the tech for a few
+facts. Future: **pre-fill** three of those fields from live data so the tech just confirms.
+Owner's call (2026-07): manual tech-answered questions are fine for now; this is a later
+project because of the mapping cost.
+
+**The three auto-fill fields → their source:**
+- **Cost of service** → price logic (the price calculator math / RepairQ SKU price).
+- **Turnaround** → the live queue snapshot (What's Next already computes "~N min / by <time>").
+- **Parts in stock** → `repairq-query` (Brett's on-demand pull) hitting RepairQ inventory for
+  the store.
+
+**Why it's a real project — the mapping (not the query):** turning "iPhone 15 Pro screen"
+(natural language from a lead) into the specific RepairQ **part SKU(s)**, checking on-hand
+qty **at that store**, and returning a clean yes/no. Needs a device-model + repair-type →
+part resolver kept current. Pieces exist (`device_models`, the extension stock-badge part
+logic, the price calculator) but stitching them into a reliable resolver is the work.
+
+**Design rule: pre-fill, human confirms — never auto-send.** The form fetches live numbers
+INTO the questions; the tech confirms/overrides; THEN the AI composes. Keeps a human between
+live data and the customer, and degrades gracefully (uncertain lookup → the field stays a
+manual question, exactly like today). The current manual flow IS the fallback.
+
+Ties into: the RepairQ on-demand work (`docs/REPAIRQ_ONDEMAND.md`), the lead-engagement
+facts layer above, and the lead-connect automation.
