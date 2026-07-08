@@ -92,6 +92,35 @@
     var panel;
     function q(sel) { return panel ? panel.querySelector(sel) : null; }
 
+    // Force our black-bar link to match a real sibling's computed box, then
+    // size the icon to that box's inner height so it centers exactly. Robust
+    // to RepairQ centering via padding OR line-height, and doesn't depend on
+    // RepairQ's CSS cascading to our element.
+    function alignToNav(bar) {
+        try {
+            var sib = bar.querySelector('li:not(.mrt-rc-nav) > a');
+            var a = document.getElementById('mrt-rc-btn');
+            var svg = a && a.querySelector('svg.mrt-rc-logo');
+            if (!sib || !a || !svg) return;
+            var cs = getComputedStyle(sib);
+            a.style.display = cs.display === 'inline' ? 'inline-block' : cs.display;
+            a.style.boxSizing = cs.boxSizing;
+            a.style.paddingTop = cs.paddingTop;
+            a.style.paddingBottom = cs.paddingBottom;
+            a.style.paddingLeft = cs.paddingLeft;
+            a.style.paddingRight = cs.paddingRight;
+            a.style.lineHeight = cs.lineHeight;
+            a.style.height = cs.height;
+            a.style.verticalAlign = cs.verticalAlign || 'middle';
+            // inner (content) height of the sibling = where its text lives
+            var pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0;
+            var inner = (sib.clientHeight || parseFloat(cs.height) || 38) - pt - pb;
+            var sz = Math.max(14, Math.min(24, Math.round(inner)));
+            svg.setAttribute('width', sz); svg.setAttribute('height', sz);
+            svg.style.verticalAlign = 'middle';
+        } catch (e) {}
+    }
+
     // RingCentral brand mark — orange rounded square + white phone (the
     // recognizable RC logo, same idea as the Square logo on the MRT rail).
     var RC_LOGO =
@@ -112,9 +141,13 @@
             li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
                 RC_LOGO + '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></a>';
             bar.insertBefore(li, bar.firstChild);
-            // No inline sizing: the <a> inherits RepairQ's own .nav>li>a
-            // padding (what vertically centers "English"), and the icon is
-            // kept ≤ the text line-height so it sits in the same box.
+            // Copy the COMPUTED box of a real sibling ("English") onto our
+            // link — padding/line-height/display — so we match its exact
+            // vertical centering whether RepairQ centers via padding OR
+            // line-height, and regardless of whether its CSS cascades to us.
+            // Then size the icon to the sibling's inner (content) height so
+            // it occupies the same box and lands dead-center.
+            alignToNav(bar);
         } else {
             // fallback: the toolbar row, with a label
             var btn = document.createElement('a');
@@ -130,6 +163,7 @@
         document.getElementById('mrt-rc-btn').addEventListener('click', function (e) { e.preventDefault(); toggle(); });
 
         panel = document.createElement('div');
+        // (alignToNav defined below; called after insert above)
         panel.id = 'mrt-rc-panel'; panel.className = 'mrt-rc-panel';
         panel.innerHTML =
             '<div class="mrt-rc-hd">' +
@@ -465,6 +499,8 @@
         build();
         S.store = storeName();
         applyLockState();
+        // re-align once more after fonts/layout settle
+        setTimeout(function () { var bar = document.querySelector('ul.nav.pull-right.workstation-menu'); if (bar) alignToNav(bar); }, 800);
         try { new MutationObserver(applyLockState).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         pollUnread();
         setInterval(pollUnread, 120000);   // refresh the unread badge every 2 min
