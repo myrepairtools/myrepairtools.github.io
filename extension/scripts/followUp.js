@@ -314,25 +314,26 @@
 
         var anchor = customerAnchor();
         if (!anchor) {
-            // Edit pages have no sidebar Customer widget — add ONE summary row
-            // to RepairQ's own customer <dl> instead (matches the dt/dd rows
-            // around it; a full block there ate too much space).
+            // Edit pages have no sidebar Customer widget. Float a compact
+            // card into the empty space RIGHT of the customer <dl>, inside
+            // the same Customer & Billing panel (owner-picked spot) — never
+            // a full-width block below it.
             var dd = ddFor('contact number');
             var dl = dd ? dd.closest('dl') : null;
-            if (!dl) return;   // nowhere safe — render nothing, never hijack
+            if (!dl || !dl.parentElement) return;   // nowhere safe — render nothing
             var line = savedLine();
-            var html = line
-                ? line + (current.contact_name ? ' <span class="mrt-fu-dim">(' + esc(current.contact_name) + ')</span>' : '')
-                       + ' <a href="#" class="mrt-fu-editlink">edit</a>'
-                : '<a href="#" class="mrt-fu-editlink">Set follow up</a>';
-            var dt = document.createElement('dt');
-            dt.className = 'mrt-fu-block'; dt.textContent = 'Follow Up:';
-            var d2 = document.createElement('dd');
-            d2.className = 'mrt-fu-block'; d2.innerHTML = html;
-            dl.appendChild(dt); dl.appendChild(d2);
-            d2.querySelector('.mrt-fu-editlink').addEventListener('click', function (e) {
-                e.preventDefault(); openModal(current);
-            });
+            var body = line
+                ? '<div class="mrt-fu-line">' + line + '</div>'
+                  + (current.contact_name ? '<div class="mrt-fu-sub2">for ' + esc(current.contact_name) + '</div>' : '')
+                  + (current.set_by_name ? '<div class="mrt-fu-sub2">set by ' + esc(current.set_by_name) + '</div>' : '')
+                  + '<button type="button" class="mrt-fu-editbtn2">Edit follow up</button>'
+                : '<div class="mrt-fu-sub2">No follow-up preference saved for this visit.</div>'
+                  + '<button type="button" class="mrt-fu-editbtn2">Set follow up</button>';
+            var card = document.createElement('div');
+            card.className = 'mrt-fu-block mrt-fu-editcard';
+            card.innerHTML = '<div class="mrt-fu-ehd">Follow Up</div><div class="mrt-fu-ebody">' + body + '</div>';
+            card.querySelector('.mrt-fu-editbtn2').addEventListener('click', function () { openModal(current); });
+            dl.parentElement.insertBefore(card, dl);   // float:right → sits beside the dl
             return;
         }
 
