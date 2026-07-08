@@ -139,54 +139,6 @@
         } catch (e) {}
     }
 
-    // TEMP diagnostic (v2.5.41): our own elements are pinned transparent, yet
-    // a gray chip still renders behind the icon — so some OTHER element (or a
-    // pseudo-element) is painting it. Walk everything stacked under the icon,
-    // report anything with a background, and show the verdict on screen so it
-    // can simply be read off. Remove once the painter is identified.
-    function diagnoseBackdrop() {
-        try {
-            if (sessionStorage.getItem('mrtRcDiag')) return;
-            var svg = document.querySelector('#mrt-rc-btn svg.mrt-rc-logo');
-            if (!svg) return;
-            var r = svg.getBoundingClientRect();
-            if (!r.width) return;
-            var desc = function (el) {
-                var s = el.tagName.toLowerCase();
-                if (el.id) s += '#' + el.id;
-                var c = (typeof el.className === 'string' ? el.className : (el.className && el.className.baseVal) || '').trim();
-                if (c) s += '.' + c.split(/\s+/).slice(0, 3).join('.');
-                return s;
-            };
-            var finds = [];
-            var stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            stack.forEach(function (el) {
-                if (el === svg || svg.contains(el)) return;
-                var cs = getComputedStyle(el);
-                var bg = cs.backgroundColor, bgi = cs.backgroundImage;
-                if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') finds.push(desc(el) + ' → ' + bg);
-                if (bgi && bgi !== 'none') finds.push(desc(el) + ' → image: ' + bgi.slice(0, 70));
-                ['::before', '::after'].forEach(function (ps) {
-                    var p = getComputedStyle(el, ps);
-                    if (p && p.content && p.content !== 'none' &&
-                        ((p.backgroundColor && p.backgroundColor !== 'rgba(0, 0, 0, 0)') || (p.backgroundImage && p.backgroundImage !== 'none'))) {
-                        finds.push(desc(el) + ps + ' → ' + p.backgroundColor + ' / ' + p.backgroundImage.slice(0, 50));
-                    }
-                });
-            });
-            if (!finds.length) finds.push('(nothing painted under the icon — painter is outside the hit stack)');
-            console.log('[myRepairTools] RC icon backdrop diagnosis:\n  ' + finds.join('\n  '));
-            var box = document.createElement('div');
-            box.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483600;background:#111;color:#9fe870;' +
-                'font:11px/1.5 Menlo,Consolas,monospace;padding:10px 12px;border-radius:8px;max-width:520px;' +
-                'box-shadow:0 4px 20px rgba(0,0,0,.5);white-space:pre-wrap;word-break:break-all';
-            box.textContent = 'myRepairTools — what paints behind the RC icon:\n' + finds.join('\n');
-            document.body.appendChild(box);
-            setTimeout(function () { box.remove(); }, 25000);
-            sessionStorage.setItem('mrtRcDiag', '1');
-        } catch (e) {}
-    }
-
     // RingCentral brand mark — orange rounded square + white phone (the
     // recognizable RC logo, same idea as the Square logo on the MRT rail).
     var RC_LOGO =
@@ -209,7 +161,21 @@
             li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
                 '<span class="mrt-rc-iconwrap">' + RC_LOGO +
                 '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></span></a>';
-            bar.insertBefore(li, bar.firstChild);
+            // NOT inside the workstation menu: that ul paints its own gray
+            // rounded strip (#2c2c2c), and as its first item the icon sat
+            // inside the strip's rounded end — the unkillable "gray box".
+            // Instead: our own single-item nav list floated right AFTER the
+            // strip in source order, which lands it immediately LEFT of the
+            // strip (same spot), directly on the black navbar.
+            var ourUl = document.createElement('ul');
+            ourUl.id = 'mrt-rc-navlist';
+            ourUl.className = 'nav pull-right';   // borrow RepairQ's own layout
+            ourUl.style.setProperty('background', 'transparent', 'important');
+            ourUl.style.setProperty('box-shadow', 'none', 'important');
+            ourUl.style.setProperty('border', 'none', 'important');
+            ourUl.style.setProperty('margin-right', '8px', 'important');
+            ourUl.appendChild(li);
+            bar.parentNode.insertBefore(ourUl, bar.nextSibling);
             // Copy the COMPUTED box of a real sibling ("English") onto our
             // link — padding/line-height/display — so we match its exact
             // vertical centering whether RepairQ centers via padding OR
@@ -570,7 +536,6 @@
         applyLockState();
         // re-align once more after fonts/layout settle
         setTimeout(function () { var bar = document.querySelector('ul.nav.pull-right.workstation-menu'); if (bar) alignToNav(bar); }, 800);
-        setTimeout(diagnoseBackdrop, 1500);
         try { new MutationObserver(applyLockState).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         pollUnread();
         setInterval(pollUnread, 120000);   // refresh the unread badge every 2 min
