@@ -484,6 +484,31 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div id="rcHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
         </div>
 
+        <!-- Response-time alerts (unanswered-text watchdog) -->
+        <div style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Response-time alerts</div>
+            <label style="margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-family:'Nunito Sans',sans-serif;font-size:.82rem;font-weight:700;color:var(--dark-grey);cursor:pointer">
+              <input type="checkbox" id="slaEnabled" style="width:16px;height:16px"> On
+            </label>
+          </div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 14px">A backend watchdog checks every few minutes: if a customer&rsquo;s text goes unanswered for the time below, the people listed here get a text. Replies made anywhere (our panel or the RingCentral app) count. Quiet 8pm&ndash;8am; short &ldquo;thanks!&rdquo;-type closers are skipped; at most one nudge per conversation every 30&nbsp;min.</p>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+            <span style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey)">Alert after</span>
+            <input type="number" id="slaThreshold" min="1" max="120" step="1" style="width:64px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:.9rem;text-align:center">
+            <span style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey)">minutes unanswered</span>
+            <button class="btn alt sm" id="slaSaveCfg" style="margin-left:auto">Save</button>
+          </div>
+          <div style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:#8A8F9C;margin-bottom:8px">Who gets alerted</div>
+          <div id="slaRecipients" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center">
+            <input type="text" id="slaName" placeholder="Name" style="width:130px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:.86rem">
+            <input type="text" id="slaPhone" placeholder="Cell number" inputmode="tel" style="width:150px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:.86rem">
+            <select id="slaStore" style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:.86rem"><option value="">All stores</option></select>
+            <button class="btn sm" id="slaAdd">＋ Add</button>
+          </div>
+        </div>
+
         <!-- Activity -->
         <div style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
           <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Activity</div>
@@ -900,6 +925,59 @@ async function rcRenderStatus(){
     $all('.rc-test-send').forEach(function(b){ b.onclick=function(){ rcTestSend(b.getAttribute('data-store')); }; });
   }
   rcRenderActivity();
+  rcRenderSla();
+}
+
+/* --- Response-time alerts (unanswered-text watchdog) --- */
+async function rcRenderSla(){
+  if(INTEG_OPEN!=='ringcentral')return;
+  // config
+  var cfg=await sb.from('sms_sla_config').select('enabled,threshold_min').eq('id',1).maybeSingle();
+  var c=(cfg&&cfg.data)||{enabled:true,threshold_min:5};
+  var en=$('#slaEnabled'), th=$('#slaThreshold');
+  if(en)en.checked=c.enabled!==false;
+  if(th)th.value=c.threshold_min||5;
+  // store dropdown from the RC test result
+  var sel=$('#slaStore');
+  if(sel&&RC_TEST&&RC_TEST.stores){
+    var cur=sel.value;
+    sel.innerHTML='<option value="">All stores</option>'+RC_TEST.stores.map(function(s){return '<option value="'+esc(s.store)+'">'+esc(s.store)+'</option>';}).join('');
+    sel.value=cur;
+  }
+  // recipients
+  var r=await sb.from('sms_sla_recipients').select('id,name,phone,store,active').order('id');
+  var rows=(r&&r.data)||[];
+  var el=$('#slaRecipients'); if(!el)return;
+  el.innerHTML=rows.length?('<table style="width:100%;border-collapse:collapse">'
+    +rows.map(function(x){
+      return '<tr style="border-top:1px solid var(--border)">'
+        +'<td style="padding:8px 6px;font-weight:800;color:var(--dark)">'+esc(x.name||'—')+'</td>'
+        +'<td style="padding:8px 6px;color:var(--dark-grey);font-weight:700;white-space:nowrap">'+rcPhone(x.phone)+'</td>'
+        +'<td style="padding:8px 6px;color:var(--dark-grey)">'+esc(x.store||'All stores')+'</td>'
+        +'<td style="padding:8px 6px;text-align:right"><button class="btn alt sm sla-del" data-id="'+x.id+'">Remove</button></td>'
+        +'</tr>';
+    }).join('')+'</table>'):'<span style="color:var(--grey)">No one is set up to receive alerts yet — add someone below.</span>';
+  $all('.sla-del').forEach(function(b){ b.onclick=function(){ slaRemove(b.getAttribute('data-id')); }; });
+}
+async function slaSaveCfg(){
+  var en=$('#slaEnabled').checked, th=Math.max(1,Math.min(120,parseInt($('#slaThreshold').value,10)||5));
+  var r=await sb.from('sms_sla_config').update({enabled:en,threshold_min:th,updated_at:new Date().toISOString()}).eq('id',1);
+  if(r&&r.error){toast('Save failed — '+r.error.message,true);return;}
+  toast('Response-time alerts '+(en?('on · '+th+' min'):'off'));
+}
+async function slaAdd(){
+  var name=($('#slaName').value||'').trim(), phone=($('#slaPhone').value||'').trim(), store=$('#slaStore').value||null;
+  var digits=phone.replace(/\D/g,'');
+  if(digits.length<10){toast('Enter a valid cell number',true);return;}
+  var r=await sb.from('sms_sla_recipients').insert({name:name||null,phone:phone,store:store||null,active:true});
+  if(r&&r.error){toast('Add failed — '+r.error.message,true);return;}
+  $('#slaName').value='';$('#slaPhone').value='';$('#slaStore').value='';
+  toast('Recipient added'); rcRenderSla();
+}
+async function slaRemove(id){
+  var r=await sb.from('sms_sla_recipients').delete().eq('id',id);
+  if(r&&r.error){toast('Remove failed — '+r.error.message,true);return;}
+  rcRenderSla();
 }
 async function rcTestSend(store){
   var num=prompt('Send a test text from '+store+' to which number? (your cell)');
@@ -2626,6 +2704,8 @@ function initUI(){
   $('#qbtDisconnect').onclick=qbtDisconnect;
   $('#qbtSyncUsers').onclick=qbtSyncUsers;
   var rcR=$('#rcRefresh'); if(rcR)rcR.onclick=function(){rcRenderStatus();};
+  var slaC=$('#slaSaveCfg'); if(slaC)slaC.onclick=slaSaveCfg;
+  var slaA=$('#slaAdd'); if(slaA)slaA.onclick=slaAdd;
   $all('.integ-card').forEach(function(card){
     card.style.cursor='pointer';
     card.addEventListener('click',function(e){

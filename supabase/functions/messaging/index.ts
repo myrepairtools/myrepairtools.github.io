@@ -428,13 +428,15 @@ function needsReply(text: string): boolean {
 // gone unanswered past the threshold. Reads RingCentral directly, so a reply
 // made in the RC app (not just our panel) counts. Cron-driven.
 async function actionSlaCheck() {
-  const THRESH = 5 * 60e3;        // unanswered longer than this → alert
-  const COOLDOWN = 30 * 60e3;     // at most one alert per conversation per this window
+  const { data: cfg } = await admin.from("sms_sla_config").select("*").eq("id", 1).maybeSingle();
+  if (cfg && cfg.enabled === false) return json({ ok: true, alerts: 0, disabled: true, detail: [] });
+  const THRESH = Math.max(1, Number(cfg?.threshold_min ?? 5)) * 60e3;   // unanswered longer than this → alert
+  const COOLDOWN = Math.max(1, Number(cfg?.cooldown_min ?? 30)) * 60e3;  // at most one alert per conversation per window
   const MAXAGE = 12 * 3600e3;     // ignore anything older (no overnight backfill spam)
-  // quiet hours: only text alerts between 8:00 and 20:00 Pacific
+  const qStart = Number(cfg?.quiet_start ?? 8), qEnd = Number(cfg?.quiet_end ?? 20);
   let hour = 12;
   try { hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hour12: false }).format(new Date())); } catch { /* default midday */ }
-  const quiet = hour < 8 || hour >= 20;
+  const quiet = hour < qStart || hour >= qEnd;   // only text alerts inside these Pacific hours
 
   const { data: recips } = await admin.from("sms_sla_recipients").select("*").eq("active", true);
   const internal = new Set((recips || []).map((x: any) => e164(x.phone) || "").filter(Boolean));
