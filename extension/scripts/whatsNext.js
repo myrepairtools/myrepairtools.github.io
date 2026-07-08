@@ -305,6 +305,8 @@
 
     function start() {
         if (isLoginPage()) return;
+        // never on print pages — the floating pill would print on the paper
+        if (/\/ticket\/print/i.test(location.pathname)) return;
         if (document.body) build();
         else document.addEventListener('DOMContentLoaded', build);
     }

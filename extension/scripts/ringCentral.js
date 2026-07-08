@@ -23,6 +23,8 @@
     'use strict';
     if (window.self !== window.top) return;              // not in iframes
     if (document.getElementById('mrt-rc-btn')) return;   // once
+    // never on print pages — the fallback button would print on the invoice
+    if (/\/ticket\/print/i.test(location.pathname)) return;
 
     var S = { open: false, tab: 'inbox', store: '', thread: null, loading: false };
 
@@ -291,6 +293,11 @@
                     '<span class="mrt-rc-btime">' + esc(ago(m.time)) + '</span></div>';
             }).join('') : '<div class="mrt-rc-empty">No messages yet — say hi.</div>';
             box.scrollTop = box.scrollHeight;
+            // Opening a thread = reading it. Flip it to Read in RingCentral
+            // (Edit Messages scope) so the badge clears here AND in RC's apps.
+            fn('thread_read', { store: S.store, number: S.thread.number }).then(function (m) {
+                if (m && m.ok && m.marked) pollUnread();
+            });
         });
     }
     function cstatus(kind, msg) { var el = q('#mrt-rc-cstatus'); if (el) el.innerHTML = msg ? '<span class="' + kind + '">' + esc(msg) + '</span>' : ''; }

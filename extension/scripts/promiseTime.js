@@ -443,6 +443,8 @@
     /* ---------------- boot ---------------- */
 
     function start() {
+        // never on print pages — the clock pill would print on the invoice/label
+        if (/\/ticket\/print/i.test(location.pathname)) return;
         // load cached store hours, then read fresh from this page if it carries them
         try {
             chrome.storage.local.get([HRS_KEY]).then(function (r) {
