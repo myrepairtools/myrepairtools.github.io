@@ -368,6 +368,11 @@ function prettyName(rec: any, party: any): string {
   const n = (party?.name || "").toString().trim();
   return n;
 }
+function prettyNum(n: string): string {
+  const d = String(n || "").replace(/\D/g, "");
+  const x = d.length === 11 && d[0] === "1" ? d.slice(1) : d;
+  return x.length === 10 ? `${x.slice(0, 3)}-${x.slice(3, 6)}-${x.slice(6)}` : (n || "");
+}
 
 // SMS conversations — newest message per counterparty, with unread counts.
 async function actionConversations(payload: any) {
@@ -393,8 +398,91 @@ async function actionConversations(payload: any) {
       t.last_time = m.creationTime; t.last_text = (m.subject || "").toString(); t.last_dir = inbound ? "in" : "out";
     }
   }
-  const list = Object.values(threads).sort((x: any, y: any) => String(y.last_time).localeCompare(String(x.last_time)));
+  // hide internal manager-alert numbers (SLA recipients) from the customer inbox
+  const internal = await internalNumbers();
+  const list = Object.values(threads)
+    .filter((t: any) => !internal.has(t.number))
+    .sort((x: any, y: any) => String(y.last_time).localeCompare(String(x.last_time)));
   return json({ ok: true, store: line?.store || a.store, conversations: list });
+}
+
+let internalCache: { nums: Set<string>; exp: number } | null = null;
+async function internalNumbers(): Promise<Set<string>> {
+  if (internalCache && Date.now() < internalCache.exp) return internalCache.nums;
+  const { data } = await admin.from("sms_sla_recipients").select("phone").eq("active", true);
+  const nums = new Set<string>((data || []).map((r: any) => e164(r.phone) || "").filter(Boolean));
+  internalCache = { nums, exp: Date.now() + 60_000 };
+  return nums;
+}
+
+// A short closing pleasantry ("thanks!", "sounds good", "👍") rarely needs a
+// reply — don't nag managers about those.
+function needsReply(text: string): boolean {
+  const t = String(text || "").trim().toLowerCase();
+  if (!t) return false;
+  if (t.length <= 42 && /^(thank|thanks|thx|ty\b|ok\b|okay|k\b|great|awesome|perfect|sounds good|will do|got it|see you|see ya|no problem|np\b|cool|👍|🙏|❤|😊|👌)/.test(t)) return false;
+  return true;
+}
+
+// Response-time watchdog: alert managers when a customer's inbound text has
+// gone unanswered past the threshold. Reads RingCentral directly, so a reply
+// made in the RC app (not just our panel) counts. Cron-driven.
+async function actionSlaCheck() {
+  const THRESH = 5 * 60e3;        // unanswered longer than this → alert
+  const COOLDOWN = 30 * 60e3;     // at most one alert per conversation per this window
+  const MAXAGE = 12 * 3600e3;     // ignore anything older (no overnight backfill spam)
+  // quiet hours: only text alerts between 8:00 and 20:00 Pacific
+  let hour = 12;
+  try { hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hour12: false }).format(new Date())); } catch { /* default midday */ }
+  const quiet = hour < 8 || hour >= 20;
+
+  const { data: recips } = await admin.from("sms_sla_recipients").select("*").eq("active", true);
+  const internal = new Set((recips || []).map((x: any) => e164(x.phone) || "").filter(Boolean));
+  const lines = await storeLines();
+  const now = Date.now();
+  let alerts = 0; const detail: any[] = [];
+
+  for (const l of lines) {
+    if (!l.jwt) continue;
+    const dateFrom = new Date(now - 2 * 864e5).toISOString();
+    const r = await rcGet(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&perPage=250&dateFrom=${dateFrom}`, l.jwt, l.app_key, l.app_secret);
+    if (!r.ok) continue;
+    const threads: Record<string, any> = {};
+    for (const m of (r.data?.records || [])) {
+      const inbound = m.direction === "Inbound";
+      const party = inbound ? m.from : (Array.isArray(m.to) ? m.to[0] : m.to);
+      const num = e164(party?.phoneNumber || ""); if (!num) continue;
+      const t = threads[num] || (threads[num] = { number: num, name: (party?.name || "").toString(), last_time: "", last_dir: "", last_text: "" });
+      if (!t.name && party?.name) t.name = String(party.name);
+      if (!t.last_time || String(m.creationTime) > t.last_time) { t.last_time = m.creationTime; t.last_dir = inbound ? "in" : "out"; t.last_text = (m.subject || "").toString(); }
+    }
+    for (const num of Object.keys(threads)) {
+      const t = threads[num];
+      if (t.last_dir !== "in" || internal.has(num)) continue;   // answered, or an internal number
+      if (!needsReply(t.last_text)) continue;                   // short "thanks!"-type closers don't need a nudge
+      const age = now - new Date(t.last_time).getTime();
+      if (age < THRESH || age > MAXAGE) continue;
+      const { data: st } = await admin.from("sms_sla_state").select("*").eq("store", l.store).eq("number", num).maybeSingle();
+      if (st && (now - new Date(st.last_alerted_at).getTime()) < COOLDOWN) continue;
+      const to = (recips || []).filter((x: any) => !x.store || String(x.store).toLowerCase() === l.store.toLowerCase());
+      const mins = Math.round(age / 60000);
+      const sending = to.length > 0 && !quiet;
+      detail.push({ store: l.store, number: num, mins, recipients: to.length, sending });
+      if (sending) {
+        const who = t.name || prettyNum(num);
+        const body = `⏰ Unanswered text — ${l.store}\n${who} (${prettyNum(num)}) texted ${mins} min ago:\n"${(t.last_text || "").slice(0, 120)}"\nOpen RepairQ to reply.`;
+        for (const rcp of to) {
+          const dest = e164(rcp.phone); if (!dest) continue;
+          await actionSend({ to: dest, body, store: l.store }, { name: "SLA watchdog" });
+        }
+        alerts++;
+        // only stamp the cooldown when we actually alerted, so adding a
+        // recipient later doesn't get suppressed by a dry-run stamp
+        await admin.from("sms_sla_state").upsert({ store: l.store, number: num, last_inbound: t.last_time, last_alerted_at: new Date(now).toISOString() });
+      }
+    }
+  }
+  return json({ ok: true, alerts, quiet, detail });
 }
 
 // One conversation's messages (filtered by counterparty number).
@@ -607,6 +695,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "thread") return await actionThread(payload);
     if (payload?.action === "calls") return await actionCalls(payload);
     if (payload?.action === "voicemails") return await actionVoicemails(payload);
+    if (payload?.action === "sla_check") return await actionSlaCheck();
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
