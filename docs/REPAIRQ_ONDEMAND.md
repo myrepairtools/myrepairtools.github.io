@@ -40,6 +40,31 @@ curl -sS -X POST "https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/repairq-
 ```
 `{"ok":true,"session":"active"}` = login works.
 
+## Actions
+
+| Action | Purpose |
+|---|---|
+| `ping` | login (or reuse the cached session); confirms creds are valid |
+| `raw` | proxy ONE authenticated request — used to first-test a captured payload |
+| `save_query` | store a captured payload as a reusable named template |
+| `list_queries` | the saved templates |
+| `query` | run a saved template (token-substituted), cache the result, return data |
+
+## Saved templates + the demand cache (the infrastructure)
+
+Two tables back the demand pull (both server-write, manager-read via `is_admin()`):
+
+- **`repairq_queries`** — named templates: `{ name, path, method, body_template }`.
+  Any `{loc}` in the path/body is swapped for the pulled location; any other
+  `{token}` is swapped from the call's `params`. Capture a payload once, save it,
+  replay it forever.
+- **`repairq_cache`** — where pulls land: `{ query_name, location, params, data
+  (jsonb), row_count, fetched_at }`. Consumers read the **freshest** row — pages
+  never hit RepairQ directly.
+
+`store_lines.rq_location_id` maps a **store name → RepairQ location id**, so a pull
+can say `"location":"CPR Clackamas OR"` instead of a raw id (numeric ids also work).
+
 ## Capturing a report payload (do this at a computer)
 
 1. In RepairQ, build the report you want in Looker and drop it on a temporary
@@ -49,22 +74,40 @@ curl -sS -X POST "https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/repairq-
    `query/<something>-<locationID>-<userID>` appears.
 4. Right-click it → **Copy → Copy request payload** (the JSON body) and note the
    request **URL/path**. Send both to Claude.
-5. We store it as a named template and replay it via the `raw` action:
+5. **Test it** with `raw` (raw path + body), then **save it** as a template:
    ```
-   {"action":"raw","path":"/query/…","body":"<the captured JSON payload>"}
+   {"action":"save_query","name":"commission_by_tech",
+    "path":"/query/…-{loc}-…",
+    "body_template":{ …the captured JSON, with the location swapped for {loc}… }}
    ```
-   The response is your RQ data as clean JSON.
+6. From then on, pull it by name:
+   ```
+   {"action":"query","name":"commission_by_tech","location":"CPR Clackamas OR"}
+   ```
+   → returns clean JSON **and** writes a `repairq_cache` row.
 
 ## The right consumption pattern
 
 **Do NOT pull live on every page view** (slow pages, hammered API). Instead:
 
-- A **pg_cron** job pulls each store on an interval (e.g. every 15–30 min) and
-  writes into our Supabase tables. Employees read our tables — instant, and
-  RepairQ is hit a fixed few times per hour regardless of traffic.
-- A **"🔄 Refresh now"** button does an on-demand pull for the moments freshness
-  matters (payroll close-out, a manager double-checking). That's the deliberate
-  use of `raw`.
+- A **pg_cron** job calls `query` for each store on an interval (Brett runs his
+  ~every 5 min) and the result lands in `repairq_cache`. Employees read that
+  table — instant, and RepairQ is hit a fixed few times per interval regardless
+  of traffic. Add the cron once a template exists (example below).
+- A **"🔄 Refresh now"** button does an on-demand `query` for the moments
+  freshness matters (payroll close-out, a manager double-checking).
+
+### Example cron (add after the first template is saved)
+
+```sql
+select cron.schedule('repairq-pull-5min', '*/5 * * * *', $$
+  select net.http_post(
+    url    := 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/repairq-query',
+    headers:= jsonb_build_object('Content-Type','application/json','x-cpr-rq-secret','<REPAIRQ_PROXY_SECRET>'),
+    body   := jsonb_build_object('action','query','name','commission_by_tech','location','CPR Clackamas OR')
+  );
+$$);
+```
 
 ## Notes / caveats
 
