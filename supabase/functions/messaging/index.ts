@@ -228,12 +228,24 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   const finalBody = payload?.template_key ? body + "\n\nReply STOP to opt out." : body;
 
   let rc: any, ok = false, rcId: string | null = null, err: string | null = null;
+  let sentFrom = from;
   try {
-    const t = await rcToken(jwt);
+    // A store JWT that's set but broken (revoked, minted against the wrong
+    // app) must not bounce customer texts — fall back to the default line,
+    // same as a store with no JWT at all.
+    let t: string;
+    try {
+      t = await rcToken(jwt);
+    } catch (e) {
+      if (jwt !== RC_JWT_DEFAULT && RC_JWT_DEFAULT && RC_FROM_DEFAULT) {
+        t = await rcToken(RC_JWT_DEFAULT);
+        sentFrom = RC_FROM_DEFAULT;
+      } else throw e;
+    }
     const r = await fetch(`${RC_SERVER}/restapi/v1.0/account/~/extension/~/sms`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${t}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: { phoneNumber: from }, to: [{ phoneNumber: to }], text: finalBody }),
+      body: JSON.stringify({ from: { phoneNumber: sentFrom }, to: [{ phoneNumber: to }], text: finalBody }),
     });
     rc = await r.json();
     ok = r.ok;
@@ -244,14 +256,14 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   }
 
   await admin.from("sms_log").insert({
-    to_number: to, from_number: from, store, body: finalBody, ticket_no: payload?.ticket_no || null,
+    to_number: to, from_number: sentFrom, store, body: finalBody, ticket_no: payload?.ticket_no || null,
     template_key: payload?.template_key || null, status: ok ? "sent" : "failed",
     rc_message_id: rcId, error: err, sent_by: sentBy.id || null,
     // extension sends (no Supabase session) pass the RepairQ tech name for the audit trail
     sent_by_name: sentBy.name || payload?.agent_name || null,
   });
 
-  return ok ? json({ ok: true, id: rcId, to, from, store }) : json({ ok: false, error: err }, 502);
+  return ok ? json({ ok: true, id: rcId, to, from: sentFrom, store }) : json({ ok: false, error: err }, 502);
 }
 
 const SELF_URL = `${SB_URL.replace(".supabase.co", ".functions.supabase.co")}/messaging`;
