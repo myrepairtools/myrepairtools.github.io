@@ -64,6 +64,13 @@ type StoreLine = {
   active: boolean;
   jwt: string;          // resolved secret value ('' when not set yet)
   is_default: boolean;  // this line's JWT === the default JWT
+  // Optional per-store APP credentials: some store users' developer-portal
+  // orgs can't authorize the main app, so their JWTs are bound to an app
+  // THEY own. RINGCENTRAL_APP_KEY_<suffix> / RINGCENTRAL_APP_SECRET_<suffix>
+  // (suffix from jwt_secret_key, e.g. _EUGENE) switch the token exchange to
+  // that app; unset → the main app's credentials.
+  app_key: string;
+  app_secret: string;
 };
 
 let linesCache: { lines: StoreLine[]; exp: number } | null = null;
@@ -73,6 +80,7 @@ async function storeLines(): Promise<StoreLine[]> {
   const { data } = await admin.from("store_lines").select("*").eq("active", true);
   const lines: StoreLine[] = (data || []).map((r: any) => {
     const jwt = r.jwt_secret_key ? (Deno.env.get(r.jwt_secret_key) || "") : "";
+    const suffix = r.jwt_secret_key ? String(r.jwt_secret_key).replace(/^RINGCENTRAL_JWT_?/, "") : "";
     return {
       store: r.store,
       sms_number: r.sms_number,
@@ -81,6 +89,8 @@ async function storeLines(): Promise<StoreLine[]> {
       active: r.active,
       jwt,
       is_default: !!jwt && jwt === RC_JWT_DEFAULT,
+      app_key: suffix ? (Deno.env.get(`RINGCENTRAL_APP_KEY_${suffix}`) || "") : "",
+      app_secret: suffix ? (Deno.env.get(`RINGCENTRAL_APP_SECRET_${suffix}`) || "") : "",
     };
   });
   linesCache = { lines, exp: Date.now() + 60_000 };   // 1-min cache per instance
@@ -103,10 +113,12 @@ async function lineForStore(raw: string | null | undefined): Promise<StoreLine |
 
 const tokenCache = new Map<string, { token: string; exp: number }>();
 
-async function rcToken(jwt?: string): Promise<string> {
+async function rcToken(jwt?: string, appKey?: string, appSecret?: string): Promise<string> {
   const assertion = jwt || RC_JWT_DEFAULT;
+  const cid = appKey || RC_ID;
+  const csec = appSecret || RC_SECRET;
   if (!assertion) throw new Error("No RingCentral JWT configured");
-  const key = assertion.slice(-24);   // cache key: JWT tail, never logged
+  const key = cid.slice(-8) + ":" + assertion.slice(-24);   // cache key: app + JWT tails, never logged
   const hit = tokenCache.get(key);
   if (hit && Date.now() < hit.exp - 60_000) return hit.token;
   const body = new URLSearchParams();
@@ -115,7 +127,7 @@ async function rcToken(jwt?: string): Promise<string> {
   const r = await fetch(`${RC_SERVER}/restapi/oauth/token`, {
     method: "POST",
     headers: {
-      "Authorization": "Basic " + btoa(`${RC_ID}:${RC_SECRET}`),
+      "Authorization": "Basic " + btoa(`${cid}:${csec}`),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: body.toString(),
@@ -128,8 +140,8 @@ async function rcToken(jwt?: string): Promise<string> {
   return data.access_token;
 }
 
-async function rcGet(path: string, jwt?: string) {
-  const t = await rcToken(jwt);
+async function rcGet(path: string, jwt?: string, appKey?: string, appSecret?: string) {
+  const t = await rcToken(jwt, appKey, appSecret);
   const r = await fetch(`${RC_SERVER}${path}`, { headers: { "Authorization": `Bearer ${t}` } });
   return { ok: r.ok, status: r.status, data: await r.json() };
 }
@@ -173,7 +185,7 @@ async function actionTest() {
     };
     if (l.jwt) {
       try {
-        const info = await rcGet("/restapi/v1.0/account/~/extension/~", l.jwt);
+        const info = await rcGet("/restapi/v1.0/account/~/extension/~", l.jwt, l.app_key, l.app_secret);
         entry.authenticated = info.ok;
         entry.extension = info.data?.name || info.data?.extensionNumber || null;
         if (!info.ok) entry.error = info.data?.message || `HTTP ${info.status}`;
@@ -235,7 +247,7 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
     // same as a store with no JWT at all.
     let t: string;
     try {
-      t = await rcToken(jwt);
+      t = await rcToken(jwt, line?.app_key, line?.app_secret);
     } catch (e) {
       if (jwt !== RC_JWT_DEFAULT && RC_JWT_DEFAULT && RC_FROM_DEFAULT) {
         t = await rcToken(RC_JWT_DEFAULT);
@@ -345,12 +357,12 @@ async function actionContactDelete(payload: any) {
 
 /* ---------------- inbound ---------------- */
 
-async function pollInbox(jwt: string, store: string | null, toNumber: string | null, back: number) {
+async function pollInbox(jwt: string, store: string | null, toNumber: string | null, back: number, appKey?: string, appSecret?: string) {
   // One extension's inbox: record unseen inbound SMS, honor STOP/START.
   const r = await rcGet(
     "/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&direction=Inbound&perPage=100&dateFrom=" +
     new Date(Date.now() - back).toISOString(),
-    jwt,
+    jwt, appKey, appSecret,
   );
   if (!r.ok) return { store, ok: false, error: r.data?.message || `HTTP ${r.status}`, scanned: 0, recorded: 0, opt_outs: 0 };
   // Apply in CHRONOLOGICAL order so the customer's most recent STOP/START wins
@@ -391,7 +403,7 @@ async function actionPoll(hours?: number) {
     const tail = l.jwt.slice(-24);
     if (sweptJwtTails.has(tail)) continue;    // two stores on one JWT — sweep once
     sweptJwtTails.add(tail);
-    results.push(await pollInbox(l.jwt, l.store, l.sms_number, back));
+    results.push(await pollInbox(l.jwt, l.store, l.sms_number, back, l.app_key, l.app_secret));
   }
   // the default JWT, if no store line claimed it (pre-migration safety)
   if (RC_JWT_DEFAULT && !sweptJwtTails.has(RC_JWT_DEFAULT.slice(-24))) {

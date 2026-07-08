@@ -93,7 +93,9 @@
     }
 
     function ticketNo() {
-        var m = location.pathname.match(/\/ticket\/(?:edit|view)\/(\d+)/);
+        // view pages are /ticket/<id> — no /view/ segment (bit us once: the
+        // note write and sms_log ticket_no silently no-oped on view pages)
+        var m = location.pathname.match(/\/ticket\/(?:edit\/|view\/)?(\d+)\b/);
         if (m) return m[1];
         var h = document.querySelector('#ticket h2 span, .ticket-number, [data-ticket-id]');
         var t = h && (h.getAttribute('data-ticket-id') || h.textContent);
