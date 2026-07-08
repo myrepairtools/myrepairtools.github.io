@@ -477,6 +477,10 @@ When changing a tool's data layer, check which generation it uses first — they
 
 ## Conventions when editing
 
+- **Title Case for UI titles.** Panel/page/section/tab titles capitalize each word
+  ("Square · Backup Register", "Payment Link") — owner preference. Sentence case is
+  fine for body copy, hints, and toasts.
+
 - Keep a tool's CSS/JS inline in its own file; don't extract to shared assets unless it is
   genuinely cross-tool (the bar for adding to `assets/` is high).
 - Reuse `CPRLocations` for any store dropdown/normalization rather than re-listing stores.
