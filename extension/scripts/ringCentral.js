@@ -112,17 +112,15 @@
             li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
                 RC_LOGO + '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></a>';
             bar.insertBefore(li, bar.firstChild);
-            // Match a native sibling item's vertical box so the icon centers in
-            // the bar exactly like English/Location (heights vary by RepairQ skin).
+            // Center the icon by matching a native sibling's FULL rendered
+            // height and flex-centering inside it (icon vs text height differ,
+            // so copying padding alone left it a hair high).
             try {
                 var sib = bar.querySelector('li:not(.mrt-rc-nav) > a');
                 var a = document.getElementById('mrt-rc-btn');
                 if (sib && a) {
-                    var cs = getComputedStyle(sib);
-                    a.style.paddingTop = cs.paddingTop;
-                    a.style.paddingBottom = cs.paddingBottom;
-                    a.style.lineHeight = cs.lineHeight;
-                    a.style.height = cs.height;
+                    a.style.height = sib.offsetHeight + 'px';
+                    a.style.paddingTop = '0'; a.style.paddingBottom = '0';
                 }
             } catch (e) {}
         } else {
