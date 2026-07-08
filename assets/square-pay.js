@@ -25,6 +25,9 @@
   var FN = SB_URL + '/functions/v1/square-pay';
   var MSG_FN = SB_URL + '/functions/v1/messaging';
   var DRAFT_KEY = 'cprSqDraft';
+  var STORE_KEY = 'cprSqStore';   // localStorage — counter PCs live at one store
+  function cachedStore() { try { return localStorage.getItem(STORE_KEY) || null; } catch (e) { return null; } }
+  function cacheStore(st) { try { st ? localStorage.setItem(STORE_KEY, st) : localStorage.removeItem(STORE_KEY); } catch (e) {} }
 
   var S = {
     open: false, store: null, tab: 'terminal',
@@ -173,7 +176,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     if (!S.store) {
       var opts = stores();
       if (opts.length === 1) S.store = opts[0];
-      else if (d.store && opts.indexOf(d.store) > -1) S.store = d.store;
+      else { var cs = cachedStore(); if (cs && opts.indexOf(cs) > -1) S.store = cs; }
     }
     var hd = '<div class="hd"><b>Square · Backup Register</b>'
       + (S.store ? '<button class="st" id="sqStore" title="Switch store">' + esc(shortStore(S.store)) + ' ▾</button>' : '')
@@ -184,7 +187,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
         + '<div class="pickstore">' + stores().map(function (s) { return '<button data-s="' + esc(s) + '">' + esc(shortStore(s)) + '</button>'; }).join('') + '</div></div>';
       wireCommon();
       panel.querySelectorAll('.pickstore button').forEach(function (b) {
-        b.addEventListener('click', function () { S.store = b.getAttribute('data-s'); S.devices = null; render(); });
+        b.addEventListener('click', function () { S.store = b.getAttribute('data-s'); cacheStore(S.store); S.devices = null; render(); });
       });
       return;
     }
@@ -224,7 +227,9 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     var st = q('#sqStore');
     if (st && stores().length > 1) st.addEventListener('click', function () {
       if (S.active) { alert('Finish or cancel the payment in flight first.'); return; }
-      S.store = null; S.devices = null; S.deviceId = null; render();
+      S.store = null; S.devices = null; S.deviceId = null;
+      cacheStore(null); draftSave();
+      render();
     });
   }
 
@@ -422,7 +427,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     var b = document.querySelector('.cpr-tb-sq'); if (b) b.classList.add('open');
     // multi-store default: this tab's earlier pick > today's schedule > picker
     var opts = stores(), d = draftLoad();
-    if (!S.store && opts.length > 1 && !(d.store && opts.indexOf(d.store) > -1)) {
+    if (!S.store && opts.length > 1 && !(cachedStore() && opts.indexOf(cachedStore()) > -1)) {
       scheduledStoreToday().then(function (st) {
         if (S.store || !S.open || !st) return;
         var norm = window.CPRLocations ? window.CPRLocations.normalize : function (x) { return x; };
