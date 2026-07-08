@@ -123,8 +123,11 @@
     // Never on print pages (printLabel / printInvoice / any /ticket/print*):
     // a fixed FAB there prints on top of the label or invoice.
     if (/\/ticket\/print/i.test(location.pathname)) return;
+    // …and never on the login screen — nobody is signed in to assist.
+    if (/\/site\/login/i.test(location.pathname)) return;
 
     function start() {
+        if (document.body && document.body.classList.contains('login')) return;
         if (document.body) build();
         else document.addEventListener('DOMContentLoaded', build);
     }
