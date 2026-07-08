@@ -365,24 +365,53 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
   }
 
   /* ---------------- keyed flow (Web Payments SDK) ---------------- */
+  // Every step reports progress or failure to #sqStatus — this flow used to
+  // have three silent exits (a sync throw from Square.payments, a devices
+  // call rejected without a session, and a re-render orphaning the attach),
+  // which looked like "the card form just never shows up".
   function mountCard() {
+    var mine = (S.cardMount = (S.cardMount || 0) + 1);   // stale-mount guard
+    var stale = function () { return mine !== S.cardMount || !q('#cprSqCard'); };
+    var watchdog = setTimeout(function () {
+      if (!stale()) status('err', 'Square’s card form didn’t load — check the connection, then close and re-open this panel');
+    }, 12000);
+    function fail(msg) { clearTimeout(watchdog); if (!stale()) status('err', msg); }
     function boot() {
+      if (stale()) { clearTimeout(watchdog); return; }
       if (!S.cardLocation) {
-        call('devices', { store: S.store }).then(function (r) { S.cardLocation = r.location_id || null; if (S.cardLocation) boot(); else status('err', 'No Square location for this store'); });
+        status('wait', 'Looking up this store’s Square location…');
+        call('devices', { store: S.store }).then(function (r) {
+          if (stale()) { clearTimeout(watchdog); return; }
+          S.cardLocation = (r && r.location_id) || null;
+          if (S.cardLocation) { boot(); return; }
+          if (r && r.error && /jwt|auth|401|sign/i.test(String(r.error))) fail('Your sign-in expired — unlock with your PIN and re-open the panel');
+          else fail((r && r.error) ? esc(r.error) : 'No Square location found for ' + esc(shortStore(S.store)));
+        });
         return;
       }
-      window.Square.payments(S.config.app_id, S.cardLocation).card().then(function (card) {
-        S.card = card;
-        return card.attach('#cprSqCard');
-      }).then(function () {
-        var b = q('#sqCharge'); if (b) { b.disabled = false; b.addEventListener('click', keyedCharge); }
-      }).catch(function (e) { status('err', 'Card form failed: ' + esc(String(e && e.message || e))); });
+      status('wait', 'Loading Square’s card fields…');
+      try {
+        if (S.card && S.card.destroy) { try { S.card.destroy(); } catch (e) { } S.card = null; }
+        window.Square.payments(S.config.app_id, S.cardLocation).card().then(function (card) {
+          if (stale()) { clearTimeout(watchdog); try { card.destroy(); } catch (e) { } return; }
+          S.card = card;
+          return card.attach('#cprSqCard').then(function () {
+            if (stale()) { clearTimeout(watchdog); return; }
+            clearTimeout(watchdog);
+            status('', '');
+            var b = q('#sqCharge'); if (b) { b.disabled = false; b.addEventListener('click', keyedCharge); }
+          });
+        }).catch(function (e) { fail('Card form failed: ' + esc(String(e && e.message || e))); });
+      } catch (e) {
+        fail('Card form failed: ' + esc(String(e && e.message || e)));
+      }
     }
     if (window.Square) { boot(); return; }
+    status('wait', 'Loading Square…');
     var s = document.createElement('script');
     s.src = 'https://web.squarecdn.com/v1/square.js';
     s.onload = boot;
-    s.onerror = function () { status('err', 'Could not load Square’s card form'); };
+    s.onerror = function () { fail('Could not load Square’s card form (web.squarecdn.com blocked?)'); };
     document.head.appendChild(s);
   }
   function keyedCharge() {
@@ -390,8 +419,15 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     if (!amt) { status('err', 'Enter an amount first'); return; }
     var b = q('#sqCharge'); b.disabled = true;
     status('wait', 'Charging ' + dollars(amt) + '…');
-    S.card.tokenize().then(function (res) {
-      if (res.status !== 'OK') { b.disabled = false; status('err', 'Card not accepted'); return; }
+    S.card.tokenize().catch(function (e) {
+      return { status: 'ERR', errors: [{ message: String(e && e.message || e) }] };
+    }).then(function (res) {
+      if (res.status !== 'OK') {
+        b.disabled = false;
+        var why = (res.errors && res.errors[0] && res.errors[0].message) || 'Card not accepted';
+        status('err', esc(why));
+        return;
+      }
       call('keyed_charge', {
         store: S.store, amount_cents: amt, source_id: res.token,
         ticket_no: (q('#sqTicket') || {}).value, note: (q('#sqNote') || {}).value,
