@@ -67,17 +67,41 @@
             var el = document.getElementById(id);
             if (el && digits(el.value).length >= 10 && out.indexOf(el.value) === -1) out.push(el.value);
         });
+        // view-page sidebar: no <dt> labels — pull phone-shaped strings out of
+        // the Customer block's text instead
+        if (!out.length) {
+            var cb = customerBlock();
+            var m = cb ? (cb.textContent.match(/\(?\d{3}\)?[\s.-]?\d{3}[-.\s]?\d{4}/g) || []) : [];
+            m.forEach(function (v) { if (digits(v).length >= 10) out.push(v); });
+        }
         var seen = {}, uniq = [];
         out.forEach(function (p) { var d = digits(p); if (!seen[d]) { seen[d] = 1; uniq.push(p); } });
         return uniq.map(function (p, i) { return { num: p, tag: i === 0 ? 'Primary' : 'Alt' }; });
     }
     function suggestedEmail() {
         var dd = ddFor('email address'); if (dd) { var t = dd.textContent.trim(); if (/@/.test(t)) return t; }
-        var el = document.getElementById('Customer_email'); return (el && el.value) || '';
+        var el = document.getElementById('Customer_email'); if (el && el.value) return el.value;
+        var cb = customerBlock();
+        if (cb) {
+            var a = cb.querySelector('a[href^="mailto:"]');
+            if (a) return a.getAttribute('href').replace(/^mailto:/, '').trim();
+            var m = cb.textContent.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+            if (m) return m[0];
+        }
+        return '';
     }
     function customerFirst() {
         var dd = ddFor('customer name'); var n = dd ? dd.textContent.trim()
             : ((document.getElementById('Customer_first_name') || {}).value || '');
+        if (!n) {
+            // view-page sidebar: the customer is a /customers/ link, "Last, First"
+            var cb = customerBlock();
+            var a = cb ? cb.querySelector('a[href*="/customers/"]') : null;
+            if (a) {
+                var t = a.textContent.replace(/\s+/g, ' ').trim();
+                n = t.indexOf(',') > -1 ? t.split(',')[1].trim() : t;
+            }
+        }
         return (n.split(/\s+/)[0] || '');
     }
     function storeName() {
@@ -241,12 +265,16 @@
     // .block > .head > h2 + .block-content. We insert our own .block right
     // after it so the header bar and spacing inherit RepairQ's styling.
     function customerBlock() {
-        var heads = document.querySelectorAll('.block .head h2, .block .head h3');
+        // section headers vary (h2/h3/h4, with or without a .block wrapper) —
+        // find a heading that says "Customer" and take its section container
+        var heads = document.querySelectorAll('.head h2, .head h3, .head h4, h2, h3, h4');
         for (var i = 0; i < heads.length; i++) {
-            if (/^\s*customer\b/i.test(heads[i].textContent.replace(/\s+/g, ' ').trim())) {
-                var b = heads[i].closest('.block');
-                if (b) return b;
-            }
+            var txt = heads[i].textContent.replace(/\s+/g, ' ').trim();
+            if (!/^customer\b/i.test(txt) || /billing/i.test(txt)) continue;
+            var b = heads[i].closest('.block') || heads[i].closest('.widget');
+            if (b) return b;
+            var hd = heads[i].closest('.head');
+            if (hd && hd.parentElement) return hd.parentElement;
         }
         return null;
     }
@@ -315,9 +343,12 @@
             // a fallback anchor. Cap the wait at ~6s and proceed regardless.
             var tries = 0;
             (function whenSummaryReady() {
-                if (!ddFor('contact number') && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
+                if (!ddFor('contact number') && !customerBlock() && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
                 renderChip();
-                if (!current && !wasPrompted() && !isClosedPage()) openModal(null);
+                // auto-pop belongs to check-in (the EDIT page). View pages
+                // never auto-open — the sidebar block's button is the way in.
+                var isEdit = /\/ticket\/edit\//.test(location.pathname);
+                if (isEdit && !current && !wasPrompted() && !isClosedPage()) openModal(null);
             })();
         });
     }
