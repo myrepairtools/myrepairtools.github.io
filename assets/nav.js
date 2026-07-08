@@ -6,6 +6,16 @@
  * ========================================================================= */
 (function () {
   'use strict';
+
+  // Force HTTPS — Square's card form (and clipboard, and everything modern)
+  // requires a secure origin, and old http:// bookmarks linger on shop PCs.
+  // GitHub Pages' "Enforce HTTPS" does this server-side too; this catches
+  // pages already loaded insecurely. Runs even inside iframes on purpose.
+  if (location.protocol === 'http:' && !/^(localhost|127\.|10\.|192\.168\.)/.test(location.hostname)) {
+    location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+    return;
+  }
+
   if (window.self !== window.top) return;   // skip inside iframes
 
   // Home-screen icon: give every page the myRepairTools app icon (iOS uses
