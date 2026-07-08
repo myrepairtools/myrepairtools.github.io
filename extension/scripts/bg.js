@@ -102,6 +102,28 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return true; // async
 });
 
+/* ---------------- AI compose (help write texts) proxy ---------------- */
+// ai:compose → the ai-compose edge function (ANTHROPIC_API_KEY stays server-side).
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('ai:') !== 0) return;
+    var action = msg.type.slice(3);            // ai:compose -> compose
+    var slug = action === 'compose' ? 'ai-compose' : null;
+    if (!slug) return;
+    fetch(SB_FN + '/' + slug, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + SB_ANON,
+            'apikey': SB_ANON
+        },
+        body: JSON.stringify(msg.payload || {})
+    }).then(function (r) { return r.json(); })
+      .then(sendResponse)
+      .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    return true; // async
+});
+
 /* ---------------- voice call (Twilio) proxy ---------------- */
 // call:place / call:status → the twilio-call edge function (Twilio creds
 // stay server-side; same anon-key gateway pattern as sms:).

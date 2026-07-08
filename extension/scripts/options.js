@@ -58,7 +58,8 @@ function saveOptions() {
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
     const sms = {
         readyText: document.getElementById('smsReadyText').getAttribute('data-checked') === 'checked',
-        followUp: document.getElementById('smsFollowUp').getAttribute('data-checked') === 'checked'
+        followUp: document.getElementById('smsFollowUp').getAttribute('data-checked') === 'checked',
+        panel: document.getElementById('smsPanel').getAttribute('data-checked') === 'checked'
     };
     const wn = {
         enabled: document.getElementById('wnEnabled').getAttribute('data-checked') === 'checked',
@@ -152,6 +153,10 @@ function restoreOptions() {
         const smsFuOn = !result.sms || result.sms.followUp !== false;
         smsFu.setAttribute('data-checked', smsFuOn ? 'checked' : 'unchecked');
         smsFu.className = 'lcd-checkmark ' + (smsFuOn ? 'checked' : 'unchecked');
+        const smsPn = document.getElementById('smsPanel');
+        const smsPnOn = !result.sms || result.sms.panel !== false;
+        smsPn.setAttribute('data-checked', smsPnOn ? 'checked' : 'unchecked');
+        smsPn.className = 'lcd-checkmark ' + (smsPnOn ? 'checked' : 'unchecked');
         const wnEl = document.getElementById('wnEnabled');
         const wnOn = !result.wn || result.wn.enabled !== false;
         wnEl.setAttribute('data-checked', wnOn ? 'checked' : 'unchecked');
