@@ -375,12 +375,24 @@
     function placePill() {
         if (document.querySelector('.mrt-pt-pill')) return;
 
-        // Fixed overlay in the top nav's empty center — never touches RepairQ's
-        // layout flow (an in-flow insert pushed the ticket toolbar off-screen).
+        // Lives in the breadcrumb/toolbar row's empty middle, left of the
+        // What's Next button (same slot whatsNext.js uses) — the fixed
+        // top-nav overlay covered RepairQ's Settings menu. Fixed-center
+        // stays as the fallback when that row isn't on the page.
         pill = document.createElement('div');
         pill.className = 'mrt-pt-pill';
         pill.title = 'Recommended pickup time for a repair dropped off right now — live from the workable queue and the last 90 minutes of completions';
-        document.body.appendChild(pill);
+        var navSpot = document.getElementById('globalSearches');
+        var form = navSpot && navSpot.querySelector('#quickSearch');
+        if (form) {
+            pill.classList.add('mrt-pt-inrow');
+            form.insertBefore(pill, form.firstChild);
+        } else if (navSpot && navSpot.parentElement) {
+            pill.classList.add('mrt-pt-inrow');
+            navSpot.parentElement.insertBefore(pill, navSpot);
+        } else {
+            document.body.appendChild(pill);
+        }
 
         function tick() {
             if (!document.querySelector('.mrt-pt-pill')) return;
@@ -407,6 +419,9 @@
           'line-height:1.2;box-shadow:0 2px 10px rgba(0,0,0,.35);white-space:nowrap;pointer-events:none}' +
         '.mrt-pt-pill b{color:#7FD4A0}' +
         '.mrt-pt-pill .mrt-pt-pill-sub{font-weight:700;color:#B9BDCB}' +
+        // in the toolbar row: flow inline with the What's Next button
+        '.mrt-pt-pill.mrt-pt-inrow{position:static;transform:none;display:inline-block;' +
+          'vertical-align:middle;margin:0 10px 0 0;box-shadow:none}' +
         '@media (max-width:1100px){.mrt-pt-pill{display:none}}';   // hide on tight widths so it never collides
         document.head.appendChild(s);
     }
