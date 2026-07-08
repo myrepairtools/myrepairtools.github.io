@@ -264,40 +264,59 @@
     // Find the sidebar "Customer" widget: RepairQ sections are
     // .block > .head > h2 + .block-content. We insert our own .block right
     // after it so the header bar and spacing inherit RepairQ's styling.
-    function customerBlock() {
-        // Find the SIDEBAR Customer widget. Guards matter: a "Customer"
-        // heading also exists in some main-column layouts, and anchoring
-        // there makes the block hijack the whole page. Accept a container
-        // only if it's sidebar-sized AND actually holds the customer.
-        var heads = document.querySelectorAll('.head h2, .head h3, .head h4, h2, h3, h4');
-        for (var i = 0; i < heads.length; i++) {
-            var txt = heads[i].textContent.replace(/\s+/g, ' ').trim();
-            if (!/^customer\b/i.test(txt) || /billing/i.test(txt)) continue;
-            var b = heads[i].closest('.block') || heads[i].closest('.widget');
-            if (!b) { var hd = heads[i].closest('.head'); b = hd && hd.parentElement; }
-            if (!b) continue;
-            var w = b.offsetWidth || 0;
-            var hasCust = !!b.querySelector('a[href*="/customers/"]') ||
-                          /\(?\d{3}\)?[\s.-]?\d{3}[-.\s]?\d{4}/.test(b.textContent || '');
-            if (w > 0 && w <= 480 && hasCust) return b;
+    // The ticket-view sidebar is INJECTED by RepairQ's JS after load, as
+    // sibling pairs:  <div class="sub-head"><h2>Customer</h2></div>
+    //                 <div class="block-content"> …link + phones… </div>
+    // (confirmed from a saved copy of the real page). Older/edit layouts use
+    // .block wrappers instead. Both finders demand a sidebar-sized container
+    // that really holds the customer — a bare "Customer" heading in the main
+    // column once anchored the block page-wide.
+    function phoneish(el) {
+        return !!el.querySelector('a[href*="/customers/"]') ||
+               /\(?\d{3}\)?[\s.-]?\d{3}[-.\s]?\d{4}/.test(el.textContent || '');
+    }
+    function customerAnchor() {
+        // 1) sub-head + sibling block-content (the real ticket-view sidebar)
+        var subs = document.querySelectorAll('.sub-head h2, .sub-head h3');
+        for (var i = 0; i < subs.length; i++) {
+            var t = subs[i].textContent.replace(/\s+/g, ' ').trim();
+            if (!/^customer\b/i.test(t) || /billing/i.test(t)) continue;
+            var hd = subs[i].closest('.sub-head');
+            if (!hd || (hd.offsetWidth || 0) > 480) continue;
+            var bc = hd.nextElementSibling;
+            while (bc && !/\bblock-content\b/.test(bc.className || '')) bc = bc.nextElementSibling;
+            if (!bc || !phoneish(bc)) continue;
+            return { mode: 'subhead', content: bc, insertAfter: bc };
+        }
+        // 2) .block/.widget wrapper layouts
+        var heads = document.querySelectorAll('.head h2, .head h3, .head h4');
+        for (var j = 0; j < heads.length; j++) {
+            var t2 = heads[j].textContent.replace(/\s+/g, ' ').trim();
+            if (!/^customer\b/i.test(t2) || /billing/i.test(t2)) continue;
+            var b = heads[j].closest('.block') || heads[j].closest('.widget');
+            if (!b || (b.offsetWidth || 0) > 480 || !phoneish(b)) continue;
+            return { mode: 'block', content: b, insertAfter: b };
         }
         return null;
     }
+    // scrape source for suggestions (the customer section's content element)
+    function customerBlock() { var a = customerAnchor(); return a ? a.content : null; }
 
     function renderChip() {   // kept name — called from boot/save paths
         var old = document.querySelector('.mrt-fu-block'); if (old) old.remove();
 
-        var host = customerBlock();
-        var native = !!host;
-        if (!host) {
+        var anchor = customerAnchor();
+        var host = null, native = false, subhead = false;
+        if (anchor) { host = anchor.insertAfter; native = true; subhead = anchor.mode === 'subhead'; }
+        else {
             // edit pages / unexpected layouts: hang it under the contact <dl>
             var dd = ddFor('contact number');
             host = dd ? (dd.closest('dl') || dd.parentElement) : null;
-            if (!host) return;
+            if (!host) return;   // nowhere safe — render nothing, never hijack
         }
 
         var blk = document.createElement('div');
-        blk.className = 'block mrt-fu-block' + (native ? '' : ' mrt-fu-selfstyle');
+        blk.className = 'mrt-fu-block' + (native ? '' : ' mrt-fu-selfstyle');
         var body;
         if (current && current.method !== 'skip') {
             var line = current.method === 'email' ? 'Email · ' + esc(current.contact_email || '—')
@@ -311,8 +330,11 @@
             body = '<div class="mrt-fu-sub2">No follow-up preference saved for this visit.</div>'
                  + '<button type="button" class="btn btn-primary mrt-fu-editbtn">Set follow up</button>';
         }
+        // sub-head layouts: reuse RepairQ's own sub-head/block-content classes
+        // so the header bar matches Summary/Customer exactly
+        var hcls = subhead ? 'sub-head' : 'head';
         blk.innerHTML =
-            '<div class="head"><h2>Follow Up</h2></div>' +
+            '<div class="' + hcls + '"><h2>Follow Up</h2></div>' +
             '<div class="block-content mrt-fu-bc">' + body + '</div>';
         blk.querySelector('.mrt-fu-editbtn').addEventListener('click', function () { openModal(current); });
 
@@ -336,9 +358,19 @@
         }, true);
     }
 
+    var CHECKIN_KEY = 'mrt_fu_checkin';   // set on the create page; the NEXT
+                                          // ticket page in this tab may auto-pop
     function boot() {
         var t = ticketNo();
-        if (!t) return;                                   // new ticket, no number yet — wait for the post-save load
+        if (!t) {
+            // ticket-create pages (/ticket/repair|claim|add): no number yet.
+            // Flag the check-in so the post-save landing page (a VIEW page,
+            // which normally never auto-pops) asks exactly once.
+            if (/\/ticket\/(repair|claim|add)/.test(location.pathname)) {
+                try { sessionStorage.setItem(CHECKIN_KEY, String(Date.now())); } catch (e) {}
+            }
+            return;
+        }
         fn('contact_get', { ticket_no: t }).then(function (r) {
             current = (r && r.contact) || null;
             watchClose();
@@ -350,10 +382,18 @@
             (function whenSummaryReady() {
                 if (!ddFor('contact number') && !customerBlock() && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
                 renderChip();
-                // auto-pop belongs to check-in (the EDIT page). View pages
-                // never auto-open — the sidebar block's button is the way in.
+                // auto-pop = check-in only: the EDIT page, or the first ticket
+                // page after a create (the post-save landing is a VIEW page,
+                // flagged from the create page). All other view loads are
+                // button-only via the sidebar block.
                 var isEdit = /\/ticket\/edit\//.test(location.pathname);
-                if (isEdit && !current && !wasPrompted() && !isClosedPage()) openModal(null);
+                var fresh = false;
+                try {
+                    var ts = Number(sessionStorage.getItem(CHECKIN_KEY) || 0);
+                    fresh = ts > 0 && (Date.now() - ts) < 10 * 60000;
+                    if (fresh) sessionStorage.removeItem(CHECKIN_KEY);   // consume — one pop only
+                } catch (e) {}
+                if ((isEdit || fresh) && !current && !wasPrompted() && !isClosedPage()) openModal(null);
             })();
         });
     }
