@@ -55,7 +55,7 @@ function saveOptions(done) {
         open: document.getElementById('wnOpen').value || '10:00',
         close: document.getElementById('wnClose').value || '19:00'
     };
-    const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
+    const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
     let mcpr = {};
     for (const k in mcprIds) { mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked'; }
     mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
@@ -144,8 +144,8 @@ function restoreOptions() {
         document.getElementById('wnClose').value = (result.wn && result.wn.close) || '19:00';
 
         const mcpr = result.mcpr || {};
-        const mcprDefaults = { partsGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false };
-        const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
+        const mcprDefaults = { partsGate: true, sickwGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false };
+        const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
         for (const k in mcprIds) {
             const on = mcpr[k] === undefined ? mcprDefaults[k] : mcpr[k] !== false;
             setState(document.getElementById(mcprIds[k]), on, 'lcd-checkmark');

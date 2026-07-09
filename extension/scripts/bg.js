@@ -142,6 +142,27 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return true; // async
 });
 
+/* ---------------- Sickw blacklist-check proxy ---------------- */
+// sickw:check / sickw:balance -> the sickw-check edge function (the Sickw API
+// key stays server-side; same anon-key gateway pattern as ai:).
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('sickw:') !== 0) return;
+    var action = msg.type.slice(6);            // sickw:check -> check
+    fetch(SB_FN + '/sickw-check', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + SB_ANON,
+            'apikey': SB_ANON
+        },
+        body: JSON.stringify(Object.assign({ action: action }, msg.payload || {}))
+    }).then(function (r) { return r.json(); })
+      .then(sendResponse)
+      .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    return true; // async
+});
+
 /* ---------------- voice call (Twilio) proxy ---------------- */
 // call:place / call:status → the twilio-call edge function (Twilio creds
 // stay server-side; same anon-key gateway pattern as sms:).
