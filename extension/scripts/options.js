@@ -60,6 +60,17 @@ function saveOptions(done) {
     for (const k in mcprIds) { mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked'; }
     mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
     mcpr.priceModel = document.getElementById('mcprPriceModel').value === 'cap' ? 'cap' : 'franchise';
+    // ticket-type rules grid (which ticket types each popup runs on)
+    const TT_FEATURES = ['followUp', 'promise', 'ready', 'blacklist'];
+    const TT_TYPES = ['repair', 'claim', 'sale', 'tradein', 'refurbish'];
+    let tt = {};
+    TT_FEATURES.forEach((f) => {
+        tt[f] = {};
+        TT_TYPES.forEach((t) => {
+            const el = document.getElementById('tt_' + f + '_' + t);
+            tt[f][t] = el ? el.getAttribute('data-checked') === 'checked' : true;
+        });
+    });
     const customQuickLinkFrame1 = document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked';
     const customQuickLinkFrame2 = document.getElementById('customQuickLinkFrame2').getAttribute('data-checked') === 'checked';
     const customQuickLinkFrame3 = document.getElementById('customQuickLinkFrame3').getAttribute('data-checked') === 'checked';
@@ -69,7 +80,7 @@ function saveOptions(done) {
         customQuickLinkName3, customQuickLinkUrl3, customQuickLinkFrame3,
         enabled: checkedBoxes,
         cbt: { enabled: true, text: cbtText },
-        lcd, ai, wn, mcpr, sms
+        lcd, ai, wn, mcpr, sms, tt
     }, () => { if (typeof done === 'function') done(); });
 }
 
@@ -112,7 +123,7 @@ function restoreOptions() {
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
         'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
-        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms'
+        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms', 'tt'
     ]).then((result) => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
         document.getElementById('customQuickLinkUrl1').value = result.customQuickLinkUrl1 || '';
@@ -158,6 +169,24 @@ function restoreOptions() {
             setState(document.getElementById(lcdIds[k]), !result.lcd || result.lcd[k] !== false, 'lcd-checkmark');
         }
         afterLcdChange();
+
+        // ticket-type rules grid (defaults: everything on; refurbish off for the
+        // customer-communication three; blacklist on everywhere)
+        const TT_DEF = {
+            followUp: { repair: true, claim: true, sale: true, tradein: true, refurbish: false },
+            promise: { repair: true, claim: true, sale: true, tradein: true, refurbish: false },
+            ready: { repair: true, claim: true, sale: true, tradein: true, refurbish: false },
+            blacklist: { repair: true, claim: true, sale: true, tradein: true, refurbish: false },
+        };
+        const ttCfg = result.tt || {};
+        Object.keys(TT_DEF).forEach((f) => {
+            Object.keys(TT_DEF[f]).forEach((t) => {
+                const el = document.getElementById('tt_' + f + '_' + t);
+                if (!el) return;
+                const on = (ttCfg[f] && ttCfg[f][t] !== undefined) ? ttCfg[f][t] !== false : TT_DEF[f][t];
+                setState(el, on, 'lcd-checkmark tt-mini');
+            });
+        });
 
         let checkboxes = document.getElementsByClassName('checkmark');
         for (let c = 0; c < checkboxes.length; c++) {

@@ -387,20 +387,29 @@
         }, true);
     }
 
-    // Refurbish tickets are internal — no customer to follow up with. The tab
-    // title ("Refurbish Ticket / RepairQ") is the reliable tell; the ticket
-    // header + body class are fallbacks.
-    function isRefurbTicket() {
-        if (/refurbish/i.test(document.title)) return true;
-        var h = document.querySelector('#ticket h2, .page-header h2');
-        if (h && /refurbish/i.test(h.textContent)) return true;
-        return /refurbish/i.test(document.body.className || '');
+
+    /* ---- ticket-type rules (Options → Ticket-Type Rules; storage.sync tt) ---- */
+    var TT = null;   // loaded config; defaults below reproduce shipped behavior
+    function mrtTicketType() {
+        var t = document.title + ' ' + (((document.querySelector('#ticket h2, .page-header h2') || {}).textContent) || '') + ' ' + (document.body.className || '');
+        if (/refurb/i.test(t)) return 'refurbish';
+        if (/trade/i.test(t)) return 'tradein';
+        if (/claim/i.test(t) || /\/ticket\/claim/.test(location.pathname)) return 'claim';
+        if (/sale/i.test(t) || /\/ticket\/add\b/.test(location.pathname)) return 'sale';
+        return 'repair';
+    }
+    function ttAllows(feature) {
+        var DEF = { followUp: { refurbish: false }, promise: { refurbish: false }, ready: { refurbish: false }, blacklist: { refurbish: false } };
+        var type = mrtTicketType();
+        var cfg = (TT && TT[feature]) || {};
+        if (cfg[type] !== undefined) return cfg[type] !== false;
+        return (DEF[feature] || {})[type] !== false;
     }
 
     var CHECKIN_KEY = 'mrt_fu_checkin';   // set on the create page; the NEXT
                                           // ticket page in this tab may auto-pop
     function boot() {
-        if (isRefurbTicket()) return;     // internal ticket — no follow-up UI at all
+        if (!ttAllows('followUp')) return;   // this ticket type is opted out
         var t = ticketNo();
         if (!t) {
             // ticket-create pages (/ticket/repair|claim|add): no number yet.
@@ -458,8 +467,9 @@
         if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
     }
     try {
-        chrome.storage.sync.get(['sms']).then(function (res) {
+        chrome.storage.sync.get(['sms', 'tt']).then(function (res) {
             var s = (res && res.sms) || {};
+            TT = (res && res.tt) || null;
             if (s.followUp === false) return;
             CH.sendSms = s.sendSms !== undefined ? s.sendSms : (s.readyText !== false); // legacy fallback
             CH.sendCall = s.sendCall === true;

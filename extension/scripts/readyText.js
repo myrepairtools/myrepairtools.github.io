@@ -23,6 +23,25 @@
 (function () {
     'use strict';
 
+    /* ---- ticket-type rules (Options → Ticket-Type Rules; storage.sync tt) ---- */
+    var TT = null;   // loaded config; defaults below reproduce shipped behavior
+    function mrtTicketType() {
+        var t = document.title + ' ' + (((document.querySelector('#ticket h2, .page-header h2') || {}).textContent) || '') + ' ' + (document.body.className || '');
+        if (/refurb/i.test(t)) return 'refurbish';
+        if (/trade/i.test(t)) return 'tradein';
+        if (/claim/i.test(t) || /\/ticket\/claim/.test(location.pathname)) return 'claim';
+        if (/sale/i.test(t) || /\/ticket\/add\b/.test(location.pathname)) return 'sale';
+        return 'repair';
+    }
+    function ttAllows(feature) {
+        var DEF = { followUp: { refurbish: false }, promise: { refurbish: false }, ready: { refurbish: false }, blacklist: { refurbish: false } };
+        var type = mrtTicketType();
+        var cfg = (TT && TT[feature]) || {};
+        if (cfg[type] !== undefined) return cfg[type] !== false;
+        return (DEF[feature] || {})[type] !== false;
+    }
+
+
     var BTN_SEL = 'a.save-ticket.ready_for_pickup, #Btnready_for_pickup, a.save-ticket[action="ready_for_pickup"]';
     var bypass = false;   // set true to let our re-fired click through
     // Enabled follow-up channels (Options → RingCentral SMS). SMS on by default;
@@ -380,8 +399,8 @@
         e.preventDefault();
         e.stopImmediatePropagation();
 
-        // refurbish tickets are internal — no customer; let RepairQ save natively
-        if (/refurbish/i.test(document.title) || /refurbish/i.test(document.body.className || '')) { proceed(btn); return; }
+        // ticket types opted out in Options → Ticket-Type Rules save natively
+        if (!ttAllows('ready')) { proceed(btn); return; }
         var t = ticketNo();
         if (!t) { popup(btn); return; }
         // Check the follow-up preference captured at check-in.
@@ -415,8 +434,9 @@
     }
 
     try {
-        chrome.storage.sync.get(['sms']).then(function (res) {
+        chrome.storage.sync.get(['sms', 'tt']).then(function (res) {
             var s = (res && res.sms) || {};
+            TT = (res && res.tt) || null;
             // per-channel gates. SMS defaults on (legacy readyText fallback); call/email off.
             CH.sendSms = s.sendSms !== undefined ? s.sendSms : (s.readyText !== false);
             CH.sendCall = s.sendCall === true;

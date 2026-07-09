@@ -32,6 +32,25 @@
 (function () {
     'use strict';
 
+    /* ---- ticket-type rules (Options → Ticket-Type Rules; storage.sync tt) ---- */
+    var TT = null;   // loaded config; defaults below reproduce shipped behavior
+    function mrtTicketType() {
+        var t = document.title + ' ' + (((document.querySelector('#ticket h2, .page-header h2') || {}).textContent) || '') + ' ' + (document.body.className || '');
+        if (/refurb/i.test(t)) return 'refurbish';
+        if (/trade/i.test(t)) return 'tradein';
+        if (/claim/i.test(t) || /\/ticket\/claim/.test(location.pathname)) return 'claim';
+        if (/sale/i.test(t) || /\/ticket\/add\b/.test(location.pathname)) return 'sale';
+        return 'repair';
+    }
+    function ttAllows(feature) {
+        var DEF = { followUp: { refurbish: false }, promise: { refurbish: false }, ready: { refurbish: false }, blacklist: { refurbish: false } };
+        var type = mrtTicketType();
+        var cfg = (TT && TT[feature]) || {};
+        if (cfg[type] !== undefined) return cfg[type] !== false;
+        return (DEF[feature] || {})[type] !== false;
+    }
+
+
     var SNAP_KEY = 'mrt_queue_snapshot';
     var SNAP_TTL = 5 * 60 * 1000;   // refresh when older than 5 min
     var INCLUDE = /(ready\s*for\s*repair|ready-for-repair|diagnos|in\s*repair|in\s*progress|new|open|approved)/i;
@@ -463,11 +482,9 @@
             placePill();
         }
 
-        // advisor UI only where the ESTIMATE box lives — and never on refurbish
-        // tickets (internal, no customer to promise a time to; the tab title
-        // "Refurbish Ticket / RepairQ" is the tell)
-        var isRefurb = /refurbish/i.test(document.title) || /refurbish/i.test(document.body.className || '');
-        if (!isRefurb && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
+        // advisor UI only where the ESTIMATE box lives, and only on ticket types
+        // opted in via Options → Ticket-Type Rules
+        if (ttAllows('promise') && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
             injectStyles();
             placeChip();
             new MutationObserver(placeChip).observe(document.body, { childList: true, subtree: true });
@@ -476,8 +493,9 @@
     }
 
     try {
-        chrome.storage.sync.get(['wn']).then(function (res) {
+        chrome.storage.sync.get(['wn', 'tt']).then(function (res) {
             var wn = (res && res.wn) || {};
+            TT = (res && res.tt) || null;
             if (wn.promise === false) return;
             if (wn.minsPer > 0) cfg.minsPer = Number(wn.minsPer);
             if (wn.open) cfg.open = wn.open;
