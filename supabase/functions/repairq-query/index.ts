@@ -455,6 +455,67 @@ async function actionLookerPull(p: any) {
   return json({ ok: true, query: p.name, location: p.location ?? null, row_count: all.length, cached: p.cache !== false, data: all });
 }
 
+// Fetch a Looker dashboard's element query definitions with our session.
+async function lookerGet(path: string): Promise<{ ok: boolean; status: number; data: any }> {
+  const s = await lookerSession();
+  const r = await fetch(`${LK_BASE}${path}`, { headers: { "cookie": s.cookie, "x-csrf-token": s.csrf, "accept": "application/json, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/dashboards/1` } });
+  const t = await r.text();
+  let j: any; try { j = JSON.parse(t); } catch { /* text */ }
+  return { ok: r.ok, status: r.status, data: j ?? t };
+}
+
+// The elegant path (Brett's insight): reference a Looker DASHBOARD by id, read
+// its tiles' query definitions from the API, run each for the target store,
+// and cache. No payload capture — the query lives in Looker, maintained there.
+async function actionLookerDashboard(p: any) {
+  const id = String(p?.dashboard_id || "");
+  if (!id) return json({ ok: false, error: "dashboard_id required" }, 400);
+  const dash = await lookerGet(`/api/internal/dashboards/${id}`);
+  if (!dash.ok) return json({ ok: false, error: `dashboard fetch HTTP ${dash.status}`, body: String(dash.data).slice(0, 300) }, 502);
+
+  const els = (dash.data?.dashboard_elements || []).filter((e: any) => e?.query && e.query.model);
+  const store = p.location != null ? String(p.location) : null;
+  const out: any[] = [];
+  for (const el of els) {
+    const q = el.query;
+    // point the location filter at the target store (keep all other filters)
+    const filters = { ...(q.filters || {}) };
+    if (store != null && ("location.short_name" in filters || p.force_location)) filters["location.short_name"] = store;
+    const pq: any = {
+      model: q.model, view: q.view, fields: q.fields || [], pivots: q.pivots || [],
+      fill_fields: q.fill_fields || [], filters,
+      filter_expression: q.filter_expression ?? "", sorts: q.sorts || [],
+      limit: String(q.limit || "500"), column_limit: String(q.column_limit || "50"),
+      total: !!q.total, row_total: q.row_total ?? "", subtotals: q.subtotals || [],
+      dynamic_fields: q.dynamic_fields ?? null, query_timezone: q.query_timezone ?? "",
+      filter_config: q.filter_config ?? undefined,
+      // required by querymanager create:
+      element_id: String(el.id), client_id: "mrtDash" + el.id,
+      generate_links: false, path_prefix: "/embed/dashboards", server_table_calcs: false, source: "dashboard",
+    };
+    try {
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const rows: any[] = [];
+      for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+      out.push({ element_id: String(el.id), title: el.title || null, row_count: rows.length, rows });
+    } catch (e) {
+      out.push({ element_id: String(el.id), title: el.title || null, error: String((e as Error).message || e) });
+    }
+  }
+
+  if (p.cache !== false) {
+    for (const el of out) {
+      if (el.error) continue;
+      await admin.from("repairq_cache").insert({
+        query_name: p.name || `dashboard:${id}:${el.element_id}`, location: p.location ?? null,
+        params: { dashboard_id: id, element_id: el.element_id, title: el.title },
+        status: 200, data: el.rows, row_count: el.row_count,
+      });
+    }
+  }
+  return json({ ok: true, dashboard_id: id, title: dash.data?.title || null, location: p.location ?? null, elements: out.map((e: any) => ({ element_id: e.element_id, title: e.title, row_count: e.row_count, error: e.error })), data: p.include_data ? out : undefined });
+}
+
 async function actionSaveQuery(p: any) {
   if (!p?.name || !p?.path) return json({ ok: false, error: "name and path required" }, 400);
   const row = {
@@ -565,6 +626,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, created: r.created, results: r.results });
     }
     if (payload?.action === "looker_pull") return await actionLookerPull(payload);
+    if (payload?.action === "looker_dashboard") return await actionLookerDashboard(payload);
+    if (payload?.action === "looker_get") {
+      // authenticated GET against Looker with our embed session (exploration)
+      const s = await lookerSession();
+      const p = String(payload?.path || "");
+      if (!p.startsWith("/")) return json({ ok: false, error: "path required (e.g. /api/internal/dashboards/2852)" }, 400);
+      const r = await fetch(`${LK_BASE}${p}`, { headers: { "cookie": s.cookie, "x-csrf-token": s.csrf, "accept": "application/json, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/dashboards/1` } });
+      const t = await r.text();
+      let j: any; try { j = JSON.parse(t); } catch { /* text */ }
+      return json({ ok: r.ok, status: r.status, data: j ?? undefined, body: j ? undefined : t.slice(0, 1500) });
+    }
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
