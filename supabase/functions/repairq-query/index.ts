@@ -761,6 +761,37 @@ function apiRowsToLabels(rows: any[], feed: string): any[] {
   });
 }
 
+// A Looker pivot cell is { "<pivot value>": { value, ... }, ... }. Pull the
+// numeric value for a pivot key (null → 0).
+function pivotVal(cell: any, key: string): number {
+  const c = cell && typeof cell === "object" ? cell[key] : null;
+  if (c == null) return 0;
+  if (typeof c === "object") return Number(c.value ?? 0) || 0;
+  return Number(c) || 0;
+}
+function pivotKeys(cell: any): string[] {
+  return cell && typeof cell === "object" ? Object.keys(cell) : [];
+}
+
+// Service (5399) is pivoted on the service name with two measures (all_sale_count
+// + all_net_sale_total). Flatten to the "<Service> - All Sale Count" /
+// "<Service> - All Net Sale Total" columns ingest's service parser strips + sums.
+function servicePivotRows(rows: any[]): any[] {
+  return rows.map((r) => {
+    const out: Record<string, unknown> = {
+      "Location": appStoreName(String(r["location.short_name"] ?? "")),
+      "Employee": r["sold_by.full_name"] ?? "",
+      "Accounted on Date": r["ticket_item.accounted_on_date"] ?? "",
+    };
+    const cnt = r["ticket_item.all_sale_count"], net = r["ticket_item.all_net_sale_total"];
+    for (const svc of new Set([...pivotKeys(cnt), ...pivotKeys(net)])) {
+      out[`${svc} - All Sale Count`] = pivotVal(cnt, svc);
+      out[`${svc} - All Net Sale Total`] = pivotVal(net, svc);
+    }
+    return out;
+  });
+}
+
 // Pull one Look and hand its (relabeled) rows to ingest. login-location stays
 // the global 799 session; location filter forced to all three stores.
 async function actionSyncIngest(p: any) {
@@ -775,7 +806,7 @@ async function actionSyncIngest(p: any) {
   const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
   const raw: any[] = [];
   for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
-  const labeled = apiRowsToLabels(raw, feed);
+  const labeled = feed === "commission_service" ? servicePivotRows(raw) : apiRowsToLabels(raw, feed);
   if (p?.dry_run) {
     return json({ ok: true, feed, look_id: lookId, pulled: raw.length, dry_run: true, sample_api: raw[0] ?? null, sample_labeled: labeled[0] ?? null });
   }
