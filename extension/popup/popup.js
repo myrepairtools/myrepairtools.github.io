@@ -1,5 +1,9 @@
 var TIER2_FLOOR = 40.00;
 var TIER3_FLOOR = 73.50;
+// Pricing model: 'franchise' loads the 5.8% royalty; 'cap' (Eugene — CAP store,
+// no royalty) stops at the CC fee. Synced with the tile overlay via
+// storage.sync mcpr.priceModel; switchable right in the popup.
+var PRICE_MODEL = 'franchise';
 
 function fmt(n) {
   return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -133,7 +137,7 @@ function calculate() {
   var additionalTotal = additionalItems.reduce(function(s, x) { return s + x.charged; }, 0);
   var base    = labor + primaryCost + additionalTotal;
   var afterCC = base * 1.0186;
-  var total   = afterCC * 1.058;
+  var total   = afterCC * (PRICE_MODEL === 'cap' ? 1 : 1.058);
   var ccFee   = afterCC - base;
   var royalty = total - afterCC;
   var rounded = cprRound(total);
@@ -174,12 +178,40 @@ function calculate() {
   set('fBase',        base > 0 ? fmt(base) : '--');
   set('fCC',          base > 0 ? '+' + fmt(ccFee) : '--');
   set('fAfterCC',     base > 0 ? fmt(afterCC) : '--');
-  set('fRoyalty',     base > 0 ? '+' + fmt(royalty) : '--');
+  set('fRoyalty',     PRICE_MODEL === 'cap' ? 'none (CAP)' : (base > 0 ? '+' + fmt(royalty) : '--'));
   set('totalDisplay', base > 0 ? fmt(rounded) : '--');
+}
+
+// keep the model pill + royalty label in sync with the active model
+function renderModel() {
+  var sel = document.getElementById('modelSelect');
+  if (sel && sel.value !== PRICE_MODEL) sel.value = PRICE_MODEL;
+  var lbl = document.getElementById('fRoyaltyLbl');
+  if (lbl) lbl.textContent = PRICE_MODEL === 'cap' ? 'Royalty' : 'Royalty (5.8%)';
+  calculate();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   buildPrimaryRow();
+  // load the shared pricing model, then wire the switcher
+  try {
+    chrome.storage.sync.get(['mcpr']).then(function (res) {
+      PRICE_MODEL = (res && res.mcpr && res.mcpr.priceModel) === 'cap' ? 'cap' : 'franchise';
+      renderModel();
+    }).catch(calculate);
+  } catch (e) { /* not in an extension context (fullview file://) */ }
+  var sel = document.getElementById('modelSelect');
+  if (sel) sel.addEventListener('change', function () {
+    PRICE_MODEL = sel.value === 'cap' ? 'cap' : 'franchise';
+    try {
+      chrome.storage.sync.get(['mcpr']).then(function (res) {
+        var m = (res && res.mcpr) || {};
+        m.priceModel = PRICE_MODEL;
+        chrome.storage.sync.set({ mcpr: m });
+      });
+    } catch (e) { /* best effort */ }
+    renderModel();
+  });
   calculate();
 
   document.getElementById('addPartBtn').addEventListener('click', addAdditional);

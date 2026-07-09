@@ -22,6 +22,8 @@
     'use strict';
 
     var STRIP_CLASS = 'mrt-price-strip';
+    // Pricing model (mcpr.priceModel): 'franchise' loads the 5.8% royalty;
+    // 'cap' (Eugene — CAP store) has no royalty. Set from storage at boot.
     var CC_FEE = 1.0186, ROYALTY = 1.058;
 
     /* ---------- pricing (mirror of popup/popup.js) ---------- */
@@ -173,6 +175,7 @@
         chrome.storage.sync.get(['mcpr']).then(function (res) {
             var m = (res && res.mcpr) || {};
             if (m.priceOverlay === false) return;
+            if (m.priceModel === 'cap') ROYALTY = 1;   // CAP store — no royalty
             start();
         }).catch(start);
     } catch (e) { start(); }

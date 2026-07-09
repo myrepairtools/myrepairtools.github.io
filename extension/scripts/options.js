@@ -59,6 +59,7 @@ function saveOptions(done) {
     let mcpr = {};
     for (const k in mcprIds) { mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked'; }
     mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
+    mcpr.priceModel = document.getElementById('mcprPriceModel').value === 'cap' ? 'cap' : 'franchise';
     const customQuickLinkFrame1 = document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked';
     const customQuickLinkFrame2 = document.getElementById('customQuickLinkFrame2').getAttribute('data-checked') === 'checked';
     const customQuickLinkFrame3 = document.getElementById('customQuickLinkFrame3').getAttribute('data-checked') === 'checked';
@@ -150,6 +151,7 @@ function restoreOptions() {
             setState(document.getElementById(mcprIds[k]), on, 'lcd-checkmark');
         }
         document.getElementById('mcprClockTime').value = mcpr.clockTime || '09:40';
+        document.getElementById('mcprPriceModel').value = mcpr.priceModel === 'cap' ? 'cap' : 'franchise';
 
         const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
         for (const k in lcdIds) {
@@ -185,7 +187,7 @@ function addButtonListeners() {
 
     // text inputs debounce-save; number/time save on change
     document.querySelectorAll('input[type="text"]').forEach((inp) => inp.addEventListener('input', () => scheduleSave(500)));
-    ['wnMinsPer', 'wnOpen', 'wnClose', 'mcprClockTime'].forEach((id) => {
+    ['wnMinsPer', 'wnOpen', 'wnClose', 'mcprClockTime', 'mcprPriceModel'].forEach((id) => {
         document.getElementById(id).addEventListener('change', () => scheduleSave());
     });
 }

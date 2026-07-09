@@ -1,3 +1,11 @@
+// Pricing model shared with the popup + tile overlay (mcpr.priceModel):
+// 'franchise' loads the 5.8% royalty, 'cap' (Eugene) has none.
+var PRICE_MODEL = 'franchise';
+try { chrome.storage.sync.get(['mcpr']).then(function (r) {
+  PRICE_MODEL = (r && r.mcpr && r.mcpr.priceModel) === 'cap' ? 'cap' : 'franchise';
+  if (typeof calculate === 'function') calculate();
+}); } catch (e) { /* not in extension context */ }
+
 var TIER2_FLOOR = 40.00;
 var TIER3_FLOOR = 73.50;
 
@@ -109,7 +117,7 @@ function calculate() {
   var additionalTotal = additionalItems.reduce(function(a, x) { return a + x.charged; }, 0);
   var base    = labor + primaryCost + additionalTotal;
   var afterCC = base * 1.0186;
-  var total   = afterCC * 1.058;
+  var total   = afterCC * (PRICE_MODEL === 'cap' ? 1 : 1.058);
   var ccFee   = afterCC - base;
   var royalty = total - afterCC;
   var rounded = cprRound(total);
@@ -149,7 +157,7 @@ function calculate() {
   set('fBase',        base > 0 ? fmt(base) : '--');
   set('fCC',          base > 0 ? '+' + fmt(ccFee) : '--');
   set('fAfterCC',     base > 0 ? fmt(afterCC) : '--');
-  set('fRoyalty',     base > 0 ? '+' + fmt(royalty) : '--');
+  set('fRoyalty',     PRICE_MODEL === 'cap' ? 'none (CAP)' : (base > 0 ? '+' + fmt(royalty) : '--'));
   set('totalDisplay', base > 0 ? fmt(rounded) : '--');
 }
 
