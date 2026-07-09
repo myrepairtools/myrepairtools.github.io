@@ -136,6 +136,18 @@
         return clone.textContent.replace(/\s+/g, ' ').trim();
     }
 
+    // RepairQ prefixes each ticket item with its item TYPE in italics —
+    // "Repair - Phone:", "Device - Phone:", "Accessory - Case:" … Only actual
+    // DEVICE items (Device - Phone / Device - Tablet) are sellable cellular
+    // hardware. Repair labor lines merely RELATE to the customer's own device
+    // (whose IMEI shows in the Relations column) and must never trigger.
+    function isSellableDevice(row) {
+        var cell = row.querySelector('td.catalog-item-col') || row.querySelector('td');
+        var em = cell && cell.querySelector('em');
+        var t = em ? em.textContent.replace(/\s+/g, ' ').trim() : '';
+        return /^device\s*[-–]\s*(phone|tablet)/i.test(t);
+    }
+
     function readDone() {
         try { return JSON.parse(sessionStorage.getItem(DONE_KEY) || '{}'); } catch (e) { return {}; }
     }
@@ -152,12 +164,18 @@
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
             if (row.getAttribute('data-mrt-bl')) continue;
+            // item-type gate FIRST: only "Device - Phone" / "Device - Tablet"
+            // catalog items — never repair/accessory lines (their row text can
+            // carry the customer's device IMEI via the Relations column)
+            if (!isSellableDevice(row)) {
+                if (row.textContent.trim()) row.setAttribute('data-mrt-bl', '0');
+                continue;
+            }
             var text = row.textContent.replace(/\s+/g, ' ');
             var imei = imeiIn(text);
             if (!imei) {
-                // rows can gain their serial after save — only mark rows that
-                // already have content so late serials still trigger
-                if (text.trim()) row.setAttribute('data-mrt-bl', '0');
+                // device rows can gain their serial after save — leave them
+                // unmarked so late serials still trigger
                 continue;
             }
             row.setAttribute('data-mrt-bl', '1');
