@@ -432,7 +432,16 @@ async function actionLookerPull(p: any) {
   const { data: tpl, error } = await admin.from("repairq_queries")
     .select("*").eq("name", String(p.name)).eq("active", true).maybeSingle();
   if (error) return json({ ok: false, error: error.message }, 500);
-  if (!tpl?.body_template) return json({ ok: false, error: `no active Looker template "${p.name}"` }, 404);
+  if (!tpl) return json({ ok: false, error: `no active query "${p.name}"` }, 404);
+  // Catalog entry may point at a saved Look ('look:<id>') or a dashboard
+  // ('dashboard:<id>') instead of carrying an inline body — delegate.
+  const m = /^(look|dashboard):(\d+)$/.exec(String(tpl.path || ""));
+  if (m) {
+    return m[1] === "look"
+      ? await actionLookerLook({ ...p, look_id: m[2] })
+      : await actionLookerDashboard({ ...p, dashboard_id: m[2] });
+  }
+  if (!tpl.body_template) return json({ ok: false, error: `template "${p.name}" has no body or look/dashboard path` }, 404);
 
   // Looker filters on the store NAME, not the numeric id — {loc} = store name.
   const loc = p.location != null ? String(p.location) : null;
