@@ -221,11 +221,26 @@ const jarStr = (jar: Record<string, string>) => Object.entries(jar).map(([k, v])
 // 302 around inside cpr.repairq.io, so follow same-host redirects a few hops
 // and scan every body along the way. Also harvest analytics-ish links from
 // the app shell ("/") as extra candidates.
+function htmlUnescape(s: string): string {
+  return s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+
 async function findEmbedUrl(): Promise<{ url?: string; tried: any[] }> {
   const tried: any[] = [];
-  const scanBody = (body: string) =>
-    (body.match(/https:(?:\\\/\\\/|\/\/)repairq\.looker\.com[^"'\s\\]{0,600}/g) || [])
-      .map((u) => u.replace(/\\\//g, "/").replace(/&amp;/g, "&"));
+  // The signed SSO URL is the FULL iframe src on the analytics page — up to
+  // ~1300 chars ending in &signature=… . Grab the whole quoted attribute
+  // (never truncate: a clipped signature makes Looker bounce to /login).
+  const scanBody = (body: string): string[] => {
+    const out: string[] = [];
+    for (const m of body.matchAll(/(?:src|href)\s*=\s*"(https:(?:\\\/\\\/|\/\/)repairq\.looker\.com\/login\/embed\/[^"]+)"/g)) {
+      out.push(htmlUnescape(m[1].replace(/\\\//g, "/")));
+    }
+    // fallback: unquoted/escaped occurrences (still take the full run to the next quote)
+    for (const m of body.matchAll(/https:(?:\\\/\\\/|\/\/)repairq\.looker\.com\/login\/embed\/[^"'\s\\<]+/g)) {
+      out.push(htmlUnescape(m[0].replace(/\\\//g, "/")));
+    }
+    return out;
+  };
 
   const candidates = ["/analytics", "/report/analytics", "/bi", "/looker", "/report"];
   try {
@@ -233,7 +248,7 @@ async function findEmbedUrl(): Promise<{ url?: string; tried: any[] }> {
     const navLinks = [...new Set((home.body.match(/href="(?:https:\/\/cpr\.repairq\.io)?(\/[a-zA-Z\/]*(?:analytic|looker|insight|bi)[a-zA-Z\/]*)"/gi) || [])
       .map((h) => h.replace(/^href="/, "").replace(/"$/, "").replace("https://cpr.repairq.io", "")))];
     tried.push({ path: "/", status: home.status, nav_candidates: navLinks });
-    candidates.unshift(...navLinks);
+    candidates.unshift("/analytics/dashboard?dashboard=cpr_dashboard&location=" + (LOGIN_LOCATION || ""), ...navLinks);
     const fromHome = scanBody(home.body).find((u) => /\/login\/embed\//.test(u));
     if (fromHome) return { url: fromHome, tried };
   } catch { /* home scan optional */ }
@@ -314,12 +329,14 @@ async function lookerRun(body: any, retry = true): Promise<{ created: any; resul
     "user-agent": UA,
   };
   const post = await fetch(`${LK_BASE}/api/internal/querymanager/queries`, { method: "POST", headers: hdr, body: JSON.stringify(body) });
-  const created = await post.json().catch(() => ({}));
+  const rawText = await post.text();
+  let created: any = {};
+  try { created = JSON.parse(rawText); } catch { /* keep text */ }
   if (post.status === 401 || post.status === 403) {
     if (retry) { await lookerSession(true); return await lookerRun(body, false); }
     throw new Error(`Looker auth rejected (HTTP ${post.status})`);
   }
-  if (!post.ok) throw new Error(`queries HTTP ${post.status}: ${JSON.stringify(created).slice(0, 400)}`);
+  if (!post.ok) throw new Error(`queries HTTP ${post.status}: ${(rawText || "(empty)").slice(0, 500)}`);
 
   // Collect query-task ids from the response (32-hex strings), then poll each.
   const ids = new Set<string>();
@@ -331,18 +348,35 @@ async function lookerRun(body: any, retry = true): Promise<{ created: any; resul
   };
   scan(created);
 
+  const getHdr = { "cookie": s.cookie, "x-csrf-token": s.csrf, "accept": "application/json, text/plain, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/explore` };
   const results: any[] = [];
   for (const id of [...ids].slice(0, 4)) {
-    let last: any = null;
-    for (let i = 0; i < 20; i++) {
-      const r = await fetch(`${LK_BASE}/api/internal/dataflux/query_tasks/${id}`, { headers: { ...hdr, "content-type": undefined as any } });
-      last = await r.json().catch(() => ({}));
-      const status = last?.status || last?.query_task?.status || "";
-      const done = /complete|error|failure/i.test(String(status)) || last?.data != null || last?.results != null;
-      if (done) break;
-      await new Promise((res) => setTimeout(res, 1200));
+    // 1. poll status to completion
+    let status = "";
+    for (let i = 0; i < 25; i++) {
+      const r = await fetch(`${LK_BASE}/api/internal/dataflux/query_tasks/${id}`, { headers: getHdr });
+      const j = await r.json().catch(() => ({}));
+      status = j?.status || "";
+      if (/complete|error|failure/i.test(status)) break;
+      await new Promise((res) => setTimeout(res, 1000));
     }
-    results.push({ task_id: id, result: last });
+    // 2. fetch the row data from the results endpoint (JSON array of row objects)
+    let rows: any = null, via: string | null = null;
+    for (const ep of [
+      `/api/internal/dataflux/query_tasks/${id}/results`,
+      `/api/internal/query_tasks/${id}/results`,
+      `/api/internal/dataflux/query_tasks/${id}/results?apply_formatting=true`,
+    ]) {
+      try {
+        const r = await fetch(`${LK_BASE}${ep}`, { headers: getHdr });
+        if (!r.ok) continue;
+        const j = await r.json().catch(() => null);
+        const arr = Array.isArray(j) ? j : (Array.isArray(j?.data) ? j.data : (Array.isArray(j?.rows) ? j.rows : null));
+        if (arr) { rows = arr; via = ep; break; }
+        if (j && rows == null) { rows = j; via = ep + " (non-array)"; }
+      } catch { /* try next */ }
+    }
+    results.push({ task_id: id, status, via, row_count: Array.isArray(rows) ? rows.length : null, rows });
   }
   return { created, results };
 }
@@ -376,6 +410,49 @@ async function resolveLoc(location: string | null | undefined): Promise<string |
     }
   } catch { /* column may not exist yet — fall through */ }
   return raw;
+}
+
+// Looker rows come as { field: {value, rendered, ...} }. Flatten to {field: value}.
+function flattenLookerRows(rows: any[]): any[] {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const [k, cell] of Object.entries(row || {})) {
+      out[k] = (cell && typeof cell === "object" && "value" in (cell as any)) ? (cell as any).value : cell;
+    }
+    return out;
+  });
+}
+
+// Run a saved LOOKER template by name, substituting {loc} (the store's Looker
+// location name — its canonical store name) and any {param}, then cache the
+// flattened rows into repairq_cache. This is the demand pull crons call.
+async function actionLookerPull(p: any) {
+  if (!p?.name) return json({ ok: false, error: "name required" }, 400);
+  const { data: tpl, error } = await admin.from("repairq_queries")
+    .select("*").eq("name", String(p.name)).eq("active", true).maybeSingle();
+  if (error) return json({ ok: false, error: error.message }, 500);
+  if (!tpl?.body_template) return json({ ok: false, error: `no active Looker template "${p.name}"` }, 404);
+
+  // Looker filters on the store NAME, not the numeric id — {loc} = store name.
+  const loc = p.location != null ? String(p.location) : null;
+  const params = (p.params && typeof p.params === "object") ? p.params : {};
+  let bodyStr = JSON.stringify(tpl.body_template);
+  if (loc != null) bodyStr = bodyStr.split("{loc}").join(loc);
+  for (const [k, v] of Object.entries(params)) bodyStr = bodyStr.split(`{${k}}`).join(String(v));
+  const body = JSON.parse(bodyStr);
+
+  const run = await lookerRun(body);
+  const all: any[] = [];
+  for (const r of run.results) if (Array.isArray(r.rows)) all.push(...flattenLookerRows(r.rows));
+
+  if (p.cache !== false && all.length >= 0) {
+    await admin.from("repairq_cache").insert({
+      query_name: String(p.name), location: p.location ?? null, params,
+      status: 200, data: all, row_count: all.length,
+    });
+  }
+  return json({ ok: true, query: p.name, location: p.location ?? null, row_count: all.length, cached: p.cache !== false, data: all });
 }
 
 async function actionSaveQuery(p: any) {
@@ -487,6 +564,7 @@ Deno.serve(async (req) => {
       const r = await lookerRun(payload.body);
       return json({ ok: true, created: r.created, results: r.results });
     }
+    if (payload?.action === "looker_pull") return await actionLookerPull(payload);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
