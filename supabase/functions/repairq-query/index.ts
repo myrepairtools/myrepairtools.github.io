@@ -322,8 +322,10 @@ async function lookerSession(force = false): Promise<{ cookie: string; csrf: str
 }
 
 // Run one captured Analytics query payload end-to-end: create (async) → poll.
-async function lookerRun(body: any, retry = true): Promise<{ created: any; results: any[] }> {
-  const s = await lookerSession();
+// Pass `sess` to run as an isolated embed user (a specific store location);
+// omit it to use the module-global session (the live 917 crons).
+async function lookerRun(body: any, retry = true, sess?: { cookie: string; csrf: string }): Promise<{ created: any; results: any[] }> {
+  const s = sess || await lookerSession();
   const hdr = {
     "content-type": "application/json",
     "accept": "*/*",
@@ -338,7 +340,8 @@ async function lookerRun(body: any, retry = true): Promise<{ created: any; resul
   let created: any = {};
   try { created = JSON.parse(rawText); } catch { /* keep text */ }
   if (post.status === 401 || post.status === 403) {
-    if (retry) { await lookerSession(true); return await lookerRun(body, false); }
+    // only the global session can self-heal; an isolated session just fails.
+    if (retry && !sess) { await lookerSession(true); return await lookerRun(body, false); }
     throw new Error(`Looker auth rejected (HTTP ${post.status})`);
   }
   if (!post.ok) throw new Error(`queries HTTP ${post.status}: ${(rawText || "(empty)").slice(0, 500)}`);
@@ -474,8 +477,8 @@ async function actionLookerPull(p: any) {
 }
 
 // Fetch a Looker dashboard's element query definitions with our session.
-async function lookerGet(path: string): Promise<{ ok: boolean; status: number; data: any }> {
-  const s = await lookerSession();
+async function lookerGet(path: string, sess?: { cookie: string; csrf: string }): Promise<{ ok: boolean; status: number; data: any }> {
+  const s = sess || await lookerSession();
   const r = await fetch(`${LK_BASE}${path}`, { headers: { "cookie": s.cookie, "x-csrf-token": s.csrf, "accept": "application/json, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/dashboards/1` } });
   const t = await r.text();
   let j: any; try { j = JSON.parse(t); } catch { /* text */ }
@@ -515,7 +518,7 @@ async function actionLookerMerge(p: any) {
 
   // resolve result_maker_id from the dashboard element if not supplied
   if (!rmId) {
-    const dash = await lookerGet(`/api/internal/dashboards/${dashId}`);
+    const dash = await lookerGet(`/api/internal/dashboards/${dashId}`, p._sess);
     const el = (dash.data?.dashboard_elements || []).find((e: any) => String(e.id) === elId);
     rmId = el?.result_maker_id != null ? String(el.result_maker_id) : "";
     if (!rmId) return json({ ok: false, error: `element ${elId} has no result_maker_id` }, 404);
@@ -533,7 +536,7 @@ async function actionLookerMerge(p: any) {
     context: { id: dashId, type: "dashboard", session_id: sid },
     options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
   };
-  const run = await lookerRun(body);
+  const run = await lookerRun(body, true, p._sess);
   const rows: any[] = [];
   for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
   if (p.cache !== false) {
@@ -550,11 +553,11 @@ async function actionLookerMerge(p: any) {
 async function actionLookerLook(p: any) {
   const id = String(p?.look_id || "");
   if (!id) return json({ ok: false, error: "look_id required" }, 400);
-  const look = await lookerGet(`/api/internal/looks/${id}`);
+  const look = await lookerGet(`/api/internal/looks/${id}`, p._sess);
   if (!look.ok || !look.data?.query) return json({ ok: false, error: `look fetch HTTP ${look.status}`, body: String(look.data).slice(0, 300) }, 502);
   const store = p.location != null ? String(p.location) : null;
   const pq = plainFromQuery(look.data.query, "look" + id, store, "look", "/embed/looks", p.force_location);
-  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }, true, p._sess);
   const rows: any[] = [];
   for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
   if (p.cache !== false) {
@@ -572,7 +575,7 @@ async function actionLookerLook(p: any) {
 async function actionLookerDashboard(p: any) {
   const id = String(p?.dashboard_id || "");
   if (!id) return json({ ok: false, error: "dashboard_id required" }, 400);
-  const dash = await lookerGet(`/api/internal/dashboards/${id}`);
+  const dash = await lookerGet(`/api/internal/dashboards/${id}`, p._sess);
   if (!dash.ok) return json({ ok: false, error: `dashboard fetch HTTP ${dash.status}`, body: String(dash.data).slice(0, 300) }, 502);
 
   const els = (dash.data?.dashboard_elements || []).filter((e: any) => e?.query && e.query.model);
@@ -596,7 +599,7 @@ async function actionLookerDashboard(p: any) {
       generate_links: false, path_prefix: "/embed/dashboards", server_table_calcs: false, source: "dashboard",
     };
     try {
-      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }, true, p._sess);
       const rows: any[] = [];
       for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
       out.push({ element_id: String(el.id), title: el.title || null, row_count: rows.length, rows });
@@ -950,6 +953,38 @@ async function runDashboardAs(loc: string, dashId: string, storeOverride: string
   return { ok: true, loc, dashboard_id: dashId, title: dash?.title || null, store_override: storeOverride, tiles };
 }
 
+// Run a LITERAL querymanager body (exactly as captured from a browser cURL) AS a
+// given store location. Optionally rewrite every location.short_name filter to
+// `locationOverride` so an Eugene-authored dashboard pulls ALL stores. Forces
+// non-streaming so results arrive via query_tasks. Reuses the session-aware
+// lookerRun. This is the canonical consumer for the Eugene report catalog.
+async function runQueryBodyAs(loc: string, body: any, locationOverride: string | null): Promise<any> {
+  const sess = await isolatedLookerSession(loc);
+  if (!sess.ok) return { ok: false, loc, stage: sess.stage, error: sess.error, trail: sess.trail };
+  const b = JSON.parse(JSON.stringify(body || {}));
+  b.options = { ...(b.options || {}), streaming: false, force_run: false, eager_poll: false, enable_phases: false };
+  if (locationOverride != null) {
+    for (const grp of ["saved_queries", "plain_queries"]) {
+      for (const sq of (b[grp] || [])) {
+        for (const f of (Array.isArray(sq.filters) ? sq.filters : [sq.filters].filter(Boolean))) {
+          if (f && typeof f === "object" && "location.short_name" in f) f["location.short_name"] = locationOverride;
+        }
+      }
+    }
+  }
+  // Looker needs a context.session_id; invent a stable one if absent.
+  if (b.context && !b.context.session_id) b.context.session_id = "mrt" + String(b.context.id || "");
+  let run: any;
+  try { run = await lookerRun(b, true, { cookie: sess.cookie!, csrf: sess.csrf! }); }
+  catch (e) { return { ok: false, loc, stage: "run", error: String((e as Error).message || e) }; }
+  const perTask = (run.results || []).map((r: any) => ({ task_id: r.task_id, status: r.status, row_count: Array.isArray(r.rows) ? r.rows.length : null }));
+  const rows: any[] = [];
+  for (const r of (run.results || [])) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+  const storeKey = rows.length ? (Object.keys(rows[0]).find((k) => /location|store/i.test(k)) || null) : null;
+  const stores = storeKey ? [...new Set(rows.map((r) => r[storeKey]).filter((v) => v != null))] : [];
+  return { ok: true, loc, location_override: locationOverride, row_count: rows.length, per_task: perTask, store_key: storeKey, distinct_stores: stores, columns: rows.length ? Object.keys(rows[0]) : [], sample: rows.slice(0, 5) };
+}
+
 // Run one dashboard saved-query as a given store's embed user (isolated session)
 // and return the flattened rows — used to answer "is this embed user row-locked
 // to its own store, or can it see all stores' data?". No global state touched.
@@ -1079,6 +1114,14 @@ Deno.serve(async (req) => {
       const rmId = String(payload?.result_maker_id || "").trim();
       if (!loc || !dashId || !elId || !rmId) return json({ ok: false, error: "login_location, dashboard_id, element_id, result_maker_id required" }, 400);
       return json(await runSavedQueryAs(loc, dashId, elId, rmId, payload?.filters || []));
+    }
+    if (payload?.action === "looker_body_as") {
+      // isolated: run a literal querymanager body (captured cURL) as a store
+      // location, optionally rewriting location.short_name to pull all stores.
+      const loc = String(payload?.login_location || "").trim();
+      if (!loc || !payload?.body) return json({ ok: false, error: "login_location and body required" }, 400);
+      const override = payload?.location_override != null ? String(payload.location_override) : null;
+      return json(await runQueryBodyAs(loc, payload.body, override));
     }
     if (payload?.action === "looker_dashboard_as") {
       // isolated: pull a whole dashboard AS a store location; reports per-tile
