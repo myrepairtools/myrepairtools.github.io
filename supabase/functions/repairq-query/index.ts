@@ -433,9 +433,13 @@ async function actionLookerPull(p: any) {
     .select("*").eq("name", String(p.name)).eq("active", true).maybeSingle();
   if (error) return json({ ok: false, error: error.message }, 500);
   if (!tpl) return json({ ok: false, error: `no active query "${p.name}"` }, 404);
-  // Catalog entry may point at a saved Look ('look:<id>') or a dashboard
-  // ('dashboard:<id>') instead of carrying an inline body — delegate.
-  const m = /^(look|dashboard):(\d+)$/.exec(String(tpl.path || ""));
+  // Catalog entry may point at a saved Look ('look:<id>'), a plain dashboard
+  // ('dashboard:<id>'), or a merged-results tile
+  // ('merge:<dashId>:<elId>[:<resultMakerId>]') instead of an inline body.
+  const path = String(tpl.path || "");
+  const mm = /^merge:(\d+):(\d+)(?::(\d+))?$/.exec(path);
+  if (mm) return await actionLookerMerge({ ...p, dashboard_id: mm[1], element_id: mm[2], result_maker_id: mm[3] });
+  const m = /^(look|dashboard):(\d+)$/.exec(path);
   if (m) {
     return m[1] === "look"
       ? await actionLookerLook({ ...p, look_id: m[2] })
