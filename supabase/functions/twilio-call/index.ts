@@ -87,10 +87,10 @@ async function ownedNumbers(): Promise<string[]> {
 }
 
 // store → its line, alias-tolerant (mirror of messaging's lineForStore)
-async function lineFor(raw: string | null | undefined): Promise<{ store: string; sms_number: string } | null> {
+async function lineFor(raw: string | null | undefined): Promise<{ store: string; sms_number: string; hours_text?: string | null } | null> {
   if (!raw) return null;
   const q = String(raw).trim().toLowerCase();
-  const { data } = await admin.from("store_lines").select("store, sms_number, aliases").eq("active", true);
+  const { data } = await admin.from("store_lines").select("store, sms_number, aliases, hours_text").eq("active", true);
   for (const l of (data || [])) {
     if (l.store.toLowerCase() === q) return l;
     if ((Array.isArray(l.aliases) ? l.aliases : []).some((a: string) => String(a).toLowerCase() === q)) return l;
@@ -176,16 +176,27 @@ async function actionCall(payload: any, sentBy: { id?: string; name?: string }) 
   if (!from) from = (await ownedNumbers())[0] || null;
   if (!from) return json({ ok: false, error: "No usable caller ID — verify the store number or buy a Twilio number" }, 400);
 
-  // spoken message — plain, slow, said twice (voicemail-friendly)
+  // Spoken message — Britt's script, personalized (name, device, store hours),
+  // delivered by "Hope" on an Amazon GENERATIVE voice (human-quality TTS via
+  // Twilio <Say> — no AI agent, no audio hosting; the text is dynamic per call).
+  // Full message once, pause, then a short recap (voicemail-friendly without
+  // droning the whole script twice).
   const name = String(payload?.customer_name || "").trim().split(/\s+/)[0] || "";
-  const device = String(payload?.device || "").trim();
-  const storeSpoken = String(store || "CPR Cell Phone Repair").replace(/\s+OR$/i, "").replace(/^CPR\s*/i, "");
-  const msg = `Hi${name ? " " + name : ""}! This is C P R Cell Phone Repair${storeSpoken ? ", " + storeSpoken : ""}, with good news: your ${device || "repair"} is ready for pickup. Come by during business hours — see you soon!`;
+  const device = String(payload?.device || "").trim() || "device";
+  const hours = (line as any)?.hours_text || "";
+  const persona = String(payload?.caller_name || "Hope");
+  const voice = String(payload?.voice || "Polly.Ruth-Generative");
+  const msg =
+    `Hi${name ? " " + name : ""}! This is ${persona} from CPR Cell Phone Repair, ` +
+    `calling to let you know that your ${device} is ready for pickup. ` +
+    (hours ? `Our store hours are ${hours}. ` : "") +
+    `Please give us a call if you have any questions. Thank you!`;
+  const recap = `Once more — this is ${persona} from CPR Cell Phone Repair, and your ${device} is ready for pickup. See you soon!`;
   const twiml =
     `<Response><Pause length="1"/>` +
-    `<Say voice="Polly.Joanna">${xmlEsc(msg)}</Say>` +
-    `<Pause length="1"/><Say voice="Polly.Joanna">Once more: ${xmlEsc(msg)}</Say>` +
-    `<Say voice="Polly.Joanna">Goodbye!</Say></Response>`;
+    `<Say voice="${xmlEsc(voice)}">${xmlEsc(msg)}</Say>` +
+    `<Pause length="1"/><Say voice="${xmlEsc(voice)}">${xmlEsc(recap)}</Say>` +
+    `</Response>`;
 
   const body = new URLSearchParams({ To: to, From: from, Twiml: twiml });
   let ok = false, sid: string | null = null, err: string | null = null;
