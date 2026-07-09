@@ -93,34 +93,62 @@ function getSetCookies(res: Response): string[] {
 }
 
 async function login(): Promise<{ ok: boolean; error?: string; cookie?: string }> {
-  if (!USERNAME || !PASSWORD || !WORKSTATION_KEY || !LOGIN_LOCATION) {
-    return { ok: false, error: "RepairQ secrets not configured (need USERNAME, PASSWORD, WORKSTATION_KEY, LOGIN_LOCATION)" };
+  if (!USERNAME || !PASSWORD || !LOGIN_LOCATION) {
+    return { ok: false, error: "RepairQ secrets not configured (need USERNAME, PASSWORD, LOGIN_LOCATION)" };
   }
+  // 1. GET the login page first: it primes the session + CSRF cookies and
+  //    carries TWO values the POST must echo back — the Yii CSRF token and a
+  //    server-issued workstation key (fresh per visit; the secret is only a
+  //    fallback). Skipping this is why naive logins silently fail.
+  const jar: Record<string, string> = {};
+  const pre = await fetch(`${RQ_BASE}/site/login`, {
+    redirect: "manual",
+    headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml,*/*", "accept-language": "en-US,en;q=0.9" },
+  });
+  jarMerge(jar, pre);
+  const html = await pre.text();
+  const pick = (name: string) => {
+    const re1 = new RegExp(`name="${name.replace(/[[\]]/g, "\\$&")}"[^>]*value="([^"]*)"`);
+    const re2 = new RegExp(`value="([^"]*)"[^>]*name="${name.replace(/[[\]]/g, "\\$&")}"`);
+    return (html.match(re1) || html.match(re2) || [])[1] || "";
+  };
+  const csrf = pick("YII_CSRF_TOKEN");
+  const wsk = pick("UserLoginForm[workstation_key]") || WORKSTATION_KEY;
+
   const form = new URLSearchParams();
+  if (csrf) form.set("YII_CSRF_TOKEN", csrf);
   form.set("UserLoginForm[username]", USERNAME);
   form.set("UserLoginForm[password]", PASSWORD);
-  form.set("UserLoginForm[workstation_key]", WORKSTATION_KEY);
+  form.set("UserLoginForm[workstation_key]", wsk);
   form.set("UserLoginForm[currentLocation]", LOGIN_LOCATION);
 
   const res = await fetch(`${RQ_BASE}/site/login`, {
     method: "POST",
     redirect: "manual",   // the session cookie is on the 302, not the followed page
     headers: {
-      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "accept-language": "en-US,en;q=0.9",
       "content-type": "application/x-www-form-urlencoded",
       "origin": RQ_BASE,
       "referer": `${RQ_BASE}/site/login`,
       "user-agent": UA,
+      "cookie": jarStr(jar),
     },
     body: form.toString(),
   });
-  const cookie = parseSessionCookie(getSetCookies(res));
-  if (!cookie) {
-    return { ok: false, error: `login returned no session cookie (HTTP ${res.status}) — check credentials/workstation key` };
+  jarMerge(jar, res);
+  const loc = res.headers.get("location") || "";
+  // success = a redirect AWAY from the login page
+  if (!(res.status >= 300 && res.status < 400) || /site\/login/i.test(loc)) {
+    const body = await res.text().catch(() => "");
+    // Yii renders validation errors in .errorSummary / .errorMessage / .help-inline
+    const errs = [...body.matchAll(/class="(?:errorSummary|errorMessage|help-inline|alert[^"]*)"[^>]*>([\s\S]{0,240}?)<\/(?:div|span|p|li)>/gi)]
+      .map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 3);
+    return { ok: false, error: `login not accepted (HTTP ${res.status}${loc ? " → " + loc : ""})${errs.length ? " — " + errs.join(" | ") : ""}`, debug: { csrf_found: !!csrf, wsk_used: wsk ? wsk.slice(0, 4) + "…" : null, loc_used: LOGIN_LOCATION, body_snippet: body.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 300) } } as any;
   }
-  session = { cookie, at: Date.now() };
-  return { ok: true, cookie };
+  if (!jar["PHPSESSID"]) return { ok: false, error: "login redirected but no PHPSESSID cookie present" };
+  session = { cookie: jarStr(jar), at: Date.now() };
+  return { ok: true, cookie: session.cookie };
 }
 
 async function ensureSession(force = false): Promise<{ ok: boolean; error?: string; cookie?: string }> {
@@ -166,7 +194,157 @@ async function rqRequest(opts: { method?: string; path: string; body?: string; f
   const text = await res.text();
   let parsed: any = undefined;
   try { parsed = JSON.parse(text); } catch { /* not json */ }
-  return { status: res.status, body: text, json: parsed };
+  return { status: res.status, body: text, json: parsed, location: res.headers.get("location") };
+}
+
+/* ---------------- Looker embed (RepairQ Analytics reports) ---------------- */
+// RepairQ's Analytics reports are Looker embeds on repairq.looker.com. Auth
+// chain: RepairQ session → the Analytics page carries a SIGNED embed SSO URL
+// → following it (redirects) mints Looker session cookies + a CSRF token →
+// then the internal query API works: POST querymanager/queries (async) →
+// poll dataflux/query_tasks/<id> for results.
+
+const LK_BASE = "https://repairq.looker.com";
+let lookerSess: { cookie: string; csrf: string; at: number } | null = null;
+const LOOKER_TTL = 15 * 60 * 1000;
+
+function jarMerge(jar: Record<string, string>, res: Response) {
+  for (const sc of getSetCookies(res)) {
+    const first = sc.split(";")[0];
+    const eq = first.indexOf("=");
+    if (eq > 0) jar[first.slice(0, eq).trim()] = first.slice(eq + 1).trim();
+  }
+}
+const jarStr = (jar: Record<string, string>) => Object.entries(jar).map(([k, v]) => `${k}=${v}`).join("; ");
+
+// Find the signed embed SSO URL on RepairQ's analytics surface. Candidates
+// 302 around inside cpr.repairq.io, so follow same-host redirects a few hops
+// and scan every body along the way. Also harvest analytics-ish links from
+// the app shell ("/") as extra candidates.
+async function findEmbedUrl(): Promise<{ url?: string; tried: any[] }> {
+  const tried: any[] = [];
+  const scanBody = (body: string) =>
+    (body.match(/https:(?:\\\/\\\/|\/\/)repairq\.looker\.com[^"'\s\\]{0,600}/g) || [])
+      .map((u) => u.replace(/\\\//g, "/").replace(/&amp;/g, "&"));
+
+  const candidates = ["/analytics", "/report/analytics", "/bi", "/looker", "/report"];
+  try {
+    const home = await rqRequest({ path: "/", method: "GET", headers: { "accept": "text/html,*/*", "x-requested-with": "" } });
+    const navLinks = [...new Set((home.body.match(/href="(?:https:\/\/cpr\.repairq\.io)?(\/[a-zA-Z\/]*(?:analytic|looker|insight|bi)[a-zA-Z\/]*)"/gi) || [])
+      .map((h) => h.replace(/^href="/, "").replace(/"$/, "").replace("https://cpr.repairq.io", "")))];
+    tried.push({ path: "/", status: home.status, nav_candidates: navLinks });
+    candidates.unshift(...navLinks);
+    const fromHome = scanBody(home.body).find((u) => /\/login\/embed\//.test(u));
+    if (fromHome) return { url: fromHome, tried };
+  } catch { /* home scan optional */ }
+
+  for (const p of [...new Set(candidates)]) {
+    try {
+      let path = p;
+      for (let hop = 0; hop < 4; hop++) {
+        const r = await rqRequest({ path, method: "GET", headers: { "accept": "text/html,application/xhtml+xml,*/*", "x-requested-with": "" } });
+        const hits = scanBody(r.body);
+        tried.push({ path, status: r.status, location: r.location || undefined, looker_urls: hits.slice(0, 2).map((u) => u.slice(0, 140)) });
+        const sso = hits.find((u) => /\/login\/embed\//.test(u));
+        if (sso) return { url: sso, tried };
+        if (r.status >= 300 && r.status < 400 && r.location) {
+          if (/repairq\.looker\.com\/login\/embed\//.test(r.location)) return { url: r.location.replace(/&amp;/g, "&"), tried };
+          if (/^https?:\/\//.test(r.location) && !r.location.includes("cpr.repairq.io")) break;
+          path = r.location.replace(/^https?:\/\/cpr\.repairq\.io/, "");
+          if (/\/site\/login/.test(path)) break;
+          continue;
+        }
+        break;
+      }
+    } catch (e) { tried.push({ path: p, error: String((e as Error).message || e) }); }
+  }
+  return { tried };
+}
+
+let lookerTrail: any[] = [];
+async function lookerSession(force = false): Promise<{ cookie: string; csrf: string }> {
+  if (!force && lookerSess && Date.now() - lookerSess.at < LOOKER_TTL) return lookerSess;
+  const f = await findEmbedUrl();
+  if (!f.url) throw new Error("no Looker embed URL found — probes: " + JSON.stringify(f.tried).slice(0, 600));
+  const jar: Record<string, string> = {};
+  lookerTrail = [];
+  let url: string | null = f.url;
+  for (let i = 0; i < 12 && url; i++) {
+    const res: any = await fetch(url, {
+      redirect: "manual",
+      headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml,*/*", "accept-language": "en-US,en;q=0.9", ...(Object.keys(jar).length ? { "cookie": jarStr(jar) } : {}) },
+    });
+    const setc = getSetCookies(res).map((c: string) => c.split("=")[0]);
+    jarMerge(jar, res);
+    const loc = res.headers.get("location");
+    lookerTrail.push({ hop: i, host: new URL(url).host, path: new URL(url).pathname.slice(0, 60), status: res.status, set: setc, to: loc ? loc.slice(0, 80) : null });
+    if (res.status >= 300 && res.status < 400 && loc) {
+      url = loc.startsWith("http") ? loc : (loc.startsWith("/") ? new URL(url).origin + loc : LK_BASE + "/" + loc);
+      continue;
+    }
+    // landed on a 200: if it's the embed HTML, Looker may set its session via a
+    // follow-up init call. Try hitting the embed session-check to finalize.
+    if (res.status === 200 && !jar["looker.session_renewable"]) {
+      try {
+        const init = await fetch(`${LK_BASE}/api/internal/session`, { headers: { "user-agent": UA, "accept": "application/json", "cookie": jarStr(jar), ...(jar["CSRF-TOKEN"] ? { "x-csrf-token": decodeURIComponent(jar["CSRF-TOKEN"]) } : {}) } });
+        jarMerge(jar, init);
+        lookerTrail.push({ hop: "init", path: "/api/internal/session", status: init.status, set: getSetCookies(init).map((c: string) => c.split("=")[0]) });
+      } catch { /* best effort */ }
+    }
+    url = null;
+  }
+  const csrf = decodeURIComponent(jar["CSRF-TOKEN"] || "");
+  if (!jar["rack.session"] || !csrf) {
+    throw new Error("Looker session incomplete — cookies: " + Object.keys(jar).join(", ") + " | trail: " + JSON.stringify(lookerTrail).slice(0, 500));
+  }
+  lookerSess = { cookie: jarStr(jar), csrf, at: Date.now() };
+  return lookerSess;
+}
+
+// Run one captured Analytics query payload end-to-end: create (async) → poll.
+async function lookerRun(body: any, retry = true): Promise<{ created: any; results: any[] }> {
+  const s = await lookerSession();
+  const hdr = {
+    "content-type": "application/json",
+    "accept": "*/*",
+    "cookie": s.cookie,
+    "x-csrf-token": s.csrf,
+    "origin": LK_BASE,
+    "referer": `${LK_BASE}/embed/looks/1`,
+    "user-agent": UA,
+  };
+  const post = await fetch(`${LK_BASE}/api/internal/querymanager/queries`, { method: "POST", headers: hdr, body: JSON.stringify(body) });
+  const created = await post.json().catch(() => ({}));
+  if (post.status === 401 || post.status === 403) {
+    if (retry) { await lookerSession(true); return await lookerRun(body, false); }
+    throw new Error(`Looker auth rejected (HTTP ${post.status})`);
+  }
+  if (!post.ok) throw new Error(`queries HTTP ${post.status}: ${JSON.stringify(created).slice(0, 400)}`);
+
+  // Collect query-task ids from the response (32-hex strings), then poll each.
+  const ids = new Set<string>();
+  const scan = (o: any) => {
+    if (o == null) return;
+    if (typeof o === "string") { if (/^[0-9a-f]{32}$/.test(o)) ids.add(o); return; }
+    if (Array.isArray(o)) { o.forEach(scan); return; }
+    if (typeof o === "object") Object.values(o).forEach(scan);
+  };
+  scan(created);
+
+  const results: any[] = [];
+  for (const id of [...ids].slice(0, 4)) {
+    let last: any = null;
+    for (let i = 0; i < 20; i++) {
+      const r = await fetch(`${LK_BASE}/api/internal/dataflux/query_tasks/${id}`, { headers: { ...hdr, "content-type": undefined as any } });
+      last = await r.json().catch(() => ({}));
+      const status = last?.status || last?.query_task?.status || "";
+      const done = /complete|error|failure/i.test(String(status)) || last?.data != null || last?.results != null;
+      if (done) break;
+      await new Promise((res) => setTimeout(res, 1200));
+    }
+    results.push({ task_id: id, result: last });
+  }
+  return { created, results };
 }
 
 /* ---------------- saved templates + demand pull ---------------- */
@@ -274,7 +452,14 @@ Deno.serve(async (req) => {
   try {
     if (payload?.action === "ping") {
       const s = await ensureSession(payload?.force === true);
-      return json({ ok: s.ok, session: s.ok ? "active" : null, error: s.error || null });
+      if (!s.ok) return json({ ok: false, session: null, error: s.error || null, debug: (s as any).debug || null });
+      // trust nothing: a protected page must NOT bounce to the login screen
+      const check = await rqRequest({ path: "/ticket", method: "GET", headers: { "accept": "text/html,*/*", "x-requested-with": "" } }, false);
+      const authed = check.status === 200 && !/site\/login/i.test(check.location || "");
+      return json({
+        ok: authed, session: authed ? "active" : null,
+        error: authed ? null : `logged in but session not honored (GET /ticket → ${check.status}${check.location ? " → " + check.location : ""})`,
+      });
     }
     if (payload?.action === "raw") {
       if (!payload?.path) return json({ ok: false, error: "path required" }, 400);
@@ -287,6 +472,21 @@ Deno.serve(async (req) => {
     if (payload?.action === "save_query") return await actionSaveQuery(payload);
     if (payload?.action === "list_queries") return await actionListQueries();
     if (payload?.action === "query") return await actionQuery(payload);
+    if (payload?.action === "looker_probe") {
+      // diagnose the embed handoff: where's the SSO URL, does the session mint?
+      const f = await findEmbedUrl();
+      let sess: any = null;
+      if (f.url) {
+        try { const s = await lookerSession(true); sess = { ok: true, csrf_len: s.csrf.length, cookies: s.cookie.split("; ").map((c) => c.split("=")[0]), trail: lookerTrail }; }
+        catch (e) { sess = { ok: false, error: String((e as Error).message || e), trail: lookerTrail }; }
+      }
+      return json({ ok: !!f.url, embed_url: f.url ? f.url.slice(0, 140) + "…" : null, probes: f.tried, session: sess });
+    }
+    if (payload?.action === "looker_query") {
+      if (!payload?.body) return json({ ok: false, error: "body required (the captured querymanager payload)" }, 400);
+      const r = await lookerRun(payload.body);
+      return json({ ok: true, created: r.created, results: r.results });
+    }
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);
