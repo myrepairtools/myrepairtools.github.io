@@ -745,6 +745,26 @@ const INGEST_FIELD_MAP: Record<string, Record<string, string>> = {
     "Accy Total": "ticket_item.all_net_accessory_sales_total",
     "Accy GP": "ticket_item.all_net_accessory_sales_after_cogs_total",
   },
+  // Device Sales merge (dashboard 2827 / element 12289). Per device-row; ingest
+  // sums per employee/day. q1_* is the merged per-ticket accessory count.
+  commission_device: {
+    "Location": "location.short_name", "Employee": "sold_by.full_name",
+    "Accounted on Date": "ticket_item.accounted_on_date", "Ticket Number": "ticket.id",
+    "Device Sale Count": "ticket_item.all_sale_count",
+    "Device Net Sale Price": "ticket_item.all_net_sale_total",
+    "Device Gross Profit": "ticket_item.all_net_sale_after_cogs_total",
+    "Accessory Count": "q1_ticket_item.all_sale_count",
+  },
+  // Device Returns merge (dashboard 2830 / element 12293). Mirror of device;
+  // ingest keeps only rows where net < 0 (real refunds).
+  commission_device_return: {
+    "Location": "location.short_name", "Employee": "sold_by.full_name",
+    "Accounted on Date": "ticket_item.accounted_on_date", "Ticket Number": "ticket.id",
+    "Device Return Count": "ticket_item.all_return_count",
+    "Device Net Sale Price": "ticket_item.all_net_sale_total",
+    "Device Gross Profit": "ticket_item.all_net_sale_after_cogs_total",
+    "Accessories Returned": "q1_ticket_item.all_return_count",
+  },
 };
 
 function apiRowsToLabels(rows: any[], feed: string): any[] {
@@ -797,25 +817,46 @@ function servicePivotRows(rows: any[]): any[] {
 async function actionSyncIngest(p: any) {
   const feed = String(p?.feed || "");
   const lookId = String(p?.look_id || "");
-  if (!feed || !lookId) return json({ ok: false, error: "feed and look_id required" }, 400);
+  const dashId = String(p?.dashboard_id || "");
+  const elId = String(p?.element_id || "");
+  const rmId = String(p?.result_maker_id || "");
+  if (!feed || (!lookId && !(dashId && elId && rmId))) return json({ ok: false, error: "feed + (look_id OR dashboard_id+element_id+result_maker_id) required" }, 400);
   if (!INGEST_SECRET) return json({ ok: false, error: "INGEST_SECRET not configured" }, 500);
-  // pull the Look for all three stores via the global (799) session
-  const look = await lookerGet(`/api/internal/looks/${lookId}`);
-  if (!look.ok || !look.data?.query) return json({ ok: false, error: `look ${lookId} fetch HTTP ${look.status}` }, 502);
-  const pq = plainFromQuery(look.data.query, "sync" + feed, p?.location != null ? String(p.location) : CANON_STORES, "look", "/embed/looks", true);
-  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+  const stores = p?.location != null ? String(p.location) : CANON_STORES;
   const raw: any[] = [];
-  for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
+  if (lookId) {
+    // plain Look → global (799) session, location forced to all three stores
+    const look = await lookerGet(`/api/internal/looks/${lookId}`);
+    if (!look.ok || !look.data?.query) return json({ ok: false, error: `look ${lookId} fetch HTTP ${look.status}` }, 502);
+    const pq = plainFromQuery(look.data.query, "sync" + feed, stores, "look", "/embed/looks", true);
+    const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+    for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
+  } else {
+    // MERGE tile → build the saved_query body; both source filters carry the
+    // date window + the 3-store location (never empty — that leaks franchises).
+    const dateField = String(p?.date_field || "ticket_item.accounted_on_date");
+    const dateVal = String(p?.date || "this month");
+    const nSources = Number(p?.source_count || 2);
+    const filters = Array.from({ length: Math.max(1, nSources) }, () => ({ [dateField]: dateVal, "location.short_name": stores }));
+    const body = {
+      plain_queries: [], saved_queries: [{ element_id: elId, filters, generate_links: false, path_prefix: "/explore", server_table_calcs: false, source: "dashboard", sorts: [], result_maker_id: rmId }],
+      context: { id: dashId, type: "dashboard", session_id: "mrtSync" + elId },
+      options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
+    };
+    const run = await lookerRun(body);
+    for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
+  }
   const labeled = feed === "commission_service" ? servicePivotRows(raw) : apiRowsToLabels(raw, feed);
+  const srcLabel = lookId ? { look_id: lookId } : { dashboard_id: dashId, element_id: elId };
   if (p?.dry_run) {
-    return json({ ok: true, feed, look_id: lookId, pulled: raw.length, dry_run: true, sample_api: raw[0] ?? null, sample_labeled: labeled[0] ?? null });
+    return json({ ok: true, feed, ...srcLabel, pulled: raw.length, dry_run: true, sample_api: raw[0] ?? null, sample_labeled: labeled[0] ?? null });
   }
   // POST to ingest (reuses its exact write + aggregation logic)
   const res = await fetch(`${SB_URL}/functions/v1/ingest?token=${encodeURIComponent(INGEST_SECRET)}&feed=${encodeURIComponent(feed)}`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(labeled),
   });
   const body = await res.json().catch(() => ({}));
-  return json({ ok: res.ok && body?.ok !== false, feed, look_id: lookId, pulled: raw.length, ingest: body });
+  return json({ ok: res.ok && body?.ok !== false, feed, ...srcLabel, pulled: raw.length, ingest: body });
 }
 
 // Sync live PART CONSUMPTION from the Eugene Part-Consumption Look into
