@@ -496,7 +496,10 @@ function plainFromQuery(q: any, elementId: string, store: string | null, source:
     filter_config: q.filter_config ?? undefined, sorts: q.sorts || [],
     limit: String(q.limit || "5000"), column_limit: String(q.column_limit || "50"),
     total: !!q.total, row_total: q.row_total ?? "", subtotals: q.subtotals || [],
-    dynamic_fields: q.dynamic_fields ?? null, query_timezone: q.query_timezone ?? "",
+    // querymanager wants dynamic_fields as a STRING (pivot Looks like Category
+    // Sales 5817 reject null) — "" when none, JSON string otherwise.
+    dynamic_fields: q.dynamic_fields == null ? "" : (typeof q.dynamic_fields === "string" ? q.dynamic_fields : JSON.stringify(q.dynamic_fields)),
+    query_timezone: q.query_timezone ?? "",
     element_id: elementId, client_id: "mrt" + elementId,
     generate_links: false, path_prefix: pathPrefix, server_table_calcs: false, source,
   };
