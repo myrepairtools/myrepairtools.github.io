@@ -387,9 +387,20 @@
         }, true);
     }
 
+    // Refurbish tickets are internal — no customer to follow up with. The tab
+    // title ("Refurbish Ticket / RepairQ") is the reliable tell; the ticket
+    // header + body class are fallbacks.
+    function isRefurbTicket() {
+        if (/refurbish/i.test(document.title)) return true;
+        var h = document.querySelector('#ticket h2, .page-header h2');
+        if (h && /refurbish/i.test(h.textContent)) return true;
+        return /refurbish/i.test(document.body.className || '');
+    }
+
     var CHECKIN_KEY = 'mrt_fu_checkin';   // set on the create page; the NEXT
                                           // ticket page in this tab may auto-pop
     function boot() {
+        if (isRefurbTicket()) return;     // internal ticket — no follow-up UI at all
         var t = ticketNo();
         if (!t) {
             // ticket-create pages (/ticket/repair|claim|add): no number yet.

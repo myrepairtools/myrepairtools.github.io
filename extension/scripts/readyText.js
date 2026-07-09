@@ -380,6 +380,8 @@
         e.preventDefault();
         e.stopImmediatePropagation();
 
+        // refurbish tickets are internal — no customer; let RepairQ save natively
+        if (/refurbish/i.test(document.title) || /refurbish/i.test(document.body.className || '')) { proceed(btn); return; }
         var t = ticketNo();
         if (!t) { popup(btn); return; }
         // Check the follow-up preference captured at check-in.

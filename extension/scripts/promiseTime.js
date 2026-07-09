@@ -463,8 +463,11 @@
             placePill();
         }
 
-        // advisor UI only where the ESTIMATE box lives
-        if (/\/ticket\/(repair|add|edit)/.test(location.pathname)) {
+        // advisor UI only where the ESTIMATE box lives — and never on refurbish
+        // tickets (internal, no customer to promise a time to; the tab title
+        // "Refurbish Ticket / RepairQ" is the tell)
+        var isRefurb = /refurbish/i.test(document.title) || /refurbish/i.test(document.body.className || '');
+        if (!isRefurb && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
             injectStyles();
             placeChip();
             new MutationObserver(placeChip).observe(document.body, { childList: true, subtree: true });
