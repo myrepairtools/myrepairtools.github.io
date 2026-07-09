@@ -628,20 +628,37 @@ function appStoreName(lookerName: string): string {
   return String(lookerName || "").replace(/\s+(OR|WA|NH)$/i, "").trim();
 }
 
-// Sync live PART STOCK from Look 5784 into the `stock` table the consumption
-// report reads — so on-hand / on-order go live with no page changes. Upserts
-// on (store, sku); PRESERVES each row's manually-tuned max_baseline + note.
+// Resolve the Looker session a sync cron should run under. Defaults to an
+// isolated Eugene (799) session so it reads the canonical Eugene-folder Looks;
+// pass login_location:"" (or "global") to fall back to the module-global
+// session. Returns undefined for the global path, {cookie,csrf} for isolated,
+// or {error,...} on failure.
+async function syncSession(p: any): Promise<{ cookie: string; csrf: string } | undefined | any> {
+  const loc = p?.login_location != null ? String(p.login_location) : "799";
+  if (!loc || loc === "global" || loc === "917") return undefined;
+  const s = await isolatedLookerSession(loc);
+  if (!s.ok) return { stage: s.stage, error: s.error || "isolated session failed", login_location: loc };
+  return { cookie: s.cookie!, csrf: s.csrf! };
+}
+
+// Sync live PART STOCK from the Eugene All-Part-Inventory Look into the `stock`
+// table the consumption report reads — so on-hand / on-order go live with no
+// page changes. Upserts on (store, sku); PRESERVES each row's manually-tuned
+// max_baseline + note. Authenticates as Eugene (799) so it reads the canonical
+// Eugene-folder Look (5775); pass login_location:"" to use the global session.
 async function actionLookerSyncStock(p: any) {
   const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
     : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
-  const lookId = String(p?.look_id || "5784");
+  const lookId = String(p?.look_id || "5775");
+  const sess = await syncSession(p);
+  if ((sess as any)?.error) return json({ ok: false, ...(sess as any) }, 502);
   const out: any[] = [];
   for (const store of stores) {
     try {
-      const look = await lookerGet(`/api/internal/looks/${lookId}`);
+      const look = await lookerGet(`/api/internal/looks/${lookId}`, sess as any);
       if (!look.ok || !look.data?.query) throw new Error(`look fetch HTTP ${look.status}`);
       const pq = plainFromQuery(look.data.query, "syncStock", store, "look", "/embed/looks", true);
-      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }, true, sess as any);
       const rows: any[] = [];
       for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
 
@@ -680,22 +697,25 @@ async function actionLookerSyncStock(p: any) {
   return json({ ok: out.every((o) => !o.error), stores: out });
 }
 
-// Sync live PART CONSUMPTION from Look 5785 into consumption_log. The report
-// SUMS units per sku/day, so we REPLACE each (store, biz_date) the Look
-// returns — delete that day's existing rows, insert RepairQ's — never add
-// alongside (which would double-count). Only touches days the Look covers
-// (today), leaving historical MS-sourced days intact. Idempotent.
+// Sync live PART CONSUMPTION from the Eugene Part-Consumption Look into
+// consumption_log. The report SUMS units per sku/day, so we REPLACE each
+// (store, biz_date) the Look returns — delete that day's existing rows, insert
+// RepairQ's — never add alongside (which would double-count). Only touches days
+// the Look covers (today), leaving historical days intact. Idempotent.
+// Authenticates as Eugene (799) for the canonical Eugene-folder Look (5774).
 async function actionLookerSyncConsumption(p: any) {
   const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
     : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
-  const lookId = String(p?.look_id || "5785");
+  const lookId = String(p?.look_id || "5774");
+  const sess = await syncSession(p);
+  if ((sess as any)?.error) return json({ ok: false, ...(sess as any) }, 502);
   const out: any[] = [];
   for (const store of stores) {
     try {
-      const look = await lookerGet(`/api/internal/looks/${lookId}`);
+      const look = await lookerGet(`/api/internal/looks/${lookId}`, sess as any);
       if (!look.ok || !look.data?.query) throw new Error(`look fetch HTTP ${look.status}`);
       const pq = plainFromQuery(look.data.query, "syncCons", store, "look", "/embed/looks", true);
-      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }, true, sess as any);
       const rows: any[] = [];
       for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
 
