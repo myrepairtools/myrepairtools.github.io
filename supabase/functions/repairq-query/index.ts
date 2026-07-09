@@ -830,6 +830,90 @@ function categoryPivotRows(rows: any[], dateField: string): any[] {
   });
 }
 
+// ---- Device feeds (device-orders page) -------------------------------------
+// Pull the two Eugene device dashboards as the global (799) session and hand
+// the rows to ingest's device_inventory / device_sales handlers. NOTE: device
+// tables key on the RAW RepairQ location name ("CPR Clackamas OR" — no suffix
+// strip), unlike the claims/commission maps.
+const DEVICE_ITEM_TYPES = "Device - Computer,Device - Drone,Device - Game,Device - Other / Misc,Device - Phone,Device - Tablet";
+
+function deviceRowsToLabels(rows: any[], kind: "inventory" | "sales"): any[] {
+  return rows.map((r) => {
+    const out: Record<string, unknown> = {
+      "ID": r["inventory_item.id"] ?? "",
+      "Location": r["location.short_name"] ?? "",          // RAW name on purpose
+      "Manufacturer": r["manufacturer.name"] ?? "",
+      "Device": r["catalog_item.name"] ?? "",
+      "Serial/IMEI": r["inventory_item.serial_number"] ?? "",
+      "Supplier": r["supplier.name"] ?? r["supplier.active_name"] ?? "",
+      "Note": r["inventory_item.note"] ?? "",
+      "Days In Stock": r["inventory_item.days_in_stock"] ?? "",
+      "Cost": r["inventory_item.cost"] ?? "",
+      "Price": r["inventory_item.price"] ?? "",
+    };
+    if (kind === "sales") out["Sold Date"] = r["inventory_item.status_updated_date"] ?? "";
+    else {
+      out["Status"] = r["inventory_status.name"] ?? "";
+      out["Added Date"] = r["inventory_item.added_date"] ?? "";
+    }
+    return out;
+  });
+}
+
+// run one dashboard saved-query tile via the global (799) session
+async function runTile(dashId: string, elId: string, rmId: string, filters: Record<string, string>): Promise<any[]> {
+  const body = {
+    plain_queries: [],
+    saved_queries: [{ element_id: elId, filters: [filters], generate_links: false, path_prefix: "/explore", server_table_calcs: false, source: "dashboard", sorts: [], result_maker_id: rmId }],
+    context: { id: dashId, type: "dashboard", session_id: "mrtDev" + elId },
+    options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
+  };
+  const run = await lookerRun(body);
+  const rows: any[] = [];
+  for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+  return rows;
+}
+
+async function actionSyncDevices(p: any) {
+  if (!INGEST_SECRET) return json({ ok: false, error: "INGEST_SECRET not configured" }, 500);
+  const stores = p?.location != null ? String(p.location) : "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR";
+  const soldWindow = String(p?.sold_window || "1 month");   // device_sales upserts, so history accumulates
+  const dry = !!p?.dry_run;
+  const out: Record<string, any> = {};
+
+  // 1. inventory snapshot — dashboard 1317, tile 6744 (Instock/Ordered/Pending Refurb/Pulled)
+  const invRows = await runTile("1317", "6744", "30287", {
+    "catalog_item.is_serialized": "Yes",
+    "location.short_name": stores,
+    "inventory_status.name": "Instock,Ordered,Pending Refurb,Pulled",
+    "item_type.name": DEVICE_ITEM_TYPES,
+    "inventory_item.status_updated_date": "",
+  });
+  const invLabeled = deviceRowsToLabels(invRows, "inventory");
+  // 2. sold devices — dashboard 2330, tile 10113 (Sold, status-updated window)
+  const soldRows = await runTile("2330", "10113", "27819", {
+    "catalog_item.is_serialized": "Yes",
+    "location.short_name": stores,
+    "inventory_status.name": "Sold",
+    "item_type.name": DEVICE_ITEM_TYPES,
+    "inventory_item.status_updated_date": soldWindow,
+  });
+  const soldLabeled = deviceRowsToLabels(soldRows, "sales");
+
+  if (dry) {
+    return json({ ok: true, dry_run: true,
+      inventory: { pulled: invRows.length, sample: invLabeled[0] ?? null },
+      sales: { pulled: soldRows.length, sample: soldLabeled[0] ?? null } });
+  }
+  for (const [feed, labeled, pulled] of [["device_inventory", invLabeled, invRows.length], ["device_sales", soldLabeled, soldRows.length]] as [string, any[], number][]) {
+    const res = await fetch(`${SB_URL}/functions/v1/ingest?token=${encodeURIComponent(INGEST_SECRET)}&feed=${feed}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(labeled),
+    });
+    out[feed] = { pulled, ingest: await res.json().catch(() => ({})) };
+  }
+  return json({ ok: Object.values(out).every((v: any) => v.ingest?.ok !== false), ...out });
+}
+
 // Pull one Look and hand its (relabeled) rows to ingest. login-location stays
 // the global 799 session; location filter forced to all three stores.
 async function actionSyncIngest(p: any) {
@@ -1369,6 +1453,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
     if (payload?.action === "sync_consumption") return await actionLookerSyncConsumption(payload);
     if (payload?.action === "sync_ingest") return await actionSyncIngest(payload);
+    if (payload?.action === "sync_devices") return await actionSyncDevices(payload);
     if (payload?.action === "sync_claims") {
       // pull both claim Looks (payouts 5759 + parts 5760) → ingest. Repairs
       // first so the invoice→payout_date map is seeded before parts.

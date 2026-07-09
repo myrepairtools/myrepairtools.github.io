@@ -167,10 +167,13 @@ There is **no single backend**. Tools talk to one of two systems:
 
 **Device ordering (`device-orders.html`, Ordering & Inventory nav):** used-device
 consumption + suggested buys, the device-side sibling of the parts consumption report.
-Data arrives by dropping the two RepairQ dashboard exports on the page (zip or csv):
-"Device Inventory List (Sold)" → `device_sales` (upserted on RepairQ ID — history
-accumulates across uploads) and "Device Inventory List" → `device_inventory` (full
-snapshot, replaced each upload). Rows group by `model_key` (device name minus
+Data arrives **automatically**: the `repairq-devices-sync` pg_cron (:50 hourly) calls
+`repairq-query`'s `sync_devices`, which pulls the two Eugene Looker dashboards live
+(1317 "Device Inventory List" tile 6744 → `device_inventory` full per-store snapshot;
+2330 "Device Inventory List (Sold)" tile 10113, 1-month window → `device_sales`
+upserted on RepairQ ID — history accumulates) and hands the rows to `ingest`'s device
+handlers. Manual zip/csv upload on the page still works as a fallback. Device tables
+key on the RAW RepairQ store name ("CPR Clackamas OR" — no suffix strip). Rows group by `model_key` (device name minus
 storage/color, e.g. "iPhone 15 Pro Max"); per model: sold-30d, sellable stock
 (Instock + Pending Refurb), Ordered, days of cover, oldest-unit age (stale > 60d),
 and a suggested buy from a per-30d demand rate over up to 60 days of history

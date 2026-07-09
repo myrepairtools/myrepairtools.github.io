@@ -96,12 +96,18 @@ by design; the all-store returns come from the device-sales/returns tiles above.
 | commission_device | 2827 (**merge**) | merge-pull→relabel→`ingest` | ✅ live + validated exact match (same cron) |
 | commission_device_return | 2830 (**merge**) | merge-pull→relabel→`ingest` | ✅ live + validated exact match (same cron) |
 
+| device_inventory | dash 1317 tile 6744·30287 | tile-pull→relabel→`ingest` | ✅ live + validated (cron `repairq-devices-sync`, :50 hourly) |
+| device_sales | dash 2330 tile 10113·27819 | tile-pull→relabel→`ingest` | ✅ live + validated (same cron; sold_window "1 month", upsert on rq_id) |
+
 **All feeds cut over to Eugene 799.** Orchestrators: `sync_claims` (both claim
 Looks), `sync_commission` (all five commission feeds; accessory/service/category
-refresh the whole current month, device the month, device-returns the year).
+refresh the whole current month, device the month, device-returns the year),
+`sync_devices` (inventory snapshot + sold devices — the device-orders page no
+longer needs manual zip uploads; uploads still work as a fallback). NOTE: device
+tables key on the RAW RepairQ store name ("CPR Clackamas OR" — no suffix strip).
 Crons: stock (7,37), consumption (12,42), claims (8:25 daily), commission
-(:20 hourly). Field maps live in `INGEST_FIELD_MAP` + the pivot/merge helpers in
-`repairq-query`.
+(:20 hourly), devices (:50 hourly). Field maps live in `INGEST_FIELD_MAP` +
+`deviceRowsToLabels` + the pivot/merge helpers in `repairq-query`.
 
 ### The bridge (proven)
 `sync_ingest` / `sync_claims`: pulls a Look as the global 799 session, renames
