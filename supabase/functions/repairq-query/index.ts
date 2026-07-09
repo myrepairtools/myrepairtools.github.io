@@ -562,6 +562,65 @@ async function actionLookerDashboard(p: any) {
   return json({ ok: true, dashboard_id: id, title: dash.data?.title || null, location: p.location ?? null, elements: out.map((e: any) => ({ element_id: e.element_id, title: e.title, row_count: e.row_count, error: e.error })), data: p.include_data ? out : undefined });
 }
 
+// Map a Looker location name to the name the app's tables use (stock /
+// consumption_log store spelling). Looker says "CPR Clackamas OR"; the tables
+// say "CPR Clackamas". Strip a trailing state suffix.
+function appStoreName(lookerName: string): string {
+  return String(lookerName || "").replace(/\s+(OR|WA|NH)$/i, "").trim();
+}
+
+// Sync live PART STOCK from Look 5784 into the `stock` table the consumption
+// report reads — so on-hand / on-order go live with no page changes. Upserts
+// on (store, sku); PRESERVES each row's manually-tuned max_baseline + note.
+async function actionLookerSyncStock(p: any) {
+  const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
+    : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
+  const lookId = String(p?.look_id || "5784");
+  const out: any[] = [];
+  for (const store of stores) {
+    try {
+      const look = await lookerGet(`/api/internal/looks/${lookId}`);
+      if (!look.ok || !look.data?.query) throw new Error(`look fetch HTTP ${look.status}`);
+      const pq = plainFromQuery(look.data.query, "syncStock", store, "look", "/embed/looks", true);
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const rows: any[] = [];
+      for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+
+      const appStore = appStoreName(store);
+      // preserve existing max_baseline + note per sku
+      const { data: existing } = await admin.from("stock").select("sku, max_baseline, note").eq("store", appStore);
+      const keep = new Map((existing || []).map((r: any) => [r.sku, { max_baseline: r.max_baseline, note: r.note }]));
+
+      const now = new Date().toISOString();
+      const upserts = rows.filter((r) => r["catalog_item.sku"]).map((r) => {
+        const sku = String(r["catalog_item.sku"]);
+        const k = keep.get(sku) || {};
+        return {
+          store: appStore, sku,
+          name: r["catalog_item.name"] ?? null,
+          in_stock: Number(r["inventory_item.count_in_stock"] || 0),
+          on_order: Number(r["ordered_items.ordered_qty"] || 0),
+          max_baseline: (k as any).max_baseline ?? (r["catalog_location_override.reorder_qty_total"] != null ? Number(r["catalog_location_override.reorder_qty_total"]) : null),
+          note: (k as any).note ?? (r["catalog_location_override.note"] ?? null),
+          updated_at: now,
+        };
+      });
+      // upsert in chunks
+      let wrote = 0;
+      for (let i = 0; i < upserts.length; i += 500) {
+        const chunk = upserts.slice(i, i + 500);
+        const { error } = await admin.from("stock").upsert(chunk, { onConflict: "store,sku" });
+        if (error) throw new Error(error.message);
+        wrote += chunk.length;
+      }
+      out.push({ store: appStore, pulled: rows.length, upserted: wrote });
+    } catch (e) {
+      out.push({ store: appStoreName(store), error: String((e as Error).message || e) });
+    }
+  }
+  return json({ ok: out.every((o) => !o.error), stores: out });
+}
+
 async function actionSaveQuery(p: any) {
   if (!p?.name || !p?.path) return json({ ok: false, error: "name and path required" }, 400);
   const row = {
@@ -674,6 +733,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "looker_pull") return await actionLookerPull(payload);
     if (payload?.action === "looker_dashboard") return await actionLookerDashboard(payload);
     if (payload?.action === "looker_look") return await actionLookerLook(payload);
+    if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
     if (payload?.action === "looker_get") {
       // authenticated GET against Looker with our embed session (exploration)
       const s = await lookerSession();
