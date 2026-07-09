@@ -1,46 +1,34 @@
 /*
-    Necessary code for saving user-selected options
+    myRepairTools — Options page logic (auto-save).
+
+    The storage contract is unchanged from the old page: the `enabled` array is
+    built from every `.checkmark` button in DOM order; `.lcd-checkmark` controls
+    are read individually by id; `.ql-checkmark` are the 3 link-frame toggles.
+    Toggle state lives on the `data-checked` attribute. saveOptions() collects
+    exactly the same keys; the only behavioral change is auto-save (no Save
+    button, no alert) via scheduleSave().
 */
 
-function toggleBox() {
-    if (this.getAttribute('data-checked') == 'checked') {
-        this.setAttribute('data-checked', 'unchecked');
-        this.className = 'checkmark unchecked';
+/* ---------------- toggles (keep the legacy class + data-checked hooks) ---------------- */
+function flip(el) {
+    if (el.getAttribute('data-checked') === 'checked') {
+        el.setAttribute('data-checked', 'unchecked');
+        el.className = el.className.replace(/\bchecked\b/, '').trim() + ' unchecked';
     } else {
-        this.setAttribute('data-checked', 'checked');
-        this.className = 'checkmark checked';
+        el.setAttribute('data-checked', 'checked');
+        el.className = el.className.replace(/\bunchecked\b/, '').trim() + ' checked';
     }
 }
+function toggleBox() { flip(this); scheduleSave(); }
+function toggleLinkBox() { flip(this); scheduleSave(); }
+function toggleLcdBox() { flip(this); scheduleSave(); afterLcdChange(); }
 
-function toggleLinkBox() {
-    if (this.getAttribute('data-checked') == 'checked') {
-        this.setAttribute('data-checked', 'unchecked');
-        this.className = 'ql-checkmark unchecked';
-    } else {
-        this.setAttribute('data-checked', 'checked');
-        this.className = 'ql-checkmark checked';
-    }
-}
-
-function toggleLcdBox() {
-    if (this.getAttribute('data-checked') == 'checked') {
-        this.setAttribute('data-checked', 'unchecked');
-        this.className = 'lcd-checkmark unchecked';
-    } else {
-        this.setAttribute('data-checked', 'checked');
-        this.className = 'lcd-checkmark checked';
-    }
-}
-
-function saveOptions() {
+/* ---------------- save ---------------- */
+function saveOptions(done) {
     let checkedBoxes = [];
     let checkboxes = document.getElementsByClassName('checkmark');
     for (let b = 0; b < checkboxes.length; b++) {
-        if (checkboxes[b].getAttribute('data-checked') == 'checked') {
-            checkedBoxes[b] = 1;
-        } else {
-            checkedBoxes[b] = 0;
-        }
+        checkedBoxes[b] = checkboxes[b].getAttribute('data-checked') === 'checked' ? 1 : 0;
     }
     const customQuickLinkName1 = document.getElementById('customQuickLinkName1').value;
     const customQuickLinkUrl1 = document.getElementById('customQuickLinkUrl1').value;
@@ -49,12 +37,9 @@ function saveOptions() {
     const customQuickLinkName3 = document.getElementById('customQuickLinkName3').value;
     const customQuickLinkUrl3 = document.getElementById('customQuickLinkUrl3').value;
     const cbtText = document.getElementById('binLabelName').value;
-    // LCD Buyback toggles (own storage key so the legacy `enabled` array is untouched)
     const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
     let lcd = {};
-    for (const k in lcdIds) {
-        lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked';
-    }
+    for (const k in lcdIds) { lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked'; }
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
     const sms = {
         readyText: document.getElementById('smsReadyText').getAttribute('data-checked') === 'checked',
@@ -68,156 +53,178 @@ function saveOptions() {
         open: document.getElementById('wnOpen').value || '10:00',
         close: document.getElementById('wnClose').value || '19:00'
     };
-    // RepairQ workflow tools (absorbed from MyCPRTools)
     const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
     let mcpr = {};
-    for (const k in mcprIds) {
-        mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked';
-    }
+    for (const k in mcprIds) { mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked'; }
     mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
-    let customQuickLinkFrame1 = false;
-    if (document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked') {
-        customQuickLinkFrame1 = true;
-    }
-    let customQuickLinkFrame2 = false;
-    if (document.getElementById('customQuickLinkFrame2').getAttribute('data-checked') === 'checked') {
-        customQuickLinkFrame2 = true;
-    }
-    let customQuickLinkFrame3 = false;
-    if (document.getElementById('customQuickLinkFrame3').getAttribute('data-checked') === 'checked') {
-        customQuickLinkFrame3 = true;
-    }
-    chrome.storage.sync.set(
-        {
-            customQuickLinkName1: customQuickLinkName1,
-            customQuickLinkUrl1: customQuickLinkUrl1,
-            customQuickLinkFrame1: customQuickLinkFrame1,
-            customQuickLinkName2: customQuickLinkName2,
-            customQuickLinkUrl2: customQuickLinkUrl2,
-            customQuickLinkFrame2: customQuickLinkFrame2,
-            customQuickLinkName3: customQuickLinkName3,
-            customQuickLinkUrl3: customQuickLinkUrl3,
-            customQuickLinkFrame3: customQuickLinkFrame3,
-            enabled: checkedBoxes,
-            cbt: {enabled: true, text: cbtText},
-            lcd: lcd,
-            ai: ai,
-            wn: wn,
-            mcpr: mcpr,
-            sms: sms
-        }, () => {
-            alert('Options saved!');
-        }
-    );
+    const customQuickLinkFrame1 = document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked';
+    const customQuickLinkFrame2 = document.getElementById('customQuickLinkFrame2').getAttribute('data-checked') === 'checked';
+    const customQuickLinkFrame3 = document.getElementById('customQuickLinkFrame3').getAttribute('data-checked') === 'checked';
+    chrome.storage.sync.set({
+        customQuickLinkName1, customQuickLinkUrl1, customQuickLinkFrame1,
+        customQuickLinkName2, customQuickLinkUrl2, customQuickLinkFrame2,
+        customQuickLinkName3, customQuickLinkUrl3, customQuickLinkFrame3,
+        enabled: checkedBoxes,
+        cbt: { enabled: true, text: cbtText },
+        lcd, ai, wn, mcpr, sms
+    }, () => { if (typeof done === 'function') done(); });
 }
 
+/* ---------------- auto-save orchestration ---------------- */
+let saveTimer = null;
+function setStatus(saving) {
+    const el = document.getElementById('optStatus');
+    if (!el) return;
+    el.classList.toggle('saving', !!saving);
+    el.querySelector('.txt').textContent = saving ? 'Saving…' : 'All changes saved automatically';
+}
+function showToast() {
+    const t = document.getElementById('optToast');
+    if (!t) return;
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 1500);
+}
+function commitSave() {
+    setStatus(true);
+    saveOptions(() => { setStatus(false); showToast(); });
+}
+// toggles / number / time inputs persist immediately; text inputs debounce.
+function scheduleSave(debounceMs) {
+    clearTimeout(saveTimer);
+    if (debounceMs) { saveTimer = setTimeout(commitSave, debounceMs); }
+    else { commitSave(); }
+}
+
+/* ---------------- LCD master dims the trigger group ---------------- */
+function afterLcdChange() {
+    const master = document.getElementById('lcdEnabled');
+    const group = document.getElementById('lcdTriggers');
+    if (master && group) group.classList.toggle('off', master.getAttribute('data-checked') !== 'checked');
+}
+
+/* ---------------- restore ---------------- */
 function restoreOptions() {
     chrome.storage.sync.get([
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
         'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
         'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms'
-    ])
-    .then((result => {
+    ]).then((result) => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
         document.getElementById('customQuickLinkUrl1').value = result.customQuickLinkUrl1 || '';
         document.getElementById('customQuickLinkName2').value = result.customQuickLinkName2 || '';
         document.getElementById('customQuickLinkUrl2').value = result.customQuickLinkUrl2 || '';
         document.getElementById('customQuickLinkName3').value = result.customQuickLinkName3 || '';
         document.getElementById('customQuickLinkUrl3').value = result.customQuickLinkUrl3 || '';
-        if (result.cbt !== undefined) {
-            document.getElementById('binLabelName').value = result.cbt.text;
-        } else {
-            document.getElementById('binLabelName').value = 'In Possession';
-        }
-        const frameIds = ['customQuickLinkFrame1', 'customQuickLinkFrame2', 'customQuickLinkFrame3'];
-        for (let i = 0; i < frameIds.length; i++) {
-            const el = document.getElementById(frameIds[i]);
-            if (result[frameIds[i]]) {
-                el.setAttribute('data-checked', 'checked');
-                el.className = 'ql-checkmark checked';
-            } else {
-                el.setAttribute('data-checked', 'unchecked');
-                el.className = 'ql-checkmark unchecked';
-            }
-        }
-        const aiEl = document.getElementById('aiEnabled');
-        const aiOn = !result.ai || result.ai.enabled !== false;
-        aiEl.setAttribute('data-checked', aiOn ? 'checked' : 'unchecked');
-        aiEl.className = 'lcd-checkmark ' + (aiOn ? 'checked' : 'unchecked');
-        const smsRt = document.getElementById('smsReadyText');
-        const smsRtOn = !result.sms || result.sms.readyText !== false;
-        smsRt.setAttribute('data-checked', smsRtOn ? 'checked' : 'unchecked');
-        smsRt.className = 'lcd-checkmark ' + (smsRtOn ? 'checked' : 'unchecked');
-        const smsFu = document.getElementById('smsFollowUp');
-        const smsFuOn = !result.sms || result.sms.followUp !== false;
-        smsFu.setAttribute('data-checked', smsFuOn ? 'checked' : 'unchecked');
-        smsFu.className = 'lcd-checkmark ' + (smsFuOn ? 'checked' : 'unchecked');
-        const smsPn = document.getElementById('smsPanel');
-        const smsPnOn = !result.sms || result.sms.panel !== false;
-        smsPn.setAttribute('data-checked', smsPnOn ? 'checked' : 'unchecked');
-        smsPn.className = 'lcd-checkmark ' + (smsPnOn ? 'checked' : 'unchecked');
-        const wnEl = document.getElementById('wnEnabled');
-        const wnOn = !result.wn || result.wn.enabled !== false;
-        wnEl.setAttribute('data-checked', wnOn ? 'checked' : 'unchecked');
-        wnEl.className = 'lcd-checkmark ' + (wnOn ? 'checked' : 'unchecked');
-        const wnP = document.getElementById('wnPromise');
-        const wnPOn = !result.wn || result.wn.promise !== false;
-        wnP.setAttribute('data-checked', wnPOn ? 'checked' : 'unchecked');
-        wnP.className = 'lcd-checkmark ' + (wnPOn ? 'checked' : 'unchecked');
+        document.getElementById('binLabelName').value = (result.cbt !== undefined) ? result.cbt.text : 'In Possession';
+
+        const setState = (el, on, cls) => {
+            el.setAttribute('data-checked', on ? 'checked' : 'unchecked');
+            el.className = cls + ' ' + (on ? 'checked' : 'unchecked');
+        };
+        ['customQuickLinkFrame1', 'customQuickLinkFrame2', 'customQuickLinkFrame3'].forEach((id) => {
+            setState(document.getElementById(id), !!result[id], 'ql-checkmark');
+        });
+        setState(document.getElementById('aiEnabled'), !result.ai || result.ai.enabled !== false, 'lcd-checkmark');
+        setState(document.getElementById('smsReadyText'), !result.sms || result.sms.readyText !== false, 'lcd-checkmark');
+        setState(document.getElementById('smsFollowUp'), !result.sms || result.sms.followUp !== false, 'lcd-checkmark');
+        setState(document.getElementById('smsPanel'), !result.sms || result.sms.panel !== false, 'lcd-checkmark');
+        setState(document.getElementById('wnEnabled'), !result.wn || result.wn.enabled !== false, 'lcd-checkmark');
+        setState(document.getElementById('wnPromise'), !result.wn || result.wn.promise !== false, 'lcd-checkmark');
         document.getElementById('wnMinsPer').value = (result.wn && result.wn.minsPer) || 45;
         document.getElementById('wnOpen').value = (result.wn && result.wn.open) || '10:00';
         document.getElementById('wnClose').value = (result.wn && result.wn.close) || '19:00';
-        // RepairQ workflow tools — safe tools default ON, aggressive ones OFF
+
         const mcpr = result.mcpr || {};
         const mcprDefaults = { partsGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false };
         const mcprIds = { partsGate: 'mcprPartsGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard' };
         for (const k in mcprIds) {
-            const el = document.getElementById(mcprIds[k]);
             const on = mcpr[k] === undefined ? mcprDefaults[k] : mcpr[k] !== false;
-            el.setAttribute('data-checked', on ? 'checked' : 'unchecked');
-            el.className = 'lcd-checkmark ' + (on ? 'checked' : 'unchecked');
+            setState(document.getElementById(mcprIds[k]), on, 'lcd-checkmark');
         }
         document.getElementById('mcprClockTime').value = mcpr.clockTime || '09:40';
+
         const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
         for (const k in lcdIds) {
-            const el = document.getElementById(lcdIds[k]);
-            const on = !result.lcd || result.lcd[k] !== false;   // default: everything on
-            el.setAttribute('data-checked', on ? 'checked' : 'unchecked');
-            el.className = 'lcd-checkmark ' + (on ? 'checked' : 'unchecked');
+            setState(document.getElementById(lcdIds[k]), !result.lcd || result.lcd[k] !== false, 'lcd-checkmark');
         }
+        afterLcdChange();
+
         let checkboxes = document.getElementsByClassName('checkmark');
         for (let c = 0; c < checkboxes.length; c++) {
-            if (result.enabled == undefined) {
-                checkboxes[c].setAttribute('data-checked', 'checked');
-                checkboxes[c].className = 'checkmark checked';
-            } else if (result.enabled[c] == 0) {
-                checkboxes[c].setAttribute('data-checked', 'unchecked');
-                checkboxes[c].className = 'checkmark unchecked';
-            } else {
-                checkboxes[c].setAttribute('data-checked', 'checked');
-                checkboxes[c].className = 'checkmark checked';
-            }
+            const on = (result.enabled === undefined) ? true : result.enabled[c] !== 0;
+            checkboxes[c].setAttribute('data-checked', on ? 'checked' : 'unchecked');
+            checkboxes[c].className = 'checkmark ' + (on ? 'checked' : 'unchecked');
         }
-    }));
+    });
 }
 
+/* ---------------- wiring ---------------- */
 function addButtonListeners() {
-    let checkboxes = document.getElementsByClassName('checkmark');
-    for (let n = 0; n < checkboxes.length; n++) {
-        checkboxes[n].addEventListener('click', toggleBox);
-    }
-    let lcdBoxes = document.getElementsByClassName('lcd-checkmark');
-    for (let n = 0; n < lcdBoxes.length; n++) {
-        lcdBoxes[n].addEventListener('click', toggleLcdBox);
-    }
-    document.getElementById('customQuickLinkFrame1').addEventListener('click', toggleLinkBox);
-    document.getElementById('customQuickLinkFrame2').addEventListener('click', toggleLinkBox);
-    document.getElementById('customQuickLinkFrame3').addEventListener('click', toggleLinkBox);
+    Array.from(document.getElementsByClassName('checkmark')).forEach((b) => b.addEventListener('click', toggleBox));
+    Array.from(document.getElementsByClassName('lcd-checkmark')).forEach((b) => b.addEventListener('click', toggleLcdBox));
+    ['customQuickLinkFrame1', 'customQuickLinkFrame2', 'customQuickLinkFrame3'].forEach((id) => {
+        document.getElementById(id).addEventListener('click', toggleLinkBox);
+    });
+
+    // whole-row click toggles the row's switch (bigger hit target)
+    document.querySelectorAll('.row, .ql-row').forEach((row) => {
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('button, input, a')) return;
+            const sw = row.querySelector('button.checkmark, button.lcd-checkmark, button.ql-checkmark');
+            if (sw) sw.click();
+        });
+    });
+
+    // text inputs debounce-save; number/time save on change
+    document.querySelectorAll('input[type="text"]').forEach((inp) => inp.addEventListener('input', () => scheduleSave(500)));
+    ['wnMinsPer', 'wnOpen', 'wnClose', 'mcprClockTime'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', () => scheduleSave());
+    });
+}
+
+function wireChrome() {
+    // sidebar nav: click scrolls; IntersectionObserver tracks the active section
+    const nav = document.getElementById('optNav');
+    const links = Array.from(nav.querySelectorAll('a[data-target]'));
+    links.forEach((a) => a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const el = document.getElementById(a.getAttribute('data-target'));
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    const byId = {};
+    links.forEach((a) => byId[a.getAttribute('data-target')] = a);
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach((en) => {
+            if (en.isIntersecting) {
+                links.forEach((a) => a.classList.remove('active'));
+                if (byId[en.target.id]) byId[en.target.id].classList.add('active');
+            }
+        });
+    }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+    document.querySelectorAll('.card').forEach((c) => io.observe(c));
+    if (links[0]) links[0].classList.add('active');
+
+    // What's new expand/collapse
+    const toggle = document.getElementById('optHistToggle');
+    const hist = document.getElementById('optHistory');
+    toggle.addEventListener('click', () => {
+        const open = hist.classList.toggle('show');
+        toggle.textContent = open ? 'Hide history ▴' : 'Full history ▾';
+    });
+    document.getElementById('optWhatsNewLink').addEventListener('click', () => {
+        document.getElementById('optBanner').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (!hist.classList.contains('show')) toggle.click();
+    });
+
+    // version badge
+    try {
+        const v = chrome.runtime.getManifest().version;
+        document.getElementById('optVersion').textContent = 'v' + v;
+    } catch (e) { /* ignore */ }
 }
 
 restoreOptions();
 addButtonListeners();
-
-const saveButton = document.getElementById('saveOptions');
-saveButton.addEventListener('click', () => {saveOptions()});
+wireChrome();
