@@ -82,6 +82,35 @@ by design; the all-store returns come from the device-sales/returns tiles above.
   Eugene + Salem + Clackamas (16 rows, last month). Empty filter → 5 franchise
   locations (proof 799 is not row-locked; proof empty = leak).
 
+## Cutover status (Jul 2026)
+
+| Feed | Source (799 Look/dash) | Path | Status |
+|------|------------------------|------|--------|
+| stock | 5775 | live pull → `stock` | ✅ live, cron `repairq-stock-sync` |
+| consumption | 5774 | live pull → `consumption_log` | ✅ live, cron `repairq-consumption-sync` |
+| claim_repairs | 5759 | pull→relabel→`ingest` | ✅ live + validated, cron `repairq-claims-sync` (8:25 UTC) |
+| claim_parts | 5760 | pull→relabel→`ingest` | ✅ live + validated (same cron) |
+| commission_accessory | 4591 | pull→relabel→`ingest` | ⏳ needs field map + validation |
+| commission_service | 5399 (**pivot**) | pull→flatten pivot→`ingest` | ⏳ pivot flatten + validation |
+| commission_category | 5817 (**pivot**) | pull→flatten pivot→`ingest` | ⏳ pivot flatten + validation |
+| commission_device | 2827 (**merge**) | body-pull→relabel→`ingest` | ⏳ merge handling + validation |
+| commission_device_return | 2830 (**merge**) | body-pull→relabel→`ingest` | ⏳ merge handling + validation |
+
+### The bridge (proven)
+`sync_ingest` / `sync_claims`: pulls a Look as the global 799 session, renames
+API fields → the human LABEL headers `ingest` expects (`INGEST_FIELD_MAP`), and
+POSTs to `ingest` so its exact money-table logic runs (no aggregation
+reimplemented). `dry_run:true` returns the transform for inspection.
+
+### Commission — remaining work per feed
+1. Sample the Look/merge, note its API field/pivot shape.
+2. Extend `INGEST_FIELD_MAP` (flat feeds) OR add a pivot-flatten step
+   (category/service — nested `{cat:{value}}` → flat `"Accessory - Case": count`).
+3. Device feeds run via the `looker_body_as`/merge path, not a plain Look.
+4. **Validate**: `dry_run`, then real run into a scratch compare — the live-pull
+   output must match current `commission_sales` for a known finished month
+   before scheduling the cron.
+
 ## Still to wire (supervised — these feed money/commission tables)
 
 - device_inventory ← `1317`, device_sales ← `2330` (device-orders page)
