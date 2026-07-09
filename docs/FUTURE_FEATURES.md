@@ -467,3 +467,28 @@ manual question, exactly like today). The current manual flow IS the fallback.
 
 Ties into: the RepairQ on-demand work (`docs/REPAIRQ_ONDEMAND.md`), the lead-engagement
 facts layer above, and the lead-connect automation.
+
+---
+
+## RC panel: customer's RepairQ tickets, hyperlinked
+
+**Idea (Britt, Jul 2026):** In the RingCentral phone panel inside RepairQ, add a section at
+the bottom of a conversation showing THIS customer's tickets — their **lead ticket**, any
+**open ticket**, and their **most recent (last closed)** ticket — each hyperlinked to the
+RepairQ ticket. So while texting/reading a customer, staff see who they are and jump
+straight to their ticket.
+
+**Now feasible** because the RepairQ session works (`repairq-query`): we can look up a
+customer's tickets by their phone number server-side.
+
+Shape:
+- New read-only `repairq-query` action: **tickets-by-phone** — authenticate, query RepairQ's
+  customer/ticket search by the conversation's phone number, return `{lead, open, recent}`
+  with ticket #, status, device, date, and the ticket URL.
+- `ringCentral.js`: when a thread opens (we already have the counterparty number), call it
+  via bg.js and render a compact "Their tickets" strip under the messages — lead / open /
+  last-closed rows, each a link to `cpr.repairq.io/ticket/<id>`.
+- Cache per phone number briefly; degrade gracefully (no match → hide the strip).
+
+This is the **same lookup engine** behind the future screen-pop and the SMS name resolver —
+build the tickets-by-phone action once, all three reuse it.
