@@ -26,12 +26,12 @@ const SERVICE_IPHONE = Deno.env.get("SICKW_SERVICE_IPHONE") || "61";  // iPHONE 
 const SERVICE_SAMSUNG = Deno.env.get("SICKW_SERVICE_SAMSUNG") || "6"; // WW BLACKLIST STATUS - PRO ($0.12)
 
 // Route by manufacturer: iPhones get the carrier+FMI+blacklist combo (FMI ON =
-// iCloud-locked = just as unsellable as blacklisted), Samsungs get the PRO
-// blacklist, everything else the standard worldwide check.
+// iCloud-locked = just as unsellable as blacklisted); Samsung, Motorola, and
+// Pixel get the PRO blacklist; everything else the standard worldwide check.
 function routeService(deviceName: string): string {
   const n = String(deviceName || "").toLowerCase();
   if (/iphone|ipad|apple/.test(n)) return SERVICE_IPHONE;
-  if (/galaxy|samsung/.test(n)) return SERVICE_SAMSUNG;
+  if (/galaxy|samsung|moto|motorola|pixel|google/.test(n)) return SERVICE_SAMSUNG;
   return SERVICE;
 }
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
