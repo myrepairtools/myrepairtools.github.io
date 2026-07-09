@@ -318,57 +318,79 @@
        We're on cpr.repairq.io, so we can hit RepairQ same-origin. Search the
        customer by their phone number, parse the returned ticket rows, classify
        them, and show the useful ones hyperlinked right under the conversation. */
-    var CLOSED_RE = /closed|picked ?up|complete|fulfilled|cancel|delivered/i;
+    var CLOSED_RE = /closed|picked ?up|complete|fulfilled|cancel|delivered|no ?show|abandoned/i;
     var LEAD_RE   = /lead|quote|estimate|new claim/i;
 
-    // Parse RepairQ's ticket-list table rows (same shape whatsNext reads).
-    function parseTicketRows(doc) {
-        var out = [];
-        var scope = doc.getElementById('mainModelList') || doc;
-        scope.querySelectorAll('tr').forEach(function (tr) {
-            var cols = {};
-            tr.querySelectorAll('td[data-column]').forEach(function (td) {
-                cols[td.getAttribute('data-column').toLowerCase()] = td.textContent.replace(/\s+/g, ' ').trim();
-            });
-            if (!Object.keys(cols).length) return;
-            var link = tr.querySelector('td[data-column="id"] a[href], a[href*="/ticket/view/"], a[href*="/ticket/edit/"], a[href*="/ticket/"]');
-            var no = tr.getAttribute('data-id') || '';
-            if (!/^\d+$/.test(no)) {
-                var m = link && (link.getAttribute('href') || '').match(/\/ticket\/(?:view\/|edit\/)?(\d+)\b/);
-                if (!m) return; no = m[1];
-            }
-            function pick(re) { for (var k in cols) if (re.test(k) && cols[k]) return cols[k]; return ''; }
-            out.push({
-                no: no,
-                href: '/ticket/' + no,
-                status: cols.status || pick(/status|state|bucket/) || '',
-                device: cols.items || pick(/device|model|item/) || '',
-                date: cols.created || cols.date || pick(/created|opened|date/) || '',
-            });
-        });
-        return out;
+    // RepairQ's per-page CSRF token (the quick-search form carries it).
+    function rqCsrf() {
+        var el = document.querySelector('input[name="YII_CSRF_TOKEN"]');
+        return el ? el.value : '';
     }
 
-    // Search RepairQ for a phone number's tickets. Endpoint captured from RepairQ
-    // (see RC-panel setup); returns the ticket-list HTML we parse. Best-effort:
-    // resolves to [] on any failure so the panel never breaks.
-    function searchCustomerTickets(number) {
-        var d = digits(number);
-        if (d.length < 7) return Promise.resolve([]);
-        var q10 = d.slice(-10);   // RepairQ stores 10-digit; strip country code
-        // RepairQ ticket list filtered by keyword (customer name/phone/email).
+    // Hop 1: phone → matching customer IDs. RepairQ's "Search Contacts" quick
+    // search POSTs filter[quickQuery] to /customers/leads and returns the
+    // filtered contacts grid; we harvest the /customers/<id> links. A number can
+    // match several contacts (staff reuse numbers), so we keep them all.
+    function findCustomerIds(number) {
+        var q10 = digits(number).slice(-10);
+        if (q10.length < 10) return Promise.resolve([]);
         var body = new URLSearchParams();
-        body.set('filter-options', '1');
-        body.set('filter[full_history]', '1');       // search all time, not just the queue window
-        body.set('filter[keyword]', q10);
-        body.set('is_apply', 'true');
-        return fetch('/ticket', {
+        body.set('YII_CSRF_TOKEN', rqCsrf());
+        body.set('filter[quickQuery]', q10);
+        return fetch('/customers/leads', {
             method: 'POST', credentials: 'same-origin',
             headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
             body: body.toString(),
-        }).then(function (r) { return r.text(); })
-          .then(function (html) { return parseTicketRows(new DOMParser().parseFromString(html, 'text/html')); })
-          .catch(function () { return []; });
+        }).then(function (r) { return r.text(); }).then(function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var scope = doc.getElementById('mainModelList') || doc;
+            var ids = [], seen = {};
+            scope.querySelectorAll('a[href*="/customers/"]').forEach(function (a) {
+                var m = (a.getAttribute('href') || '').match(/\/customers\/(\d+)\b/);
+                if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
+            });
+            return ids.slice(0, 5);          // cap — usually 1
+        }).catch(function () { return []; });
+    }
+
+    // Hop 2: customer ID → their tickets. The profile page (/customers/<id>)
+    // renders the ticket history in a #tickets table; parse each <tr data-id>.
+    // Cells: [1]=location, [2]=device (full name in the popover), [3]=status,
+    // [7]=date.
+    function ticketsForCustomer(id) {
+        return fetch('/customers/' + id, { credentials: 'same-origin' })
+            .then(function (r) { return r.text(); }).then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var scope = doc.getElementById('tickets') || doc;
+                var out = [];
+                scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
+                    var no = tr.getAttribute('data-id');
+                    if (!/^\d+$/.test(no)) return;
+                    var tds = tr.querySelectorAll('td');
+                    function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
+                    var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
+                    out.push({
+                        no: no, href: '/ticket/' + no,
+                        location: cell(1),
+                        device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cell(2),
+                        status: cell(3),
+                        date: cell(7),
+                    });
+                });
+                return out;
+            }).catch(function () { return []; });
+    }
+
+    // phone → customers → merged, de-duped ticket list. Fails soft to [].
+    function searchCustomerTickets(number) {
+        return findCustomerIds(number).then(function (ids) {
+            if (!ids.length) return [];
+            return Promise.all(ids.map(ticketsForCustomer)).then(function (lists) {
+                var seen = {}, all = [];
+                lists.forEach(function (l) { l.forEach(function (t) { if (!seen[t.no]) { seen[t.no] = 1; all.push(t); } }); });
+                return all;
+            });
+        }).catch(function () { return []; });
     }
 
     function loadCustomerTickets(number) {
@@ -393,8 +415,8 @@
                     '<span class="mrt-rc-tix-dev">' + esc(t.device || t.status || '') + '</span>' +
                     (t.status ? '<span class="mrt-rc-tix-st">' + esc(t.status) + '</span>' : '') + '</a>';
             }
-            leads.forEach(function (t) { rows.push(row('lead', t)); });
-            open.forEach(function (t) { rows.push(row('open', t)); });
+            leads.slice(0, 3).forEach(function (t) { rows.push(row('lead', t)); });
+            open.slice(0, 6).forEach(function (t) { rows.push(row('open', t)); });
             if (closed[0]) rows.push(row('last closed', closed[0]));
             box.innerHTML = '<div class="mrt-rc-tixhd">📋 Their tickets</div>' + rows.join('');
         });
