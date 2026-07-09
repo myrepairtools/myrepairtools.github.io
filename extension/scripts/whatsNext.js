@@ -246,7 +246,12 @@
     function build() {
         // launcher: sit just left of the Tickets search group, styled as a
         // native RepairQ btn (Bootstrap 2 + FontAwesome 3, like its
-        // neighbors); float as our own pill only if the header isn't there
+        // neighbors). DOCKED ONLY — pages without the header search bar
+        // (Analytics, other chrome-less surfaces) get no button at all; the
+        // old floating-pill fallback kept landing on top of things there.
+        var navSpot = document.getElementById('globalSearches');
+        var form = navSpot && navSpot.querySelector('#quickSearch');
+        if (!navSpot) return;
         var btn = document.createElement('a');
         btn.className = 'mrt-wn-btn';
         btn.href = '#';
@@ -256,17 +261,9 @@
             e.preventDefault();
             overlay.classList.contains('open') ? close() : open();
         });
-        var navSpot = document.getElementById('globalSearches');
-        var form = navSpot && navSpot.querySelector('#quickSearch');
-        if (form) {
-            btn.classList.add('innav', 'btn', 'btn-small');
-            form.insertBefore(btn, form.firstChild);
-        } else if (navSpot && navSpot.parentElement) {
-            btn.classList.add('innav', 'btn', 'btn-small');
-            navSpot.parentElement.insertBefore(btn, navSpot);
-        } else {
-            document.body.appendChild(btn);
-        }
+        btn.classList.add('innav', 'btn', 'btn-small');
+        if (form) form.insertBefore(btn, form.firstChild);
+        else navSpot.parentElement.insertBefore(btn, navSpot);
 
         overlay = document.createElement('div');
         overlay.className = 'mrt-wn-overlay';
