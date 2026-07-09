@@ -1,6 +1,12 @@
 // Pricing model shared with the popup + tile overlay (mcpr.priceModel):
 // 'franchise' loads the 5.8% royalty, 'cap' (Eugene) has none.
 var PRICE_MODEL = 'franchise';
+// CAP rounding: always UP to the next $4.99/$9.99 ending (franchise = nearest).
+function capRoundUp(n) {
+  if (n <= 0) return 0;
+  return Math.ceil((n + 0.01) / 5) * 5 - 0.01;
+}
+function roundTotal(n) { return PRICE_MODEL === 'cap' ? capRoundUp(n) : cprRound(n); }
 try { chrome.storage.sync.get(['mcpr']).then(function (r) {
   PRICE_MODEL = (r && r.mcpr && r.mcpr.priceModel) === 'cap' ? 'cap' : 'franchise';
   if (typeof calculate === 'function') calculate();
@@ -120,13 +126,13 @@ function calculate() {
   var total   = afterCC * (PRICE_MODEL === 'cap' ? 1 : 1.058);
   var ccFee   = afterCC - base;
   var royalty = total - afterCC;
-  var rounded = cprRound(total);
+  var rounded = roundTotal(total);
   var fm      = base > 0 ? (total / base) : 1;
 
   var pc = document.getElementById('p_charged');
   var rem = rounded;
   if (hasPrimary && pc) {
-    var pf = cprRound((primaryCost + labor) * fm);
+    var pf = roundTotal((primaryCost + labor) * fm);
     rem = rounded - pf;
     pc.className = 'charged-display has-value';
     pc.innerHTML = '<span class="line-total">' + fmt(pf) + '</span><span class="rule-tag tag-labor">+$100 Labor</span>';

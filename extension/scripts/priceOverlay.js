@@ -43,8 +43,15 @@
         return Math.max(cost + 25, 73.50);
     }
 
+    // CAP rounding: always UP to the next $4.99/$9.99 ending (franchise = nearest).
+    function capRoundUp(n) {
+        if (n <= 0) return 0;
+        return Math.ceil((n + 0.01) / 5) * 5 - 0.01;
+    }
+
     function repairPrice(cost) {
-        return cprRound((cost + 100) * CC_FEE * ROYALTY);
+        var loaded = (cost + 100) * CC_FEE * ROYALTY;
+        return ROYALTY === 1 ? capRoundUp(loaded) : cprRound(loaded);   // ROYALTY 1 = CAP model
     }
 
     function addonPrice(cost) {

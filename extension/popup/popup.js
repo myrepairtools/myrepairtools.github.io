@@ -17,6 +17,18 @@ function cprRound(n) {
   return (n - lower < upper - n) ? lower : upper;
 }
 
+// CAP rounding: always UP to the next price ending in $4.99 / $9.99
+// (franchise rounds to the NEAREST such ending; CAP never rounds down).
+function capRoundUp(n) {
+  if (n <= 0) return 0;
+  return Math.ceil((n + 0.01) / 5) * 5 - 0.01;
+}
+
+// model-aware total rounding
+function roundTotal(n) {
+  return PRICE_MODEL === 'cap' ? capRoundUp(n) : cprRound(n);
+}
+
 function applyMarkup(cost) {
   if (cost <= 0)  return { charged: 0, tag: null };
   if (cost <= 20) return { charged: Math.max(cost * 2, 20), tag: '2x' };
@@ -140,13 +152,13 @@ function calculate() {
   var total   = afterCC * (PRICE_MODEL === 'cap' ? 1 : 1.058);
   var ccFee   = afterCC - base;
   var royalty = total - afterCC;
-  var rounded = cprRound(total);
+  var rounded = roundTotal(total);
   var feeMultiplier = base > 0 ? (total / base) : 1;
 
   var pCharged = document.getElementById('p_charged');
   var remainderForAdd = rounded;
   if (hasPrimary && pCharged) {
-    var primaryFinal = cprRound((primaryCost + labor) * feeMultiplier);
+    var primaryFinal = roundTotal((primaryCost + labor) * feeMultiplier);
     remainderForAdd = rounded - primaryFinal;
     pCharged.className = 'charged-display has-value';
     pCharged.innerHTML = '<span class="line-total">' + fmt(primaryFinal) + '</span><span class="rule-tag tag-labor">+$100</span>';
