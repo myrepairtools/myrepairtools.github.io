@@ -464,6 +464,43 @@ async function lookerGet(path: string): Promise<{ ok: boolean; status: number; d
   return { ok: r.ok, status: r.status, data: j ?? t };
 }
 
+// Build a querymanager plain_query from a Looker query object (dashboard tile
+// or Look), overriding the location filter for the target store.
+function plainFromQuery(q: any, elementId: string, store: string | null, source: string, pathPrefix: string, forceLoc = false): any {
+  const filters = { ...(q.filters || {}) };
+  if (store != null && ("location.short_name" in filters || forceLoc)) filters["location.short_name"] = store;
+  return {
+    model: q.model, view: q.view, fields: q.fields || [], pivots: q.pivots || [],
+    fill_fields: q.fill_fields || [], filters, filter_expression: q.filter_expression ?? "",
+    filter_config: q.filter_config ?? undefined, sorts: q.sorts || [],
+    limit: String(q.limit || "5000"), column_limit: String(q.column_limit || "50"),
+    total: !!q.total, row_total: q.row_total ?? "", subtotals: q.subtotals || [],
+    dynamic_fields: q.dynamic_fields ?? null, query_timezone: q.query_timezone ?? "",
+    element_id: elementId, client_id: "mrt" + elementId,
+    generate_links: false, path_prefix: pathPrefix, server_table_calcs: false, source,
+  };
+}
+
+// Pull a saved LOOK by id (a single stored query), location-swapped + cached.
+async function actionLookerLook(p: any) {
+  const id = String(p?.look_id || "");
+  if (!id) return json({ ok: false, error: "look_id required" }, 400);
+  const look = await lookerGet(`/api/internal/looks/${id}`);
+  if (!look.ok || !look.data?.query) return json({ ok: false, error: `look fetch HTTP ${look.status}`, body: String(look.data).slice(0, 300) }, 502);
+  const store = p.location != null ? String(p.location) : null;
+  const pq = plainFromQuery(look.data.query, "look" + id, store, "look", "/embed/looks", p.force_location);
+  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+  const rows: any[] = [];
+  for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+  if (p.cache !== false) {
+    await admin.from("repairq_cache").insert({
+      query_name: p.name || `look:${id}`, location: p.location ?? null,
+      params: { look_id: id, title: look.data.title }, status: 200, data: rows, row_count: rows.length,
+    });
+  }
+  return json({ ok: true, look_id: id, title: look.data.title || null, location: p.location ?? null, row_count: rows.length, cached: p.cache !== false, data: p.include_data ? rows : undefined });
+}
+
 // The elegant path (Brett's insight): reference a Looker DASHBOARD by id, read
 // its tiles' query definitions from the API, run each for the target store,
 // and cache. No payload capture — the query lives in Looker, maintained there.
@@ -627,6 +664,7 @@ Deno.serve(async (req) => {
     }
     if (payload?.action === "looker_pull") return await actionLookerPull(payload);
     if (payload?.action === "looker_dashboard") return await actionLookerDashboard(payload);
+    if (payload?.action === "looker_look") return await actionLookerLook(payload);
     if (payload?.action === "looker_get") {
       // authenticated GET against Looker with our embed session (exploration)
       const s = await lookerSession();
