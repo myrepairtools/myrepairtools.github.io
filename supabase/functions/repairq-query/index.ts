@@ -621,6 +621,57 @@ async function actionLookerSyncStock(p: any) {
   return json({ ok: out.every((o) => !o.error), stores: out });
 }
 
+// Sync live PART CONSUMPTION from Look 5785 into consumption_log. The report
+// SUMS units per sku/day, so we REPLACE each (store, biz_date) the Look
+// returns — delete that day's existing rows, insert RepairQ's — never add
+// alongside (which would double-count). Only touches days the Look covers
+// (today), leaving historical MS-sourced days intact. Idempotent.
+async function actionLookerSyncConsumption(p: any) {
+  const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
+    : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
+  const lookId = String(p?.look_id || "5785");
+  const out: any[] = [];
+  for (const store of stores) {
+    try {
+      const look = await lookerGet(`/api/internal/looks/${lookId}`);
+      if (!look.ok || !look.data?.query) throw new Error(`look fetch HTTP ${look.status}`);
+      const pq = plainFromQuery(look.data.query, "syncCons", store, "look", "/embed/looks", true);
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const rows: any[] = [];
+      for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+
+      const appStore = appStoreName(store);
+      // group by biz_date
+      const byDate = new Map<string, any[]>();
+      for (const r of rows) {
+        const d = r["inventory_item.status_updated_date"];
+        const sku = r["catalog_item.sku"];
+        if (!d || !sku) continue;
+        (byDate.get(d) || byDate.set(d, []).get(d))!.push({
+          biz_date: d, store: appStore, sku: String(sku),
+          name: r["catalog_item.name"] ?? null,
+          units: Number(r["inventory_item.count"] || 0),
+          supplier: "RepairQ", updated_at: new Date().toISOString(),
+        });
+      }
+      let replaced = 0;
+      const days: string[] = [];
+      for (const [d, recs] of byDate) {
+        // replace this day for this store
+        const del = await admin.from("consumption_log").delete().eq("store", appStore).eq("biz_date", d);
+        if (del.error) throw new Error(del.error.message);
+        const ins = await admin.from("consumption_log").insert(recs);
+        if (ins.error) throw new Error(ins.error.message);
+        replaced += recs.length; days.push(d);
+      }
+      out.push({ store: appStore, pulled: rows.length, replaced, days });
+    } catch (e) {
+      out.push({ store: appStoreName(store), error: String((e as Error).message || e) });
+    }
+  }
+  return json({ ok: out.every((o) => !o.error), stores: out });
+}
+
 async function actionSaveQuery(p: any) {
   if (!p?.name || !p?.path) return json({ ok: false, error: "name and path required" }, 400);
   const row = {
@@ -734,6 +785,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "looker_dashboard") return await actionLookerDashboard(payload);
     if (payload?.action === "looker_look") return await actionLookerLook(payload);
     if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
+    if (payload?.action === "sync_consumption") return await actionLookerSyncConsumption(payload);
     if (payload?.action === "looker_get") {
       // authenticated GET against Looker with our embed session (exploration)
       const s = await lookerSession();
