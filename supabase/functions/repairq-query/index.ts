@@ -490,6 +490,53 @@ function plainFromQuery(q: any, elementId: string, store: string | null, source:
   };
 }
 
+// Run a MERGED dashboard tile (Looker "merged results" — e.g. device-attach:
+// devices sold + accessories on those same tickets). The merge is defined on
+// the dashboard element; we run it by referencing the element + its
+// result_maker_id, with a client-invented session_id (Looker only uses it as
+// a correlation string). date/param filters pass through per source query.
+async function actionLookerMerge(p: any) {
+  const dashId = String(p?.dashboard_id || "");
+  const elId = String(p?.element_id || "");
+  let rmId = p?.result_maker_id != null ? String(p.result_maker_id) : "";
+  const nSources = Number(p?.source_count || 2);
+  const dateFilter = p?.date != null ? String(p.date) : "today";
+  const dateField = String(p?.date_field || "ticket_item.accounted_on_date");
+  if (!dashId || !elId) return json({ ok: false, error: "dashboard_id and element_id required" }, 400);
+
+  // resolve result_maker_id from the dashboard element if not supplied
+  if (!rmId) {
+    const dash = await lookerGet(`/api/internal/dashboards/${dashId}`);
+    const el = (dash.data?.dashboard_elements || []).find((e: any) => String(e.id) === elId);
+    rmId = el?.result_maker_id != null ? String(el.result_maker_id) : "";
+    if (!rmId) return json({ ok: false, error: `element ${elId} has no result_maker_id` }, 404);
+  }
+
+  const filters = Array.from({ length: Math.max(1, nSources) }, () => ({ [dateField]: dateFilter }));
+  const sid = "mrt" + elId + String(Math.abs(dashId.length * 2654435761 % 1e9)).padStart(9, "0");
+  const body = {
+    plain_queries: [],
+    saved_queries: [{
+      element_id: elId, filters, generate_links: false,
+      path_prefix: "/explore", server_table_calcs: false, source: "dashboard",
+      sorts: [], result_maker_id: rmId,
+    }],
+    context: { id: dashId, type: "dashboard", session_id: sid },
+    options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
+  };
+  const run = await lookerRun(body);
+  const rows: any[] = [];
+  for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+  if (p.cache !== false) {
+    await admin.from("repairq_cache").insert({
+      query_name: p.name || `merge:${dashId}:${elId}`, location: p.location ?? null,
+      params: { dashboard_id: dashId, element_id: elId, result_maker_id: rmId },
+      status: 200, data: rows, row_count: rows.length,
+    });
+  }
+  return json({ ok: true, dashboard_id: dashId, element_id: elId, row_count: rows.length, cached: p.cache !== false, data: p.include_data ? rows : undefined });
+}
+
 // Pull a saved LOOK by id (a single stored query), location-swapped + cached.
 async function actionLookerLook(p: any) {
   const id = String(p?.look_id || "");
@@ -784,6 +831,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "looker_pull") return await actionLookerPull(payload);
     if (payload?.action === "looker_dashboard") return await actionLookerDashboard(payload);
     if (payload?.action === "looker_look") return await actionLookerLook(payload);
+    if (payload?.action === "looker_merge") return await actionLookerMerge(payload);
     if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
     if (payload?.action === "sync_consumption") return await actionLookerSyncConsumption(payload);
     if (payload?.action === "looker_get") {
