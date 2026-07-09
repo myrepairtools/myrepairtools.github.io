@@ -735,6 +735,16 @@ const INGEST_FIELD_MAP: Record<string, Record<string, string>> = {
     "Is Consigned": "child_inventory_item.is_consigned",
     "All Net COGS Total": "child_ticket_item.all_net_cogs_total",
   },
+  // Accessory Sales by Employee (4591). Validated: net/gp/units/tickets match
+  // commission_sales for stable employees (deltas are live-freshness only).
+  commission_accessory: {
+    "Location": "location.short_name", "Employee": "sold_by.full_name",
+    "Accounted on Date": "ticket_item.accounted_on_date",
+    "Accy Tkt #": "ticket.count_final",
+    "Accy Count": "ticket_item.all_sale_accessory_count",
+    "Accy Total": "ticket_item.all_net_accessory_sales_total",
+    "Accy GP": "ticket_item.all_net_accessory_sales_after_cogs_total",
+  },
 };
 
 function apiRowsToLabels(rows: any[], feed: string): any[] {
