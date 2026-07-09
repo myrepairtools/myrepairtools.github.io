@@ -269,6 +269,7 @@
              '<span class="mrt-rc-who">' + esc(t.name || pretty(t.number)) + '</span>' +
              '<span class="mrt-rc-tnum">' + esc(pretty(t.number)) + '</span></div>' +
              '<div class="mrt-rc-msgs" id="mrt-rc-msgs"><div class="mrt-rc-load">Loading…</div></div>' +
+             '<div class="mrt-rc-tix" id="mrt-rc-tix"></div>' +
              '<div class="mrt-rc-compose">' +
                '<textarea id="mrt-rc-text" rows="2" placeholder="Text ' + esc(pretty(t.number)) + '…"></textarea>' +
                '<div class="mrt-rc-cbar">' +
@@ -281,6 +282,7 @@
         q('#mrt-rc-send').addEventListener('click', sendThread);
         q('#mrt-rc-ai').addEventListener('click', openAiMenu);
         loadMsgs();
+        loadCustomerTickets(t.number);
         var ta = q('#mrt-rc-text'); if (ta && S.pendingDraft) { ta.value = S.pendingDraft; S.pendingDraft = null; cstatus('ok', '✨ Drafted — edit or Send'); }
     }
     function loadMsgs() {
@@ -312,6 +314,92 @@
             loadMsgs();
         });
     }
+    /* --- customer's RepairQ tickets (lead / open / last closed) ------------
+       We're on cpr.repairq.io, so we can hit RepairQ same-origin. Search the
+       customer by their phone number, parse the returned ticket rows, classify
+       them, and show the useful ones hyperlinked right under the conversation. */
+    var CLOSED_RE = /closed|picked ?up|complete|fulfilled|cancel|delivered/i;
+    var LEAD_RE   = /lead|quote|estimate|new claim/i;
+
+    // Parse RepairQ's ticket-list table rows (same shape whatsNext reads).
+    function parseTicketRows(doc) {
+        var out = [];
+        var scope = doc.getElementById('mainModelList') || doc;
+        scope.querySelectorAll('tr').forEach(function (tr) {
+            var cols = {};
+            tr.querySelectorAll('td[data-column]').forEach(function (td) {
+                cols[td.getAttribute('data-column').toLowerCase()] = td.textContent.replace(/\s+/g, ' ').trim();
+            });
+            if (!Object.keys(cols).length) return;
+            var link = tr.querySelector('td[data-column="id"] a[href], a[href*="/ticket/view/"], a[href*="/ticket/edit/"], a[href*="/ticket/"]');
+            var no = tr.getAttribute('data-id') || '';
+            if (!/^\d+$/.test(no)) {
+                var m = link && (link.getAttribute('href') || '').match(/\/ticket\/(?:view\/|edit\/)?(\d+)\b/);
+                if (!m) return; no = m[1];
+            }
+            function pick(re) { for (var k in cols) if (re.test(k) && cols[k]) return cols[k]; return ''; }
+            out.push({
+                no: no,
+                href: '/ticket/' + no,
+                status: cols.status || pick(/status|state|bucket/) || '',
+                device: cols.items || pick(/device|model|item/) || '',
+                date: cols.created || cols.date || pick(/created|opened|date/) || '',
+            });
+        });
+        return out;
+    }
+
+    // Search RepairQ for a phone number's tickets. Endpoint captured from RepairQ
+    // (see RC-panel setup); returns the ticket-list HTML we parse. Best-effort:
+    // resolves to [] on any failure so the panel never breaks.
+    function searchCustomerTickets(number) {
+        var d = digits(number);
+        if (d.length < 7) return Promise.resolve([]);
+        var q10 = d.slice(-10);   // RepairQ stores 10-digit; strip country code
+        // RepairQ ticket list filtered by keyword (customer name/phone/email).
+        var body = new URLSearchParams();
+        body.set('filter-options', '1');
+        body.set('filter[full_history]', '1');       // search all time, not just the queue window
+        body.set('filter[keyword]', q10);
+        body.set('is_apply', 'true');
+        return fetch('/ticket', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+            body: body.toString(),
+        }).then(function (r) { return r.text(); })
+          .then(function (html) { return parseTicketRows(new DOMParser().parseFromString(html, 'text/html')); })
+          .catch(function () { return []; });
+    }
+
+    function loadCustomerTickets(number) {
+        var box = q('#mrt-rc-tix'); if (!box) return;
+        box.innerHTML = '<div class="mrt-rc-tixhd">📋 Their tickets <span class="mrt-rc-tixsp">…</span></div>';
+        searchCustomerTickets(number).then(function (tix) {
+            if (!q('#mrt-rc-tix')) return;                       // thread changed
+            if (!tix.length) { box.innerHTML = '<div class="mrt-rc-tixhd">📋 No RepairQ tickets found for this number</div>'; return; }
+            var leads = [], open = [], closed = [];
+            tix.forEach(function (t) {
+                if (LEAD_RE.test(t.status)) leads.push(t);
+                else if (CLOSED_RE.test(t.status)) closed.push(t);
+                else open.push(t);
+            });
+            var byNoDesc = function (a, b) { return Number(b.no) - Number(a.no); };
+            leads.sort(byNoDesc); open.sort(byNoDesc); closed.sort(byNoDesc);
+            var rows = [];
+            function row(kind, t) {
+                return '<a class="mrt-rc-tix-row" href="' + esc(t.href) + '" target="_blank" rel="noopener">' +
+                    '<span class="mrt-rc-tix-tag ' + kind + '">' + kind + '</span>' +
+                    '<span class="mrt-rc-tix-no">#' + esc(t.no) + '</span>' +
+                    '<span class="mrt-rc-tix-dev">' + esc(t.device || t.status || '') + '</span>' +
+                    (t.status ? '<span class="mrt-rc-tix-st">' + esc(t.status) + '</span>' : '') + '</a>';
+            }
+            leads.forEach(function (t) { rows.push(row('lead', t)); });
+            open.forEach(function (t) { rows.push(row('open', t)); });
+            if (closed[0]) rows.push(row('last closed', closed[0]));
+            box.innerHTML = '<div class="mrt-rc-tixhd">📋 Their tickets</div>' + rows.join('');
+        });
+    }
+
     /* --- ✨ menu: polish, or a guided scenario --- */
     var templatesCache = null;
     function loadTemplates(cb) {
