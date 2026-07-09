@@ -303,9 +303,15 @@
     display: flex; flex-direction: column; gap: 2px;
   }
   .date-main { font-size: 14px; }
+  .date-main.unknown-date { color: var(--red); }
   .date-sub {
     font-size: 10px; font-weight: 700; color: var(--grey);
     text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .set-date-btn { margin-left: 6px; padding: 3px 7px; }
+  .set-date-input {
+    font-family: 'Nunito Sans', sans-serif; font-size: 12px; font-weight: 700;
+    padding: 4px 6px; border: 1px solid var(--grey); border-radius: 6px; margin-right: 4px;
   }
   .deposits-cell {
     font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 900;
@@ -1445,9 +1451,14 @@ function groupByBatch(tickets) {
   const map = new Map();
   for (const t of tickets) {
     const loc = t.location_short || '(unknown)';
-    const date = t.payout_date || '(unknown)';
-    const key = batchKey(loc, date);
-    if (!map.has(key)) map.set(key, { key, location: loc, payout_date: date, tickets: [] });
+    // A payout without a date is one that hasn't been dated yet. Key those by
+    // INVOICE (not lumped into one "(unknown)" pile), since two invoices can be
+    // undated at once and each is a separate payout that needs its own date.
+    const undated = !t.payout_date;
+    const inv = t.claim_invoice || '(no invoice)';
+    const date = undated ? '(unknown)' : t.payout_date;
+    const key = undated ? batchKey(loc, 'inv:' + inv) : batchKey(loc, date);
+    if (!map.has(key)) map.set(key, { key, location: loc, payout_date: date, unknownDate: undated, claim_invoice: undated ? inv : null, tickets: [] });
     map.get(key).tickets.push(t);
   }
   // Sort: newest date first, then location alphabetical
@@ -1691,8 +1702,12 @@ function renderBatchRow(b) {
       <td class="center"><input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${b.key}', this.checked)" /></td>
       <td>
         <div class="date-cell">
-          <div class="date-main">${fmtDate(b.payout_date)}</div>
-          <div class="date-sub">${dowOf(b.payout_date)} · ${b.tickets.length} tickets</div>
+          ${b.unknownDate
+            ? `<div class="date-main unknown-date">Needs a date</div>
+               <div class="date-sub">Invoice ${b.claim_invoice} · ${b.tickets.length} tickets
+                 <button class="icon-btn set-date-btn" onclick="setBatchDate('${b.key}', this)">📅 Set date</button></div>`
+            : `<div class="date-main">${fmtDate(b.payout_date)}</div>
+               <div class="date-sub">${dowOf(b.payout_date)} · ${b.tickets.length} tickets</div>`}
         </div>
       </td>
       <td><div class="location-cell">${b.location}</div></td>
@@ -2076,6 +2091,61 @@ async function markSelectedProcessed() {
   if (!sel.length) return;
   const ticketIds = sel.flatMap(b => b.tickets.map(t => t.ticket_id));
   await markTickets(ticketIds, true, document.getElementById('btn-mark-processed'));
+}
+
+// Suggested payout date for an undated batch: the Friday on/after the latest
+// ticket in it (Assurant pays out weekly on Fridays).
+function suggestPayoutDate(batch) {
+  let max = '';
+  for (const t of batch.tickets) { const d = t.ticket_date || ''; if (d > max) max = d; }
+  if (!max) return new Date().toISOString().slice(0, 10);
+  const d = new Date(max + 'T00:00:00');
+  const dow = d.getDay();               // 0 Sun … 5 Fri
+  const add = (5 - dow + 7) % 7;        // days until the next Friday (0 if already Fri)
+  d.setDate(d.getDate() + add);
+  return d.toISOString().slice(0, 10);
+}
+
+// Show an inline date picker on an undated batch; on save write the payout_date
+// to every ticket of that invoice in BOTH claim_repairs and claim_parts.
+function setBatchDate(batchKey, btn) {
+  const batch = batches.find(b => b.key === batchKey);
+  if (!batch) return;
+  const sub = btn.closest('.date-sub');
+  if (!sub) return;
+  sub.innerHTML =
+    `<input type="date" class="set-date-input" value="${suggestPayoutDate(batch)}" />
+     <button class="icon-btn primary" onclick="saveBatchDate('${batchKey}', this)">Save</button>
+     <button class="icon-btn" onclick="recomputeAndRender()">Cancel</button>`;
+  const inp = sub.querySelector('.set-date-input');
+  inp && inp.focus();
+}
+
+async function saveBatchDate(batchKey, btn) {
+  const batch = batches.find(b => b.key === batchKey);
+  if (!batch) return;
+  const inp = btn.closest('.date-sub')?.querySelector('.set-date-input');
+  const date = inp && inp.value;
+  if (!date) { toast('Pick a date first.', 'error'); return; }
+  btn.classList.add('spinning');
+  try {
+    const sb = await SB_READY;
+    if (!sb) throw new Error('Could not reach the server.');
+    const ids = batch.tickets.map(t => String(t.ticket_id));
+    const nowIso = new Date().toISOString();
+    const r1 = await sb.from('claim_repairs').update({ payout_date: date, updated_at: nowIso }).in('ticket_id', ids);
+    if (r1.error) throw new Error(r1.error.message);
+    // claim_parts keys by ticket_id too — keep its payout_date in sync.
+    await sb.from('claim_parts').update({ payout_date: date }).in('ticket_id', ids);
+    toast(`Dated invoice ${batch.claim_invoice} → ${date} (${ids.length} tickets)`, 'success');
+    const idSet = new Set(ids);
+    for (const t of rawTickets) if (idSet.has(String(t.ticket_id))) t.payout_date = date;
+    recomputeAndRender();
+  } catch (err) {
+    console.error(err);
+    toast('Could not set the date: ' + err.message, 'error');
+    btn.classList.remove('spinning');
+  }
 }
 
 async function markTickets(ticketIds, value, btn) {
