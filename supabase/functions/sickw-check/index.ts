@@ -21,7 +21,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const KEY = Deno.env.get("SICKW_API_KEY") || "";
-const SERVICE = Deno.env.get("SICKW_SERVICE_ID") || "";
+const SERVICE = Deno.env.get("SICKW_SERVICE_ID") || "54";          // WW BLACKLIST STATUS ($0.04)
+const SERVICE_IPHONE = Deno.env.get("SICKW_SERVICE_IPHONE") || "61";  // iPHONE CARRIER & FMI & BLACKLIST ($0.10)
+const SERVICE_SAMSUNG = Deno.env.get("SICKW_SERVICE_SAMSUNG") || "6"; // WW BLACKLIST STATUS - PRO ($0.12)
+
+// Route by manufacturer: iPhones get the carrier+FMI+blacklist combo (FMI ON =
+// iCloud-locked = just as unsellable as blacklisted), Samsungs get the PRO
+// blacklist, everything else the standard worldwide check.
+function routeService(deviceName: string): string {
+  const n = String(deviceName || "").toLowerCase();
+  if (/iphone|ipad|apple/.test(n)) return SERVICE_IPHONE;
+  if (/galaxy|samsung/.test(n)) return SERVICE_SAMSUNG;
+  return SERVICE;
+}
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
@@ -45,13 +57,15 @@ function luhnOk(s: string): boolean {
   return sum % 10 === 0;
 }
 
-// Sickw results are loose text/HTML. Classify defensively: an explicit CLEAN
-// wins only when no blacklist flag is present; anything ambiguous → review
-// (the modal shows the raw text and a human decides).
-function classify(text: string): "clean" | "blacklisted" | "review" {
+// Sickw results are loose text/HTML. Classify defensively: blacklist flags win,
+// then FMI/iCloud lock (iPhone service — an FMI-ON device is just as unsellable),
+// then an explicit CLEAN; anything ambiguous → review (raw text shown, human
+// decides).
+function classify(text: string): "clean" | "blacklisted" | "fmi_on" | "review" {
   const t = String(text || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   if (/black\s*list(?:ed)?\s*(?:status)?\s*[:\-]?\s*(yes|true|blacklisted|blocked|barred)/i.test(t)) return "blacklisted";
   if (/\bBLACKLISTED\b|\bBLOCKED\b|\bBARRED\b|GSMA\s*:?\s*BLACKLISTED/i.test(t)) return "blacklisted";
+  if (/(?:FMI|Find\s*My(?:\s*iPhone)?|iCloud\s*Lock)\s*[:\-]?\s*(on|active|enabled|locked)/i.test(t)) return "fmi_on";
   if (/black\s*list(?:ed)?\s*(?:status)?\s*[:\-]?\s*(no|false|clean|not\s+found)/i.test(t) || /\bCLEAN\b/i.test(t)) return "clean";
   return "review";
 }
@@ -67,7 +81,7 @@ async function sickw(params: Record<string, string>): Promise<{ ok: boolean; dat
 
 async function actionCheck(p: any) {
   if (!KEY) return json({ ok: false, error: "SICKW_API_KEY not configured" }, 500);
-  const service = String(p?.service || SERVICE || "").trim();
+  const service = String(p?.service || routeService(p?.device_name) || "").trim();
   if (!service) return json({ ok: false, error: "SICKW_SERVICE_ID not configured (pick one via action=services)" }, 500);
   const imei = String(p?.imei || "").replace(/\D/g, "");
   if (imei.length !== 15 || !luhnOk(imei)) return json({ ok: false, error: "Not a valid 15-digit IMEI" }, 400);

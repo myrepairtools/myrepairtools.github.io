@@ -151,9 +151,11 @@
 
     function noteFor(status, imei, extra) {
         var who = techName() || 'staff';
-        if (status === 'clean') return '🛡 Blacklist check: CLEAN — IMEI ' + imei + ' (Sickw WW Blacklist) — ' + who;
-        if (status === 'blacklisted') return '⛔ Blacklist check: BLACKLISTED — IMEI ' + imei + ' (Sickw WW Blacklist) — DO NOT SELL — ' + who;
-        if (status === 'review') return '🛡 Blacklist check: NEEDS REVIEW — IMEI ' + imei + ' — ' + (extra || '') + ' — ' + who;
+        var tail = (extra ? ' — ' + extra : '') + ' — ' + who;
+        if (status === 'clean') return '🛡 Blacklist check: CLEAN — IMEI ' + imei + ' (Sickw)' + tail;
+        if (status === 'blacklisted') return '⛔ Blacklist check: BLACKLISTED — IMEI ' + imei + ' (Sickw) — DO NOT SELL' + tail;
+        if (status === 'fmi_on') return '⛔ Blacklist check: iCloud Lock (FMI) ON — IMEI ' + imei + ' (Sickw) — DO NOT SELL' + tail;
+        if (status === 'review') return '🛡 Blacklist check: NEEDS REVIEW — IMEI ' + imei + tail;
         return '⚠ Blacklist check SKIPPED — IMEI ' + imei + ' — ' + who;
     }
 
@@ -202,21 +204,22 @@
                 }
                 markDone(item.imei);
                 var cachedTag = r.cached ? ' <span class="mrt-bl-cached">(checked earlier today)</span>' : '';
+                var raw = String(r.result || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '');
                 if (r.status === 'clean') {
-                    writeNote(noteFor('clean', item.imei));
+                    writeNote(noteFor('clean', item.imei, raw.slice(0, 160)));
                     body.innerHTML =
                         '<div class="mrt-bl-verdict clean">✅ CLEAN' + cachedTag + '</div>' +
-                        '<div class="mrt-bl-raw">' + esc(String(r.result || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '')) + '</div>' +
+                        '<div class="mrt-bl-raw">' + esc(raw) + '</div>' +
                         '<button class="mrt-bl-done" id="mrt-bl-done">Done</button>';
-                } else if (r.status === 'blacklisted') {
-                    writeNote(noteFor('blacklisted', item.imei));
+                } else if (r.status === 'blacklisted' || r.status === 'fmi_on') {
+                    var label = r.status === 'fmi_on' ? '⛔ iCLOUD LOCK (FMI) IS ON — DO NOT SELL' : '⛔ BLACKLISTED — DO NOT SELL';
+                    writeNote(noteFor(r.status, item.imei, raw.slice(0, 160)));
                     body.innerHTML =
-                        '<div class="mrt-bl-verdict bad">⛔ BLACKLISTED — DO NOT SELL</div>' +
-                        '<div class="mrt-bl-raw">' + esc(String(r.result || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '')) + '</div>' +
+                        '<div class="mrt-bl-verdict bad">' + label + '</div>' +
+                        '<div class="mrt-bl-raw">' + esc(raw) + '</div>' +
                         '<div class="mrt-bl-q">Pull this device off the ticket and quarantine it. A note has been written to the ticket.</div>' +
                         '<button class="mrt-bl-done bad" id="mrt-bl-done">I Understand — Remove the Device</button>';
                 } else {
-                    var raw = String(r.result || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '');
                     writeNote(noteFor('review', item.imei, raw.slice(0, 180)));
                     body.innerHTML =
                         '<div class="mrt-bl-verdict warn">⚠️ NEEDS REVIEW — result was not a clear CLEAN</div>' +
