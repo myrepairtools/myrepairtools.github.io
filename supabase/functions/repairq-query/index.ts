@@ -793,10 +793,12 @@ async function actionQuery(p: any) {
    content-access scope. Runs entirely on LOCAL cookie jars — never writes
    the module-global `session`/`lookerSess`, so the live 917 crons are
    completely undisturbed. Answers "can user 799 see 5817/1317/2330?". */
-async function probeContentAccess(loc: string, looks: number[], dashboards: number[]): Promise<any> {
+// Mint a Looker embed session for a GIVEN store location on local cookie jars,
+// never touching the module globals. Shared by every isolated diagnostic.
+async function isolatedLookerSession(loc: string): Promise<{ ok: boolean; stage?: string; error?: string; cookie?: string; csrf?: string; trail?: any[] }> {
   // 1. isolated RepairQ login under `loc`
   const lg = await login(loc, true);
-  if (!lg.ok || !lg.cookie) return { ok: false, loc, stage: "login", error: lg.error || "login failed" };
+  if (!lg.ok || !lg.cookie) return { ok: false, stage: "login", error: lg.error || "login failed" };
   const rqCookie = lg.cookie;
 
   // 2. find the signed Looker embed SSO URL on this location's analytics page
@@ -822,7 +824,7 @@ async function probeContentAccess(loc: string, looks: number[], dashboards: numb
     }
     break;
   }
-  if (!ssoUrl) return { ok: false, loc, stage: "embed_url", error: "no Looker SSO URL for location " + loc, trail };
+  if (!ssoUrl) return { ok: false, stage: "embed_url", error: "no Looker SSO URL for location " + loc, trail };
 
   // 3. mint an ISOLATED Looker embed session from the SSO URL
   const jar: Record<string, string> = {};
@@ -847,10 +849,16 @@ async function probeContentAccess(loc: string, looks: number[], dashboards: numb
     url = null;
   }
   const csrf = decodeURIComponent(jar["CSRF-TOKEN"] || "");
-  if (!jar["rack.session"] || !csrf) return { ok: false, loc, stage: "looker_session", error: "incomplete Looker session — cookies: " + Object.keys(jar).join(", "), trail };
-  const cookie = jarStr(jar);
+  if (!jar["rack.session"] || !csrf) return { ok: false, stage: "looker_session", error: "incomplete Looker session — cookies: " + Object.keys(jar).join(", "), trail };
+  return { ok: true, cookie: jarStr(jar), csrf, trail };
+}
 
-  // 4. identify which embed user we actually became, then probe each target.
+async function probeContentAccess(loc: string, looks: number[], dashboards: number[]): Promise<any> {
+  const sess = await isolatedLookerSession(loc);
+  if (!sess.ok) return { ok: false, loc, stage: sess.stage, error: sess.error, trail: sess.trail };
+  const cookie = sess.cookie!, csrf = sess.csrf!, trail = sess.trail;
+
+  // identify which embed user we actually became, then probe each target.
   //    Out-of-scope content returns 404 (Looker hides what the embed user
   //    can't access); 200 = in scope.
   const lget = async (p: string) => {
@@ -866,6 +874,143 @@ async function probeContentAccess(loc: string, looks: number[], dashboards: numb
   const dashOut: Record<string, any> = {};
   for (const id of dashboards) { const r = await lget(`/api/internal/dashboards/${id}`); dashOut[id] = { status: r.status, access: r.ok, title: r.title }; }
   return { ok: true, loc, whoami, looks: lookOut, dashboards: dashOut, trail };
+}
+
+// Run a query body against an already-minted isolated session (create → poll →
+// results). Returns flattened rows. Shared by the isolated dashboard runner.
+async function runPlainWithSession(cookie: string, csrf: string, pq: any): Promise<{ rows: any[]; status: string; error?: string }> {
+  const hdr = { "content-type": "application/json", "accept": "*/*", "cookie": cookie, "x-csrf-token": csrf, "origin": LK_BASE, "referer": `${LK_BASE}/embed/dashboards/1`, "user-agent": UA };
+  const post = await fetch(`${LK_BASE}/api/internal/querymanager/queries`, {
+    method: "POST", headers: hdr,
+    body: JSON.stringify({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }),
+  });
+  const rawText = await post.text();
+  if (!post.ok) return { rows: [], status: "http_" + post.status, error: rawText.slice(0, 200) };
+  let created: any = {}; try { created = JSON.parse(rawText); } catch { /* keep */ }
+  const ids = new Set<string>();
+  const scan = (o: any): void => {
+    if (o == null) return;
+    if (typeof o === "string") { if (/^[0-9a-f]{32}$/.test(o)) ids.add(o); return; }
+    if (Array.isArray(o)) { o.forEach(scan); return; }
+    if (typeof o === "object") Object.values(o).forEach(scan);
+  };
+  scan(created);
+  const getHdr = { "cookie": cookie, "x-csrf-token": csrf, "accept": "application/json, text/plain, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/explore` };
+  for (const id of [...ids].slice(0, 2)) {
+    let status = "";
+    for (let i = 0; i < 25; i++) {
+      const r = await fetch(`${LK_BASE}/api/internal/dataflux/query_tasks/${id}`, { headers: getHdr });
+      const j = await r.json().catch(() => ({}));
+      status = j?.status || "";
+      if (/complete|error|failure/i.test(status)) break;
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    for (const ep of [`/api/internal/dataflux/query_tasks/${id}/results`, `/api/internal/dataflux/query_tasks/${id}/results?apply_formatting=true`]) {
+      const r = await fetch(`${LK_BASE}${ep}`, { headers: getHdr });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      const arr = Array.isArray(j) ? j : (Array.isArray(j?.data) ? j.data : null);
+      if (arr) return { rows: flattenLookerRows(arr), status };
+    }
+  }
+  return { rows: [], status: "no_rows" };
+}
+
+// Pull a whole dashboard AS a given store location (isolated session). Resolves
+// each tile's query from the dashboard definition, optionally overrides the
+// location filter, and reports per-tile row counts + distinct stores seen — the
+// definitive row-lock test AND the reusable puller for a 799 cutover.
+async function runDashboardAs(loc: string, dashId: string, storeOverride: string | null): Promise<any> {
+  const sess = await isolatedLookerSession(loc);
+  if (!sess.ok) return { ok: false, loc, stage: sess.stage, error: sess.error, trail: sess.trail };
+  const cookie = sess.cookie!, csrf = sess.csrf!;
+  const dashR = await fetch(`${LK_BASE}/api/internal/dashboards/${dashId}`, { headers: { "cookie": cookie, "x-csrf-token": csrf, "accept": "application/json, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/dashboards/${dashId}` } });
+  if (!dashR.ok) return { ok: false, loc, stage: "dashboard", status: dashR.status, error: (await dashR.text()).slice(0, 200) };
+  const dash = await dashR.json().catch(() => ({}));
+  const els = (dash?.dashboard_elements || []).filter((e: any) => e?.query && e.query.model);
+  const tiles: any[] = [];
+  for (const el of els.slice(0, 6)) {
+    const q = el.query;
+    const filters = { ...(q.filters || {}) };
+    if (storeOverride != null && ("location.short_name" in filters)) filters["location.short_name"] = storeOverride;
+    const pq: any = {
+      model: q.model, view: q.view, fields: q.fields || [], pivots: q.pivots || [],
+      fill_fields: q.fill_fields || [], filters, filter_expression: q.filter_expression ?? "",
+      sorts: q.sorts || [], limit: String(q.limit || "500"), column_limit: String(q.column_limit || "50"),
+      total: !!q.total, row_total: q.row_total ?? "", subtotals: q.subtotals || [],
+      dynamic_fields: q.dynamic_fields ?? null, query_timezone: q.query_timezone ?? "",
+      element_id: String(el.id), client_id: "mrtIso" + el.id, generate_links: false,
+      path_prefix: "/embed/dashboards", server_table_calcs: false, source: "dashboard",
+    };
+    const run = await runPlainWithSession(cookie, csrf, pq);
+    const storeKey = run.rows.length ? (Object.keys(run.rows[0]).find((k) => /location|store/i.test(k)) || null) : null;
+    const stores = storeKey ? [...new Set(run.rows.map((r) => r[storeKey]).filter((v) => v != null))] : [];
+    tiles.push({ element_id: String(el.id), title: el.title || null, row_count: run.rows.length, status: run.status, error: run.error, store_key: storeKey, distinct_stores: stores });
+  }
+  return { ok: true, loc, dashboard_id: dashId, title: dash?.title || null, store_override: storeOverride, tiles };
+}
+
+// Run one dashboard saved-query as a given store's embed user (isolated session)
+// and return the flattened rows — used to answer "is this embed user row-locked
+// to its own store, or can it see all stores' data?". No global state touched.
+async function runSavedQueryAs(loc: string, dashId: string, elementId: string, resultMakerId: string, filters: any[]): Promise<any> {
+  const sess = await isolatedLookerSession(loc);
+  if (!sess.ok) return { ok: false, loc, stage: sess.stage, error: sess.error, trail: sess.trail };
+  const cookie = sess.cookie!, csrf = sess.csrf!;
+  const body = {
+    plain_queries: [],
+    saved_queries: [{
+      element_id: elementId,
+      filters: Array.isArray(filters) ? filters : [],
+      generate_links: false,
+      path_prefix: "/explore",
+      server_table_calcs: false,
+      source: "dashboard",
+      sorts: [],
+      result_maker_id: resultMakerId,
+    }],
+    context: { id: dashId, type: "dashboard", session_id: "mrt" + dashId + elementId },
+    options: { force_run: false, streaming: true, eager_poll: false, enable_phases: false },
+  };
+  const hdr = {
+    "content-type": "application/json", "accept": "*/*", "cookie": cookie, "x-csrf-token": csrf,
+    "origin": LK_BASE, "referer": `${LK_BASE}/embed/dashboards/${dashId}`, "user-agent": UA,
+  };
+  const post = await fetch(`${LK_BASE}/api/internal/querymanager/queries`, { method: "POST", headers: hdr, body: JSON.stringify(body) });
+  const rawText = await post.text();
+  if (!post.ok) return { ok: false, loc, stage: "queries", status: post.status, error: rawText.slice(0, 400) };
+  let created: any = {}; try { created = JSON.parse(rawText); } catch { /* keep text */ }
+  const ids = new Set<string>();
+  const scan = (o: any): void => {
+    if (o == null) return;
+    if (typeof o === "string") { if (/^[0-9a-f]{32}$/.test(o)) ids.add(o); return; }
+    if (Array.isArray(o)) { o.forEach(scan); return; }
+    if (typeof o === "object") Object.values(o).forEach(scan);
+  };
+  scan(created);
+  const getHdr = { "cookie": cookie, "x-csrf-token": csrf, "accept": "application/json, text/plain, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/explore` };
+  let rows: any[] | null = null;
+  for (const id of [...ids].slice(0, 1)) {
+    for (let i = 0; i < 25; i++) {
+      const r = await fetch(`${LK_BASE}/api/internal/dataflux/query_tasks/${id}`, { headers: getHdr });
+      const j = await r.json().catch(() => ({}));
+      if (/complete|error|failure/i.test(j?.status || "")) break;
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    for (const ep of [`/api/internal/dataflux/query_tasks/${id}/results`, `/api/internal/dataflux/query_tasks/${id}/results?apply_formatting=true`]) {
+      const r = await fetch(`${LK_BASE}${ep}`, { headers: getHdr });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      const arr = Array.isArray(j) ? j : (Array.isArray(j?.data) ? j.data : null);
+      if (arr) { rows = flattenLookerRows(arr); break; }
+    }
+  }
+  if (rows == null) return { ok: false, loc, stage: "results", error: "no rows returned", task_ids: [...ids] };
+  // Which store column is present? Summarize distinct store-ish values so we can
+  // tell if the embed user saw multiple stores or just its own.
+  const storeKey = Object.keys(rows[0] || {}).find((k) => /location|store/i.test(k)) || null;
+  const stores = storeKey ? [...new Set(rows.map((r) => r[storeKey]).filter((v) => v != null))] : [];
+  return { ok: true, loc, dashboard_id: dashId, element_id: elementId, row_count: rows.length, store_key: storeKey, distinct_stores: stores, columns: Object.keys(rows[0] || {}), sample: rows.slice(0, 5) };
 }
 
 /* ---------------- entry ---------------- */
@@ -923,6 +1068,26 @@ Deno.serve(async (req) => {
       const looks = Array.isArray(payload?.looks) ? payload.looks.map(Number) : [5792, 5817];
       const dashboards = Array.isArray(payload?.dashboards) ? payload.dashboards.map(Number) : [2852, 1317, 2330];
       return json(await probeContentAccess(loc, looks, dashboards));
+    }
+    if (payload?.action === "looker_run_as") {
+      // isolated: run a dashboard saved-query AS a given store location and see
+      // which stores' rows come back (row-lock test). Requires login_location,
+      // dashboard_id, element_id, result_maker_id; optional filters[].
+      const loc = String(payload?.login_location || "").trim();
+      const dashId = String(payload?.dashboard_id || "").trim();
+      const elId = String(payload?.element_id || "").trim();
+      const rmId = String(payload?.result_maker_id || "").trim();
+      if (!loc || !dashId || !elId || !rmId) return json({ ok: false, error: "login_location, dashboard_id, element_id, result_maker_id required" }, 400);
+      return json(await runSavedQueryAs(loc, dashId, elId, rmId, payload?.filters || []));
+    }
+    if (payload?.action === "looker_dashboard_as") {
+      // isolated: pull a whole dashboard AS a store location; reports per-tile
+      // row counts + distinct stores (row-lock test). Optional store override.
+      const loc = String(payload?.login_location || "").trim();
+      const dashId = String(payload?.dashboard_id || "").trim();
+      if (!loc || !dashId) return json({ ok: false, error: "login_location and dashboard_id required" }, 400);
+      const store = payload?.store != null ? String(payload.store) : null;
+      return json(await runDashboardAs(loc, dashId, store));
     }
     if (payload?.action === "looker_query") {
       if (!payload?.body) return json({ ok: false, error: "body required (the captured querymanager payload)" }, 400);
