@@ -198,7 +198,13 @@ async function actionCall(payload: any, sentBy: { id?: string; name?: string }) 
     `<Pause length="1"/><Say voice="${xmlEsc(voice)}">${xmlEsc(recap)}</Say>` +
     `</Response>`;
 
-  const body = new URLSearchParams({ To: to, From: from, Twiml: twiml });
+  const body = new URLSearchParams({
+    To: to, From: from, Twiml: twiml,
+    StatusCallback: `${SB_URL}/functions/v1/twilio-call?action=status_callback`,
+    StatusCallbackMethod: "POST",
+  });
+  body.append("StatusCallbackEvent", "completed");
+  body.append("StatusCallbackEvent", "no-answer");
   let ok = false, sid: string | null = null, err: string | null = null;
   try {
     const r = await tw("/Calls.json", { method: "POST", body: body.toString() });
@@ -223,6 +229,29 @@ async function actionCall(payload: any, sentBy: { id?: string; name?: string }) 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  // Twilio status callback (form-encoded POST from Twilio, ?action=status_callback
+  // in the query string). Updates the call_log row by CallSid so the log learns
+  // whether the customer actually answered (completed / no-answer / busy / failed)
+  // and how long the call lasted.
+  const url = new URL(req.url);
+  if (url.searchParams.get("action") === "status_callback") {
+    try {
+      const form = await req.formData();
+      const sid = String(form.get("CallSid") || "");
+      const status = String(form.get("CallStatus") || "");
+      const dur = Number(form.get("CallDuration") || 0);
+      if (sid && status) {
+        const upd: Record<string, unknown> = { status };
+        if (dur) upd.duration_sec = dur;
+        await admin.from("call_log").update(upd).eq("twilio_sid", sid);
+      }
+      return new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
+    } catch {
+      return new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
+    }
+  }
+
   let payload: any = {};
   try { payload = await req.json(); } catch { /* empty */ }
 
