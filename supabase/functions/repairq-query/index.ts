@@ -1115,6 +1115,20 @@ Deno.serve(async (req) => {
       if (!loc || !dashId || !elId || !rmId) return json({ ok: false, error: "login_location, dashboard_id, element_id, result_maker_id required" }, 400);
       return json(await runSavedQueryAs(loc, dashId, elId, rmId, payload?.filters || []));
     }
+    if (payload?.action === "looker_pull_as") {
+      // Run a Look / dashboard / merge tile AS a store location (isolated
+      // session), delegating to the normal catalog actions with p._sess set so
+      // location override + caching all work. This is the 799-cutover puller.
+      const loc = String(payload?.login_location || "").trim();
+      if (!loc) return json({ ok: false, error: "login_location required" }, 400);
+      const sess = await isolatedLookerSession(loc);
+      if (!sess.ok) return json({ ok: false, loc, stage: sess.stage, error: sess.error, trail: sess.trail }, 502);
+      const p = { ...payload, _sess: { cookie: sess.cookie!, csrf: sess.csrf! } };
+      if (payload?.look_id) return await actionLookerLook(p);
+      if (payload?.merge_element_id || payload?.result_maker_id) return await actionLookerMerge({ ...p, element_id: payload.merge_element_id || payload.element_id });
+      if (payload?.dashboard_id) return await actionLookerDashboard(p);
+      return json({ ok: false, error: "provide look_id, dashboard_id, or dashboard_id+result_maker_id" }, 400);
+    }
     if (payload?.action === "looker_body_as") {
       // isolated: run a literal querymanager body (captured cURL) as a store
       // location, optionally rewriting location.short_name to pull all stores.

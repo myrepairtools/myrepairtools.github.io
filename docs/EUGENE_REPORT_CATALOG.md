@@ -36,6 +36,32 @@ captured querymanager body. Action: **`looker_body_as`**
 - When writing to our tables, `appStoreName()` strips the trailing ` OR`/` WA`/` PA`
   so `CPR Clackamas OR` → `CPR Clackamas` to match `CPRLocations`.
 
+## Look-ID mapping — 917 (old) → 799 (canonical)
+
+Britt supplied the full Eugene Look set (Jul 2026). All 8 confirmed accessible to
+799. **This is the cutover map** for the Look-based crons/consumers.
+
+| Report | Old Look (917/Clackamas) | **New Look (799/Eugene)** | Consumer |
+|--------|--------------------------|---------------------------|----------|
+| All Part Inventory (stock) | 5784 | **5775** | `sync_stock` → `stock` |
+| Part Consumption | 5785 | **5774** | `sync_consumption` → `consumption_log` |
+| Claim Payouts | 5790 | **5759** | claims → `claim_repairs` |
+| Claim Payout: Parts | 5789 | **5760** | claims → `claim_parts` |
+| Accessory Sales by Employee | 5792 | **4591** | commission accessory |
+| Item Sales / Services | 5798 | **5399** | commission service |
+| Repairs w/o Parts | 5804 | **5803** | commission (no-part repairs) |
+| Category Sales | 5817 | 5817 | commission category |
+
+Pull any of these as 799 for all stores:
+```jsonc
+{ "action": "looker_pull_as", "login_location": "799", "look_id": "5775",
+  "location": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR",
+  "force_location": true }
+```
+- **Verified:** 5775 pulled as 799 → 5000 rows (limit cap), Eugene 2142 / Salem 1652
+  / Clackamas 1206, columns match `sync_stock`. Bump the Look's `limit` past 5000
+  when wiring so no SKUs are dropped.
+
 ## Reports (all in the Eugene / 799 folder)
 
 Captured from browser cURLs (element_id + result_maker_id + default filters). 799
