@@ -92,8 +92,12 @@ function getSetCookies(res: Response): string[] {
   return one ? [one] : [];
 }
 
-async function login(): Promise<{ ok: boolean; error?: string; cookie?: string }> {
-  if (!USERNAME || !PASSWORD || !LOGIN_LOCATION) {
+// overrideLoc + isolated let a diagnostic authenticate under a DIFFERENT store
+// location without clobbering the module-global `session` the live crons use:
+// pass isolated=true and the returned cookie is yours alone (globals untouched).
+async function login(overrideLoc?: string, isolated = false): Promise<{ ok: boolean; error?: string; cookie?: string }> {
+  const loginLoc = overrideLoc || LOGIN_LOCATION;
+  if (!USERNAME || !PASSWORD || !loginLoc) {
     return { ok: false, error: "RepairQ secrets not configured (need USERNAME, PASSWORD, LOGIN_LOCATION)" };
   }
   // 1. GET the login page first: it primes the session + CSRF cookies and
@@ -120,7 +124,7 @@ async function login(): Promise<{ ok: boolean; error?: string; cookie?: string }
   form.set("UserLoginForm[username]", USERNAME);
   form.set("UserLoginForm[password]", PASSWORD);
   form.set("UserLoginForm[workstation_key]", wsk);
-  form.set("UserLoginForm[currentLocation]", LOGIN_LOCATION);
+  form.set("UserLoginForm[currentLocation]", loginLoc);
 
   const res = await fetch(`${RQ_BASE}/site/login`, {
     method: "POST",
@@ -144,11 +148,12 @@ async function login(): Promise<{ ok: boolean; error?: string; cookie?: string }
     // Yii renders validation errors in .errorSummary / .errorMessage / .help-inline
     const errs = [...body.matchAll(/class="(?:errorSummary|errorMessage|help-inline|alert[^"]*)"[^>]*>([\s\S]{0,240}?)<\/(?:div|span|p|li)>/gi)]
       .map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 3);
-    return { ok: false, error: `login not accepted (HTTP ${res.status}${loc ? " → " + loc : ""})${errs.length ? " — " + errs.join(" | ") : ""}`, debug: { csrf_found: !!csrf, wsk_used: wsk ? wsk.slice(0, 4) + "…" : null, loc_used: LOGIN_LOCATION, body_snippet: body.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 300) } } as any;
+    return { ok: false, error: `login not accepted (HTTP ${res.status}${loc ? " → " + loc : ""})${errs.length ? " — " + errs.join(" | ") : ""}`, debug: { csrf_found: !!csrf, wsk_used: wsk ? wsk.slice(0, 4) + "…" : null, loc_used: loginLoc, body_snippet: body.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 300) } } as any;
   }
   if (!jar["PHPSESSID"]) return { ok: false, error: "login redirected but no PHPSESSID cookie present" };
-  session = { cookie: jarStr(jar), at: Date.now() };
-  return { ok: true, cookie: session.cookie };
+  const cookie = jarStr(jar);
+  if (!isolated) session = { cookie, at: Date.now() };   // isolated probes never touch the shared session
+  return { ok: true, cookie };
 }
 
 async function ensureSession(force = false): Promise<{ ok: boolean; error?: string; cookie?: string }> {
@@ -781,6 +786,88 @@ async function actionQuery(p: any) {
   });
 }
 
+/* ---------------- isolated content-access probe ----------------
+   Diagnostic only. Authenticates RepairQ under a chosen store location
+   (so Looker mints that store's embed user, cpr_user_<loc>), then checks
+   whether specific Looks / dashboards are inside that embed user's Looker
+   content-access scope. Runs entirely on LOCAL cookie jars — never writes
+   the module-global `session`/`lookerSess`, so the live 917 crons are
+   completely undisturbed. Answers "can user 799 see 5817/1317/2330?". */
+async function probeContentAccess(loc: string, looks: number[], dashboards: number[]): Promise<any> {
+  // 1. isolated RepairQ login under `loc`
+  const lg = await login(loc, true);
+  if (!lg.ok || !lg.cookie) return { ok: false, loc, stage: "login", error: lg.error || "login failed" };
+  const rqCookie = lg.cookie;
+
+  // 2. find the signed Looker embed SSO URL on this location's analytics page
+  const embedRe = /https:(?:\\\/\\\/|\/\/)repairq\.looker\.com\/login\/embed\/[^"'\s\\<]+/g;
+  let ssoUrl: string | null = null;
+  let path = "/analytics/dashboard?dashboard=cpr_dashboard&location=" + encodeURIComponent(loc);
+  const trail: any[] = [];
+  for (let hop = 0; hop < 5 && !ssoUrl; hop++) {
+    const r = await fetch(path.startsWith("http") ? path : RQ_BASE + path, {
+      redirect: "manual",
+      headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml,*/*", "cookie": rqCookie, "x-requested-with": "" },
+    });
+    const locH = r.headers.get("location");
+    const body = (r.status >= 300 && r.status < 400) ? "" : await r.text().catch(() => "");
+    trail.push({ hop, path: path.slice(0, 70), status: r.status, to: locH ? locH.slice(0, 70) : null });
+    const m = body.match(embedRe);
+    if (m && m.length) { ssoUrl = htmlUnescape(m[0].replace(/\\\//g, "/")); break; }
+    if (r.status >= 300 && r.status < 400 && locH) {
+      if (/repairq\.looker\.com\/login\/embed\//.test(locH)) { ssoUrl = htmlUnescape(locH.replace(/&amp;/g, "&")); break; }
+      path = locH.replace(/^https?:\/\/cpr\.repairq\.io/, "");
+      if (/site\/login/.test(path)) break;
+      continue;
+    }
+    break;
+  }
+  if (!ssoUrl) return { ok: false, loc, stage: "embed_url", error: "no Looker SSO URL for location " + loc, trail };
+
+  // 3. mint an ISOLATED Looker embed session from the SSO URL
+  const jar: Record<string, string> = {};
+  let url: string | null = ssoUrl;
+  for (let i = 0; i < 12 && url; i++) {
+    const res: any = await fetch(url, {
+      redirect: "manual",
+      headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml,*/*", ...(Object.keys(jar).length ? { "cookie": jarStr(jar) } : {}) },
+    });
+    jarMerge(jar, res);
+    const l = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && l) {
+      url = l.startsWith("http") ? l : (l.startsWith("/") ? new URL(url).origin + l : LK_BASE + "/" + l);
+      continue;
+    }
+    if (res.status === 200 && !jar["looker.session_renewable"]) {
+      try {
+        const init = await fetch(`${LK_BASE}/api/internal/session`, { headers: { "user-agent": UA, "accept": "application/json", "cookie": jarStr(jar), ...(jar["CSRF-TOKEN"] ? { "x-csrf-token": decodeURIComponent(jar["CSRF-TOKEN"]) } : {}) } });
+        jarMerge(jar, init);
+      } catch { /* best effort */ }
+    }
+    url = null;
+  }
+  const csrf = decodeURIComponent(jar["CSRF-TOKEN"] || "");
+  if (!jar["rack.session"] || !csrf) return { ok: false, loc, stage: "looker_session", error: "incomplete Looker session — cookies: " + Object.keys(jar).join(", "), trail };
+  const cookie = jarStr(jar);
+
+  // 4. identify which embed user we actually became, then probe each target.
+  //    Out-of-scope content returns 404 (Looker hides what the embed user
+  //    can't access); 200 = in scope.
+  const lget = async (p: string) => {
+    const r = await fetch(`${LK_BASE}${p}`, { headers: { "cookie": cookie, "x-csrf-token": csrf, "accept": "application/json, */*", "user-agent": UA, "referer": `${LK_BASE}/embed/dashboards/1` } });
+    let j: any; const t = await r.text(); try { j = JSON.parse(t); } catch { /* text */ }
+    return { status: r.status, ok: r.ok, title: (j && (j.title || j.dashboard?.title)) || null };
+  };
+  let whoami: any = null;
+  try { const u = await lget("/api/internal/user"); whoami = u.status === 200 ? (u.title || "ok") : `HTTP ${u.status}`; } catch { /* ignore */ }
+
+  const lookOut: Record<string, any> = {};
+  for (const id of looks) { const r = await lget(`/api/internal/looks/${id}`); lookOut[id] = { status: r.status, access: r.ok, title: r.title }; }
+  const dashOut: Record<string, any> = {};
+  for (const id of dashboards) { const r = await lget(`/api/internal/dashboards/${id}`); dashOut[id] = { status: r.status, access: r.ok, title: r.title }; }
+  return { ok: true, loc, whoami, looks: lookOut, dashboards: dashOut, trail };
+}
+
 /* ---------------- entry ---------------- */
 
 Deno.serve(async (req) => {
@@ -826,6 +913,16 @@ Deno.serve(async (req) => {
         catch (e) { sess = { ok: false, error: String((e as Error).message || e), trail: lookerTrail }; }
       }
       return json({ ok: !!f.url, embed_url: f.url ? f.url.slice(0, 140) + "…" : null, probes: f.tried, session: sess });
+    }
+    if (payload?.action === "looker_access_probe") {
+      // isolated diagnostic: which Looks/dashboards can the embed user for a
+      // given store location see? Defaults probe the known-good controls plus
+      // the out-of-scope targets. login_location required.
+      const loc = String(payload?.login_location || "").trim();
+      if (!loc) return json({ ok: false, error: "login_location required (e.g. 799 for Eugene, 917 for Clackamas)" }, 400);
+      const looks = Array.isArray(payload?.looks) ? payload.looks.map(Number) : [5792, 5817];
+      const dashboards = Array.isArray(payload?.dashboards) ? payload.dashboards.map(Number) : [2852, 1317, 2330];
+      return json(await probeContentAccess(loc, looks, dashboards));
     }
     if (payload?.action === "looker_query") {
       if (!payload?.body) return json({ ok: false, error: "body required (the captured querymanager payload)" }, 400);
