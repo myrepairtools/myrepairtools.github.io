@@ -812,6 +812,24 @@ function servicePivotRows(rows: any[]): any[] {
   });
 }
 
+// Category (5817) is pivoted on item_type.name (accessory category) with a
+// unit-count measure, but has NO date dimension in the saved Look. We inject
+// accounted_on_date into the query fields (below) so it breaks down per day,
+// then flatten the pivot to the flat "Accessory - Case" … columns ingest's
+// commission_category maps via CAT_MAP.
+function categoryPivotRows(rows: any[], dateField: string): any[] {
+  return rows.map((r) => {
+    const out: Record<string, unknown> = {
+      "Location": appStoreName(String(r["location.short_name"] ?? "")),
+      "Employee": r["user.full_name"] ?? r["sold_by.full_name"] ?? "",
+      "Accounted on Date": r[dateField] ?? "",
+    };
+    const cnt = r["ticket_item.all_sale_count"];
+    for (const cat of pivotKeys(cnt)) out[cat] = pivotVal(cnt, cat);
+    return out;
+  });
+}
+
 // Pull one Look and hand its (relabeled) rows to ingest. login-location stays
 // the global 799 session; location filter forced to all three stores.
 async function actionSyncIngest(p: any) {
@@ -824,11 +842,17 @@ async function actionSyncIngest(p: any) {
   if (!INGEST_SECRET) return json({ ok: false, error: "INGEST_SECRET not configured" }, 500);
   const stores = p?.location != null ? String(p.location) : CANON_STORES;
   const raw: any[] = [];
+  const catDate = "ticket_item.accounted_on_date";
   if (lookId) {
     // plain Look → global (799) session, location forced to all three stores
     const look = await lookerGet(`/api/internal/looks/${lookId}`);
     if (!look.ok || !look.data?.query) return json({ ok: false, error: `look ${lookId} fetch HTTP ${look.status}` }, 502);
-    const pq = plainFromQuery(look.data.query, "sync" + feed, stores, "look", "/embed/looks", true);
+    const q = look.data.query;
+    // Category Look has no date dimension — inject one so it breaks down per day.
+    if (feed === "commission_category" && Array.isArray(q.fields) && !q.fields.includes(catDate)) {
+      q.fields = [...q.fields, catDate];
+    }
+    const pq = plainFromQuery(q, "sync" + feed, stores, "look", "/embed/looks", true);
     const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
     for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
   } else {
@@ -846,7 +870,9 @@ async function actionSyncIngest(p: any) {
     const run = await lookerRun(body);
     for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
   }
-  const labeled = feed === "commission_service" ? servicePivotRows(raw) : apiRowsToLabels(raw, feed);
+  const labeled = feed === "commission_service" ? servicePivotRows(raw)
+    : feed === "commission_category" ? categoryPivotRows(raw, catDate)
+    : apiRowsToLabels(raw, feed);
   const srcLabel = lookId ? { look_id: lookId } : { dashboard_id: dashId, element_id: elId };
   if (p?.dry_run) {
     return json({ ok: true, feed, ...srcLabel, pulled: raw.length, dry_run: true, sample_api: raw[0] ?? null, sample_labeled: labeled[0] ?? null });
