@@ -90,11 +90,18 @@ by design; the all-store returns come from the device-sales/returns tiles above.
 | consumption | 5774 | live pull → `consumption_log` | ✅ live, cron `repairq-consumption-sync` |
 | claim_repairs | 5759 | pull→relabel→`ingest` | ✅ live + validated, cron `repairq-claims-sync` (8:25 UTC) |
 | claim_parts | 5760 | pull→relabel→`ingest` | ✅ live + validated (same cron) |
-| commission_accessory | 4591 | pull→relabel→`ingest` | ⏳ needs field map + validation |
-| commission_service | 5399 (**pivot**) | pull→flatten pivot→`ingest` | ⏳ pivot flatten + validation |
-| commission_category | 5817 (**pivot**) | pull→flatten pivot→`ingest` | ⏳ pivot flatten + validation |
-| commission_device | 2827 (**merge**) | body-pull→relabel→`ingest` | ⏳ merge handling + validation |
-| commission_device_return | 2830 (**merge**) | body-pull→relabel→`ingest` | ⏳ merge handling + validation |
+| commission_accessory | 4591 | pull→relabel→`ingest` | ✅ live + validated (cron `repairq-commission-sync`, :20 hourly) |
+| commission_service | 5399 (**pivot**) | pull→flatten pivot→`ingest` | ✅ live + validated (same cron) |
+| commission_category | 5817 (**pivot, date injected**) | pull→flatten pivot→`ingest` | ✅ live + validated — restored dead feed (same cron) |
+| commission_device | 2827 (**merge**) | merge-pull→relabel→`ingest` | ✅ live + validated exact match (same cron) |
+| commission_device_return | 2830 (**merge**) | merge-pull→relabel→`ingest` | ✅ live + validated exact match (same cron) |
+
+**All feeds cut over to Eugene 799.** Orchestrators: `sync_claims` (both claim
+Looks), `sync_commission` (all five commission feeds; accessory/service/category
+refresh the whole current month, device the month, device-returns the year).
+Crons: stock (7,37), consumption (12,42), claims (8:25 daily), commission
+(:20 hourly). Field maps live in `INGEST_FIELD_MAP` + the pivot/merge helpers in
+`repairq-query`.
 
 ### The bridge (proven)
 `sync_ingest` / `sync_claims`: pulls a Look as the global 799 session, renames

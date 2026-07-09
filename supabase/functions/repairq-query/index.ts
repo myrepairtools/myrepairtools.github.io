@@ -852,6 +852,9 @@ async function actionSyncIngest(p: any) {
     if (feed === "commission_category" && Array.isArray(q.fields) && !q.fields.includes(catDate)) {
       q.fields = [...q.fields, catDate];
     }
+    // Optional date-window override (e.g. "this month") so a daily cron keeps the
+    // whole current month fresh instead of only today.
+    if (p?.date && q.filters && catDate in q.filters) q.filters = { ...q.filters, [catDate]: String(p.date) };
     const pq = plainFromQuery(q, "sync" + feed, stores, "look", "/embed/looks", true);
     const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
     for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
@@ -1373,6 +1376,26 @@ Deno.serve(async (req) => {
       const r1 = await actionSyncIngest({ feed: "claim_repairs", look_id: payload?.repairs_look || "5759", dry_run: dry });
       const r2 = await actionSyncIngest({ feed: "claim_parts", look_id: payload?.parts_look || "5760", dry_run: dry });
       return json({ ok: true, repairs: await r1.json().catch(() => null), parts: await r2.json().catch(() => null) });
+    }
+    if (payload?.action === "sync_commission") {
+      // all five commission feeds → commission_sales via ingest. Accessory /
+      // service / category refresh the whole current month; device sales the
+      // month; device returns the year (returns attribute to the sale date).
+      const dry = !!payload?.dry_run;
+      const month = "this month";
+      const steps: [string, any][] = [
+        ["accessory", { feed: "commission_accessory", look_id: "4591", date: month }],
+        ["service", { feed: "commission_service", look_id: "5399", date: month }],
+        ["category", { feed: "commission_category", look_id: "5817", date: month }],
+        ["device", { feed: "commission_device", dashboard_id: "2827", element_id: "12289", result_maker_id: "31223", date: month }],
+        ["device_return", { feed: "commission_device_return", dashboard_id: "2830", element_id: "12293", result_maker_id: "31236", date: "this year" }],
+      ];
+      const out: Record<string, any> = {};
+      for (const [name, args] of steps) {
+        const r = await actionSyncIngest({ ...args, dry_run: dry });
+        out[name] = await r.json().catch(() => null);
+      }
+      return json({ ok: Object.values(out).every((v: any) => v?.ok !== false), feeds: out });
     }
     if (payload?.action === "looker_get") {
       // authenticated GET against Looker with our embed session (exploration)
