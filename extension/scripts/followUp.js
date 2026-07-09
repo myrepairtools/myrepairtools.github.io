@@ -24,11 +24,17 @@
     'use strict';
 
     var METHODS = [
-        { v: 'text',   label: 'Text' },
-        { v: 'call',   label: 'Call' },
-        { v: 'email',  label: 'Email' },
-        { v: 'return', label: 'Customer to Return' },
+        { v: 'text',   label: 'Text',  req: 'sendSms' },
+        { v: 'call',   label: 'Call',  req: 'sendCall' },
+        { v: 'email',  label: 'Email', req: 'sendEmail' },
+        { v: 'return', label: 'Customer to Return' },   // no channel needed
     ];
+    // Which channels are enabled (Options → RingCentral SMS). Only enabled
+    // channels are offered in the capture modal. SMS defaults on; call/email off.
+    var CH = { sendSms: true, sendCall: false, sendEmail: false };
+    function enabledMethods() {
+        return METHODS.filter(function (m) { return !m.req || CH[m.req]; });
+    }
 
     function digits(s) { return (s || '').replace(/\D/g, ''); }
     function pretty(n) {
@@ -150,7 +156,10 @@
         closeModal();
         var phones = suggestedPhones();
         var pick = (existing && existing.method !== 'skip') ? existing : {};
-        var method = pick.method || (phones.length ? 'text' : 'text');
+        var avail = enabledMethods();
+        // default to the saved method (if its channel is still on), else the first enabled one.
+        var method = (pick.method && avail.some(function (m) { return m.v === pick.method; }))
+            ? pick.method : (avail[0] ? avail[0].v : 'return');
         var number = pick.contact_number || (phones[0] && phones[0].num) || '';
         var name = pick.contact_name || customerFirst();
         var email = pick.contact_email || suggestedEmail();
@@ -161,7 +170,7 @@
               '<div class="mrt-fu-hd"><h4>Follow Up</h4><span class="mrt-fu-hdsub">saved to this ticket only</span></div>' +
               '<div class="mrt-fu-body">' +
                 '<div class="mrt-fu-q">How should we let the customer know their repair is ready?</div>' +
-                '<div class="mrt-fu-methods">' + METHODS.map(function (m) {
+                '<div class="mrt-fu-methods">' + enabledMethods().map(function (m) {
                     return '<button type="button" class="mrt-fu-m' + (m.v === method ? ' on' : '') + '" data-m="' + m.v + '">' + m.label + '</button>';
                 }).join('') + '</div>' +
                 '<div class="mrt-fu-field mrt-fu-numwrap">' +
@@ -441,6 +450,9 @@
         chrome.storage.sync.get(['sms']).then(function (res) {
             var s = (res && res.sms) || {};
             if (s.followUp === false) return;
+            CH.sendSms = s.sendSms !== undefined ? s.sendSms : (s.readyText !== false); // legacy fallback
+            CH.sendCall = s.sendCall === true;
+            CH.sendEmail = s.sendEmail === true;
             start();
         }).catch(start);
     } catch (e) { start(); }

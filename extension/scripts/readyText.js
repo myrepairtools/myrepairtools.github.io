@@ -25,6 +25,9 @@
 
     var BTN_SEL = 'a.save-ticket.ready_for_pickup, #Btnready_for_pickup, a.save-ticket[action="ready_for_pickup"]';
     var bypass = false;   // set true to let our re-fired click through
+    // Enabled follow-up channels (Options → RingCentral SMS). SMS on by default;
+    // call/email off until those integrations are set up for the store.
+    var CH = { sendSms: true, sendCall: false, sendEmail: false };
 
     function val(id) { var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; }
     function digits(s) { return (s || '').replace(/\D/g, ''); }
@@ -170,19 +173,19 @@
         var tag = function (i) { return i === 0 ? 'Primary' : 'Alt'; };
 
         var rows = '';
-        c.phones.forEach(function (num, i) {
+        if (CH.sendSms) c.phones.forEach(function (num, i) {
             rows += '<button class="mrt-rfp-row" data-act="text" data-num="' + digits(num) + '">' +
                     '<b>Text</b>' + pretty(num) + '<span class="mrt-rfp-tag">' + tag(i) + '</span></button>';
         });
-        c.phones.forEach(function (num, i) {
+        if (CH.sendCall) c.phones.forEach(function (num, i) {
             rows += '<button class="mrt-rfp-row" data-act="call" data-num="' + digits(num) + '">' +
                     '<b>Call</b>' + pretty(num) + '<span class="mrt-rfp-tag">' + tag(i) + '</span></button>';
         });
-        if (email) {
+        if (email && CH.sendEmail) {
             rows += '<button class="mrt-rfp-row" data-act="email" data-email="' + esc(email) + '">' +
                     '<b>Email</b><span class="mrt-rfp-em">' + esc(email) + '</span></button>';
         }
-        if (!rows) rows = '<div class="mrt-rfp-none">No contact info on this ticket</div>';
+        if (!rows) rows = '<div class="mrt-rfp-none">No enabled contact channels — just changing status</div>';
 
         var pop = document.createElement('div');
         pop.id = 'mrt-rfp-pop';
@@ -383,8 +386,16 @@
         fn('contact_get', { ticket_no: t }).then(function (r) {
             var ct = r && r.contact;
             if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
-            if (ct && ct.method === 'text') { autoSend(btn, ct); return; }
-            if (ct && ct.method === 'call') { autoCall(btn, ct); return; }
+            if (ct && ct.method === 'text') {
+                if (CH.sendSms) { autoSend(btn, ct); }
+                else { infoToast('Customer prefers a <b>text</b> — <b>' + esc(ct.contact_number || '') + '</b> (texting is off)', 3600); proceed(btn); }
+                return;
+            }
+            if (ct && ct.method === 'call') {
+                if (CH.sendCall) { autoCall(btn, ct); }
+                else { infoToast('Customer prefers a <b>call</b> — <b>' + esc(ct.contact_number || '') + '</b> (calling is off)', 3600); proceed(btn); }
+                return;
+            }
             if (ct && ct.method === 'email') {
                 infoToast('Customer prefers <b>email</b> — <b>' + esc(ct.contact_email || '') + '</b>', 3600);
                 proceed(btn); return;
@@ -404,7 +415,13 @@
     try {
         chrome.storage.sync.get(['sms']).then(function (res) {
             var s = (res && res.sms) || {};
-            if (s.readyText === false) return;
+            // per-channel gates. SMS defaults on (legacy readyText fallback); call/email off.
+            CH.sendSms = s.sendSms !== undefined ? s.sendSms : (s.readyText !== false);
+            CH.sendCall = s.sendCall === true;
+            CH.sendEmail = s.sendEmail === true;
+            // Run the Ready-for-Pickup handler if the follow-up system is on in any form.
+            var anyOn = (s.followUp !== false) || CH.sendSms || CH.sendCall || CH.sendEmail;
+            if (!anyOn) return;
             if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
         }).catch(start);
     } catch (e) { start(); }

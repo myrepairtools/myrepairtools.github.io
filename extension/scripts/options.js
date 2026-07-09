@@ -42,8 +42,10 @@ function saveOptions(done) {
     for (const k in lcdIds) { lcd[k] = document.getElementById(lcdIds[k]).getAttribute('data-checked') === 'checked'; }
     const ai = { enabled: document.getElementById('aiEnabled').getAttribute('data-checked') === 'checked' };
     const sms = {
-        readyText: document.getElementById('smsReadyText').getAttribute('data-checked') === 'checked',
         followUp: document.getElementById('smsFollowUp').getAttribute('data-checked') === 'checked',
+        sendSms: document.getElementById('smsSendSms').getAttribute('data-checked') === 'checked',
+        sendCall: document.getElementById('smsSendCall').getAttribute('data-checked') === 'checked',
+        sendEmail: document.getElementById('smsSendEmail').getAttribute('data-checked') === 'checked',
         panel: document.getElementById('smsPanel').getAttribute('data-checked') === 'checked'
     };
     const wn = {
@@ -127,9 +129,13 @@ function restoreOptions() {
             setState(document.getElementById(id), !!result[id], 'ql-checkmark');
         });
         setState(document.getElementById('aiEnabled'), !result.ai || result.ai.enabled !== false, 'lcd-checkmark');
-        setState(document.getElementById('smsReadyText'), !result.sms || result.sms.readyText !== false, 'lcd-checkmark');
-        setState(document.getElementById('smsFollowUp'), !result.sms || result.sms.followUp !== false, 'lcd-checkmark');
-        setState(document.getElementById('smsPanel'), !result.sms || result.sms.panel !== false, 'lcd-checkmark');
+        const smsCfg = result.sms || {};
+        // sendSms defaults ON (falls back to the legacy readyText flag); call + email default OFF.
+        setState(document.getElementById('smsFollowUp'), smsCfg.followUp !== false, 'lcd-checkmark');
+        setState(document.getElementById('smsSendSms'), smsCfg.sendSms !== undefined ? smsCfg.sendSms : (smsCfg.readyText !== false), 'lcd-checkmark');
+        setState(document.getElementById('smsSendCall'), smsCfg.sendCall === true, 'lcd-checkmark');
+        setState(document.getElementById('smsSendEmail'), smsCfg.sendEmail === true, 'lcd-checkmark');
+        setState(document.getElementById('smsPanel'), smsCfg.panel !== false, 'lcd-checkmark');
         setState(document.getElementById('wnEnabled'), !result.wn || result.wn.enabled !== false, 'lcd-checkmark');
         setState(document.getElementById('wnPromise'), !result.wn || result.wn.promise !== false, 'lcd-checkmark');
         document.getElementById('wnMinsPer').value = (result.wn && result.wn.minsPer) || 45;
