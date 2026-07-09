@@ -700,6 +700,83 @@ async function actionLookerSyncStock(p: any) {
   return json({ ok: out.every((o) => !o.error), stores: out });
 }
 
+// ---- Live pull → ingest bridge -------------------------------------------
+// Pull an Eugene Look as the global (799) session, rename its API field names
+// to the human LABEL headers the `ingest` function expects (ingest is the one
+// battle-tested writer for the money tables — reuse it, never reimplement its
+// aggregation), then POST the rows to ingest with the right feed. One code
+// path feeds both the scheduled-delivery and the live-pull worlds identically.
+const INGEST_SECRET = Deno.env.get("INGEST_SECRET") || "";
+// Looker store name → app store name (drop the state suffix ingest's storeMap
+// doesn't carry, e.g. "CPR Clackamas OR" → "CPR Clackamas").
+const CANON_STORES = "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR";
+
+// field maps: ingest label ← Looker API field, per feed
+const INGEST_FIELD_MAP: Record<string, Record<string, string>> = {
+  claim_repairs: {
+    "RQ Ticket #": "ticket.id", "Claim Invoice #": "ticket.invoice_id",
+    "Location": "location.short_name", "Provider": "ticket.warranty_provider",
+    "Service Program Name": "service_program.name",
+    "Device Catalog Item Name": "device_catalog_item.name",
+    "Device Description": "device.description",
+    "Ticket Picked Up Date": "ticket.picked_up_date",
+    "Ticket Item All Net Repair Sale Total": "ticket_item.all_net_repair_sale_total",
+    "Ticket Item All Net COGS Total": "ticket_item.all_net_cogs_total",
+    "Royalty Due": "royalty_due", "Gross Profit": "gross_profit",
+    "Tkt Status": "ticket.status",
+  },
+  claim_parts: {
+    "RQ Ticket #": "ticket.id", "Claim Invoice #": "ticket.invoice_id",
+    "Location": "location.short_name", "Provider": "ticket.warranty_provider",
+    "Service Program Name": "service_program.name",
+    "Device Catalog Item Name": "device_catalog_item.name",
+    "Part Name": "child_catalog_item.name",
+    "Ticket Picked Up Date": "ticket.picked_up_date",
+    "Is Consigned": "child_inventory_item.is_consigned",
+    "All Net COGS Total": "child_ticket_item.all_net_cogs_total",
+  },
+};
+
+function apiRowsToLabels(rows: any[], feed: string): any[] {
+  const map = INGEST_FIELD_MAP[feed];
+  if (!map) return rows;
+  return rows.map((r) => {
+    const out: Record<string, unknown> = {};
+    for (const [label, api] of Object.entries(map)) {
+      let v = r[api];
+      if (label === "Location" && v != null) v = appStoreName(String(v)); // drop " OR" etc.
+      out[label] = v ?? "";
+    }
+    return out;
+  });
+}
+
+// Pull one Look and hand its (relabeled) rows to ingest. login-location stays
+// the global 799 session; location filter forced to all three stores.
+async function actionSyncIngest(p: any) {
+  const feed = String(p?.feed || "");
+  const lookId = String(p?.look_id || "");
+  if (!feed || !lookId) return json({ ok: false, error: "feed and look_id required" }, 400);
+  if (!INGEST_SECRET) return json({ ok: false, error: "INGEST_SECRET not configured" }, 500);
+  // pull the Look for all three stores via the global (799) session
+  const look = await lookerGet(`/api/internal/looks/${lookId}`);
+  if (!look.ok || !look.data?.query) return json({ ok: false, error: `look ${lookId} fetch HTTP ${look.status}` }, 502);
+  const pq = plainFromQuery(look.data.query, "sync" + feed, p?.location != null ? String(p.location) : CANON_STORES, "look", "/embed/looks", true);
+  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+  const raw: any[] = [];
+  for (const r of run.results) if (Array.isArray(r.rows)) raw.push(...flattenLookerRows(r.rows));
+  const labeled = apiRowsToLabels(raw, feed);
+  if (p?.dry_run) {
+    return json({ ok: true, feed, look_id: lookId, pulled: raw.length, dry_run: true, sample_api: raw[0] ?? null, sample_labeled: labeled[0] ?? null });
+  }
+  // POST to ingest (reuses its exact write + aggregation logic)
+  const res = await fetch(`${SB_URL}/functions/v1/ingest?token=${encodeURIComponent(INGEST_SECRET)}&feed=${encodeURIComponent(feed)}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(labeled),
+  });
+  const body = await res.json().catch(() => ({}));
+  return json({ ok: res.ok && body?.ok !== false, feed, look_id: lookId, pulled: raw.length, ingest: body });
+}
+
 // Sync live PART CONSUMPTION from the Eugene Part-Consumption Look into
 // consumption_log. The report SUMS units per sku/day, so we REPLACE each
 // (store, biz_date) the Look returns — delete that day's existing rows, insert
@@ -1180,6 +1257,15 @@ Deno.serve(async (req) => {
     if (payload?.action === "looker_merge") return await actionLookerMerge(payload);
     if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
     if (payload?.action === "sync_consumption") return await actionLookerSyncConsumption(payload);
+    if (payload?.action === "sync_ingest") return await actionSyncIngest(payload);
+    if (payload?.action === "sync_claims") {
+      // pull both claim Looks (payouts 5759 + parts 5760) → ingest. Repairs
+      // first so the invoice→payout_date map is seeded before parts.
+      const dry = !!payload?.dry_run;
+      const r1 = await actionSyncIngest({ feed: "claim_repairs", look_id: payload?.repairs_look || "5759", dry_run: dry });
+      const r2 = await actionSyncIngest({ feed: "claim_parts", look_id: payload?.parts_look || "5760", dry_run: dry });
+      return json({ ok: true, repairs: await r1.json().catch(() => null), parts: await r2.json().catch(() => null) });
+    }
     if (payload?.action === "looker_get") {
       // authenticated GET against Looker with our embed session (exploration)
       const s = await lookerSession();
