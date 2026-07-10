@@ -135,6 +135,19 @@ const token=()=>{const a=new Uint8Array(24);crypto.getRandomValues(a);return Arr
 
 let ME=null, ROWS=[], TMPLS=[], SVCS=[], CLAUSES=[], DEVICES=[], FILTER=(function(){try{return localStorage.getItem('cprMcFilter')||'all';}catch(e){return 'all';}})(), Q='';
 
+/* ---- Embed mode: the RepairQ extension iframes this page (?embed=1) straight
+   into the New Contract flow, pre-filled from the ticket via postMessage. ---- */
+const EMBED=(function(){try{return new URLSearchParams(location.search).get('embed')==='1';}catch(e){return false;}})();
+let CTX=null;
+function applyContractCtx(){
+  if(!EMBED||!CTX)return;var c=CTX;
+  function setv(id,v){var el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;}
+  setv('ncTicket',c.ticket);setv('ncName',c.name);setv('ncEmail',c.email);setv('ncPhone',c.phone);
+  if(c.store){var s=document.getElementById('ncStore');if(s)Array.prototype.forEach.call(s.options,function(o){if(o.value===c.store||(o.textContent||'').toLowerCase().indexOf(String(c.store).toLowerCase())>-1)s.value=o.value;});}
+  if(c.device){var d=document.getElementById('ncDevice');if(d){d.value=c.device;try{d.dispatchEvent(new Event('input',{bubbles:true}));d.dispatchEvent(new Event('blur'));}catch(e){}}}
+}
+window.addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='mrt-contract-ctx')return;CTX=d.ctx||{};applyContractCtx();});
+
 sb.auth.onAuthStateChange((_e,sess)=>{if(sess&&!ME)resolveMe(sess);});
 async function resolveMe(sess){
   const r=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
@@ -156,6 +169,12 @@ async function boot(){
   $('#newBtn').onclick=openNew;
   $('#q').oninput=()=>{Q=$('#q').value.toLowerCase();render();};
   render();
+  if(EMBED){                                   // straight into the New Contract flow, no page chrome
+    const app=document.getElementById('app');if(app)app.style.display='none';
+    document.body.style.background='#2D2D3B';
+    openNew();
+    try{parent.postMessage({type:'mrt-contract-ready'},'*');}catch(_){}
+  }
   refreshSigned();
 }
 /* signed-but-unpaid rows: ask the edge fn to check Square (it flips them to paid) */
@@ -478,6 +497,7 @@ function openForm(TMPL){
     if(r.error){toast(r.error.message,true);return;}
     ROWS.unshift(r.data);back.remove();render();openShare(r.data);
   };
+  if(EMBED)applyContractCtx();          // pre-fill from the RepairQ ticket
 }
 function openShare(r){
   const link=SIGN_URL+r.token;
