@@ -1,15 +1,26 @@
 /*
-    RingCentral panel (myRepairTools) — a drop-down phone/messaging console
-    inside RepairQ, so staff manage texts, missed calls and voicemail without
-    leaving the ticket screen. Mirrors the Square backup-register pop-down in
-    MRT: a top-bar button toggles a persistent panel (closes on ✕ or the
-    button, never on outside clicks).
+    RingCentral Message Center (myRepairTools) — a full-height drawer inside
+    RepairQ, so staff manage texts, missed calls and voicemail without leaving
+    the ticket screen.
+
+    v2 UI ("2a — RepairQ Native, refined"). What changed vs v1 (drop-down):
+      - full-height right-side drawer docked under the black bar
+      - dark #2D2D3B header: RC logo + title/store, and a compose (pencil)
+        icon button on the right that opens the New Text form
+      - NO ✕ — the drawer closes when you click anywhere outside it
+        (the top-bar button still toggles it)
+      - SVG tab icons (inbox / calls / voicemail); inbox tab carries the
+        unread-count pill
+      - roomier list rows with initials avatars
+      - pill compose field with round ✨ and round send icon buttons
+    All data flow, polling, notifications, ticket lookup and AI logic is
+    unchanged from v1.
 
     Tabs:
-      💬 Inbox     — SMS conversations for THIS store's line → open a thread →
-                     reply, with a ✨ "Help me write" AI polish/draft button.
-      📞 Calls     — recent calls, missed ones flagged, one-tap "Text back".
-      🎙 Voicemail — voicemails with RingCentral transcripts.
+      Inbox     — SMS conversations for THIS store's line → open a thread →
+                  reply, with a ✨ "Help me write" AI polish/draft button.
+      Calls     — recent calls, missed ones flagged, one-tap "Text back".
+      Voicemail — voicemails with RingCentral transcripts.
 
     All data rides the store's own RingCentral line (resolved from the RepairQ
     location in the header) through bg.js → the `messaging` edge function. The
@@ -27,6 +38,24 @@
     if (/\/ticket\/print/i.test(location.pathname)) return;
 
     var S = { open: false, tab: 'inbox', store: '', thread: null, loading: false };
+
+    /* ---------------- icons (stroke SVG, currentColor) ---------------- */
+    function icon(inner, size) {
+        return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+            'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+    }
+    var I = {
+        chat: icon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.35 8.5 8.5 0 0 1-3.9-.95L3 20l1.1-4.05A8.38 8.38 0 0 1 3.5 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/>', 15),
+        phone: icon('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>', 15),
+        vm: icon('<circle cx="5.5" cy="11.5" r="3.5"/><circle cx="18.5" cy="11.5" r="3.5"/><line x1="5.5" y1="15" x2="18.5" y2="15"/>', 15),
+        pencil: icon('<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>', 15),
+        back: icon('<polyline points="15 18 9 12 15 6"/>', 15),
+        send: icon('<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>', 13),
+        arrIn: icon('<line x1="17" y1="7" x2="7" y2="17"/><polyline points="17 17 7 17 7 7"/>', 14),
+        arrOut: icon('<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>', 14),
+        play: '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
+        spark: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.1 5.6 5.6 2.1-5.6 2.1L12 17.9l-2.1-5.6-5.6-2.1 5.6-2.1L12 2.5z"/></svg>',
+    };
 
     /* ---------------- helpers ---------------- */
     // The LOGGED-IN store = the top-bar location switcher, present on every
@@ -62,6 +91,14 @@
         return d.length === 10 ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : (n || '');
     }
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    // "Dana Whitfield" → "DW"; bare numbers → "#"
+    function initials(name) {
+        var t = (name || '').trim();
+        if (!t || /\d{3}/.test(t)) return '#';
+        var parts = t.split(/\s+/);
+        var a = (parts[0] || '').charAt(0), b = (parts.length > 1 ? parts[parts.length - 1] : '').charAt(0);
+        return (a + b).toUpperCase() || '#';
+    }
     function ago(iso) {
         if (!iso) return '';
         var t = new Date(iso).getTime(), s = Math.max(0, (Date.now() - t) / 1000);
@@ -114,19 +151,11 @@
             a.style.lineHeight = cs.lineHeight;
             a.style.height = cs.height;
             a.style.verticalAlign = cs.verticalAlign || 'middle';
-            // inner (content) height of the sibling = where its text lives.
-            // An icon reads well a bit larger than text x-height, so scale up
-            // and clamp — it still centers on the line's middle via
-            // vertical-align, just fills more of the bar.
             var pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0;
             var inner = (sib.clientHeight || parseFloat(cs.height) || 38) - pt - pb;
             var sz = Math.max(20, Math.min(30, Math.round(inner * 1.4)));
             svg.setAttribute('width', sz); svg.setAttribute('height', sz);
             svg.style.verticalAlign = 'middle';
-            // No box behind the mark, PERIOD. RepairQ paints its nav items
-            // with rules we can't reliably out-cascade from a content-script
-            // stylesheet, so pin transparency inline with !important — that
-            // wins against any stylesheet rule in any state.
             var li = a.parentElement;
             var wrap = a.querySelector('.mrt-rc-iconwrap');
             [a, li, wrap].forEach(function (el) {
@@ -141,8 +170,7 @@
         } catch (e) {}
     }
 
-    // RingCentral brand mark — orange rounded square + white phone (the
-    // recognizable RC logo, same idea as the Square logo on the MRT rail).
+    // RingCentral brand mark — orange rounded square + white phone.
     var RC_LOGO =
         '<svg class="mrt-rc-logo" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">' +
           '<rect width="24" height="24" rx="5" fill="#FF7A00"/>' +
@@ -150,6 +178,8 @@
             '<path fill="#fff" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>' +
           '</g>' +
         '</svg>';
+    var RC_LOGO_HD = RC_LOGO.replace('width="24" height="24" viewBox', 'width="30" height="30" viewBox')
+                            .replace('class="mrt-rc-logo"', 'class="mrt-rc-hdlogo"');
 
     function build() {
         // Icon-only, up in RepairQ's black top bar (left of English), matching
@@ -158,17 +188,9 @@
         if (bar) {
             var li = document.createElement('li');
             li.id = 'mrt-rc-nav'; li.className = 'mrt-rc-nav';
-            // Badge rides a wrapper around the ICON (not the padded link box),
-            // so it hugs the logo's top-right corner at any icon size.
             li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="Message Center — texts, calls, voicemail">' +
                 '<span class="mrt-rc-iconwrap">' + RC_LOGO +
                 '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></span></a>';
-            // NOT inside the workstation menu: that ul paints its own gray
-            // rounded strip (#2c2c2c), and as its first item the icon sat
-            // inside the strip's rounded end — the unkillable "gray box".
-            // Instead: our own single-item nav list floated right AFTER the
-            // strip in source order, which lands it immediately LEFT of the
-            // strip (same spot), directly on the black navbar.
             var ourUl = document.createElement('ul');
             ourUl.id = 'mrt-rc-navlist';
             ourUl.className = 'nav pull-right';   // borrow RepairQ's own layout
@@ -178,12 +200,6 @@
             ourUl.style.setProperty('margin-right', '8px', 'important');
             ourUl.appendChild(li);
             bar.parentNode.insertBefore(ourUl, bar.nextSibling);
-            // Copy the COMPUTED box of a real sibling ("English") onto our
-            // link — padding/line-height/display — so we match its exact
-            // vertical centering whether RepairQ centers via padding OR
-            // line-height, and regardless of whether its CSS cascades to us.
-            // Then size the icon to the sibling's inner (content) height so
-            // it occupies the same box and lands dead-center.
             alignToNav(bar);
         } else {
             // fallback: the toolbar row, with a label
@@ -197,26 +213,32 @@
             else if (navSpot && navSpot.parentElement) navSpot.parentElement.insertBefore(btn, navSpot);
             else document.body.appendChild(btn);
         }
-        document.getElementById('mrt-rc-btn').addEventListener('click', function (e) { e.preventDefault(); toggle(); });
+        document.getElementById('mrt-rc-btn').addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggle(); });
 
         panel = document.createElement('div');
-        // (alignToNav defined below; called after insert above)
         panel.id = 'mrt-rc-panel'; panel.className = 'mrt-rc-panel';
         panel.innerHTML =
             '<div class="mrt-rc-hd">' +
-              '<span class="mrt-rc-title">Message Center</span>' +
-              '<span class="mrt-rc-store" id="mrt-rc-store"></span>' +
-              '<button class="mrt-rc-x" id="mrt-rc-x" title="Close">✕</button>' +
+              RC_LOGO_HD +
+              '<span class="mrt-rc-hd-txt">' +
+                '<span class="mrt-rc-title">Message Center</span>' +
+                '<span class="mrt-rc-store" id="mrt-rc-store"></span>' +
+              '</span>' +
+              '<button class="mrt-rc-newbtn" id="mrt-rc-new" title="New text">' + I.pencil + '</button>' +
             '</div>' +
             '<div class="mrt-rc-tabs">' +
-              '<button data-t="inbox" class="on">💬 Inbox</button>' +
-              '<button data-t="calls">📞 Calls</button>' +
-              '<button data-t="vm">🎙 Voicemail</button>' +
+              '<button data-t="inbox" class="on">' + I.chat + ' Inbox<i class="mrt-rc-tabdot" id="mrt-rc-tabdot" style="display:none"></i></button>' +
+              '<button data-t="calls">' + I.phone + ' Calls</button>' +
+              '<button data-t="vm">' + I.vm + ' Voicemail</button>' +
             '</div>' +
             '<div class="mrt-rc-body" id="mrt-rc-body"></div>';
         document.body.appendChild(panel);
 
-        q('#mrt-rc-x').addEventListener('click', close);
+        q('#mrt-rc-new').addEventListener('click', function () {
+            S.tab = 'inbox'; S.thread = null;
+            panel.querySelectorAll('.mrt-rc-tabs button').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-t') === 'inbox'); });
+            renderCompose();
+        });
         panel.querySelectorAll('.mrt-rc-tabs button').forEach(function (b) {
             b.addEventListener('click', function () {
                 S.tab = b.getAttribute('data-t'); S.thread = null;
@@ -224,6 +246,17 @@
                 render();
             });
         });
+
+        // No ✕ — clicking anywhere OUTSIDE the drawer closes it. Clicks on the
+        // top-bar button (toggle) and the 💬 chips (openTextTo) are exempt.
+        document.addEventListener('click', function (e) {
+            if (!S.open) return;
+            var t = e.target;
+            if (panel.contains(t)) return;
+            if (t.closest && t.closest('#mrt-rc-btn, #mrt-rc-navlist, .mrt-rc-num-btn')) return;
+            close();
+        }, true);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) close(); });
     }
 
     /* ---------------- render ---------------- */
@@ -245,20 +278,27 @@
             if (!r || !r.ok) { body('<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load conversations') + '</div>'); return; }
             var list = r.conversations || [];
             updateDot(list.reduce(function (a, c) { return a + (c.unread || 0); }, 0));
-            var newBar = '<div class="mrt-rc-newbar"><button class="mrt-rc-new" id="mrt-rc-new">✏️ New Text</button></div>';
             if (!list.length) {
-                body(newBar + '<div class="mrt-rc-empty">No text conversations in the last 30 days.</div>');
-                var nb0 = q('#mrt-rc-new'); if (nb0) nb0.addEventListener('click', renderCompose);
+                body('<div class="mrt-rc-empty">No text conversations in the last 30 days.<br><br>Tap the pencil up top to start one.</div>');
                 return;
             }
-            body(newBar + '<div class="mrt-rc-list">' + list.map(function (c) {
-                return '<div class="mrt-rc-conv' + (c.unread ? ' unread' : '') + '" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">' +
-                    '<div class="mrt-rc-conv-top"><span class="mrt-rc-who">' + esc(c.name || pretty(c.number)) + '</span>' +
-                    '<span class="mrt-rc-when">' + esc(ago(c.last_time)) + (c.unread ? ' <b class="mrt-rc-badge">' + c.unread + '</b>' : '') + '</span></div>' +
-                    '<div class="mrt-rc-prev">' + (c.last_dir === 'out' ? '<span class="mrt-rc-you">You: </span>' : '') + esc((c.last_text || '').slice(0, 64)) + '</div>' +
+            body('<div class="mrt-rc-list">' + list.map(function (c) {
+                var who = c.name || pretty(c.number);
+                return '<div class="mrt-rc-conv" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">' +
+                    '<span class="mrt-rc-ava">' + esc(initials(c.name)) + '</span>' +
+                    '<span class="mrt-rc-conv-main">' +
+                      '<span class="mrt-rc-conv-top">' +
+                        (c.unread ? '<span class="mrt-rc-udot"></span>' : '') +
+                        '<span class="mrt-rc-who">' + esc(who) + '</span>' +
+                        '<span class="mrt-rc-when">' + esc(ago(c.last_time)) + '</span>' +
+                      '</span>' +
+                      '<span class="mrt-rc-prevrow">' +
+                        '<span class="mrt-rc-prev">' + (c.last_dir === 'out' ? '<span class="mrt-rc-you">You: </span>' : '') + esc((c.last_text || '').slice(0, 64)) + '</span>' +
+                        (c.unread ? '<span class="mrt-rc-badge">' + c.unread + '</span>' : '') +
+                      '</span>' +
+                    '</span>' +
                 '</div>';
             }).join('') + '</div>');
-            var nb = q('#mrt-rc-new'); if (nb) nb.addEventListener('click', renderCompose);
             panel.querySelectorAll('.mrt-rc-conv').forEach(function (el) {
                 el.addEventListener('click', function () {
                     S.thread = { number: el.getAttribute('data-num'), name: el.getAttribute('data-name') };
@@ -271,10 +311,10 @@
     /* --- inbox: start a brand-new text --- */
     function renderCompose(prefillNum, prefillName) {
         var pn = typeof prefillNum === 'string' ? prefillNum : '';
-        body('<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-cback">‹ Inbox</button>' +
+        body('<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-cback">' + I.back + 'Inbox</button>' +
              '<span class="mrt-rc-who">New Text</span></div>' +
              '<div class="mrt-rc-newform">' +
-               '<label>To (customer number)</label>' +
+               '<label>To — customer number</label>' +
                '<input type="tel" id="mrt-rc-newnum" placeholder="541-555-0100" autocomplete="off" value="' + esc(pretty(pn)) + '">' +
                '<label>Name <span class="opt">(optional)</span></label>' +
                '<input type="text" id="mrt-rc-newname" placeholder="Customer name" autocomplete="off" value="' + esc(prefillName || '') + '">' +
@@ -310,25 +350,28 @@
     /* --- inbox: one thread + compose --- */
     function renderThread() {
         var t = S.thread;
-        body('<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-back">‹ Inbox</button>' +
+        body('<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-back">' + I.back + 'Inbox</button>' +
              '<span class="mrt-rc-who">' + esc(t.name || pretty(t.number)) + '</span>' +
              '<span class="mrt-rc-tnum">' + esc(pretty(t.number)) + '</span></div>' +
              '<div class="mrt-rc-msgs" id="mrt-rc-msgs"><div class="mrt-rc-load">Loading…</div></div>' +
              '<div class="mrt-rc-tix" id="mrt-rc-tix"></div>' +
              '<div class="mrt-rc-compose">' +
-               '<textarea id="mrt-rc-text" rows="2" placeholder="Text ' + esc(pretty(t.number)) + '…"></textarea>' +
-               '<div class="mrt-rc-cbar">' +
-                 '<button class="mrt-rc-ai" id="mrt-rc-ai" title="Help me write this">✨ Help me write</button>' +
-                 '<button class="mrt-rc-send" id="mrt-rc-send">Send</button>' +
+               '<div class="mrt-rc-pill">' +
+                 '<textarea id="mrt-rc-text" rows="1" placeholder="Text ' + esc(pretty(t.number)) + '…"></textarea>' +
+                 '<button class="mrt-rc-ai" id="mrt-rc-ai" title="Help me write this">' + I.spark + '</button>' +
+                 '<button class="mrt-rc-send ic" id="mrt-rc-send" title="Send">' + I.send + '</button>' +
                '</div>' +
                '<div class="mrt-rc-cstatus" id="mrt-rc-cstatus"></div>' +
              '</div>');
         q('#mrt-rc-back').addEventListener('click', function () { S.thread = null; renderInbox(); });
         q('#mrt-rc-send').addEventListener('click', sendThread);
         q('#mrt-rc-ai').addEventListener('click', openAiMenu);
+        // grow the pill with the text (up to the CSS max-height)
+        var taEl = q('#mrt-rc-text');
+        if (taEl) taEl.addEventListener('input', function () { taEl.style.height = 'auto'; taEl.style.height = Math.min(taEl.scrollHeight, 96) + 'px'; });
         loadMsgs();
         loadCustomerTickets(t.number);
-        var ta = q('#mrt-rc-text'); if (ta && S.pendingDraft) { ta.value = S.pendingDraft; S.pendingDraft = null; cstatus('ok', '✨ Drafted — edit or Send'); }
+        var ta = q('#mrt-rc-text'); if (ta && S.pendingDraft) { ta.value = S.pendingDraft; S.pendingDraft = null; ta.dispatchEvent(new Event('input')); cstatus('ok', '✨ Drafted — edit or Send'); }
     }
     function loadMsgs() {
         fn('thread', { store: S.store, number: S.thread.number, days: 60 }).then(function (r) {
@@ -355,10 +398,11 @@
         fn('send', { to: S.thread.number, body: text, store: S.store, agent_name: techName() }).then(function (r) {
             btn.disabled = false;
             if (!r || !r.ok) { cstatus('err', (r && r.error) || 'Send failed'); return; }
-            ta.value = ''; cstatus('ok', '✓ Sent'); setTimeout(function () { cstatus('', ''); }, 1500);
+            ta.value = ''; ta.style.height = 'auto'; cstatus('ok', '✓ Sent'); setTimeout(function () { cstatus('', ''); }, 1500);
             loadMsgs();
         });
     }
+
     /* --- customer's RepairQ tickets (lead / open / last closed) ------------
        We're on cpr.repairq.io, so we can hit RepairQ same-origin. Search the
        customer by their phone number, parse the returned ticket rows, classify
@@ -372,16 +416,10 @@
         return el ? el.value : '';
     }
 
-    // Hop 1: phone → matching customer IDs. RepairQ's "Search Contacts" quick
-    // search POSTs filter[quickQuery] to /customers/leads and returns the
-    // filtered contacts grid; we harvest the /customers/<id> links. A number can
-    // match several contacts (staff reuse numbers), so we keep them all.
+    // Hop 1: phone → matching customer IDs.
     function findCustomerIds(number) {
         var q10 = digits(number).slice(-10);
         if (q10.length < 10) return Promise.resolve([]);
-        // A repaired-phone customer is a full contact, not a "lead" — search the
-        // contacts grid (/customers) as well; try both the raw digits and the
-        // dashed form since RepairQ stores numbers formatted.
         var endpoints = ['/customers', '/customers/leads'];
         var queries = [q10, pretty(q10)];
         var jobs = [];
@@ -413,8 +451,7 @@
     }
 
     // Primary lookup: RepairQ's ticket grid quick-search matches customer name
-    // AND phone, so one POST to /ticket returns the tickets directly — no
-    // customer-profile hop. Reuses the proven /ticket + mainModelList pattern.
+    // AND phone, so one POST to /ticket returns the tickets directly.
     function parseTicketGrid(html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var scope = doc.getElementById('mainModelList') || doc;
@@ -463,10 +500,7 @@
         });
     }
 
-    // Hop 2: customer ID → their tickets. The profile page (/customers/<id>)
-    // renders the ticket history in a #tickets table; parse each <tr data-id>.
-    // Cells: [1]=location, [2]=device (full name in the popover), [3]=status,
-    // [7]=date.
+    // Hop 2: customer ID → their tickets (profile page #tickets table).
     function ticketsForCustomer(id) {
         return fetch('/customers/' + id, { credentials: 'same-origin' })
             .then(function (r) { return r.text(); }).then(function (html) {
@@ -491,9 +525,7 @@
             }).catch(function () { return []; });
     }
 
-    // phone → tickets. Try the ticket grid first (one hop, matches phone); if
-    // it comes back empty, fall back to the contacts → profile → tickets path.
-    // Fails soft to [].
+    // phone → tickets. Grid first; fall back to contacts → profile → tickets.
     function searchCustomerTickets(number) {
         return ticketGridSearch(number).then(function (tix) {
             if (tix.length) return tix;
@@ -510,7 +542,7 @@
 
     function loadCustomerTickets(number) {
         var box = q('#mrt-rc-tix'); if (!box) return;
-        box.innerHTML = '<div class="mrt-rc-tixhd">📋 Their tickets <span class="mrt-rc-tixsp">…</span></div>';
+        box.innerHTML = '<div class="mrt-rc-tixhd">Their RepairQ tickets <span class="mrt-rc-tixsp">…</span></div>';
         var dbg = false;
         try { dbg = !!localStorage.getItem('mrtRcDebug'); } catch (e) {}
         if (dbg) {
@@ -520,7 +552,7 @@
         searchCustomerTickets(number).then(function (tix) {
             if (!q('#mrt-rc-tix')) return;                       // thread changed
             if (dbg) console.log('[MRT] searchCustomerTickets(' + number + ') →', tix.length, tix);
-            if (!tix.length) { box.innerHTML = '<div class="mrt-rc-tixhd">📋 No RepairQ tickets found for this number</div>'; return; }
+            if (!tix.length) { box.innerHTML = '<div class="mrt-rc-tixhd">No RepairQ tickets found for this number</div>'; return; }
             var leads = [], open = [], closed = [];
             tix.forEach(function (t) {
                 if (LEAD_RE.test(t.status)) leads.push(t);
@@ -530,17 +562,17 @@
             var byNoDesc = function (a, b) { return Number(b.no) - Number(a.no); };
             leads.sort(byNoDesc); open.sort(byNoDesc); closed.sort(byNoDesc);
             var rows = [];
-            function row(kind, t) {
+            function row(kind, cls, t) {
                 return '<a class="mrt-rc-tix-row" href="' + esc(t.href) + '" target="_blank" rel="noopener">' +
-                    '<span class="mrt-rc-tix-tag ' + kind + '">' + kind + '</span>' +
+                    '<span class="mrt-rc-tix-tag ' + cls + '">' + kind + '</span>' +
                     '<span class="mrt-rc-tix-no">#' + esc(t.no) + '</span>' +
                     '<span class="mrt-rc-tix-dev">' + esc(t.device || t.status || '') + '</span>' +
                     (t.status ? '<span class="mrt-rc-tix-st">' + esc(t.status) + '</span>' : '') + '</a>';
             }
-            leads.slice(0, 3).forEach(function (t) { rows.push(row('lead', t)); });
-            open.slice(0, 6).forEach(function (t) { rows.push(row('open', t)); });
-            if (closed[0]) rows.push(row('last closed', closed[0]));
-            box.innerHTML = '<div class="mrt-rc-tixhd">📋 Their tickets</div>' + rows.join('');
+            leads.slice(0, 3).forEach(function (t) { rows.push(row('lead', 'lead', t)); });
+            open.slice(0, 6).forEach(function (t) { rows.push(row('open', 'open', t)); });
+            if (closed[0]) rows.push(row('last closed', 'last', closed[0]));
+            box.innerHTML = '<div class="mrt-rc-tixhd">Their RepairQ tickets</div>' + rows.join('');
         });
     }
 
@@ -579,7 +611,8 @@
         var mode = text.split(/\s+/).length <= 4 ? 'draft' : 'polish';
         ai({ mode: mode, text: text, customer_name: (S.thread && S.thread.name) || '', store: S.store }).then(function (r) {
             if (!r || !r.ok) { cstatus('err', (r && r.error) || 'AI unavailable'); return; }
-            ta.value = r.message || text; cstatus('ok', '✨ Rewritten — edit or Send'); setTimeout(function () { cstatus('', ''); }, 2200);
+            ta.value = r.message || text; ta.dispatchEvent(new Event('input'));
+            cstatus('ok', '✨ Rewritten — edit or Send'); setTimeout(function () { cstatus('', ''); }, 2200);
         });
     }
 
@@ -590,7 +623,7 @@
         ai({ action: 'guided_questions', scenario_id: Number(id), note: note, customer_name: (S.thread && S.thread.name) || '' }).then(function (r) {
             if (!r || !r.ok) { renderThread(); setTimeout(function () { cstatus('err', (r && r.error) || 'Could not load'); }, 60); return; }
             var qs = r.questions || [];
-            var h = '<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-gback">‹ Back</button><span class="mrt-rc-who">' + esc(name) + '</span></div>' +
+            var h = '<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-gback">' + I.back + 'Back</button><span class="mrt-rc-who">' + esc(name) + '</span></div>' +
                 '<div class="mrt-rc-gform">';
             qs.forEach(function (qq) {
                 h += '<div class="mrt-rc-gq"><label>' + esc(qq.label) +
@@ -604,7 +637,7 @@
                 }
                 h += '</div>';
             });
-            h += '</div><div class="mrt-rc-compose"><button class="mrt-rc-send" id="mrt-rc-gwrite" style="width:100%">✨ Write the message</button><div class="mrt-rc-cstatus" id="mrt-rc-gstatus"></div></div>';
+            h += '</div><div class="mrt-rc-compose"><button class="mrt-rc-send mrt-rc-gwide" id="mrt-rc-gwrite">' + I.spark + ' Write the message</button><div class="mrt-rc-cstatus mrt-rc-gstatus" id="mrt-rc-gstatus"></div></div>';
             body(h);
             panel.querySelectorAll('.mrt-rc-gchoices').forEach(function (grp) {
                 grp.querySelectorAll('.mrt-rc-gchip').forEach(function (chip) {
@@ -642,12 +675,20 @@
             var list = r.calls || [];
             if (!list.length) { body('<div class="mrt-rc-empty">No calls in the last 14 days.</div>'); return; }
             body('<div class="mrt-rc-list">' + list.map(function (c) {
-                var arrow = c.dir === 'in' ? '↙' : '↗';
+                var icCls = c.missed ? ' bad' : (c.dir === 'in' ? ' in' : '');
                 return '<div class="mrt-rc-call' + (c.missed ? ' missed' : '') + '" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">' +
-                    '<div class="mrt-rc-conv-top"><span class="mrt-rc-who">' + esc(arrow + ' ' + (c.name || pretty(c.number))) + '</span>' +
-                    '<span class="mrt-rc-when">' + esc(ago(c.time)) + '</span></div>' +
-                    '<div class="mrt-rc-prev"><span class="mrt-rc-res' + (c.missed ? ' bad' : '') + '">' + esc(c.result || '') + '</span>' +
-                    ' · ' + esc(pretty(c.number)) + '<button class="mrt-rc-txt" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">Text back</button></div>' +
+                    '<span class="mrt-rc-callic' + icCls + '">' + (c.dir === 'in' ? I.arrIn : I.arrOut) + '</span>' +
+                    '<span class="mrt-rc-conv-main">' +
+                      '<span class="mrt-rc-conv-top">' +
+                        '<span class="mrt-rc-who">' + esc(c.name || pretty(c.number)) + '</span>' +
+                        '<span class="mrt-rc-when">' + esc(ago(c.time)) + '</span>' +
+                      '</span>' +
+                      '<span class="mrt-rc-prevrow">' +
+                        '<span class="mrt-rc-res' + (c.missed ? ' bad' : '') + '">' + esc(c.result || '') + '</span>' +
+                        '<span class="mrt-rc-num">· ' + esc(pretty(c.number)) + '</span>' +
+                        '<button class="mrt-rc-txt" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">Text back</button>' +
+                      '</span>' +
+                    '</span>' +
                 '</div>';
             }).join('') + '</div>');
             panel.querySelectorAll('.mrt-rc-txt').forEach(function (b) {
@@ -673,10 +714,19 @@
                 var tr = v.transcript ? esc(v.transcript)
                     : (v.transcription_status && /progress|pending/i.test(v.transcription_status) ? '<i>Transcribing…</i>' : '<i>No transcript</i>');
                 return '<div class="mrt-rc-vm' + (v.read ? '' : ' unread') + '" data-num="' + esc(v.from) + '" data-name="' + esc(v.name || '') + '">' +
-                    '<div class="mrt-rc-conv-top"><span class="mrt-rc-who">' + esc(v.name || pretty(v.from)) + '</span>' +
-                    '<span class="mrt-rc-when">' + esc(ago(v.time)) + '</span></div>' +
+                    '<span class="mrt-rc-ava">' + esc(initials(v.name)) + '</span>' +
+                    '<span class="mrt-rc-conv-main">' +
+                      '<span class="mrt-rc-conv-top">' +
+                        (v.read ? '' : '<span class="mrt-rc-udot" style="background:#DC282E"></span>') +
+                        '<span class="mrt-rc-who">' + esc(v.name || pretty(v.from)) + '</span>' +
+                        '<span class="mrt-rc-when">' + esc(ago(v.time)) + '</span>' +
+                      '</span>' +
+                      '<span class="mrt-rc-prevrow">' +
+                        '<span class="mrt-rc-num">' + esc(pretty(v.from)) + '</span>' +
+                        '<button class="mrt-rc-txt" data-num="' + esc(v.from) + '" data-name="' + esc(v.name || '') + '">Text back</button>' +
+                      '</span>' +
+                    '</span>' +
                     '<div class="mrt-rc-vmtext">' + tr + '</div>' +
-                    '<div class="mrt-rc-prev">' + esc(pretty(v.from)) + '<button class="mrt-rc-txt" data-num="' + esc(v.from) + '" data-name="' + esc(v.name || '') + '">Text back</button></div>' +
                 '</div>';
             }).join('') + '</div>');
             panel.querySelectorAll('.mrt-rc-txt').forEach(function (b) {
@@ -691,11 +741,18 @@
         });
     }
 
-    /* --- unread dot on the button --- */
+    /* --- unread dot on the button + inbox tab pill --- */
     function updateDot(n) {
-        var d = document.getElementById('mrt-rc-dot'); if (!d) return;
-        if (n > 0) { d.textContent = n > 9 ? '9+' : String(n); d.style.display = ''; }
-        else d.style.display = 'none';
+        var d = document.getElementById('mrt-rc-dot');
+        if (d) {
+            if (n > 0) { d.textContent = n > 9 ? '9+' : String(n); d.style.display = ''; }
+            else d.style.display = 'none';
+        }
+        var t = q('#mrt-rc-tabdot');
+        if (t) {
+            if (n > 0) { t.textContent = n > 9 ? '9+' : String(n); t.style.display = ''; }
+            else t.style.display = 'none';
+        }
     }
     // Desktop notifications for new inbound texts + new missed calls. State
     // is shared across RepairQ tabs via storage.local so we notify once, and
@@ -769,6 +826,7 @@
         if (isLocked()) { li.style.display = 'none'; if (S.open) close(); }
         else li.style.display = '';
     }
+
     /* ---- 💬 buttons next to customer phone numbers on ticket pages ---- */
     var PHONE_RE = /(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}|\b\d{10}\b)/;
     function customerName() {
@@ -784,8 +842,6 @@
     }
     function injectTextButtons() {
         if (!/\/ticket\//.test(location.pathname) || /\/ticket\/print/i.test(location.pathname)) return;
-        // candidate containers: the customer <dd>s (edit pages) and any
-        // customer block (view-page sidebar with a /customers/ link)
         var zones = [];
         document.querySelectorAll('dt').forEach(function (dt) {
             if (/contact number/i.test(dt.textContent)) {
@@ -836,8 +892,6 @@
         try { new MutationObserver(applyLockState).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         pollUnread();
         setInterval(pollUnread, 120000);   // refresh the unread badge every 2 min
-        // 💬 next to customer phone numbers on ticket pages (RepairQ re-renders
-        // the customer summary in place — re-inject on DOM changes, debounced)
         injectTextButtons();
         try {
             new MutationObserver(function () {
