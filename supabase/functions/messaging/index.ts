@@ -799,6 +799,10 @@ Deno.serve(async (req) => {
   let payload: any = {};
   try { payload = await req.json(); } catch { /* webhook may send empty */ }
 
+  // Warmer: a pg_cron pings this every few minutes so the isolate stays hot and
+  // the panel's first fetch after idle doesn't eat a cold start. Returns instantly.
+  if (payload?.action === "ping") return json({ ok: true, warm: true });
+
   // webhook path: RingCentral posts here (no user JWT). It authenticates via
   // the ?webhook=<secret> query param (RC can't set custom headers), or the
   // Validation-Token handshake header on subscription creation.

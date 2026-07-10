@@ -127,6 +127,15 @@
         });
     }
 
+    /* ---- light cache: paint from cache instantly, refresh in the background,
+       reconcile. Kills the "wait a second every time" feel. In-memory covers
+       reopening within a page; storage.local carries it across page loads. ---- */
+    var MEM = { conv: {}, thread: {} };
+    function lget(key) { return new Promise(function (res) { try { chrome.storage.local.get([key]).then(function (r) { res(r && r[key]); }).catch(function () { res(null); }); } catch (e) { res(null); } }); }
+    function lset(key, val) { try { var o = {}; o[key] = val; chrome.storage.local.set(o); } catch (e) {} }
+    function convKey() { return 'mrt_rc_conv_' + S.store; }
+    function threadKey(num) { return 'mrt_rc_thread_' + S.store + '_' + num; }
+
     /* ---------------- shell ---------------- */
     var panel;
     function q(sel) { return panel ? panel.querySelector(sel) : null; }
@@ -276,16 +285,27 @@
 
     /* --- inbox: conversation list --- */
     function renderInbox() {
-        spinner('Loading conversations…');
-        fn('conversations', { store: S.store, days: 30 }).then(function (r) {
-            if (!r || !r.ok) { body('<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load conversations') + '</div>'); return; }
+        var cached = MEM.conv[S.store];
+        if (cached) { paintInbox(cached); }                      // instant from memory
+        else {
+            spinner('Loading conversations…');
+            lget(convKey()).then(function (v) { if (v && v.length && S.tab === 'inbox' && !S.thread && !MEM.conv[S.store]) paintInbox(v); });
+        }
+        fn('conversations', { store: S.store, days: 30 }).then(function (r) {   // refresh in background
+            if (!r || !r.ok) { if (!MEM.conv[S.store] && !cached) body('<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load conversations') + '</div>'); return; }
             var list = r.conversations || [];
-            updateDot(list.reduce(function (a, c) { return a + (c.unread || 0); }, 0));
-            if (!list.length) {
-                body('<div class="mrt-rc-empty">No text conversations in the last 30 days.<br><br>Tap the pencil up top to start one.</div>');
-                return;
-            }
-            body('<div class="mrt-rc-list">' + list.map(function (c) {
+            MEM.conv[S.store] = list; lset(convKey(), list);
+            paintInbox(list);
+        });
+    }
+    function paintInbox(list) {
+        if (!(S.tab === 'inbox' && !S.thread)) return;           // user moved on
+        updateDot(list.reduce(function (a, c) { return a + (c.unread || 0); }, 0));
+        if (!list.length) {
+            body('<div class="mrt-rc-empty">No text conversations in the last 30 days.<br><br>Tap the pencil up top to start one.</div>');
+            return;
+        }
+        body('<div class="mrt-rc-list">' + list.map(function (c) {
                 var who = c.name || pretty(c.number);
                 return '<div class="mrt-rc-conv" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">' +
                     '<span class="mrt-rc-ava">' + esc(initials(c.name)) + '</span>' +
@@ -308,7 +328,6 @@
                     renderThread();
                 });
             });
-        });
     }
 
     /* --- inbox: start a brand-new text --- */
@@ -376,19 +395,28 @@
         loadCustomerTickets(t.number);
         var ta = q('#mrt-rc-text'); if (ta && S.pendingDraft) { ta.value = S.pendingDraft; S.pendingDraft = null; ta.dispatchEvent(new Event('input')); cstatus('ok', '✨ Drafted — edit or Send'); }
     }
+    function paintMsgs(msgs) {
+        var box = q('#mrt-rc-msgs'); if (!box) return;
+        box.innerHTML = msgs.length ? msgs.map(function (m) {
+            return '<div class="mrt-rc-bubble ' + (m.dir === 'out' ? 'out' : 'in') + '">' + esc(m.text) +
+                '<span class="mrt-rc-btime">' + esc(ago(m.time)) + '</span></div>';
+        }).join('') : '<div class="mrt-rc-empty">No messages yet — say hi.</div>';
+        box.scrollTop = box.scrollHeight;
+    }
     function loadMsgs() {
-        fn('thread', { store: S.store, number: S.thread.number, days: 60 }).then(function (r) {
+        var num = S.thread.number, key = threadKey(num), cached = MEM.thread[key];
+        if (cached) { paintMsgs(cached); }                       // instant from memory
+        else lget(key).then(function (v) { if (v && S.thread && S.thread.number === num && q('#mrt-rc-msgs')) paintMsgs(v); });
+        fn('thread', { store: S.store, number: num, days: 60 }).then(function (r) {   // refresh in background
+            if (!S.thread || S.thread.number !== num) return;    // user navigated away
             var box = q('#mrt-rc-msgs'); if (!box) return;
-            if (!r || !r.ok) { box.innerHTML = '<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load messages') + '</div>'; return; }
+            if (!r || !r.ok) { if (!cached && !MEM.thread[key]) box.innerHTML = '<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load messages') + '</div>'; return; }
             var msgs = r.messages || [];
-            box.innerHTML = msgs.length ? msgs.map(function (m) {
-                return '<div class="mrt-rc-bubble ' + (m.dir === 'out' ? 'out' : 'in') + '">' + esc(m.text) +
-                    '<span class="mrt-rc-btime">' + esc(ago(m.time)) + '</span></div>';
-            }).join('') : '<div class="mrt-rc-empty">No messages yet — say hi.</div>';
-            box.scrollTop = box.scrollHeight;
+            MEM.thread[key] = msgs; lset(key, msgs);
+            paintMsgs(msgs);
             // Opening a thread = reading it. Flip it to Read in RingCentral
             // (Edit Messages scope) so the badge clears here AND in RC's apps.
-            fn('thread_read', { store: S.store, number: S.thread.number }).then(function (m) {
+            fn('thread_read', { store: S.store, number: num }).then(function (m) {
                 if (m && m.ok && m.marked) pollUnread();
             });
         });
@@ -398,11 +426,27 @@
         var ta = q('#mrt-rc-text'); var text = (ta.value || '').trim();
         if (!text) { cstatus('err', 'Type a message first'); return; }
         var btn = q('#mrt-rc-send'); btn.disabled = true; cstatus('wait', 'Sending…');
-        fn('send', { to: S.thread.number, body: text, store: S.store, agent_name: techName() }).then(function (r) {
+        var num = S.thread.number;
+        // optimistic: show the bubble immediately, clear the box — feels instant
+        var box = q('#mrt-rc-msgs'), bubble = null;
+        if (box) {
+            var empty = box.querySelector('.mrt-rc-empty'); if (empty) box.innerHTML = '';
+            bubble = document.createElement('div');
+            bubble.className = 'mrt-rc-bubble out sending';
+            bubble.innerHTML = esc(text) + '<span class="mrt-rc-btime">sending…</span>';
+            box.appendChild(bubble); box.scrollTop = box.scrollHeight;
+        }
+        ta.value = ''; ta.style.height = 'auto';
+        fn('send', { to: num, body: text, store: S.store, agent_name: techName() }).then(function (r) {
             btn.disabled = false;
-            if (!r || !r.ok) { cstatus('err', (r && r.error) || 'Send failed'); return; }
-            ta.value = ''; ta.style.height = 'auto'; cstatus('ok', '✓ Sent'); setTimeout(function () { cstatus('', ''); }, 1500);
-            loadMsgs();
+            if (!r || !r.ok) {
+                cstatus('err', (r && r.error) || 'Send failed');
+                if (bubble) { bubble.classList.remove('sending'); bubble.classList.add('failed'); var bt = bubble.querySelector('.mrt-rc-btime'); if (bt) bt.textContent = 'failed'; }
+                if (ta && !ta.value) { ta.value = text; ta.dispatchEvent(new Event('input')); }   // let them retry
+                return;
+            }
+            cstatus('ok', '✓ Sent'); setTimeout(function () { cstatus('', ''); }, 1500);
+            loadMsgs();   // reconcile with the server copy (and refresh the cache)
         });
     }
 
