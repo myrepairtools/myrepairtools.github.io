@@ -2,7 +2,7 @@
     CPR Assistant overlay (myRepairTools)
 
     Puts the company AI assistant INSIDE RepairQ: a ✨ button that slides up an
-    iframe of myrepairtools.github.io/assistant.html (which hosts the same chat
+    iframe of myrepairtools.com/assistant.html (which hosts the same chat
     widget the MRT site uses — Knowledge Base answers with citations, customer
     replies, panic logs). Auth rides the MRT origin's Supabase session, so a
     tech who has signed into myRepairTools once on this browser is signed in
@@ -15,7 +15,9 @@
 (function () {
     'use strict';
 
-    var EMBED_URL = 'https://myrepairtools.github.io/assistant.html';
+    // Canonical custom domain. The old github.io URL now 301s here and can land
+    // on http://, which HTTPS RepairQ blocks as mixed content → blank iframe.
+    var EMBED_URL = 'https://myrepairtools.com/assistant.html';
     var panel = null, iframe = null, fab = null, loaded = false;
 
     /* ---------- context scraping (best effort, all optional) ---------- */
