@@ -80,6 +80,18 @@ table.ct{width:100%;border-collapse:collapse;font-size:.86rem;min-width:900px}
 .tpl-opt .ic{width:38px;height:38px;border-radius:10px;background:#FDEAEA;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex:none}
 .tpl-opt b{font-family:'Nunito',sans-serif;font-size:.92rem;display:block}
 .tpl-opt .d{font-size:.74rem;color:var(--grey);font-weight:600;margin-top:2px}
+/* New-contract wizard stepper */
+.nc-steps{display:flex;align-items:center;gap:8px;margin:2px 0 16px}
+.nc-si{display:flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;color:var(--grey);white-space:nowrap}
+.nc-si .nc-num{width:22px;height:22px;border-radius:50%;background:var(--light-grey);color:var(--grey);display:flex;align-items:center;justify-content:center;font-size:.74rem;border:1.5px solid var(--border);flex:none}
+.nc-si.on{color:var(--dark)}
+.nc-si.on .nc-num{background:var(--red);color:#fff;border-color:var(--red)}
+.nc-si.done{color:var(--dark-grey);cursor:pointer}
+.nc-si.done .nc-num{background:#EAF7EF;color:#1f7d45;border-color:#bfe6cd}
+.nc-bar{flex:1;height:2px;background:var(--border);min-width:8px}
+.nc-page{display:none}
+.nc-page.on{display:block}
+@media(max-width:520px){.nc-si-lbl{display:none}}
 </style>
 </head>
 <body>
@@ -292,7 +304,15 @@ function openForm(TMPL){
   const back=document.createElement('div');back.className='mback';back.id='ncback';
   back.innerHTML='<div class="modal">'
     +'<div class="m-hd"><span>＋ '+esc(TMPL.name)+'</span><button class="m-x" data-x>×</button></div>'
-    +'<div class="m-sub">'+esc(TMPL.contract_type)+' contract'+(TMPL.library?' · services from the “'+esc(TMPL.library)+'” price library':'')+'. Pick the service so the price is right.</div>'
+    +'<div class="m-sub">'+esc(TMPL.contract_type)+' contract'+(TMPL.library?' · services from the “'+esc(TMPL.library)+'” price library':'')+'. Three quick steps.</div>'
+    +'<div class="nc-steps">'
+      +'<div class="nc-si on" data-si="1"><span class="nc-num">1</span><span class="nc-si-lbl">Customer</span></div>'
+      +'<div class="nc-bar"></div>'
+      +'<div class="nc-si" data-si="2"><span class="nc-num">2</span><span class="nc-si-lbl">Repair</span></div>'
+      +'<div class="nc-bar"></div>'
+      +'<div class="nc-si" data-si="3"><span class="nc-num">3</span><span class="nc-si-lbl">Payment</span></div>'
+    +'</div>'
+    +'<div class="nc-page on" data-page="1">'
     +'<div class="g2">'
     +'<div><label class="f">Store</label><select id="ncStore">'+stores.map(s=>'<option value="'+esc(s)+'"'+(s===ME.home_store?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></div>'
     +'<div><label class="f">RepairQ ticket # *</label><input id="ncTicket" type="text" placeholder="required"></div>'
@@ -301,11 +321,15 @@ function openForm(TMPL){
     +'<div><label class="f">Customer email</label><input id="ncEmail" type="text" placeholder="for emailing the link + receipt"></div>'
     +'<div><label class="f">Customer phone</label><input id="ncPhone" type="text" placeholder="optional"></div>'
     +'</div>'
+    +'</div>'
+    +'<div class="nc-page" data-page="2">'
     +(vendors.length>1?'<label class="f">Vendor *</label><select id="ncVendor"><option value="">— pick the microsoldering vendor —</option>'+vendors.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('')+'</select><div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:3px">Which vendor handles this repair — their services &amp; prices load below.</div>':'')
     +'<label class="f">Service *</label><select id="ncSvc">'+svcOpts+'</select>'
     +'<div style="font-size:.7rem;color:var(--grey);font-weight:600;margin-top:3px" id="ncSvcHint">Pick device'+(vendors.length>1?' &amp; vendor':'')+' — services &amp; prices adjust.</div>'
     +(act.length?'':'<div style="font-size:.74rem;color:var(--amber);font-weight:700;margin-top:4px">No services in this template’s price library yet — managers add them in Settings → Contracts. Using Custom for now.</div>')
     +'<label class="f">Repair details / scope *</label><textarea id="ncScope" rows="3" placeholder="What’s wrong and what work is authorized — thorough notes; these also print on the vendor work order"></textarea>'
+    +'</div>'
+    +'<div class="nc-page" data-page="3">'
     +'<label class="f">How does the customer pay?</label>'
     +'<div class="paymode">'
     +'<label class="pm-opt on"><input type="radio" name="ncPm" value="remote" checked><span><b>🔗 Remote — pay after signing</b><span class="d">Customer isn’t here (post-diagnostic call). They sign on their phone and a Square payment link opens right after.</span></span></label>'
@@ -318,7 +342,8 @@ function openForm(TMPL){
       +'<input id="ncDiag" type="number" step="0.01" min="0" value="49.99" style="margin-top:6px;text-align:right" title="Edit if a different diagnostic was charged (e.g. computers)"></div>'
     +'</div>'
     +'<div id="ncSum" style="margin-top:12px;background:var(--light-grey);border-radius:10px;padding:11px 14px;font-size:.84rem;font-weight:700;color:var(--dark-grey)"></div>'
-    +'<div class="m-ft"><button class="btn alt" data-x>Cancel</button><button class="btn" id="ncGo">Create contract</button></div>'
+    +'</div>'
+    +'<div class="m-ft"><button class="btn alt" data-x style="margin-right:auto">Cancel</button><button class="btn alt hide" id="ncBack">‹ Back</button><button class="btn" id="ncNext">Next ›</button><button class="btn hide" id="ncGo">Create contract</button></div>'
     +'</div>';
   document.body.appendChild(back);
   back.addEventListener('click',e=>{if(e.target===back)back.remove();});
@@ -390,6 +415,38 @@ function openForm(TMPL){
     calc();
   });
   calc();
+  // ---- wizard step navigation (pages already in the DOM; just show/hide) ----
+  (function(){
+    let step=1;
+    const pages=[...back.querySelectorAll('.nc-page')];
+    const sis=[...back.querySelectorAll('.nc-si')];
+    const btnBack=back.querySelector('#ncBack'),btnNext=back.querySelector('#ncNext'),btnGo=back.querySelector('#ncGo'),modalEl=back.querySelector('.modal');
+    function show(n){
+      step=n;
+      pages.forEach(p=>p.classList.toggle('on',+p.dataset.page===n));
+      sis.forEach(si=>{const k=+si.dataset.si;si.classList.toggle('on',k===n);si.classList.toggle('done',k<n);});
+      btnBack.classList.toggle('hide',n===1);
+      btnNext.classList.toggle('hide',n===3);
+      btnGo.classList.toggle('hide',n!==3);
+      if(modalEl)modalEl.scrollTop=0;
+    }
+    function valid(n){
+      if(n===1){
+        if(!back.querySelector('#ncTicket').value.trim()){toast('RepairQ ticket # is required',true);return false;}
+        if(!back.querySelector('#ncName').value.trim()){toast('Customer name required',true);return false;}
+        if(!devEl.value.trim()){toast('Device is required',true);return false;}
+      }
+      if(n===2){
+        if(vendors.length>1&&!curVendor()){toast('Pick the vendor',true);return false;}
+        if(!svcEl.value){toast('Pick the service (or Custom)',true);return false;}
+        if(!back.querySelector('#ncScope').value.trim()){toast('Describe the repair scope',true);return false;}
+      }
+      return true;
+    }
+    btnNext.onclick=()=>{if(valid(step))show(step+1);};
+    btnBack.onclick=()=>show(Math.max(1,step-1));
+    sis.forEach(si=>si.onclick=()=>{const k=+si.dataset.si;if(k<step)show(k);});
+  })();
   back.querySelector('#ncGo').onclick=async()=>{
     const name=back.querySelector('#ncName').value.trim();
     const ticket=back.querySelector('#ncTicket').value.trim();
