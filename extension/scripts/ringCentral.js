@@ -379,23 +379,88 @@
     function findCustomerIds(number) {
         var q10 = digits(number).slice(-10);
         if (q10.length < 10) return Promise.resolve([]);
-        var body = new URLSearchParams();
-        body.set('YII_CSRF_TOKEN', rqCsrf());
-        body.set('filter[quickQuery]', q10);
-        return fetch('/customers/leads', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
-            body: body.toString(),
-        }).then(function (r) { return r.text(); }).then(function (html) {
-            var doc = new DOMParser().parseFromString(html, 'text/html');
-            var scope = doc.getElementById('mainModelList') || doc;
+        // A repaired-phone customer is a full contact, not a "lead" — search the
+        // contacts grid (/customers) as well; try both the raw digits and the
+        // dashed form since RepairQ stores numbers formatted.
+        var endpoints = ['/customers', '/customers/leads'];
+        var queries = [q10, pretty(q10)];
+        var jobs = [];
+        endpoints.forEach(function (ep) {
+            queries.forEach(function (qv) {
+                var body = new URLSearchParams();
+                body.set('YII_CSRF_TOKEN', rqCsrf());
+                body.set('filter[quickQuery]', qv);
+                jobs.push(fetch(ep, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+                    body: body.toString(),
+                }).then(function (r) { return r.text(); }).catch(function () { return ''; }));
+            });
+        });
+        return Promise.all(jobs).then(function (htmls) {
             var ids = [], seen = {};
-            scope.querySelectorAll('a[href*="/customers/"]').forEach(function (a) {
-                var m = (a.getAttribute('href') || '').match(/\/customers\/(\d+)\b/);
-                if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
+            htmls.forEach(function (html) {
+                if (!html) return;
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var scope = doc.getElementById('mainModelList') || doc;
+                scope.querySelectorAll('a[href*="/customers/"]').forEach(function (a) {
+                    var m = (a.getAttribute('href') || '').match(/\/customers\/(\d+)\b/);
+                    if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
+                });
             });
             return ids.slice(0, 5);          // cap — usually 1
         }).catch(function () { return []; });
+    }
+
+    // Primary lookup: RepairQ's ticket grid quick-search matches customer name
+    // AND phone, so one POST to /ticket returns the tickets directly — no
+    // customer-profile hop. Reuses the proven /ticket + mainModelList pattern.
+    function parseTicketGrid(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var scope = doc.getElementById('mainModelList') || doc;
+        var out = [];
+        scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
+            var no = tr.getAttribute('data-id');
+            if (!/^\d+$/.test(no)) return;
+            var cols = {};
+            tr.querySelectorAll('td[data-column]').forEach(function (td) {
+                cols[(td.getAttribute('data-column') || '').toLowerCase()] = td.textContent.replace(/\s+/g, ' ').trim();
+            });
+            if (!Object.keys(cols).length) return;
+            function pick(re) { for (var k in cols) if (re.test(k) && cols[k]) return cols[k]; return ''; }
+            var devA = tr.querySelector('td[data-column="items"] a[data-content], td[data-column="items"] a[data-original-title]');
+            out.push({
+                no: no, href: '/ticket/' + no,
+                device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cols.items || pick(/device|model|item/),
+                status: cols.status || pick(/status|bucket|state/),
+                date: cols.est || pick(/\best\b|due|date/),
+            });
+        });
+        return out;
+    }
+
+    function ticketGridSearch(number) {
+        var d10 = digits(number).slice(-10);
+        if (d10.length < 10) return Promise.resolve([]);
+        var queries = [d10, pretty(d10)];
+        var jobs = queries.map(function (qv) {
+            var body = new URLSearchParams();
+            body.set('YII_CSRF_TOKEN', rqCsrf());
+            body.set('filter[quickQuery]', qv);
+            body.set('filter[full_history]', '1');   // include closed/older tickets
+            return fetch('/ticket', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+                body: body.toString(),
+            }).then(function (r) { return r.text(); })
+              .then(function (html) { return parseTicketGrid(html); })
+              .catch(function () { return []; });
+        });
+        return Promise.all(jobs).then(function (lists) {
+            var seen = {}, all = [];
+            lists.forEach(function (l) { l.forEach(function (t) { if (!seen[t.no]) { seen[t.no] = 1; all.push(t); } }); });
+            return all;
+        });
     }
 
     // Hop 2: customer ID → their tickets. The profile page (/customers/<id>)
@@ -426,14 +491,19 @@
             }).catch(function () { return []; });
     }
 
-    // phone → customers → merged, de-duped ticket list. Fails soft to [].
+    // phone → tickets. Try the ticket grid first (one hop, matches phone); if
+    // it comes back empty, fall back to the contacts → profile → tickets path.
+    // Fails soft to [].
     function searchCustomerTickets(number) {
-        return findCustomerIds(number).then(function (ids) {
-            if (!ids.length) return [];
-            return Promise.all(ids.map(ticketsForCustomer)).then(function (lists) {
-                var seen = {}, all = [];
-                lists.forEach(function (l) { l.forEach(function (t) { if (!seen[t.no]) { seen[t.no] = 1; all.push(t); } }); });
-                return all;
+        return ticketGridSearch(number).then(function (tix) {
+            if (tix.length) return tix;
+            return findCustomerIds(number).then(function (ids) {
+                if (!ids.length) return [];
+                return Promise.all(ids.map(ticketsForCustomer)).then(function (lists) {
+                    var seen = {}, all = [];
+                    lists.forEach(function (l) { l.forEach(function (t) { if (!seen[t.no]) { seen[t.no] = 1; all.push(t); } }); });
+                    return all;
+                });
             });
         }).catch(function () { return []; });
     }
@@ -441,8 +511,15 @@
     function loadCustomerTickets(number) {
         var box = q('#mrt-rc-tix'); if (!box) return;
         box.innerHTML = '<div class="mrt-rc-tixhd">📋 Their tickets <span class="mrt-rc-tixsp">…</span></div>';
+        var dbg = false;
+        try { dbg = !!localStorage.getItem('mrtRcDebug'); } catch (e) {}
+        if (dbg) {
+            ticketGridSearch(number).then(function (g) { console.log('[MRT] ticketGridSearch(' + number + ') →', g.length, g); });
+            findCustomerIds(number).then(function (ids) { console.log('[MRT] findCustomerIds(' + number + ') →', ids); });
+        }
         searchCustomerTickets(number).then(function (tix) {
             if (!q('#mrt-rc-tix')) return;                       // thread changed
+            if (dbg) console.log('[MRT] searchCustomerTickets(' + number + ') →', tix.length, tix);
             if (!tix.length) { box.innerHTML = '<div class="mrt-rc-tixhd">📋 No RepairQ tickets found for this number</div>'; return; }
             var leads = [], open = [], closed = [];
             tix.forEach(function (t) {
