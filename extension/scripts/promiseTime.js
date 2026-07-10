@@ -56,7 +56,7 @@
     var INCLUDE = /(ready\s*for\s*repair|ready-for-repair|diagnos|in\s*repair|in\s*progress|new|open|approved)/i;
     var EXCLUDE = /(waiting|pending\s*notification|pickup|picked\s*up|repaired\b|closed|complete|invoic|quote|cancel|abandon|shipped|void)/i;
 
-    var cfg = { minsPer: 45, open: '10:00', close: '19:00' };
+    var cfg = { minsPer: 45, open: '10:00', close: '19:00', clock: true };
     var snapshot = null, gateSkipped = false;
 
     // RepairQ locked (idle-timeout overlay) or on the login page — our UI
@@ -476,8 +476,9 @@
         getSnapshot();
         setInterval(function () { refreshSnapshot().catch(function () {}); }, SNAP_TTL);
 
-        // the always-on pickup-time clock (skip the returns page — KBB panel lives there)
-        if (!/rmaTracking/i.test(location.pathname)) {
+        // the pickup-time clock pill — its own toggle (wn.clock, default ON);
+        // skip the returns page (KBB panel lives there)
+        if (cfg.clock !== false && !/rmaTracking/i.test(location.pathname)) {
             injectPillStyles();
             placePill();
         }
@@ -497,6 +498,7 @@
             var wn = (res && res.wn) || {};
             TT = (res && res.tt) || null;
             if (wn.promise === false) return;
+            if (wn.clock !== undefined) cfg.clock = wn.clock;
             if (wn.minsPer > 0) cfg.minsPer = Number(wn.minsPer);
             if (wn.open) cfg.open = wn.open;
             if (wn.close) cfg.close = wn.close;
