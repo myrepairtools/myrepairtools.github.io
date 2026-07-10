@@ -59,7 +59,12 @@ async function getValidToken(): Promise<string> {
   });
   const r = await fetch(GRANT, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.access_token) throw new Error("refresh_failed: " + (d.error || r.status));
+  if (!r.ok || !d.access_token) {
+    // Surface Intuit's real reason (invalid_grant = reconnect needed, etc.) instead of "[object Object]".
+    const why = typeof d?.error === "string" ? d.error
+      : (d?.error_description || (d && Object.keys(d).length ? JSON.stringify(d) : "") || ("http_" + r.status));
+    throw new Error("refresh_failed: " + why);
+  }
   const expires_at = new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString();
   await admin.from("integration_tokens").update({
     access_token: d.access_token,
