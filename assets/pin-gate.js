@@ -38,11 +38,32 @@
   var IDLE_MS = 5 * 60 * 1000;
 
   var sb = null, sbReady = null, idleTimer = null;
+  // The Supabase client is an ESM import from a public CDN. esm.sh has frequent
+  // blips (slow / rate-limited / momentarily down) that used to fail the whole
+  // front door ("Offline — could not load sign-in") even for already-signed-in
+  // users. So: try several CDNs in order, time each out, and on total failure
+  // reset sbReady so the next call (and the auto-retry in boot) tries again.
+  var SB_CDNS = [
+    'https://esm.sh/@supabase/supabase-js@2',
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
+    'https://cdn.skypack.dev/@supabase/supabase-js@2'
+  ];
+  function importRace(url){
+    return Promise.race([
+      import(url),
+      new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 5000); })
+    ]);
+  }
   function loadSB(){
     if (sbReady) return sbReady;
-    sbReady = import('https://esm.sh/@supabase/supabase-js@2')
-      .then(function(m){ sb = m.createClient(SB_URL, SB_ANON); return sb; })
-      .catch(function(){ sb = null; return null; });
+    function attempt(i){
+      if (i >= SB_CDNS.length) return Promise.resolve(null);
+      return importRace(SB_CDNS[i]).then(
+        function(m){ sb = m.createClient(SB_URL, SB_ANON); return sb; },
+        function(){ return attempt(i + 1); }
+      );
+    }
+    sbReady = attempt(0).then(function(c){ if (!c) sbReady = null; return c; });  // reset on failure → retryable
     return sbReady;
   }
   function device(){ try { var d = localStorage.getItem('cpr_device_id'); if (!d){ d = 'dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('cpr_device_id', d); } return d; } catch(_){ return 'dev-x'; } }
@@ -123,8 +144,17 @@
     host.querySelector('#cpr-pg-switch').onclick = signOutReload;
   }
 
-  loadSB().then(function(c){
-    if (!c){ gateForm('Offline — could not load sign-in.'); return; }
+  // Boot with silent retries so a CDN blip doesn't strand an already-signed-in
+  // user on an "Offline" screen — it keeps trying and reveals the page the
+  // moment the library loads (no manual refresh needed).
+  function boot(tries){
+    loadSB().then(function(c){
+    if (!c){
+      if (tries > 0){ setTimeout(function(){ boot(tries - 1); }, 800); return; }   // transient blip — retry quietly
+      gateForm('Offline — reconnecting…');                                          // still failing: show status…
+      setTimeout(function(){ boot(4); }, 3000);                                      // …and keep self-healing in the background
+      return;
+    }
     c.auth.getSession().then(function(res){
       var sess = res && res.data && res.data.session;
       if (!sess){ gateForm(''); return; }
@@ -139,5 +169,7 @@
         }, function(){ reveal(); });                           // perm read failed -> fail open (data still RLS-protected)
       }, function(){ reveal(); });                            // role read failed -> fail open
     }, function(){ gateForm(''); });
-  });
+    });
+  }
+  boot(4);
 })();
