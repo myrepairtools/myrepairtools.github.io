@@ -245,14 +245,20 @@
             if (!r || !r.ok) { body('<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load conversations') + '</div>'); return; }
             var list = r.conversations || [];
             updateDot(list.reduce(function (a, c) { return a + (c.unread || 0); }, 0));
-            if (!list.length) { body('<div class="mrt-rc-empty">No text conversations in the last 30 days.</div>'); return; }
-            body('<div class="mrt-rc-list">' + list.map(function (c) {
+            var newBar = '<div class="mrt-rc-newbar"><button class="mrt-rc-new" id="mrt-rc-new">✏️ New Text</button></div>';
+            if (!list.length) {
+                body(newBar + '<div class="mrt-rc-empty">No text conversations in the last 30 days.</div>');
+                var nb0 = q('#mrt-rc-new'); if (nb0) nb0.addEventListener('click', renderCompose);
+                return;
+            }
+            body(newBar + '<div class="mrt-rc-list">' + list.map(function (c) {
                 return '<div class="mrt-rc-conv' + (c.unread ? ' unread' : '') + '" data-num="' + esc(c.number) + '" data-name="' + esc(c.name || '') + '">' +
                     '<div class="mrt-rc-conv-top"><span class="mrt-rc-who">' + esc(c.name || pretty(c.number)) + '</span>' +
                     '<span class="mrt-rc-when">' + esc(ago(c.last_time)) + (c.unread ? ' <b class="mrt-rc-badge">' + c.unread + '</b>' : '') + '</span></div>' +
                     '<div class="mrt-rc-prev">' + (c.last_dir === 'out' ? '<span class="mrt-rc-you">You: </span>' : '') + esc((c.last_text || '').slice(0, 64)) + '</div>' +
                 '</div>';
             }).join('') + '</div>');
+            var nb = q('#mrt-rc-new'); if (nb) nb.addEventListener('click', renderCompose);
             panel.querySelectorAll('.mrt-rc-conv').forEach(function (el) {
                 el.addEventListener('click', function () {
                     S.thread = { number: el.getAttribute('data-num'), name: el.getAttribute('data-name') };
@@ -260,6 +266,45 @@
                 });
             });
         });
+    }
+
+    /* --- inbox: start a brand-new text --- */
+    function renderCompose(prefillNum, prefillName) {
+        var pn = typeof prefillNum === 'string' ? prefillNum : '';
+        body('<div class="mrt-rc-thead"><button class="mrt-rc-back" id="mrt-rc-cback">‹ Inbox</button>' +
+             '<span class="mrt-rc-who">New Text</span></div>' +
+             '<div class="mrt-rc-newform">' +
+               '<label>To (customer number)</label>' +
+               '<input type="tel" id="mrt-rc-newnum" placeholder="541-555-0100" autocomplete="off" value="' + esc(pretty(pn)) + '">' +
+               '<label>Name <span class="opt">(optional)</span></label>' +
+               '<input type="text" id="mrt-rc-newname" placeholder="Customer name" autocomplete="off" value="' + esc(prefillName || '') + '">' +
+               '<button class="mrt-rc-send" id="mrt-rc-newgo">Start Conversation</button>' +
+               '<div class="mrt-rc-cstatus" id="mrt-rc-newerr"></div>' +
+             '</div>');
+        q('#mrt-rc-cback').addEventListener('click', function () { renderInbox(); });
+        function go() {
+            var d = digits((q('#mrt-rc-newnum') || {}).value || '');
+            if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+            if (d.length !== 10) { var e = q('#mrt-rc-newerr'); if (e) e.innerHTML = '<span class="err">Enter a 10-digit number</span>'; return; }
+            S.thread = { number: d, name: ((q('#mrt-rc-newname') || {}).value || '').trim() };
+            renderThread();
+        }
+        q('#mrt-rc-newgo').addEventListener('click', go);
+        q('#mrt-rc-newnum').addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+        var inp = q('#mrt-rc-newnum'); if (inp) { inp.focus(); if (pn) q('#mrt-rc-newgo').focus(); }
+    }
+
+    // Open the panel straight into a thread with this number (the 💬 buttons
+    // next to customer phone numbers on ticket pages land here).
+    function openTextTo(number, name) {
+        if (!panel) return;
+        S.tab = 'inbox';
+        panel.querySelectorAll('.mrt-rc-tabs button').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-t') === 'inbox'); });
+        var d = digits(number || '');
+        if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+        if (!S.open) open();
+        if (d.length === 10) { S.thread = { number: d, name: name || '' }; renderThread(); }
+        else renderCompose(number || '', name || '');
     }
 
     /* --- inbox: one thread + compose --- */
@@ -647,6 +692,64 @@
         if (isLocked()) { li.style.display = 'none'; if (S.open) close(); }
         else li.style.display = '';
     }
+    /* ---- 💬 buttons next to customer phone numbers on ticket pages ---- */
+    var PHONE_RE = /(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}|\b\d{10}\b)/;
+    function customerName() {
+        var dts = document.querySelectorAll('dt');
+        for (var i = 0; i < dts.length; i++) {
+            if (/^customer name/i.test(dts[i].textContent.trim())) {
+                var dd = dts[i].nextElementSibling;
+                if (dd && dd.tagName === 'DD') return dd.textContent.replace(/\s+/g, ' ').trim();
+            }
+        }
+        var a = document.querySelector('.block-content a[href*="/customers/"]');
+        return a ? a.textContent.replace(/\s+/g, ' ').trim() : '';
+    }
+    function injectTextButtons() {
+        if (!/\/ticket\//.test(location.pathname) || /\/ticket\/print/i.test(location.pathname)) return;
+        // candidate containers: the customer <dd>s (edit pages) and any
+        // customer block (view-page sidebar with a /customers/ link)
+        var zones = [];
+        document.querySelectorAll('dt').forEach(function (dt) {
+            if (/contact number/i.test(dt.textContent)) {
+                var dd = dt.nextElementSibling;
+                if (dd && dd.tagName === 'DD') zones.push(dd);
+            }
+        });
+        document.querySelectorAll('.block-content').forEach(function (bc) {
+            if (bc.querySelector('a[href*="/customers/"]')) zones.push(bc);
+        });
+        zones.forEach(function (zone) {
+            if (zone.getAttribute('data-mrt-rc-txt')) return;
+            zone.setAttribute('data-mrt-rc-txt', '1');
+            var walker = document.createTreeWalker(zone, NodeFilter.SHOW_TEXT, null);
+            var hits = [];
+            var n;
+            while ((n = walker.nextNode())) {
+                if (n.parentElement && n.parentElement.closest('#mrt-rc-panel, script, style, input, select, textarea, button')) continue;
+                if (PHONE_RE.test(n.nodeValue)) hits.push(n);
+            }
+            hits.forEach(function (node) {
+                var m = node.nodeValue.match(PHONE_RE);
+                if (!m) return;
+                var num = digits(m[1]);
+                if (num.length === 11 && num.charAt(0) === '1') num = num.slice(1);
+                if (num.length !== 10) return;
+                var idx = node.nodeValue.indexOf(m[1]) + m[1].length;
+                var after = node.splitText(idx);
+                var btn = document.createElement('a');
+                btn.href = '#'; btn.className = 'mrt-rc-num-btn'; btn.title = 'Text this number';
+                btn.textContent = '💬';
+                btn.setAttribute('data-num', num);
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault(); e.stopPropagation();
+                    openTextTo(num, customerName());
+                });
+                after.parentNode.insertBefore(btn, after);
+            });
+        });
+    }
+
     function start() {
         build();
         S.store = storeName();
@@ -656,6 +759,15 @@
         try { new MutationObserver(applyLockState).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         pollUnread();
         setInterval(pollUnread, 120000);   // refresh the unread badge every 2 min
+        // 💬 next to customer phone numbers on ticket pages (RepairQ re-renders
+        // the customer summary in place — re-inject on DOM changes, debounced)
+        injectTextButtons();
+        try {
+            new MutationObserver(function () {
+                clearTimeout(injectTextButtons._t);
+                injectTextButtons._t = setTimeout(injectTextButtons, 500);
+            }).observe(document.body, { childList: true, subtree: true });
+        } catch (e) { /* best effort */ }
     }
     try {
         chrome.storage.sync.get(['sms']).then(function (res) {
