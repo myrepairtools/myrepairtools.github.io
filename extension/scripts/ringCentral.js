@@ -563,11 +563,10 @@
             leads.sort(byNoDesc); open.sort(byNoDesc); closed.sort(byNoDesc);
             var rows = [];
             function row(kind, cls, t) {
+                // just the ticket number + its group tag — no device/status description
                 return '<a class="mrt-rc-tix-row" href="' + esc(t.href) + '" target="_blank" rel="noopener">' +
                     '<span class="mrt-rc-tix-tag ' + cls + '">' + kind + '</span>' +
-                    '<span class="mrt-rc-tix-no">#' + esc(t.no) + '</span>' +
-                    '<span class="mrt-rc-tix-dev">' + esc(t.device || t.status || '') + '</span>' +
-                    (t.status ? '<span class="mrt-rc-tix-st">' + esc(t.status) + '</span>' : '') + '</a>';
+                    '<span class="mrt-rc-tix-no">#' + esc(t.no) + '</span></a>';
             }
             leads.slice(0, 3).forEach(function (t) { rows.push(row('lead', 'lead', t)); });
             open.slice(0, 6).forEach(function (t) { rows.push(row('open', 'open', t)); });
