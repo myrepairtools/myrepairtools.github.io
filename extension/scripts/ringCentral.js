@@ -146,13 +146,11 @@
             a.style.boxSizing = cs.boxSizing;
             a.style.paddingTop = cs.paddingTop;
             a.style.paddingBottom = cs.paddingBottom;
-            // the neighbor link's L/R padding is tuned for text (often asymmetric),
-            // which shoves our square icon off-center — use one symmetric value and
-            // center the icon in the box so it sits dead-center horizontally.
+            // symmetric horizontal padding (the neighbor link's is tuned for text and
+            // asymmetric); the CSS flex-centers the icon inside this box regardless.
             var px = Math.max(parseFloat(cs.paddingLeft) || 0, parseFloat(cs.paddingRight) || 0) + 'px';
             a.style.paddingLeft = px;
             a.style.paddingRight = px;
-            a.style.textAlign = 'center';
             a.style.lineHeight = cs.lineHeight;
             a.style.height = cs.height;
             a.style.verticalAlign = cs.verticalAlign || 'middle';
