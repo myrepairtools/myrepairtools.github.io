@@ -160,7 +160,7 @@
             li.id = 'mrt-rc-nav'; li.className = 'mrt-rc-nav';
             // Badge rides a wrapper around the ICON (not the padded link box),
             // so it hugs the logo's top-right corner at any icon size.
-            li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="RingCentral — texts, calls, voicemail">' +
+            li.innerHTML = '<a href="#" id="mrt-rc-btn" class="mrt-rc-btn" title="Message Center — texts, calls, voicemail">' +
                 '<span class="mrt-rc-iconwrap">' + RC_LOGO +
                 '<span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span></span></a>';
             // NOT inside the workstation menu: that ul paints its own gray
@@ -189,8 +189,8 @@
             // fallback: the toolbar row, with a label
             var btn = document.createElement('a');
             btn.id = 'mrt-rc-btn'; btn.className = 'mrt-rc-btn btn btn-small innav'; btn.href = '#';
-            btn.innerHTML = RC_LOGO + ' <span>Phone</span> <span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span>';
-            btn.title = 'RingCentral — texts, calls, voicemail';
+            btn.innerHTML = RC_LOGO + ' <span>Messages</span> <span class="mrt-rc-dot" id="mrt-rc-dot" style="display:none"></span>';
+            btn.title = 'Message Center — texts, calls, voicemail';
             var navSpot = document.getElementById('globalSearches');
             var form = navSpot && navSpot.querySelector('#quickSearch');
             if (form) form.insertBefore(btn, form.firstChild);
@@ -204,7 +204,7 @@
         panel.id = 'mrt-rc-panel'; panel.className = 'mrt-rc-panel';
         panel.innerHTML =
             '<div class="mrt-rc-hd">' +
-              '<span class="mrt-rc-title">RingCentral</span>' +
+              '<span class="mrt-rc-title">Message Center</span>' +
               '<span class="mrt-rc-store" id="mrt-rc-store"></span>' +
               '<button class="mrt-rc-x" id="mrt-rc-x" title="Close">✕</button>' +
             '</div>' +

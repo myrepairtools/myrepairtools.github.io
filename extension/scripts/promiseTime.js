@@ -56,7 +56,7 @@
     var INCLUDE = /(ready\s*for\s*repair|ready-for-repair|diagnos|in\s*repair|in\s*progress|new|open|approved)/i;
     var EXCLUDE = /(waiting|pending\s*notification|pickup|picked\s*up|repaired\b|closed|complete|invoic|quote|cancel|abandon|shipped|void)/i;
 
-    var cfg = { minsPer: 45, open: '10:00', close: '19:00', clock: true };
+    var cfg = { minsPer: 45, open: '10:00', close: '19:00', clock: true, promise: true };
     var snapshot = null, gateSkipped = false;
 
     // RepairQ locked (idle-timeout overlay) or on the login page — our UI
@@ -485,7 +485,7 @@
 
         // advisor UI only where the ESTIMATE box lives, and only on ticket types
         // opted in via Options → Ticket-Type Rules
-        if (ttAllows('promise') && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
+        if (cfg.promise !== false && ttAllows('promise') && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
             injectStyles();
             placeChip();
             new MutationObserver(placeChip).observe(document.body, { childList: true, subtree: true });
@@ -497,11 +497,13 @@
         chrome.storage.sync.get(['wn', 'tt']).then(function (res) {
             var wn = (res && res.wn) || {};
             TT = (res && res.tt) || null;
-            if (wn.promise === false) return;
+            if (wn.promise !== undefined) cfg.promise = wn.promise;
             if (wn.clock !== undefined) cfg.clock = wn.clock;
             if (wn.minsPer > 0) cfg.minsPer = Number(wn.minsPer);
             if (wn.open) cfg.open = wn.open;
             if (wn.close) cfg.close = wn.close;
+            // both the advisor and the ticker off → nothing for this script to do
+            if (cfg.promise === false && cfg.clock === false) return;
             if (document.body) start();
             else document.addEventListener('DOMContentLoaded', start);
         }).catch(function () { if (document.body) start(); });
