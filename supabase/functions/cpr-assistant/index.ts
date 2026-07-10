@@ -137,11 +137,12 @@ Deno.serve(async (req)=>{
       error: "bad_json"
     }, 400);
   }
+  // Auth is OPTIONAL: being on RepairQ already means the employee authenticated.
+  // A valid PIN session elevates to that person (personalization + manager-only
+  // KB); no session = anonymous "team member" at employee KB scope. The assistant
+  // is read-only, so nothing here mutates records. Manager-only articles stay
+  // protected because kbRetrieve gates on isMgrRole(staff?.role) → false when null.
   const staff = await getStaff(req);
-  if (!staff) return json({
-    error: "unauthorized",
-    detail: "Sign in with your PIN to use the assistant."
-  }, 401);
   const messages = Array.isArray(body?.messages) ? body.messages : null;
   if (!messages || !messages.length) return json({
     error: "no_messages"

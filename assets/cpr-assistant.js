@@ -168,8 +168,9 @@
     if (busy) return;
     var text = els.ta.value.trim();
     if (!text) return;
-    var tok = token();
-    if (!tok) { addHint('Please unlock the site with your PIN first, then try again.'); return; }
+    // Auth is optional — a PIN session personalizes and unlocks manager-only KB,
+    // but anyone (e.g. inside RepairQ) can use it anonymously via the anon key.
+    var tok = token() || ANON;
 
     els.ta.value = ''; els.ta.style.height = 'auto';
     var outgoing = text;
