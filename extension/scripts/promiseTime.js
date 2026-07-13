@@ -319,6 +319,14 @@
           'padding:9px 13px;font-weight:800;font-size:12.5px;cursor:pointer;font-family:"Nunito",sans-serif}' +
         '#mrtPtGate .opts button:hover{border-color:#4FB0E3;background:#EAF6FD}' +
         '#mrtPtGate .opts button.hero{background:#DC282E;border-color:#DC282E;color:#fff}' +
+        '#mrtPtGate .custom{margin-top:14px;border-top:1px solid #EEF0F4;padding-top:12px}' +
+        '#mrtPtGate .custom label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#8A8FA3;margin-bottom:6px;font-family:"Nunito",sans-serif}' +
+        '#mrtPtGate .crow{display:flex;gap:8px}' +
+        '#mrtPtGate .cin{flex:1;min-width:0;border:1.5px solid #E0E2EA;border-radius:9px;padding:9px 11px;font-size:13px;color:#2D2D3B;font-family:inherit}' +
+        '#mrtPtGate .cin:focus{outline:none;border-color:#4FB0E3}' +
+        '#mrtPtGate .cgo{border:1.5px solid #4FB0E3;background:#4FB0E3;color:#fff;border-radius:9px;padding:0 16px;font-weight:800;cursor:pointer;font-family:"Nunito",sans-serif;font-size:13px}' +
+        '#mrtPtGate .cgo:hover{filter:brightness(1.05)}' +
+        '#mrtPtGate .cerr{color:#DC282E;font-size:11.5px;font-weight:700;margin-top:5px;min-height:1em}' +
         '#mrtPtGate .skip{display:block;margin-top:14px;font-size:12px;color:#B9BDCB;background:none;border:none;cursor:pointer;text-decoration:underline}';
         document.head.appendChild(s);
     }
@@ -388,6 +396,26 @@
             b.addEventListener('click', function () { ov.remove(); onPick(p.t); });
             opts.appendChild(b);
         });
+        // custom — pick any date & time yourself if none of the presets fit
+        var pad = function (n) { return ('0' + n).slice(-2); };
+        var localStr = function (x) { return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()) + 'T' + pad(x.getHours()) + ':' + pad(x.getMinutes()); };
+        var cwrap = document.createElement('div'); cwrap.className = 'custom';
+        cwrap.innerHTML = '<label>Or set a custom time</label>' +
+            '<div class="crow"><input type="datetime-local" class="cin"><button type="button" class="cgo">Use</button></div>' +
+            '<div class="cerr"></div>';
+        ov.querySelector('.card').insertBefore(cwrap, ov.querySelector('.skip'));
+        var cin = cwrap.querySelector('.cin'), cerr = cwrap.querySelector('.cerr');
+        cin.value = localStr(sug);                              // default to the suggested time
+        cin.min = localStr(new Date());
+        cwrap.querySelector('.cgo').addEventListener('click', function () {
+            var v = cin.value; if (!v) { cerr.textContent = 'Pick a date & time.'; return; }
+            var t = new Date(v);
+            if (isNaN(t.getTime())) { cerr.textContent = 'That time didn’t read right.'; return; }
+            if (t.getTime() < Date.now() - 60000) { cerr.textContent = 'That time is in the past.'; return; }
+            ov.remove(); onPick(t);
+        });
+        cin.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); cwrap.querySelector('.cgo').click(); } });
+
         ov.querySelector('.skip').addEventListener('click', function () { ov.remove(); gateSkipped = true; onPick(null); });
         document.body.appendChild(ov);
     }
