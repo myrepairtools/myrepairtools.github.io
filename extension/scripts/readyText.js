@@ -275,6 +275,7 @@
     // the note is the record techs actually read. keepalive lets the write
     // survive the page turn that follows the status change.
     function writeNote(text) {
+        if (!text || !String(text).trim()) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) return;
@@ -310,29 +311,33 @@
         setTimeout(function () { t.remove(); }, ms || 2600);
     }
 
-    // Auto-place the ready-for-pickup VOICE call (Twilio, from the store's
-    // own number once it's a verified caller ID) to the number the customer
-    // gave at check-in — same 5-second undo window as texts.
-    function autoCall(btn, contact) {
+    // Which line is this — the ticket's Primary or Alt number? Shown in the
+    // confirm so the tech sees exactly who we're about to reach.
+    function numberTag(num) {
+        var d = digits(num);
+        var phones = customer().phones.map(digits);
+        var idx = phones.indexOf(d);
+        if (idx === 0) return 'Primary';
+        if (idx > 0)  return 'Alt';
+        return '';
+    }
+
+    // Fire the automated contact the customer asked for (text or call), then let
+    // the status change proceed. Feedback rides a bottom toast — no undo, the tech
+    // already confirmed it in the popup.
+    function runContact(btn, contact, method) {
         var c = customer();
         var first = (contact.contact_name && contact.contact_name.trim().split(/\s+/)[0]) || c.first;
         var num = digits(contact.contact_number);
-        if (num.length < 10) { popup(btn); return; }   // saved number looks bad — let them pick
+        var calling = method === 'call';
 
-        var cancelled = false, timer;
         var toast = document.createElement('div');
         toast.id = 'mrt-rfp-toast'; toast.className = 'mrt-rfp-toast';
-        toast.innerHTML =
-            '<span class="mrt-rfp-toast-msg">Calling <b>' + pretty(num) + '</b>…</span>' +
-            '<button class="mrt-rfp-undo">Undo</button>';
+        toast.innerHTML = '<span class="mrt-rfp-toast-msg">' + (calling ? 'Placing call to' : 'Texting') + ' <b>' + pretty(num) + '</b>…</span>';
         document.body.appendChild(toast);
         var msg = toast.querySelector('.mrt-rfp-toast-msg');
-        var undo = toast.querySelector('.mrt-rfp-undo');
 
-        function commit() {
-            if (cancelled) return;
-            msg.textContent = 'Placing call…';
-            if (undo) undo.remove();
+        if (calling) {
             try {
                 chrome.runtime.sendMessage({ type: 'call:place', payload: {
                     to: num, store: storeName(), ticket_no: ticketNo(),
@@ -342,58 +347,57 @@
                     var r = chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res;
                     var ok = r && r.ok;
                     msg.textContent = ok ? '✓ Call placed' : '⚠ ' + ((r && r.error) || 'call failed');
-                    if (ok) writeNote('📣 Automated ready-for-pickup call placed to ' + pretty(num) + ' (saved follow-up) — myRepairTools (' + (techName() || 'staff') + ')');
+                    if (ok) writeNote('📣 Automated ready-for-pickup call placed to ' + pretty(num) + ' (confirmed) — myRepairTools (' + (techName() || 'staff') + ')');
                     setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 2200);
                 });
             } catch (e) {
                 msg.textContent = '⚠ ' + String(e && e.message || e);
                 setTimeout(function () { toast.remove(); proceed(btn); }, 2200);
             }
-        }
-        undo.addEventListener('click', function () {
-            cancelled = true; clearTimeout(timer);
-            msg.textContent = 'Call canceled'; undo.remove();
-            setTimeout(function () { toast.remove(); proceed(btn); }, 700);
-        });
-        timer = setTimeout(commit, 5000);
-    }
-
-    // Auto-send the ready text to the number the customer gave at check-in,
-    // with a 5-second undo window before it actually goes out.
-    function autoSend(btn, contact) {
-        var c = customer();
-        var first = (contact.contact_name && contact.contact_name.trim().split(/\s+/)[0]) || c.first;
-        var num = digits(contact.contact_number);
-        if (num.length < 10) { popup(btn); return; }   // saved number looks bad — let them pick
-        var body = defaultMessage({ first: first });
-
-        var cancelled = false, timer;
-        var toast = document.createElement('div');
-        toast.id = 'mrt-rfp-toast'; toast.className = 'mrt-rfp-toast';
-        toast.innerHTML =
-            '<span class="mrt-rfp-toast-msg">Texting <b>' + pretty(num) + '</b>…</span>' +
-            '<button class="mrt-rfp-undo">Undo</button>';
-        document.body.appendChild(toast);
-        var msg = toast.querySelector('.mrt-rfp-toast-msg');
-        var undo = toast.querySelector('.mrt-rfp-undo');
-
-        function commit() {
-            if (cancelled) return;
-            msg.textContent = 'Sending…';
-            if (undo) undo.remove();
-            sendSms({ to: num, body: body, ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
+        } else {
+            sendSms({ to: num, body: defaultMessage({ first: first }), ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
                 var ok = res && res.ok;
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
-                if (ok) writeNote('📣 Ready-for-pickup text auto-sent to ' + pretty(num) + ' (saved follow-up) — myRepairTools (' + (techName() || 'staff') + ')');
+                if (ok) writeNote('📣 Ready-for-pickup text sent to ' + pretty(num) + ' (confirmed) — myRepairTools (' + (techName() || 'staff') + ')');
                 setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 1500);
             });
         }
-        undo.addEventListener('click', function () {
-            cancelled = true; clearTimeout(timer);
-            msg.textContent = 'Text canceled'; undo.remove();
-            setTimeout(function () { toast.remove(); proceed(btn); }, 700);
+    }
+
+    // The customer asked for an automated text or call at check-in. Confirm
+    // before it runs — two choices, anchored above the Ready-for-Pickup button:
+    //   1) Confirm <Call|Text> to <Primary|Alt> <number>  → fires the automation
+    //   2) Proceed without automated contact               → just changes status
+    function confirmAuto(btn, contact, method) {
+        closePopup();
+        var num = digits(contact.contact_number);
+        if (num.length < 10) { popup(btn); return; }   // saved number looks bad — full chooser
+        var verb = method === 'call' ? 'Call' : 'Text';
+        var tag  = numberTag(num);
+        var who  = (tag ? tag + ' ' : '') + pretty(num);
+
+        var pop = document.createElement('div');
+        pop.id = 'mrt-rfp-pop';
+        pop.className = 'mrt-rfp-pop';
+        pop.innerHTML =
+            '<div class="mrt-rfp-hd"><h4>Ready For Pickup</h4></div>' +
+            '<div class="mrt-rfp-body">' +
+              '<div class="mrt-rfp-q">Customer asked for a ' + (method === 'call' ? 'call' : 'text') + '. Confirm before it goes out:</div>' +
+              '<button class="mrt-rfp-row mrt-rfp-confirm">Confirm ' + verb + ' to ' + esc(who) + '</button>' +
+            '</div>' +
+            '<button class="mrt-rfp-skip">Proceed without automated contact</button>';
+
+        var r = btn.getBoundingClientRect();
+        pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 320)) + 'px';
+        pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+        document.body.appendChild(pop);
+        setTimeout(function () { document.addEventListener('click', outsideClose, true); }, 0);
+
+        pop.querySelector('.mrt-rfp-confirm').addEventListener('click', function () {
+            closePopup();
+            runContact(btn, contact, method);
         });
-        timer = setTimeout(commit, 5000);
+        pop.querySelector('.mrt-rfp-skip').addEventListener('click', function () { proceed(btn); });
     }
 
     /* ---------------- intercept ---------------- */

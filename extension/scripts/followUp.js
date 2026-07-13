@@ -134,6 +134,7 @@
 
     /* --- write the ticket-note backup (best effort) --- */
     function writeNote(text) {
+        if (!text || !String(text).trim()) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) return;

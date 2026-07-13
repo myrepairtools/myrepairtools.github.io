@@ -68,6 +68,7 @@
     }
 
     function writeNote(text) {
+        if (!text || !String(text).trim()) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) { stashNote(text); return; }
@@ -83,6 +84,7 @@
 
     // brand-new unsaved ticket: hold notes until a ticket number exists
     function stashNote(text) {
+        if (!text || !String(text).trim()) return;
         try {
             var arr = JSON.parse(sessionStorage.getItem('mrtSickwNotes') || '[]');
             arr.push(text);
@@ -93,7 +95,8 @@
         if (!ticketNo()) return;
         var arr;
         try { arr = JSON.parse(sessionStorage.getItem('mrtSickwNotes') || '[]'); } catch (e) { arr = []; }
-        if (!arr.length) return;
+        arr = arr.filter(function (t) { return t && String(t).trim(); });   // drop any blank stragglers
+        if (!arr.length) { sessionStorage.removeItem('mrtSickwNotes'); return; }
         sessionStorage.removeItem('mrtSickwNotes');
         arr.forEach(writeNote);
     }
