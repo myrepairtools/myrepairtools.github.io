@@ -191,20 +191,21 @@
         var email = customerEmail();
         var tag = function (i) { return i === 0 ? 'Primary' : 'Alt'; };
 
+        // Every channel is always offered; the toggle only decides auto vs manual.
         var rows = '';
-        if (CH.sendSms) c.phones.forEach(function (num, i) {
-            rows += '<button class="mrt-rfp-row" data-act="text" data-num="' + digits(num) + '">' +
+        c.phones.forEach(function (num, i) {
+            rows += '<button class="mrt-rfp-row" data-act="text" data-num="' + digits(num) + '" data-auto="' + (CH.sendSms ? '1' : '') + '">' +
                     '<b>Text</b>' + pretty(num) + '<span class="mrt-rfp-tag">' + tag(i) + '</span></button>';
         });
-        if (CH.sendCall) c.phones.forEach(function (num, i) {
+        c.phones.forEach(function (num, i) {
             rows += '<button class="mrt-rfp-row" data-act="call" data-num="' + digits(num) + '">' +
                     '<b>Call</b>' + pretty(num) + '<span class="mrt-rfp-tag">' + tag(i) + '</span></button>';
         });
-        if (email && CH.sendEmail) {
+        if (email) {
             rows += '<button class="mrt-rfp-row" data-act="email" data-email="' + esc(email) + '">' +
                     '<b>Email</b><span class="mrt-rfp-em">' + esc(email) + '</span></button>';
         }
-        if (!rows) rows = '<div class="mrt-rfp-none">No enabled contact channels — just changing status</div>';
+        if (!rows) rows = '<div class="mrt-rfp-none">No contact info on this ticket — just changing status</div>';
 
         var pop = document.createElement('div');
         pop.id = 'mrt-rfp-pop';
@@ -228,6 +229,11 @@
         pop.querySelectorAll('.mrt-rfp-row').forEach(function (b) {
             b.addEventListener('click', function () {
                 var act = b.getAttribute('data-act');
+                if (act === 'text' && !b.getAttribute('data-auto')) {
+                    // texting is manual for this store — remind, don't auto-send
+                    infoToast('Text the customer: <b>' + pretty(b.getAttribute('data-num')) + '</b>', 4200);
+                    proceed(btn); return;
+                }
                 if (act === 'text') {
                     var num = b.getAttribute('data-num');
                     b.innerHTML = 'Sending…'; b.disabled = true;
@@ -409,12 +415,12 @@
             if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
             if (ct && ct.method === 'text') {
                 if (CH.sendSms) { autoSend(btn, ct); }
-                else { infoToast('Customer prefers a <b>text</b> — <b>' + esc(ct.contact_number || '') + '</b> (texting is off)', 3600); proceed(btn); }
+                else { infoToast('Customer prefers a <b>text</b> — <b>' + esc(ct.contact_number || '') + '</b> (text manually)', 3600); proceed(btn); }
                 return;
             }
             if (ct && ct.method === 'call') {
                 if (CH.sendCall) { autoCall(btn, ct); }
-                else { infoToast('Customer prefers a <b>call</b> — <b>' + esc(ct.contact_number || '') + '</b> (calling is off)', 3600); proceed(btn); }
+                else { infoToast('Customer prefers a <b>call</b> — <b>' + esc(ct.contact_number || '') + '</b> (call manually)', 3600); proceed(btn); }
                 return;
             }
             if (ct && ct.method === 'email') {

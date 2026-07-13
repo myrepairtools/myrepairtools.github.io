@@ -29,12 +29,14 @@
         { v: 'email',  label: 'Email', req: 'sendEmail' },
         { v: 'return', label: 'Customer to Return' },   // no channel needed
     ];
-    // Which channels are enabled (Options → RingCentral SMS). Only enabled
-    // channels are offered in the capture modal. SMS defaults on; call/email off.
+    // Channel automation (Options → RingCentral SMS). ON = the extension handles
+    // it automatically (auto-text / auto-call at Ready-for-Pickup); OFF = still
+    // offered here, just handled manually by the tech. SMS defaults on; call/email off.
     var CH = { sendSms: true, sendCall: false, sendEmail: false };
-    function enabledMethods() {
-        return METHODS.filter(function (m) { return !m.req || CH[m.req]; });
-    }
+    // Every method is always offered now; the toggle only changes auto vs manual.
+    function enabledMethods() { return METHODS.slice(); }
+    // small "automated" / "manual" tag under a method (channels only; return has none)
+    function methodMode(m) { return m.req ? (CH[m.req] ? 'automated' : 'manual') : ''; }
 
     function digits(s) { return (s || '').replace(/\D/g, ''); }
     function pretty(n) {
@@ -171,7 +173,9 @@
               '<div class="mrt-fu-body">' +
                 '<div class="mrt-fu-q">How should we let the customer know their repair is ready?</div>' +
                 '<div class="mrt-fu-methods">' + enabledMethods().map(function (m) {
-                    return '<button type="button" class="mrt-fu-m' + (m.v === method ? ' on' : '') + '" data-m="' + m.v + '">' + m.label + '</button>';
+                    var mode = methodMode(m);
+                    return '<button type="button" class="mrt-fu-m' + (m.v === method ? ' on' : '') + '" data-m="' + m.v + '">' + m.label +
+                        (mode ? '<span class="mrt-fu-mmode ' + mode + '">' + mode + '</span>' : '') + '</button>';
                 }).join('') + '</div>' +
                 '<div class="mrt-fu-field mrt-fu-numwrap">' +
                   '<label>Contact number</label>' +
