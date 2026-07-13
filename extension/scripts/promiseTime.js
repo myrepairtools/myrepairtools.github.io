@@ -34,7 +34,30 @@
 
     /* ---- ticket-type rules (Options → Ticket-Type Rules; storage.sync tt) ---- */
     var TT = null;   // loaded config; defaults below reproduce shipped behavior
+    // RepairQ embeds the authoritative type in its inline page JSON
+    // ("ticketType":"repair" | "sale" | "claim" | "trade" | …). Read that first;
+    // fall back to the title/heuristic. Cached once a real value is found.
+    var _rqType = '';
+    function rqTicketType() {
+        if (_rqType) return _rqType;
+        try {
+            var s = document.getElementsByTagName('script');
+            for (var i = 0; i < s.length; i++) {
+                var m = (s[i].textContent || '').match(/ticketType["']?\s*[:=]\s*["'](\w+)["']/i);
+                if (m) { _rqType = m[1].toLowerCase(); break; }
+            }
+        } catch (e) {}
+        return _rqType;
+    }
     function mrtTicketType() {
+        var rq = rqTicketType();
+        if (rq) {
+            if (/refurb/.test(rq)) return 'refurbish';
+            if (/trade/.test(rq)) return 'tradein';
+            if (/claim/.test(rq)) return 'claim';
+            if (/sale/.test(rq)) return 'sale';
+            if (/repair/.test(rq)) return 'repair';
+        }
         var t = document.title + ' ' + (((document.querySelector('#ticket h2, .page-header h2') || {}).textContent) || '') + ' ' + (document.body.className || '');
         if (/refurb/i.test(t)) return 'refurbish';
         if (/trade/i.test(t)) return 'tradein';
@@ -483,9 +506,11 @@
             placePill();
         }
 
-        // advisor UI only where the ESTIMATE box lives, and only on ticket types
-        // opted in via Options → Ticket-Type Rules
-        if (cfg.promise !== false && ttAllows('promise') && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
+        // advisor UI only where the ESTIMATE box lives. A "promised-by" pickup
+        // time only makes sense on repairs (incl. claims) — never on sales /
+        // trade-ins / refurbs — so hard-limit to those regardless of the grid.
+        var tkt = mrtTicketType();
+        if (cfg.promise !== false && (tkt === 'repair' || tkt === 'claim') && ttAllows('promise') && /\/ticket\/(repair|add|edit)/.test(location.pathname)) {
             injectStyles();
             placeChip();
             new MutationObserver(placeChip).observe(document.body, { childList: true, subtree: true });
