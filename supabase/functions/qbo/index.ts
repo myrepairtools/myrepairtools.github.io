@@ -155,6 +155,10 @@ function faultDetail(d: unknown): string {
 
 const usd = (v: unknown) => "$" + (Number(v) || 0).toFixed(2);
 
+// Intuit's per-request trace id — captured on every QBO response so errors can
+// be handed to Intuit support with the exact transaction reference.
+const tid = (r: Response | undefined) => r?.headers?.get("intuit_tid") || null;
+
 // ---- post_je: the month-end cash journal entry ------------------------------
 
 async function postJournalEntry(body: Record<string, unknown>, staff: { display_name: string }) {
@@ -253,7 +257,7 @@ async function postJournalEntry(body: Record<string, unknown>, staff: { display_
     return json({ error: "qbo_error", detail: String((e as Error)?.message || e) }, 502);
   }
   const posted = d?.JournalEntry;
-  if (!r.ok || !posted?.Id) { await rollbackClaim(); return json({ error: "qbo_error", detail: faultDetail(d) }, 502); }
+  if (!r.ok || !posted?.Id) { await rollbackClaim(); return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502); }
 
   // Stamp the journal row + append the audit log (payload = exactly what QBO received).
   // The JE now EXISTS in QBO — a failed write-back must be surfaced, not swallowed,
@@ -270,7 +274,7 @@ async function postJournalEntry(body: Record<string, unknown>, staff: { display_
   if (stamp.error) warns.push(`JE ${posted.Id} was created in QBO but the receipt failed to save (${stamp.error.message}) — the month may still show unposted; verify in QBO before posting again.`);
   const logw = await admin.from("qbo_post_log").insert({
     store, month, je_id: String(posted.Id), doc_number: posted.DocNumber || null,
-    amount, payload: je, posted_by: staff.display_name,
+    amount, payload: { ...je, intuit_tid: tid(r) }, posted_by: staff.display_name,
   });
   if (logw.error) warns.push(`Audit log write failed (${logw.error.message}).`);
 
@@ -346,7 +350,7 @@ Deno.serve(async (req) => {
     const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
       { headers: qboHeaders(tok.access_token) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d) }, 502);
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
     const accounts = ((d?.QueryResponse?.Account || []) as Array<Record<string, unknown>>)
       .map((a) => ({ id: String(a.Id), name: (a.Name as string) || "", type: (a.AccountType as string) || null, subtype: (a.AccountSubType as string) || null }))
       .sort((a, b) => a.name.localeCompare(b.name));
