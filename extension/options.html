@@ -54,10 +54,12 @@
 
         <!-- What's new banner -->
         <div class="opt-banner" id="optBanner">
-            <span class="b-title">What's new in v2.5.79</span>
-            <div class="b-entry">🐛 <b>Empty-note error fixed for real.</b> Ready-for-Pickup was submitting RepairQ's own "Add Note" modal, whose textarea is Backbone-backed — our value never reached the model it saves, so it posted a blank note ("Note cannot be blank") and the status wouldn't change. We no longer touch that modal at all; our ready-for-pickup note is written through the reliable direct path, and the status change goes through cleanly.</div>
+            <span class="b-title">What's new in v2.5.80</span>
+            <div class="b-entry">🐛 <b>cpr.parts unresponsive-page fix.</b> The three supplier-site helpers (Stock Badges, Price Overlay, Quote Builder) each rescanned the whole page on every DOM change; on a heavy cpr.parts/MobileSentrix load that flood of rescans locked the tab ("page unresponsive"). The rescans are now debounced so a burst of page changes triggers just one — the tools still populate, the page stays responsive.</div>
             <span class="b-toggle" id="optHistToggle">Full history ▾</span>
             <div class="opt-history" id="optHistory">
+                <div class="v">Version 2.5.80</div>
+                <ul><li>🐛 <b>cpr.parts / MobileSentrix "page unresponsive" fixed.</b> Stock Badges, Price Overlay, and the new Quote Builder each watched the whole page and re-scanned every product tile on <i>every</i> DOM mutation. A heavy catalog page fires thousands of mutations while loading (and our own inserts add more), so three full rescans per mutation saturated the main thread and Chrome offered "Wait / Exit." All three now debounce their rescans (one pass per burst) and skip tiles they've already tagged — same badges/prices/quote buttons, no lock-up.</li></ul>
                 <div class="v">Version 2.5.79</div>
                 <ul><li>🐛 <b>"Note cannot be blank" fixed.</b> On Ready-for-Pickup the extension tried to fill and submit RepairQ's own required-note modal, but that form is Backbone-backed — setting the textarea value didn't update the model RepairQ serializes, so it saved an <b>empty</b> note and the error blocked the status change (SMS still went out; ticket stayed put; sometimes two blank notes). We now never interact with RepairQ's note modal — the ready-for-pickup note is written straight through <code>/ajax/ticketNote/save</code> (already guarded against blanks) and the status change fires normally. If a store ever truly requires a note on that transition, RepairQ pops its own modal for the tech to fill.</li></ul>
                 <div class="v">Version 2.5.78</div>

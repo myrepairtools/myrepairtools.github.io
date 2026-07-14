@@ -144,13 +144,15 @@
         if (/checkout|cart/i.test(location.pathname)) return;
         document.querySelectorAll('li.item').forEach(function (item) {
             if (inCartUi(item)) return;
+            // Cheap early-out: a tile we've already tagged just needs its state
+            // refreshed — skip the (relatively costly) name/price/key recompute.
+            var existing = item.querySelector('.' + BTN_CLASS);
+            if (existing) { reflectBtn(existing, existing.getAttribute('data-key')); return; }
+
             var cost = tilePrice(item);
             if (!(cost > 0)) return;
             var name = tileName(item);
             var key = tileKey(item, name, cost);
-
-            var existing = item.querySelector('.' + BTN_CLASS);
-            if (existing) { reflectBtn(existing, key); return; }
 
             var btn = document.createElement('button');
             btn.type = 'button';
@@ -307,7 +309,13 @@
                 }
             }).observe(listingLoader, { attributes: true, attributeFilter: ['style'] });
         }
-        new MutationObserver(function () { addButtons(); }).observe(document.body, { childList: true, subtree: true });
+        // Debounced: cpr.parts/Magento fire thousands of subtree mutations
+        // during load (and our own inserts add more), so running a full
+        // querySelectorAll rescan on every mutation locks the main thread
+        // ("page unresponsive"). Coalesce a burst into one rescan.
+        var scanT = null;
+        function scheduleScan() { if (scanT) return; scanT = setTimeout(function () { scanT = null; addButtons(); }, 500); }
+        new MutationObserver(scheduleScan).observe(document.body, { childList: true, subtree: true });
 
         // keep in sync when another tab edits the cart
         try {
