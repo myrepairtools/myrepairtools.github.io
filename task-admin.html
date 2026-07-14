@@ -516,7 +516,11 @@ async function renderFairness(){
 }
 
 /* ===== template editor (same shape as checklist.html's) ===== */
-let DRAFT=null,EDIT_ID=null;
+let DRAFT=null,EDIT_ID=null,EDIT_GID=null;
+function storeOrd(s){const i=STORES.indexOf(s);return i<0?99:i;}
+// Templates created together for several stores share a group_id. Fan-out
+// targets (shift/role) can be edited across all their stores at once.
+function groupSibs(gid){return gid?TPLS.filter(x=>x.group_id===gid&&x.active&&!x.personal):[];}
 function newDraft(){
   return {name:'',linkText:'',linkUrl:'',customUrl:'',priority:'normal',recur:'daily',
     weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
@@ -531,9 +535,23 @@ function draftFrom(t){
     weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
     target:t.target||'person',assignee:t.assignee_staff_id||ME.id,fallback:t.fallback_staff_id||'',
     shift:t.shift_id||(SHIFTS[0]||{}).id,role:t.role_key||'any',pool:(t.pool||[]).slice(),strategy:t.strategy||'rotate',completion:t.completion||'any',
-    store:t.store||SEL,dueTime:t.due_time||'18:00',dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||''};
+    store:t.store||SEL,dueTime:t.due_time||'18:00',dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',
+    locs:[{store:t.store||SEL,dueTime:t.due_time||'18:00'}]};
 }
-function openEditor(t){EDIT_ID=t?t.id:null;DRAFT=t?draftFrom(t):newDraft();drawEditor();}
+function openEditor(t){
+  EDIT_ID=t?t.id:null;
+  EDIT_GID=t?(t.group_id||null):null;
+  DRAFT=t?draftFrom(t):newDraft();
+  // fan-out targets: seed the locations list from every store in this group so
+  // one edit covers them all (and stores can be added/removed).
+  if(t&&(t.target==='shift'||t.target==='role')){
+    const sibs=groupSibs(t.group_id);const use=sibs.length?sibs:[t];
+    DRAFT.locs=use.slice().sort((a,b)=>storeOrd(a.store)-storeOrd(b.store)).map(x=>({store:x.store,dueTime:x.due_time||'18:00'}));
+  }
+  drawEditor();
+}
+// the multi-location editor shows for new tasks and for editing fan-out targets
+function useLocsUI(){return !EDIT_ID || DRAFT.target==='shift' || DRAFT.target==='role';}
 function pillRow(items,cur,color,attr){
   return items.map(o=>'<button class="pill'+(String(cur)===String(o[0])?' on':'')+'" style="'+(String(cur)===String(o[0])?'background:'+(o[2]||color)+';border-color:'+(o[2]||color):'')+'" data-'+attr+'="'+esc(String(o[0]))+'">'+esc(o[1])+'</button>').join('');
 }
@@ -579,7 +597,7 @@ function drawEditor(){
         (showStrat?'<div><span class="fl" style="display:block;margin-bottom:5px">Strategy</span><div style="display:flex;gap:6px">'+pillRow([['fixed','Fixed','var(--dark)'],['rotate','Rotate','var(--dark)']],d.strategy,'var(--dark)','strat')+'</div></div>':'')+
         (showComp?'<div><span class="fl" style="display:block;margin-bottom:5px">Who must complete</span><div style="display:flex;gap:6px">'+pillRow([['any','Any one','var(--dark)'],['each','Each person','var(--dark)']],d.completion,'var(--dark)','comp')+'</div></div>':'')+
         '</div><div class="hint" style="margin-top:11px">'+esc(sum)+'</div></div>'+
-      (EDIT_ID?
+      (!useLocsUI()?
       '<div class="grid2" style="margin-bottom:18px">'+
         '<label class="fld" style="margin:0"><span class="fl">Store</span><select class="inp" id="eStore">'+STORES.map(s=>'<option value="'+esc(s)+'"'+(d.store===s?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></label>'+
         '<label class="fld" style="margin:0"><span class="fl">Due time</span><input class="inp" type="time" id="eDueTime" value="'+esc(to24(d.dueTime))+'"></label>'+
@@ -590,13 +608,13 @@ function drawEditor(){
           '<input class="inp" id="eLocSearch" placeholder="Search locations to add…" autocomplete="off">'+
           '<div class="locsug" id="eLocSug"></div>'+
         '</div>'+
-        '<div id="eLocList">'+d.locs.map((L,i)=>
+        '<div id="eLocList">'+(d.locs||[]).map((L,i)=>
           '<div class="locrow">'+
             '<span class="locname">'+esc(shortStore(L.store))+'</span>'+
             '<input class="inp loctime" type="time" data-li="'+i+'" value="'+esc(to24(L.dueTime))+'" title="Due time at '+esc(shortStore(L.store))+'">'+
-            '<button type="button" class="locx" data-li="'+i+'" title="Remove '+esc(shortStore(L.store))+'"'+(d.locs.length<2?' disabled':'')+'>✕</button>'+
+            '<button type="button" class="locx" data-li="'+i+'" title="Remove '+esc(shortStore(L.store))+'"'+((d.locs||[]).length<2?' disabled':'')+'>✕</button>'+
           '</div>').join('')+'</div>'+
-        '<div class="hint" style="margin-top:7px">One template is created per location — same task, that location’s own due time (e.g. Salem closes earlier).</div>'+
+        '<div class="hint" style="margin-top:7px">'+(EDIT_ID?'Edits apply to every location here. Add or remove a store to change where this task runs — each keeps its own due time.':'One template is created per location — same task, that location’s own due time (e.g. Salem closes earlier).')+'</div>'+
       '</div>')+
       (d.recur==='oneoff'?
         '<div style="margin-bottom:8px"><span class="fl" style="display:block;margin-bottom:6px">Due</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['same','Today','var(--dark)'],['after','After…','var(--dark)'],['date','On date','var(--dark)']],d.dueType,'var(--dark)','duety')+'</div></div>'+
@@ -605,7 +623,7 @@ function drawEditor(){
       :'')+
       '<label class="fld"><span class="fl">Instructions <span style="text-transform:none;font-weight:600;color:var(--grey)">(links are clickable)</span></span><textarea class="inp" id="eInstr" rows="3" placeholder="Add steps, par levels, or paste a knowledge-base link…">'+esc(d.instr)+'</textarea></label>'+
     '</div>'+
-    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">'+(EDIT_ID?('Applies to future occurrences · '+esc(shortStore(d.store))):('Applies to future occurrences · '+d.locs.length+' location'+(d.locs.length===1?'':'s')))+'</div>'+(EDIT_ID?'<button class="linkdel" data-arch>Archive template</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?'Save changes':(d.locs.length>1?'Create '+d.locs.length+' templates':'Create template'))+'</button></div></div></div>'
+    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">'+(EDIT_ID?('Applies to future occurrences · '+(useLocsUI()?((d.locs||[]).length+' store'+((d.locs||[]).length===1?'':'s')):esc(shortStore(d.store)))):('Applies to future occurrences · '+d.locs.length+' location'+(d.locs.length===1?'':'s')))+'</div>'+(EDIT_ID?'<button class="linkdel" data-arch>Archive'+(useLocsUI()&&(d.locs||[]).length>1?' (all '+d.locs.length+')':'')+'</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?(useLocsUI()&&(d.locs||[]).length>1?'Save '+d.locs.length+' stores':'Save changes'):(d.locs.length>1?'Create '+d.locs.length+' templates':'Create template'))+'</button></div></div></div>'
   );
   const grab=()=>{
     const g=id=>{const el=$('#mdlWrap #'+id);return el?el.value:undefined;};
@@ -691,20 +709,45 @@ async function saveTemplate(){
   if(row.recur==='weekly'&&!(row.weekdays||[]).length){toast('Pick at least one weekday',true);return;}
   if(row.recur==='monthly'&&!(row.month_dates||[]).length){toast('Enter at least one date of the month',true);return;}
   if(row.target==='group'&&!(row.pool||[]).length){toast('Pick at least one person for the pool',true);return;}
-  const locs=(!EDIT_ID&&d.locs&&d.locs.length)?d.locs:[{store:d.store,dueTime:d.dueTime}];
+  const useLocs=useLocsUI();
+  const locs=(useLocs&&d.locs&&d.locs.length)?d.locs:[{store:d.store,dueTime:d.dueTime}];
   // fixed-person and group pools are store-specific people — they can't fan
   // out to other stores. Shift/role targets resolve per store, so they can.
   if(locs.length>1&&(row.target==='person'||row.target==='group')){
     toast('Fixed-person and group tasks are store-specific — use Shift or Role for multi-location, or create per store',true);return;
   }
   try{
-    let r;
-    if(EDIT_ID){r=await sb.from('task_templates').update(row).eq('id',EDIT_ID).select().single();if(r.error)throw r.error;}
-    else{
-      const rows=locs.map(L=>Object.assign({},row,{store:L.store,due_time:to24(L.dueTime),created_by:ME.id}));
-      r=await sb.from('task_templates').insert(rows).select();if(r.error)throw r.error;
+    if(!EDIT_ID){
+      // create: one template per location, all sharing a fresh group_id
+      const gid=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():null;
+      const rows=locs.map(L=>Object.assign({},row,{store:L.store,due_time:to24(L.dueTime),created_by:ME.id,group_id:gid}));
+      const r=await sb.from('task_templates').insert(rows).select();if(r.error)throw r.error;
+    } else if(!useLocs){
+      // person/group single-store edit
+      const r=await sb.from('task_templates').update(row).eq('id',EDIT_ID).select().single();if(r.error)throw r.error;
+    } else {
+      // grouped fan-out edit: one edit reconciles every store in the group
+      let gid=EDIT_GID||((self.crypto&&crypto.randomUUID)?crypto.randomUUID():null);
+      let sibs=groupSibs(gid);
+      const cur=TPLS.find(x=>x.id===EDIT_ID);
+      if(cur&&!sibs.some(x=>x.id===EDIT_ID))sibs=sibs.concat([cur]);   // defensive (pre-group templates)
+      const bySt={};sibs.forEach(x=>{bySt[x.store]=x;});
+      const want={};locs.forEach(L=>{want[L.store]=1;});
+      const ops=[];
+      locs.forEach(L=>{
+        const base=Object.assign({},row,{store:L.store,due_time:to24(L.dueTime),group_id:gid});
+        const ex=bySt[L.store];
+        ops.push(ex?sb.from('task_templates').update(base).eq('id',ex.id)
+                   :sb.from('task_templates').insert(Object.assign({},base,{created_by:ME.id})));
+      });
+      sibs.forEach(x=>{ if(!want[x.store]){   // store removed from the group → archive it
+        ops.push(sb.from('task_templates').update({active:false,updated_at:new Date().toISOString()}).eq('id',x.id));
+        ops.push(sb.from('task_instances').update({status:'missed'}).eq('template_id',x.id).eq('status','open'));
+      }});
+      const res=await Promise.all(ops);
+      const bad=res.find(r=>r&&r.error);if(bad)throw bad.error;
     }
-    closeModal();toast(EDIT_ID?'Template updated':(locs.length>1?locs.length+' templates created — one per location':'Template created'));
+    closeModal();toast(EDIT_ID?(useLocs&&locs.length>1?'Saved · '+locs.length+' stores':'Template updated'):(locs.length>1?locs.length+' templates created — one per location':'Template created'));
     const sess=(await sb.auth.getSession()).data.session;
     if(sess)await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}}).catch(()=>{});
     await loadCore();await loadReport();render();
@@ -712,12 +755,16 @@ async function saveTemplate(){
 }
 async function archiveTemplate(){
   if(!EDIT_ID)return;
-  if(!confirm('Archive this task template? It stops generating; history is kept.'))return;
+  // fan-out task → archive every store in the group; else just this one
+  const grouped=useLocsUI()&&EDIT_GID;
+  let ids=[EDIT_ID];
+  if(grouped){const sibs=groupSibs(EDIT_GID);if(sibs.length)ids=sibs.map(x=>x.id);if(ids.indexOf(EDIT_ID)<0)ids.push(EDIT_ID);}
+  if(!confirm(grouped&&ids.length>1?('Archive this task at all '+ids.length+' stores? It stops generating; history is kept.'):'Archive this task template? It stops generating; history is kept.'))return;
   try{
-    const r=await sb.from('task_templates').update({active:false,updated_at:new Date().toISOString()}).eq('id',EDIT_ID);
+    const r=await sb.from('task_templates').update({active:false,updated_at:new Date().toISOString()}).in('id',ids);
     if(r.error)throw r.error;
-    await sb.from('task_instances').update({status:'missed'}).eq('template_id',EDIT_ID).eq('status','open');
-    closeModal();toast('Template archived');
+    await sb.from('task_instances').update({status:'missed'}).in('template_id',ids).eq('status','open');
+    closeModal();toast(ids.length>1?('Archived · '+ids.length+' stores'):'Template archived');
     await loadCore();await loadReport();render();
   }catch(e){toast(String(e.message||e),true);}
 }
@@ -729,7 +776,7 @@ function openModal(inner){
   ovl.addEventListener('mousedown',e=>{if(e.target===ovl)closeModal();});
   document.querySelectorAll('#mdlWrap [data-close]').forEach(b=>b.onclick=closeModal);
 }
-function closeModal(){$('#mdlWrap').innerHTML='';DRAFT=null;EDIT_ID=null;}
+function closeModal(){$('#mdlWrap').innerHTML='';DRAFT=null;EDIT_ID=null;EDIT_GID=null;}
 </script>
 </body>
 </html>
