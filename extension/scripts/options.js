@@ -157,7 +157,7 @@ function restoreOptions() {
         document.getElementById('wnClose').value = (result.wn && result.wn.close) || '19:00';
 
         const mcpr = result.mcpr || {};
-        const mcprDefaults = { partsGate: true, sickwGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false, newContract: true };
+        const mcprDefaults = { partsGate: false, sickwGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false, newContract: true };
         const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard', newContract: 'mcprNewContract' };
         for (const k in mcprIds) {
             const on = mcpr[k] === undefined ? mcprDefaults[k] : mcpr[k] !== false;

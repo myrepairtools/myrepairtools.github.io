@@ -434,7 +434,7 @@ tools** (absorbed from MyCPRTools, a fellow franchisee's extension): `mcprUtils.
 `mcprConfig.js` (fetch-based; dynamic assignee lookup — no hardcoded roster) power
 Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lacks a
 bundled "Part - X"; a "no part needed" note or diagnostic/unlock keywords exempt; claims
-with "without frame" screens also need front+back adhesive — default ON), Update
+with "without frame" screens also need front+back adhesive — default OFF), Update
 Assignee (one-click assign-to-me, default ON), Stock Badges (on-hand qty badges on
 MobileSentrix/cpr.parts tiles, default ON), Price Overlay (`priceOverlay.js`, ours not
 MyCPRTools', default ON — customer Repair price (part+$100 labor, fee-loaded,
