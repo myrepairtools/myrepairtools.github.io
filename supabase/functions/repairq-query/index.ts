@@ -1348,13 +1348,33 @@ async function runSavedQueryAs(loc: string, dashId: string, elementId: string, r
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
+  let payload: any = {};
+  try { payload = await req.json(); } catch { /* empty */ }
+
+  // Staff-triggered "↻ Refresh from RepairQ" (consumption report). Gated by a
+  // valid signed-in Supabase user (the PIN session's JWT) rather than the
+  // server-side proxy secret — so the browser never needs the RepairQ secret.
+  // Re-pulls part stock + consumption on demand (same as the :07/:37 crons).
+  if (payload?.action === "refresh") {
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u, error: uerr } = await admin.auth.getUser(tok);
+    if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
+    try {
+      const stores = Array.isArray(payload?.stores) && payload.stores.length ? payload.stores : undefined;
+      const stockR = await actionLookerSyncStock(stores ? { stores } : {});
+      const consR = await actionLookerSyncConsumption(stores ? { stores } : {});
+      const stock = await (stockR as Response).json().catch(() => ({ ok: false }));
+      const consumption = await (consR as Response).json().catch(() => ({ ok: false }));
+      return json({ ok: stock.ok !== false && consumption.ok !== false, stock, consumption });
+    } catch (e) {
+      return json({ ok: false, error: String((e as Error).message || e) }, 500);
+    }
+  }
+
   // admin gate — server-side callers only
   if (!PROXY_SECRET || req.headers.get("x-cpr-rq-secret") !== PROXY_SECRET) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
-
-  let payload: any = {};
-  try { payload = await req.json(); } catch { /* empty */ }
 
   try {
     if (payload?.action === "ping") {
