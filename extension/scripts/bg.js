@@ -29,6 +29,7 @@ var LCD_SECRET = '77a715da8c43ebc3bf59b5f41ac9f7c80a71c6063be4530a';
 // Supabase anon key (public — same one committed across the site) for the
 // messaging function gateway. RingCentral creds stay server-side only.
 var SB_FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1';
+var SB_REST = 'https://xuvsehrevxackuhmbmry.supabase.co/rest/v1';
 var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 
 /* ---------------- print gate ---------------- */
@@ -98,6 +99,25 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         body: JSON.stringify(Object.assign({ action: action }, msg.payload || {}))
     }).then(function (r) { return r.json(); })
       .then(sendResponse)
+      .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    return true; // async
+});
+
+/* ---------------- report an extension issue ---------------- */
+// Techs file glitches from a link in RepairQ. The report-issue edge function
+// logs the row to extension_issues AND texts the owner so it surfaces right away.
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'issue:report') return;
+    fetch(SB_FN + '/report-issue', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SB_ANON,
+            'Authorization': 'Bearer ' + SB_ANON
+        },
+        body: JSON.stringify(msg.payload || {})
+    }).then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
+      .then(function (x) { sendResponse(x.r.ok && x.d && x.d.ok ? { ok: true } : { ok: false, status: x.r.status, error: x.d && x.d.error }); })
       .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
     return true; // async
 });
