@@ -27,6 +27,7 @@
             <a data-target="card-sms">RingCentral SMS</a>
             <a data-target="card-queue">Queue &amp; Promise Time</a>
             <a data-target="card-mcpr">Workflow tools</a>
+            <a data-target="card-ms">MobileSentrix</a>
             <a data-target="card-tt">Ticket-Type Rules</a>
             <a data-target="card-lcd">LCD Buyback</a>
             <a data-target="card-enabled">Enabled features</a>
@@ -53,10 +54,15 @@
 
         <!-- What's new banner -->
         <div class="opt-banner" id="optBanner">
-            <span class="b-title">What's new in v2.5.77</span>
-            <div class="b-entry">🛠️ <b>Parts Gate is now OFF by default</b> (many repairs — data transfers, diagnostics — need no part, and there are backup checks). Turn it on per-store under RepairQ workflow tools if you want it. Also fixed: the <b>Follow-Up modal now pops on a brand-new ticket</b> again (it keys off the "New" status, so it works no matter which check-in flow created the ticket).</div>
+            <span class="b-title">What's new in v2.5.78</span>
+            <div class="b-entry">🧾 <b>Quote Builder</b> — a "＋ Quote" button on every MobileSentrix/cpr.parts tile and a floating cart that totals a multi-part repair in real time (priciest part = the Repair, rest = Add-ons; 📋 copies it). ⚙ <b>Status Override</b> — an always-available "Force status" dropdown to reopen or re-status a ticket after RepairQ hides its own control (off by default). 📣 <b>Follow-Up capture now pops the moment you add the customer</b> at check-in — your choice is saved onto the ticket the instant it's created.</div>
             <span class="b-toggle" id="optHistToggle">Full history ▾</span>
             <div class="opt-history" id="optHistory">
+                <div class="v">Version 2.5.78</div>
+                <ul><li>🧾 <b>Quote Builder cart.</b> On MobileSentrix &amp; cpr.parts, each product tile gets a "＋ Quote" button and picked parts collect into a floating cart (top-right, follows the page). It totals what we'd charge for a multi-part repair in real time — the priciest part is billed as the Repair (part + $100 labor), the rest as Add-ons, using your Franchise/CAP pricing model. Re-pick the Repair line with ☆, 📋 copies the quote, and the cart survives moving between product pages. Toggle under the new MobileSentrix Tools card.</li>
+                <li>🗂️ <b>MobileSentrix Tools</b> got its own Options card (Stock Badges, Price Overlay, Quote Builder + the pricing-model setting), split out of Workflow tools.</li>
+                <li>⚙ <b>Status Override.</b> When RepairQ removes a ticket's status control — a closed ticket, or after the business day rolls over — a "Force status" dropdown + Apply is injected onto the ticket so you can reopen or re-status it anyway (writes straight to RepairQ). Off by default under Workflow tools; it forces status changes RepairQ normally restricts.</li>
+                <li>📣 <b>Follow-Up capture pops at customer-add.</b> The "how does the customer want to hear back?" modal now opens the instant you add the customer on the check-in/create screen — no ticket number exists yet, so your choice is stashed and written onto the ticket (Supabase + a ticket note) the moment it's saved.</li></ul>
                 <div class="v">Version 2.5.77</div>
                 <ul><li>🛠️ <b>Parts Gate default OFF.</b> It was blocking ticket close when a repair had no bundled part — but plenty of repairs (data transfers, diagnostics, unlocks) legitimately have no part, and there are other backup checks. Now off by default; toggle it on per-store in Options → RepairQ workflow tools.</li>
                 <li>🐛 <b>Follow-Up modal fixed on new tickets.</b> The "how does the customer want to hear back?" modal stopped auto-popping after check-in because it relied on the create-page URL, which varies by RepairQ check-in flow. It now also triggers on any ticket showing status "New," so it reliably pops once right after a ticket is created.</li></ul>
@@ -297,25 +303,12 @@
                     <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprUpdateAssignee"><b>&#10003;</b></button>
                 </div>
                 <div class="row">
+                    <div class="row-main"><div class="row-name">Status Override</div><div class="row-desc">an always-available "⚙ Force status" dropdown on the ticket — reopen or re-status a ticket after RepairQ hides its own control (closed tickets, day rollover)</div><span class="warn-chip">⚠ forces status changes RepairQ normally restricts — off by default</span></div>
+                    <button type="button" data-checked="unchecked" class="lcd-checkmark unchecked" id="mcprStatusOverride"><b>&#10003;</b></button>
+                </div>
+                <div class="row">
                     <div class="row-main"><div class="row-name">New Contract</div><div class="row-desc">a 📄 New Contract button in the ticket's Transactions bar — opens the MRT contract flow pre-filled from the ticket (sign in to MRT once per browser)</div></div>
                     <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprNewContract"><b>&#10003;</b></button>
-                </div>
-                <div class="row">
-                    <div class="row-main"><div class="row-name">Stock Badges</div><div class="row-desc">show on-hand quantity on MobileSentrix / cpr.parts product tiles</div></div>
-                    <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprStockBadges"><b>&#10003;</b></button>
-                </div>
-                <div class="row">
-                    <div class="row-main"><div class="row-name">Price Overlay</div><div class="row-desc">show the customer Repair &amp; Add-on price on supplier tiles (Price Calculator rules)</div></div>
-                    <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprPriceOverlay"><b>&#10003;</b></button>
-                </div>
-                <div class="inset inset-fields" id="priceModelInset">
-                    <div class="field w260"><span class="flabel">Pricing model</span>
-                        <select id="mcprPriceModel">
-                            <option value="franchise">Franchise — 5.8% royalty loaded</option>
-                            <option value="cap">CAP store — no royalty (Eugene)</option>
-                        </select>
-                    </div>
-                    <span class="inset-note">applies to the Price Overlay tiles AND the toolbar Price Calculator</span>
                 </div>
                 <div class="row">
                     <div class="row-main"><div class="row-name">KBB Returns</div><div class="row-desc">scan-and-match Apple KBB returns across cpr.parts &amp; RepairQ</div></div>
@@ -330,6 +323,33 @@
                         <div class="inline-guard"><span class="lbl">block clocking in before</span><input type="time" class="w-time" id="mcprClockTime" value="09:40" style="width:132px;padding:5px 8px;border:1.5px solid var(--mrt-border);border-radius:8px"></div>
                     </div>
                     <button type="button" data-checked="unchecked" class="lcd-checkmark unchecked" id="mcprClockGuard"><b>&#10003;</b></button>
+                </div>
+            </section>
+
+            <!-- 4b. MobileSentrix / cpr.parts tools -->
+            <section class="card" id="card-ms" data-accent="green">
+                <div class="card-title">MobileSentrix Tools</div>
+                <p class="card-desc">On the MobileSentrix &amp; cpr.parts catalog — stock and pricing help while you shop for parts.</p>
+                <div class="row">
+                    <div class="row-main"><div class="row-name">Stock Badges</div><div class="row-desc">show on-hand quantity on MobileSentrix / cpr.parts product tiles</div></div>
+                    <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprStockBadges"><b>&#10003;</b></button>
+                </div>
+                <div class="row">
+                    <div class="row-main"><div class="row-name">Price Overlay</div><div class="row-desc">show the customer Repair &amp; Add-on price on supplier tiles (Price Calculator rules)</div></div>
+                    <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprPriceOverlay"><b>&#10003;</b></button>
+                </div>
+                <div class="row">
+                    <div class="row-main"><div class="row-name">Quote Builder</div><div class="row-desc">a "＋ Quote" button on each tile and a floating cart (top-right, follows the page) that totals a multi-part repair in real time — the priciest part is billed as the Repair (part + $100 labor), the rest as Add-ons; 📋 copies the quote</div></div>
+                    <button type="button" data-checked="checked" class="lcd-checkmark checked" id="mcprQuoteCart"><b>&#10003;</b></button>
+                </div>
+                <div class="inset inset-fields" id="priceModelInset">
+                    <div class="field w260"><span class="flabel">Pricing model</span>
+                        <select id="mcprPriceModel">
+                            <option value="franchise">Franchise — 5.8% royalty loaded</option>
+                            <option value="cap">CAP store — no royalty (Eugene)</option>
+                        </select>
+                    </div>
+                    <span class="inset-note">applies to the Price Overlay tiles, the Quote Builder, AND the toolbar Price Calculator</span>
                 </div>
             </section>
 

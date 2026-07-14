@@ -435,11 +435,23 @@ tools** (absorbed from MyCPRTools, a fellow franchisee's extension): `mcprUtils.
 Parts Gate (`partsGate.js`, blocks closing tickets whose "Repair - X" labor lacks a
 bundled "Part - X"; a "no part needed" note or diagnostic/unlock keywords exempt; claims
 with "without frame" screens also need front+back adhesive — default OFF), Update
-Assignee (one-click assign-to-me, default ON), Stock Badges (on-hand qty badges on
-MobileSentrix/cpr.parts tiles, default ON), Price Overlay (`priceOverlay.js`, ours not
-MyCPRTools', default ON — customer Repair price (part+$100 labor, fee-loaded,
-CPR-rounded) + Add-on price (2×/1.5×/+$25 markup, fee-loaded) under each supplier tile;
-math mirrors `popup/popup.js`, keep in sync), KBB Returns (`kbbReturns.js`, default ON —
+Assignee (one-click assign-to-me, default ON), Status Override (`statusOverride.js`,
+default **OFF** — an always-available "⚙ Force status" dropdown + Apply injected onto the
+ticket that POSTs straight to RepairQ's `/ajax/ticket/updateTicketProperties` (same call
+Update Assignee makes), so a ticket can be reopened / re-statused after RepairQ hides its
+own control — a closed ticket or the day-rollover "button that disappears after midnight";
+Brett's MyCPRTools shipped this as an empty planned stub, this is the real build), Stock
+Badges (on-hand qty badges on MobileSentrix/cpr.parts tiles, default ON), Price Overlay
+(`priceOverlay.js`, ours not MyCPRTools', default ON — customer Repair price (part+$100
+labor, fee-loaded, CPR-rounded) + Add-on price (2×/1.5×/+$25 markup, fee-loaded) under
+each supplier tile; math mirrors `popup/popup.js`, keep in sync), Quote Builder
+(`quoteCart.js`, default ON — a "＋ Quote" button per MobileSentrix/cpr.parts tile + a
+floating fixed cart (top-right) that totals a multi-part repair live: priciest part billed
+as the Repair, rest as Add-ons (☆ re-picks the Repair line), 📋 copies it; cart persists
+in `chrome.storage.local` across product pages; same pricing math + `mcpr.priceModel` as
+Price Overlay, keep in sync). **Stock Badges, Price Overlay + Quote Builder live under
+their own "MobileSentrix Tools" Options card** (the rest under "Workflow tools"). KBB
+Returns (`kbbReturns.js`, default ON —
 Apple Known-Bad-Board return matcher across cpr.parts `/kbbprocessing` + RepairQ
 `/rmaTracking`: scan return-order #s once → ticks matching cpr.parts rows and harvests each
 row's RQ ticket # + KBB serial into a chrome.storage.local batch → on RepairQ ticks rows by

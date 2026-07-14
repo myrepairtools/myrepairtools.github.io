@@ -56,7 +56,7 @@ function saveOptions(done) {
         open: document.getElementById('wnOpen').value || '10:00',
         close: document.getElementById('wnClose').value || '19:00'
     };
-    const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard', newContract: 'mcprNewContract' };
+    const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', statusOverride: 'mcprStatusOverride', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard', newContract: 'mcprNewContract', quoteCart: 'mcprQuoteCart' };
     let mcpr = {};
     for (const k in mcprIds) { mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked'; }
     mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
@@ -157,8 +157,8 @@ function restoreOptions() {
         document.getElementById('wnClose').value = (result.wn && result.wn.close) || '19:00';
 
         const mcpr = result.mcpr || {};
-        const mcprDefaults = { partsGate: false, sickwGate: true, updateAssignee: true, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false, newContract: true };
-        const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard', newContract: 'mcprNewContract' };
+        const mcprDefaults = { partsGate: false, sickwGate: true, updateAssignee: true, statusOverride: false, stockBadges: true, priceOverlay: true, kbbReturns: true, popupBlocker: false, clockGuard: false, newContract: true, quoteCart: true };
+        const mcprIds = { partsGate: 'mcprPartsGate', sickwGate: 'mcprSickwGate', updateAssignee: 'mcprUpdateAssignee', statusOverride: 'mcprStatusOverride', stockBadges: 'mcprStockBadges', priceOverlay: 'mcprPriceOverlay', kbbReturns: 'mcprKbbReturns', popupBlocker: 'mcprPopupBlocker', clockGuard: 'mcprClockGuard', newContract: 'mcprNewContract', quoteCart: 'mcprQuoteCart' };
         for (const k in mcprIds) {
             const on = mcpr[k] === undefined ? mcprDefaults[k] : mcpr[k] !== false;
             setState(document.getElementById(mcprIds[k]), on, 'lcd-checkmark');
