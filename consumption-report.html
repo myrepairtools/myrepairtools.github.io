@@ -184,6 +184,7 @@ tr.grp.open .chev{transform:rotate(90deg)}
 tr.skipped .sugg,tr.skipped .buysku{text-decoration:line-through;opacity:.45}
 tr.skipped td.itm .nm{opacity:.6}
 .skiptag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.4px;color:var(--amber);background:#FBF1DC;border-radius:999px;padding:2px 7px;margin-left:6px;white-space:nowrap}
+.skiptag.part{color:#1E7AA8;background:#EAF4FB}
 .empty{padding:34px;text-align:center;color:var(--grey);font-weight:700}
 
 /* modal */
@@ -424,7 +425,7 @@ tr.samchild .nm{color:var(--dark-grey)}
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
-        <th class="ctr" title="Unchecked = already ordered today — stays on the list, left out of the MobileSentrix export">MS ⬇</th>
+        <th class="ctr" title="Checked = already ordered today (left out of the export). Exporting auto-checks what it ordered; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -481,7 +482,7 @@ tr.samchild .nm{color:var(--dark-grey)}
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
-        <th class="ctr" title="Unchecked = already ordered today — stays on the list, left out of the MobileSentrix export">MS ⬇</th>
+        <th class="ctr" title="Checked = already ordered today (left out of the export). Exporting auto-checks what it ordered; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -573,10 +574,13 @@ var IDLE_MS=24*60*60*1000;
 var STORES=['CPR Eugene','CPR Salem Northeast','CPR Clackamas'];
 var STATE={store:null,me:null,stores:[]};
 var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
-var SKIPS={};   /* orderSku → 1: "already ordered" — stays on the list, excluded
-                   from the MS export. Per store+day in consumption_export_skips
-                   (the 3:30 PT MobileSentrix cutoff means afternoon parts may be
-                   ordered before they hit that day's report). */
+var ORDERED={};  /* orderSku → qty already ordered TODAY. Each MS export orders
+                    only the remaining need (suggest − ordered) and adds what it
+                    exported here; a full row reads "ordered", a partly-covered one
+                    "N of M ordered" and still exports the rest. Per store+day in
+                    consumption_export_skips.ordered_qty — this is how the same SKU
+                    used before AND after the 3:30 PT MobileSentrix cutoff still gets
+                    its afternoon unit ordered instead of being skipped whole. */
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
@@ -873,7 +877,7 @@ async function loadAll(){
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
     loadSamsungRows(),
-    sb.from('consumption_export_skips').select('sku').eq('store',store).eq('day',day)
+    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',day)
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
@@ -885,7 +889,7 @@ async function loadAll(){
   var sf={};(res[8].data||[]).forEach(function(r){(sf[r.sku]||(sf[r.sku]=[])).push(r.flag_key);});SKUFLAGS[store]=sf;
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
-  SKIPS={};((res[12]&&res[12].data)||[]).forEach(function(r){SKIPS[r.sku]=1;});
+  ORDERED={};((res[12]&&res[12].data)||[]).forEach(function(r){ORDERED[r.sku]=(r.ordered_qty||0);});
   pills();render();renderStock();renderNoParts();renderFresh();renderCoverage();
   var atab=$('#viewTabs')&&$('#viewTabs').querySelector('.tab.active');
   if(atab&&atab.getAttribute('data-v')==='battery')loadBatteries();
@@ -1224,15 +1228,20 @@ function renderOrderRows(tb, rows){
     var skuCell=(r.type==='group')
       ? (r.usedSkus.length?(r.usedSkus.length===1?r.usedSkus[0]:r.usedSkus[0]+' <span style="color:var(--grey)">+'+(r.usedSkus.length-1)+'</span>'):'<span style="color:var(--grey)">—</span>')
       : r.sku;
-    var skipped=r.suggest>0&&SKIPS[r.orderSku];
+    var ordQty=ORDERED[r.orderSku]||0;
+    var toOrder=Math.max(0,r.suggest-ordQty);
+    var full=r.suggest>0&&toOrder<=0;                 // fully ordered → off the export
+    var partial=r.suggest>0&&ordQty>0&&toOrder>0;     // some ordered, rest still to go
     var expCell=r.suggest>0
-      ? '<input type="checkbox" class="expchk" data-osku="'+r.orderSku+'"'+(skipped?'':' checked')+' title="'+(skipped?'Already ordered — excluded from the MobileSentrix export':'Included in the MobileSentrix export — uncheck if already ordered')+'">'
+      ? '<input type="checkbox" class="expchk" data-osku="'+r.orderSku+'" data-sug="'+r.suggest+'"'+(full?' checked':'')+' title="'+(full?'Already ordered — left out of the MobileSentrix export':'Check to mark already ordered (kept off the export)')+'">'
       : '';
+    var ordTag=full?'<span class="skiptag">ordered</span>'
+                   :(partial?'<span class="skiptag part">'+ordQty+' of '+r.suggest+' ordered</span>':'');
     var tr=document.createElement('tr');
     if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild';
-    if(skipped)tr.classList.add('skipped');
+    if(full)tr.classList.add('skipped');
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
-      +'<td class="itm"><span class="nm">'+nameHtml+'</span>'+(skipped?'<span class="skiptag">ordered</span>':'')+'</td>'
+      +'<td class="itm"><span class="nm">'+nameHtml+'</span>'+ordTag+'</td>'
       +'<td class="ctr"><b>'+r.used+'</b></td>'
       +'<td class="ctr">'+r.instock+'</td>'
       +'<td class="ctr">'+claimPill(r.claimElig)+'</td>'
@@ -1274,33 +1283,44 @@ function renderOrderRows(tb, rows){
   tb.querySelectorAll('.expchk').forEach(function(c){
     c.addEventListener('click',function(e){e.stopPropagation();});
     c.addEventListener('change',function(){
-      var inc=c.checked;
-      toggleExportSkip(c.getAttribute('data-osku'),inc);
-      var tr=c.closest('tr');
-      tr.classList.toggle('skipped',!inc);
-      var tag=tr.querySelector('.skiptag');
-      if(!inc&&!tag){var sp=document.createElement('span');sp.className='skiptag';sp.textContent='ordered';tr.querySelector('td.itm').appendChild(sp);}
-      if(inc&&tag)tag.remove();
-      c.title=inc?'Included in the MobileSentrix export — uncheck if already ordered':'Already ordered — excluded from the MobileSentrix export';
-      refreshOrderKpis();
+      // manual toggle: checked = "I ordered the full suggested qty"; unchecked = none
+      var sug=+c.getAttribute('data-sug')||0;
+      applyOrdered(c.getAttribute('data-osku'), c.checked?sug:0);
+      render(); if(BATROWS&&BATROWS.length)renderBatteries();
     });
   });
   wireMaxEdit(tb);
 }
 
-/* "already ordered" toggle — persists per store+day so it syncs across
-   devices and clears itself on the next day's report */
-async function toggleExportSkip(osku,include){
+/* ordered-qty tracking — persists per store+day so it syncs across devices and
+   clears itself on the next day's report. ordered_qty=0 removes the row. Updates
+   the in-memory map immediately (snappy UI) and writes in the background. */
+function toOrderNow(r){ return Math.max(0, r.suggest-(ORDERED[r.orderSku]||0)); }
+function applyOrdered(osku,qty){
+  qty=Math.max(0,qty|0);
+  if(qty<=0) delete ORDERED[osku]; else ORDERED[osku]=qty;
+  persistOrdered(osku,qty);
+}
+async function persistOrdered(osku,qty){
   var store=STATE.store, day=$('#day').value||todayISO();
-  if(include){ delete SKIPS[osku]; await sb.from('consumption_export_skips').delete().eq('store',store).eq('day',day).eq('sku',osku); }
-  else { SKIPS[osku]=1; await sb.from('consumption_export_skips').upsert({store:store,day:day,sku:osku,marked_by:(window.CPRNavName||null)},{onConflict:'store,day,sku'}); }
+  if(qty<=0){ await sb.from('consumption_export_skips').delete().eq('store',store).eq('day',day).eq('sku',osku); }
+  else { await sb.from('consumption_export_skips').upsert({store:store,day:day,sku:osku,ordered_qty:qty,marked_by:(window.CPRNavName||null)},{onConflict:'store,day,sku'}); }
+}
+/* after an export: bump each exported SKU's ordered qty by what we just ordered */
+async function markExported(rows){
+  var store=STATE.store, day=$('#day').value||todayISO();
+  rows.forEach(function(p){ ORDERED[p[0]]=(ORDERED[p[0]]||0)+p[1]; });
+  render(); if(BATROWS&&BATROWS.length)renderBatteries();
+  await Promise.all(rows.map(function(p){
+    return sb.from('consumption_export_skips').upsert({store:store,day:day,sku:p[0],ordered_qty:ORDERED[p[0]],marked_by:(window.CPRNavName||null)},{onConflict:'store,day,sku'});
+  }));
 }
 function refreshOrderKpis(){
   var rows=buildRows(),tot=0;
-  rows.forEach(function(r){if(r.suggest>0&&!SKIPS[r.orderSku])tot+=r.suggest;});
+  rows.forEach(function(r){tot+=toOrderNow(r);});
   var k=$('#kOrder'); if(k)k.textContent=tot;
   if(BATROWS&&BATROWS.length){
-    var bt=0;BATROWS.forEach(function(r){if(r.suggest>0&&!SKIPS[r.orderSku])bt+=r.suggest;});
+    var bt=0;BATROWS.forEach(function(r){bt+=toOrderNow(r);});
     var b=$('#batOrder'); if(b)b.textContent=bt;
   }
 }
@@ -1309,7 +1329,7 @@ function render(){
   var rows=buildRows();
   renderOrderRows($('#rows'), clusterSamsung(rows));
   var totUsed=0,totOrder=0,below=0;
-  rows.forEach(function(r){totUsed+=r.used;if(!SKIPS[r.orderSku])totOrder+=r.suggest;if(r.instock===0)below++;});
+  rows.forEach(function(r){totUsed+=r.used;totOrder+=toOrderNow(r);if(r.instock===0)below++;});
   $('#kUsed').textContent=totUsed;
   $('#kLines').textContent=rows.length;
   $('#kBelow').textContent=below;
@@ -1369,10 +1389,13 @@ async function buildMSExport(rows,label){
 }
 
 async function exportOrder(withBatteries){
+  // merge daily + adhesive needs, then order only what's not already ordered today
   var rows=mergeOrders(orderList(withBatteries), adhesiveOrderList())
-    .filter(function(p){return !SKIPS[p[0]];});   // "already ordered" skips
-  if(!rows.length){alert(withBatteries===false?'Nothing to order once batteries are excluded.':'Nothing to order — everything is at max or already ordered.');return;}
+    .map(function(p){return [p[0], Math.max(0, p[1]-(ORDERED[p[0]]||0))];})
+    .filter(function(p){return p[1]>0;});
+  if(!rows.length){alert(withBatteries===false?'Nothing left to order once batteries are excluded — the rest is already ordered.':'Nothing left to order — everything is at max or already ordered today.');return;}
   buildMSExport(rows, withBatteries===false?'order-no-batteries':'order');
+  markExported(rows);   // these are now "already ordered"; the next export picks up only what's newer
 }
 
 /* ---- Battery order (weekly) — same table as Daily, filtered to battery-tagged
@@ -1391,7 +1414,7 @@ function renderBatteries(){
   var rows=buildRows(BATUSED, function(r){return hasBatteryFlag(r.flagSku);});
   BATROWS=rows;
   renderOrderRows($('#batRows'), rows);
-  var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;if(!SKIPS[r.orderSku])totOrder+=r.suggest;});
+  var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;totOrder+=toOrderNow(r);});
   $('#batUnits').textContent=totUsed;
   $('#batSkus').textContent=rows.length;
   $('#batOrder').textContent=totOrder;
@@ -1399,9 +1422,10 @@ function renderBatteries(){
   $('#batRange').textContent=(($('#batSince').value||isoDaysAgo(7))+' → '+todayISO());
 }
 async function exportBatteries(){
-  var out=BATROWS.filter(function(r){return r.suggest>0&&!SKIPS[r.orderSku];}).map(function(r){return [r.orderSku, r.suggest];});
-  if(!out.length){alert('Nothing to order — batteries are at or above max, or already ordered.');return;}
+  var out=BATROWS.map(function(r){return [r.orderSku, toOrderNow(r)];}).filter(function(p){return p[1]>0;});
+  if(!out.length){alert('Nothing left to order — batteries are at or above max, or already ordered.');return;}
   buildMSExport(out, 'batteries');
+  markExported(out);
 }
 
 /* ---- store pills + date ---- */
