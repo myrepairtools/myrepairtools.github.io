@@ -238,11 +238,41 @@
         if (p && !p.contains(e.target)) closePopup();
     }
 
-    function proceed(btn) {
+    function proceed(btn, noteText) {
         bypass = true;
         closePopup();
-        btn.click();                 // re-fire the real status change
+        armNoteModal(noteText);       // some stores require a note on this transition
+        btn.click();                  // re-fire the real status change
         setTimeout(function () { bypass = false; }, 1500);
+    }
+
+    // RepairQ can require a note when changing status (e.g. Ready for Pickup). Its
+    // "Add Note" modal then pops with a required textarea; if it's submitted empty
+    // the save fails with "Note cannot be blank" and the status never changes. We
+    // watch for that modal and fill + submit it with a real note so the transition
+    // completes. If no modal appears (store doesn't require one), we fall back to
+    // writing our note directly via the ajax endpoint. Net: exactly one note.
+    function armNoteModal(noteText) {
+        var fill = noteText || ('Marked Ready for Pickup — myRepairTools (' + (techName() || 'staff') + ')');
+        var handled = false, tries = 0;
+        var iv = setInterval(function () {
+            tries++;
+            var ta = document.getElementById('note_note');
+            if (ta && ta.offsetParent !== null && !ta.value.trim() && !handled) {   // required-note modal is open & empty
+                handled = true; clearInterval(iv);
+                ta.value = fill;
+                ta.dispatchEvent(new Event('input', { bubbles: true }));
+                ta.dispatchEvent(new Event('change', { bubbles: true }));
+                var fs = ta.closest('fieldset') || ta.closest('.modal') || document;
+                var save = fs.querySelector('.submit-button');
+                setTimeout(function () { if (save) save.click(); }, 90);
+                return;
+            }
+            if (tries >= 18) {                                   // ~2.7s: no modal appeared
+                clearInterval(iv);
+                if (!handled && noteText) writeNote(noteText);   // record our note directly instead
+            }
+        }, 150);
     }
 
     // The manual chooser (no saved follow-up, or the tech skipped at
@@ -305,12 +335,10 @@
                         template_key: 'ready_for_pickup', agent_name: techName(),
                     };
                     sendSms(payload, function (res) {
-                        if (res && res.ok) {
-                            b.innerHTML = '✓ Sent';
-                            writeNote('📣 Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')');
-                        }
-                        else { b.innerHTML = ((res && res.error) || 'Failed') + ' — proceeding'; }
-                        setTimeout(function () { proceed(btn); }, res && res.ok ? 550 : 1400);
+                        var ok = res && res.ok;
+                        b.innerHTML = ok ? '✓ Sent' : (((res && res.error) || 'Failed') + ' — proceeding');
+                        var note = ok ? '📣 Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')' : null;
+                        setTimeout(function () { proceed(btn, note); }, ok ? 550 : 1400);
                     });
                 } else if (act === 'call') {
                     infoToast('Call the customer: <b>' + pretty(b.getAttribute('data-num')) + '</b>', 4200);
@@ -410,8 +438,10 @@
                     var r = chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res;
                     var ok = r && r.ok;
                     msg.textContent = ok ? '✓ Call placed' : '⚠ ' + ((r && r.error) || 'call failed');
-                    if (ok) writeNote('📣 Automated ready-for-pickup call placed to ' + pretty(num) + ' (confirmed) — myRepairTools (' + (techName() || 'staff') + ')');
-                    setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 2200);
+                    var note = ok
+                        ? '📣 Automated ready-for-pickup call placed to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
+                        : 'Ready for pickup — automated call to ' + pretty(num) + ' did not place — myRepairTools (' + (techName() || 'staff') + ')';
+                    setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 2200);
                 });
             } catch (e) {
                 msg.textContent = '⚠ ' + String(e && e.message || e);
@@ -421,8 +451,10 @@
             sendSms({ to: num, body: defaultMessage({ first: first }), ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
                 var ok = res && res.ok;
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
-                if (ok) writeNote('📣 Ready-for-pickup text sent to ' + pretty(num) + ' (confirmed) — myRepairTools (' + (techName() || 'staff') + ')');
-                setTimeout(function () { toast.remove(); proceed(btn); }, ok ? 650 : 1500);
+                var note = ok
+                    ? '📣 Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
+                    : 'Ready for pickup — automated text to ' + pretty(num) + ' did not send — myRepairTools (' + (techName() || 'staff') + ')';
+                setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 1500);
             });
         }
     }
