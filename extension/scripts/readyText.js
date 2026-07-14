@@ -481,12 +481,12 @@
             var ct = r && r.contact;
             if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
             if (ct && ct.method === 'text') {
-                if (CH.sendSms) { autoSend(btn, ct); }
+                if (CH.sendSms) { confirmAuto(btn, ct, 'text'); }
                 else { infoToast('Customer prefers a <b>text</b> — <b>' + esc(ct.contact_number || '') + '</b> (text manually)', 3600); proceed(btn); }
                 return;
             }
             if (ct && ct.method === 'call') {
-                if (CH.sendCall) { autoCall(btn, ct); }
+                if (CH.sendCall) { confirmAuto(btn, ct, 'call'); }
                 else { infoToast('Customer prefers a <b>call</b> — <b>' + esc(ct.contact_number || '') + '</b> (call manually)', 3600); proceed(btn); }
                 return;
             }
