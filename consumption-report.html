@@ -392,6 +392,7 @@ tr.samchild .nm{color:var(--dark-grey)}
     </div>
     <div class="store-pills" id="storePills"></div>
     <div class="spacer"></div>
+    <button class="btn alt sm" id="rqRefresh" title="Re-pull live stock + consumption straight from RepairQ (also runs automatically every 30 min)">↻ Refresh from RepairQ</button>
     <div class="exportwrap" id="exportWrap">
       <button class="btn blue sm" id="exportBtn">⬇ Export for MobileSentrix ▾</button>
       <div class="exportmenu hide" id="exportMenu">
@@ -941,6 +942,31 @@ async function currentStaff(){
     var r=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',s.user.id).maybeSingle();
     return r.data||null;
   }catch(e){return null;}
+}
+/* "↻ Refresh from RepairQ" — re-pull live stock + consumption on demand (the
+   same syncs the :07/:37 crons run). Runs server-side in repairq-query, gated by
+   the signed-in staff JWT so the RepairQ secret never touches the browser. */
+async function rqRefresh(){
+  var btn=$('#rqRefresh'); if(!btn||btn.disabled)return;
+  var orig=btn.textContent;
+  btn.disabled=true; btn.textContent='↻ Refreshing…';
+  try{
+    var sess=await ensureSession();
+    var tok=(sess&&sess.access_token)||ANON;
+    var r=await fetch(SUPABASE_URL+'/functions/v1/repairq-query',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+      body:JSON.stringify({action:'refresh'})
+    });
+    var d=await r.json().catch(function(){return{ok:false};});
+    if(!d||!d.ok){ btn.textContent='⚠ '+((d&&d.error)||'refresh failed'); setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2800); return; }
+    ORDER=null;
+    await loadAll();
+    btn.textContent='✓ Updated';
+    setTimeout(function(){btn.textContent=orig;btn.disabled=false;},1400);
+  }catch(e){
+    btn.textContent='⚠ '+((e&&e.message)||'error'); setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2800);
+  }
 }
 function allowedFrom(stores,me){
   if(!me||me.role==='owner')return stores.slice();
@@ -1881,6 +1907,7 @@ async function init(){
   $('#bat7').addEventListener('click',function(){$('#batSince').value=isoDaysAgo(7);loadBatteries();});
   $('#batExport').addEventListener('click',exportBatteries);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
+  var rqR=$('#rqRefresh'); if(rqR)rqR.addEventListener('click',rqRefresh);
   $('#addGrp').addEventListener('click',async function(){
     var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null,part_type:null};
     GROUPS.push(ng);MOPEN=ng.id;renderGroups();   // open the modal immediately
