@@ -173,8 +173,13 @@
             }).observe(listingLoader, { attributes: true, attributeFilter: ['style'] });
         }
 
-        // ...and any li.item injected anywhere
-        new MutationObserver(addPriceStrips).observe(document.body, { childList: true, subtree: true });
+        // ...and any li.item injected anywhere. Debounced — a heavy Magento
+        // page fires a flood of subtree mutations during load, and running a
+        // full rescan on each one (×3 supplier scripts) locks the main thread
+        // ("page unresponsive"). Coalesce a burst into one rescan.
+        var poT = null;
+        function schedulePO() { if (poT) return; poT = setTimeout(function () { poT = null; addPriceStrips(); }, 500); }
+        new MutationObserver(schedulePO).observe(document.body, { childList: true, subtree: true });
     }
 
     // Standalone gate (mcprUtils.js is not loaded on supplier sites)

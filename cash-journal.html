@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cash Journal — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#6B6F80;--border:#E0E2EA;--green:#1E9E5B;--amber:#C98A00;--white:#fff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark);padding-left:64px}
+@media(max-width:760px){body{padding-left:0}}
+main{max-width:1240px;margin:0 auto;padding:26px 20px 60px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;margin-bottom:2px}
+.sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin-bottom:16px}
+
+/* controls row */
+.hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.hd .spacer{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;padding:7px 13px;border-radius:999px;
+border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
+.chip.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.yearnav{display:flex;align-items:center;gap:6px}
+.ybtn{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;line-height:1;width:34px;height:34px;
+border:1.5px solid var(--border);border-radius:10px;background:#fff;color:var(--dark-grey);cursor:pointer}
+.ybtn:hover{border-color:var(--blue);color:var(--blue)}
+.ylbl{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;min-width:64px;text-align:center;cursor:pointer;border-radius:7px;padding:2px 6px}
+.ylbl:hover{background:rgba(79,176,227,.12)}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;border:none;border-radius:10px;
+padding:8px 13px;cursor:pointer;background:var(--dark);color:#fff}
+.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+
+/* year summary tiles */
+.tiles{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.tile{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 18px;min-width:170px}
+.tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem}
+.tile .l{font-size:.7rem;font-weight:800;color:var(--grey);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+
+/* month grid */
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+@media(max-width:1150px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+.mcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 16px 12px}
+.mcard.future{opacity:.55}
+.mhead{display:flex;align-items:center;gap:6px;margin-bottom:9px}
+.mname{font-family:'Nunito',sans-serif;font-weight:900;font-size:.98rem}
+.mend{font-size:.7rem;color:var(--grey);font-weight:700;white-space:nowrap}
+.mstat{margin-left:auto;font-family:'Nunito',sans-serif;font-size:.68rem;font-weight:800;white-space:nowrap;color:var(--grey)}
+.mstat.ok{color:var(--green)}
+.mstat.err{color:var(--red);cursor:pointer}
+.notebtn{border:none;background:none;cursor:pointer;font-size:.85rem;opacity:.4;padding:0 0 0 2px}
+.notebtn:hover{opacity:.9}
+.notebtn.has{opacity:1}
+
+.mrow{display:flex;align-items:center;gap:8px;padding:3px 0}
+.mrow label{font-size:.74rem;font-weight:800;color:var(--dark-grey);flex:1;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mrow input[type=number]{width:106px;text-align:right;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;
+font-family:'Nunito Sans',sans-serif;font-size:.85rem;font-weight:700;color:var(--dark);background:#fff}
+.mrow input[type=number]:focus{outline:none;border-color:var(--blue)}
+.mrow input[type=number]::-webkit-outer-spin-button,.mrow input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.mrow input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.mrow.comp{border-top:1px dashed #F0F1F4}
+.mrow.comp .val{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;min-width:106px;text-align:right;padding:2px 8px;border-radius:6px}
+.val.neg{color:var(--red);background:#FBE9E9;cursor:help}
+
+.adjchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;
+padding:2px 7px;border-radius:999px;background:#FBF1DC;color:#7A5B10;cursor:pointer;white-space:nowrap}
+.hint{font-size:.72rem;font-weight:700;color:var(--grey);text-align:right;margin:-1px 0 2px}
+.hint .mini{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;border:1.5px solid var(--border);
+border-radius:7px;background:#fff;color:var(--blue);padding:1px 8px;cursor:pointer;margin-left:4px}
+.hint .mini:hover{border-color:var(--blue)}
+
+.noterow{margin:5px 0 2px}
+.noterow input{width:100%;padding:6px 9px;border:1.5px solid var(--border);border-radius:8px;
+font-family:'Nunito Sans',sans-serif;font-size:.76rem;font-weight:600;color:var(--dark)}
+.noterow input:focus{outline:none;border-color:var(--blue)}
+
+.jefoot{display:flex;align-items:center;gap:8px;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px}
+.jesum{font-size:.71rem;font-weight:700;color:var(--dark-grey);flex:1;line-height:1.45}
+.jebtn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;border:1.5px solid var(--border);
+border-radius:8px;background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:nowrap}
+.jebtn:hover{border-color:var(--blue);color:var(--blue)}
+
+.empty{padding:60px 20px;text-align:center;color:var(--grey);font-weight:700}
+.empty.err{color:var(--dark-grey)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<main>
+  <h1>💵 Cash Journal</h1>
+  <div class="sub">Cash on Hand · Store Revenue · QBO Journal Entries</div>
+
+  <div class="hd">
+    <div class="chips" id="storeChips"></div>
+    <div class="spacer"></div>
+    <div class="yearnav">
+      <button class="ybtn" id="yPrev" title="Previous year">‹</button>
+      <span class="ylbl" id="yLbl"></span>
+      <button class="ybtn" id="yNext" title="Next year">›</button>
+      <button class="btn alt" id="yNow" style="display:none">This Year</button>
+    </div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+  <div class="empty" id="gate" style="display:none"></div>
+  <div class="grid" id="grid"></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pickers.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/* ============================================================
+   Cash Journal — the owner's month-end bookkeeping calculator.
+   Table: cash_journal (store, month 'YYYY-MM', starting_cash,
+   ending_cash, cash_deposited, note; store_revenue + ending_on_hand
+   are Postgres GENERATED columns — never send them in an upsert).
+   RLS is owner-only; pin-gate covers the page, RLS governs the data.
+   Deposit suggestions come from closed cash_audits rows (read-only).
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+
+/* locations.js failing to load must degrade to a message, not a TypeError blank page */
+var LOC=window.CPRLocations||{names:function(){return[];},normalize:function(s){return s;},
+  display:function(s){return s;},find:function(){return null;},sort:function(a){return a;}};
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+var MSHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var LSKEY='cprCashJournal';
+
+/* ------------- view state (persisted) ------------- */
+var STORE=LOC.names()[0], YEAR=new Date().getFullYear();
+try{
+  var savedView=JSON.parse(localStorage.getItem(LSKEY)||'{}');
+  if(savedView.store&&LOC.find(savedView.store))STORE=LOC.normalize(savedView.store);
+  if(savedView.year&&+savedView.year>1999&&+savedView.year<3000)YEAR=+savedView.year;
+}catch(e){}
+function persist(){try{localStorage.setItem(LSKEY,JSON.stringify({store:STORE,year:YEAR}));}catch(e){}}
+
+/* ------------- data state ------------- */
+var STATE={};      // 'YYYY-MM' -> {starting,ending,deposited,note} (live, incl. unsaved edits)
+var AUD=null;      // 'YYYY-MM' -> closed cash_audits deposit sum (null = feature unavailable)
+var NOTEOPEN={};   // 'YYYY-MM' -> note row forced open
+var TIMERS={};     // 'YYYY-MM' -> debounce timer
+var STATUS={};     // 'YYYY-MM' -> ''|'saving'|'saved'|'error'
+var LOADTOKEN=0;
+
+/* ------------- helpers ------------- */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');clearTimeout(toast._t);toast._t=setTimeout(function(){t.className='toast';},2200);}
+function num(v){if(v==null||v==='')return null;var n=+v;return isNaN(n)?null:n;}
+/* $ with commas; whole dollars drop the cents, otherwise 2 decimals */
+function money(n){
+  if(n==null||isNaN(n))return '—';
+  var neg=n<-0.004,a=Math.abs(n);
+  var whole=Math.abs(a-Math.round(a))<0.005;
+  var s=whole?Math.round(a).toLocaleString('en-US')
+             :a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (neg?'-$':'$')+s;
+}
+/* always 2 decimals — the QBO copy block */
+function money2(n){
+  if(n==null||isNaN(n))return '—';
+  var neg=n<-0.004,a=Math.abs(n);
+  return (neg?'-$':'$')+a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function mkey(y,m){return y+'-'+String(m).padStart(2,'0');}
+function priorKey(m){return m===1?mkey(YEAR-1,12):mkey(YEAR,m-1);}
+function st(k){return STATE[k]||(STATE[k]={starting:null,ending:null,deposited:null,note:''});}
+function revenue(k){var s=st(k);return (s.ending!=null&&s.starting!=null)?s.ending-s.starting:null;}
+function onHand(k){var s=st(k);return (s.ending!=null&&s.deposited!=null)?s.ending-s.deposited:null;}
+
+/* Adopt the shared front-door PIN session so owner-only RLS reads/writes work. */
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+/* ------------- load ------------- */
+async function load(){
+  var tok=++LOADTOKEN;
+  $('#grid').innerHTML='';$('#tiles').innerHTML='';
+  var gate=$('#gate');gate.style.display='';gate.classList.remove('err');gate.textContent='Loading…';
+  renderChips();renderYearNav();
+  if(!STORE){gate.classList.add('err');gate.textContent='Store list failed to load — reload the page.';return;}
+
+  var sess=await ensureSession();
+  if(tok!==LOADTOKEN)return;
+  if(!sess){showGate();return;}
+
+  /* one query: prior December (January's carry-forward) through this December */
+  var r=await sb.from('cash_journal')
+    .select('month,starting_cash,ending_cash,cash_deposited,note')
+    .eq('store',STORE).gte('month',mkey(YEAR-1,12)).lte('month',mkey(YEAR,12));
+  if(tok!==LOADTOKEN)return;
+  if(r.error){showGate();return;}
+
+  STATE={};NOTEOPEN={};STATUS={};
+  (r.data||[]).forEach(function(row){
+    STATE[row.month]={starting:num(row.starting_cash),ending:num(row.ending_cash),
+      deposited:num(row.cash_deposited),note:row.note||''};
+  });
+
+  /* deposit helper — closed Cash Admin audits for the year (hidden silently on error) */
+  AUD=null;
+  var a=await sb.from('cash_audits')
+    .select('store,period,bank_deposit,small_to_bank')
+    .eq('status','closed').gte('period',mkey(YEAR,1)).lte('period',mkey(YEAR,12));
+  if(tok!==LOADTOKEN)return;
+  if(!a.error&&a.data){
+    AUD={};
+    a.data.forEach(function(row){
+      if(LOC.normalize(row.store)!==STORE)return;
+      var sum=(num(row.bank_deposit)||0)+(num(row.small_to_bank)||0);
+      AUD[row.period]=(AUD[row.period]||0)+sum;
+    });
+  }
+
+  gate.style.display='none';
+  renderGrid();
+  updateTiles();
+}
+function showGate(){
+  var g=$('#gate');g.style.display='';g.classList.add('err');
+  g.textContent='Owner sign-in required — sign in with your PIN from any page, then reload.';
+}
+
+/* ------------- render ------------- */
+function renderChips(){
+  $('#storeChips').innerHTML=LOC.names().map(function(n){
+    return '<button class="chip'+(n===STORE?' on':'')+'" data-s="'+esc(n)+'">'+esc(LOC.display(n))+'</button>';
+  }).join('');
+  document.querySelectorAll('#storeChips .chip').forEach(function(b){
+    b.addEventListener('click',function(){
+      var s=b.getAttribute('data-s');if(s===STORE)return;
+      flushSaves();STORE=s;persist();load();
+    });
+  });
+}
+function renderYearNav(){
+  $('#yLbl').textContent=YEAR;
+  $('#yNow').style.display=(YEAR===new Date().getFullYear())?'none':'';
+}
+
+function renderGrid(){
+  var grid=$('#grid');grid.innerHTML='';
+  var today=new Date();
+  for(var m=1;m<=12;m++)(function(m){
+    var k=mkey(YEAR,m);
+    var future=new Date(YEAR,m-1,1)>today;
+    var lastDay=new Date(YEAR,m,0).getDate();
+    var card=document.createElement('div');
+    card.className='mcard'+(future?' future':'');
+    card.innerHTML=
+      '<div class="mhead"><span class="mname">'+MONTHS[m-1]+'</span><span class="mend">· ends '+m+'/'+lastDay+'</span>'
+      +'<span class="mstat" data-k="'+k+'"></span>'
+      +'<button class="notebtn" data-k="'+k+'" title="Add a note">📝</button></div>'
+      +'<div class="mrow"><label>Starting Cash <span class="adjchip" data-k="'+k+'" style="display:none">adjusted</span></label>'
+        +'<input type="number" step="0.01" data-k="'+k+'" data-f="starting" aria-label="Starting cash"></div>'
+      +'<div class="hint carry" data-k="'+k+'" style="display:none"></div>'
+      +'<div class="mrow"><label>Ending Cash</label>'
+        +'<input type="number" step="0.01" data-k="'+k+'" data-f="ending" aria-label="Ending cash"></div>'
+      +'<div class="mrow comp"><label>Store Revenue</label><span class="val rev" data-k="'+k+'">—</span></div>'
+      +'<div class="mrow"><label>Cash Deposited</label>'
+        +'<input type="number" step="0.01" data-k="'+k+'" data-f="deposited" aria-label="Cash deposited"></div>'
+      +'<div class="hint aud" data-k="'+k+'" style="display:none"></div>'
+      +'<div class="mrow comp"><label>Ending Cash On Hand</label><span class="val onh" data-k="'+k+'">—</span></div>'
+      +'<div class="noterow" data-k="'+k+'" style="display:none">'
+        +'<input type="text" maxlength="300" placeholder="Note — e.g. why the start was adjusted" data-k="'+k+'" data-f="note"></div>'
+      +'<div class="jefoot" data-k="'+k+'" style="display:none"><span class="jesum"></span>'
+        +'<button class="jebtn" data-k="'+k+'" title="Copy the QBO journal-entry block">📋 JE</button></div>';
+    grid.appendChild(card);
+
+    /* values are set as DOM properties (never innerHTML) so notes need no escaping here */
+    var s=st(k);
+    card.querySelectorAll('input[data-f]').forEach(function(inp){
+      var f=inp.getAttribute('data-f');
+      if(f==='note')inp.value=s.note||'';
+      else inp.value=s[f]==null?'':String(s[f]);
+      inp.addEventListener('input',function(){onEdit(k,f,inp);});
+    });
+    card.querySelector('.notebtn').addEventListener('click',function(){
+      NOTEOPEN[k]=!NOTEOPEN[k];updateCard(k);
+      if(NOTEOPEN[k])card.querySelector('.noterow input').focus();
+    });
+    card.querySelector('.adjchip').addEventListener('click',function(){
+      NOTEOPEN[k]=true;updateCard(k);card.querySelector('.noterow input').focus();
+    });
+    card.querySelector('.jebtn').addEventListener('click',function(){copyJE(k);});
+    updateCard(k);
+  })(m);
+}
+
+/* refresh one card's computed values / hints without touching its inputs (keeps focus) */
+function updateCard(k){
+  if(k.slice(0,4)!==String(YEAR))return;   // prior December isn't rendered
+  var s=st(k),rev=revenue(k),onh=onHand(k);
+  var m=+k.slice(5);
+  function q(sel){return document.querySelector(sel+'[data-k="'+k+'"]');}
+
+  var revEl=q('.val.rev'),onhEl=q('.val.onh');
+  revEl.textContent=money(rev);
+  revEl.classList.toggle('neg',rev!=null&&rev<-0.004);
+  revEl.title=(rev!=null&&rev<-0.004)?'Check ending cash / deposits':'';
+  onhEl.textContent=money(onh);
+  onhEl.classList.toggle('neg',onh!=null&&onh<-0.004);
+  onhEl.title=(onh!=null&&onh<-0.004)?'Check ending cash / deposits':'';
+
+  /* carry-forward from the prior month's ending on hand */
+  var pk=priorKey(m),pOnh=onHand(pk),pName=MSHORT[(+pk.slice(5))-1];
+  var carry=q('.hint.carry');
+  if(s.starting==null&&pOnh!=null){
+    carry.style.display='';
+    carry.innerHTML='← '+money(pOnh)+' from '+pName+' <button class="mini">Use</button>';
+    carry.querySelector('.mini').onclick=function(){
+      s.starting=Math.round(pOnh*100)/100;
+      var inp=document.querySelector('input[data-f="starting"][data-k="'+k+'"]');
+      if(inp)inp.value=String(s.starting);
+      afterEdit(k);
+    };
+  }else carry.style.display='none';
+
+  /* amber chip when the saved start was overridden vs the prior month */
+  var adj=q('.adjchip');
+  if(s.starting!=null&&pOnh!=null&&Math.abs(s.starting-pOnh)>0.005){
+    adj.style.display='';
+    adj.title=pName+' ended on hand at '+money2(pOnh)+' — click to note why this month starts different';
+  }else adj.style.display='none';
+
+  /* Cash Admin deposit suggestion (never auto-writes) */
+  var aud=q('.hint.aud');
+  var sum=AUD?AUD[k]:null;
+  if(sum!=null&&sum>0&&(s.deposited==null||Math.abs(s.deposited-sum)>0.005)){
+    aud.style.display='';
+    aud.innerHTML='Cash Admin: '+money(sum)+' <button class="mini">Use</button>';
+    aud.querySelector('.mini').onclick=function(){
+      s.deposited=Math.round(sum*100)/100;
+      var inp=document.querySelector('input[data-f="deposited"][data-k="'+k+'"]');
+      if(inp)inp.value=String(s.deposited);
+      afterEdit(k);
+    };
+  }else aud.style.display='none';
+
+  /* note row + 📝 state */
+  q('.noterow').style.display=(NOTEOPEN[k]||(s.note&&s.note.trim()))?'':'none';
+  q('.notebtn').classList.toggle('has',!!(s.note&&s.note.trim()));
+
+  /* JE summary — the whole point */
+  var je=q('.jefoot');
+  if(rev!=null&&onh!=null){
+    je.style.display='';
+    var adjv=onh-s.starting;
+    je.querySelector('.jesum').textContent=
+      'Revenue '+money(rev)+' · Deposits '+money(s.deposited)
+      +' · On-hand '+money(s.starting)+' → '+money(onh)
+      +' ('+(adjv>=-0.004?'+':'')+money(adjv)+')';
+  }else je.style.display='none';
+}
+
+function updateTiles(){
+  var rev=0,dep=0,revAny=false,depAny=false,latestM=0,latestVal=null;
+  for(var m=1;m<=12;m++){
+    var k=mkey(YEAR,m),r=revenue(k),o=onHand(k),s=st(k);
+    if(r!=null){rev+=r;revAny=true;}
+    if(s.deposited!=null){dep+=s.deposited;depAny=true;}
+    if(o!=null){latestM=m;latestVal=o;}
+  }
+  function tile(n,l){return '<div class="tile"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>';}
+  $('#tiles').innerHTML=
+    tile(revAny?money(rev):'—','YTD Store Revenue')
+   +tile(depAny?money(dep):'—','YTD Deposited')
+   +tile(latestVal!=null?money(latestVal):'—','Cash On Hand'+(latestM?' · '+MSHORT[latestM-1]:''));
+}
+
+/* ------------- edits + autosave ------------- */
+function onEdit(k,f,inp){
+  var s=st(k);
+  if(f==='note')s.note=inp.value;
+  else{var v=inp.value.trim();s[f]=(v===''||isNaN(+v))?null:+v;}
+  afterEdit(k);
+}
+function afterEdit(k){
+  updateCard(k);
+  var m=+k.slice(5);
+  if(m<12)updateCard(mkey(YEAR,m+1));   // downstream carry-forward hint
+  updateTiles();
+  schedule(k);
+}
+function schedule(k){
+  clearTimeout(TIMERS[k]);
+  TIMERS[k]=setTimeout(function(){delete TIMERS[k];saveMonth(k);},700);
+}
+/* fire pending saves immediately before a store/year switch */
+function flushSaves(){
+  Object.keys(TIMERS).forEach(function(k){clearTimeout(TIMERS[k]);delete TIMERS[k];saveMonth(k);});
+}
+async function saveMonth(k){
+  var s=st(k),store=STORE;
+  setStat(k,'saving');
+  /* GENERATED columns (store_revenue, ending_on_hand) must NEVER be in this payload */
+  var payload={store:store,month:k,
+    starting_cash:s.starting,ending_cash:s.ending,cash_deposited:s.deposited,
+    note:(s.note&&s.note.trim())?s.note.trim():null,
+    updated_by:window.CPRNavName||'owner'};
+  var r=await sb.from('cash_journal').upsert(payload,{onConflict:'store,month'});
+  /* the failure toast must fire even if the user navigated away mid-save —
+     a flushed edit that silently fails is invisible data loss */
+  if(r.error)toast('Save failed for '+MSHORT[+k.slice(5)-1]+' '+k.slice(0,4)+' — '+r.error.message,true);
+  if(store!==STORE||k.slice(0,4)!==String(YEAR))return;  // navigated away mid-save (card DOM is gone)
+  if(r.error){
+    setStat(k,'error');                                  // dirty values stay in STATE/inputs
+  }else{
+    setStat(k,'saved');
+    setTimeout(function(){if(STATUS[k]==='saved')setStat(k,'');},1800);
+    updateCard(k);
+    var m=+k.slice(5);if(m<12)updateCard(mkey(YEAR,m+1));
+    updateTiles();
+  }
+}
+function setStat(k,mode){
+  STATUS[k]=mode;
+  var el=document.querySelector('.mstat[data-k="'+k+'"]');
+  if(!el)return;
+  el.classList.remove('ok','err');el.onclick=null;el.title='';
+  if(mode==='saving')el.textContent='…';
+  else if(mode==='saved'){el.textContent='✓ saved';el.classList.add('ok');}
+  else if(mode==='error'){el.textContent='⚠ retry';el.classList.add('err');el.title='Save failed — click to retry';
+    el.onclick=function(){saveMonth(k);};}
+  else el.textContent='';
+}
+
+/* ------------- JE copy (uses LIVE computed values) ------------- */
+function copyJE(k){
+  var s=st(k),rev=revenue(k),onh=onHand(k);
+  if(rev==null||onh==null){toast('Fill Starting, Ending and Deposited first',true);return;}
+  var m=+k.slice(5),adj=onh-s.starting;
+  var txt=STORE+' — '+MONTHS[m-1]+' '+YEAR+' cash journal\n'
+    +'Cash store revenue: '+money2(rev)+'\n'
+    +'Bank deposits to match in QBO banking: '+money2(s.deposited)+'\n'
+    +'Cash on Hand: '+money2(s.starting)+' → '+money2(onh)
+    +' (adjustment '+(adj>=-0.004?'+':'')+money2(adj)+')';
+  copyText(txt);
+}
+function copyText(t){
+  function done(){toast('Copied');}
+  function fallback(){
+    var ta=document.createElement('textarea');
+    ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    var ok=false;try{ok=document.execCommand('copy');}catch(e){}
+    document.body.removeChild(ta);
+    if(ok)done();else toast('Copy failed',true);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(done,fallback);
+  else fallback();
+}
+
+/* ------------- year nav ------------- */
+$('#yPrev').addEventListener('click',function(){flushSaves();YEAR--;persist();load();});
+$('#yNext').addEventListener('click',function(){flushSaves();YEAR++;persist();load();});
+$('#yNow').addEventListener('click',function(){flushSaves();YEAR=new Date().getFullYear();persist();load();});
+/* year label drops a picker (house date-nav convention) */
+$('#yLbl').addEventListener('click',function(ev){
+  if(!(window.CPRPickers&&CPRPickers.year))return;
+  ev.stopPropagation();
+  CPRPickers.year($('#yLbl'),{
+    get:function(){return YEAR;},
+    set:function(y){flushSaves();YEAR=y;persist();load();},
+    min:2020,max:new Date().getFullYear()+1
+  });
+});
+
+/* edits are debounced 700ms — flush them if the tab closes/hides inside the window */
+window.addEventListener('pagehide',flushSaves);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flushSaves();});
+
+load();
+</script>
+</body>
+</html>

@@ -257,6 +257,14 @@
                 agent_name: techName(),
             };
             current = { method: m, contact_number: payload.number, contact_name: payload.name, contact_email: payload.email };
+            if (!payload.ticket_no) {
+                // check-in/create page — no ticket number yet. Stash the choice;
+                // boot() flushes it (Supabase + note) when the saved ticket loads.
+                pendingSet(payload);
+                markCreatePopped();
+                closeModal();
+                return;
+            }
             fn('contact_set', payload);
             // permanent backup note
             var who = payload.name || 'customer';
@@ -269,6 +277,13 @@
             closeModal();
         });
         ov.querySelector('.mrt-fu-skip').addEventListener('click', function () {
+            if (!ticketNo()) {
+                // check-in page: stash the skip so the saved ticket doesn't re-ask
+                pendingSet({ method: 'skip' });
+                markCreatePopped();
+                closeModal();
+                return;
+            }
             // remember the skip ON THE TICKET so it never re-asks anywhere
             if (!current) {
                 current = { method: 'skip' };
@@ -421,15 +436,88 @@
 
     var CHECKIN_KEY = 'mrt_fu_checkin';   // set on the create page; the NEXT
                                           // ticket page in this tab may auto-pop
+
+    /* --- pending check-in choice (create page has no ticket # to write to) --- */
+    // The capture modal now pops the moment a customer is added on the check-in
+    // form. There's no ticket number there yet, so the choice is stashed in
+    // sessionStorage and flushed onto the real ticket (Supabase row + ticket
+    // note) the instant the saved ticket page loads.
+    var PENDING_KEY = 'mrt_fu_pending';
+    function pendingSet(payload) {
+        try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ p: payload, ts: Date.now() })); } catch (e) {}
+    }
+    function pendingGet() {
+        try {
+            var raw = sessionStorage.getItem(PENDING_KEY);
+            if (!raw) return null;
+            var o = JSON.parse(raw);
+            if (!o || !o.ts || (Date.now() - o.ts) > 10 * 60000) { pendingClear(); return null; }
+            return o.p || null;
+        } catch (e) { return null; }
+    }
+    function pendingClear() { try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {} }
+
+    function flushPending(pend) {
+        pendingClear();
+        var m = pend.method;
+        var payload = {
+            ticket_no: ticketNo(), store: storeName() || pend.store || '', method: m,
+            name: pend.name || '', number: pend.number || '', email: pend.email || '',
+            agent_name: techName() || pend.agent_name || '',
+        };
+        current = (m === 'skip') ? { method: 'skip' }
+                : { method: m, contact_number: payload.number, contact_name: payload.name, contact_email: payload.email };
+        fn('contact_set', payload);
+        if (m !== 'skip') {
+            var who = payload.name || 'customer';
+            var how = m === 'email' ? 'EMAIL → ' + payload.email
+                    : m === 'return' ? 'CUSTOMER TO RETURN'
+                    : (m.toUpperCase() + ' → ' + pretty(payload.number));
+            writeNote('📣 Follow-up: ' + how + (payload.name ? ' (' + who + ')' : '') + ' — set by ' + (payload.agent_name || 'staff'));
+        }
+        markPrompted();
+    }
+
+    /* --- check-in customer-added detection (create/check-in form) --- */
+    // On /ticket/repair|claim|add there is no ticket number. When the tech picks
+    // a customer, RepairQ hides the #customer search box and shows the chosen
+    // customer — our signal to pop the follow-up modal right then.
+    var createPoppedFlag = false;
+    function markCreatePopped() { createPoppedFlag = true; }
+    function customerIsSelected() {
+        var cust = document.querySelector('#customer');
+        if (!cust || cust.offsetParent === null) return false;   // form not ready/visible
+        var search = cust.querySelector('.search');
+        if (search && search.offsetParent === null) return true; // search box hidden = customer chosen
+        if (!search && cust.querySelector('a[href*="/customers/"]')) return true;
+        return false;
+    }
+    function watchCustomerAdd() {
+        function tryPop() {
+            if (createPoppedFlag) return true;
+            if (!customerIsSelected()) return false;
+            markCreatePopped();
+            if (pendingGet()) return true;   // already captured for this check-in
+            // let RepairQ paint the customer's numbers first (modal suggestions)
+            setTimeout(function () { if (!document.getElementById('mrt-fu-modal')) openModal(null); }, 500);
+            return true;
+        }
+        if (tryPop()) return;
+        var mo = new MutationObserver(function () { if (tryPop()) mo.disconnect(); });
+        mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+    }
+
     function boot() {
         if (!ttAllows('followUp')) return;   // this ticket type is opted out
         var t = ticketNo();
         if (!t) {
             // ticket-create pages (/ticket/repair|claim|add): no number yet.
             // Flag the check-in so the post-save landing page (a VIEW page,
-            // which normally never auto-pops) asks exactly once.
+            // which normally never auto-pops) asks exactly once, AND watch for
+            // the customer being added so we can pop the modal immediately.
             if (/\/ticket\/(repair|claim|add)/.test(location.pathname)) {
                 try { sessionStorage.setItem(CHECKIN_KEY, String(Date.now())); } catch (e) {}
+                watchCustomerAdd();
             }
             return;
         }
@@ -443,6 +531,10 @@
             var tries = 0;
             (function whenSummaryReady() {
                 if (!ddFor('contact number') && !customerBlock() && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
+                // flush a follow-up choice captured on the numberless check-in
+                // page onto this freshly-saved ticket (status "New").
+                var pend = !current ? pendingGet() : null;
+                if (pend && isNewStatus()) flushPending(pend);
                 renderChip();
                 // auto-pop = check-in only: the EDIT page, or the first ticket
                 // page after a create (the post-save landing is a VIEW page,

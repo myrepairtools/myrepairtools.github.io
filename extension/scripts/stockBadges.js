@@ -98,8 +98,13 @@
             }).observe(listingLoader, { attributes: true, attributeFilter: ['style'] });
         }
 
-        // Also catch any li.item injected anywhere
-        new MutationObserver(addStockBadges).observe(document.body, { childList: true, subtree: true });
+        // Also catch any li.item injected anywhere. Debounced — a heavy Magento
+        // page fires a flood of subtree mutations during load, and running a
+        // full rescan on each one (×3 supplier scripts) locks the main thread
+        // ("page unresponsive"). Coalesce a burst into one rescan.
+        var sbT = null;
+        function scheduleSB() { if (sbT) return; sbT = setTimeout(function () { sbT = null; addStockBadges(); }, 500); }
+        new MutationObserver(scheduleSB).observe(document.body, { childList: true, subtree: true });
     }
 
     // Standalone gate (mcprUtils.js is not loaded on supplier sites)
