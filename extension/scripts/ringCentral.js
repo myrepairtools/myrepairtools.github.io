@@ -768,15 +768,23 @@
     }
 
     function pollUnread() {
-        if (!S.store) return;
+        // Re-read the store each tick — S.store is only set on open(), and at page
+        // load it can be empty (location switcher not ready), which used to silently
+        // kill the badge + new-text alerts until the panel was opened.
+        var store = S.store || storeName();
+        if (!store) return;
+        S.store = store;
         getSeen().then(function (seen) {
             var seeded = !!(seen && seen.seeded);
             var smsTimes = (seen && seen.sms) || {};   // { number: lastNotifiedISO }
             var callIds = (seen && seen.calls) || [];   // notified missed-call ids
 
-            fn('conversations', { store: S.store, days: 14 }).then(function (r) {
+            fn('conversations', { store: store, days: 30 }).then(function (r) {
                 if (!r || !r.ok) return;
                 var convs = r.conversations || [];
+                // keep the cache warm and live-refresh the inbox if it's open
+                MEM.conv[store] = convs; try { lset('mrt_rc_conv_' + store, convs); } catch (e) {}
+                if (S.open && S.tab === 'inbox' && !S.thread) paintInbox(convs);
                 updateDot(convs.reduce(function (a, c) { return a + (c.unread || 0); }, 0));
                 convs.forEach(function (c) {
                     if (c.last_dir !== 'in' || !c.unread) return;
