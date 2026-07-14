@@ -241,38 +241,17 @@
     function proceed(btn, noteText) {
         bypass = true;
         closePopup();
-        armNoteModal(noteText);       // some stores require a note on this transition
+        // Record our informational note directly through the ajax endpoint
+        // (guarded against blanks). We deliberately DON'T touch RepairQ's own
+        // "Add Note" modal: its textarea is Backbone-backed, so a raw value set
+        // doesn't reach the model it serializes on submit — clicking that
+        // modal's Save posted an EMPTY note ("Note cannot be blank"), which also
+        // blocked the status change. CPR stores don't require a note on this
+        // transition; if a store ever does, RepairQ pops its modal for the tech
+        // to fill by hand. Net: our note lands, the status change goes through.
+        if (noteText) writeNote(noteText);
         btn.click();                  // re-fire the real status change
         setTimeout(function () { bypass = false; }, 1500);
-    }
-
-    // RepairQ can require a note when changing status (e.g. Ready for Pickup). Its
-    // "Add Note" modal then pops with a required textarea; if it's submitted empty
-    // the save fails with "Note cannot be blank" and the status never changes. We
-    // watch for that modal and fill + submit it with a real note so the transition
-    // completes. If no modal appears (store doesn't require one), we fall back to
-    // writing our note directly via the ajax endpoint. Net: exactly one note.
-    function armNoteModal(noteText) {
-        var fill = noteText || ('Marked Ready for Pickup — myRepairTools (' + (techName() || 'staff') + ')');
-        var handled = false, tries = 0;
-        var iv = setInterval(function () {
-            tries++;
-            var ta = document.getElementById('note_note');
-            if (ta && ta.offsetParent !== null && !ta.value.trim() && !handled) {   // required-note modal is open & empty
-                handled = true; clearInterval(iv);
-                ta.value = fill;
-                ta.dispatchEvent(new Event('input', { bubbles: true }));
-                ta.dispatchEvent(new Event('change', { bubbles: true }));
-                var fs = ta.closest('fieldset') || ta.closest('.modal') || document;
-                var save = fs.querySelector('.submit-button');
-                setTimeout(function () { if (save) save.click(); }, 90);
-                return;
-            }
-            if (tries >= 18) {                                   // ~2.7s: no modal appeared
-                clearInterval(iv);
-                if (!handled && noteText) writeNote(noteText);   // record our note directly instead
-            }
-        }, 150);
     }
 
     // The manual chooser (no saved follow-up, or the tech skipped at
