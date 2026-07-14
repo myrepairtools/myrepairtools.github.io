@@ -53,6 +53,14 @@
         // only used to avoid auto-popping on finished tickets
         return /\b(closed|invoiced|void|picked up)\b/.test((s && s.textContent || '').toLowerCase());
     }
+    // A freshly-created ticket shows status "New"/"New Claim" — the first status
+    // label in the summary block. Used to auto-pop the follow-up modal right after
+    // check-in regardless of which create URL RepairQ used.
+    function isNewStatus() {
+        var el = document.querySelector('#summary .block-content span.fullsize.label, #summary .block-content span.label');
+        var s = el ? el.textContent.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+        return s === 'new' || s === 'new claim';
+    }
 
     /* --- scrape the ticket's own numbers/email for suggestions --- */
     function ddFor(label) {
@@ -447,7 +455,10 @@
                     fresh = ts > 0 && (Date.now() - ts) < 10 * 60000;
                     if (fresh) sessionStorage.removeItem(CHECKIN_KEY);   // consume — one pop only
                 } catch (e) {}
-                if ((isEdit || fresh) && !current && !wasPrompted() && !isClosedPage()) openModal(null);
+                // A brand-new ticket lands on a VIEW page (/ticket/<id>) with status
+                // "New"; the create-page flag doesn't fire for every RepairQ check-in
+                // URL, so key off the status too. wasPrompted() keeps it to one pop.
+                if ((isEdit || fresh || isNewStatus()) && !current && !wasPrompted() && !isClosedPage()) openModal(null);
                 keepBlockAlive();
             })();
         });

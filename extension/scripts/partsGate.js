@@ -16,7 +16,8 @@
 
     Ported from the MyCPRTools extension; config lives in mcprConfig.js.
     Toggle: Options → RepairQ workflow tools (storage.sync mcpr.partsGate,
-    default ON).
+    default OFF — many repairs (data transfers, diagnostics) need no part, and
+    there are backup processes to catch missing parts; turn on per-store if wanted).
 */
 
 (function () {
@@ -238,7 +239,7 @@
 
     // ─── Init ────────────────────────────────────────────────────
 
-    mcprSetting('partsGate', true).then(function (on) {
+    mcprSetting('partsGate', false).then(function (on) {
         if (!on) return;
         log('Parts gate initializing on:', window.location.href);
 
