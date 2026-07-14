@@ -350,6 +350,9 @@ tr.skipped td.itm .nm{opacity:.6}
 tr.samchild{background:#FBFCFE}
 tr.samchild td:first-child{padding-left:28px;border-left:2px solid #CDEAF8}
 tr.samchild .nm{color:var(--dark-grey)}
+tr.samchild.combo{background:#F5F5F6;opacity:.55}
+tr.samchild.combo td:first-child{border-left-color:#D8D8DE}
+tr.samchild.combo .samkid{color:#8A8F9C;background:#EDEDF0;border-color:#DDDDE2}
 .samkid{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:0 5px;margin-right:6px;vertical-align:middle}
 </style>
 </head>
@@ -1221,7 +1224,7 @@ function renderStock(){
     var skuCell=r.type==='group'?'<span style="color:var(--grey)">pooled</span>':r.sku;
     var nameHtml=(r._samChild?'<span class="samkid">↳ '+samRoleName(r._samRole)+'</span>':'')+r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
     var tr=document.createElement('tr');
-    if(r._samChild)tr.className='samchild';
+    if(r._samChild)tr.className='samchild'+(r._samRole==='combo'?' combo':'');
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
       +'<td class="num">'+r.instock+'</td>'
@@ -1264,7 +1267,7 @@ function renderOrderRows(tb, rows){
     var ordTag=full?'<span class="skiptag">ordered</span>'
                    :(partial?'<span class="skiptag part">'+ordQty+' of '+r.suggest+' ordered</span>':'');
     var tr=document.createElement('tr');
-    if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild';
+    if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild'+(r._samRole==='combo'?' combo':'');
     if(full)tr.classList.add('skipped');
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span>'+ordTag+'</td>'
