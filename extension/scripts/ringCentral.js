@@ -364,9 +364,17 @@
         panel.querySelectorAll('.mrt-rc-tabs button').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-t') === 'inbox'); });
         var d = digits(number || '');
         if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
-        if (!S.open) open();
-        if (d.length === 10) { S.thread = { number: d, name: name || '' }; renderThread(); }
-        else renderCompose(number || '', name || '');
+        // Set the target thread BEFORE open() — open() calls render(), and with
+        // S.thread already set it goes straight to the thread instead of painting
+        // the inbox first (which was bouncing the view back on the first click).
+        if (d.length === 10) {
+            S.thread = { number: d, name: name || '' };
+            if (!S.open) open(); else renderThread();
+        } else {
+            S.thread = null;
+            if (!S.open) open();
+            renderCompose(number || '', name || '');
+        }
     }
 
     /* --- inbox: one thread + compose --- */
@@ -463,128 +471,76 @@
         return el ? el.value : '';
     }
 
-    // Hop 1: phone → matching customer IDs.
-    function findCustomerIds(number) {
-        var q10 = digits(number).slice(-10);
-        if (q10.length < 10) return Promise.resolve([]);
-        var endpoints = ['/customers', '/customers/leads'];
-        var queries = [q10, pretty(q10)];
-        var jobs = [];
-        endpoints.forEach(function (ep) {
-            queries.forEach(function (qv) {
-                var body = new URLSearchParams();
-                body.set('YII_CSRF_TOKEN', rqCsrf());
-                body.set('filter[quickQuery]', qv);
-                jobs.push(fetch(ep, {
-                    method: 'POST', credentials: 'same-origin',
-                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
-                    body: body.toString(),
-                }).then(function (r) { return r.text(); }).catch(function () { return ''; }));
-            });
-        });
-        return Promise.all(jobs).then(function (htmls) {
-            var ids = [], seen = {};
-            htmls.forEach(function (html) {
-                if (!html) return;
-                var doc = new DOMParser().parseFromString(html, 'text/html');
-                var scope = doc.getElementById('mainModelList') || doc;
-                scope.querySelectorAll('a[href*="/customers/"]').forEach(function (a) {
-                    var m = (a.getAttribute('href') || '').match(/\/customers\/(\d+)\b/);
-                    if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
-                });
-            });
-            return ids.slice(0, 5);          // cap — usually 1
-        }).catch(function () { return []; });
-    }
-
-    // Primary lookup: RepairQ's ticket grid quick-search matches customer name
-    // AND phone, so one POST to /ticket returns the tickets directly.
-    function parseTicketGrid(html) {
+    // Parse a customer-profile page's #tickets table into ticket rows.
+    // Columns: 0 ID · 1 Location · 2 Items/Devices · 3 Status · 4 Assignee
+    //          5 Sales · 6 Receipts · 7 Updated · 8 Est.
+    function parseProfileTickets(html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        var scope = doc.getElementById('mainModelList') || doc;
+        var scope = doc.getElementById('tickets') || doc;
         var out = [];
         scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
             var no = tr.getAttribute('data-id');
             if (!/^\d+$/.test(no)) return;
-            var cols = {};
-            tr.querySelectorAll('td[data-column]').forEach(function (td) {
-                cols[(td.getAttribute('data-column') || '').toLowerCase()] = td.textContent.replace(/\s+/g, ' ').trim();
-            });
-            if (!Object.keys(cols).length) return;
-            function pick(re) { for (var k in cols) if (re.test(k) && cols[k]) return cols[k]; return ''; }
-            var devA = tr.querySelector('td[data-column="items"] a[data-content], td[data-column="items"] a[data-original-title]');
+            var tds = tr.querySelectorAll('td');
+            function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
+            var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
             out.push({
                 no: no, href: '/ticket/' + no,
-                device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cols.items || pick(/device|model|item/),
-                status: cols.status || pick(/status|bucket|state/),
-                date: cols.est || pick(/\best\b|due|date/),
+                location: cell(1),
+                device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cell(2),
+                status: cell(3),
+                date: cell(7),
             });
         });
         return out;
     }
 
-    function ticketGridSearch(number) {
+    // RepairQ's global search (the top search bar) matches Name / Phone / Email /
+    // Company — unlike the customer/ticket grid's quickQuery, which only matches
+    // name. A single hit 302s straight to /customers/<id>; fetch follows it, so we
+    // land on the profile page and parse its #tickets table in one hop. Multiple
+    // hits land on a results grid, from which we collect profile links.
+    function searchCustomerTickets(number) {
         var d10 = digits(number).slice(-10);
         if (d10.length < 10) return Promise.resolve([]);
-        var queries = [d10, pretty(d10)];
-        var jobs = queries.map(function (qv) {
-            var body = new URLSearchParams();
-            body.set('YII_CSRF_TOKEN', rqCsrf());
-            body.set('filter[quickQuery]', qv);
-            body.set('filter[full_history]', '1');   // include closed/older tickets
-            return fetch('/ticket', {
-                method: 'POST', credentials: 'same-origin',
-                headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
-                body: body.toString(),
-            }).then(function (r) { return r.text(); })
-              .then(function (html) { return parseTicketGrid(html); })
-              .catch(function () { return []; });
-        });
-        return Promise.all(jobs).then(function (lists) {
-            var seen = {}, all = [];
-            lists.forEach(function (l) { l.forEach(function (t) { if (!seen[t.no]) { seen[t.no] = 1; all.push(t); } }); });
-            return all;
-        });
-    }
-
-    // Hop 2: customer ID → their tickets (profile page #tickets table).
-    function ticketsForCustomer(id) {
-        return fetch('/customers/' + id, { credentials: 'same-origin' })
-            .then(function (r) { return r.text(); }).then(function (html) {
+        var body = new URLSearchParams();
+        body.set('YII_CSRF_TOKEN', rqCsrf());
+        body.set('filter[query]', pretty(d10) || d10);   // RQ matches dashed or plain
+        return fetch('/customers/globalSearch', {
+            method: 'POST', credentials: 'same-origin', redirect: 'follow',
+            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: body.toString(),
+        }).then(function (r) {
+            var url = r.url || '';
+            return r.text().then(function (html) {
+                // Landed directly on a customer profile → parse it.
+                if (/\/customers\/(?:view\/)?\d+(?:[?#]|$)/.test(url) || doc_hasTickets(html)) {
+                    return parseProfileTickets(html);
+                }
+                // Otherwise a results grid — gather profile ids, fetch each profile.
                 var doc = new DOMParser().parseFromString(html, 'text/html');
-                var scope = doc.getElementById('tickets') || doc;
-                var out = [];
-                scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
-                    var no = tr.getAttribute('data-id');
-                    if (!/^\d+$/.test(no)) return;
-                    var tds = tr.querySelectorAll('td');
-                    function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
-                    var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
-                    out.push({
-                        no: no, href: '/ticket/' + no,
-                        location: cell(1),
-                        device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cell(2),
-                        status: cell(3),
-                        date: cell(7),
-                    });
+                var ids = [], seen = {};
+                doc.querySelectorAll('a[href*="/customers/"]').forEach(function (a) {
+                    var m = (a.getAttribute('href') || '').match(/\/customers\/(?:view\/)?(\d+)\b/);
+                    if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
                 });
-                return out;
-            }).catch(function () { return []; });
-    }
-
-    // phone → tickets. Grid first; fall back to contacts → profile → tickets.
-    function searchCustomerTickets(number) {
-        return ticketGridSearch(number).then(function (tix) {
-            if (tix.length) return tix;
-            return findCustomerIds(number).then(function (ids) {
+                ids = ids.slice(0, 5);
                 if (!ids.length) return [];
-                return Promise.all(ids.map(ticketsForCustomer)).then(function (lists) {
-                    var seen = {}, all = [];
-                    lists.forEach(function (l) { l.forEach(function (t) { if (!seen[t.no]) { seen[t.no] = 1; all.push(t); } }); });
+                return Promise.all(ids.map(function (id) {
+                    return fetch('/customers/' + id, { credentials: 'same-origin' })
+                        .then(function (r2) { return r2.text(); })
+                        .then(parseProfileTickets).catch(function () { return []; });
+                })).then(function (lists) {
+                    var s = {}, all = [];
+                    lists.forEach(function (l) { l.forEach(function (t) { if (!s[t.no]) { s[t.no] = 1; all.push(t); } }); });
                     return all;
                 });
             });
         }).catch(function () { return []; });
+    }
+
+    function doc_hasTickets(html) {
+        return /id=["']tickets["']/.test(html || '');
     }
 
     function loadCustomerTickets(number) {
@@ -592,10 +548,6 @@
         box.innerHTML = '<div class="mrt-rc-tixhd">Their RepairQ tickets <span class="mrt-rc-tixsp">…</span></div>';
         var dbg = false;
         try { dbg = !!localStorage.getItem('mrtRcDebug'); } catch (e) {}
-        if (dbg) {
-            ticketGridSearch(number).then(function (g) { console.log('[MRT] ticketGridSearch(' + number + ') →', g.length, g); });
-            findCustomerIds(number).then(function (ids) { console.log('[MRT] findCustomerIds(' + number + ') →', ids); });
-        }
         searchCustomerTickets(number).then(function (tix) {
             if (!q('#mrt-rc-tix')) return;                       // thread changed
             if (dbg) console.log('[MRT] searchCustomerTickets(' + number + ') →', tix.length, tix);

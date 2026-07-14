@@ -1374,7 +1374,7 @@ Deno.serve(async (req) => {
         method: payload.method, path: payload.path, body: payload.body,
         form: payload.form, headers: payload.headers,
       });
-      return json({ ok: r.status >= 200 && r.status < 300, status: r.status, data: r.json ?? null, body: r.json ? undefined : r.body });
+      return json({ ok: r.status >= 200 && r.status < 300, status: r.status, location: (r as any).location || null, data: r.json ?? null, body: r.json ? undefined : r.body });
     }
     if (payload?.action === "save_query") return await actionSaveQuery(payload);
     if (payload?.action === "list_queries") return await actionListQueries();

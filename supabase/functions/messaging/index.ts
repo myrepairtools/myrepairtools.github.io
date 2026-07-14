@@ -393,6 +393,24 @@ async function actionContactGet(payload: any) {
   return json({ ok: true, contact: data || null });
 }
 
+// Resolve an editable customer-message template for a store: the store's own
+// override wins, else the shared default (store is null). The body carries
+// {short codes} the caller fills in per send. Returns body:null if unset so the
+// extension can fall back to its built-in wording.
+async function actionTemplateGet(payload: any) {
+  const key = String(payload?.key || payload?.template_key || "").trim();
+  if (!key) return json({ ok: false, error: "key required" }, 400);
+  const line = await lineForStore(payload?.store);
+  const store = line ? line.store : (payload?.store ? String(payload.store) : null);
+  if (store) {
+    const { data } = await admin.from("message_templates").select("body").eq("template_key", key).eq("store", store).maybeSingle();
+    if (data?.body) return json({ ok: true, body: data.body, source: "store" });
+  }
+  const { data } = await admin.from("message_templates").select("body").eq("template_key", key).is("store", null).maybeSingle();
+  if (data?.body) return json({ ok: true, body: data.body, source: "default" });
+  return json({ ok: true, body: null, source: "none" });
+}
+
 async function actionContactDelete(payload: any) {
   const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
   if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
@@ -847,6 +865,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "thread_read") return await actionThreadRead(payload);
     if (payload?.action === "diag_routing") return await actionDiagRouting();
     if (payload?.action === "sla_check") return await actionSlaCheck();
+    if (payload?.action === "template_get") return await actionTemplateGet(payload);
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message || e) }, 500);

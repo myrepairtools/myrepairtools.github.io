@@ -204,6 +204,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .commrates-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:0 28px;padding-top:4px}
 .commrates-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .ratecell{padding:11px 2px;border-bottom:1px solid var(--border)}
+.mt-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.74rem;background:#EEF6FB;color:#1E7AA8;border:1px solid #CDE7F4;border-radius:6px;padding:2px 6px;white-space:nowrap}
 .ratehd{display:flex;align-items:center;gap:9px;font-size:.85rem;font-weight:600;color:var(--dark-grey);line-height:1.3}
 .ratehd input,.ratehd>div{font-size:.85rem;font-weight:600;width:190px}
 .ratebody{display:flex;align-items:flex-end;gap:12px;margin-top:8px;flex-wrap:wrap}
@@ -482,6 +483,35 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 12px">Each store texts from its own number. A store whose JWT isn&rsquo;t connected yet <b>falls back to the default line</b> so texts never fail &mdash; it just sends from the wrong store until connected. Store names are the official RepairQ names; other systems&rsquo; spellings resolve through aliases.</p>
           <div id="rcLines" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
           <div id="rcHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
+        </div>
+
+        <!-- Message templates (editable customer texts) -->
+        <div style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Message templates</div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 12px">The wording customers get for automated texts. <b>Short codes</b> fill in per send. Set a shared default that every store inherits, or give a store its own wording (e.g. different hours or tone).</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <select id="mtKey" style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:.86rem">
+              <option value="ready_for_pickup">Ready for Pickup (text)</option>
+            </select>
+            <span style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey)">for</span>
+            <select id="mtStore" style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:.86rem"><option value="">Default (all stores)</option></select>
+          </div>
+          <textarea id="mtBody" rows="4" placeholder="Loading…" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-family:'Nunito Sans',sans-serif;font-size:.9rem;resize:vertical"></textarea>
+          <div style="font-family:'Nunito Sans',sans-serif;font-size:.74rem;color:var(--dark-grey);margin-top:8px;line-height:1.9">
+            Short codes:
+            <code class="mt-code">{name}</code>
+            <code class="mt-code">{device}</code>
+            <code class="mt-code">{store}</code>
+            <code class="mt-code">{tech}</code>
+            <code class="mt-code">{hours}</code>
+            <span style="color:var(--grey)">— {name} = customer’s first name · {tech} = signed-in RepairQ user · {hours} = today’s store hours · {location} also works for {store}. Unused codes are fine.</span>
+          </div>
+          <div id="mtPreview" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);white-space:pre-wrap;margin-top:10px;padding:10px 12px;background:var(--light-grey);border-radius:8px"></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+            <button class="btn sm" id="mtSave">Save</button>
+            <button class="btn alt sm hide" id="mtReset">Reset this store to default</button>
+            <span id="mtMsg" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey)"></span>
+          </div>
         </div>
 
         <!-- Response-time alerts (unanswered-text watchdog) -->
@@ -1005,6 +1035,76 @@ async function rcRenderStatus(){
   rcRenderActivity();
   rcRenderSla();
   twRenderStatus();
+  mtLoad();
+}
+
+/* --- Message templates (editable customer texts; per-store + shared default) --- */
+var MT_ROWS=[];
+var MT_PREVIEW={name:'Alex',device:'iPhone 15 Pro',store:'CPR Eugene',tech:'Sam',hours:'10am–7pm'};
+function mtBuiltin(key){
+  if(key==='ready_for_pickup')return 'Hi {name}, your {device} is ready for pickup at {store}! Come by during business hours — see you soon.';
+  return '';
+}
+function mtFind(key,store){ return MT_ROWS.filter(function(x){return x.template_key===key&&((store&&x.store===store)||(!store&&!x.store));})[0]||null; }
+function mtDefaultBody(key){ var d=mtFind(key,null); return d?d.body:mtBuiltin(key); }
+function mtFillStores(){
+  var sel=$('#mtStore'); if(!sel)return;
+  var cur=sel.value;
+  var stores=(RC_TEST&&RC_TEST.stores)?RC_TEST.stores.map(function(s){return s.store;}):[];
+  sel.innerHTML='<option value="">Default (all stores)</option>'+stores.map(function(s){return '<option value="'+esc(s)+'">'+esc(s)+'</option>';}).join('');
+  sel.value=cur;
+}
+async function mtLoad(){
+  var r=await sb.from('message_templates').select('*');
+  MT_ROWS=(r&&r.data)||[];
+  mtFillStores();
+  mtRender();
+}
+function mtRender(){
+  var key=($('#mtKey')||{}).value||'ready_for_pickup';
+  var store=($('#mtStore')||{}).value||'';
+  var row=mtFind(key,store||null);
+  var ta=$('#mtBody');
+  if(ta) ta.value=row?row.body:mtDefaultBody(key);   // no override yet → prefill from the shared default
+  var reset=$('#mtReset'); if(reset) reset.classList.toggle('hide',!(store&&row));
+  var msg=$('#mtMsg'); if(msg) msg.textContent='';
+  mtPreview();
+}
+function mtPreview(){
+  var el=$('#mtPreview'),ta=$('#mtBody'); if(!el||!ta)return;
+  var p=MT_PREVIEW;
+  var s=String(ta.value||'')
+    .replace(/\{(name|first)\}/gi,p.name).replace(/\{device\}/gi,p.device)
+    .replace(/\{(store|location)\}/gi,p.store).replace(/\{tech\}/gi,p.tech)
+    .replace(/\{hours\}/gi,p.hours).replace(/[ \t]{2,}/g,' ').trim();
+  el.textContent='Preview  ·  '+s+'\n\nReply STOP to opt out.';
+}
+async function mtSave(){
+  var key=($('#mtKey')||{}).value||'ready_for_pickup';
+  var store=($('#mtStore')||{}).value||null;
+  var body=($('#mtBody').value||'').trim();
+  var msg=$('#mtMsg');
+  if(!body){ if(msg){msg.style.color='#C0392B';msg.textContent='Message can’t be empty.';} return; }
+  if(msg){msg.style.color='var(--grey)';msg.textContent='Saving…';}
+  var patch={store:store,template_key:key,body:body,updated_by:(AUTH&&AUTH.name)||null,updated_at:new Date().toISOString()};
+  var existing=mtFind(key,store);
+  var res=existing?await sb.from('message_templates').update(patch).eq('id',existing.id)
+                  :await sb.from('message_templates').insert(patch);
+  if(res&&res.error){ if(msg){msg.style.color='#C0392B';msg.textContent='⚠ '+res.error.message;} return; }
+  if(msg){msg.style.color='#1E9E5B';msg.textContent=store?'✓ Saved for '+store:'✓ Saved (all stores)';}
+  await mtLoad();
+}
+async function mtReset(){
+  var key=($('#mtKey')||{}).value||'ready_for_pickup';
+  var store=($('#mtStore')||{}).value||'';
+  var existing=store?mtFind(key,store):null;
+  if(!existing)return;
+  if(!confirm('Remove '+store+'’s custom '+key.replace(/_/g,' ')+' message? It will use the shared default again.'))return;
+  var res=await sb.from('message_templates').delete().eq('id',existing.id);
+  var msg=$('#mtMsg');
+  if(res&&res.error){ if(msg){msg.style.color='#C0392B';msg.textContent='⚠ '+res.error.message;} return; }
+  if(msg){msg.style.color='#1E9E5B';msg.textContent='✓ Reset to default';}
+  await mtLoad();
 }
 
 /* --- Response-time alerts (unanswered-text watchdog) --- */
@@ -2786,6 +2886,11 @@ function initUI(){
   var slaC=$('#slaSaveCfg'); if(slaC)slaC.onclick=slaSaveCfg;
   var slaA=$('#slaAdd'); if(slaA)slaA.onclick=slaAdd;
   var twR=$('#twRefresh'); if(twR)twR.onclick=function(){twRenderStatus();};
+  var mtK=$('#mtKey'); if(mtK)mtK.onchange=mtRender;
+  var mtS=$('#mtStore'); if(mtS)mtS.onchange=mtRender;
+  var mtB=$('#mtBody'); if(mtB)mtB.oninput=mtPreview;
+  var mtSv=$('#mtSave'); if(mtSv)mtSv.onclick=mtSave;
+  var mtRs=$('#mtReset'); if(mtRs)mtRs.onclick=mtReset;
   $all('.integ-card').forEach(function(card){
     card.style.cursor='pointer';
     card.addEventListener('click',function(e){
