@@ -254,6 +254,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 </div>
 
 <div class="app" id="app">
+<script src="assets/locations.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js" data-section="admin"></script>
 <main>
@@ -420,6 +421,15 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:700;margin-top:2px">Customer texting &middot; store lines</div>
           <div style="margin-top:12px"><span id="rcCardPill" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px;background:#F3F2F2;color:#8A8F9C;border:1px solid var(--border)">…</span></div>
         </div>
+        <!-- QuickBooks Online -->
+        <div class="integ-card" data-integ="qbo" style="position:relative;padding:18px 18px 16px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <button class="integ-gear" data-integ="qbo" title="Settings" aria-label="QuickBooks Online settings"
+            style="position:absolute;top:10px;right:10px;width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.95rem;line-height:1;color:var(--dark-grey)">⚙</button>
+          <div style="margin-bottom:10px"><svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#2CA01C"/><text x="24" y="33" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="22" fill="#fff" text-anchor="middle">qb</text></svg></div>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">QuickBooks Online</div>
+          <div style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:700;margin-top:2px">Month-end journal entries &mdash; Cash Journal posts store revenue straight to QBO</div>
+          <div style="margin-top:12px"><span id="qboCardPill" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px;background:#F3F2F2;color:#8A8F9C;border:1px solid var(--border)">…</span></div>
+        </div>
       </div>
     </div>
 
@@ -558,6 +568,44 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div id="rcActivity" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey);margin-top:10px">Loading…</div>
         </div>
       </div>
+
+      <!-- QuickBooks Online settings page -->
+      <div id="integ-qbo" class="integ-page hide" style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <span style="font-size:1.6rem">📒</span>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem">QuickBooks Online</div>
+          <span style="flex:1"></span>
+          <span id="qboPill" class="hide" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px"></span>
+        </div>
+
+        <!-- Connection section -->
+        <div style="max-width:640px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Connection</div>
+          <div id="qboStatus" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey);font-weight:700;margin-top:2px">Checking…</div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey);margin:12px 0 16px">The Cash Journal posts each store&rsquo;s month-end cash revenue straight into QuickBooks Online as a journal entry (debit Cash on Hand, credit Store Revenue). Connecting is owner-only and the credentials stay server-side &mdash; the browser never sees them.</p>
+          <div id="qboSetup" class="hide" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:0 0 16px;padding:12px 14px;background:#FDF6E3;border:1px solid #F0E2B6;border-radius:10px">
+            <b>Secrets not set &mdash; one-time setup:</b>
+            <ol style="margin:8px 0 0 18px;line-height:2">
+              <li>Create an app at <b>developer.intuit.com</b> with the <b>Accounting</b> scope.</li>
+              <li>Set the <code style="font-size:.78rem;background:#F6F6F8;border:1px solid var(--border);border-radius:6px;padding:1px 6px">QBO_CLIENT_ID</code> and <code style="font-size:.78rem;background:#F6F6F8;border:1px solid var(--border);border-radius:6px;padding:1px 6px">QBO_CLIENT_SECRET</code> function secrets in Supabase.</li>
+              <li>Register the redirect URI <code style="font-size:.74rem;background:#F6F6F8;border:1px solid var(--border);border-radius:6px;padding:1px 6px">https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbo</code> in the app.</li>
+              <li>Come back here and hit <b>Connect</b>.</li>
+            </ol>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn" id="qboConnect">Connect QuickBooks Online</button>
+            <button class="btn alt sm hide" id="qboDisconnect">Disconnect</button>
+          </div>
+          <div id="qboHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
+        </div>
+
+        <!-- Account Mapping (only when connected) -->
+        <div id="qboMap" class="hide" style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Account Mapping</div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 12px">Each store&rsquo;s journal entry <b>debits its Cash on Hand account</b> and <b>credits its Store Revenue account</b>. Pick the matching QBO accounts per store &mdash; the Cash Journal refuses to post a store until it&rsquo;s mapped.</p>
+          <div id="qboMapBody" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -597,6 +645,7 @@ function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
 qbtHandleReturn();   /* if returning from the QuickBooks Time OAuth round-trip, land on Integrations */
+qboHandleReturn();   /* same for the QuickBooks Online round-trip */
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[], QBU=[];
 var RBROLES=[], RBPERMS=[], RBROLEPERMS=[]; /* roles & permissions catalog */
 var CHANNELS=[], NRULES=[], NRC=[]; /* notifications: channels, event rules, rule<->channel links */
@@ -801,7 +850,7 @@ function renderTabs(){
   $('#view-commission').classList.toggle('hide',TAB!=='commission');
   $('#view-integ').classList.toggle('hide',TAB!=='integ');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
-  if(TAB==='integ'){renderInteg();qbtRenderStatus();rcRenderStatus();}
+  if(TAB==='integ'){renderInteg();qbtRenderStatus();rcRenderStatus();qboRenderStatus();}
 }
 
 /* ===================== Integrations library ↔ detail ===================== */
@@ -816,7 +865,7 @@ function renderInteg(){
   $all('.integ-page').forEach(function(p){ p.classList.add('hide'); });
   if(open){ var pg=$('#integ-'+open); if(pg)pg.classList.remove('hide'); }
 }
-function integOpen(key){ INTEG_OPEN=key; lsSet('cprIntegOpen',key); renderInteg(); if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); }
+function integOpen(key){ INTEG_OPEN=key; lsSet('cprIntegOpen',key); renderInteg(); if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); }
 function integClose(){ INTEG_OPEN=null; lsSet('cprIntegOpen',''); renderInteg(); }
 
 /* ===================== QuickBooks Time (integrations) ===================== */
@@ -905,6 +954,153 @@ function qbtHandleReturn(){
   INTEG_OPEN='qbtime'; lsSet('cprIntegOpen','qbtime'); /* land back inside the QB Time page */
   q.delete('qbtime'); q.delete('detail');
   history.replaceState(null,'',location.pathname+(q.toString()?('?'+q.toString()):''));
+}
+
+/* ===================== QuickBooks Online (integrations) ===================== */
+var QBO_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbo';
+var QBO_RETURN_MSG='';
+var QBO_ACCOUNTS=null;   /* cached ?action=accounts chart of accounts */
+async function qboCall(action){
+  var tok=await sessionToken();
+  return fetch(QBO_FN+'?action='+action,{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}})
+    .then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});
+}
+function qboCardPill(state){ /* library card badge: 'on' | 'off' | 'setup' | 'wait' */
+  var c=$('#qboCardPill'); if(!c)return;
+  if(state==='on'){c.textContent='Connected';c.style.color='#1E9E5B';c.style.background='#E9F6EE';c.style.border='1px solid #CFE9D8';}
+  else if(state==='setup'){c.textContent='Setup needed';c.style.color='#B8860B';c.style.background='#FDF6E3';c.style.border='1px solid #F0E2B6';}
+  else if(state==='off'){c.textContent='Not connected';c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
+  else {c.textContent='…';c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
+}
+async function qboRenderStatus(){
+  var st=$('#qboStatus'),pill=$('#qboPill'),conn=$('#qboConnect'),disc=$('#qboDisconnect'),
+      hint=$('#qboHint'),setup=$('#qboSetup'),map=$('#qboMap');
+  var detailOpen=(INTEG_OPEN==='qbo');
+  if(hint)hint.textContent=QBO_RETURN_MSG||'';
+  if(st)st.textContent='Checking…'; if(pill)pill.classList.add('hide');
+  var r=await qboCall('status'), d=r.data||{};
+  if(r.status===403){
+    qboCardPill('off');
+    if(st)st.textContent='Owner sign-in required.';
+    if(conn)conn.classList.add('hide'); if(disc)disc.classList.add('hide');
+    if(setup)setup.classList.add('hide'); if(map)map.classList.add('hide');
+    return;
+  }
+  if(d.connected){
+    qboCardPill('on');
+    if(st)st.textContent='Connected · Realm '+(d.realm_id||'?')
+      +(d.expires_at?(' · token expires '+new Date(d.expires_at).toLocaleString()):'');
+    if(pill){pill.textContent='Connected';pill.style.color='#1E9E5B';pill.style.background='#E9F6EE';pill.style.border='1px solid #CFE9D8';pill.classList.remove('hide');}
+    if(conn){conn.textContent='Reconnect';conn.classList.remove('hide');}
+    if(disc)disc.classList.remove('hide');
+    if(setup)setup.classList.add('hide');
+    if(map){map.classList.toggle('hide',!detailOpen); if(detailOpen)qboRenderMap();}
+  }else if(d.configured===false){
+    qboCardPill('setup');
+    if(st)st.textContent='Secrets not set — finish the one-time setup below.';
+    if(pill){pill.textContent='Setup needed';pill.style.color='#B8860B';pill.style.background='#FDF6E3';pill.style.border='1px solid #F0E2B6';pill.classList.remove('hide');}
+    if(conn){conn.textContent='Connect QuickBooks Online';conn.classList.remove('hide');}
+    if(disc)disc.classList.add('hide');
+    if(setup)setup.classList.remove('hide');
+    if(map)map.classList.add('hide');
+  }else{
+    qboCardPill('off');
+    if(st)st.textContent='Not connected';
+    if(pill){pill.textContent='Off';pill.style.color='#8A8F9C';pill.style.background='#F3F2F2';pill.style.border='1px solid var(--border)';pill.classList.remove('hide');}
+    if(conn){conn.textContent='Connect QuickBooks Online';conn.classList.remove('hide');}
+    if(disc)disc.classList.add('hide');
+    if(setup)setup.classList.add('hide');
+    if(map)map.classList.add('hide');
+  }
+}
+async function qboConnect(){
+  var hint=$('#qboHint'); if(hint)hint.textContent='Opening QuickBooks Online…';
+  var r=await qboCall('start');
+  if(r.data&&r.data.url){ window.location.href=r.data.url; return; }
+  if(hint){
+    if(r.data&&r.data.error==='not_configured')hint.textContent='⚠ QuickBooks Online API keys aren’t set yet (QBO_CLIENT_ID / QBO_CLIENT_SECRET). Add those in Supabase first.';
+    else if(r.status===403)hint.textContent='Owner sign-in required to connect.';
+    else hint.textContent='Could not start the connection'+(r.data&&r.data.detail?(' — '+r.data.detail):'')+'.';
+  }
+}
+async function qboDisconnect(){
+  if(!confirm('Disconnect QuickBooks Online? The Cash Journal can’t post journal entries until you reconnect.'))return;
+  await qboCall('disconnect'); QBO_RETURN_MSG=''; QBO_ACCOUNTS=null; qboRenderStatus();
+}
+function qboHandleReturn(){
+  var q=new URLSearchParams(location.search), s=q.get('qbo');
+  if(!s)return;
+  QBO_RETURN_MSG = s==='connected' ? 'QuickBooks Online connected ✓'
+    : ('Connection failed'+(q.get('detail')?(' — '+q.get('detail')):'')+'.');
+  TAB='integ'; lsSet('cprSetTab',TAB);
+  INTEG_OPEN='qbo'; lsSet('cprIntegOpen','qbo'); /* land back inside the QBO page */
+  q.delete('qbo'); q.delete('detail');
+  history.replaceState(null,'',location.pathname+(q.toString()?('?'+q.toString()):''));
+}
+/* --- Account Mapping: one row per store, Cash on Hand + Store Revenue selects --- */
+var QBO_TH="<th style=\"padding:6px 8px;text-align:left;font-family:'Nunito',sans-serif;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:#8A8F9C\">";
+function qboAcctOpts(accounts,firstLabel,isFirst,selectedId){
+  var first=[],rest=[];
+  (accounts||[]).forEach(function(a){ (isFirst(a)?first:rest).push(a); });
+  function opt(a){
+    return '<option value="'+esc(a.id)+'" data-name="'+esc(a.name)+'"'
+      +(String(a.id)===String(selectedId||'')?' selected':'')+'>'
+      +esc(a.name)+(a.subtype?(' · '+esc(a.subtype)):'')+'</option>';
+  }
+  return '<option value="">— Select account —</option>'
+    +'<optgroup label="'+esc(firstLabel)+'">'+first.map(opt).join('')+'</optgroup>'
+    +(rest.length?('<optgroup label="Other accounts">'+rest.map(opt).join('')+'</optgroup>'):'');
+}
+async function qboRenderMap(){
+  var body=$('#qboMapBody'); if(!body)return;
+  body.textContent='Loading QBO accounts…';
+  var res=await Promise.all([
+    QBO_ACCOUNTS?Promise.resolve({status:200,data:{accounts:QBO_ACCOUNTS}}):qboCall('accounts'),
+    sb.from('qbo_store_map').select('*')
+  ]);
+  var ar=res[0], mr=res[1];
+  if(!(ar.data&&ar.data.accounts)){
+    body.textContent='Could not load the QBO chart of accounts'+(ar.data&&(ar.data.error||ar.data.detail)?(' — '+(ar.data.error||ar.data.detail)):'')+'.';
+    return;
+  }
+  QBO_ACCOUNTS=ar.data.accounts;
+  var byStore={}; ((mr&&mr.data)||[]).forEach(function(x){byStore[x.store]=x;});
+  var LOC=window.CPRLocations;
+  var stores=LOC?LOC.names():[];
+  if(!stores.length){ body.textContent='Store list failed to load — reload the page.'; return; }
+  function cashish(a){return a.type==='Bank'||a.type==='Other Current Asset';}
+  function incomeish(a){return /income/i.test(String(a.type||''));}
+  body.innerHTML='<table style="width:100%;border-collapse:collapse">'
+    +'<tr>'+QBO_TH+'Store</th>'+QBO_TH+'Cash on Hand account</th>'+QBO_TH+'Store Revenue account</th><th></th></tr>'
+    +stores.map(function(name){
+      var m=byStore[name]||{};
+      return '<tr style="border-top:1px solid var(--border)" data-qbostore="'+esc(name)+'">'
+        +'<td style="padding:9px 8px;font-weight:800;color:var(--dark);white-space:nowrap">'+esc(LOC.display(name))+'</td>'
+        +'<td style="padding:9px 8px"><select class="qbo-cash" style="width:100%;max-width:240px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem">'
+          +qboAcctOpts(QBO_ACCOUNTS,'Bank / Other Current Asset',cashish,m.cash_account_id)+'</select></td>'
+        +'<td style="padding:9px 8px"><select class="qbo-rev" style="width:100%;max-width:240px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem">'
+          +qboAcctOpts(QBO_ACCOUNTS,'Income',incomeish,m.revenue_account_id)+'</select></td>'
+        +'<td style="padding:9px 8px;text-align:right"><button class="btn sm qbo-save">Save</button></td>'
+        +'</tr>';
+    }).join('')+'</table>';
+  $all('#qboMapBody .qbo-save').forEach(function(b){
+    b.onclick=function(){ qboSaveMap(b.closest('tr')); };
+  });
+}
+async function qboSaveMap(row){
+  if(!row)return;
+  var store=row.getAttribute('data-qbostore');
+  var cash=row.querySelector('.qbo-cash'), rev=row.querySelector('.qbo-rev');
+  if(!cash.value||!rev.value){toast('Pick both accounts first',true);return;}
+  var co=cash.options[cash.selectedIndex], ro=rev.options[rev.selectedIndex];
+  var r=await sb.from('qbo_store_map').upsert({
+    store:store,
+    cash_account_id:cash.value, cash_account_name:co?co.getAttribute('data-name'):null,
+    revenue_account_id:rev.value, revenue_account_name:ro?ro.getAttribute('data-name'):null,
+    updated_by:(AUTH&&AUTH.name)||'owner'
+  },{onConflict:'store'});
+  if(r.error)toast('Save failed — '+r.error.message,true);
+  else toast((window.CPRLocations?window.CPRLocations.display(store):store)+' mapping saved');
 }
 
 /* ===================== RingCentral SMS (integrations) ===================== */
@@ -2882,6 +3078,8 @@ function initUI(){
   $('#qbtConnect').onclick=qbtConnect;
   $('#qbtDisconnect').onclick=qbtDisconnect;
   $('#qbtSyncUsers').onclick=qbtSyncUsers;
+  var qboC=$('#qboConnect'); if(qboC)qboC.onclick=qboConnect;
+  var qboD=$('#qboDisconnect'); if(qboD)qboD.onclick=qboDisconnect;
   var rcR=$('#rcRefresh'); if(rcR)rcR.onclick=function(){rcRenderStatus();};
   var slaC=$('#slaSaveCfg'); if(slaC)slaC.onclick=slaSaveCfg;
   var slaA=$('#slaAdd'); if(slaA)slaA.onclick=slaAdd;

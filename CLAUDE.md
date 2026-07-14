@@ -199,6 +199,22 @@ start was overridden), revenue/on-hand compute live, and each month has a
 banking, Cash on Hand adjustment). A deposit suggestion is sourced from closed
 `cash_audits` (bank_deposit + small_to_bank; store names matched via CPRLocations
 aliases). The 2025+2026 history was imported from the owner's workbook.
+**QBO push:** each complete month also has an "⬆ QBO" button → review modal →
+the **`qbo` edge function** posts the journal entry straight to QuickBooks Online
+(debit "Cash on Hand — <store>", credit the store-revenue income account; TxnDate
+= month end; negative months swap postings). Intuit OAuth mirrors qbtime-oauth
+(secrets `QBO_CLIENT_ID`/`QBO_CLIENT_SECRET`, tokens + realm in
+`integration_tokens` provider 'qbo'; **Intuit rotates refresh tokens — every
+refresh persists the new one or the connection dies in 100 days**). The JE amount
+is **server-computed from the row** (never client-supplied); an atomic claim on
+the row prevents double-posts; receipts stamp back onto `cash_journal`
+(qbo_je_id/doc_number/posted_at/by/amount — the page flags ⚠ drift when a posted
+month is later edited) and every post logs to `qbo_post_log`. Account mapping per
+store lives in `qbo_store_map` (owner RLS), edited in **Settings → Integrations →
+QuickBooks Online** (Connect + per-store Cash-on-Hand/Revenue account dropdowns
+from the live QBO chart of accounts). Deposits deliberately stay in QBO's bank
+feed (recorded there as Transfers to Cash on Hand — the modal shows the total to
+match). Schema: docs/sql/cash-journal-schema.sql + cash-journal-qbo.sql.
 
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
