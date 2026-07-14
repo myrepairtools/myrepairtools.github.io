@@ -155,8 +155,71 @@
         return m ? (m[2] + ' ' + m[1]).trim() : raw;
     }
 
+    // The editable template (from MRT Settings → RingCentral) with its short
+    // codes, and the store-hours cache the Promise-Time feature parses off the
+    // page. Both are preloaded on init so the message renders synchronously at
+    // send time; if the template hasn't loaded we fall back to built-in wording.
+    var TPL = null;                 // template body string, or null → built-in
+    var HRS = null;                 // { store: { days: {0..6:{open,close}|null} } }
+
+    function tplKey() { return 'mrtTpl_ready_for_pickup'; }
+
+    function loadTemplate() {
+        var ck = tplKey();
+        try {
+            chrome.storage.local.get([ck, 'mrt_store_hours']).then(function (r) {
+                if (r) { if (r[ck]) TPL = r[ck]; if (r.mrt_store_hours) HRS = r.mrt_store_hours; }
+                // refresh the template for this store in the background
+                fn('template_get', { key: 'ready_for_pickup', store: storeName() }).then(function (res) {
+                    if (res && res.ok && res.body) {
+                        TPL = res.body;
+                        var o = {}; o[ck] = res.body; try { chrome.storage.local.set(o); } catch (e) {}
+                    }
+                });
+            }).catch(function () {});
+        } catch (e) {}
+    }
+
+    // "10:00:00" → "10am", "19:30:00" → "7:30pm"
+    function fmt12(hhmmss) {
+        var m = /^(\d{1,2}):(\d{2})/.exec(hhmmss || ''); if (!m) return '';
+        var h = +m[1], mm = +m[2], ap = h < 12 ? 'am' : 'pm', h12 = h % 12 || 12;
+        return h12 + (mm ? ':' + (mm < 10 ? '0' : '') + mm : '') + ap;
+    }
+    // today's store hours as "10am–7pm" (best effort; '' if unknown/closed)
+    function hoursToday() {
+        var cache = HRS; if (!cache) return '';
+        var keys = Object.keys(cache).filter(function (k) { return k !== 'default'; });
+        var rec = cache[storeName()] || (keys.length === 1 ? cache[keys[0]] : cache['default']);
+        if (!rec || !rec.days) return '';
+        var d = rec.days[new Date().getDay()];
+        if (d === null) return 'closed today';
+        if (!d || !d.open || !d.close) return '';
+        var o = fmt12(d.open), c = fmt12(d.close);
+        return (o && c) ? (o + '–' + c) : '';
+    }
+
+    // Fill the short codes. Unknown/empty values degrade gracefully so the
+    // sentence still reads (e.g. {device} → "device", {hours} → "our hours").
+    function renderTemplate(tpl, c) {
+        var name  = (c && c.first) ? c.first : 'there';
+        var dev   = device() || 'device';
+        var store = storeName();
+        var tech  = techName() || '';
+        var hrs   = hoursToday() || 'our business hours';
+        return String(tpl)
+            .replace(/\{(name|first)\}/gi, name)
+            .replace(/\{device\}/gi, dev)
+            .replace(/\{(store|location)\}/gi, store)
+            .replace(/\{tech\}/gi, tech)
+            .replace(/\{hours\}/gi, hrs)
+            .replace(/[ \t]{2,}/g, ' ').trim();   // tidy up if a code rendered empty
+    }
+
     function defaultMessage(c) {
-        var name = c.first ? c.first : 'there';
+        if (TPL) return renderTemplate(TPL, c);
+        // built-in fallback — mirrors the seeded default template wording
+        var name = c && c.first ? c.first : 'there';
         var dev = device();
         var subj = dev ? 'your ' + dev + ' is' : 'your repair is';
         return 'Hi ' + name + ', ' + subj + ' ready for pickup at ' + storeName() +
@@ -441,6 +504,7 @@
 
     function start() {
         document.addEventListener('click', onClick, true);   // capture, ahead of RepairQ
+        loadTemplate();                                        // preload the editable template + store hours
     }
 
     try {

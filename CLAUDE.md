@@ -359,9 +359,11 @@ email, note, set_by_name) is the **per-visit follow-up preference** — how THIS
 wants to hear their repair is ready, saved to the ticket only (never the customer
 profile), deleted when the ticket closes. Two extension surfaces (both under Options →
 RingCentral SMS, default ON): **`readyText.js`** intercepts RepairQ's **Ready for
-Pickup** button — reads the saved `ticket_contacts` preference: `text` auto-sends the
-ready message with a 5-second Undo, `call`/`email`/`return` show a reminder toast (no
-send), nothing-saved falls back to a manual Primary/Alt chooser; **`followUp.js`** pops
+Pickup** button — reads the saved `ticket_contacts` preference: an automated `text`/`call`
+pops a **confirm over the button** ("Confirm Call/Text to <Primary|Alt> <number>" vs
+"Proceed without automated contact" — it no longer fires on a timer), a *manual*
+`call`/`email`/`return` shows a reminder toast (no send), nothing-saved falls back to a
+manual Primary/Alt chooser; **`followUp.js`** pops
 a capture modal right after a ticket's first save (method + number combobox that drops
 the ticket's Primary/Alt on focus + name), writes `contact_set` **and** a RepairQ ticket
 note as a permanent backup, and drops an editable "📣 Follow-up" chip by the customer
@@ -379,6 +381,18 @@ to a Twilio-owned number if any exist, else the call errors and the toast says s
 bg.js proxies `call:place`/`call:status`. A top-bar SMS inbox/compose panel is still
 deferred. When changing SMS/call behavior, keep `readyText.js` + `followUp.js` +
 `bg.js`'s `sms:`/`call:` proxies + the `messaging` and `twilio-call` functions in sync.
+**Editable message wording:** `message_templates` (store null = shared default else
+canonical store name, `template_key`, `body`, updated_by/at; unique on
+`(coalesce(store,''), template_key)`; RLS read-open, write `is_admin()`) holds the
+customer-facing text. First `template_key` is `ready_for_pickup`. The **body carries
+short codes** — `{name}`/`{first}`, `{device}`, `{store}`/`{location}`, `{tech}`
+(signed-in RepairQ user), `{hours}` (today's store hours) — that `readyText.js` fills in
+per send (falling back to built-in wording if the template hasn't loaded). Managers edit
+it in **Settings → Integrations → RingCentral → Message templates** (default + per-store
+override, live preview); the extension reads the resolved template via the `messaging`
+function's `template_get` action (store override → default) and caches it in
+`storage.local` so send-time stays instant. New automated messages should become new
+`template_key` rows here rather than new hard-coded strings.
 
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
