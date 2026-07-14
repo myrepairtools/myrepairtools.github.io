@@ -106,5 +106,26 @@
     draw();
   }
 
-  root.CPRPickers = { week: week, month: month, close: close };
+  /* ---- year picker: 12-year grid with ‹ › paging ---- */
+  function year(anchor, opts){
+    var get = opts.get, set = opts.set;                       // get() -> number, set(y)
+    var min = opts.min || 2000, max = opts.max || 2099;       // selectable range clamps
+    var pop = shell(anchor, 252);
+    var base = Math.floor(get() / 12) * 12;                   // page start (12 per page)
+    function draw(){
+      var sel = get(), now = new Date().getFullYear();
+      var grid = '';
+      for (var y = base; y < base + 12; y++){
+        var on = y === sel, blocked = y < min || y > max;
+        grid += '<button data-cyr="' + (blocked ? '' : y) + '" style="padding:9px 0;border:1px solid ' + (on ? '#4FB0E3' : 'transparent') + ';border-radius:8px;background:' + (on ? 'rgba(79,176,227,.14)' : 'transparent') + ';color:' + (blocked ? '#C7CAD4' : (on ? '#1E7AA8' : (y === now ? '#DC282E' : '#2D2D3B'))) + ';font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.76rem;cursor:' + (blocked ? 'default' : 'pointer') + '">' + y + '</button>';
+      }
+      pop.innerHTML = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><button data-cpy="-12" style="' + NAVB + '">‹</button><div style="flex:1;text-align:center;font-family:\'Nunito\',sans-serif;font-weight:900;font-size:.9rem">' + base + '–' + (base + 11) + '</div><button data-cpy="12" style="' + NAVB + '">›</button></div>'
+        + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">' + grid + '</div>';
+      pop.querySelectorAll('[data-cpy]').forEach(function(b){ b.onclick = function(ev){ ev.stopPropagation(); base += Number(b.getAttribute('data-cpy')); draw(); }; });
+      pop.querySelectorAll('[data-cyr]').forEach(function(b){ var y = b.getAttribute('data-cyr'); if (!y) return; b.onclick = function(){ close(); set(Number(y)); }; });
+    }
+    draw();
+  }
+
+  root.CPRPickers = { week: week, month: month, year: year, close: close };
 })(typeof window !== 'undefined' ? window : this);

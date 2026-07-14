@@ -91,7 +91,8 @@
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin', hidden:true },
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
     { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
-    { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' }
+    { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' },
+    { label:'Cash Journal',     url:'cash-journal.html',          icon:'📒', minRole:'owner', acc:'cash.journal' }
   ];
 
   var RANK = { none:0, employee:1, team_member:1, manager:2, admin:2, owner:3 };
