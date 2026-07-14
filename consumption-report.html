@@ -350,9 +350,10 @@ tr.skipped td.itm .nm{opacity:.6}
 tr.samchild{background:#FBFCFE}
 tr.samchild td:first-child{padding-left:28px;border-left:2px solid #CDEAF8}
 tr.samchild .nm{color:var(--dark-grey)}
-tr.samchild.combo{background:#F5F5F6;opacity:.55}
-tr.samchild.combo td:first-child{border-left-color:#D8D8DE}
-tr.samchild.combo .samkid{color:#8A8F9C;background:#EDEDF0;border-color:#DDDDE2}
+/* adhesive children dim together with their screen when it's marked ordered */
+tr.samchild.parent-ordered{background:#F5F5F6;opacity:.5}
+tr.samchild.parent-ordered td:first-child{border-left-color:#D8D8DE}
+tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color:#DDDDE2}
 .samkid{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;text-transform:uppercase;letter-spacing:.4px;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:0 5px;margin-right:6px;vertical-align:middle}
 </style>
 </head>
@@ -852,7 +853,11 @@ function clusterSamsung(rows){
     if(r.type==='sku'&&childSet[r.sku])return;
     out.push(r);
     var i=inf(r);
-    if(i&&i.role==='display'&&target[i.model]===r)adhBy[i.model].forEach(function(c){out.push(c);});
+    if(i&&i.role==='display'&&target[i.model]===r){
+      // if the screen is fully ordered, its adhesive children dim along with it
+      var pFull=(r.suggest>0 && (typeof toOrderNow==='function') && toOrderNow(r)<=0);
+      adhBy[i.model].forEach(function(c){c._samParentFull=pFull;out.push(c);});
+    }
   });
   return out;
 }
@@ -1224,7 +1229,7 @@ function renderStock(){
     var skuCell=r.type==='group'?'<span style="color:var(--grey)">pooled</span>':r.sku;
     var nameHtml=(r._samChild?'<span class="samkid">↳ '+samRoleName(r._samRole)+'</span>':'')+r.name+(r.type==='group'?'<span class="poolbadge">⬡ Pool · '+r.members+'</span>':'');
     var tr=document.createElement('tr');
-    if(r._samChild)tr.className='samchild'+(r._samRole==='combo'?' combo':'');
+    if(r._samChild)tr.className='samchild';
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span></td>'
       +'<td class="num">'+r.instock+'</td>'
@@ -1267,8 +1272,9 @@ function renderOrderRows(tb, rows){
     var ordTag=full?'<span class="skiptag">ordered</span>'
                    :(partial?'<span class="skiptag part">'+ordQty+' of '+r.suggest+' ordered</span>':'');
     var tr=document.createElement('tr');
-    if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild'+(r._samRole==='combo'?' combo':'');
+    if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild';
     if(full)tr.classList.add('skipped');
+    if(r._samChild&&r._samParentFull)tr.classList.add('parent-ordered');   // dim with the ordered screen
     tr.innerHTML='<td class="sku">'+skuCell+'</td>'
       +'<td class="itm"><span class="nm">'+nameHtml+'</span>'+ordTag+'</td>'
       +'<td class="ctr"><b>'+r.used+'</b></td>'
