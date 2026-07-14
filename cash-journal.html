@@ -83,6 +83,38 @@ font-family:'Nunito Sans',sans-serif;font-size:.76rem;font-weight:600;color:var(
 .jebtn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;border:1.5px solid var(--border);
 border-radius:8px;background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:nowrap}
 .jebtn:hover{border-color:var(--blue);color:var(--blue)}
+.jebtn.qbo{color:#1B7A12;border-color:#CFE9D8}
+.jebtn.qbo:hover{border-color:#2CA01C;color:#2CA01C}
+.jebtn:disabled{opacity:.5;cursor:default}
+
+/* QBO posted chip */
+.qbochip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;border:1px solid #CFE9D8;
+border-radius:999px;background:#E9F6EE;color:var(--green);padding:4px 9px;cursor:pointer;white-space:nowrap}
+.qbochip.warn{border-color:#F0E2B6;background:#FDF6E3;color:#9A6B00}
+
+/* QBO modal (house overlay style) */
+.qmask{position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:940;display:flex;
+align-items:center;justify-content:center;padding:18px}
+.qmodal{background:#fff;border-radius:16px;width:min(480px,100%);padding:20px 22px;
+box-shadow:0 18px 60px rgba(0,0,0,.28);max-height:92vh;overflow:auto}
+.qm-h{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;margin-bottom:12px}
+.qm-je{width:100%;border-collapse:collapse;margin:2px 0 8px}
+.qm-je td{padding:8px 6px;border-top:1px solid var(--border);font-size:.84rem;font-weight:700;color:var(--dark)}
+.qm-je tr:first-child td{border-top:none}
+.qm-je td.r{text-align:right;font-family:'Nunito',sans-serif;font-weight:900;white-space:nowrap}
+.qm-meta{font-size:.76rem;font-weight:700;color:var(--dark-grey);margin:2px 0 8px}
+.qm-note{font-size:.71rem;font-weight:600;color:var(--grey);margin-bottom:10px}
+.qm-dep{font-size:.78rem;font-weight:700;color:var(--dark-grey);background:var(--light-grey);
+border-radius:9px;padding:9px 11px;margin-bottom:10px}
+.qm-receipt{font-size:.79rem;font-weight:800;color:var(--green);background:#E9F6EE;
+border:1px solid #CFE9D8;border-radius:9px;padding:9px 11px;margin-bottom:10px}
+.qm-warn{font-size:.74rem;font-weight:700;color:#9A6B00;background:#FDF6E3;
+border:1px solid #F0E2B6;border-radius:9px;padding:8px 11px;margin-bottom:10px}
+.qm-err{font-size:.78rem;font-weight:700;color:var(--red);margin-bottom:6px}
+.qm-err a{color:var(--blue)}
+.qm-ft{display:flex;align-items:center;gap:10px;margin-top:8px}
+.qm-ft .spacer{flex:1}
+.btn.danger{background:var(--red)}
 
 .empty{padding:60px 20px;text-align:center;color:var(--grey);font-weight:700}
 .empty.err{color:var(--dark-grey)}
@@ -113,6 +145,7 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
   <div class="empty" id="gate" style="display:none"></div>
   <div class="grid" id="grid"></div>
 </main>
+<div class="qmask" id="qboMask" style="display:none"></div>
 <div class="toast" id="toast"></div>
 
 <script src="assets/locations.js"></script>
@@ -179,7 +212,8 @@ function money2(n){
 }
 function mkey(y,m){return y+'-'+String(m).padStart(2,'0');}
 function priorKey(m){return m===1?mkey(YEAR-1,12):mkey(YEAR,m-1);}
-function st(k){return STATE[k]||(STATE[k]={starting:null,ending:null,deposited:null,note:''});}
+function st(k){return STATE[k]||(STATE[k]={starting:null,ending:null,deposited:null,note:'',
+  qbo_je_id:null,qbo_doc_number:null,qbo_posted_at:null,qbo_posted_by:null,qbo_posted_amount:null});}
 function revenue(k){var s=st(k);return (s.ending!=null&&s.starting!=null)?s.ending-s.starting:null;}
 function onHand(k){var s=st(k);return (s.ending!=null&&s.deposited!=null)?s.ending-s.deposited:null;}
 
@@ -210,15 +244,20 @@ async function load(){
 
   /* one query: prior December (January's carry-forward) through this December */
   var r=await sb.from('cash_journal')
-    .select('month,starting_cash,ending_cash,cash_deposited,note')
+    .select('month,starting_cash,ending_cash,cash_deposited,note,qbo_je_id,qbo_doc_number,qbo_posted_at,qbo_posted_by,qbo_posted_amount')
     .eq('store',STORE).gte('month',mkey(YEAR-1,12)).lte('month',mkey(YEAR,12));
   if(tok!==LOADTOKEN)return;
   if(r.error){showGate();return;}
 
   STATE={};NOTEOPEN={};STATUS={};
   (r.data||[]).forEach(function(row){
+    /* qbo_* fields are read-only here — written only by the qbo edge function,
+       NEVER included in the autosave upsert payload */
     STATE[row.month]={starting:num(row.starting_cash),ending:num(row.ending_cash),
-      deposited:num(row.cash_deposited),note:row.note||''};
+      deposited:num(row.cash_deposited),note:row.note||'',
+      qbo_je_id:row.qbo_je_id||null,qbo_doc_number:row.qbo_doc_number||null,
+      qbo_posted_at:row.qbo_posted_at||null,qbo_posted_by:row.qbo_posted_by||null,
+      qbo_posted_amount:num(row.qbo_posted_amount)};
   });
 
   /* deposit helper — closed Cash Admin audits for the year (hidden silently on error) */
@@ -288,7 +327,8 @@ function renderGrid(){
       +'<div class="noterow" data-k="'+k+'" style="display:none">'
         +'<input type="text" maxlength="300" placeholder="Note — e.g. why the start was adjusted" data-k="'+k+'" data-f="note"></div>'
       +'<div class="jefoot" data-k="'+k+'" style="display:none"><span class="jesum"></span>'
-        +'<button class="jebtn" data-k="'+k+'" title="Copy the QBO journal-entry block">📋 JE</button></div>';
+        +'<button class="jebtn" data-k="'+k+'" title="Copy the QBO journal-entry block">📋 JE</button>'
+        +'<span class="qboctl" data-k="'+k+'"></span></div>';
     grid.appendChild(card);
 
     /* values are set as DOM properties (never innerHTML) so notes need no escaping here */
@@ -374,7 +414,29 @@ function updateCard(k){
       'Revenue '+money(rev)+' · Deposits '+money(s.deposited)
       +' · On-hand '+money(s.starting)+' → '+money(onh)
       +' ('+(adjv>=-0.004?'+':'')+money(adjv)+')';
+    updateQboCtl(k,rev);
   }else je.style.display='none';
+}
+
+/* QBO control in the JE footer: ⬆ post button, or the posted chip (green / amber-drift) */
+function updateQboCtl(k,rev){
+  var el=document.querySelector('.qboctl[data-k="'+k+'"]');
+  if(!el)return;
+  var s=st(k);
+  if(!s.qbo_je_id){
+    el.innerHTML='<button class="jebtn qbo" title="Post this month\'s journal entry to QuickBooks Online">⬆ QBO</button>';
+  }else{
+    var drift=(rev!=null&&s.qbo_posted_amount!=null&&Math.abs(rev-s.qbo_posted_amount)>0.005);
+    if(drift){
+      el.innerHTML='<button class="qbochip warn" title="Posted amount differs from current revenue — post again to correct">⚠ QBO '
+        +esc(money2(s.qbo_posted_amount))+'</button>';
+    }else{
+      var when=s.qbo_posted_at?new Date(s.qbo_posted_at).toLocaleDateString():'?';
+      el.innerHTML='<button class="qbochip" title="Posted '+esc(when)+' by '+esc(s.qbo_posted_by||'?')+'">✓ QBO #'
+        +esc(s.qbo_doc_number||s.qbo_je_id)+'</button>';
+    }
+  }
+  el.firstChild.onclick=function(){openQbo(k);};
 }
 
 function updateTiles(){
@@ -475,6 +537,139 @@ function copyText(t){
     navigator.clipboard.writeText(t).then(done,fallback);
   else fallback();
 }
+
+/* ------------- QBO post (journal entry via the qbo edge function) ------------- */
+var QBO_FN=SB_URL+'/functions/v1/qbo';
+var QBO_OPEN=null;    // month key while the modal is open
+var QBO_BUSY=false;   // a post is in flight — block close/double-submit
+
+async function openQbo(k){
+  /* unsaved edits (debounce pending) flush first — the function reads the DB row */
+  if(TIMERS[k]){clearTimeout(TIMERS[k]);delete TIMERS[k];await saveMonth(k);}
+  flushSaves();
+  /* if that flush FAILED, the server row is stale — posting would use the old
+     numbers while the modal shows the new ones. Refuse until the save lands. */
+  if(STATUS[k]==='error'){toast('This month didn’t save — fix that (⚠ retry) before posting to QBO',true);return;}
+  if(revenue(k)==null||onHand(k)==null){toast('Fill Starting, Ending and Deposited first',true);return;}
+  QBO_OPEN=k;QBO_BUSY=false;
+  renderQbo();
+}
+function closeQbo(){
+  if(QBO_BUSY)return;
+  QBO_OPEN=null;
+  var m=$('#qboMask');m.style.display='none';m.innerHTML='';
+}
+function renderQbo(note){
+  var k=QBO_OPEN;if(!k)return;
+  var s=st(k),rev=revenue(k);
+  var m=+k.slice(5),lastDay=new Date(YEAR,m,0).getDate();
+  var disp=LOC.display(STORE);
+  var posted=!!s.qbo_je_id;
+  var memo=disp+' — '+MONTHS[m-1]+' '+YEAR+' cash store revenue';
+  var html='<div class="qmodal" role="dialog" aria-modal="true">'
+    +'<div class="qm-h">Post to QuickBooks — '+esc(disp)+' '+MONTHS[m-1]+' '+YEAR+'</div>';
+  if(note)html+='<div class="qm-warn">'+note+'</div>';   // pre-escaped by callers
+  if(posted){
+    var when=s.qbo_posted_at?new Date(s.qbo_posted_at).toLocaleDateString():'?';
+    html+='<div class="qm-receipt">✓ Posted — JE #'+esc(s.qbo_doc_number||s.qbo_je_id)
+      +' · '+esc(money2(s.qbo_posted_amount))+' · '+esc(when)+' · by '+esc(s.qbo_posted_by||'?')+'</div>';
+  }
+  /* negative month (refund-heavy): the function swaps the posting types and
+     sends positive amounts — the preview must show the same JE it confirms */
+  var neg=rev<0, absRev=Math.abs(rev);
+  html+='<table class="qm-je">'
+    +'<tr><td>'+(neg?'Credit':'Debit')+' · Cash on Hand — '+esc(disp)+'</td><td class="r">'+esc(money2(absRev))+'</td></tr>'
+    +'<tr><td>'+(neg?'Debit':'Credit')+' · Store Revenue</td><td class="r">'+esc(money2(absRev))+'</td></tr>'
+    +'</table>'
+    +(neg?'<div class="qm-warn">Negative revenue month — this JE REDUCES store revenue and cash on hand.</div>':'')
+    +'<div class="qm-meta">TxnDate '+m+'/'+lastDay+'/'+YEAR+' · Memo: &ldquo;'+esc(memo)+'&rdquo;</div>'
+    +'<div class="qm-note">Account names above are generic labels — the real per-store mapping lives in Settings → Integrations → QuickBooks Online.</div>'
+    +'<div class="qm-dep">🏦 Banking: also match '+esc(money2(s.deposited))+' of deposits as Transfers to Cash on Hand — '+esc(disp)+'.</div>';
+  if(posted)html+='<div class="qm-warn">Post Again creates a SECOND journal entry in QBO — delete the old one there if this is a correction.</div>';
+  html+='<div class="qm-err" id="qboErr"></div>'
+    +'<div class="qm-ft"><button class="btn alt" id="qboCancel">Cancel</button><span class="spacer"></span>'
+    +(posted
+      ?'<button class="btn danger" id="qboPost">Post Again</button>'
+      :'<button class="btn" id="qboPost">Post Journal Entry</button>')
+    +'</div></div>';
+  var mask=$('#qboMask');
+  mask.innerHTML=html;mask.style.display='flex';
+  $('#qboCancel').onclick=closeQbo;
+  $('#qboPost').onclick=function(){postQbo(k,posted);};
+}
+async function postQbo(k,force){
+  if(QBO_BUSY)return;
+  QBO_BUSY=true;
+  var btn=$('#qboPost'),err=$('#qboErr');
+  var was=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Posting…';}
+  if(err)err.innerHTML='';
+  function fail(html){
+    QBO_BUSY=false;
+    if(btn){btn.disabled=false;btn.textContent=was;}
+    if(err)err.innerHTML=html;
+  }
+  var sess=await ensureSession();
+  if(!sess){fail('Owner sign-in required — sign in with your PIN, then retry.');return;}
+  var res,d={};
+  try{
+    res=await fetch(QBO_FN,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.access_token,'apikey':ANON},
+      body:JSON.stringify(force?{action:'post_je',store:STORE,month:k,force:true}
+                               :{action:'post_je',store:STORE,month:k})});
+    try{d=await res.json();}catch(e){d={};}
+  }catch(e){fail('Network error — '+esc(e&&e.message||'could not reach the function')+'.');return;}
+
+  if(res.ok&&d.ok){
+    var s=st(k);
+    s.qbo_je_id=d.je_id||s.qbo_je_id;
+    s.qbo_doc_number=d.doc_number||null;
+    s.qbo_posted_amount=num(d.amount);
+    s.qbo_posted_at=new Date().toISOString();
+    s.qbo_posted_by=window.CPRNavName||'owner';
+    QBO_BUSY=false;
+    closeQbo();
+    updateCard(k);
+    toast('JE #'+(d.doc_number||d.je_id)+' posted');
+    return;
+  }
+  if(res.status===409&&d.error==='already_posted'){
+    /* someone else posted — pull the receipt and re-render in posted mode */
+    var r=await sb.from('cash_journal')
+      .select('qbo_je_id,qbo_doc_number,qbo_posted_at,qbo_posted_by,qbo_posted_amount')
+      .eq('store',STORE).eq('month',k).maybeSingle();
+    if(r&&r.data){
+      var s2=st(k);
+      s2.qbo_je_id=r.data.qbo_je_id||s2.qbo_je_id;
+      s2.qbo_doc_number=r.data.qbo_doc_number||null;
+      s2.qbo_posted_at=r.data.qbo_posted_at||null;
+      s2.qbo_posted_by=r.data.qbo_posted_by||null;
+      s2.qbo_posted_amount=num(r.data.qbo_posted_amount);
+    }
+    QBO_BUSY=false;
+    updateCard(k);
+    renderQbo('Already posted (JE #'+esc(d.doc_number||'?')+') — someone else beat you to it.');
+    return;
+  }
+  if(res.status===503||d.error==='not_connected'){
+    toast('QuickBooks Online is not connected',true);
+    fail('QBO isn&rsquo;t connected — <a href="settings.html">Connect QBO in Settings → Integrations</a>.');
+    return;
+  }
+  if(d.error==='unmapped'){
+    fail('This store&rsquo;s accounts aren&rsquo;t mapped — <a href="settings.html">Map accounts in Settings → Integrations → QuickBooks Online</a>.');
+    return;
+  }
+  if(res.status===502||d.error==='qbo_error'){
+    var det=d.detail==null?'':(typeof d.detail==='string'?d.detail:JSON.stringify(d.detail));
+    fail('QuickBooks error — '+esc(det||'no detail')+'.');
+    return;
+  }
+  fail(esc(d.detail||d.error||('Post failed (HTTP '+res.status+')'))+'.');
+}
+/* mask click (outside the card) + Escape close the modal */
+$('#qboMask').addEventListener('click',function(e){if(e.target===this)closeQbo();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&QBO_OPEN)closeQbo();});
 
 /* ------------- year nav ------------- */
 $('#yPrev').addEventListener('click',function(){flushSaves();YEAR--;persist();load();});
