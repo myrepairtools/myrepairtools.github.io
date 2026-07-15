@@ -305,12 +305,25 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
         sentFrom = RC_FROM_DEFAULT;
       } else throw e;
     }
-    const r = await fetch(`${RC_SERVER}/restapi/v1.0/account/~/extension/~/sms`, {
+    let r = await fetch(`${RC_SERVER}/restapi/v1.0/account/~/extension/~/sms`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${t}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: { phoneNumber: sentFrom }, to: [{ phoneNumber: to }], text: finalBody }),
     });
     rc = await r.json();
+    // official-line sends must not die while the toll-free number awaits SMS
+    // verification — RC rejects the FROM ("feature not available") until then.
+    // Retry once from the default line; the 855 takes over automatically when
+    // verification clears (no code change needed).
+    if (!r.ok && payload?._official && RC_FROM_DEFAULT && sentFrom !== RC_FROM_DEFAULT) {
+      sentFrom = RC_FROM_DEFAULT;
+      r = await fetch(`${RC_SERVER}/restapi/v1.0/account/~/extension/~/sms`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${t}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: { phoneNumber: sentFrom }, to: [{ phoneNumber: to }], text: finalBody }),
+      });
+      rc = await r.json();
+    }
     ok = r.ok;
     rcId = rc?.id ? String(rc.id) : null;
     if (!ok) err = rc?.message || rc?.errorCode || `HTTP ${r.status}`;
