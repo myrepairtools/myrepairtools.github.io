@@ -90,7 +90,7 @@
     // Cash Admin reached from a button on Cash Tracker (hidden from menus)
     { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin', hidden:true },
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
-    { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
+    { label:'Payroll · Commission & Tips', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' },
     { label:'Cash Journal',     url:'cash-journal.html',          icon:'📒', minRole:'owner', acc:'cash.journal' },
     { label:'Expenses',         url:'expenses.html',              icon:'🧾', minRole:'owner', acc:'expenses.record' }
