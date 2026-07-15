@@ -1128,22 +1128,93 @@ async function qboRenderMap(){
     b.onclick=function(){ qboSaveMap(b.closest('tr')); };
   });
   var pws=$('#qboPaySave'); if(pws)pws.onclick=qboSavePaywith;
+  qboPayWire();
 }
-/* Expenses · Paid With allowlist — which bank/CC accounts the mobile recorder offers */
+/* Expenses · Paid With allowlist — which bank/CC accounts the mobile recorder offers.
+   The owner's Profit First chart means dozens of bank accounts, so: a search box +
+   accounts grouped by their name prefix ("CASH ON HAND", "(CPO)PROFIT", …) within
+   Bank / Credit Card, with a group checkbox that toggles the whole family. */
+function qboPayGroups(accts){
+  var byType={'Bank':{},'Credit Card':{}};
+  var pre={};
+  accts.forEach(function(a){
+    var p=a.name.indexOf(' - ')>-1?a.name.split(' - ')[0].trim():null;
+    if(p)pre[a.type+'|'+p]=(pre[a.type+'|'+p]||0)+1;
+  });
+  accts.forEach(function(a){
+    var p=a.name.indexOf(' - ')>-1?a.name.split(' - ')[0].trim():null;
+    var g=(p&&pre[a.type+'|'+p]>1)?p:'Other';   // singleton prefixes pool under Other
+    (byType[a.type][g]=byType[a.type][g]||[]).push(a);
+  });
+  return byType;
+}
 function qboPayHtml(val){
   var chosen=(val&&Array.isArray(val.ids))?val.ids:[];
   var accts=(QBO_ACCOUNTS||[]).filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
   if(!accts.length)return '';
-  return '<div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">'
+  var byType=qboPayGroups(accts);
+  var body='';
+  ['Bank','Credit Card'].forEach(function(type){
+    var groups=Object.keys(byType[type]).sort(function(a,b){
+      if(a==='Other')return 1; if(b==='Other')return -1; return a.localeCompare(b);
+    });
+    if(!groups.length)return;
+    body+='<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.66rem;letter-spacing:.6px;text-transform:uppercase;color:var(--grey);margin:12px 0 4px">'+esc(type)+'</div>';
+    groups.forEach(function(g){
+      var members=byType[type][g];
+      body+='<div class="qbo-pgrp" data-grp>'
+        +'<label style="display:flex;align-items:center;gap:9px;font-family:\'Nunito\',sans-serif;font-size:.85rem;font-weight:800;color:var(--dark);cursor:pointer;padding:6px 0">'
+        +'<input type="checkbox" class="qbo-paygrp" style="width:17px;height:17px;accent-color:var(--blue)">'
+        +esc(g)+' <span style="color:var(--grey);font-weight:600;font-size:.74rem">· '+members.length+'</span></label>'
+        +members.map(function(a){
+          return '<label class="qbo-payrow" data-name="'+esc(a.name.toLowerCase())+'" style="display:flex;align-items:center;gap:9px;font-family:\'Nunito Sans\',sans-serif;font-size:.85rem;font-weight:700;color:var(--dark);cursor:pointer;padding:5px 0 5px 26px">'
+            +'<input type="checkbox" class="qbo-pay" value="'+esc(a.id)+'"'+(chosen.indexOf(a.id)>-1?' checked':'')+' style="width:17px;height:17px;accent-color:var(--blue)">'
+            +esc(a.name)+'</label>';
+        }).join('')
+        +'</div>';
+    });
+  });
+  return '<div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px" id="qboPayWrap">'
     +'<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark)">Expenses · Paid With Accounts</div>'
-    +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 10px">Which bank / credit-card accounts the mobile Expenses recorder offers. Nothing checked = all of them.</div>'
-    +'<div id="qboPayList" style="display:flex;flex-direction:column;gap:7px">'
-    +accts.map(function(a){
-      return '<label style="display:flex;align-items:center;gap:9px;font-family:\'Nunito Sans\',sans-serif;font-size:.86rem;font-weight:700;color:var(--dark);cursor:pointer">'
-        +'<input type="checkbox" class="qbo-pay" value="'+esc(a.id)+'"'+(chosen.indexOf(a.id)>-1?' checked':'')+' style="width:17px;height:17px;accent-color:var(--blue)">'
-        +esc(a.name)+' <span style="color:var(--grey);font-weight:600">· '+esc(a.type)+'</span></label>';
-    }).join('')
-    +'</div><button class="btn sm" id="qboPaySave" style="margin-top:11px">Save Paid With List</button></div>';
+    +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 10px">Which bank / credit-card accounts the mobile Expenses recorder offers. Nothing checked = all of them. Check a group name to grab the whole family.</div>'
+    +'<input type="text" id="qboPaySearch" placeholder="Search accounts…" style="width:100%;max-width:360px;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:\'Nunito Sans\',sans-serif;font-size:16px;font-weight:700">'
+    +'<div id="qboPayList">'+body+'</div>'
+    +'<button class="btn sm" id="qboPaySave" style="margin-top:11px">Save Paid With List</button></div>';
+}
+function qboPayWire(){
+  var wrap=$('#qboPayWrap'); if(!wrap)return;
+  /* group checkbox <-> members */
+  function syncGrp(grp){
+    var g=grp.querySelector('.qbo-paygrp');
+    var rows=[].slice.call(grp.querySelectorAll('.qbo-pay'));
+    var on=rows.filter(function(c){return c.checked;}).length;
+    g.checked=on===rows.length&&rows.length>0;
+    g.indeterminate=on>0&&on<rows.length;
+  }
+  $all('#qboPayList [data-grp]').forEach(function(grp){
+    syncGrp(grp);
+    grp.querySelector('.qbo-paygrp').addEventListener('change',function(){
+      var me=this;
+      grp.querySelectorAll('.qbo-pay').forEach(function(c){c.checked=me.checked;});
+      syncGrp(grp);
+    });
+    grp.querySelectorAll('.qbo-pay').forEach(function(c){
+      c.addEventListener('change',function(){syncGrp(grp);});
+    });
+  });
+  /* live search — hides non-matching rows and empties */
+  var s=$('#qboPaySearch');
+  if(s)s.addEventListener('input',function(){
+    var q=s.value.trim().toLowerCase();
+    $all('#qboPayList [data-grp]').forEach(function(grp){
+      var any=false;
+      grp.querySelectorAll('.qbo-payrow').forEach(function(r){
+        var hit=!q||r.getAttribute('data-name').indexOf(q)>-1;
+        r.style.display=hit?'flex':'none'; if(hit)any=true;
+      });
+      grp.style.display=any?'':'none';
+    });
+  });
 }
 async function qboSavePaywith(){
   var ids=$all('#qboPayList .qbo-pay:checked').map(function(c){return c.value;});
