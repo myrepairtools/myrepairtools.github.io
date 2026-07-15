@@ -316,7 +316,7 @@
                     sendSms(payload, function (res) {
                         var ok = res && res.ok;
                         b.innerHTML = ok ? '✓ Sent' : (((res && res.error) || 'Failed') + ' — proceeding');
-                        var note = ok ? '📣 Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')' : null;
+                        var note = ok ? 'Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')' : null;
                         setTimeout(function () { proceed(btn, note); }, ok ? 550 : 1400);
                     });
                 } else if (act === 'call') {
@@ -345,7 +345,11 @@
     // the note is the record techs actually read. keepalive lets the write
     // survive the page turn that follows the status change.
     function writeNote(text) {
-        if (!text || !String(text).trim()) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
+        // RepairQ's DB is 3-byte MySQL utf8: a 4-byte char (most emoji) silently
+        // truncates the note from that char on — a leading emoji stores a BLANK
+        // note, and blank notes block the ticket from saving. Strip them.
+        text = String(text == null ? '' : text).replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();
+        if (!text) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) return;
@@ -418,7 +422,7 @@
                     var ok = r && r.ok;
                     msg.textContent = ok ? '✓ Call placed' : '⚠ ' + ((r && r.error) || 'call failed');
                     var note = ok
-                        ? '📣 Automated ready-for-pickup call placed to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
+                        ? 'Automated ready-for-pickup call placed to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
                         : 'Ready for pickup — automated call to ' + pretty(num) + ' did not place — myRepairTools (' + (techName() || 'staff') + ')';
                     setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 2200);
                 });
@@ -431,7 +435,7 @@
                 var ok = res && res.ok;
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
                 var note = ok
-                    ? '📣 Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
+                    ? 'Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
                     : 'Ready for pickup — automated text to ' + pretty(num) + ' did not send — myRepairTools (' + (techName() || 'staff') + ')';
                 setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 1500);
             });

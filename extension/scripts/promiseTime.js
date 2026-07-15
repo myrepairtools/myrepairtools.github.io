@@ -506,7 +506,10 @@
         // in the toolbar row: flow inline with the What's Next button
         '.mrt-pt-pill.mrt-pt-inrow{position:static;transform:none;display:inline-block;' +
           'vertical-align:middle;margin:0 10px 0 0;box-shadow:none}' +
-        '@media (max-width:1100px){.mrt-pt-pill{display:none}}';   // hide on tight widths so it never collides
+        // Small-laptop degrade (Ben's header-squish report): drop the queue/pace
+        // sub-text first, then the whole pill, so the search bar never squishes.
+        '@media (max-width:1600px){.mrt-pt-pill .mrt-pt-pill-sub{display:none}}' +
+        '@media (max-width:1280px){.mrt-pt-pill{display:none}}';
         document.head.appendChild(s);
     }
 
