@@ -94,11 +94,14 @@ these when adding UI so a new tool looks native.
   update the right area array here** (and the tile in `index.html`) or it won't appear in
   the nav. **The rail-bottom gear is a real area** (not a link): clicking it swaps the pane
   to the `SETTINGS` list (Team Members, Locations, Notifications, Page Settings, Commission,
-  Integrations, Roles & Permissions) and highlights the gear like any area icon. Most rows
-  deep-link to `settings.html#<tab>` (the page opens that tab from the hash and listens to
-  hashchange); Locations is its own page `settings-locations.html` (read-only registry of
-  `CPRLocations.list()`, permission key `settings.locations` — the "Add Location" button
-  opens guidance, the list itself still lives in locations.js).
+  Integrations, Roles & Permissions) and highlights the gear like any area icon. Every row
+  deep-links to `settings.html#<tab>` (staff/loc/notif/pages/commission/integ/roles — the
+  page opens that tab from the hash, listens to hashchange, keeps the hash synced via
+  replaceState, and owner-gates integ/roles). settings.html's own tab strip is hidden
+  (kept in the DOM so bindings stay harmless); a dynamic per-section header renders in its
+  place. The nav Settings pane is the only section switcher — don't add page-level ones.
+  The Locations tab manages the `stores` table (RQ name, color, active); the canonical
+  cross-tool store list still lives in `assets/locations.js`.
   **Admin-page access pattern:** an admin page that manages a front-end tool (Cash Admin,
   Schedule Admin, Task Admin) is reached from an **`.adminbtn` button in the header of the
   tool it manages** (Cash Tracker / My Time / Checklist) — not from the nav menus. Keep its
