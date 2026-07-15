@@ -98,8 +98,8 @@
   // the pane to this list instead of navigating. Gear visibility stays staff.manage;
   // rows gate individually. Hash links open that tab on settings.html directly.
   var SETTINGS = [
-    { label:'Team Members',        url:'employee-records.html',    icon:'📁', acc:'staff.view' },
-    { label:'Locations',           url:'settings-locations.html',  icon:'📍', acc:'settings.locations' },
+    { label:'Team Members',        url:'settings.html#staff',      icon:'📁', acc:'staff.manage' },
+    { label:'Locations',           url:'settings.html#loc',        icon:'📍', acc:'staff.manage' },
     { label:'Notifications',       url:'settings.html#notif',      icon:'🔔', acc:'staff.manage' },
     { label:'Page Settings',       url:'settings.html#pages',      icon:'📄', acc:'staff.manage' },
     { label:'Commission',          url:'settings.html#commission', icon:'📈', acc:'staff.manage' },
@@ -281,7 +281,7 @@
   var inEmployees = EMPLOYEES.some(function(t){ return t.url.toLowerCase() === currentFile; });
   // settings pages highlight the gear (employee-records stays under Employees even
   // though it's also listed in the Settings pane)
-  var inSettings = (currentFile === 'settings.html' || currentFile === 'settings-locations.html');
+  var inSettings = (currentFile === 'settings.html');
   var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────

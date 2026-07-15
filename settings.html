@@ -258,9 +258,12 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js" data-section="admin"></script>
 <main>
-  <h1>Settings</h1>
+  <h1 id="setTitle">Settings</h1>
+  <div id="setSub" style="color:var(--dark-grey);font-size:.85rem;font-weight:700;margin:2px 0 16px"></div>
 
-  <div class="tabs">
+  <!-- section switching moved to the nav Settings pane (rail gear); strip kept in
+       the DOM (hidden) so its bindings/badges stay harmless -->
+  <div class="tabs" style="display:none">
     <button class="tab active" data-tab="staff" id="tabStaff">Team Members <span class="ct" id="ctStaff">0</span></button>
     <button class="tab" data-tab="loc" id="tabLoc">Locations <span class="ct" id="ctLoc">0</span></button>
     <button class="tab" data-tab="notif" id="tabNotif">Notifications <span class="ct" id="ctNotif">0</span></button>
@@ -834,6 +837,18 @@ function storeOpts(sel){return activeStores().map(function(s){return '<option va
 function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderCommission();renderRoles();renderModal();}
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
+  /* section header — the strip is hidden, the nav Settings pane switches sections */
+  var TT={staff:['📁 Team Members','Stores, access, PINs, commission plans'],
+    loc:['📍 Locations','Stores available across every myRepairTools page'],
+    notif:['🔔 Notifications','Automated alerts and where they go'],
+    pages:['📄 Page Settings','Per-tool configuration'],
+    commission:['📈 Commission','Rates, tiers and payout rules'],
+    integ:['🔌 Integrations','QuickBooks, RingCentral, Square and friends'],
+    roles:['🛡️ Roles & Permissions','Who can see and do what']}[TAB]||['Settings',''];
+  $('#setTitle').textContent=TT[0];
+  $('#setSub').textContent=TT[1];
+  /* keep the URL hash in step with the open section (nav active row + shareable links) */
+  try{if(location.hash.replace('#','')!==TAB)history.replaceState(null,'','#'+TAB);}catch(e){}
   $('#ctStaff').textContent=STAFF.length;
   $('#ctLoc').textContent=STORES.length;
   $('#ctRoles').textContent=RBROLES.length;

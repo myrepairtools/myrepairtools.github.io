@@ -28,7 +28,7 @@
     'jerry-ding-order.html':'orders.jerryding', 'po-converter.html':'orders.po',
     'price-calculator.html':'pricing.view', 'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
     'cash-admin.html':'cash.admin', 'cash-journal.html':'cash.journal', 'employee-records.html':'staff.view',
-    'settings.html':'staff.manage', 'settings-locations.html':'settings.locations',
+    'settings.html':'staff.manage',
     'claim-payouts.html':'claims.view', 'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
     'commission-dashboard.html':'commission.dashboard',
     'profit-first.html':'profit.view'
