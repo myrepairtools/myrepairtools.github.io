@@ -601,7 +601,12 @@ required reading) and delivery channels (web push + SMS + per-user preferences)
 are the next phases of the notifications project — every notification will write
 an `alerts` row regardless of channel so the feed is always complete.
 
-**Mobile app shell (nav.js):** below 860px the site behaves like a native app —
+**Mobile app shell (nav.js):** nav.js owns standalone (A2HS) safe-area handling
+site-wide — it flags `html.mrt-standalone`, patches `viewport-fit=cover` into the
+viewport meta when a page didn't declare it, and grows `--cpr-top-h` by
+`env(safe-area-inset-top)` so the iOS status bar never crams the top bar on ANY page.
+The assistant chat is a full-screen sheet below 860px (safe-area padded, 16px input,
+visualViewport keyboard tracking). Below 860px the site behaves like a native app —
 a fixed **bottom tab bar** (Home / Tasks / My Time / Commission / ☰ More; More
 opens the slide-in menu, replacing the hamburger) with safe-area padding and a
 pinned view-transition-name. The top bar keeps clock-in + 🔔 bell + avatar; the
