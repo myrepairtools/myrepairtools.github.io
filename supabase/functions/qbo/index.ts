@@ -587,6 +587,9 @@ Deno.serve(async (req) => {
     if (body.action) action = String(body.action);
   }
 
+  // Edge-warm cron ping — answered before auth so it stays free of DB work.
+  if (action === "ping") return json({ ok: true });
+
   // ---- owner-only from here down ----
   const staff = await getStaff(req);
   if (!staff || staff.role !== "owner") return json({ error: "forbidden", detail: "Owner only." }, 403);

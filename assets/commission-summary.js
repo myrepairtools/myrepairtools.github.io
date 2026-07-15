@@ -42,7 +42,7 @@
     return total; }
 
   var sbP = null;
-  function sb(){ if(sbP) return sbP; sbP = import('https://esm.sh/@supabase/supabase-js@2')
+  function sb(){ if(sbP) return sbP; sbP = import('/assets/supabase-js.js')
       .then(function(m){ return m.createClient(SB_URL, ANON); }).catch(function(){ return null; }); return sbP; }
 
   function session(client){

@@ -169,8 +169,11 @@ There is **no single backend**. Tools talk to one of two systems:
    Auth services (`site-gate`/`admin-gate`/`nav`) are themselves Apps Script deployments.
 
 2. **Supabase** (newer; the active migration target — see recent "Cash Tracker Migration"
-   commits). Project `xuvsehrevxackuhmbmry.supabase.co`, client imported from
-   `esm.sh/@supabase/supabase-js@2`. Tools on Supabase: cash-tracker, cash-admin,
+   commits). Project `xuvsehrevxackuhmbmry.supabase.co`, client imported from the
+   **vendored bundle `/assets/supabase-js.js`** (self-contained minified ESM build of
+   `@supabase/supabase-js` v2.110.5 — one same-origin request instead of esm.sh's
+   third-party module graph; rebuild instructions in the file header; edge functions
+   still import from esm.sh — that's Deno, leave them). Tools on Supabase: cash-tracker, cash-admin,
    consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders,
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
    time-entries, monthly-goals, checklist, task-admin, device-orders, cash-journal.
@@ -650,6 +653,13 @@ When changing a tool's data layer, check which generation it uses first — they
   holds still while content fades; `prefers-reduced-motion` disables it. Browsers
   without support fall back to instant navigation — never rely on the transition for
   correctness.
+- **Perf:** nav.js hover-prefetches same-origin `.html` links (pointerover/touchstart →
+  `<link rel=prefetch>`, plain `fetch` fallback for Safari) so clicks land on
+  already-downloaded pages. The `edge-warm-interactive` pg_cron (*/4 min) pings
+  `cpr-auth` + `qbo` (`{action:'ping'}`, answered before any auth/DB work) so
+  interactive tools don't hit cold edge boots; add new latency-sensitive functions to
+  that job (and remember warm instances keep boot-time env — redeploy after secret
+  changes).
 - Endpoint URLs, API tokens, and the Supabase anon key are committed in the source on
   purpose (this is a deterrent-level internal tool on public hosting). `robots.txt`
   disallows all crawlers.

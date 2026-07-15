@@ -45,7 +45,7 @@
   // users. So: try several CDNs in order, time each out, and on total failure
   // reset sbReady so the next call (and the auto-retry in boot) tries again.
   var SB_CDNS = [
-    'https://esm.sh/@supabase/supabase-js@2',
+    '/assets/supabase-js.js',
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
     'https://cdn.skypack.dev/@supabase/supabase-js@2'
   ];
