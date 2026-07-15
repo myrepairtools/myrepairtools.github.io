@@ -493,7 +493,7 @@
     .cpra-fab{ bottom:calc(var(--cpr-bb-h) + 12px) !important; }  /* assistant ✨ sits above the tab bar */
   }
   .cpr-bb-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; border:none; background:none;
-    font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; color:#B9BDCB; cursor:pointer;
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; color:var(--cpr-blue-dark); cursor:pointer;
     text-decoration:none; padding:2px 0; min-width:0; }
   .cpr-bb-tab .i{ font-size:1.3rem; line-height:1.1; }
   .cpr-bb-tab.on{ color:var(--cpr-blue); }
