@@ -485,7 +485,7 @@
   @media(max-width:859px){
     :root{ --cpr-bb-h:calc(60px + env(safe-area-inset-bottom)); }
     .cpr-bottombar{ position:fixed; left:0; right:0; bottom:0; z-index:1001; display:flex; background:#fff;
-      border-top:1px solid #E0E2EA; padding:7px 4px calc(7px + env(safe-area-inset-bottom));
+      border-top:1px solid #E0E2EA; padding:7px 4px max(7px, calc(env(safe-area-inset-bottom) - 8px));
       box-shadow:0 -8px 22px rgba(45,45,59,.07); view-transition-name:cpr-bottombar; }
     body{ padding-bottom:var(--cpr-bb-h) !important; }
     .cpr-tb-burger{ display:none; }                         /* More tab replaces the hamburger */
@@ -962,6 +962,11 @@
       return '<a class="cpr-bb-tab'+(t.url===curFile?' on':'')+'" href="'+esc(t.url)+'"><span class="i">'+navIcon(t.icon,22)+'</span>'+esc(t.label)+'</a>';
     }).join('') + '<button class="cpr-bb-tab" data-bbmore aria-label="More"><span class="i">'+navIcon('menu',22)+'</span>More</button>';
     document.body.appendChild(bb);
+    // --cpr-bb-h = the bar's REAL rendered height (0 when hidden on desktop), so
+    // page footers that sit on it (expenses save bar) are flush, not estimated.
+    function sizeBB(){ document.documentElement.style.setProperty('--cpr-bb-h', (bb.offsetHeight || 0) + 'px'); }
+    sizeBB();
+    window.addEventListener('resize', sizeBB);
 
     wireTop();
     wireClock();
