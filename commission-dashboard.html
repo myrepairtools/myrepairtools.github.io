@@ -200,6 +200,10 @@ const STATE={me:null,target:null,tab:'overview',
   rates:{},rateLabels:{},storeRates:{},rules:{},roleEarns:{},roleOver:{},
   staffById:{},rosterById:{},staffList:[],tips:{}};
 
+/* deep links: #overview/#goals/#board/#how beat the remembered tab */
+const HASH_TABS=['overview','goals','board','how'];
+const tabFromHash=()=>{const h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;};
+
 /* ---- session ---- */
 async function ensureSession(){
   try{let s=(await sb.auth.getSession()).data.session;if(s)return s;
@@ -378,6 +382,7 @@ async function loadTarget(){
 /* ---- render ---- */
 function render(){
   $all('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.t===STATE.tab));
+  try{if(location.hash.replace('#','')!==STATE.tab)history.replaceState(null,'','#'+STATE.tab);}catch(e){}
   $('#view-overview').classList.toggle('hide',STATE.tab!=='overview');
   $('#view-goals').classList.toggle('hide',STATE.tab!=='goals');
   $('#view-board').classList.toggle('hide',STATE.tab!=='board');
@@ -958,6 +963,8 @@ async function boot(){
   STATE.target=(!EXCLUDE(STATE.me)&&STATE.staffById[STATE.me.id])?STATE.staffById[STATE.me.id]:(STATE.staffList[0]||STATE.me);
   $('#loading').classList.add('hide');$('#app').classList.remove('hide');
   try{const tb=localStorage.getItem('cprComDashTab');if(tb&&['overview','goals','board','how'].indexOf(tb)>-1)STATE.tab=tb;}catch(e){}
+  const ht=tabFromHash();if(ht){STATE.tab=ht;try{localStorage.setItem('cprComDashTab',ht);}catch(e){}} // deep link beats the remembered tab
+  window.addEventListener('hashchange',()=>{const t=tabFromHash();if(t&&t!==STATE.tab){STATE.tab=t;try{localStorage.setItem('cprComDashTab',t);}catch(e){}render();}});
   $all('#tabs .tab').forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.t;try{localStorage.setItem('cprComDashTab',STATE.tab);}catch(e){}render();});
   // month navigator: browse past months' commissions & goals (‹ › or pick from the calendar)
   $('#mPrev').onclick=()=>setMonth(new Date(VIEWM.getFullYear(),VIEWM.getMonth()-1,1));

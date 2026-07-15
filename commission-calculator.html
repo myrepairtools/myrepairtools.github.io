@@ -151,6 +151,12 @@ const STATE={me:null,stores:[],store:lsGet('cc_store','all'),tab:lsGet('cc_tab',
   rates:{},rateLabels:{},rules:{},staffById:{},rosterById:{},
   report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',loaded:false};
 
+/* deep links: #summary/#commissions/#tips beat the remembered tab */
+const HASH_TABS=['summary','commissions','tips'];
+const tabFromHash=()=>{const h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;};
+const _ht=tabFromHash();if(_ht){STATE.tab=_ht;lsSet('cc_tab',_ht);}
+window.addEventListener('hashchange',()=>{const t=tabFromHash();if(t&&t!==STATE.tab){STATE.tab=t;lsSet('cc_tab',t);render();}});
+
 /* ---- session: adopt the shared front-door session so RLS sees the owner ---- */
 async function ensureSession(){
   try{
@@ -288,6 +294,7 @@ function inScope(){const all=STATE.store==='all';return STATE.report.filter(r=>a
 /* ---- renderers ---- */
 function render(){
   $all('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.t===STATE.tab));
+  try{if(location.hash.replace('#','')!==STATE.tab)history.replaceState(null,'','#'+STATE.tab);}catch(e){}
   $('#view-summary').classList.toggle('hide',STATE.tab!=='summary');
   $('#view-commissions').classList.toggle('hide',STATE.tab!=='commissions');
   $('#view-tips').classList.toggle('hide',STATE.tab!=='tips');
