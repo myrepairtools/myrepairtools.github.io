@@ -119,7 +119,7 @@
   // ── AUTH STATE (Supabase PIN session — single sign-on) ───────────────
   function loadSB(){
     if (sbReady) return sbReady;
-    sbReady = import('https://esm.sh/@supabase/supabase-js@2')
+    sbReady = import('/assets/supabase-js.js')
       .then(function(m){ sbClient = m.createClient(SB_URL, SB_ANON); return sbClient; })
       .catch(function(){ sbClient = null; return null; });
     return sbReady;
@@ -975,6 +975,32 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectNav);
   else injectNav();
+
+  // ── perf: prefetch a page the moment the user aims at its link, so the click
+  //    lands on an already-downloaded page. Same-origin .html links only; each
+  //    URL once per page-load. Browsers without rel=prefetch fall back to a
+  //    plain fetch that lands in the HTTP cache (GH Pages sends max-age=600).
+  (function hoverPrefetch(){
+    if (window.self !== window.top) return;                       // not inside RepairQ iframes
+    var seen = {};
+    var linkOk = document.createElement('link').relList && document.createElement('link').relList.supports
+      && document.createElement('link').relList.supports('prefetch');
+    function arm(e){
+      var a = e.target && e.target.closest && e.target.closest('a[href]');
+      if (!a || a.origin !== location.origin) return;
+      if (!/\.html$/.test(a.pathname)) return;
+      if (a.pathname === location.pathname) return;               // same page (hash-only nav)
+      if (seen[a.pathname]) return; seen[a.pathname] = 1;
+      if (linkOk){
+        var l = document.createElement('link'); l.rel = 'prefetch'; l.href = a.pathname;
+        document.head.appendChild(l);
+      } else {
+        try { fetch(a.pathname, { credentials: 'same-origin' }); } catch(_){}
+      }
+    }
+    document.addEventListener('pointerover', arm, { passive: true });
+    document.addEventListener('touchstart', arm, { passive: true });
+  })();
 
   // Site-wide AI chat widget (loads once; self-skips inside iframes).
   (function loadAssistant(){

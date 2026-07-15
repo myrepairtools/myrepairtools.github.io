@@ -79,7 +79,7 @@
   function kindMeta(k){ return KINDS[k] || KINDS.announcement; }
 
   var sbP=null;
-  function sb(){ if(sbP) return sbP; sbP=import('https://esm.sh/@supabase/supabase-js@2').then(function(m){ return m.createClient(SB_URL,ANON); }).catch(function(){ return null; }); return sbP; }
+  function sb(){ if(sbP) return sbP; sbP=import('/assets/supabase-js.js').then(function(m){ return m.createClient(SB_URL,ANON); }).catch(function(){ return null; }); return sbP; }
   function session(client){
     return client.auth.getSession().then(function(r){ var s=r.data&&r.data.session; if(s) return s;
       try{ var raw=localStorage.getItem('sb-'+SB_REF+'-auth-token'); if(!raw) return null; var o=JSON.parse(raw);

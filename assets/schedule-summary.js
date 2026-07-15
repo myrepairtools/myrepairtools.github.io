@@ -60,7 +60,7 @@
   function approvedToday(staffId, todayISO){ return REQS.filter(function(r){ return r.staff_id===staffId && r.status==='approved' && r.start_date<=todayISO && r.end_date>=todayISO; })[0]||null; }
 
   var sbP=null;
-  function sb(){ if(sbP) return sbP; sbP=import('https://esm.sh/@supabase/supabase-js@2').then(function(m){ return m.createClient(SB_URL,ANON); }).catch(function(){ return null; }); return sbP; }
+  function sb(){ if(sbP) return sbP; sbP=import('/assets/supabase-js.js').then(function(m){ return m.createClient(SB_URL,ANON); }).catch(function(){ return null; }); return sbP; }
   function session(client){
     return client.auth.getSession().then(function(r){ var s=r.data&&r.data.session; if(s) return s;
       try{ var raw=localStorage.getItem('sb-'+SB_REF+'-auth-token'); if(!raw) return null; var o=JSON.parse(raw);

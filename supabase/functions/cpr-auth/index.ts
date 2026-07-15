@@ -91,6 +91,8 @@ Deno.serve(async (req)=>{
     }, 400);
   }
   const action = body.action;
+  // ---------- PING (edge-warm cron keeps a hot instance so first logins are instant) ----------
+  if (action === "ping") return json({ ok: true });
   // ---------- LOGIN (by PIN; username optional) ----------
   if (action === "login") {
     const { username, pin, device_id, store } = body;
