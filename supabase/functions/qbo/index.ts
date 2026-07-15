@@ -318,6 +318,47 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
   const tok = await getToken();
   if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
 
+  // Atomic claim — same double-post race as post_je: retries after a lost
+  // response and double-taps must not book two Purchases. Only one caller can
+  // flip the row to 'posting'; a stale claim (>2 min = crashed attempt) is
+  // takeable. Rolled back on failure.
+  const claimTs = new Date().toISOString();
+  const stale = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const claim = await admin.from("expense_receipts")
+    .update({ status: "posting", qbo_claimed_at: claimTs })
+    .eq("id", receipt_id).is("qbo_purchase_id", null)
+    .or(`qbo_claimed_at.is.null,qbo_claimed_at.lt.${stale}`)
+    .select("id");
+  if (claim.error) return json({ error: "db_error", detail: claim.error.message }, 500);
+  if (!claim.data || claim.data.length === 0) {
+    const { data: again } = await admin.from("expense_receipts").select("qbo_purchase_id").eq("id", receipt_id).maybeSingle();
+    if (again?.qbo_purchase_id) return json({ error: "already_posted", purchase_id: String(again.qbo_purchase_id) }, 409);
+    return json({ error: "in_progress", detail: "This expense is being booked right now — give it a moment." }, 409);
+  }
+  const rollbackClaim = (why: string) =>
+    admin.from("expense_receipts").update({ status: "failed", error: why, qbo_claimed_at: null })
+      .eq("id", receipt_id).is("qbo_purchase_id", null)
+      .then((w) => w.error ? ` (and the failure could not be recorded: ${w.error.message})` : "");
+
+  // The receipt id rides in the Purchase DocNumber (queryable, 21-char limit),
+  // so if a previous attempt created the Purchase but died before stamping the
+  // row, we FIND it instead of booking a duplicate.
+  const docNumber = `MRT-${receipt_id.slice(0, 8)}`;
+  try {
+    const q = `select Id from Purchase where DocNumber = '${docNumber}'`;
+    const pr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const pd = await pr.json().catch(() => ({}));
+    const found = pd?.QueryResponse?.Purchase?.[0]?.Id;
+    if (found) {
+      const rec = await admin.from("expense_receipts").update({
+        qbo_purchase_id: String(found), status: "posted", error: null, qbo_claimed_at: null,
+      }).eq("id", receipt_id).is("qbo_purchase_id", null);
+      return json({ ok: true, purchase_id: String(found), attachable_id: null, amount, recovered: true,
+        ...(rec.error ? { warn: `Recovered Purchase ${found} but the row failed to update (${rec.error.message}).` } : {}) });
+    }
+  } catch (_e) { /* recovery probe is best-effort — fall through to create */ }
+
   // One expense line per class-split entry, or a single line with the row's class.
   const desc = [row.vendor, row.memo].filter(Boolean).join(" — ") || undefined;
   const expenseRef = { value: String(row.expense_account_id), ...(row.expense_account_name ? { name: String(row.expense_account_name) } : {}) };
@@ -334,8 +375,11 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
   if (Array.isArray(row.split) && row.split.length) {
     lines = (row.split as Array<Record<string, unknown>>).map((e) => line(Number(e.amount), e.class_id, e.class_name));
     const sum = lines.reduce((t, l) => t + l.Amount, 0);
-    if (lines.some((l) => !Number.isFinite(l.Amount) || l.Amount <= 0) || Math.abs(sum - amount) > 0.011)
-      return json({ error: "split_mismatch", detail: `Split lines must all be positive and total the receipt amount (${usd(sum)} vs ${usd(amount)}).` }, 400);
+    if (lines.some((l) => !Number.isFinite(l.Amount) || l.Amount <= 0) || Math.abs(sum - amount) > 0.011) {
+      const detail = `Split lines must all be positive and total the receipt amount (${usd(sum)} vs ${usd(amount)}).`;
+      const extra = await rollbackClaim(detail);
+      return json({ error: "split_mismatch", detail: detail + extra }, 400);
+    }
   } else {
     lines = [line(amount, row.class_id, row.class_name)];
   }
@@ -343,6 +387,7 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
   const purchase = {
     PaymentType: row.payment_account_type === "Credit Card" ? "CreditCard" : "Check",
     AccountRef: { value: String(row.payment_account_id), ...(row.payment_account_name ? { name: String(row.payment_account_name) } : {}) },
+    DocNumber: docNumber,   // idempotency key — recovery probe finds it by query
     TxnDate: String(row.txn_date),
     PrivateNote: [[row.vendor, row.memo].filter(Boolean).join(" — "),
       `Recorded via myRepairTools by ${row.created_by || staff.display_name}.`].filter(Boolean).join(" … "),
@@ -356,13 +401,17 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
     });
     d = await r.json().catch(() => ({}));
   } catch (e) {
-    return json({ error: "qbo_error", detail: String((e as Error)?.message || e) }, 502);
+    // Network-level failure: the request may or may not have reached QBO — the
+    // DocNumber recovery probe on the next attempt sorts that out safely.
+    const detail = String((e as Error)?.message || e);
+    const extra = await rollbackClaim(detail);
+    return json({ error: "qbo_error", detail: detail + extra }, 502);
   }
   const posted = d?.Purchase;
   if (!r.ok || !posted?.Id) {
     const detail = faultDetail(d);
-    await admin.from("expense_receipts").update({ status: "failed", error: detail }).eq("id", receipt_id);
-    return json({ error: "qbo_error", detail, intuit_tid: tid(r) }, 502);
+    const extra = await rollbackClaim(detail);
+    return json({ error: "qbo_error", detail: detail + extra, intuit_tid: tid(r) }, 502);
   }
   const purchase_id = String(posted.Id);
 
@@ -401,15 +450,17 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
     }
   }
 
-  // Stamp the row. The Purchase now EXISTS in QBO — a failed write-back must be
-  // surfaced, not swallowed, or a retry would double-post.
+  // Stamp the row. The Purchase now EXISTS in QBO — a failed write-back is
+  // surfaced (and the DocNumber recovery probe makes a later retry safe anyway).
   const stamp = await admin.from("expense_receipts").update({
     qbo_purchase_id: purchase_id,
     qbo_attachable_id: attachable_id,
     status: "posted",
     error: null,
-  }).eq("id", receipt_id);
-  if (stamp.error) warns.push(`Purchase ${purchase_id} was created in QBO but the receipt row failed to update (${stamp.error.message}) — verify in QBO before posting again.`);
+    qbo_claimed_at: null,
+  }).eq("id", receipt_id).is("qbo_purchase_id", null).select("id");
+  if (stamp.error) warns.push(`Purchase ${purchase_id} was created in QBO but the receipt row failed to update (${stamp.error.message}) — a retry will recover it safely.`);
+  else if (!stamp.data || stamp.data.length === 0) warns.push(`Another run already stamped this receipt — verify Purchase ${purchase_id} in QBO.`);
 
   return json({ ok: true, purchase_id, attachable_id, amount, ...(warns.length ? { warn: warns.join(" ") } : {}) });
 }

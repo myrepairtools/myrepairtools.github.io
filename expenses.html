@@ -53,7 +53,7 @@ font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;color:var(--dark-
 .shot:active{border-color:var(--blue);color:var(--blue)}
 .thumbwrap{position:relative;display:none}
 .thumbwrap img{width:100%;max-height:240px;object-fit:contain;border:1.5px solid var(--border);border-radius:14px;background:#fff;display:block}
-.thumbx{position:absolute;top:8px;right:8px;width:34px;height:34px;border:none;border-radius:50%;
+.thumbx{position:absolute;top:8px;right:8px;width:44px;height:44px;border:none;border-radius:50%;
 background:rgba(45,45,59,.82);color:#fff;font-size:1rem;font-weight:800;cursor:pointer;line-height:1}
 
 /* 2 · amount ($ prefix, big) */
@@ -73,13 +73,17 @@ border-radius:12px;box-shadow:0 10px 30px rgba(45,45,59,.16);max-height:260px;ov
 .accrow.none{color:var(--grey);cursor:default}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
 .chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;border:1.5px solid var(--border);border-radius:999px;
-background:#fff;color:var(--dark-grey);padding:7px 12px;cursor:pointer;max-width:100%;overflow:hidden;
+background:#fff;color:var(--dark-grey);padding:11px 14px;min-height:44px;cursor:pointer;max-width:100%;overflow:hidden;
 text-overflow:ellipsis;white-space:nowrap}
 .chip:active{border-color:var(--blue);color:var(--blue)}
 
-/* 6 · split preview */
+/* 6 · split preview + store toggle chips (tap a store off for a 2-store split) */
 .splitprev{display:none;margin-top:8px;background:#F6F7F9;border-radius:10px;padding:9px 12px;font-size:.82rem;font-weight:700}
 .splitprev .r{display:flex;justify-content:space-between;padding:2px 0}
+.splitchips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.splitchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:1.5px solid var(--border);border-radius:999px;
+background:#fff;color:var(--grey);padding:11px 14px;min-height:44px;cursor:pointer;white-space:nowrap}
+.splitchip.on{border-color:var(--blue);background:#EAF6FD;color:#1E7AA8}
 .splitprev .r span:last-child{font-family:'Nunito',sans-serif;font-weight:900}
 
 /* error card + sticky save bar */
@@ -103,9 +107,10 @@ padding:9px 12px;margin-bottom:7px;box-shadow:var(--shadow)}
 .rrow .d{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey);white-space:nowrap}
 .rrow .who{flex:1;min-width:0;font-size:.86rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rrow .amt{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;white-space:nowrap}
-.stchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.stchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.stchip.bad,.stchip.wait{min-height:44px;padding:0 14px;cursor:pointer;border:none;font-family:'Nunito',sans-serif}
 .stchip.ok{background:#E9F6EE;color:var(--green)}
-.stchip.bad{background:#FBE9E9;color:var(--red);cursor:pointer;border:none;font-family:'Nunito',sans-serif}
+.stchip.bad{background:#FBE9E9;color:var(--red)}
 .stchip.wait{background:var(--light-grey);color:var(--dark-grey)}
 
 /* full-screen success state */
@@ -282,7 +287,7 @@ async function loadQbo(){
     $('#qboBanner').style.display='none';
     paintAccounts();
   }catch(e){
-    if(e&&e.code==='not_connected')$('#qboBanner').style.display='';
+    if(e&&e.code==='not_connected')$('#qboBanner').style.display='block';
     else if(!ACCTS.length)toast('Could not load QBO accounts — '+(e&&(e.detail||e.code)||'error'),true);
   }
 }
@@ -345,7 +350,7 @@ async function processPhoto(file){
 function setPhoto(p){
   PHOTO=p;
   $('#shotBtn').style.display=p?'none':'';
-  $('#thumbWrap').style.display=p?'':'none';
+  $('#thumbWrap').style.display=p?'block':'none';
   if(p)$('#thumb').src=p.url;else $('#thumb').removeAttribute('src');
 }
 $('#shotBtn').addEventListener('click',function(){$('#shotFile').click();});
@@ -395,17 +400,24 @@ function renderAccList(){
     /* mousedown beats the input's blur so the tap isn't swallowed */
     row.addEventListener('mousedown',function(e){e.preventDefault();pickExp(list[+row.getAttribute('data-i')]);});
   });
-  el.style.display='';
+  el.style.display='block';
 }
 $('#accSearch').addEventListener('focus',renderAccList);
 $('#accSearch').addEventListener('input',function(){EXP=null;renderAccList();});
 $('#accSearch').addEventListener('blur',function(){setTimeout(function(){$('#accList').style.display='none';},150);});
 
 /* ------------- class split preview ------------- */
+/* Which stores the split covers — ALL pre-selected; tap a chip to drop a store
+   (e.g. split gas across just Eugene + Salem). Minimum two. */
+var SPLITSEL=null;   // Set of class ids, null = all
+function splitSelected(){
+  if(!SPLITSEL)SPLITSEL=new Set(STORECLS.map(function(c){return c.id;}));
+  return STORECLS.filter(function(c){return SPLITSEL.has(c.id);});
+}
 function splitLines(total){
-  var n=STORECLS.length;if(!n)return [];
+  var sel=splitSelected(),n=sel.length;if(!n)return [];
   var cents=Math.round(total*100),per=Math.floor(cents/n),rem=cents-per*n;
-  return STORECLS.map(function(c,i){
+  return sel.map(function(c,i){
     /* remainder cents ride the FIRST line so the lines always sum exactly */
     return {class_id:c.id,class_name:c.name,amount:(per+(i===0?rem:0))/100};
   });
@@ -413,12 +425,31 @@ function splitLines(total){
 function renderSplit(){
   var el=$('#splitPrev');
   if($('#clsSel').value!=='__split'){el.style.display='none';return;}
+  el.style.display='block';
+  splitSelected();   // ensure the selection set exists
+  var chips='<div class="splitchips">'+STORECLS.map(function(c){
+    var on=SPLITSEL.has(c.id);
+    /* short store label on the chip, full class name in the title */
+    var lbl=c.name.replace(/^CPR\s*/i,'');
+    return '<button type="button" class="splitchip'+(on?' on':'')+'" data-cid="'+esc(c.id)+'" title="'+esc(c.name)+'">'+(on?'✓ ':'')+esc(lbl)+'</button>';
+  }).join('')+'</div>';
   var a=amtVal();
-  if(a==null){el.style.display='';el.innerHTML='<div class="r"><span>Enter an amount to preview the split</span></div>';return;}
-  el.style.display='';
-  el.innerHTML=splitLines(a).map(function(l){
-    return '<div class="r"><span>'+esc(l.class_name)+'</span><span>'+esc(money2(l.amount))+'</span></div>';
-  }).join('');
+  var rows=(a==null)
+    ?'<div class="r"><span>Enter an amount to preview the split</span></div>'
+    :splitLines(a).map(function(l){
+       return '<div class="r"><span>'+esc(l.class_name)+'</span><span>'+esc(money2(l.amount))+'</span></div>';
+     }).join('');
+  el.innerHTML=chips+rows;
+  el.querySelectorAll('.splitchip').forEach(function(b){
+    b.addEventListener('click',function(){
+      var id=b.getAttribute('data-cid');
+      if(SPLITSEL.has(id)){
+        if(SPLITSEL.size<=2){toast('A split needs at least two stores',true);return;}
+        SPLITSEL.delete(id);
+      }else SPLITSEL.add(id);
+      renderSplit();
+    });
+  });
 }
 $('#clsSel').addEventListener('change',renderSplit);
 $('#amt').addEventListener('input',renderSplit);
@@ -428,7 +459,7 @@ function setBtn(t,busy){var b=$('#saveBtn');b.textContent=t;b.disabled=!!busy;}
 function showErr(html,receiptId){
   var el=$('#errCard');
   el.innerHTML=html+(receiptId?'<button type="button" class="retry" id="retryBtn">Retry Booking</button>':'');
-  el.style.display='';
+  el.style.display='block';
   if(receiptId)$('#retryBtn').addEventListener('click',function(){retryPost(receiptId);});
   el.scrollIntoView({block:'center',behavior:'smooth'});
 }
@@ -521,7 +552,7 @@ $('#form').addEventListener('submit',async function(ev){
     return;
   }
   BUSY=false;setBtn('Save Expense');
-  if(out.res.ok&&out.d.ok){
+  if((out.res.ok&&out.d.ok)||(out.res.status===409&&out.d.error==='already_posted')){
     showDone(amount,out.d.warn);
     loadRecent();
   }else{
@@ -539,7 +570,7 @@ async function retryPost(receiptId){
   try{out=await postExpense(receiptId,sess);}
   catch(e){BUSY=false;if(btn){btn.disabled=false;btn.textContent='Retry Booking';}toast('Network error — '+(e&&e.message||'offline'),true);return;}
   BUSY=false;
-  if(out.res.ok&&out.d.ok){
+  if((out.res.ok&&out.d.ok)||(out.res.status===409&&out.d.error==='already_posted')){
     clearErr();
     showDone(out.d.amount,out.d.warn);
     loadRecent();
@@ -554,7 +585,7 @@ async function retryPost(receiptId){
 function showDone(amount,warn){
   $('#doneH').textContent='Booked in QBO — '+money2(amount);
   var w=$('#doneWarn');
-  if(warn){w.textContent=warn;w.style.display='';}else{w.style.display='none';}
+  if(warn){w.textContent=warn;w.style.display='block';}else{w.style.display='none';}
   $('#doneWrap').style.display='flex';
 }
 $('#newBtn').addEventListener('click',function(){
@@ -563,7 +594,7 @@ $('#newBtn').addEventListener('click',function(){
   setPhoto(null);$('#shotFile').value='';
   $('#amt').value='';$('#date').value=todayLocal();
   EXP=null;$('#accSearch').value='';
-  $('#clsSel').value='';renderSplit();
+  $('#clsSel').value='';SPLITSEL=null;renderSplit();
   $('#vendor').value='';$('#note').value='';
   RECEIPT_ID=null;clearErr();
   window.scrollTo({top:0});
@@ -581,12 +612,12 @@ async function loadRecent(){
     var d=row.txn_date?(+row.txn_date.slice(5,7))+'/'+(+row.txn_date.slice(8,10)):'—';
     var chip=row.status==='posted'?'<span class="stchip ok">✓ posted</span>'
       :row.status==='failed'?'<button type="button" class="stchip bad" data-id="'+esc(row.id)+'" title="Tap to retry">⚠ retry</button>'
-      :'<button type="button" class="stchip bad" data-id="'+esc(row.id)+'" title="Tap to retry">… retry</button>';
+      :'<button type="button" class="stchip wait" data-id="'+esc(row.id)+'" title="Never finished booking — tap to retry">… retry</button>';
     return '<div class="rrow"><span class="d">'+esc(d)+'</span>'
       +'<span class="who">'+esc(row.vendor||row.expense_account_name||'—')+'</span>'
       +'<span class="amt">'+esc(money2(+row.amount))+'</span>'+chip+'</div>';
   }).join('');
-  $('#recentList').querySelectorAll('.stchip.bad').forEach(function(b){
+  $('#recentList').querySelectorAll('.stchip.bad,.stchip.wait').forEach(function(b){
     b.addEventListener('click',function(){retryPost(b.getAttribute('data-id'));});
   });
 }

@@ -17,7 +17,9 @@ create table if not exists public.expense_receipts (
   receipt_path         text,                       -- storage object path in the private 'receipts' bucket
   qbo_purchase_id      text,
   qbo_attachable_id    text,
-  status               text not null default 'posted',   -- posted | failed
+  status               text not null default 'pending'
+    check (status in ('pending','posting','posted','failed')),  -- pending -> posting (claim) -> posted | failed
+  qbo_claimed_at       timestamptz,                -- in-flight claim (double-post guard)
   error                text,
   created_by           text,
   created_at           timestamptz not null default now()
