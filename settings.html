@@ -1085,9 +1085,10 @@ async function qboRenderMap(){
   var res=await Promise.all([
     QBO_ACCOUNTS?Promise.resolve({status:200,data:{accounts:QBO_ACCOUNTS}}):qboCall('accounts'),
     sb.from('qbo_store_map').select('*'),
-    QBO_CLASSES?Promise.resolve({status:200,data:{classes:QBO_CLASSES}}):qboCall('classes')
+    QBO_CLASSES?Promise.resolve({status:200,data:{classes:QBO_CLASSES}}):qboCall('classes'),
+    sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle()
   ]);
-  var ar=res[0], mr=res[1], cr=res[2];
+  var ar=res[0], mr=res[1], cr=res[2], pwr=res[3];
   if(!(ar.data&&ar.data.accounts)){
     body.textContent='Could not load the QBO chart of accounts'+(ar.data&&(ar.data.error||ar.data.detail)?(' — '+(ar.data.error||ar.data.detail)):'')+'.';
     return;
@@ -1121,10 +1122,37 @@ async function qboRenderMap(){
         +'<td style="padding:9px 8px;text-align:right"><button class="btn sm qbo-save">Save</button></td>'
         +'</tr>';
     }).join('')+'</table>'
-    +'<div style="margin-top:8px;font-size:.76rem;color:var(--grey);font-weight:600">The class rides on both journal-entry lines so your P&amp;L by Class attributes the month\'s cash revenue to the right store.</div>';
+    +'<div style="margin-top:8px;font-size:.76rem;color:var(--grey);font-weight:600">The class rides on both journal-entry lines so your P&amp;L by Class attributes the month\'s cash revenue to the right store.</div>'
+    +qboPayHtml(pwr&&pwr.data&&pwr.data.value);
   $all('#qboMapBody .qbo-save').forEach(function(b){
     b.onclick=function(){ qboSaveMap(b.closest('tr')); };
   });
+  var pws=$('#qboPaySave'); if(pws)pws.onclick=qboSavePaywith;
+}
+/* Expenses · Paid With allowlist — which bank/CC accounts the mobile recorder offers */
+function qboPayHtml(val){
+  var chosen=(val&&Array.isArray(val.ids))?val.ids:[];
+  var accts=(QBO_ACCOUNTS||[]).filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
+  if(!accts.length)return '';
+  return '<div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">'
+    +'<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark)">Expenses · Paid With Accounts</div>'
+    +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 10px">Which bank / credit-card accounts the mobile Expenses recorder offers. Nothing checked = all of them.</div>'
+    +'<div id="qboPayList" style="display:flex;flex-direction:column;gap:7px">'
+    +accts.map(function(a){
+      return '<label style="display:flex;align-items:center;gap:9px;font-family:\'Nunito Sans\',sans-serif;font-size:.86rem;font-weight:700;color:var(--dark);cursor:pointer">'
+        +'<input type="checkbox" class="qbo-pay" value="'+esc(a.id)+'"'+(chosen.indexOf(a.id)>-1?' checked':'')+' style="width:17px;height:17px;accent-color:var(--blue)">'
+        +esc(a.name)+' <span style="color:var(--grey);font-weight:600">· '+esc(a.type)+'</span></label>';
+    }).join('')
+    +'</div><button class="btn sm" id="qboPaySave" style="margin-top:11px">Save Paid With List</button></div>';
+}
+async function qboSavePaywith(){
+  var ids=$all('#qboPayList .qbo-pay:checked').map(function(c){return c.value;});
+  var r=await sb.from('qbo_config').upsert({
+    key:'paywith', value:{ids:ids},
+    updated_by:(AUTH&&AUTH.name)||'owner', updated_at:new Date().toISOString()
+  },{onConflict:'key'});
+  if(r.error)toast('Save failed — '+r.error.message,true);
+  else toast(ids.length?('Paid With list saved — '+ids.length+' account'+(ids.length>1?'s':'')):'Paid With list cleared — all accounts show');
 }
 async function qboSaveMap(row){
   if(!row)return;

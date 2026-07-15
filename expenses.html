@@ -15,10 +15,20 @@
 --dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C98A00;--white:#fff;
 --ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
 *{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+/* Added to Home Screen: the iOS status bar (clock/battery) draws OVER the page
+   top — grow the nav top bar down by the safe-area inset so nothing crams under
+   it. html:root outranks nav.js's injected :root{--cpr-top-h} either way. */
+@media (display-mode: standalone){
+  html:root{--cpr-top-h:calc(52px + env(safe-area-inset-top))}
+  .cpr-topbar{padding-top:env(safe-area-inset-top)}
+}
+html.mrt-standalone{--cpr-top-h:calc(52px + env(safe-area-inset-top))}
+html.mrt-standalone .cpr-topbar{padding-top:env(safe-area-inset-top)}
 /* nav.js v2 offsets content itself (body margin-left) — no page-level padding */
 body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
-/* mobile-first: one narrow column, thumb-sized controls, room under the sticky save bar */
-main{max-width:560px;margin:0 auto;padding:16px 16px 40px}
+/* mobile-first: one narrow column, thumb-sized controls, room above the fixed save footer */
+main{max-width:560px;margin:0 auto;padding:16px 16px 118px}
 .titlerow{display:flex;align-items:center;gap:9px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
 .ownertag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;letter-spacing:.4px;text-transform:uppercase;
@@ -39,8 +49,12 @@ color:var(--dark-grey);margin:12px 0 5px}
 
 /* every input ≥48px tall and ≥16px type — iOS won't zoom on focus */
 input[type=text],input[type=date],select,.combobox input{
-width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--border);border-radius:12px;background:#fff;
+width:100%;min-width:0;max-width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--border);border-radius:12px;background:#fff;
 font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:16px;color:var(--dark)}
+/* iOS renders naked date inputs at their own width — strip the native chrome */
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;text-align:left}
+.row2{display:grid;grid-template-columns:1.1fr 1fr;gap:0 10px;margin-top:12px}
+.row2 .fldl{margin-top:0}
 input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
 select{cursor:pointer;-webkit-appearance:none;appearance:none;
 background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234E4E50' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -55,6 +69,12 @@ font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;color:var(--dark-
 .thumbwrap img{width:100%;max-height:240px;object-fit:contain;border:1.5px solid var(--border);border-radius:14px;background:#fff;display:block}
 .thumbx{position:absolute;top:8px;right:8px;width:44px;height:44px;border:none;border-radius:50%;
 background:rgba(45,45,59,.82);color:#fff;font-size:1rem;font-weight:800;cursor:pointer;line-height:1}
+/* ✨ receipt-reader status under the photo */
+.aistat{display:none;margin-top:8px;font-size:.8rem;font-weight:800;color:var(--dark-grey);align-items:center;gap:7px}
+.aistat.on{display:flex}
+.aispin{width:14px;height:14px;flex:none;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;
+animation:mrtspin .8s linear infinite}
+@keyframes mrtspin{to{transform:rotate(360deg)}}
 
 /* 2 · amount ($ prefix, big) */
 .iwrap{position:relative;display:block}
@@ -92,9 +112,10 @@ font-size:.86rem;font-weight:700;color:var(--red);margin-bottom:12px}
 .errcard a{color:var(--blue)}
 .errcard .retry{display:block;width:100%;margin-top:9px;min-height:44px;border:none;border-radius:10px;
 background:var(--red);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.92rem;cursor:pointer}
-.savebar{position:sticky;bottom:0;z-index:50;margin:0 -16px;
-padding:10px 16px calc(10px + env(safe-area-inset-bottom));
-background:linear-gradient(180deg,rgba(243,242,242,0),var(--light-grey) 40%)}
+/* fixed footer — page content scrolls above it, never underneath it */
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:900;background:#fff;border-top:1.5px solid var(--border);
+padding:10px 16px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -6px 18px rgba(45,45,59,.06)}
+.savebar .in{max-width:528px;margin:0 auto}
 #saveBtn{width:100%;height:54px;border:none;border-radius:14px;background:var(--red);color:#fff;
 font-family:'Nunito',sans-serif;font-weight:900;font-size:1.08rem;cursor:pointer;
 box-shadow:0 6px 18px rgba(220,40,46,.28)}
@@ -148,13 +169,19 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw
         <button type="button" class="thumbx" id="thumbX" title="Retake">✕</button>
       </div>
       <input type="file" id="shotFile" accept="image/*" capture="environment" hidden>
+      <div class="aistat" id="aiStat"></div>
 
-      <div class="fldl">Amount</div>
-      <span class="iwrap"><span class="dol">$</span>
-        <input type="text" id="amt" inputmode="decimal" placeholder="0.00" aria-label="Amount"></span>
-
-      <div class="fldl">Date</div>
-      <input type="date" id="date" aria-label="Expense date">
+      <div class="row2">
+        <div>
+          <div class="fldl">Amount</div>
+          <span class="iwrap"><span class="dol">$</span>
+            <input type="text" id="amt" inputmode="decimal" placeholder="0.00" aria-label="Amount"></span>
+        </div>
+        <div>
+          <div class="fldl">Date</div>
+          <input type="date" id="date" aria-label="Expense date">
+        </div>
+      </div>
 
       <div class="fldl">Paid With</div>
       <select id="paySel" aria-label="Payment account"><option value="">Loading accounts…</option></select>
@@ -170,15 +197,18 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw
       <select id="clsSel" aria-label="Class"></select>
       <div class="splitprev" id="splitPrev"></div>
 
-      <div class="fldl">Vendor <span class="opt">(optional)</span></div>
-      <input type="text" id="vendor" maxlength="120" placeholder="Who was paid">
+      <div class="fldl">Vendor <span class="opt">(optional — matches link to your QBO vendors)</span></div>
+      <div class="combobox">
+        <input type="text" id="vendor" maxlength="120" placeholder="Who was paid" autocapitalize="words">
+        <div class="acclist" id="vendList"></div>
+      </div>
 
       <div class="fldl">Note <span class="opt">(optional)</span></div>
       <input type="text" id="note" maxlength="300" placeholder="What it was for">
     </div>
 
     <div class="errcard" id="errCard"></div>
-    <div class="savebar"><button type="submit" id="saveBtn">Save Expense</button></div>
+    <div class="savebar"><div class="in"><button type="submit" id="saveBtn">Save Expense</button></div></div>
   </form>
 
   <div id="recent" style="display:none">
@@ -220,8 +250,14 @@ var LS_QBO='cprExpQbo';        // {ts, accounts, classes} — chart-of-accounts 
 var LS_PAY='cprExpPay';        // last-used payment account id
 var LS_RECENT='cprExpRecent';  // last 5 expense accounts [{id,name,subtype}]
 
+/* iOS A2HS fallback for browsers that miss the display-mode media query */
+if(navigator.standalone)document.documentElement.classList.add('mrt-standalone');
+
 /* ------------- state ------------- */
 var ACCTS=[],CLASSES=[],STORECLS=[];   // from qbo ?action=accounts / ?action=classes
+var VENDORS=[];                        // from qbo ?action=vendors — the QBO vendor list
+var VEND=null;                         // matched QBO vendor {id,name} (typed text can stay unlinked)
+var PAYALLOW=null;                     // Settings allowlist of Paid With account ids (null/[] = all)
 var PHOTO=null;                        // {blob,url} — downscaled JPEG ready to upload
 var EXP=null;                          // chosen expense account {id,name,subtype}
 var RECEIPT_ID=null;                   // inserted row id (retry re-posts the same id)
@@ -273,9 +309,20 @@ async function loadQbo(){
   var cache=null;
   try{cache=JSON.parse(localStorage.getItem(LS_QBO)||'null');}catch(e){}
   if(cache&&cache.accounts&&cache.accounts.length){
-    ACCTS=cache.accounts;CLASSES=cache.classes||[];
+    ACCTS=cache.accounts;CLASSES=cache.classes||[];VENDORS=cache.vendors||[];
+    PAYALLOW=Array.isArray(cache.paywith)?cache.paywith:null;
     paintAccounts();
   }
+  /* the allowlist is one tiny row — always re-check it so a Settings edit
+     applies on the next open instead of after the 1-hour cache expires */
+  sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle().then(function(pw){
+    var ids=(pw.data&&pw.data.value&&Array.isArray(pw.data.value.ids))?pw.data.value.ids:null;
+    if(JSON.stringify(ids)!==JSON.stringify(PAYALLOW)){
+      PAYALLOW=ids;paintAccounts();
+      try{var c=JSON.parse(localStorage.getItem(LS_QBO)||'null');
+        if(c){c.paywith=PAYALLOW;localStorage.setItem(LS_QBO,JSON.stringify(c));}}catch(e){}
+    }
+  },function(){});
   var stale=!cache||!cache.ts||(Date.now()-cache.ts>3600e3);
   if(!stale)return;
   var sess=await ensureSession();if(!sess)return;
@@ -283,7 +330,12 @@ async function loadQbo(){
     var a=await fetchQbo('accounts',sess);
     var c=await fetchQbo('classes',sess);
     ACCTS=a.accounts||[];CLASSES=c.classes||[];
-    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES}));}catch(e){}
+    try{var v=await fetchQbo('vendors',sess);VENDORS=v.vendors||[];}catch(e2){/* vendor link is optional */}
+    try{
+      var pw=await sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle();
+      PAYALLOW=(pw.data&&pw.data.value&&Array.isArray(pw.data.value.ids))?pw.data.value.ids:null;
+    }catch(e3){}
+    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES,vendors:VENDORS,paywith:PAYALLOW}));}catch(e){}
     $('#qboBanner').style.display='none';
     paintAccounts();
   }catch(e){
@@ -292,7 +344,12 @@ async function loadQbo(){
   }
 }
 
-function payAccounts(){return ACCTS.filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});}
+function payAccounts(){
+  var pays=ACCTS.filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
+  /* Settings → Integrations → QuickBooks curates which accounts show here */
+  if(PAYALLOW&&PAYALLOW.length)pays=pays.filter(function(a){return PAYALLOW.indexOf(a.id)>-1;});
+  return pays;
+}
 function expAccounts(){return ACCTS.filter(function(a){return /expense|cost of goods sold/i.test(a.type||'');});}
 function storeClasses(){
   var names=LOC.names();
@@ -354,12 +411,82 @@ function setPhoto(p){
   if(p)$('#thumb').src=p.url;else $('#thumb').removeAttribute('src');
 }
 $('#shotBtn').addEventListener('click',function(){$('#shotFile').click();});
-$('#thumbX').addEventListener('click',function(){setPhoto(null);$('#shotFile').value='';});
+$('#thumbX').addEventListener('click',function(){setPhoto(null);$('#shotFile').value='';aiStat('');EXTRACT_SEQ++;});
 $('#shotFile').addEventListener('change',async function(){
   var f=this.files&&this.files[0];if(!f)return;
-  try{setPhoto(await processPhoto(f));}
+  try{
+    var p=await processPhoto(f);
+    setPhoto(p);
+    extractFromPhoto(p.blob);   // fire-and-forget — the form stays usable while it reads
+  }
   catch(e){toast('Photo failed — '+(e&&e.message||'try again'),true);this.value='';}
 });
+
+/* ------------- ✨ receipt reader (Claude vision via the qbo function) ------------- */
+function aiStat(html){var el=$('#aiStat');el.className='aistat'+(html?' on':'');el.innerHTML=html||'';}
+function blobB64(blob){
+  return new Promise(function(ok,bad){
+    var fr=new FileReader();
+    fr.onload=function(){ok(String(fr.result).split(',')[1]||'');};
+    fr.onerror=function(){bad(new Error('could not read the photo'));};
+    fr.readAsDataURL(blob);
+  });
+}
+var EXTRACT_SEQ=0;   // retakes cancel an older read that's still in flight
+async function extractFromPhoto(blob){
+  var seq=++EXTRACT_SEQ;
+  aiStat('<span class="aispin"></span>Reading the receipt…');
+  try{
+    var sess=await ensureSession();if(!sess)throw new Error('no session');
+    var b64=await blobB64(blob);
+    var res=await fetch(QBO_FN,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.access_token,'apikey':ANON},
+      body:JSON.stringify({action:'extract_receipt',image_b64:b64,media_type:'image/jpeg'})});
+    var d={};try{d=await res.json();}catch(e){}
+    if(seq!==EXTRACT_SEQ)return;                 // user retook the photo — drop this result
+    if(!res.ok||!d.ok)throw new Error(d.detail||d.error||('HTTP '+res.status));
+    var used=[];
+    /* fill only what the owner hasn't typed — never clobber a hand-entered value */
+    if(d.amount!=null&&amtVal()==null){$('#amt').value=d.amount.toFixed(2);used.push('amount');}
+    if(d.date&&$('#date').value===todayLocal()&&d.date!==$('#date').value){$('#date').value=d.date;used.push('date');}
+    if(d.vendor&&!$('#vendor').value.trim()){$('#vendor').value=d.vendor;vendorAutolink();used.push('vendor');}
+    renderSplit();
+    aiStat(used.length?'✨ Filled '+used.join(' + ')+' from the receipt — double-check, then save.'
+                      :'✨ Receipt read — your entries were left as typed.');
+  }catch(e){
+    if(seq!==EXTRACT_SEQ)return;
+    aiStat('Couldn’t read the receipt — enter it manually.');
+  }
+}
+
+/* ------------- vendor combobox (links typed names to QBO vendor records) ------------- */
+function vendorAutolink(){
+  var q=squash($('#vendor').value);
+  VEND=null;
+  if(!q)return;
+  for(var i=0;i<VENDORS.length;i++){
+    if(squash(VENDORS[i].name)===q){VEND=VENDORS[i];$('#vendor').value=VENDORS[i].name;break;}
+  }
+}
+function renderVendList(){
+  var el=$('#vendList'),q=$('#vendor').value.trim().toLowerCase();
+  if(!VENDORS.length){el.style.display='none';return;}
+  var list=VENDORS.filter(function(v){return !q||v.name.toLowerCase().indexOf(q)>=0;}).slice(0,30);
+  if(!list.length){el.style.display='none';return;}
+  el.innerHTML=list.map(function(v,i){return '<div class="accrow" data-i="'+i+'">'+esc(v.name)+'</div>';}).join('');
+  el.querySelectorAll('.accrow[data-i]').forEach(function(row){
+    row.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      VEND=list[+row.getAttribute('data-i')];
+      $('#vendor').value=VEND.name;
+      el.style.display='none';
+    });
+  });
+  el.style.display='block';
+}
+$('#vendor').addEventListener('focus',renderVendList);
+$('#vendor').addEventListener('input',function(){vendorAutolink();renderVendList();});
+$('#vendor').addEventListener('blur',function(){setTimeout(function(){$('#vendList').style.display='none';},150);});
 
 /* ------------- expense-account combobox + recent chips ------------- */
 function recents(){
@@ -522,9 +649,14 @@ $('#form').addEventListener('submit',async function(ev){
   var clsVal=$('#clsSel').value;
   var split=(clsVal==='__split')?splitLines(amount):null;
   var cls=(clsVal&&clsVal!=='__split')?CLASSES.filter(function(c){return c.id===clsVal;})[0]:null;
+  /* vendor link rides along only while the typed text still IS that vendor */
+  var vtxt=$('#vendor').value.trim();
+  var vlink=(VEND&&vtxt&&squash(VEND.name)===squash(vtxt))?VEND:null;
   var row={
     txn_date:date,amount:amount,
-    vendor:$('#vendor').value.trim()||null,
+    vendor:vtxt||null,
+    qbo_vendor_id:vlink?vlink.id:null,
+    qbo_vendor_name:vlink?vlink.name:null,
     memo:$('#note').value.trim()||null,
     payment_account_id:pay.id,payment_account_name:pay.name||null,payment_account_type:pay.type||null,
     expense_account_id:EXP.id,expense_account_name:EXP.name||null,
@@ -591,11 +723,11 @@ function showDone(amount,warn){
 $('#newBtn').addEventListener('click',function(){
   $('#doneWrap').style.display='none';
   /* reset for the next receipt — payment account (and recents) stay put */
-  setPhoto(null);$('#shotFile').value='';
+  setPhoto(null);$('#shotFile').value='';aiStat('');EXTRACT_SEQ++;
   $('#amt').value='';$('#date').value=todayLocal();
   EXP=null;$('#accSearch').value='';
   $('#clsSel').value='';SPLITSEL=null;renderSplit();
-  $('#vendor').value='';$('#note').value='';
+  $('#vendor').value='';$('#note').value='';VEND=null;
   RECEIPT_ID=null;clearErr();
   window.scrollTo({top:0});
   $('#amt').focus();

@@ -45,3 +45,22 @@ create policy receipts_owner_delete on storage.objects for delete to authenticat
 insert into public.permissions (key, label, category, description, sort, page, is_access)
 values ('expenses.record', 'Access Expenses', 'Cash', 'Record expenses + receipts straight into QBO', 26, 'Expenses', true)
 on conflict (key) do nothing;
+
+-- v2 (2026-07-15): vendor link — when the typed vendor matches the QBO vendor
+-- list, the Purchase carries EntityRef so vendor reports/matching work.
+alter table public.expense_receipts add column if not exists qbo_vendor_id text;
+alter table public.expense_receipts add column if not exists qbo_vendor_name text;
+
+-- v2: QBO config knobs. key 'paywith' -> {ids:[account ids]} = which Bank/CC
+-- accounts the Expenses page offers as Paid With (empty/missing = all).
+-- Edited in Settings -> Integrations -> QuickBooks Online.
+create table if not exists public.qbo_config(
+  key        text primary key,
+  value      jsonb not null default '{}'::jsonb,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+alter table public.qbo_config enable row level security;
+drop policy if exists qbo_config_owner on public.qbo_config;
+create policy qbo_config_owner on public.qbo_config
+  for all to authenticated using (is_owner()) with check (is_owner());
