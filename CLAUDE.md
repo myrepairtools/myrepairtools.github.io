@@ -586,6 +586,13 @@ When changing a tool's data layer, check which generation it uses first — they
 - Keep a tool's CSS/JS inline in its own file; don't extract to shared assets unless it is
   genuinely cross-tool (the bar for adding to `assets/` is high).
 - Reuse `CPRLocations` for any store dropdown/normalization rather than re-listing stores.
+- **Store switching = a brand `<select>` dropdown, never pills/chips** (the store list will
+  grow). Pattern from cash-journal.html: `.storesel` (196px, 36px tall, 1.5px `--border`,
+  radius 8, Nunito Sans 700 .92rem, blue focus ring `0 0 0 3px rgba(79,176,227,.15)`),
+  values = canonical `CPRLocations.names()`, labels = `'CPR ' + display(name)`. Converted
+  so far: cash-journal, checklist; convert other pages' pills when touching them. (The
+  design project's CLAUDE.md + `@myrepairtools/design-system` record the same rule —
+  StorePills is deprecated for location switching.)
 - **Persist view state across refresh.** Any tool with tabs / sub-views / a selected
   page-or-option should remember the active one in `localStorage` (e.g. `cprSetTab`,
   `cprSetPgtool`/`cprSetPgopt` in `settings.html`) and restore it on load, so a refresh

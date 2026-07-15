@@ -18,9 +18,10 @@ button{font-family:inherit}
 .hd{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
 .hd-sub{color:var(--grey);font-size:.82rem;font-weight:600;margin-top:3px}
 .hd-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.locpills{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
-.locpills button{padding:6px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;background:transparent;color:var(--grey)}
-.locpills button.on{background:var(--blue);color:#fff}
+/* store selector — brand Select per project convention (dropdown, never pills) */
+.storesel{width:196px;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.92rem;color:var(--dark);cursor:pointer}
+.storesel:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
 .bellbtn{position:relative;width:40px;height:40px;border-radius:9px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-size:1.05rem}
 .bellbtn .n{position:absolute;top:4px;right:4px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;display:flex;align-items:center;justify-content:center}
 .navbtn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey);border:1px solid var(--border);background:#fff;border-radius:9px;padding:8px 13px;cursor:pointer;white-space:nowrap}
@@ -124,7 +125,7 @@ textarea.inp{resize:vertical}
       <div class="hd-sub" id="pgSub"></div>
     </div>
     <div class="hd-r">
-      <span class="locpills" id="locPills"></span>
+      <select class="storesel" id="locSel" aria-label="Store"></select>
       <button class="bellbtn" id="bellBtn" title="Outstanding today">🔔<span class="n hide" id="bellN"></span></button>
       <a class="navbtn off" id="adminLink" href="task-admin.html" title="Managers &amp; the owner only">🗂️ Task Admin</a>
     </div>
@@ -365,8 +366,9 @@ function wireStatic(){
 }
 function render(){
   // store pills
-  $('#locPills').innerHTML=STORES.map(s=>'<button class="'+(s===SEL?'on':'')+'" data-st="'+esc(s)+'">'+esc(shortStore(s))+'</button>').join('');
-  document.querySelectorAll('#locPills button').forEach(b=>{b.onclick=()=>{SEL=b.dataset.st;lsSet('cprCkStore',SEL);render();};});
+  const sel=$('#locSel');
+  sel.innerHTML=STORES.map(s=>'<option value="'+esc(s)+'"'+(s===SEL?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('');
+  sel.onchange=()=>{SEL=sel.value;lsSet('cprCkStore',SEL);render();};
   // tabs
   $('#viewTabs').innerHTML=[['my','My tasks'],['store','Store']].map(v=>'<button class="'+(VIEW===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
   document.querySelectorAll('#viewTabs button').forEach(b=>{b.onclick=()=>{VIEW=b.dataset.v;lsSet('cprCkView',VIEW);render();};});
