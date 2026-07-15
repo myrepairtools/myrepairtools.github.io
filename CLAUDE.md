@@ -587,7 +587,29 @@ nav) with full history + read receipts (managers see who read / seconds spent). 
 is manager/owner (RLS `is_admin()`); reads/dismissals are per-user rows. Automated posts:
 milestones cron writes day-of birthdays/anniversaries; any notification rule routed to an
 **In-app · Communications** channel (notify function `type='inapp'`) posts here too.
-Distinct from future "Alerts" (personal/actionable, top-right icon — not built).
+Distinct from **Alerts** (personal/actionable — see below).
+
+**Alerts (personal notification feed):** `alerts` table (staff_id, kind
+task|schedule|kb|goal|system, title, body, link = deep link, icon, read_at,
+dismissed_at; RLS select/update own rows only; INSERTS are service-role only —
+sources are edge functions/crons, the page never writes new rows). Surface:
+`alerts.html` (My Hub; any signed-in staff) — 30-day feed grouped by day, unread
+accent + dot, tap = mark read + follow the deep link, Mark all read. The top-bar
+🔔 bell navigates here and carries a live unread-count badge (nav.js queries the
+count per page load). Notification *sources* (task nudges, schedule posted, KB
+required reading) and delivery channels (web push + SMS + per-user preferences)
+are the next phases of the notifications project — every notification will write
+an `alerts` row regardless of channel so the feed is always complete.
+
+**Mobile app shell (nav.js):** below 860px the site behaves like a native app —
+a fixed **bottom tab bar** (Home / Tasks / My Time / Commission / ☰ More; More
+opens the slide-in menu, replacing the hamburger) with safe-area padding and a
+pinned view-transition-name. The top bar keeps clock-in + 🔔 bell + avatar; the
+Square button hides on mobile and lives as a "Square · Backup Register" row under
+More instead. `--cpr-bb-h` (0 on desktop, bar height on mobile) is set on :root —
+pages with their own fixed footers must use `bottom:var(--cpr-bb-h,0px)`
+(expenses.html does), and nav.js lifts the assistant ✨ FAB above the bar.
+Per-user tab customization is planned (dashboard_layouts pattern), not built.
 
 **Time-off requests:** employees request via a **3-step wizard modal on `my-schedule.html`**
 (never an inline form): 1) calendar date pick — shows teammates' pending/booked days AND the

@@ -67,6 +67,7 @@
   var HUB = [
     { label:'Dashboard',           url:'index.html',                icon:'🏠' },
     { label:'Checklist',           url:'checklist.html',            icon:'✅' },
+    { label:'Alerts',              url:'alerts.html',               icon:'🔔' },
     { label:'Communications',      url:'communications.html',       icon:'📣' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
@@ -418,7 +419,9 @@
   .cpr-tb-sq.open{ background:rgba(255,255,255,.22); }
   .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
   .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
-  .cpr-tb-bell .bdg{ position:absolute; top:5px; right:6px; min-width:8px; height:8px; border-radius:999px; background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; }
+  .cpr-tb-bell .bdg{ position:absolute; top:1px; right:1px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+    background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; align-items:center; justify-content:center;
+    font-family:'Nunito',sans-serif; font-weight:900; font-size:.56rem; color:#fff; line-height:1; }
   .cpr-tb-role{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.78rem; color:#fff; white-space:nowrap; cursor:pointer; border:none; background:none; padding:6px 8px; border-radius:9px; }
   .cpr-tb-role:hover{ background:rgba(255,255,255,.10); }
   .cpr-tb-role .dot{ width:7px; height:7px; border-radius:50%; background:#2E9E5B; flex:none; }
@@ -449,13 +452,34 @@
   .cpr-scrim{ display:none; position:fixed; inset:0; background:rgba(45,45,59,.45); z-index:999; }
   .cpr-scrim.show{ display:block; }
   @media(max-width:859px){
-    .cpr-rail{ display:none; }                              /* no rail on mobile — hamburger menu instead */
-    .cpr-tb-burger{ display:flex; }                         /* hamburger lives in the top bar */
+    .cpr-rail{ display:none; }                              /* no rail on mobile — bottom tab bar instead */
     .cpr-pane{ left:0; width:min(86vw,330px); border-right:none; box-shadow:0 18px 50px rgba(45,45,59,.28);
       transform:translateX(-100%); transition:transform .22s ease; }
     .cpr-pane.open{ transform:translateX(0); }
     body{ margin-left:0 !important; }                       /* content goes full width */
   }
+
+  /* mobile app shell — bottom tab bar (Home/Tasks/My Time/Commission/More).
+     --cpr-bb-h lets pages with their own fixed footers sit above it. */
+  :root{ --cpr-bb-h:0px; }
+  .cpr-bottombar{ display:none; }
+  @media(max-width:859px){
+    :root{ --cpr-bb-h:calc(60px + env(safe-area-inset-bottom)); }
+    .cpr-bottombar{ position:fixed; left:0; right:0; bottom:0; z-index:1001; display:flex; background:#fff;
+      border-top:1px solid #E0E2EA; padding:7px 4px calc(7px + env(safe-area-inset-bottom));
+      box-shadow:0 -8px 22px rgba(45,45,59,.07); view-transition-name:cpr-bottombar; }
+    body{ padding-bottom:var(--cpr-bb-h) !important; }
+    .cpr-tb-burger{ display:none; }                         /* More tab replaces the hamburger */
+    .cpr-tb-sq{ display:none; }                             /* Square lives under More on mobile */
+    .cpra-fab{ bottom:calc(var(--cpr-bb-h) + 12px) !important; }  /* assistant ✨ sits above the tab bar */
+  }
+  .cpr-bb-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; border:none; background:none;
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; color:#B9BDCB; cursor:pointer;
+    text-decoration:none; padding:2px 0; min-width:0; }
+  .cpr-bb-tab .i{ font-size:1.3rem; line-height:1.1; }
+  .cpr-bb-tab.on{ color:var(--cpr-blue); }
+  ::view-transition-group(cpr-bottombar){ animation-duration:0s; }
+  ::view-transition-old(cpr-bottombar),::view-transition-new(cpr-bottombar){ animation:none; }
   `;
 
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
@@ -662,6 +686,11 @@
       var st = SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       if (st) h += '<div class="cpr-grp">Settings</div>' + st;
     }
+    /* Square lives here on mobile (the top-bar button is hidden below 860px) */
+    h += '<div class="cpr-grp">Register</div>'
+      + '<div class="cpr-link" data-sqrow role="button" tabindex="0">'
+      + '<svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex:none"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
+      + ' Square · Backup Register</div>';
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
   function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
@@ -795,7 +824,7 @@
   function wireTop(){
     if (!top) return;
     var bell = top.querySelector('[data-tbact="bell"]');
-    if (bell && !bell._wired){ bell._wired = true; bell.onclick = function(e){ e.stopPropagation(); var dd = document.querySelector('.cpr-belldd'); if (dd) dd.classList.toggle('show'); }; }
+    if (bell && !bell._wired){ bell._wired = true; bell.onclick = function(){ location.href = 'alerts.html'; }; }
     // the identity (name) is the account-menu trigger now that the rail avatar is gone
     var id = top.querySelector('[data-roleslot]');
     if (id && !id._wired){ id._wired = true; id.onclick = function(e){ e.stopPropagation(); if (usermenu){ updateAvatar(); usermenu.classList.toggle('show'); } }; }
@@ -852,26 +881,53 @@
       + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">🔔<span class="bdg"></span></button>'
       + '<span class="cpr-tb-role" data-roleslot>' + roleSlotHtml() + '</span>';
     document.body.insertBefore(top, document.body.firstChild);
-    var belldd = document.createElement('div'); belldd.className = 'cpr-belldd';
-    belldd.innerHTML = '<div class="h">Notifications</div><div class="empty">No notifications yet.<br>Coming soon.</div>';
-    document.body.appendChild(belldd);
-    document.addEventListener('click', function(e){
-      if (belldd.classList.contains('show') && !belldd.contains(e.target) && !e.target.closest('.cpr-tb-bell')) belldd.classList.remove('show');
-    });
+
+    // ── bottom tab bar (mobile app shell): Home / Tasks / My Time / Commission / More ──
+    var BB_TABS = [
+      { label:'Home',       url:'index.html',                icon:'🏠' },
+      { label:'Tasks',      url:'checklist.html',            icon:'✅' },
+      { label:'My Time',    url:'my-schedule.html',          icon:'🗓️' },
+      { label:'Commission', url:'commission-dashboard.html', icon:'💰' }
+    ];
+    var curFile = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    var bb = document.createElement('nav'); bb.className = 'cpr-bottombar';
+    bb.innerHTML = BB_TABS.map(function(t){
+      return '<a class="cpr-bb-tab'+(t.url===curFile?' on':'')+'" href="'+esc(t.url)+'"><span class="i">'+t.icon+'</span>'+esc(t.label)+'</a>';
+    }).join('') + '<button class="cpr-bb-tab" data-bbmore aria-label="More"><span class="i">☰</span>More</button>';
+    document.body.appendChild(bb);
+
     wireTop();
     wireClock();
 
-    // ── Square virtual terminal (backup register) — lazy-loaded panel ────
+    // ── Square virtual terminal (backup register) — lazy-loaded panel.
+    //    Desktop: the top-bar button. Mobile: the "Square · Backup Register"
+    //    row under More (the top-bar button is hidden there).
     var sqBtn = top.querySelector('.cpr-tb-sq');
-    if (sqBtn) sqBtn.addEventListener('click', function(){
+    function openSquare(){
       if (!window.CPRNavRole){ toastNav('Unlock myRepairTools first'); return; }
       if (window.CPRSquarePay){ window.CPRSquarePay.toggle(); return; }
-      sqBtn.style.opacity = '.5';
+      if (sqBtn) sqBtn.style.opacity = '.5';
       var s = document.createElement('script');
       s.src = 'assets/square-pay.js';
-      s.onload = function(){ sqBtn.style.opacity = ''; if (window.CPRSquarePay) window.CPRSquarePay.open(); };
-      s.onerror = function(){ sqBtn.style.opacity = ''; toastNav('Could not load the Square panel'); };
+      s.onload = function(){ if (sqBtn) sqBtn.style.opacity = ''; if (window.CPRSquarePay) window.CPRSquarePay.open(); };
+      s.onerror = function(){ if (sqBtn) sqBtn.style.opacity = ''; toastNav('Could not load the Square panel'); };
       document.head.appendChild(s);
+    }
+    if (sqBtn) sqBtn.addEventListener('click', openSquare);
+    document.addEventListener('click', function(e){
+      if (e.target.closest && e.target.closest('[data-sqrow]')){ e.preventDefault(); openSquare(); }
+    });
+
+    // ── unread-alerts count on the bell ──────────────────────────────────
+    loadSB().then(function(c){
+      if (!c) return;
+      c.auth.getSession().then(function(r){
+        if (!r || !r.data || !r.data.session) return;
+        c.from('alerts').select('id', { count:'exact', head:true }).is('read_at', null).is('dismissed_at', null).then(function(q){
+          var n = q.count || 0, b = top.querySelector('.cpr-tb-bell .bdg');
+          if (b){ b.textContent = n > 9 ? '9+' : (n || ''); b.style.display = n ? 'flex' : 'none'; }
+        }, function(){});
+      });
     });
 
     // ── collapse (desktop): hide the menu pane, keep the icon rail ───────
@@ -954,6 +1010,8 @@
     function toggleMenu(){ setMenu(!pane.classList.contains('open')); }
     if (burger) burger.onclick = toggleMenu;
     if (tbBurger) tbBurger.onclick = toggleMenu;
+    var bbMore = document.querySelector('.cpr-bottombar [data-bbmore]');
+    if (bbMore) bbMore.onclick = toggleMenu;
     scrim.onclick = closeMenu;
     // close the menu after tapping a tool on mobile
     pane.addEventListener('click', function(e){ if (e.target.closest('.cpr-link')) closeMenu(); });
