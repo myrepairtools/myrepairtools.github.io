@@ -217,6 +217,12 @@ let SEC=lsGet('cprTaskAdminSec','library'),MODE=lsGet('cprTaskAdminMode','list')
 let SEL=null,STORES=[],CALM=null,REPM=null;   // CALM/REPM = displayed calendar/report month Date
 let REP={list:[],comps:{},trend:[]};          // reporting cache for the loaded month
 
+/* hash deep-link (#library / #reporting / #fairness) — a valid hash wins over localStorage */
+const HASH_SECS=['library','reporting','fairness'];
+function secFromHash(){const h=location.hash.replace('#','').toLowerCase();return HASH_SECS.indexOf(h)>-1?h:null;}
+const _hs=secFromHash();if(_hs){SEC=_hs;lsSet('cprTaskAdminSec',SEC);}
+window.addEventListener('hashchange',()=>{const t=secFromHash();if(t&&t!==SEC){SEC=t;lsSet('cprTaskAdminSec',SEC);if(CALM)render();}});   // CALM set = manager UI booted
+
 async function boot(){
   $('#app').style.visibility='visible';
   if(!isMgr(ME.role)){$('#gate').classList.remove('hide');return;}
@@ -276,6 +282,7 @@ function render(){
   document.querySelectorAll('#locPills button').forEach(b=>{b.onclick=()=>{SEL=b.dataset.st;lsSet('cprCkStore',SEL);render();};});
   $('#secTabs').innerHTML=[['library','Library'],['reporting','Reporting'],['fairness','Fairness']].map(v=>'<button class="'+(SEC===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
   document.querySelectorAll('#secTabs button').forEach(b=>{b.onclick=()=>{SEC=b.dataset.v;lsSet('cprTaskAdminSec',SEC);render();};});
+  try{if(location.hash.replace('#','')!==SEC)history.replaceState(null,'','#'+SEC);}catch(e){}
   $('#libCtl').style.display=SEC==='library'?'inline-flex':'none';
   $('#modeTabs').innerHTML=[['list','List'],['calendar','Calendar']].map(v=>'<button class="'+(MODE===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
   document.querySelectorAll('#modeTabs button').forEach(b=>{b.onclick=()=>{MODE=b.dataset.v;lsSet('cprTaskAdminMode',MODE);render();};});

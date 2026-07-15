@@ -180,6 +180,35 @@ let CAT=(function(){try{return localStorage.getItem('cprKbCat')||'all';}catch(e)
 let OPEN=null;              // article row being viewed / edited
 let SEARCHQ='', SRES=null, SEARCH_T=null;
 
+/* ---------- hash deep links: #a=<article-slug> (wins) · #c=<category-id-or-slug> · #compliance ---------- */
+const CAT_HASHES=['all','req','drafts','compliance'];
+function catFromHash(){
+  const h=location.hash.replace('#','').toLowerCase();
+  const m=(h==='compliance')?[h,'compliance']:h.match(/^c=([\w-]+)$/);
+  if(!m) return null;
+  const v=m[1];
+  if((v==='drafts'||v==='compliance')&&!(AUTH&&isMgr(AUTH.role))) return null;
+  if(CAT_HASHES.indexOf(v)>-1) return v;
+  const c=CATS.find(x=>String(x.id)===v||slugify(x.name)===v);
+  return c?String(c.id):null;
+}
+function catHash(c){
+  if(c==='compliance') return 'compliance';
+  if(CAT_HASHES.indexOf(String(c))>-1) return 'c='+c;
+  const cat=CATS.find(x=>String(x.id)===String(c));
+  return 'c='+(cat?slugify(cat.name):c);
+}
+function syncCatHash(){ try{ if(location.hash.replace('#','')!==catHash(CAT)) history.replaceState(null,'','#'+catHash(CAT)); }catch(e){} }
+window.addEventListener('hashchange',()=>{
+  if(!AUTH) return;                                             // refresh() applies the hash once booted
+  const h=location.hash.replace('#','');
+  const ma=h.match(/^a=([\w-]+)/);
+  if(ma){ const art=ARTS.find(x=>x.slug===ma[1]); if(art&&!(MODE==='article'&&OPEN&&OPEN.slug===ma[1])) openArticle(art.id); return; }
+  const hc=catFromHash();
+  if(hc){ if(hc!==CAT||MODE!=='list'){ CAT=hc; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} MODE='list'; OPEN=null; draw(); } return; }
+  if(!h&&MODE!=='list'){ MODE='list'; OPEN=null; draw(); }      // hash cleared → back to the list
+});
+
 function boot(){
   if(!AUTH){ $('#gate').hidden=false; return; }
   if(isMgr(AUTH.role)) $('#btnNew').hidden=false;
@@ -201,6 +230,9 @@ async function refresh(){
   // deep link #a=slug
   const m=location.hash.match(/#a=([\w-]+)/);
   if(m&&MODE==='list'){ const art=ARTS.find(x=>x.slug===m[1]); if(art){ openArticle(art.id); return; } }
+  // deep link #c=<category> / #compliance — a valid hash beats the remembered pill (#a= wins above)
+  const hc=catFromHash();
+  if(hc&&MODE==='list'&&hc!==CAT){ CAT=hc; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} }
   draw();
 }
 function catName(id){ const c=CATS.find(x=>x.id===id); return c?c.name:'—'; }
@@ -219,7 +251,7 @@ function drawChips(){
   }
   $('#chips').innerHTML=html;
   document.querySelectorAll('#chips button').forEach(b=>b.addEventListener('click',()=>{
-    CAT=b.dataset.c; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} MODE='list'; OPEN=null; draw();
+    CAT=b.dataset.c; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} MODE='list'; OPEN=null; syncCatHash(); draw();
   }));
 }
 

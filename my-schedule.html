@@ -296,6 +296,11 @@ function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var TAB=lsGet('cprMyTimeTab','me'), SELSTORE=null, WK=null;
 var MMON=null, MLAYER=lsGet('cprMyTimeLayer','mine');   // month view: displayed month + active layer
 function setTab(t){TAB=t;lsSet('cprMyTimeTab',t);}
+/* deep links (my-schedule.html#month etc.) beat the remembered tab */
+var HASH_TABS=['me','month','store','timeoff'];
+function tabFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
+var _ht=tabFromHash(); if(_ht)setTab(_ht);
+window.addEventListener('hashchange',function(){var t=tabFromHash();if(t&&t!==TAB){setTab(t);if(ME){renderHeader();render();}}});
 /* Effective day for a real date: a per-week schedule_override wins over the recurring template
    (mirrors Schedule Admin › This Week). */
 function effDayRec(staffId,wd,di){
@@ -432,6 +437,8 @@ function renderWknav(){
 }
 function isWeb(){return window.innerWidth>=980;}
 function render(){
+  /* keep the URL hash in step with the open tab (shareable deep links) */
+  try{if(location.hash.replace('#','')!==TAB)history.replaceState(null,'','#'+TAB);}catch(e){}
   var web=isWeb();
   document.body.classList.toggle('web',web);
   document.body.classList.toggle('mfull',TAB==='month');     // month calendar spans full width

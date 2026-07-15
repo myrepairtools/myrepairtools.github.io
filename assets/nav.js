@@ -293,6 +293,17 @@
      Browsers without support just fall back to the normal instant navigation. */
   @view-transition { navigation: auto; }
   ::view-transition-old(root),::view-transition-new(root){ animation-duration:.18s; }
+  @media (prefers-reduced-motion: reduce){ @view-transition { navigation: none; } }
+  /* Pin the app chrome: same view-transition-name on both pages = treated as the
+     SAME element, so the top bar / rail / menu pane hold perfectly still while
+     only the page content cross-fades. */
+  .cpr-topbar{ view-transition-name: cpr-topbar; }
+  .cpr-rail{ view-transition-name: cpr-rail; }
+  .cpr-pane{ view-transition-name: cpr-pane; }
+  ::view-transition-group(cpr-topbar),::view-transition-group(cpr-rail),::view-transition-group(cpr-pane){ animation-duration:0s; }
+  ::view-transition-old(cpr-topbar),::view-transition-new(cpr-topbar),
+  ::view-transition-old(cpr-rail),::view-transition-new(cpr-rail),
+  ::view-transition-old(cpr-pane),::view-transition-new(cpr-pane){ animation:none; }
 
   :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px; --cpr-top-h:52px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }

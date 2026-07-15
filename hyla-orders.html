@@ -573,11 +573,15 @@ function labelItems(){ try{ var a=JSON.parse(SETTINGS.labelItems||'[]'); if(a.le
 function guideSteps(){ try{ var a=JSON.parse(SETTINGS.guideSteps||'[]'); if(a.length)return a; }catch(e){} return ['Power on & boot','Check for iCloud / Google / MDM lock','Screen: brightness, dead pixels, lines, touch accuracy','Face ID / Touch ID enrolls','Front & rear cameras (photo + video, all lenses)','Speakers, earpiece & microphone','Charging port + wireless charging','Buttons: power, volume, mute','Wi-Fi & cellular signal','Battery health reading','Cosmetic check: glass, frame, lens covers','Clean device & apply label']; }
 
 /* ================= TABS / FILTERS ================= */
+var HASH_TABS=['open','done','rmatab','reports'];
+function tabFromHash(){ var h=location.hash.replace('#','').toLowerCase(); return HASH_TABS.indexOf(h)>-1?h:null; }
+window.addEventListener('hashchange', function(){ var t=tabFromHash(); if(t && t!==TAB) setTab(t); });
 function setTab(t){
   TAB=t;
   document.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('active', x.dataset.tab===t); });
   ['open','done','rmatab','reports'].forEach(function(x){ $(x).classList.toggle('hide', x!==t); });
   if (t==='reports') renderReports();
+  try{ if(location.hash.replace('#','')!==TAB) history.replaceState(null,'','#'+TAB); }catch(e){}
 }
 function storeBarHtml(){
   var html = '<span class="lbl">Store</span><button class="fpill '+(STORE_FILTER==='all'?'on':'')+'" onclick="setStore(\'all\')">All</button>';
@@ -900,6 +904,7 @@ document.addEventListener('DOMContentLoaded', function(){
     fileChosen(e.dataTransfer.files);
   });
 
+  var _ht=tabFromHash(); if(_ht && _ht!==TAB) setTab(_ht);   // #open / #done / #rmatab / #reports deep-link
   boot();
 });
 function fileChosen(files){

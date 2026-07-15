@@ -174,6 +174,12 @@ let OPEN_AUDIT=null;    // audit row being viewed (detail mode inside Audits tab
 let SCANS=[];           // scans for OPEN_AUDIT
 let SCAN_BUCKET='good';
 
+/* ===== hash deep-links (#queue / #audits / #all / #prices) ===== */
+const HASH_TABS=['queue','audits','all','prices'];
+function tabFromHash(){const h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
+const _ht=tabFromHash(); if(_ht){TAB=_ht;try{localStorage.setItem('cprLcdTab',TAB);}catch(e){}}
+window.addEventListener('hashchange',()=>{const t=tabFromHash();if(t&&t!==TAB){TAB=t;OPEN_AUDIT=null;try{localStorage.setItem('cprLcdTab',TAB);}catch(e){}if(AUTH)render();}});
+
 function boot(){
   if(!AUTH){ $('#gate').hidden=false; return; }
   if(isMgr(AUTH.role)){ $('#btnNewAudit').hidden=false; $('#tabPrices').hidden=false; }
@@ -486,6 +492,7 @@ async function deleteAudit(){
 
 /* ===== render ===== */
 function render(){
+  try{if(location.hash.replace('#','')!==TAB)history.replaceState(null,'','#'+TAB);}catch(e){}
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===TAB));
   const qn=ROWS.filter(r=>r.status==='good'&&!r.audit_id).length;
   const c=$('#cntQueue'); c.hidden=!qn; c.textContent=qn;

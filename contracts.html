@@ -135,6 +135,12 @@ const token=()=>{const a=new Uint8Array(24);crypto.getRandomValues(a);return Arr
 
 let ME=null, ROWS=[], TMPLS=[], SVCS=[], CLAUSES=[], DEVICES=[], FILTER=(function(){try{return localStorage.getItem('cprMcFilter')||'all';}catch(e){return 'all';}})(), Q='';
 
+/* deep link: contracts.html#sent etc. — a valid hash beats the remembered filter */
+const HASH_FILTERS=['all','draft','sent','signed','paid','void'];
+const filterFromHash=()=>{const h=location.hash.replace('#','').toLowerCase();return HASH_FILTERS.indexOf(h)>-1?h:null;};
+const _hf=filterFromHash(); if(_hf){FILTER=_hf;try{localStorage.setItem('cprMcFilter',FILTER);}catch(e){}}
+window.addEventListener('hashchange',()=>{const f=filterFromHash();if(f&&f!==FILTER){FILTER=f;try{localStorage.setItem('cprMcFilter',FILTER);}catch(e){}render();}});
+
 /* ---- Embed mode: the RepairQ extension iframes this page (?embed=1) straight
    into the New Contract flow, pre-filled from the ticket via postMessage. ---- */
 const EMBED=(function(){try{return new URLSearchParams(location.search).get('embed')==='1';}catch(e){return false;}})();
@@ -191,6 +197,8 @@ function render(){
   const F=[['all','All'],['draft','Draft'],['sent','Sent'],['signed','Signed'],['paid','Paid'],['void','Void']];
   $('#fPills').innerHTML=F.map(f=>'<button class="pill'+(FILTER===f[0]?' on':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join('');
   $all('#fPills .pill').forEach(b=>b.onclick=()=>{FILTER=b.getAttribute('data-f');try{localStorage.setItem('cprMcFilter',FILTER);}catch(e){}render();});
+  /* keep the URL hash in step with the active filter (shareable links) */
+  try{if(location.hash.replace('#','')!==FILTER)history.replaceState(null,'','#'+FILTER);}catch(e){}
   let rows=ROWS.filter(r=>FILTER==='all'||r.status===FILTER);
   if(Q)rows=rows.filter(r=>[r.customer_name,r.device,r.ticket_ref,r.customer_email,r.customer_phone].join(' ').toLowerCase().includes(Q));
   if(!rows.length){$('#list').innerHTML='<div class="empty">'+(ROWS.length?'Nothing matches.':'No contracts yet — hit ＋ New contract.')+'</div>';return;}

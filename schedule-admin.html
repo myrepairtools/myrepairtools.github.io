@@ -256,6 +256,11 @@ function effA(empId,wd,di){
 }
 function isOverridden(empId,di){ return !!OVR[empId+'|'+di]; }
 var VIEW=lsGet('cprSchedAdminView','weekly'), FILTER='All', TOSTATUS='all', TOSCOPE='current';
+/* deep links (schedule-admin.html#thisweek etc.) beat the remembered view */
+var HASH_VIEWS=['weekly','thisweek','monthly','holidays'];
+function viewFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_VIEWS.indexOf(h)>-1?h:null;}
+var _hv=viewFromHash(); if(_hv){VIEW=_hv;lsSet('cprSchedAdminView',VIEW);}
+window.addEventListener('hashchange',function(){var v=viewFromHash();if(v&&v!==VIEW){VIEW=v;lsSet('cprSchedAdminView',VIEW);if(AUTH)render();}});
 var WK=null, MM=null, PICKM=null;   // PICKM = month shown in the This Week date-picker popover
 function canSee(store){return AUTH&&(AUTH.role==='owner'||(AUTH.authorized_stores||[]).indexOf(store)>-1||AUTH.home_store===store);}
 function resolve(shiftId,store,wd){
@@ -361,6 +366,8 @@ function render(){
   // Time Off moved to its own page (time-off.html, under the Employees nav area).
   var defs=[{k:'weekly',l:'Recurring'},{k:'thisweek',l:'This Week'},{k:'monthly',l:'Monthly'},{k:'holidays',l:'Holidays'}];
   if(!defs.some(function(d){return d.k===VIEW;})){VIEW='monthly';lsSet('cprSchedAdminView',VIEW);}  // stale 'timeoff' -> monthly
+  /* keep the URL hash in step with the open view (shareable deep links) */
+  try{if(location.hash.replace('#','')!==VIEW)history.replaceState(null,'','#'+VIEW);}catch(e){}
   var holNeed=holNeedCount();
   $('#hub').innerHTML=defs.map(function(t){var badge=(t.k==='holidays'&&holNeed)?' <span class="badge">'+holNeed+'</span>':'';return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+badge+'</button>';}).join('');
   $('#hub').querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){VIEW=b.getAttribute('data-v');lsSet('cprSchedAdminView',VIEW);render();};});
