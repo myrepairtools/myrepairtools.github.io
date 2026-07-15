@@ -644,6 +644,11 @@ function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimu
 function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
+/* deep links from the nav Settings pane (settings.html#integ etc.) beat the remembered tab */
+var HASH_TABS=['staff','loc','notif','pages','commission','integ','roles'];
+function tabFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
+var _ht=tabFromHash(); if(_ht){TAB=_ht;lsSet('cprSetTab',TAB);}
+window.addEventListener('hashchange',function(){var t=tabFromHash();if(t&&t!==TAB){TAB=t;lsSet('cprSetTab',TAB);renderAll();}});
 qbtHandleReturn();   /* if returning from the QuickBooks Time OAuth round-trip, land on Integrations */
 qboHandleReturn();   /* same for the QuickBooks Online round-trip */
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[], QBU=[];
