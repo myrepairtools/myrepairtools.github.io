@@ -202,6 +202,26 @@ Deno.serve(async (req)=>{
       }
     });
   }
+  // ---------- SELF-SERVICE: change my own PIN (profile page) ----------
+  if (action === "change_pin") {
+    const auth = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!auth) return json({ error: "forbidden" }, 403);
+    const { data: u } = await admin.auth.getUser(auth);
+    if (!u?.user) return json({ error: "forbidden" }, 403);
+    const { data: me } = await admin.from("staff").select("id, pin_hash").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    if (!me) return json({ error: "forbidden" }, 403);
+    const cur = String(body.current_pin || ""), next = String(body.new_pin || "");
+    if (!/^\d{4,8}$/.test(next)) return json({ error: "weak_pin" }, 400);
+    if (!me.pin_hash || !(await verifyPin(cur, me.pin_hash))) return json({ error: "wrong_pin" }, 401);
+    // PIN-only login must resolve to exactly one person — reject collisions
+    const { data: all } = await admin.from("staff").select("id, pin_hash").eq("active", true).neq("id", me.id);
+    for (const s of (all ?? [])) {
+      if (s.pin_hash && await verifyPin(next, s.pin_hash)) return json({ error: "pin_taken" }, 409);
+    }
+    const { error: werr } = await admin.from("staff").update({ pin_hash: await hashPin(next) }).eq("id", me.id);
+    if (werr) return json({ error: "db_error", detail: werr.message }, 500);
+    return json({ ok: true });
+  }
   // ---------- ADMIN: list full staff ----------
   if (action === "list_staff_admin") {
     const c = await caller(req, body);

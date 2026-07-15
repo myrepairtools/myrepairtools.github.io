@@ -596,10 +596,33 @@ sources are edge functions/crons, the page never writes new rows). Surface:
 `alerts.html` (My Hub; any signed-in staff) — 30-day feed grouped by day, unread
 accent + dot, tap = mark read + follow the deep link, Mark all read. The top-bar
 🔔 bell navigates here and carries a live unread-count badge (nav.js queries the
-count per page load). Notification *sources* (task nudges, schedule posted, KB
-required reading) and delivery channels (web push + SMS + per-user preferences)
-are the next phases of the notifications project — every notification will write
-an `alerts` row regardless of channel so the feed is always complete.
+count per page load, and mirrors it onto the installed-app icon via
+`navigator.setAppBadge`). **The `alerts` edge function is the single fanout**:
+`POST {action:'send', kind, title, body?, link?, staff_ids|all_active, secret?}`
+(auth = NOTIFY_SECRET for crons/server, or admin/manager/owner JWT for browser
+surfaces) — always writes the feed rows, then fans out per `alert_prefs`
+({kind:{push,sms}}; missing = push ON, sms OFF; kind 'comms' push is LOCKED ON):
+Web Push (VAPID_* secrets; npm:web-push; dead endpoints pruned) to every device
+in `push_subscriptions`, and SMS via the messaging function's secret-guarded
+`system_send` action, which sends from the OFFICIAL company line
+(`ALERTS_FROM_NUMBER` secret — the 1-855; toll-free numbers must be TF-verified
+for SMS — falls back to RINGCENTRAL_FROM_NUMBER). Push arrives via sw.js
+(`push` → showNotification, `notificationclick` → deep link). Wired sources:
+milestones (goal hits → the person, kind 'goal'; day-of birthdays/anniversaries
+→ the person), Schedule Admin's Notify button (kind 'schedule', everyone), KB
+required-reading publish (kind 'kb', everyone). Email prefs deliberately not
+offered yet. Deferred: end-of-shift task nudge cron.
+
+**My Profile (`profile.html`):** every employee's self-service page (avatar menu →
+My Profile; the mobile drawer header also links here). Onboarding-ready: a
+progress checklist (contact → emergency → notifications → app install → PIN)
+drives `staff_profiles.onboarding` jsonb. Sections: contact/emergency/address/
+shirt size (autosaved to `staff_profiles` — self-RLS, admins read; phone is
+E.164 and feeds the SMS channel), notification preferences matrix (Push/Text per
+kind; comms push locked), Enable Push flow (Notification.requestPermission →
+pushManager.subscribe with the VAPID public key → `push_subscriptions` upsert on
+endpoint), change PIN (cpr-auth `change_pin`: verifies current, enforces 4-8
+digits + uniqueness across active staff), Add-to-Home-Screen instructions.
 
 **Service worker (`sw.js`, registered by nav.js):** NETWORK-FIRST — every request
 goes to the live site (navigations force revalidation), the cache is only an

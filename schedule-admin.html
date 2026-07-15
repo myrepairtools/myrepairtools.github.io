@@ -403,6 +403,12 @@ async function notifyStaff(){
   var btn=$('#notifyBtn');if(btn){btn.disabled=true;btn.textContent='Sending…';}
   try{
     var tok=await sessionToken();
+    /* personal alerts feed + push/text per prefs — rides alongside the rule channels */
+    fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+      body:JSON.stringify({action:'send',kind:'schedule',all_active:true,
+        title:'Schedule updated',body:'Open My Time to see your latest shifts and any time-off changes.',
+        link:'my-schedule.html'})}).catch(function(){});
     var scope=(FILTER&&FILTER!=='All')?shortStore(FILTER):'All stores';
     var whenLabel=new Date().toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     var r=await fetch(NOTIFY_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},

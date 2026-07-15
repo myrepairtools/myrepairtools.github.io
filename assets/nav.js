@@ -739,8 +739,8 @@
   // mobile has no rail to switch areas, so the slide-in menu shows every section
   // the user can see at once (profile · My Hub · Operations · Admin · Settings).
   function paneMobileInner(){
-    var h = '<div class="cpr-mhd"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
-      + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></div>';
+    var h = '<a class="cpr-mhd" href="profile.html" style="text-decoration:none;color:inherit"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
+      + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></a>';
     h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'book-open' });
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
@@ -1004,6 +1004,8 @@
         c.from('alerts').select('id', { count:'exact', head:true }).is('read_at', null).is('dismissed_at', null).then(function(q){
           var n = q.count || 0, b = top.querySelector('.cpr-tb-bell .bdg');
           if (b){ b.textContent = n > 9 ? '9+' : (n || ''); b.style.display = n ? 'flex' : 'none'; }
+          // installed-app icon badge (the closest a web app gets to native widgets)
+          try { if (navigator.setAppBadge){ if (n) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch(_){}
         }, function(){});
       });
     });
@@ -1032,9 +1034,11 @@
     usermenu.innerHTML = ''
       + '<div class="who"><div class="nm" data-um-name>Signed in</div><div class="rl" data-um-role></div></div>'
       + '<div class="umdiv"></div>'
+      + '<button data-um="profile"><span class="umic">'+navIcon('users',14)+'</span> My Profile</button>'
       + '<button data-um="switch"><span class="umic">⇄</span> Switch user</button>'
       + '<button class="danger" data-um="signout"><span class="umic">⏏</span> Sign out</button>';
     document.body.appendChild(usermenu);
+    usermenu.querySelector('[data-um="profile"]').onclick = function(){ usermenu.classList.remove('show'); location.href = 'profile.html'; };
     usermenu.querySelector('[data-um="switch"]').onclick = function(){ usermenu.classList.remove('show'); doSwitchUser(); };
     usermenu.querySelector('[data-um="signout"]').onclick = function(){ usermenu.classList.remove('show'); doSignOut(); };
     var idBtn = top && top.querySelector('[data-roleslot]');
