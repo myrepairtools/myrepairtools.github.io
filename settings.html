@@ -287,7 +287,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <div class="card"><table><thead><tr>
       <th>Employee</th><th>Role</th><th>Home store</th><th>Authorized</th><th>Status</th><th></th>
     </tr></thead><tbody id="staffRows"></tbody></table>
-      <div class="empty hide" id="staffEmpty">No team members.</div>
+      <div class="empty" id="staffEmpty">Loading team…</div>
     </div>
   </section>
 
@@ -759,9 +759,16 @@ async function loadStores(){
   var r=await sb.from('stores').select('store,rq_name,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order');
   STORES=r.error?[]:(r.data||[]);
 }
+var STAFF_ERR=false;
 async function loadStaff(){
   var r=await authFn({action:'list_staff_admin'});
-  if(r.status!==200){toast((r.data&&r.data.error)||'Could not load staff',true);STAFF=[];return;}
+  if(r.status!==200){
+    /* one delayed retry — edge cold starts and token rotation both clear in a beat */
+    await new Promise(function(ok){setTimeout(ok,1200);});
+    r=await authFn({action:'list_staff_admin'});
+  }
+  STAFF_ERR=r.status!==200;
+  if(STAFF_ERR){toast((r.data&&r.data.error)||'Could not load staff',true);STAFF=[];return;}
   STAFF=r.data.staff||[]; ME_ROLE=r.data.me_role||(AUTH&&AUTH.role)||'admin';
   try{ var q=await sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active'); QBU=(q&&q.data)||[]; }catch(e){ QBU=[]; }
 }
@@ -1671,7 +1678,8 @@ function renderStaff(){
   });
   var tb=$('#staffRows');tb.innerHTML='';
   $('#staffEmpty').classList.toggle('hide',list.length>0);
-  $('#staffEmpty').textContent=ROSTER==='archived'?'No archived members.':(q?'No matching team members.':'No team members yet.');
+  $('#staffEmpty').textContent=STAFF_ERR?'Couldn’t load the team — refresh to retry.'
+    :ROSTER==='archived'?'No archived members.':(q?'No matching team members.':'No team members yet.');
 
   var byName=function(a,b){return String(a.display_name||'').localeCompare(String(b.display_name||''));};
   var meName=(AUTH&&AUTH.name)||'';
