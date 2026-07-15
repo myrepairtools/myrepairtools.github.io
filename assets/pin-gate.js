@@ -37,6 +37,13 @@
   var file = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
   var NEED_PERM = PAGEACC[file] || null;
   var IDLE_MS = 5 * 60 * 1000;
+  // Installed home-screen apps are personal devices — the phone's own lock screen
+  // is the security boundary, and iOS fires an expired idle timer the moment the
+  // app resumes, which read as "logs me out every time I open it". So: standalone
+  // mode never auto-signs-out (sign in once per install); the 5-min relock stays
+  // for shared browsers at the stores.
+  var STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+    || window.navigator.standalone === true;
 
   var sb = null, sbReady = null, idleTimer = null;
   // The Supabase client is an ESM import from a public CDN. esm.sh has frequent
@@ -86,7 +93,7 @@
       + '</svg>';
   }
   function reveal(){ if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
-  function armIdle(){ ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){ window.addEventListener(ev, bumpIdle, { passive:true }); }); bumpIdle(); }
+  function armIdle(){ if (STANDALONE) return; ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){ window.addEventListener(ev, bumpIdle, { passive:true }); }); bumpIdle(); }
   function bumpIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(signOutReload, IDLE_MS); }
   function signOutReload(){ loadSB().then(function(c){ if (c) c.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); }); else location.reload(); }); }
 

@@ -235,6 +235,14 @@ feeds the dropdown). Deposits deliberately stay in QBO's bank
 feed (recorded there as Transfers to Cash on Hand — the modal shows the total to
 match). Schema: docs/sql/cash-journal-schema.sql + cash-journal-qbo.sql.
 
+**Personal-device sessions:** pin-gate's 5-min idle auto-sign-out is SKIPPED in
+standalone display mode (Added-to-Home-Screen apps) — an installed app is a personal
+device whose lock screen is the security boundary, and iOS firing the expired idle
+timer on resume forced a PIN on every open. Sign in once per install; the 5-min
+relock still applies to regular browser use on shared store machines. (Each iOS
+home-screen install is its own storage silo — separate sign-ins per installed app
+is Apple behavior, not ours.)
+
 **Expenses (mobile receipt recorder):** `expenses.html` (PRIVILEGED nav 'Expenses',
 permission key `expenses.record`, owner RLS) — the phone-first replacement for the
 QuickBooks receipt app, designed to be Added to Home Screen (`assets/expenses-manifest.json`,
