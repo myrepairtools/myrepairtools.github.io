@@ -11,6 +11,10 @@
 //   GET  ?action=disconnect     (owner JWT)  -> delete the stored token
 //   GET  ?action=accounts       (owner JWT)  -> { accounts:[{id,name,type,subtype}] } — active chart of accounts
 //   GET  ?action=classes        (owner JWT)  -> { classes:[{id,name}] } — active classes (P&L by store)
+//   GET  ?action=vendors        (owner JWT)  -> { vendors:[{id,name}] } — active QBO vendors (Expenses vendor link)
+//   POST { action:'extract_receipt', image_b64, media_type }  (owner JWT)
+//        -> Claude vision reads the receipt photo -> { ok, vendor, date, amount }
+//           (nulls where unreadable). Powers the Expenses page's auto-fill.
 //   POST { action:'post_je', store, month, force }  (owner JWT)
 //        -> post the month-end cash journal entry (debit cash / credit revenue) for
 //           (store, 'YYYY-MM') from cash_journal, stamp the row + qbo_post_log, and
@@ -294,6 +298,66 @@ async function postJournalEntry(body: Record<string, unknown>, staff: { display_
   return json({ ok: true, je_id: String(posted.Id), doc_number: posted.DocNumber || null, amount, txn_date, ...(warns.length ? { warn: warns.join(" ") } : {}) });
 }
 
+// ---- extract_receipt: Claude vision reads a receipt photo --------------------
+
+async function extractReceipt(body: Record<string, unknown>) {
+  const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+  if (!ANTHROPIC_KEY) return json({ error: "no_ai", detail: "ANTHROPIC_API_KEY is not set." }, 503);
+  const b64 = typeof body.image_b64 === "string" ? body.image_b64 : "";
+  const media = typeof body.media_type === "string" && /^image\/(jpeg|png|webp)$/.test(body.media_type)
+    ? body.media_type : "image/jpeg";
+  if (b64.length < 100) return json({ error: "bad_request", detail: "image_b64 required." }, 400);
+  if (b64.length > 8_000_000) return json({ error: "too_large", detail: "Image too large — retake closer / smaller." }, 413);
+
+  const payload = {
+    model: "claude-haiku-4-5-20251001",   // receipts are easy reads — the fast tier keeps this ~1s
+    max_tokens: 300,
+    system: 'You extract fields from a photo of a purchase receipt. Reply with ONLY a JSON object, no prose: ' +
+      '{"vendor": string|null, "date": "YYYY-MM-DD"|null, "amount": number|null}. ' +
+      'vendor = the merchant name as printed, short (e.g. "Costco", "Shell", "Home Depot"). ' +
+      'date = the transaction date printed on the receipt. ' +
+      'amount = the final grand total actually charged, after tax and tip. ' +
+      "Use null for any field you cannot read confidently. Never guess.",
+    messages: [{
+      role: "user",
+      content: [
+        { type: "image", source: { type: "base64", media_type: media, data: b64 } },
+        { type: "text", text: "Extract the fields from this receipt." },
+      ],
+    }],
+  };
+  let r: Response, d: any;
+  try {
+    r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    d = await r.json().catch(() => ({}));
+  } catch (e) {
+    return json({ error: "ai_error", detail: String((e as Error)?.message || e) }, 502);
+  }
+  if (!r.ok) return json({ error: "ai_error", detail: d?.error?.message || ("HTTP " + r.status) }, 502);
+
+  const text = ((d?.content || []) as Array<{ type: string; text?: string }>)
+    .filter((c) => c.type === "text").map((c) => c.text || "").join(" ");
+  let vendor: string | null = null, date: string | null = null, amount: number | null = null;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      const p = JSON.parse(m[0]);
+      if (typeof p.vendor === "string" && p.vendor.trim()) vendor = p.vendor.trim().slice(0, 120);
+      if (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) {
+        const y = Number(p.date.slice(0, 4));
+        if (y >= 2000 && y <= 2100) date = p.date;
+      }
+      const a = Number(p.amount);
+      if (Number.isFinite(a) && a > 0 && a < 1_000_000) amount = Math.round(a * 100) / 100;
+    } catch { /* model returned junk — treat as unreadable */ }
+  }
+  return json({ ok: true, vendor, date, amount });
+}
+
 // ---- create_expense: post an expense receipt as a QBO Purchase ---------------
 
 async function createExpense(body: Record<string, unknown>, staff: { display_name: string }) {
@@ -384,9 +448,29 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
     lines = [line(amount, row.class_id, row.class_name)];
   }
 
+  // Link the QBO vendor record when we can — EntityRef makes vendor reports and
+  // recurring bank-feed matches smarter. The page writes qbo_vendor_id when the
+  // typed name matched the vendor list; otherwise probe QBO for an exact
+  // DisplayName hit. Both are best-effort — a plain text vendor still books fine.
+  let entityRef: Record<string, unknown> = {};
+  const vid = row.qbo_vendor_id ? String(row.qbo_vendor_id).trim() : "";
+  if (/^\d+$/.test(vid)) {
+    entityRef = { EntityRef: { value: vid, ...(row.qbo_vendor_name ? { name: String(row.qbo_vendor_name) } : {}), type: "Vendor" } };
+  } else if (row.vendor) {
+    try {
+      const vq = `select Id, DisplayName from Vendor where DisplayName = '${String(row.vendor).replace(/'/g, "\\'")}'`;
+      const vr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(vq)}&minorversion=${MINORVERSION}`,
+        { headers: qboHeaders(tok.access_token) });
+      const vd = await vr.json().catch(() => ({}));
+      const v = vd?.QueryResponse?.Vendor?.[0];
+      if (v?.Id) entityRef = { EntityRef: { value: String(v.Id), name: String(v.DisplayName || row.vendor), type: "Vendor" } };
+    } catch { /* probe is best-effort */ }
+  }
+
   const purchase = {
     PaymentType: row.payment_account_type === "Credit Card" ? "CreditCard" : "Check",
     AccountRef: { value: String(row.payment_account_id), ...(row.payment_account_name ? { name: String(row.payment_account_name) } : {}) },
+    ...entityRef,
     DocNumber: docNumber,   // idempotency key — recovery probe finds it by query
     TxnDate: String(row.txn_date),
     PrivateNote: [[row.vendor, row.memo].filter(Boolean).join(" — "),
@@ -554,6 +638,25 @@ Deno.serve(async (req) => {
       .map((c) => ({ id: String(c.Id), name: (c.FullyQualifiedName as string) || (c.Name as string) || "" }))
       .sort((a, b) => a.name.localeCompare(b.name));
     return json({ classes });
+  }
+  if (action === "vendors") {
+    // Active vendor list — feeds the Expenses page's vendor combobox so typed
+    // names link to real QBO vendor records.
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+    const q = "select Id, DisplayName from Vendor where Active = true maxresults 1000";
+    const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+    const vendors = ((d?.QueryResponse?.Vendor || []) as Array<Record<string, unknown>>)
+      .map((v) => ({ id: String(v.Id), name: (v.DisplayName as string) || "" }))
+      .filter((v) => v.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return json({ vendors });
+  }
+  if (action === "extract_receipt") {
+    return await extractReceipt(body);
   }
   if (action === "post_je") {
     return await postJournalEntry(body, staff);

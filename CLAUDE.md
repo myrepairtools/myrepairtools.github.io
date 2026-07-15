@@ -233,24 +233,33 @@ match). Schema: docs/sql/cash-journal-schema.sql + cash-journal-qbo.sql.
 **Expenses (mobile receipt recorder):** `expenses.html` (PRIVILEGED nav 'Expenses',
 permission key `expenses.record`, owner RLS) — the phone-first replacement for the
 QuickBooks receipt app, designed to be Added to Home Screen (`assets/expenses-manifest.json`,
-root-relative). Flow: snap/pick a receipt photo (canvas-downscaled to ≤1600px JPEG) →
-amount → date (local today) → Paid With (Bank/CC accounts) → expense account
-(type-to-search combobox over the QBO chart of accounts + last-5 recent chips) → Class,
-or **⚖️ Split Evenly Across Stores** (store toggle chips, all pre-selected, tap one off
-for a 2-store split, min 2; remainder cent rides the first line) → Save. Save uploads
-the photo to the private `receipts` storage bucket (`YYYY/MM/<uuid>.jpg`), inserts an
-`expense_receipts` row (status `pending`), then calls the **`qbo` edge function's
-`create_expense`** action, which books a QBO **Purchase** (PaymentType from the account
-type, one line per class on splits) and attaches the photo (Attachable multipart) so the
-bank feed offers a one-tap **Match**. Double-post safety: atomic claim
-(status `posting` + `qbo_claimed_at`, 2-min stale takeover), `DocNumber = MRT-<id8>`
-idempotency key with a recovery probe (query Purchase by DocNumber before creating),
-guarded final stamp; failures stamp status `failed` + error and the page's Recent list
-offers tap-to-retry on the SAME receipt row (409 `already_posted` counts as success).
-Chart of accounts/classes cache in localStorage (`cprExpQbo`, 1h) for instant paint.
-Note: elements hidden by a CSS class rule need `style.display='block'` to show —
-`display=''` falls back to the stylesheet's `display:none`. Schema:
-docs/sql/expenses-schema.sql.
+root-relative; standalone mode grows `--cpr-top-h` by `env(safe-area-inset-top)` so the
+iOS status bar doesn't cram the nav top bar). Flow: snap/pick a receipt photo
+(canvas-downscaled to ≤1600px JPEG) — **the `qbo` function's `extract_receipt` action
+(Claude vision, haiku) then reads it and prefills amount/date/vendor**, filling only
+fields the owner hasn't typed (✨ status line under the thumb; retakes cancel in-flight
+reads via a sequence counter) → amount|date (two-col row) → Paid With (Bank/CC accounts,
+**filtered by the Settings allowlist** — `qbo_config` key 'paywith', edited in Settings →
+Integrations → QuickBooks Online → "Expenses · Paid With Accounts", re-checked on every
+page open) → expense account (type-to-search combobox over the QBO chart of accounts +
+last-5 recent chips) → Class, or **⚖️ Split Evenly Across Stores** (store toggle chips,
+all pre-selected, tap one off for a 2-store split, min 2; remainder cent rides the first
+line) → **Vendor combobox** over the QBO vendor list (`?action=vendors`) — an exact match
+writes `qbo_vendor_id/_name` and the Purchase carries `EntityRef type Vendor` (server
+also probes QBO by DisplayName for unlinked typed names); free text still books fine →
+Save (fixed footer save bar, content scrolls above it). Save uploads the photo to the
+private `receipts` storage bucket (`YYYY/MM/<uuid>.jpg`), inserts an `expense_receipts`
+row (status `pending`), then calls the **`qbo` edge function's `create_expense`** action,
+which books a QBO **Purchase** (PaymentType from the account type, one line per class on
+splits) and attaches the photo (Attachable multipart) so the bank feed offers a one-tap
+**Match**. Double-post safety: atomic claim (status `posting` + `qbo_claimed_at`, 2-min
+stale takeover), `DocNumber = MRT-<id8>` idempotency key with a recovery probe (query
+Purchase by DocNumber before creating), guarded final stamp; failures stamp status
+`failed` + error and the page's Recent list offers tap-to-retry on the SAME receipt row
+(409 `already_posted` counts as success). Chart of accounts/classes/vendors + allowlist
+cache in localStorage (`cprExpQbo`, 1h) for instant paint. Note: elements hidden by a
+CSS class rule need `style.display='block'` to show — `display=''` falls back to the
+stylesheet's `display:none`. Schema: docs/sql/expenses-schema.sql (+ `qbo_config`).
 
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
