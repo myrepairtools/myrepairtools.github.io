@@ -1130,94 +1130,71 @@ async function qboRenderMap(){
   var pws=$('#qboPaySave'); if(pws)pws.onclick=qboSavePaywith;
   qboPayWire();
 }
-/* Expenses · Paid With allowlist — which bank/CC accounts the mobile recorder offers.
-   The owner's Profit First chart means dozens of bank accounts, so: a search box +
-   accounts grouped by their name prefix ("CASH ON HAND", "(CPO)PROFIT", …) within
-   Bank / Credit Card, with a group checkbox that toggles the whole family. */
-function qboPayGroups(accts){
-  var byType={'Bank':{},'Credit Card':{}};
-  var pre={};
-  accts.forEach(function(a){
-    var p=a.name.indexOf(' - ')>-1?a.name.split(' - ')[0].trim():null;
-    if(p)pre[a.type+'|'+p]=(pre[a.type+'|'+p]||0)+1;
-  });
-  accts.forEach(function(a){
-    var p=a.name.indexOf(' - ')>-1?a.name.split(' - ')[0].trim():null;
-    var g=(p&&pre[a.type+'|'+p]>1)?p:'Other';   // singleton prefixes pool under Other
-    (byType[a.type][g]=byType[a.type][g]||[]).push(a);
-  });
-  return byType;
-}
+/* Expenses · Paid With allowlist — search-and-add, same pattern as the
+   consumption report's part groups: search the chart, tap a result, it lands
+   in the allowed list below with a ✕ to remove. Empty list = all accounts. */
+var QBO_PAY_SEL=[];   // [{id,name,type}] in the order the owner added them
 function qboPayHtml(val){
   var chosen=(val&&Array.isArray(val.ids))?val.ids:[];
   var accts=(QBO_ACCOUNTS||[]).filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
   if(!accts.length)return '';
-  var byType=qboPayGroups(accts);
-  var body='';
-  ['Bank','Credit Card'].forEach(function(type){
-    var groups=Object.keys(byType[type]).sort(function(a,b){
-      if(a==='Other')return 1; if(b==='Other')return -1; return a.localeCompare(b);
-    });
-    if(!groups.length)return;
-    body+='<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.66rem;letter-spacing:.6px;text-transform:uppercase;color:var(--grey);margin:12px 0 4px">'+esc(type)+'</div>';
-    groups.forEach(function(g){
-      var members=byType[type][g];
-      body+='<div class="qbo-pgrp" data-grp>'
-        +'<label style="display:flex;align-items:center;gap:9px;font-family:\'Nunito\',sans-serif;font-size:.85rem;font-weight:800;color:var(--dark);cursor:pointer;padding:6px 0">'
-        +'<input type="checkbox" class="qbo-paygrp" style="width:17px;height:17px;accent-color:var(--blue)">'
-        +esc(g)+' <span style="color:var(--grey);font-weight:600;font-size:.74rem">· '+members.length+'</span></label>'
-        +members.map(function(a){
-          return '<label class="qbo-payrow" data-name="'+esc(a.name.toLowerCase())+'" style="display:flex;align-items:center;gap:9px;font-family:\'Nunito Sans\',sans-serif;font-size:.85rem;font-weight:700;color:var(--dark);cursor:pointer;padding:5px 0 5px 26px">'
-            +'<input type="checkbox" class="qbo-pay" value="'+esc(a.id)+'"'+(chosen.indexOf(a.id)>-1?' checked':'')+' style="width:17px;height:17px;accent-color:var(--blue)">'
-            +esc(a.name)+'</label>';
-        }).join('')
-        +'</div>';
-    });
-  });
+  var byId={};accts.forEach(function(a){byId[a.id]=a;});
+  QBO_PAY_SEL=chosen.map(function(id){return byId[id];}).filter(Boolean);
   return '<div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px" id="qboPayWrap">'
     +'<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.92rem;color:var(--dark)">Expenses · Paid With Accounts</div>'
-    +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 10px">Which bank / credit-card accounts the mobile Expenses recorder offers. Nothing checked = all of them. Check a group name to grab the whole family.</div>'
-    +'<input type="text" id="qboPaySearch" placeholder="Search accounts…" style="width:100%;max-width:360px;padding:9px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:\'Nunito Sans\',sans-serif;font-size:16px;font-weight:700">'
-    +'<div id="qboPayList">'+body+'</div>'
+    +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 10px">Search the QBO chart and add the accounts the mobile Expenses recorder should offer. An empty list = it offers all of them.</div>'
+    +'<div style="position:relative;max-width:420px">'
+    +'<input type="text" id="qboPayS" placeholder="Search bank / credit-card accounts…" autocomplete="off" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:\'Nunito Sans\',sans-serif;font-size:16px;font-weight:700">'
+    +'<div id="qboPayDD" style="position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(45,45,59,.16);max-height:260px;overflow:auto;display:none"></div>'
+    +'</div>'
+    +'<div id="qboPaySel" style="margin-top:12px;max-width:560px"></div>'
     +'<button class="btn sm" id="qboPaySave" style="margin-top:11px">Save Paid With List</button></div>';
 }
-function qboPayWire(){
-  var wrap=$('#qboPayWrap'); if(!wrap)return;
-  /* group checkbox <-> members */
-  function syncGrp(grp){
-    var g=grp.querySelector('.qbo-paygrp');
-    var rows=[].slice.call(grp.querySelectorAll('.qbo-pay'));
-    var on=rows.filter(function(c){return c.checked;}).length;
-    g.checked=on===rows.length&&rows.length>0;
-    g.indeterminate=on>0&&on<rows.length;
+function qboPayRenderSel(){
+  var el=$('#qboPaySel');if(!el)return;
+  if(!QBO_PAY_SEL.length){
+    el.innerHTML='<div style="font-size:.8rem;color:var(--grey);font-weight:700;padding:8px 0">Nothing added yet — the recorder currently offers <b>every</b> bank / credit-card account.</div>';
+  }else{
+    el.innerHTML='<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.66rem;letter-spacing:.6px;text-transform:uppercase;color:var(--grey);margin-bottom:4px">Allowed accounts · '+QBO_PAY_SEL.length+'</div>'
+      +QBO_PAY_SEL.map(function(a,i){
+        return '<div style="display:flex;align-items:center;gap:9px;border-top:1px solid var(--light-grey);padding:9px 2px;font-family:\'Nunito Sans\',sans-serif;font-size:.86rem;font-weight:700;color:var(--dark)">'
+          +'<span style="flex:1;min-width:0">'+esc(a.name)+' <span style="color:var(--grey);font-weight:600;font-size:.74rem">· '+esc(a.type)+'</span></span>'
+          +'<button type="button" class="qbo-payx" data-i="'+i+'" title="Remove" style="flex:none;width:30px;height:30px;border:none;border-radius:8px;background:var(--light-grey);color:var(--dark-grey);font-weight:800;cursor:pointer">✕</button>'
+          +'</div>';
+      }).join('');
   }
-  $all('#qboPayList [data-grp]').forEach(function(grp){
-    syncGrp(grp);
-    grp.querySelector('.qbo-paygrp').addEventListener('change',function(){
-      var me=this;
-      grp.querySelectorAll('.qbo-pay').forEach(function(c){c.checked=me.checked;});
-      syncGrp(grp);
-    });
-    grp.querySelectorAll('.qbo-pay').forEach(function(c){
-      c.addEventListener('change',function(){syncGrp(grp);});
-    });
-  });
-  /* live search — hides non-matching rows and empties */
-  var s=$('#qboPaySearch');
-  if(s)s.addEventListener('input',function(){
-    var q=s.value.trim().toLowerCase();
-    $all('#qboPayList [data-grp]').forEach(function(grp){
-      var any=false;
-      grp.querySelectorAll('.qbo-payrow').forEach(function(r){
-        var hit=!q||r.getAttribute('data-name').indexOf(q)>-1;
-        r.style.display=hit?'flex':'none'; if(hit)any=true;
-      });
-      grp.style.display=any?'':'none';
-    });
+  $all('#qboPaySel .qbo-payx').forEach(function(b){
+    b.onclick=function(){QBO_PAY_SEL.splice(+b.getAttribute('data-i'),1);qboPayRenderSel();};
   });
 }
+function qboPayWire(){
+  var s=$('#qboPayS'),dd=$('#qboPayDD');if(!s||!dd)return;
+  qboPayRenderSel();
+  function accs(){return (QBO_ACCOUNTS||[]).filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});}
+  function renderDD(){
+    var q=s.value.trim().toLowerCase();
+    var have={};QBO_PAY_SEL.forEach(function(a){have[a.id]=1;});
+    var list=accs().filter(function(a){return !have[a.id]&&(!q||a.name.toLowerCase().indexOf(q)>-1);}).slice(0,30);
+    if(!list.length){dd.innerHTML='<div style="padding:11px 13px;font-size:.85rem;font-weight:700;color:var(--grey)">'+(q?'No matching accounts':'All accounts added')+'</div>';}
+    else dd.innerHTML=list.map(function(a,i){
+      return '<div class="qbo-payopt" data-i="'+i+'" style="padding:11px 13px;font-size:.88rem;font-weight:700;cursor:pointer;border-top:1px solid var(--light-grey)">'
+        +esc(a.name)+' <span style="color:var(--grey);font-weight:600;font-size:.74rem">· '+esc(a.type)+'</span></div>';
+    }).join('');
+    dd.querySelectorAll('.qbo-payopt').forEach(function(row){
+      row.addEventListener('mousedown',function(e){
+        e.preventDefault();                       // beat the input blur
+        QBO_PAY_SEL.push(list[+row.getAttribute('data-i')]);
+        s.value='';qboPayRenderSel();renderDD();  // stays open — add several in a row
+      });
+    });
+    dd.style.display='block';
+  }
+  s.addEventListener('focus',renderDD);
+  s.addEventListener('input',renderDD);
+  s.addEventListener('blur',function(){setTimeout(function(){dd.style.display='none';},150);});
+}
 async function qboSavePaywith(){
-  var ids=$all('#qboPayList .qbo-pay:checked').map(function(c){return c.value;});
+  var ids=QBO_PAY_SEL.map(function(a){return a.id;});
   var r=await sb.from('qbo_config').upsert({
     key:'paywith', value:{ids:ids},
     updated_by:(AUTH&&AUTH.name)||'owner', updated_at:new Date().toISOString()
