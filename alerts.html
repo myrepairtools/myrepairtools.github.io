@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Alerts — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:640px;margin:0 auto;padding:16px}
+.head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
+.allread{margin-left:auto;border:none;background:none;font-family:'Nunito',sans-serif;font-weight:800;
+font-size:.8rem;color:var(--blue);cursor:pointer;padding:8px 4px;white-space:nowrap}
+.allread:disabled{color:var(--grey);cursor:default}
+.prefnote{display:flex;align-items:center;gap:8px;background:#EAF6FD;border:1px solid #CBE7F7;border-radius:12px;
+padding:10px 12px;font-size:.78rem;font-weight:800;color:#1E7AA8;margin-bottom:14px}
+.day{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;margin:16px 0 8px}
+.day:first-of-type{margin-top:2px}
+.al{width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 13px;
+margin-bottom:9px;display:flex;gap:11px;align-items:flex-start;position:relative;cursor:pointer;
+box-shadow:var(--shadow);font-family:inherit;color:inherit}
+.al.unread{border-left:3.5px solid var(--blue)}
+.al .ico{width:38px;height:38px;border-radius:11px;background:var(--light-grey);display:flex;align-items:center;
+justify-content:center;font-size:1.1rem;flex:none}
+.al .tt{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;line-height:1.25}
+.al .ds{font-size:.79rem;font-weight:700;color:var(--dark-grey);margin-top:2px;line-height:1.35}
+.al .tm{font-size:.66rem;font-weight:800;color:var(--grey);margin-top:4px}
+.al .dot{position:absolute;top:13px;right:12px;width:8px;height:8px;border-radius:50%;background:var(--blue)}
+.al:active{background:#FAFBFD}
+.empty{padding:56px 20px;text-align:center;color:var(--grey);font-weight:700;line-height:1.6}
+.empty .big{font-size:2rem;margin-bottom:8px}
+.toast{position:fixed;bottom:calc(24px + var(--cpr-bb-h,0px));left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;white-space:nowrap}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <h1>🔔 Alerts</h1>
+    <button class="allread" id="allRead" disabled>Mark all read</button>
+  </div>
+  <div class="prefnote">⚙️ Per-alert delivery preferences (push · text · email) arrive with the next phase — everything shows here either way.</div>
+  <div id="feed"><div class="empty">Loading…</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="hub"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* Alerts — the personal notification feed. Reads own rows (RLS-scoped);
+   tapping an alert marks it read and follows its deep link. Rows are written
+   server-side by edge functions/crons — this page never inserts. */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+
+var ICONS={task:'✅',schedule:'🗓️',kb:'📚',goal:'🎯',system:'📌'};
+var ROWS=[];
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m){var t=$('#toast');t.textContent=m;t.className='toast show';clearTimeout(toast._t);toast._t=setTimeout(function(){t.className='toast';},2200);}
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+function dayLabel(iso){
+  var d=new Date(iso),now=new Date();
+  var mid=function(x){return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime();};
+  var diff=Math.round((mid(now)-mid(d))/864e5);
+  if(diff<=0)return 'Today';
+  if(diff===1)return 'Yesterday';
+  if(diff<7)return d.toLocaleDateString('en-US',{weekday:'long'});
+  return d.toLocaleDateString('en-US',{month:'long'})+' '+d.getDate();
+}
+function timeLabel(iso){return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
+
+function render(){
+  var feed=$('#feed');
+  if(!ROWS.length){
+    feed.innerHTML='<div class="empty"><div class="big">🔕</div>All quiet — nothing needs you.<br>Task nudges, schedule postings, and required reading will land here.</div>';
+    $('#allRead').disabled=true;
+    return;
+  }
+  var unread=ROWS.filter(function(r){return !r.read_at;}).length;
+  $('#allRead').disabled=!unread;
+  var html='',day=null;
+  ROWS.forEach(function(r){
+    var dl=dayLabel(r.created_at);
+    if(dl!==day){day=dl;html+='<div class="day">'+esc(dl)+'</div>';}
+    var ico=r.icon||ICONS[r.kind]||'📌';
+    html+='<button type="button" class="al'+(r.read_at?'':' unread')+'" data-id="'+esc(r.id)+'">'
+      +'<span class="ico">'+esc(ico)+'</span>'
+      +'<span style="flex:1;min-width:0"><span class="tt" style="display:block">'+esc(r.title)+'</span>'
+      +(r.body?'<span class="ds" style="display:block">'+esc(r.body)+'</span>':'')
+      +'<span class="tm" style="display:block">'+esc(timeLabel(r.created_at))+'</span></span>'
+      +(r.read_at?'':'<span class="dot"></span>')
+      +'</button>';
+  });
+  feed.innerHTML=html;
+  feed.querySelectorAll('.al').forEach(function(b){
+    b.addEventListener('click',function(){openAlert(b.getAttribute('data-id'));});
+  });
+}
+
+async function openAlert(id){
+  var r=ROWS.filter(function(x){return x.id===id;})[0];if(!r)return;
+  if(!r.read_at){
+    r.read_at=new Date().toISOString();
+    render();
+    sb.from('alerts').update({read_at:r.read_at}).eq('id',id).then(function(){},function(){});
+  }
+  if(r.link)location.href=r.link;
+}
+
+$('#allRead').addEventListener('click',async function(){
+  var now=new Date().toISOString();
+  ROWS.forEach(function(r){if(!r.read_at)r.read_at=now;});
+  render();
+  var res=await sb.from('alerts').update({read_at:now}).is('read_at',null);
+  if(res.error)toast('Could not sync — will retry next visit');else toast('All caught up');
+});
+
+async function boot(){
+  var sess=await ensureSession();
+  if(!sess){$('#feed').innerHTML='<div class="empty">Sign in with your PIN from any page, then reload.</div>';return;}
+  var since=new Date(Date.now()-30*864e5).toISOString();
+  var q=await sb.from('alerts').select('id,kind,title,body,link,icon,created_at,read_at')
+    .is('dismissed_at',null).gte('created_at',since)
+    .order('created_at',{ascending:false}).limit(200);
+  if(q.error){$('#feed').innerHTML='<div class="empty">Couldn’t load alerts — refresh to retry.</div>';return;}
+  ROWS=q.data||[];
+  render();
+}
+boot();
+</script>
+</body>
+</html>
