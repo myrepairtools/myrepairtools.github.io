@@ -634,11 +634,22 @@ When changing a tool's data layer, check which generation it uses first — they
   so far: cash-journal, checklist; convert other pages' pills when touching them. (The
   design project's CLAUDE.md + `@myrepairtools/design-system` record the same rule —
   StorePills is deprecated for location switching.)
-- **Persist view state across refresh.** Any tool with tabs / sub-views / a selected
-  page-or-option should remember the active one in `localStorage` (e.g. `cprSetTab`,
-  `cprSetPgtool`/`cprSetPgopt` in `settings.html`) and restore it on load, so a refresh
-  returns the user to where they were instead of a default tab. Add this to new tabbed
-  tools and when touching existing ones.
+- **Persist view state across refresh — and deep-link it.** Any tool with tabs /
+  sub-views remembers the active one in `localStorage` (e.g. `cprSetTab`) AND mirrors it
+  in the URL hash (settings.html is the reference: valid hash > localStorage > default at
+  load; every switch does `lsSet` + `history.replaceState(null,'','#'+tab)` — never
+  pushState, never a bare `#`; a `hashchange` listener routes through the page's own
+  switch function so links and back/forward work). Wired across the site: settings
+  (#staff/#loc/#notif/#pages/#commission/#integ/#roles), commission-dashboard,
+  commission-calculator, lcd-buyback, hyla-orders, consumption-report, checklist,
+  task-admin, my-schedule, schedule-admin, contracts (status filter), knowledge
+  (`#a=<slug>` articles + `#c=<category>`). New tabbed tools must ship with both.
+- **Cross-page transitions:** nav.js opts every page into cross-document view
+  transitions (`@view-transition{navigation:auto}`, .18s crossfade) and pins the app
+  chrome (`view-transition-name` on `.cpr-topbar`/`.cpr-rail`/`.cpr-pane`) so the nav
+  holds still while content fades; `prefers-reduced-motion` disables it. Browsers
+  without support fall back to instant navigation — never rely on the transition for
+  correctness.
 - Endpoint URLs, API tokens, and the Supabase anon key are committed in the source on
   purpose (this is a deterrent-level internal tool on public hosting). `robots.txt`
   disallows all crawlers.
