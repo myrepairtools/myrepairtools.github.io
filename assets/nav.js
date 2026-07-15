@@ -45,68 +45,68 @@
 
   // Ordering & Inventory — parts/supplier ordering and stock.
   var ORDERING = [
-    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'📊', acc:'consumption.view' },
-    { label:'Device Ordering',     url:'device-orders.html',       icon:'📲', acc:'consumption.view' },
-    { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'📋', acc:'orders.jerryding' },
-    { label:'PO Converter',        url:'po-converter.html',        icon:'📦', acc:'orders.po' },
-    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'♻️', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' }
+    { label:'Consumption & Ordering', url:'consumption-report.html', icon:'chart-column', acc:'consumption.view' },
+    { label:'Device Ordering',     url:'device-orders.html',       icon:'tablet-smartphone', acc:'consumption.view' },
+    { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'clipboard-list', acc:'orders.jerryding' },
+    { label:'PO Converter',        url:'po-converter.html',        icon:'package', acc:'orders.po' },
+    { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'recycle', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' }
   ];
   // Sales & Pricing — quoting and customer-facing pricing.
   var PRICING = [
-    { label:'Price Calculator',    url:'price-calculator.html',    icon:'🧮', acc:'pricing.view' },
-    { label:'Price Guide',         url:'price-guide.html',         icon:'📱', acc:'pricing.view' }
+    { label:'Price Calculator',    url:'price-calculator.html',    icon:'calculator', acc:'pricing.view' },
+    { label:'Price Guide',         url:'price-guide.html',         icon:'smartphone', acc:'pricing.view' }
   ];
   // Operations — store-floor / daily ops.
   var OPERATIONS = [
-    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'💵', acc:'cash.view' },
-    { label:'Contracts',            url:'contracts.html',           icon:'🖊️' },
-    { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'📱' },
-    { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'🔧', acc:'damage.view' }
+    { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'banknote', acc:'cash.view' },
+    { label:'Contracts',            url:'contracts.html',           icon:'pen-line' },
+    { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'monitor-smartphone' },
+    { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'wrench', acc:'damage.view' }
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
-    { label:'Dashboard',           url:'index.html',                icon:'🏠' },
-    { label:'Checklist',           url:'checklist.html',            icon:'✅' },
-    { label:'Alerts',              url:'alerts.html',               icon:'🔔' },
-    { label:'Communications',      url:'communications.html',       icon:'📣' },
-    { label:'My Commission',       url:'commission-dashboard.html', icon:'📈', acc:'commission.dashboard' },
-    { label:'My Time',             url:'my-schedule.html',          icon:'🗓️', acc:'schedule.view' }
+    { label:'Dashboard',           url:'index.html',                icon:'house' },
+    { label:'Checklist',           url:'checklist.html',            icon:'list-checks' },
+    { label:'Alerts',              url:'alerts.html',               icon:'bell' },
+    { label:'Communications',      url:'communications.html',       icon:'megaphone' },
+    { label:'My Commission',       url:'commission-dashboard.html', icon:'chart-line', acc:'commission.dashboard' },
+    { label:'My Time',             url:'my-schedule.html',          icon:'calendar-days', acc:'schedule.view' }
   ];
   // Reports — read-only reports (managers/owner); each report is its own page.
   // (No `acc` yet — there's no 'reports.view' permission in the catalog, and canSee(acc)
   // would filter every report out of the list. The rail icon is rank-gated; pages gate by role.)
   var REPORTS = [
-    { label:'Overtime Report', url:'report-overtime.html', icon:'⏱️', minRole:'admin' }
+    { label:'Overtime Report', url:'report-overtime.html', icon:'timer', minRole:'admin' }
   ];
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
-    { label:'Team Members',   url:'employee-records.html', icon:'📁', minRole:'admin', acc:'staff.view' },
+    { label:'Team Members',   url:'employee-records.html', icon:'users', minRole:'admin', acc:'staff.view' },
     // Schedule/Task Admin reached from buttons on My Time / Checklist (hidden from menus)
-    { label:'Schedule Admin', url:'schedule-admin.html',   icon:'🗓️', minRole:'admin', acc:'schedule.admin', hidden:true },
-    { label:'Task Admin',     url:'task-admin.html',       icon:'🗂️', minRole:'admin', hidden:true },
-    { label:'Time Entries',   url:'time-entries.html',     icon:'🕐', minRole:'admin', acc:'schedule.admin' },
-    { label:'Time Off',       url:'time-off.html',         icon:'🌴', minRole:'admin', acc:'schedule.admin' }
+    { label:'Schedule Admin', url:'schedule-admin.html',   icon:'calendar-cog', minRole:'admin', acc:'schedule.admin', hidden:true },
+    { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', minRole:'admin', hidden:true },
+    { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
+    { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' }
   ];
   var PRIVILEGED = [
     // Cash Admin reached from a button on Cash Tracker (hidden from menus)
-    { label:'Cash Admin',       url:'cash-admin.html',            icon:'💰', minRole:'admin', acc:'cash.admin', hidden:true },
-    { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
-    { label:'Payroll · Commission & Tips', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
-    { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' },
-    { label:'Cash Journal',     url:'cash-journal.html',          icon:'📒', minRole:'owner', acc:'cash.journal' },
-    { label:'Expenses',         url:'expenses.html',              icon:'🧾', minRole:'owner', acc:'expenses.record' }
+    { label:'Cash Admin',       url:'cash-admin.html',            icon:'wallet', minRole:'admin', acc:'cash.admin', hidden:true },
+    { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'chart-pie', minRole:'owner', acc:'claims.view' },
+    { label:'Payroll · Commission & Tips', url:'commission-calculator.html', icon:'receipt', minRole:'owner', acc:'commission.view' },
+    { label:'Profit First',     url:'profit-first.html',          icon:'landmark', minRole:'owner', acc:'profit.view' },
+    { label:'Cash Journal',     url:'cash-journal.html',          icon:'notebook-tabs', minRole:'owner', acc:'cash.journal' },
+    { label:'Expenses',         url:'expenses.html',              icon:'receipt-text', minRole:'owner', acc:'expenses.record' }
   ];
   // Settings — the rail gear is a real area now (design handoff): clicking it swaps
   // the pane to this list instead of navigating. Gear visibility stays staff.manage;
   // rows gate individually. Hash links open that tab on settings.html directly.
   var SETTINGS = [
-    { label:'Team Members',        url:'settings.html#staff',      icon:'📁', acc:'staff.manage' },
-    { label:'Locations',           url:'settings.html#loc',        icon:'📍', acc:'staff.manage' },
-    { label:'Notifications',       url:'settings.html#notif',      icon:'🔔', acc:'staff.manage' },
-    { label:'Page Settings',       url:'settings.html#pages',      icon:'📄', acc:'staff.manage' },
-    { label:'Commission',          url:'settings.html#commission', icon:'📈', acc:'staff.manage' },
-    { label:'Integrations',        url:'settings.html#integ',      icon:'🔌', acc:'staff.manage' },
-    { label:'Roles & Permissions', url:'settings.html#roles',      icon:'🛡️', acc:'staff.manage' }
+    { label:'Team Members',        url:'settings.html#staff',      icon:'users', acc:'staff.manage' },
+    { label:'Locations',           url:'settings.html#loc',        icon:'map-pin', acc:'staff.manage' },
+    { label:'Notifications',       url:'settings.html#notif',      icon:'bell', acc:'staff.manage' },
+    { label:'Page Settings',       url:'settings.html#pages',      icon:'file-cog', acc:'staff.manage' },
+    { label:'Commission',          url:'settings.html#commission', icon:'percent', acc:'staff.manage' },
+    { label:'Integrations',        url:'settings.html#integ',      icon:'plug', acc:'staff.manage' },
+    { label:'Roles & Permissions', url:'settings.html#roles',      icon:'shield', acc:'staff.manage' }
   ];
 
   var RANK = { none:0, employee:1, team_member:1, manager:2, admin:2, owner:3 };
@@ -198,7 +198,7 @@
     var b = document.querySelector('.cpr-tb-clock'); if (!b) return;
     b.classList.toggle('on', CLOCK.on); b.classList.toggle('busy', CLOCK.busy);
     var lbl = b.querySelector('.lbl');
-    if (lbl) lbl.textContent = CLOCK.busy ? '…' : (CLOCK.on ? clkElapsed() : '🕐 Clock in');
+    if (lbl) lbl.textContent = CLOCK.busy ? '…' : (CLOCK.on ? clkElapsed() : 'Clock in');
     b.title = CLOCK.on ? 'On the clock — click to clock out' : 'Click to clock in';
     if (CLOCK.on && !CLOCK.tick) CLOCK.tick = setInterval(function(){ var l = document.querySelector('.cpr-tb-clock .lbl'); if (l && CLOCK.on && !CLOCK.busy) l.textContent = clkElapsed(); }, 30000);
     if (!CLOCK.on && CLOCK.tick){ clearInterval(CLOCK.tick); CLOCK.tick = null; }
@@ -483,6 +483,54 @@
   `;
 
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+  // Lucide icons v1.24.0 (ISC/MIT, lucide.dev) — inlined inner markup; rendered by navIcon()
+  var NAV_SVG = {
+    'house': '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
+    'list-checks': '<path d="M13 5h8" /><path d="M13 12h8" /><path d="M13 19h8" /><path d="m3 17 2 2 4-4" /><path d="m3 7 2 2 4-4" />',
+    'bell': '<path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />',
+    'megaphone': '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" /><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" /><path d="M8 6v8" />',
+    'chart-line': '<path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" />',
+    'calendar-days': '<path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" />',
+    'book-open': '<path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />',
+    'timer': '<line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" />',
+    'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" />',
+    'calendar-cog': '<path d="m15.228 16.852-.923-.383" /><path d="m15.228 19.148-.923.383" /><path d="M16 2v4" /><path d="m16.47 14.305.382.923" /><path d="m16.852 20.772-.383.924" /><path d="m19.148 15.228.383-.923" /><path d="m19.53 21.696-.382-.924" /><path d="m20.772 16.852.924-.383" /><path d="m20.772 19.148.924.383" /><path d="M21 10.592V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" /><path d="M3 10h18" /><path d="M8 2v4" /><circle cx="18" cy="18" r="3" />',
+    'folder-kanban': '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /><path d="M8 10v4" /><path d="M12 10v2" /><path d="M16 10v6" />',
+    'clock-4': '<circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />',
+    'palmtree': '<path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h2l1-1 1 1h4" /><path d="M13 7.14A5.82 5.82 0 0 1 16.5 6c3.04 0 5.5 2.24 5.5 5h-3l-1-1-1 1h-3" /><path d="M5.89 9.71c-2.15 2.15-2.3 5.47-.35 7.43l4.24-4.25.7-.7.71-.71 2.12-2.12c-1.95-1.96-5.27-1.8-7.42.35" /><path d="M11 15.5c.5 2.5-.17 4.5-1 6.5h4c2-5.5-.5-12-1-14" />',
+    'wallet': '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />',
+    'chart-pie': '<path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z" /><path d="M21.21 15.89A10 10 0 1 1 8 2.83" />',
+    'receipt': '<path d="M12 17V7" /><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8" /><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z" />',
+    'landmark': '<path d="M10 18v-7" /><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /><path d="M14 18v-7" /><path d="M18 18v-7" /><path d="M3 22h18" /><path d="M6 18v-7" />',
+    'notebook-tabs': '<path d="M2 6h4" /><path d="M2 10h4" /><path d="M2 14h4" /><path d="M2 18h4" /><rect width="16" height="20" x="4" y="2" rx="2" /><path d="M15 2v20" /><path d="M15 7h5" /><path d="M15 12h5" /><path d="M15 17h5" />',
+    'receipt-text': '<path d="M13 16H8" /><path d="M14 8H8" /><path d="M16 12H8" /><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z" />',
+    'map-pin': '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" /><circle cx="12" cy="10" r="3" />',
+    'file-cog': '<path d="M15 8a1 1 0 0 1-1-1V2a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8z" /><path d="M20 8v12a2 2 0 0 1-2 2h-4.182" /><path d="m3.305 19.53.923-.382" /><path d="M4 10.592V4a2 2 0 0 1 2-2h8" /><path d="m4.228 16.852-.924-.383" /><path d="m5.852 15.228-.383-.923" /><path d="m5.852 20.772-.383.924" /><path d="m8.148 15.228.383-.923" /><path d="m8.53 21.696-.382-.924" /><path d="m9.773 16.852.922-.383" /><path d="m9.773 19.148.922.383" /><circle cx="7" cy="18" r="3" />',
+    'percent': '<line x1="19" x2="5" y1="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" />',
+    'plug': '<path d="M12 22v-5" /><path d="M15 8V2" /><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z" /><path d="M9 8V2" />',
+    'shield': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />',
+    'banknote': '<rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" />',
+    'pen-line': '<path d="M13 21h8" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />',
+    'monitor-smartphone': '<path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" /><path d="M10 19v-3.96 3.15" /><path d="M7 19h5" /><rect width="6" height="10" x="16" y="12" rx="2" />',
+    'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2" /><path d="M12 18h.01" />',
+    'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />',
+    'calculator': '<rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" />',
+    'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" />',
+    'tablet-smartphone': '<rect width="10" height="14" x="3" y="8" rx="2" /><path d="M5 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-2.4" /><path d="M8 18h.01" />',
+    'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" />',
+    'package': '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /><path d="M12 22V12" /><polyline points="3.29 7 12 12 20.71 7" /><path d="m7.5 4.27 9 5.15" />',
+    'recycle': '<path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5" /><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12" /><path d="m14 16-3 3 3 3" /><path d="M8.293 13.596 7.196 9.5 3.1 10.598" /><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843" /><path d="m13.378 9.633 4.096 1.098 1.097-4.096" />',
+    'menu': '<path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h16" />',
+    'circle-dollar-sign': '<circle cx="12" cy="12" r="10" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 18V6" />',
+    'sparkles': '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" />',
+    'settings': '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" />'
+  };
+  function navIcon(name, size){
+    if (!NAV_SVG[name]) return name || '';   // emoji / raw-text fallback for unmapped entries
+    var s = size || 17;
+    return '<svg viewBox="0 0 24 24" width="'+s+'" height="'+s+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:0 auto">'+NAV_SVG[name]+'</svg>';
+  }
+
   var MARK = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg>';
 
   // white line icons for the rail area buttons
@@ -514,8 +562,8 @@
     var active = (base === currentFile && (!frag || ('#' + frag) === location.hash.toLowerCase())) ? ' active' : '';
     var tagHtml = tag ? (' <span class="tag '+(tag==='Owner'?'owner':'')+'">'+tag+'</span>') : '';
     var ic = t.img
-      ? '<img src="'+esc(t.img)+'" alt="'+esc(t.icon||'')+'" onerror="this.outerHTML=this.alt">'
-      : (t.icon||'');
+      ? '<img src="'+esc(t.img)+'" alt="" onerror="this.outerHTML=\''+(NAV_SVG[t.icon]?'':esc(t.icon||''))+'\'">'
+      : navIcon(t.icon||'');
     return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+ic+'</span> '+esc(t.label)+tagHtml+'</a>';
   }
 
@@ -668,7 +716,7 @@
   function paneMobileInner(){
     var h = '<div class="cpr-mhd"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></div>';
-    h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'📚' });
+    h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'book-open' });
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
     var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -877,23 +925,23 @@
       + '<button class="cpr-tb-sq" data-square title="Square — take a payment (backup register)" aria-label="Square virtual terminal">'
       +   '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
       + '</button>'
-      + '<button class="cpr-tb-clock" data-clock title="Time clock — click to clock in/out"><span class="dot"></span><span class="lbl">🕐 Clock in</span></button>'
-      + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">🔔<span class="bdg"></span></button>'
+      + '<button class="cpr-tb-clock" data-clock title="Time clock — click to clock in/out"><span class="dot"></span><span class="lbl">Clock in</span></button>'
+      + '<button class="cpr-tb-bell" data-tbact="bell" title="Notifications" aria-label="Notifications">'+navIcon('bell',17)+'<span class="bdg"></span></button>'
       + '<span class="cpr-tb-role" data-roleslot>' + roleSlotHtml() + '</span>';
     document.body.insertBefore(top, document.body.firstChild);
 
     // ── bottom tab bar (mobile app shell): Home / Tasks / My Time / Commission / More ──
     var BB_TABS = [
-      { label:'Home',       url:'index.html',                icon:'🏠' },
-      { label:'Tasks',      url:'checklist.html',            icon:'✅' },
-      { label:'My Time',    url:'my-schedule.html',          icon:'🗓️' },
-      { label:'Commission', url:'commission-dashboard.html', icon:'💰' }
+      { label:'Home',       url:'index.html',                icon:'house' },
+      { label:'Tasks',      url:'checklist.html',            icon:'list-checks' },
+      { label:'My Time',    url:'my-schedule.html',          icon:'calendar-days' },
+      { label:'Commission', url:'commission-dashboard.html', icon:'circle-dollar-sign' }
     ];
     var curFile = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
     var bb = document.createElement('nav'); bb.className = 'cpr-bottombar';
     bb.innerHTML = BB_TABS.map(function(t){
-      return '<a class="cpr-bb-tab'+(t.url===curFile?' on':'')+'" href="'+esc(t.url)+'"><span class="i">'+t.icon+'</span>'+esc(t.label)+'</a>';
-    }).join('') + '<button class="cpr-bb-tab" data-bbmore aria-label="More"><span class="i">☰</span>More</button>';
+      return '<a class="cpr-bb-tab'+(t.url===curFile?' on':'')+'" href="'+esc(t.url)+'"><span class="i">'+navIcon(t.icon,22)+'</span>'+esc(t.label)+'</a>';
+    }).join('') + '<button class="cpr-bb-tab" data-bbmore aria-label="More"><span class="i">'+navIcon('menu',22)+'</span>More</button>';
     document.body.appendChild(bb);
 
     wireTop();

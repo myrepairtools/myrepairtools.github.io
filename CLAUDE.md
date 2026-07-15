@@ -610,6 +610,12 @@ More instead. `--cpr-bb-h` (0 on desktop, bar height on mobile) is set on :root 
 pages with their own fixed footers must use `bottom:var(--cpr-bb-h,0px)`
 (expenses.html does), and nav.js lifts the assistant ✨ FAB above the bar.
 Per-user tab customization is planned (dashboard_layouts pattern), not built.
+  **Nav icons are inlined Lucide SVGs** (`NAV_SVG` map + `navIcon(name,size)` in nav.js;
+  stroke `currentColor`, so they tint with row/tab state) — the emoji era in the nav is
+  over. New nav entries use a Lucide icon NAME in `icon:`; unmapped strings still render
+  as text so nothing breaks. Add new glyphs to NAV_SVG from the `lucide-static` npm
+  package (ISC). Page-content emoji (h1s, widget titles, alert-feed tiles) are a
+  separate call — swap them page-by-page only when redesigning that page.
 
 **Time-off requests:** employees request via a **3-step wizard modal on `my-schedule.html`**
 (never an inline form): 1) calendar date pick — shows teammates' pending/booked days AND the
