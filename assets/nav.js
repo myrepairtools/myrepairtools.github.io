@@ -27,6 +27,12 @@
     if (vpMeta && vpMeta.content.indexOf('viewport-fit') < 0) vpMeta.content += ',viewport-fit=cover';
   }
 
+  // Service worker (network-first; see sw.js) — keeps installed home-screen apps
+  // on the LATEST deploy instead of iOS's sticky cache, and hosts push later.
+  if ('serviceWorker' in navigator) {
+    try { navigator.serviceWorker.register('/sw.js'); } catch (_) {}
+  }
+
   // Home-screen icon: give every page the myRepairTools app icon (iOS uses
   // apple-touch-icon; the SVG favicon is ignored for the home screen) + theme
   // color + web manifest. Injected here so all pages get it without per-file edits.
