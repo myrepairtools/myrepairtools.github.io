@@ -29,6 +29,7 @@ const json = (b: unknown, status = 200) =>
 
 /* ===== LA-local date helpers ===== */
 const TZ = "America/Los_Angeles";
+const ALERTS_FN = SB_URL + "/functions/v1/alerts";
 function laTodayISO(): string {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   return p; // en-CA gives YYYY-MM-DD
@@ -197,6 +198,95 @@ async function generate(dateISO: string) {
   return json({ ok: true, date: dateISO, created, auto_missed: (missR.data || []).length, rotated: rotBumps.length });
 }
 
+/* ===== end-of-shift nudge =====
+   Runs every 30 min (pg_cron). Anyone whose shift ends within the next 45
+   minutes and still has open tasks gets ONE personal alert (feed + push/text
+   per their prefs) for the day. Counted as "theirs": instances assigned to
+   them, plus 'each'-completion instances they're eligible for and haven't
+   completed. Unassigned any-pool tasks are deliberately NOT nudged (someone
+   else may grab them — nudging everyone would be noise). */
+async function nudge() {
+  const dateISO = laTodayISO();
+  const dow = dowOf(dateISO);
+  const hm = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour12: false, hour: "2-digit", minute: "2-digit" })
+    .format(new Date()).split(":").map(Number);
+  const nowMin = hm[0] * 60 + hm[1];
+
+  const [stR, schR, shR, hrR, toR] = await Promise.all([
+    admin.from("staff").select("id,display_name,active").eq("active", true),
+    admin.from("staff_schedule").select("staff_id,store,shifts"),
+    admin.from("shifts").select("id,name"),
+    admin.from("shift_hours").select("shift_id,store,weekday,start_min,end_min,closed,enabled"),
+    admin.from("time_off_requests").select("staff_id,status,start_date,end_date,partial_days").eq("status", "approved").lte("start_date", dateISO).gte("end_date", dateISO),
+  ]);
+  const staffById: Record<number, { id: number; display_name: string }> = {};
+  (stR.data || []).forEach((s: any) => { staffById[s.id] = s; });
+  const offToday = new Set((toR.data || []).filter((r: any) => !(r.partial_days && r.partial_days[dateISO])).map((r: any) => r.staff_id));
+
+  // resolve each working person's shift END minute today (weekday row beats the default)
+  function endMin(shiftId: number, store: string): number | null {
+    const rows = (hrR.data || []).filter((h: any) => h.shift_id === shiftId && h.store === store && h.enabled !== false);
+    const day = rows.find((h: any) => h.weekday === dow);
+    const pick = day || rows.find((h: any) => h.weekday == null);
+    if (!pick || pick.closed || pick.end_min == null) return null;
+    return Number(pick.end_min);
+  }
+  const endingSoon: Array<{ id: number; end: number }> = [];
+  for (const row of (schR.data || []) as any[]) {
+    if (!staffById[row.staff_id] || offToday.has(row.staff_id)) continue;
+    const v = (row.shifts || {})[String(dow)];
+    if (v == null || v === "off") continue;
+    const rec = typeof v === "string" ? { label: v } : v;
+    if (rec.label === "Off") continue;
+    let sid = rec.shift_id;
+    if (sid == null && rec.label) {
+      const m = (shR.data || []).find((s: any) => String(s.name).trim().toLowerCase() === String(rec.label).trim().toLowerCase());
+      if (m) sid = m.id;
+    }
+    if (sid == null) continue;
+    const end = endMin(sid, rec.store || row.store);
+    if (end == null) continue;
+    const delta = end - nowMin;
+    if (delta >= 0 && delta <= 45) endingSoon.push({ id: row.staff_id, end });
+  }
+  if (!endingSoon.length) return json({ ok: true, date: dateISO, now_min: nowMin, ending_soon: 0, nudged: 0 });
+
+  // one nudge per person per day
+  const keys = endingSoon.map((e) => `nudge:${e.id}:${dateISO}`);
+  const lg = await admin.from("notify_log").select("dedupe_key").in("dedupe_key", keys);
+  const seen = new Set((lg.data || []).map((x: any) => x.dedupe_key));
+  const fresh = endingSoon.filter((e) => !seen.has(`nudge:${e.id}:${dateISO}`));
+  if (!fresh.length) return json({ ok: true, date: dateISO, now_min: nowMin, ending_soon: endingSoon.length, nudged: 0, skipped: "already_nudged" });
+
+  // open work due by end of today
+  const eod = dueAtISO(dateISO, "23:59");
+  const [instR, compR] = await Promise.all([
+    admin.from("task_instances").select("id,name,completion,assigned_staff_id,eligible,status,due_at").eq("status", "open").lte("due_at", eod),
+    admin.from("task_completions").select("instance_id,staff_id"),
+  ]);
+  const done = new Set((compR.data || []).map((c: any) => c.instance_id + ":" + c.staff_id));
+
+  let nudged = 0;
+  const results: Array<{ staff_id: number; open: number }> = [];
+  for (const e of fresh) {
+    const mine = (instR.data || []).filter((t: any) =>
+      t.assigned_staff_id === e.id ||
+      (t.completion === "each" && (t.eligible || []).includes(e.id) && !done.has(t.id + ":" + e.id)));
+    results.push({ staff_id: e.id, open: mine.length });
+    if (!mine.length) continue;
+    const names = mine.slice(0, 3).map((t: any) => t.name).join(" · ") + (mine.length > 3 ? " …" : "");
+    try {
+      await fetch(ALERTS_FN, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", secret: NOTIFY_SECRET, staff_ids: [e.id], kind: "task",
+          title: `✅ ${mine.length} task${mine.length === 1 ? "" : "s"} still open before you head out`,
+          body: names, link: "checklist.html" }) });
+      await admin.from("notify_log").insert({ dedupe_key: `nudge:${e.id}:${dateISO}`, kind: "task_nudge", staff_id: e.id, detail: `${mine.length} open` });
+      nudged++;
+    } catch (_) { /* next run retries — dedupe row only written on success */ }
+  }
+  return json({ ok: true, date: dateISO, now_min: nowMin, ending_soon: endingSoon.length, nudged, results });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json({ ok: true });
   const url = new URL(req.url);
@@ -213,6 +303,9 @@ Deno.serve(async (req) => {
   if (!secretOk && !userOk) return json({ ok: false, error: "unauthorized" }, 401);
   const action = url.searchParams.get("action") || "generate";
   try {
+    if (action === "nudge") {
+      return await nudge();
+    }
     if (action === "generate") {
       const date = url.searchParams.get("date") || laTodayISO();
       return await generate(date);

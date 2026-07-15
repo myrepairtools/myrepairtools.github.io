@@ -610,8 +610,12 @@ for SMS — falls back to RINGCENTRAL_FROM_NUMBER). Push arrives via sw.js
 (`push` → showNotification, `notificationclick` → deep link). Wired sources:
 milestones (goal hits → the person, kind 'goal'; day-of birthdays/anniversaries
 → the person), Schedule Admin's Notify button (kind 'schedule', everyone), KB
-required-reading publish (kind 'kb', everyone). Email prefs deliberately not
-offered yet. Deferred: end-of-shift task nudge cron.
+required-reading publish (kind 'kb', everyone), and the **end-of-shift task
+nudge** — `tasks?action=nudge` (pg_cron `tasks-nudge-halfhourly`, */30): anyone
+whose shift ends within 45 min with open tasks due today (assigned to them, or
+'each' without their completion; unassigned any-pool tasks deliberately skipped)
+gets one alert per day (notify_log `nudge:<staff>:<date>` dedupe). Email prefs
+deliberately not offered yet.
 
 **My Profile (`profile.html`):** every employee's self-service page (avatar menu →
 My Profile; the mobile drawer header also links here). Onboarding-ready: a
@@ -688,8 +692,7 @@ can create **personal** tasks — RLS-scoped to creator) and `task-admin.html` (
 nav, managers: Library list+calendar, Reporting by calendar month, Fairness rotation
 ledger). Dashboard My Tasks widget uses `assets/checklist-summary.js`
 (`window.CPRChecklist.forMe()/markDone()`). On-time = done_at ≤ due_at, stored on the
-instance/completion at check-off. Checklist notification triggers (end-of-shift nudges
-etc.) are deliberately deferred to the notifications project.
+instance/completion at check-off. End-of-shift nudges ship via the alerts fanout (see Alerts).
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 
