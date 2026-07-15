@@ -214,6 +214,12 @@ let STAFF=[],SBID={},SHIFTS=[],TPLS=[],INST=[],COMPS={},TODAY=iso(new Date());
 let VIEW=lsGet('cprCkView','my'),SCOPE=lsGet('cprCkScope','daily'),SEL=null,PERSON='all';
 let STORES=[];
 
+/* hash deep-link (#daily / #weekly / #monthly) — a valid hash wins over localStorage */
+const HASH_SCOPES=['daily','weekly','monthly'];
+function scopeFromHash(){const h=location.hash.replace('#','').toLowerCase();return HASH_SCOPES.indexOf(h)>-1?h:null;}
+const _hs=scopeFromHash();if(_hs){SCOPE=_hs;lsSet('cprCkScope',SCOPE);}
+window.addEventListener('hashchange',()=>{const t=scopeFromHash();if(t&&t!==SCOPE){SCOPE=t;lsSet('cprCkScope',SCOPE);if(BOOTED)render();}});
+
 async function boot(){
   $('#app').style.visibility='visible';
   STORES=(ME.authorized_stores&&ME.authorized_stores.length?ME.authorized_stores.slice():[ME.home_store]).filter(Boolean);
@@ -374,6 +380,7 @@ function render(){
   document.querySelectorAll('#viewTabs button').forEach(b=>{b.onclick=()=>{VIEW=b.dataset.v;lsSet('cprCkView',VIEW);render();};});
   $('#scopeTabs').innerHTML=[['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']].map(v=>'<button class="'+(SCOPE===v[0]?'on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('');
   document.querySelectorAll('#scopeTabs button').forEach(b=>{b.onclick=()=>{SCOPE=b.dataset.v;lsSet('cprCkScope',SCOPE);render();};});
+  try{if(location.hash.replace('#','')!==SCOPE)history.replaceState(null,'','#'+SCOPE);}catch(e){}
   $('#pgTitle').textContent=VIEW==='my'?'My Checklist':'Store Checklist';
   // person filter
   const storeView=VIEW==='store';
