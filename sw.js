@@ -23,6 +23,32 @@ self.addEventListener('activate', (e) => {
   })());
 });
 
+// ---- Web Push (the alerts function fans out to push_subscriptions) ----
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: e.data && e.data.text() }; }
+  const title = d.title || 'myRepairTools';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: '/extension/images/mrt128.png',
+    badge: '/extension/images/mrt128.png',
+    data: { link: d.link || 'alerts.html' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const link = (e.notification.data && e.notification.data.link) || 'alerts.html';
+  const url = new URL(link, self.location.origin).href;
+  e.waitUntil((async () => {
+    const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if ('focus' in w) { await w.focus(); if ('navigate' in w) await w.navigate(url); return; }
+    }
+    await clients.openWindow(url);
+  })());
+});
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;

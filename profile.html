@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>My Profile — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--ring:0 0 0 3px rgba(79,176,227,.15);
+--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:640px;margin:0 auto;padding:16px 16px 40px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
+.sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin:2px 0 14px}
+.empty{padding:56px 20px;text-align:center;color:var(--grey);font-weight:700;line-height:1.6}
+.empty .big{font-size:2rem;margin-bottom:8px}
+
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;
+box-shadow:var(--shadow);margin-bottom:12px;scroll-margin-top:calc(var(--cpr-top-h,52px) + 12px)}
+.ctit{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.ctit .savemark{margin-left:auto}
+.savemark{font-size:.74rem;font-weight:800;color:var(--green);opacity:0;transition:opacity .25s;white-space:nowrap}
+.savemark.on{opacity:1}
+.hint{font-size:.76rem;font-weight:700;color:var(--dark-grey);line-height:1.45;margin-top:8px}
+
+.fldl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--dark-grey);margin:12px 0 5px;scroll-margin-top:calc(var(--cpr-top-h,52px) + 12px)}
+input[type=text],input[type=email],input[type=password],select{
+width:100%;min-width:0;max-width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--border);
+border-radius:12px;background:#fff;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:16px;color:var(--dark)}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+select{cursor:pointer;-webkit-appearance:none;appearance:none;
+background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234E4E50' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:12px}
+.row2 .fldl{margin-top:0}
+
+/* who am I header strip */
+.who{display:flex;align-items:center;gap:11px;background:#F6F7F9;border-radius:12px;padding:10px 12px;margin-bottom:4px}
+.who .av{width:42px;height:42px;border-radius:50%;background:var(--dark);color:#fff;flex:none;
+display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.who .nm{font-family:'Nunito',sans-serif;font-weight:900;font-size:.98rem;line-height:1.2}
+.who .rl{font-size:.76rem;font-weight:800;color:var(--dark-grey)}
+
+/* onboarding checklist */
+.obcount{font-size:.78rem;font-weight:800;color:var(--dark-grey)}
+.obbar{height:8px;background:var(--light-grey);border-radius:999px;overflow:hidden;margin:8px 0 6px}
+.obbar i{display:block;height:100%;width:0;background:var(--green);border-radius:999px;transition:width .3s}
+.obrow{display:flex;align-items:center;gap:11px;width:100%;min-height:48px;background:none;border:none;
+border-top:1px solid var(--light-grey);font-family:inherit;color:inherit;cursor:pointer;text-align:left;padding:5px 2px}
+.obrow:first-of-type{border-top:none}
+.obrow .ck{width:24px;height:24px;border-radius:50%;flex:none;border:2px solid var(--grey);
+display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:900;color:#fff}
+.obrow.done .ck{background:var(--green);border-color:var(--green)}
+.obrow .lb{flex:1;font-weight:700;font-size:.9rem}
+.obrow.done .lb{color:var(--grey)}
+.obrow .go{color:var(--grey);font-weight:800}
+
+/* notifications */
+.pushwrap{background:#F6F7F9;border-radius:12px;padding:11px 12px;margin-top:8px}
+.pushstat{font-size:.84rem;font-weight:700;line-height:1.45}
+.pbtn{display:none;width:100%;min-height:52px;margin-top:10px;border:none;border-radius:12px;background:var(--red);
+color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;cursor:pointer;
+box-shadow:0 4px 14px rgba(220,40,46,.24)}
+.pbtn:disabled{opacity:.65;cursor:default}
+.mtx{width:100%;border-collapse:collapse;margin-top:12px}
+.mtx th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--dark-grey);padding:0 0 4px;text-align:center;width:60px}
+.mtx th:first-child{text-align:left;width:auto}
+.mtx td{border-top:1px solid var(--light-grey)}
+.mtx td.kn{font-weight:700;font-size:.9rem;padding-right:8px}
+.mtx .lock{font-size:.7rem;margin-left:3px}
+.ckwrap{display:flex;align-items:center;justify-content:center;min-height:48px;min-width:48px;cursor:pointer}
+.ckwrap input{width:25px;height:25px;accent-color:var(--blue);cursor:pointer}
+.ckwrap input:disabled{cursor:default}
+
+/* security */
+.pinerr{display:none;margin-top:10px;background:#FBE9E9;border:1px solid #F6C9CA;border-radius:10px;
+padding:9px 12px;font-size:.82rem;font-weight:700;color:var(--red)}
+#pinBtn{width:100%;min-height:52px;margin-top:14px;border:none;border-radius:12px;background:var(--dark);
+color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;cursor:pointer}
+#pinBtn:disabled{opacity:.65;cursor:default}
+
+/* app card */
+.steps{margin:8px 0 0 2px;padding-left:20px;font-size:.9rem;font-weight:700;line-height:1.9}
+.installed{display:flex;align-items:center;gap:8px;background:#E9F6EE;border:1px solid #CBE8D6;border-radius:10px;
+padding:11px 12px;font-size:.88rem;font-weight:800;color:var(--green)}
+
+.toast{position:fixed;bottom:calc(24px + var(--cpr-bb-h,0px));left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<main>
+  <h1>👤 My Profile</h1>
+  <div class="sub">Your info, your notifications, your app</div>
+
+  <div class="empty" id="gate">Loading…</div>
+
+  <div id="content" style="display:none">
+
+    <!-- 1 · onboarding checklist -->
+    <div class="card" id="obCard" style="display:none">
+      <div class="ctit">🚀 Getting Set Up <span class="obcount" id="obCount"></span></div>
+      <div class="obbar"><i id="obBar"></i></div>
+      <div id="obRows"></div>
+    </div>
+
+    <!-- 2 · contact -->
+    <div class="card" id="contactCard">
+      <div class="ctit">📇 Contact <span class="savemark" id="contactSaved">Saved ✓</span></div>
+      <div class="who" id="whoStrip"></div>
+
+      <div class="fldl">Phone</div>
+      <input type="text" id="phone" inputmode="tel" autocomplete="tel" placeholder="(555) 555-1234">
+      <div class="fldl">Personal Email</div>
+      <input type="email" id="pemail" autocomplete="email" placeholder="you@example.com">
+
+      <div class="fldl" id="emSec">Emergency Contact</div>
+      <input type="text" id="emName" autocapitalize="words" placeholder="Name">
+      <div class="row2">
+        <div><div class="fldl">Their Phone</div><input type="text" id="emPhone" inputmode="tel" placeholder="(555) 555-1234"></div>
+        <div><div class="fldl">Relationship</div><input type="text" id="emRel" autocapitalize="words" placeholder="Spouse, parent…"></div>
+      </div>
+
+      <div class="fldl">Address</div>
+      <input type="text" id="adStreet" autocomplete="street-address" placeholder="Street">
+      <div class="row2" style="margin-top:8px">
+        <div><input type="text" id="adCity" autocomplete="address-level2" placeholder="City" aria-label="City"></div>
+        <div><input type="text" id="adState" autocomplete="address-level1" placeholder="State" aria-label="State"></div>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <div><input type="text" id="adZip" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP" aria-label="ZIP"></div>
+        <div></div>
+      </div>
+
+      <div class="fldl">Shirt Size</div>
+      <select id="shirt">
+        <option value="">Pick a size…</option>
+        <option>S</option><option>M</option><option>L</option>
+        <option>XL</option><option>2XL</option><option>3XL</option>
+      </select>
+    </div>
+
+    <!-- 3 · notifications -->
+    <div class="card" id="notifCard">
+      <div class="ctit">🔔 Notifications <span class="savemark" id="notifSaved">Saved ✓</span></div>
+      <div class="pushwrap">
+        <div class="pushstat" id="pushStat">Checking this device…</div>
+        <button type="button" class="pbtn" id="pushBtn">🔔 Enable Push Notifications</button>
+      </div>
+      <table class="mtx" aria-label="Notification preferences">
+        <thead><tr><th>Alert</th><th>Push</th><th>Text</th></tr></thead>
+        <tbody id="mtxBody"></tbody>
+      </table>
+      <div class="hint">In-app alerts are always on. Text messages come from our official CPR line.</div>
+    </div>
+
+    <!-- 4 · security -->
+    <div class="card" id="secCard">
+      <div class="ctit">🔐 Security</div>
+      <div class="fldl">Current PIN</div>
+      <input type="password" id="pinCur" inputmode="numeric" autocomplete="current-password" maxlength="8" placeholder="••••">
+      <div class="row2">
+        <div><div class="fldl">New PIN</div><input type="password" id="pinNew" inputmode="numeric" autocomplete="new-password" maxlength="8" placeholder="4–8 digits"></div>
+        <div><div class="fldl">Confirm New</div><input type="password" id="pinConf" inputmode="numeric" autocomplete="new-password" maxlength="8" placeholder="Again"></div>
+      </div>
+      <div class="pinerr" id="pinErr"></div>
+      <button type="button" id="pinBtn">Change PIN</button>
+    </div>
+
+    <!-- 5 · get the app -->
+    <div class="card" id="appCard">
+      <div class="ctit">📱 Get the App</div>
+      <div id="appBody"></div>
+    </div>
+
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="hub"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* My Profile — self-service employee info (staff_profiles), notification
+   preferences (alert_prefs), web-push enrollment (push_subscriptions), PIN
+   change (cpr-auth change_pin), and the onboarding checklist. All rows are
+   RLS-scoped to the signed-in person. */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+
+var VAPID_PUBLIC='BNil1VM0Oi6oyk3rS2Y1QnxKx2st_k2tmxOBtQTRLmPU83Kw9kM72AilxY11UuGLexEt683x6EgJQLen3D0TOCg';
+var KINDS=[['comms','Communications'],['task','Task nudges'],['schedule','Schedule'],
+['kb','Required reading'],['goal','Goals & wins'],['birthday','Birthdays'],['anniversary','Anniversaries']];
+
+var ME=null;      // staff row {id, display_name, role, home_store, birthday}
+var OB={};        // staff_profiles.onboarding jsonb
+var PREFS={};     // alert_prefs.prefs jsonb {kind:{push,sms}}
+var pushOn=false; // this device has a live subscription
+
+/* App-installed detection: persist the flag any time we're ever seen standalone */
+function isStandaloneNow(){
+  try{return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;}
+  catch(e){return false;}
+}
+if(isStandaloneNow()){try{localStorage.setItem('cprA2HS','1');}catch(e){}}
+function appInstalled(){
+  if(isStandaloneNow())return true;
+  try{return localStorage.getItem('cprA2HS')==='1';}catch(e){return false;}
+}
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');
+clearTimeout(toast._t);toast._t=setTimeout(function(){t.className='toast';},2400);}
+function tick(id){var el=$(id);if(!el)return;el.classList.add('on');
+clearTimeout(el._t);el._t=setTimeout(function(){el.classList.remove('on');},1800);}
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+/* ---------- phone helpers: store E.164, show human ---------- */
+function normPhone(v){
+  v=String(v||'').trim(); if(!v)return null;
+  var d=v.replace(/\D/g,'');
+  if(v.charAt(0)==='+'&&d.length>=8)return '+'+d;
+  if(d.length===10)return '+1'+d;
+  if(d.length===11&&d.charAt(0)==='1')return '+'+d;
+  return v; // keep as typed if we can't confidently normalize
+}
+function fmtPhone(v){
+  var m=/^\+1(\d{3})(\d{3})(\d{4})$/.exec(String(v||''));
+  return m?('('+m[1]+') '+m[2]+'-'+m[3]):String(v||'');
+}
+
+/* ---------- contact autosave (staff_profiles) ---------- */
+function nz(v){v=String(v||'').trim();return v||null;}
+function profileRow(){
+  return {
+    staff_id: ME.id,
+    phone: normPhone($('#phone').value),
+    personal_email: nz($('#pemail').value),
+    emergency: {name:nz($('#emName').value), phone:normPhone($('#emPhone').value), relation:nz($('#emRel').value)},
+    address: {street:nz($('#adStreet').value), city:nz($('#adCity').value), state:nz($('#adState').value), zip:nz($('#adZip').value)},
+    shirt_size: nz($('#shirt').value),
+    onboarding: OB,
+    updated_at: new Date().toISOString()
+  };
+}
+var profT=null;
+function queueProfileSave(){clearTimeout(profT);profT=setTimeout(saveProfile,700);}
+async function saveProfile(){
+  clearTimeout(profT);
+  syncOnboarding(false);            // fold newly-true flags into OB before the write
+  var row=profileRow();
+  var r=await sb.from('staff_profiles').upsert(row);
+  if(r.error){toast('Could not save — check connection',true);return;}
+  tick('#contactSaved');
+  renderOb();
+}
+function wireContact(){
+  ['phone','pemail','emName','emPhone','emRel','adStreet','adCity','adState','adZip'].forEach(function(id){
+    var el=$('#'+id);
+    el.addEventListener('input',queueProfileSave);
+    el.addEventListener('blur',function(){
+      if(id==='phone'||id==='emPhone'){var n=normPhone(el.value);if(n)el.value=fmtPhone(n);}
+      saveProfile();
+    });
+  });
+  $('#shirt').addEventListener('change',saveProfile);
+}
+
+/* ---------- onboarding checklist ---------- */
+function obDerived(){
+  var em=null,ph=null,pe=null;
+  if(ME){ph=normPhone($('#phone').value);pe=nz($('#pemail').value);
+    em={name:nz($('#emName').value),phone:normPhone($('#emPhone').value)};}
+  return {
+    contact: OB.contact===true || !!(ph&&pe),
+    emergency: OB.emergency===true || !!(em&&em.name&&em.phone),
+    notifications: OB.notifications===true || pushOn,
+    app: OB.app===true || appInstalled(),
+    pin: OB.pin===true
+  };
+}
+/* Fold newly-true derived flags into OB. persist=true does its own onboarding-only
+   upsert (for paths that aren't already about to write staff_profiles). */
+function syncOnboarding(persist){
+  var d=obDerived(),changed=false;
+  ['contact','emergency','notifications','app','pin'].forEach(function(k){
+    if(d[k]&&OB[k]!==true){OB[k]=true;changed=true;}
+  });
+  if(changed&&persist&&ME){
+    sb.from('staff_profiles').upsert({staff_id:ME.id,onboarding:OB,updated_at:new Date().toISOString()})
+      .then(function(){},function(){});
+  }
+  renderOb();
+  return changed;
+}
+function renderOb(){
+  var d=obDerived();
+  var items=[
+    {k:'contact',lb:'Contact info filled',tg:'#contactCard'},
+    {k:'emergency',lb:'Emergency contact filled',tg:'#emSec'},
+    {k:'notifications',lb:'Notifications enabled',tg:'#notifCard'},
+    {k:'app',lb:'App installed',tg:'#appCard'},
+    {k:'pin',lb:'PIN personalized',tg:'#secCard'}
+  ];
+  var done=items.filter(function(i){return d[i.k];}).length;
+  var card=$('#obCard');
+  if(done===items.length){card.style.display='none';return;}
+  card.style.display='block';
+  $('#obCount').textContent=done+' of '+items.length+' done';
+  $('#obBar').style.width=Math.round(done/items.length*100)+'%';
+  var html='';
+  items.forEach(function(i){
+    var ok=d[i.k];
+    html+='<button type="button" class="obrow'+(ok?' done':'')+'" data-tg="'+esc(i.tg)+'" data-k="'+esc(i.k)+'">'
+      +'<span class="ck">'+(ok?'✓':'')+'</span><span class="lb">'+esc(i.lb)+'</span><span class="go">›</span></button>';
+  });
+  $('#obRows').innerHTML=html;
+  $('#obRows').querySelectorAll('.obrow').forEach(function(b){
+    b.addEventListener('click',function(){
+      var el=$(b.getAttribute('data-tg'));
+      if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+      /* opening the notifications section counts as explicitly viewing prefs */
+      if(b.getAttribute('data-k')==='notifications')markNotifEngaged();
+    });
+  });
+}
+function markNotifEngaged(){
+  if(OB.notifications===true)return;
+  OB.notifications=true;
+  syncOnboarding(true);
+}
+
+/* ---------- notification preference matrix (alert_prefs) ---------- */
+function prefFor(kind){
+  var p=(PREFS&&PREFS[kind])||{};
+  return {push:(p.push===undefined?true:!!p.push), sms:(p.sms===undefined?false:!!p.sms)};
+}
+var prefT=null;
+async function savePrefs(){
+  clearTimeout(prefT);
+  if(PREFS.comms)PREFS.comms.push=true;   // policy: Communications push is locked on
+  var r=await sb.from('alert_prefs').upsert({staff_id:ME.id,prefs:PREFS,updated_at:new Date().toISOString()});
+  if(r.error){toast('Could not save — check connection',true);return;}
+  tick('#notifSaved');
+}
+function renderMatrix(){
+  var html='';
+  KINDS.forEach(function(k){
+    var kind=k[0],label=k[1],p=prefFor(kind),lockPush=(kind==='comms');
+    html+='<tr><td class="kn">'+esc(label)+(lockPush?'<span class="lock" title="Always on">🔒</span>':'')+'</td>';
+    html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="push"'
+      +((lockPush||p.push)?' checked':'')+(lockPush?' disabled':'')+'></label></td>';
+    html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="sms"'
+      +(p.sms?' checked':'')+'></label></td></tr>';
+  });
+  $('#mtxBody').innerHTML=html;
+  $('#mtxBody').querySelectorAll('input[type=checkbox]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var kind=cb.getAttribute('data-kind'),ch=cb.getAttribute('data-ch');
+      var cur=prefFor(kind);cur[ch]=cb.checked;
+      if(kind==='comms')cur.push=true;
+      PREFS[kind]=cur;
+      clearTimeout(prefT);prefT=setTimeout(savePrefs,500);
+      markNotifEngaged();
+    });
+  });
+}
+
+/* ---------- web push ---------- */
+function pushSupported(){
+  return ('Notification' in window)&&('serviceWorker' in navigator)&&('PushManager' in window);
+}
+function urlBase64ToUint8Array(base64String){
+  var padding='='.repeat((4-base64String.length%4)%4);
+  var base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  var raw=atob(base64),arr=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+  return arr;
+}
+async function swReg(){
+  try{
+    var r=await navigator.serviceWorker.getRegistration(); if(r)return r;
+    return await Promise.race([navigator.serviceWorker.ready,
+      new Promise(function(res){setTimeout(function(){res(null);},4000);})]);
+  }catch(e){return null;}
+}
+async function saveSubscription(sub){
+  var j=sub.toJSON()||{},keys=j.keys||{};
+  var r=await sb.from('push_subscriptions').upsert({
+    staff_id:ME.id, endpoint:sub.endpoint, p256dh:keys.p256dh||'', auth:keys.auth||'',
+    ua:navigator.userAgent, last_seen:new Date().toISOString()
+  },{onConflict:'endpoint'});
+  return !r.error;
+}
+function pushUI(msg,showBtn){
+  $('#pushStat').innerHTML=msg;
+  $('#pushBtn').style.display=showBtn?'block':'none';
+}
+async function initPush(){
+  if(!pushSupported()){
+    pushUI('Install the app to your home screen first — push needs the installed app on iPhone',false);
+    return;
+  }
+  if(Notification.permission==='denied'){
+    pushUI('Blocked — allow notifications for this app in iOS Settings',false);
+    return;
+  }
+  var reg=await swReg();
+  var sub=reg?await reg.pushManager.getSubscription().catch(function(){return null;}):null;
+  if(sub){
+    pushOn=true;
+    pushUI('✓ Push is on for this device',false);
+    saveSubscription(sub);            // re-sync last_seen on load
+    syncOnboarding(true);
+    return;
+  }
+  pushUI('Push is off on this device — turn it on to get task nudges and schedule alerts.',true);
+}
+async function enablePush(){
+  var btn=$('#pushBtn');btn.disabled=true;
+  try{
+    var perm=await Notification.requestPermission();   // must run from the tap
+    if(perm!=='granted'){
+      pushUI(perm==='denied'?'Blocked — allow notifications for this app in iOS Settings'
+        :'Permission not granted — tap again to retry.',perm!=='denied');
+      return;
+    }
+    var reg=await navigator.serviceWorker.ready;
+    var sub=await reg.pushManager.subscribe({
+      userVisibleOnly:true,
+      applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC)
+    });
+    var ok=await saveSubscription(sub);
+    if(!ok){toast('Subscribed, but could not sync — will retry next visit',true);}
+    pushOn=true;
+    pushUI('✓ Push is on for this device',false);
+    toast('Push notifications are on 🎉');
+    syncOnboarding(true);
+  }catch(e){
+    toast('Could not enable push — try again',true);
+  }finally{btn.disabled=false;}
+}
+
+/* ---------- change PIN (cpr-auth) ---------- */
+function pinErr(m){var e=$('#pinErr');if(!m){e.style.display='none';return;}e.textContent=m;e.style.display='block';}
+async function changePin(){
+  pinErr('');
+  var cur=$('#pinCur').value.trim(),nw=$('#pinNew').value.trim(),cf=$('#pinConf').value.trim();
+  if(!cur){pinErr('Enter your current PIN');return;}
+  if(!/^\d{4,8}$/.test(nw)){pinErr('PIN must be 4-8 digits');return;}
+  if(nw!==cf){pinErr('New PINs don’t match');return;}
+  var btn=$('#pinBtn');btn.disabled=true;btn.textContent='Changing…';
+  try{
+    var sess=(await sb.auth.getSession()).data.session;
+    if(!sess){pinErr('Session expired — sign in again, then reload');return;}
+    var r=await fetch(SB_URL+'/functions/v1/cpr-auth',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+sess.access_token,apikey:ANON},
+      body:JSON.stringify({action:'change_pin',current_pin:cur,new_pin:nw})
+    });
+    var j=null;try{j=await r.json();}catch(e){}
+    if(r.ok&&j&&j.ok){
+      toast('✓ PIN updated');
+      $('#pinCur').value='';$('#pinNew').value='';$('#pinConf').value='';
+      OB.pin=true;syncOnboarding(true);
+    }else{
+      var code=j&&j.error;
+      pinErr(code==='wrong_pin'?'Current PIN is wrong'
+        :code==='pin_taken'?'That PIN is already in use — pick another'
+        :code==='weak_pin'?'PIN must be 4-8 digits'
+        :'Could not change PIN — try again');
+    }
+  }catch(e){pinErr('Could not reach the server — check connection');}
+  finally{btn.disabled=false;btn.textContent='Change PIN';}
+}
+
+/* ---------- app card ---------- */
+function renderApp(){
+  if(isStandaloneNow()){
+    $('#appBody').innerHTML='<div class="installed">✓ You’re using the installed app</div>';
+    return;
+  }
+  $('#appBody').innerHTML=
+    '<div class="hint" style="margin-top:2px">Add this site to your home screen — it works like a native app:</div>'
+    +'<ol class="steps"><li>Open this page in <b>Safari</b></li>'
+    +'<li>Tap the <b>Share</b> button (square with the up arrow)</li>'
+    +'<li>Tap <b>Add to Home Screen</b>, then <b>Add</b></li></ol>'
+    +'<div class="hint">On iPhone, push notifications only work from the installed app — install first, then enable push above.</div>';
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  var sess=await ensureSession();
+  if(!sess){$('#gate').innerHTML='<div class="big">🔒</div>Sign in with your PIN from any page, then reload.';return;}
+
+  var sr=await sb.from('staff').select('id,display_name,role,home_store,birthday').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.error||!sr.data){
+    $('#gate').innerHTML='<div class="big">⚠️</div>Couldn’t load your profile — refresh to retry.';
+    return;
+  }
+  ME=sr.data;
+
+  var pq=sb.from('staff_profiles').select('phone,personal_email,emergency,address,shirt_size,onboarding').eq('staff_id',ME.id).maybeSingle();
+  var aq=sb.from('alert_prefs').select('prefs').eq('staff_id',ME.id).maybeSingle();
+  var pr=await pq, ar=await aq;
+  var P=(pr&&pr.data)||{};
+  OB=(P.onboarding&&typeof P.onboarding==='object')?P.onboarding:{};
+  PREFS=(ar&&ar.data&&ar.data.prefs&&typeof ar.data.prefs==='object')?ar.data.prefs:{};
+
+  /* header strip */
+  var disp=(window.CPRLocations&&ME.home_store)?window.CPRLocations.display(ME.home_store):(ME.home_store||'');
+  var initial=(ME.display_name||'?').trim().charAt(0).toUpperCase();
+  $('#whoStrip').innerHTML='<span class="av">'+esc(initial)+'</span>'
+    +'<span><span class="nm" style="display:block">'+esc(ME.display_name||'')+'</span>'
+    +'<span class="rl">'+esc((ME.role||'')+(disp?' · CPR '+disp:''))+'</span></span>';
+
+  /* fill contact fields */
+  $('#phone').value=P.phone?fmtPhone(P.phone):'';
+  $('#pemail').value=P.personal_email||'';
+  var em=P.emergency||{};
+  $('#emName').value=em.name||'';
+  $('#emPhone').value=em.phone?fmtPhone(em.phone):'';
+  $('#emRel').value=em.relation||'';
+  var ad=P.address||{};
+  $('#adStreet').value=ad.street||'';$('#adCity').value=ad.city||'';
+  $('#adState').value=ad.state||'';$('#adZip').value=ad.zip||'';
+  $('#shirt').value=P.shirt_size||'';
+
+  $('#gate').style.display='none';
+  $('#content').style.display='block';
+
+  wireContact();
+  renderMatrix();
+  renderApp();
+  $('#pushBtn').addEventListener('click',enablePush);
+  $('#pinBtn').addEventListener('click',changePin);
+
+  await initPush();          // sets pushOn before the checklist first paints
+  syncOnboarding(true);      // persist anything already satisfied (e.g. app installed)
+}
+boot();
+</script>
+</body>
+</html>

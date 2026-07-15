@@ -558,6 +558,16 @@ async function announcePublish(a,isNew){
       source_key:'kb:'+a.id+':'+(isNew?'publish':'recert-'+a.version),
       created_by:AUTH.id
     });
+    /* required reading also pings everyone personally (feed + push/text per prefs) */
+    if(req){
+      const s=(await sb.auth.getSession()).data.session;
+      if(s)fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.access_token,'apikey':ANON},
+        body:JSON.stringify({action:'send',kind:'kb',all_active:true,
+          title:'Required reading: '+a.title,
+          body:(a.summary||'New policy article — read and acknowledge it.').slice(0,300),
+          link:'knowledge.html#a='+(a.slug||'')})}).catch(()=>{});
+    }
   }catch(e){ /* announcement is best-effort */ }
 }
 

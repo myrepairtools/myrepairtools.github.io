@@ -40,6 +40,10 @@ const RC_SECRET = Deno.env.get("RINGCENTRAL_CLIENT_SECRET") || "";
 const RC_JWT_DEFAULT = Deno.env.get("RINGCENTRAL_JWT") || "";
 const RC_FROM_DEFAULT = Deno.env.get("RINGCENTRAL_FROM_NUMBER") || "";
 const WEBHOOK_SECRET = Deno.env.get("RINGCENTRAL_WEBHOOK_SECRET") || "";
+// the official company line (the 1-855) — employee alert texts send from here.
+// Must be SMS-capable on the main RC account (toll-free numbers need TF verification).
+const ALERTS_FROM = Deno.env.get("ALERTS_FROM_NUMBER") || "";
+const SYSTEM_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -267,8 +271,10 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   // header name, which IS the canonical store name). Unknown store or a
   // store whose JWT isn't minted yet → default line, so sends never bounce.
   const line = await lineForStore(payload?.store);
-  const from = (line && line.jwt) ? line.sms_number : RC_FROM_DEFAULT;
-  const jwt = (line && line.jwt) ? line.jwt : RC_JWT_DEFAULT;
+  let from = (line && line.jwt) ? line.sms_number : RC_FROM_DEFAULT;
+  let jwt = (line && line.jwt) ? line.jwt : RC_JWT_DEFAULT;
+  // system alerts (employee notifications) send from the official company line
+  if (payload?._official) { from = ALERTS_FROM || RC_FROM_DEFAULT; jwt = RC_JWT_DEFAULT; }
   const store = line ? line.store : (payload?.store || null);
   if (!from) return json({ ok: false, error: "No sending line configured (RINGCENTRAL_FROM_NUMBER)" }, 400);
 
@@ -852,6 +858,11 @@ Deno.serve(async (req) => {
   try {
     if (payload?.action === "test") return await actionTest();
     if (payload?.action === "send") return await actionSend(payload, sentBy);
+    // server-to-server: the alerts function texts employees from the official line
+    if (payload?.action === "system_send") {
+      if (!SYSTEM_SECRET || payload?.secret !== SYSTEM_SECRET) return json({ ok: false, error: "forbidden" }, 403);
+      return await actionSend({ ...payload, _official: true, store: null }, { name: "MRT Alerts" });
+    }
     if (payload?.action === "subscribe") return await actionSubscribe();
     if (payload?.action === "subscriptions") return await actionSubscriptions();
     if (payload?.action === "poll") return await actionPoll(payload?.hours);

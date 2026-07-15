@@ -25,6 +25,15 @@ function ymd(d: Date) { return d.toISOString().slice(0, 10); }
 function monthISO(d: Date) { return d.toISOString().slice(0, 7) + "-01"; }
 function isLeapYear(y: number) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
 
+// personal alert (feed + push/SMS per prefs) via the alerts function — best effort
+const ALERTS_FN = SB_URL + "/functions/v1/alerts";
+async function sendAlert(staffIds: number[], kind: string, title: string, body: string, link?: string) {
+  try {
+    await fetch(ALERTS_FN, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "send", secret: NOTIFY_SECRET, staff_ids: staffIds, kind, title, body, link }) });
+  } catch (_) { /* the manager channels above already delivered */ }
+}
+
 async function sendVia(eventKey: string, subject: string, text: string) {
   const r = await fetch(`${NOTIFY_FN}?secret=${encodeURIComponent(NOTIFY_SECRET)}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -111,6 +120,12 @@ async function checkGoals() {
   const res = await sendVia("commission.goal_hit", subject, text);
   if (res.delivered) {
     await admin.from("notify_log").insert(hits.map((h) => ({ dedupe_key: h.key, kind: "goal_hit", staff_id: h.staffId, detail: h.line })));
+    // personal push to each person who hit — their own lines only
+    const byStaff: Record<number, string[]> = {};
+    hits.forEach((h) => { (byStaff[h.staffId] = byStaff[h.staffId] || []).push(h.line); });
+    for (const sid in byStaff) {
+      await sendAlert([Number(sid)], "goal", "🎯 You hit a goal!", byStaff[sid].join("\n"), "commission-dashboard.html#goals");
+    }
   }
   return json({ ok: true, hits: hits.length, delivered: res.delivered, notify: res.detail });
 }
@@ -159,6 +174,13 @@ async function checkAnniversaries() {
   if (posts.length) {
     const ins = await admin.from("communications").upsert(posts, { onConflict: "source_key", ignoreDuplicates: true }).select("id");
     posted = (ins.data || []).length;
+    // fresh day-of posts also ping the PERSON directly (source_key carries staff id)
+    for (const p of posts) {
+      const sid = Number(String(p.source_key).split(":")[1]);
+      if (!Number.isFinite(sid) || !posted) continue;
+      if (p.kind === "birthday") await sendAlert([sid], "birthday", "🎂 Happy birthday!", "From all of us at CPR — have a great one!");
+      if (p.kind === "anniversary") await sendAlert([sid], "anniversary", p.title.replace(/^🎉 /, "🎉 "), p.body);
+    }
   }
   if (!events.length) return json({ ok: true, anniversaries: 0, feed_posts: posted });
   const lg = await admin.from("notify_log").select("dedupe_key").in("dedupe_key", events.map((e) => e.key));
