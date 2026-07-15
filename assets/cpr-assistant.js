@@ -133,20 +133,43 @@
     els.ta = panel.querySelector('textarea');
     els.send = panel.querySelector('.cpra-send');
 
-    // keyboard tracking (mobile sheet): shrink the panel to the visual viewport
-    // while the keyboard is up so the composer stays reachable; full height back
-    // when it closes. Skipped in embed mode (RepairQ iframe sizes us itself).
+    // keyboard tracking (mobile sheet): iOS PANS the layout viewport when the
+    // keyboard opens, so a fixed sheet drifts off-screen. Glue the sheet to the
+    // VISUAL viewport instead — height = vv.height, translated down by vv.offsetTop
+    // — and follow both resize and scroll. Skipped in embed mode (RepairQ iframe).
+    function vvSync() {
+      if (!window.visualViewport) return;
+      if (!panel.classList.contains('open') || window.innerWidth > 859) { panel.style.height = ''; panel.style.transform = ''; return; }
+      var vv = window.visualViewport;
+      var kb = window.innerHeight - vv.height - vv.offsetTop;
+      if (kb > 60 || vv.offsetTop > 1) {
+        panel.style.height = vv.height + 'px';
+        panel.style.transform = 'translateY(' + vv.offsetTop + 'px)';
+        if (els.body) els.body.scrollTop = els.body.scrollHeight;
+      } else {
+        panel.style.height = '';
+        panel.style.transform = '';
+      }
+    }
     if (window.visualViewport && !document.body.classList.contains('cpra-embed')) {
-      window.visualViewport.addEventListener('resize', function () {
-        if (!panel.classList.contains('open') || window.innerWidth > 859) { panel.style.height = ''; return; }
-        var kb = window.innerHeight - window.visualViewport.height;
-        panel.style.height = kb > 60 ? window.visualViewport.height + 'px' : '';
-        if (kb > 60 && els.body) els.body.scrollTop = els.body.scrollHeight;
-      });
+      window.visualViewport.addEventListener('resize', vvSync);
+      window.visualViewport.addEventListener('scroll', vvSync);
     }
 
-    function open() { panel.classList.add('open'); fab.style.display = 'none'; els.ta.focus(); if (!MSGS.length) greet(); }
-    function close() { panel.classList.remove('open'); fab.style.display = 'flex'; }
+    function open() {
+      panel.classList.add('open'); fab.style.display = 'none';
+      // freeze the page behind the sheet — otherwise iOS scrolls IT when the
+      // keyboard opens and the sheet detaches from what the user sees
+      if (window.innerWidth <= 859 && !EMBED) { document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden'; }
+      if (window.innerWidth > 859) els.ta.focus();   // mobile: let the user tap in — instant keyboard fights the sheet
+      if (!MSGS.length) greet();
+    }
+    function close() {
+      panel.classList.remove('open'); fab.style.display = 'flex';
+      document.documentElement.style.overflow = ''; document.body.style.overflow = '';
+      panel.style.height = ''; panel.style.transform = '';
+      if (els.ta) els.ta.blur();
+    }
     fab.onclick = open;
     panel.querySelector('.x').onclick = close;
     var writeBtn = panel.querySelector('.cpra-write');
