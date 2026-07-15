@@ -142,7 +142,11 @@
 
     /* --- write the ticket-note backup (best effort) --- */
     function writeNote(text) {
-        if (!text || !String(text).trim()) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
+        // RepairQ's DB is 3-byte MySQL utf8: a 4-byte char (most emoji) silently
+        // truncates the note from that char on — a leading emoji stores a BLANK
+        // note, and blank notes block the ticket from saving. Strip them.
+        text = String(text == null ? '' : text).replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();
+        if (!text) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) return;
@@ -271,7 +275,7 @@
             var how = m === 'email' ? 'EMAIL → ' + payload.email
                     : m === 'return' ? 'CUSTOMER TO RETURN'
                     : (m.toUpperCase() + ' → ' + pretty(payload.number));
-            writeNote('📣 Follow-up: ' + how + (payload.name ? ' (' + who + ')' : '') + ' — set by ' + (techName() || 'staff'));
+            writeNote('Follow-up: ' + how + (payload.name ? ' (' + who + ')' : '') + ' — set by ' + (techName() || 'staff'));
             markPrompted();
             renderChip();
             closeModal();
@@ -473,7 +477,7 @@
             var how = m === 'email' ? 'EMAIL → ' + payload.email
                     : m === 'return' ? 'CUSTOMER TO RETURN'
                     : (m.toUpperCase() + ' → ' + pretty(payload.number));
-            writeNote('📣 Follow-up: ' + how + (payload.name ? ' (' + who + ')' : '') + ' — set by ' + (payload.agent_name || 'staff'));
+            writeNote('Follow-up: ' + how + (payload.name ? ' (' + who + ')' : '') + ' — set by ' + (payload.agent_name || 'staff'));
         }
         markPrompted();
     }

@@ -68,7 +68,11 @@
     }
 
     function writeNote(text) {
-        if (!text || !String(text).trim()) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
+        // RepairQ's DB is 3-byte MySQL utf8: a 4-byte char (most emoji) silently
+        // truncates the note from that char on — a leading emoji stores a BLANK
+        // note, and blank notes block the ticket from saving. Strip them.
+        text = String(text == null ? '' : text).replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();
+        if (!text) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) { stashNote(text); return; }
@@ -193,10 +197,10 @@
     function noteFor(status, imei, extra) {
         var who = techName() || 'staff';
         var tail = (extra ? ' — ' + extra : '') + ' — ' + who;
-        if (status === 'clean') return '🛡 Blacklist check: CLEAN — IMEI ' + imei + ' (Sickw)' + tail;
+        if (status === 'clean') return '✔ Blacklist check: CLEAN — IMEI ' + imei + ' (Sickw)' + tail;
         if (status === 'blacklisted') return '⛔ Blacklist check: BLACKLISTED — IMEI ' + imei + ' (Sickw) — DO NOT SELL' + tail;
         if (status === 'fmi_on') return '⛔ Blacklist check: iCloud Lock (FMI) ON — IMEI ' + imei + ' (Sickw) — DO NOT SELL' + tail;
-        if (status === 'review') return '🛡 Blacklist check: NEEDS REVIEW — IMEI ' + imei + tail;
+        if (status === 'review') return '⚠ Blacklist check: NEEDS REVIEW — IMEI ' + imei + tail;
         return '⚠ Blacklist check SKIPPED — IMEI ' + imei + ' — ' + who;
     }
 
