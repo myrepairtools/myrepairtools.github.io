@@ -57,6 +57,8 @@ button{font-family:inherit}
 .trow:hover{background:rgba(79,176,227,.045)}
 .trow.over{border-left-color:var(--red)}
 .trow.ghost{opacity:.62}
+.trow.done{opacity:.55}
+.trow.done:hover{opacity:.8}
 .trow>div{padding:9px 12px;min-width:0}
 .ckb{width:22px;height:22px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;background:#fff;border:1.5px solid var(--grey);color:transparent}
 .ckb.done{background:var(--green);border-color:var(--green);color:#fff}
@@ -321,13 +323,9 @@ function visibleRows(){
   });
   if(VIEW==='my')list=list.filter(inMy);
   else if(PERSON!=='all'){const pid=+PERSON;list=list.filter(i=>i.assigned_staff_id===pid||(i.assigned_staff_id==null&&(i.eligible||[]).indexOf(pid)>-1));}
-  list.sort((a,b)=>{
-    const da=isDoneForView(a)?1:0,db=isDoneForView(b)?1:0;
-    if(da!==db)return da-db;
-    const oa=isOver(a)?0:1,ob=isOver(b)?0:1;
-    if(oa!==ob)return oa-ob;
-    return new Date(a.due_at)-new Date(b.due_at);
-  });
+  /* strict due-time order — completing a task must NOT reorder the list
+     (done rows stay in place, struck through + grayed) */
+  list.sort((a,b)=>new Date(a.due_at)-new Date(b.due_at));
   return list;
 }
 
@@ -423,7 +421,6 @@ function rowHtml(i,storeView){
   if(over&&dd&&dd.sub)sub.push('<span style="color:var(--red)">'+esc(dd.sub)+'</span>');
   if(i.ghost)sub.push('<span style="color:var(--grey)">Upcoming — generates '+esc(MON[fromISO(i.task_date).getMonth()]+' '+fromISO(i.task_date).getDate())+'</span>');
   const tplOf=i.ghost?i.tpl:TPLS.find(t=>t.id===i.template_id);
-  if(tplOf&&tplOf.instructions)sub.push('<span style="color:var(--grey);font-weight:600">📄 Instructions</span>');
   const asg=p
     ?'<div style="display:flex;align-items:center;gap:8px"><div class="av" style="width:26px;height:26px;font-size:.6rem;background:'+avatarBg(p)+'">'+esc(initials(p.display_name))+'</div><div style="line-height:1.2;min-width:0"><div style="font-weight:700;font-size:.82rem;white-space:nowrap">'+esc(p.display_name)+'</div><div style="font-size:.62rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap">'+esc(assignKindOf(i))+'</div></div></div>'
     :'<div style="display:flex;align-items:center;gap:8px"><div class="av" style="width:26px;height:26px;font-size:.7rem;background:var(--grey)">＋</div><div style="line-height:1.2"><div style="font-weight:700;font-size:.82rem;white-space:nowrap">'+(i.ghost?esc(ghostKind(i)):'Anyone')+'</div><div style="font-size:.62rem;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap">'+esc(assignKindOf(i))+'</div></div></div>';
@@ -436,12 +433,20 @@ function rowHtml(i,storeView){
   const acts=i.ghost
     ?(isMgr(ME.role)?'<button class="icb" data-edt="'+i.tpl.id+'" title="Edit template">✏️</button>':'')
     :'<div style="display:inline-flex;gap:6px"><button class="icb" data-vw="'+i.id+'" title="View details">👁</button>'+(canEdit(i)?'<button class="icb" data-ed="'+i.id+'" title="Edit">✏️</button>':'')+'</div>';
-  return '<div class="trow'+(over?' over':'')+(i.ghost?' ghost':'')+'" style="grid-template-columns:'+gridCols(storeView)+'">'+
+  /* instructions live in their own clickable column (📄 → modal), and the sub
+     line only renders when it has content so bare task names center vertically */
+  const insCell=(tplOf&&tplOf.instructions)
+    ?(i.ghost
+      ?'<span class="icb" style="opacity:.45;cursor:default" title="Has instructions">📄</span>'
+      :'<button class="icb" data-ins="'+i.id+'" title="View instructions">📄</button>')
+    :'';
+  return '<div class="trow'+(over?' over':'')+(i.ghost?' ghost':'')+(done?' done':'')+'" style="grid-template-columns:'+gridCols(storeView)+'">'+
     '<div style="text-align:center">'+ck+'</div>'+
-    '<div><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+(prio?'<span class="bdg '+prio.cls+'">'+prio.label+'</span>':'')+'<span class="tname'+(done?' done':'')+'">'+name+'</span></div><div class="tsub">'+sub.join('')+'</div></div>'+
+    '<div><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+(prio?'<span class="bdg '+prio.cls+'">'+prio.label+'</span>':'')+'<span class="tname'+(done?' done':'')+'">'+name+'</span></div>'+(sub.length?'<div class="tsub">'+sub.join('')+'</div>':'')+'</div>'+
     (storeView?'<div>'+asg+'</div>':'')+
     '<div>'+dueCell+'</div>'+
     '<div><span class="bdg '+recurBadgeCls(i.recur)+'">'+esc(recurLabel(tplOf||i))+'</span></div>'+
+    '<div style="text-align:center">'+insCell+'</div>'+
     '<div style="text-align:right">'+acts+'</div>'+
   '</div>';
 }
@@ -452,7 +457,7 @@ function ghostKind(i){
   if(t.target==='role')return t.role_key==='manager'?'Manager':'Any tech';
   return t.strategy==='rotate'?'Next in rotation':'Group';
 }
-function gridCols(storeView){return storeView?'44px minmax(0,1fr) 170px 120px 140px 88px':'44px minmax(0,1fr) 120px 150px 88px';}
+function gridCols(storeView){return storeView?'44px minmax(0,1fr) 170px 120px 140px 48px 88px':'44px minmax(0,1fr) 120px 150px 48px 88px';}
 function linkedName(i){
   const n=String(i.name||'');
   if(i.link_text&&i.link_url&&n.indexOf(i.link_text)>-1){
@@ -465,7 +470,7 @@ function renderTable(){
   const storeView=VIEW==='store';
   const rows=visibleRows(),ghosts=projections();
   $('#rowCnt').textContent=(rows.length+(ghosts.length?(' + '+ghosts.length+' upcoming'):''))+(rows.length===1?' task':' tasks');
-  let html='<div class="thead" style="grid-template-columns:'+gridCols(storeView)+'"><div></div><div>Task</div>'+(storeView?'<div>Assignee</div>':'')+'<div>Due</div><div>Recurs</div><div></div></div>';
+  let html='<div class="thead" style="grid-template-columns:'+gridCols(storeView)+'"><div></div><div>Task</div>'+(storeView?'<div>Assignee</div>':'')+'<div>Due</div><div>Recurs</div><div></div><div></div></div>';
   if(!rows.length&&!ghosts.length){
     html+='<div class="empty"><div class="big">✓</div><div class="t">'+(VIEW==='my'?'You’re all caught up':'Nothing here')+'</div><div class="s">No tasks match this filter.</div></div>';
   }else{
@@ -474,8 +479,22 @@ function renderTable(){
   $('#tbl').innerHTML=html;
   document.querySelectorAll('[data-ck]').forEach(b=>{b.onclick=e=>{e.stopPropagation();toggleDone(+b.dataset.ck);};});
   document.querySelectorAll('[data-vw]').forEach(b=>{b.onclick=e=>{e.stopPropagation();openDetail(+b.dataset.vw);};});
+  document.querySelectorAll('[data-ins]').forEach(b=>{b.onclick=e=>{e.stopPropagation();openInstructions(+b.dataset.ins);};});
   document.querySelectorAll('[data-ed]').forEach(b=>{b.onclick=e=>{e.stopPropagation();const i=INST.find(x=>x.id===+b.dataset.ed);if(i)openEditor(TPLS.find(t=>t.id===i.template_id)||null);};});
   document.querySelectorAll('[data-edt]').forEach(b=>{b.onclick=e=>{e.stopPropagation();openEditor(TPLS.find(t=>t.id===+b.dataset.edt)||null);};});
+}
+/* instructions-only quick modal (📄 column) */
+function openInstructions(id){
+  const i=INST.find(x=>x.id===id);if(!i)return;
+  const t=TPLS.find(x=>x.id===i.template_id);
+  if(!(t&&t.instructions))return;
+  openModal(
+    '<div class="mdl" style="border-top:3px solid var(--blue)">'+
+    '<div class="mdl-hd"><div><div class="fld"><span class="fl">Instructions</span></div>'+
+    '<h2 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.15rem;line-height:1.25">'+linkedName(i)+'</h2></div><button class="mdl-x" data-close>✕</button></div>'+
+    '<div class="mdl-bd"><div style="font-size:.92rem;line-height:1.6">'+linkify(t.instructions)+'</div></div>'+
+    '<div class="mdl-ft"><span></span><button class="btn alt" data-close>Close</button></div></div>'
+  );
 }
 function renderBellCount(){
   const out=INST.filter(i=>i.store===SEL&&i.status==='open');
