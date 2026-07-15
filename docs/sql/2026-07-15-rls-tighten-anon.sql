@@ -1,0 +1,27 @@
+-- Tighten: unguarded public-role policies -> authenticated (no anon table access)
+alter policy cash_entries_insert on public.cash_entries to authenticated;
+alter policy cash_entries_read on public.cash_entries to authenticated;
+alter policy cash_setup_read on public.cash_setup to authenticated;
+alter policy cl_comp_read on public.checklist_completions to authenticated;
+alter policy cl_items_read on public.checklist_items to authenticated;
+alter policy dm_read on public.device_models to authenticated;
+alter policy "extension_issues insert" on public.extension_issues to authenticated;
+alter policy gtm_read on public.group_tag_map to authenticated;
+alter policy gt_read on public.group_tags to authenticated;
+alter policy holcat_read on public.holiday_catalog to authenticated;
+alter policy holh_read on public.holiday_hours to authenticated;
+alter policy hol_read on public.holidays to authenticated;
+alter policy "message_templates read" on public.message_templates to authenticated;
+alter policy msc_read on public.ms_catalog to authenticated;
+alter policy pt_read on public.part_types to authenticated;
+alter policy permissions_read on public.permissions to authenticated;
+alter policy jc_read_auth on public.qbtime_jobcodes to authenticated;
+alter policy role_permissions_read on public.role_permissions to authenticated;
+alter policy roles_read on public.roles to authenticated;
+alter policy sm_read on public.schedule_membership to authenticated;
+alter policy shift_hours_read on public.shift_hours to authenticated;
+alter policy shift_presets_read on public.shift_presets to authenticated;
+alter policy shifts_read on public.shifts to authenticated;
+alter policy staff_schedule_read on public.staff_schedule to authenticated;
+alter policy stores_read on public.stores to authenticated;
+alter policy tor_read on public.time_off_requests to authenticated;

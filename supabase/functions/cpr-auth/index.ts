@@ -10,6 +10,13 @@ const URL = Deno.env.get("SUPABASE_URL");
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const SETUP_SECRET = Deno.env.get("SETUP_SECRET") ?? "";
 const LOCK_AT = 5;
+// IP throttle: the device lockout keys on a CLIENT-SUPPLIED device_id, so a
+// script rotating device ids bypasses it. Cap total failures per source IP in
+// a sliding window (row reuses login_attempts with device_id 'ip:<addr>').
+// Window-based (never permanently locked) so a shared store NAT can't be
+// bricked by malice; any successful login from the IP clears it.
+const IP_LOCK_AT = 30;
+const IP_WINDOW_MS = 15 * 60 * 1000;
 const admin = createClient(URL, SERVICE, {
   auth: {
     persistSession: false
@@ -96,6 +103,18 @@ Deno.serve(async (req)=>{
       error: "locked",
       locked: true
     }, 423);
+    // per-IP sliding-window throttle (device_id rotation can't bypass this)
+    let ipAtt = null;
+    if (ip) {
+      const { data } = await admin.from("login_attempts").select("*").eq("device_id", "ip:" + ip).maybeSingle();
+      ipAtt = data;
+      const recent = ipAtt?.last_attempt && Date.now() - new Date(ipAtt.last_attempt).getTime() < IP_WINDOW_MS;
+      if (recent && (ipAtt?.fails ?? 0) >= IP_LOCK_AT) return json({
+        error: "locked",
+        locked: true,
+        detail: "Too many attempts from this network — try again in a few minutes."
+      }, 423);
+    }
     // Identify the staff member: by username if given, else by PIN alone.
     // PIN-only must resolve to exactly ONE active staff member, so PINs must
     // be unique across staff; an ambiguous PIN is rejected like a bad PIN.
@@ -123,6 +142,18 @@ Deno.serve(async (req)=>{
       }, {
         onConflict: "device_id"
       });
+      if (ip) {
+        const recent = ipAtt?.last_attempt && Date.now() - new Date(ipAtt.last_attempt).getTime() < IP_WINDOW_MS;
+        await admin.from("login_attempts").upsert({
+          device_id: "ip:" + ip,
+          ip,
+          fails: recent ? (ipAtt?.fails ?? 0) + 1 : 1,   // window expired -> restart the count
+          locked: false,                                  // never a permanent IP lock (shared store NAT)
+          last_attempt: new Date().toISOString()
+        }, {
+          onConflict: "device_id"
+        });
+      }
       return json({
         error: "invalid",
         remaining: Math.max(0, LOCK_AT - fails),
@@ -131,6 +162,15 @@ Deno.serve(async (req)=>{
     }
     await admin.from("login_attempts").upsert({
       device_id,
+      ip,
+      fails: 0,
+      locked: false,
+      last_attempt: new Date().toISOString()
+    }, {
+      onConflict: "device_id"
+    });
+    if (ip) await admin.from("login_attempts").upsert({
+      device_id: "ip:" + ip,
       ip,
       fails: 0,
       locked: false,
