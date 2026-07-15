@@ -10,6 +10,7 @@
 //   GET  ?action=status         (owner JWT)  -> { connected, configured, realm_id, expires_at, updated_at }
 //   GET  ?action=disconnect     (owner JWT)  -> delete the stored token
 //   GET  ?action=accounts       (owner JWT)  -> { accounts:[{id,name,type,subtype}] } — active chart of accounts
+//   GET  ?action=classes        (owner JWT)  -> { classes:[{id,name}] } — active classes (P&L by store)
 //   POST { action:'post_je', store, month, force }  (owner JWT)
 //        -> post the month-end cash journal entry (debit cash / credit revenue) for
 //           (store, 'YYYY-MM') from cash_journal, stamp the row + qbo_post_log, and
@@ -227,6 +228,11 @@ async function postJournalEntry(body: Record<string, unknown>, staff: { display_
   // swaps the posting types — QBO line Amounts must always be positive.
   const abs = Math.abs(amount);
   const desc = `Cash store revenue — ${monthLabel}`;
+  // Class-segmented P&L: the store's mapped class rides on BOTH lines so class
+  // reports (P&L by class, classed balance sheet) attribute the entry correctly.
+  const classRef = map.class_id
+    ? { ClassRef: { value: String(map.class_id), ...(map.class_name ? { name: String(map.class_name) } : {}) } }
+    : {};
   const line = (postingType: string, accountId: unknown, accountName: unknown) => ({
     DetailType: "JournalEntryLineDetail",
     Amount: abs,
@@ -234,6 +240,7 @@ async function postJournalEntry(body: Record<string, unknown>, staff: { display_
     JournalEntryLineDetail: {
       PostingType: postingType,
       AccountRef: { value: String(accountId), ...(accountName ? { name: String(accountName) } : {}) },
+      ...classRef,
     },
   });
   const je = {
@@ -355,6 +362,21 @@ Deno.serve(async (req) => {
       .map((a) => ({ id: String(a.Id), name: (a.Name as string) || "", type: (a.AccountType as string) || null, subtype: (a.AccountSubType as string) || null }))
       .sort((a, b) => a.name.localeCompare(b.name));
     return json({ accounts });
+  }
+  if (action === "classes") {
+    // Active class list — the owner's P&L is class-segmented per store, so the
+    // Settings mapping assigns a class per store and post_je stamps it on lines.
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+    const q = "select Id, Name, FullyQualifiedName from Class where Active = true maxresults 1000";
+    const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+    const classes = ((d?.QueryResponse?.Class || []) as Array<Record<string, unknown>>)
+      .map((c) => ({ id: String(c.Id), name: (c.FullyQualifiedName as string) || (c.Name as string) || "" }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return json({ classes });
   }
   if (action === "post_je") {
     return await postJournalEntry(body, staff);

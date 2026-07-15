@@ -43,3 +43,8 @@ create table if not exists public.qbo_post_log (
 alter table public.qbo_post_log enable row level security;
 drop policy if exists qbo_post_log_read on public.qbo_post_log;
 create policy qbo_post_log_read on public.qbo_post_log for select using (is_owner());
+
+-- Class support: QBO P&L is class-segmented per store — the JE lines carry ClassRef
+alter table public.qbo_store_map
+  add column if not exists class_id   text,
+  add column if not exists class_name text;

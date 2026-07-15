@@ -960,6 +960,7 @@ function qbtHandleReturn(){
 var QBO_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbo';
 var QBO_RETURN_MSG='';
 var QBO_ACCOUNTS=null;   /* cached ?action=accounts chart of accounts */
+var QBO_CLASSES=null;    /* cached ?action=classes list (P&L classes) */
 async function qboCall(action){
   var tok=await sessionToken();
   return fetch(QBO_FN+'?action='+action,{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}})
@@ -1025,7 +1026,7 @@ async function qboConnect(){
 }
 async function qboDisconnect(){
   if(!confirm('Disconnect QuickBooks Online? The Cash Journal can’t post journal entries until you reconnect.'))return;
-  await qboCall('disconnect'); QBO_RETURN_MSG=''; QBO_ACCOUNTS=null; qboRenderStatus();
+  await qboCall('disconnect'); QBO_RETURN_MSG=''; QBO_ACCOUNTS=null; QBO_CLASSES=null; qboRenderStatus();
 }
 function qboHandleReturn(){
   var q=new URLSearchParams(location.search), s=q.get('qbo');
@@ -1056,33 +1057,44 @@ async function qboRenderMap(){
   body.textContent='Loading QBO accounts…';
   var res=await Promise.all([
     QBO_ACCOUNTS?Promise.resolve({status:200,data:{accounts:QBO_ACCOUNTS}}):qboCall('accounts'),
-    sb.from('qbo_store_map').select('*')
+    sb.from('qbo_store_map').select('*'),
+    QBO_CLASSES?Promise.resolve({status:200,data:{classes:QBO_CLASSES}}):qboCall('classes')
   ]);
-  var ar=res[0], mr=res[1];
+  var ar=res[0], mr=res[1], cr=res[2];
   if(!(ar.data&&ar.data.accounts)){
     body.textContent='Could not load the QBO chart of accounts'+(ar.data&&(ar.data.error||ar.data.detail)?(' — '+(ar.data.error||ar.data.detail)):'')+'.';
     return;
   }
   QBO_ACCOUNTS=ar.data.accounts;
+  QBO_CLASSES=(cr.data&&cr.data.classes)||[];   // empty = company doesn't use classes; column still renders
   var byStore={}; ((mr&&mr.data)||[]).forEach(function(x){byStore[x.store]=x;});
   var LOC=window.CPRLocations;
   var stores=LOC?LOC.names():[];
   if(!stores.length){ body.textContent='Store list failed to load — reload the page.'; return; }
   function cashish(a){return a.type==='Bank'||a.type==='Other Current Asset';}
   function incomeish(a){return /income/i.test(String(a.type||''));}
+  function classOpts(sel){
+    return '<option value="">— No class —</option>'+QBO_CLASSES.map(function(c){
+      return '<option value="'+esc(c.id)+'" data-name="'+esc(c.name)+'"'+(String(sel||'')===String(c.id)?' selected':'')+'>'+esc(c.name)+'</option>';
+    }).join('');
+  }
+  var SELSTYLE='width:100%;max-width:240px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem';
   body.innerHTML='<table style="width:100%;border-collapse:collapse">'
-    +'<tr>'+QBO_TH+'Store</th>'+QBO_TH+'Cash on Hand account</th>'+QBO_TH+'Store Revenue account</th><th></th></tr>'
+    +'<tr>'+QBO_TH+'Store</th>'+QBO_TH+'Cash on Hand account</th>'+QBO_TH+'Store Revenue account</th>'+QBO_TH+'Class (P&amp;L)</th><th></th></tr>'
     +stores.map(function(name){
       var m=byStore[name]||{};
       return '<tr style="border-top:1px solid var(--border)" data-qbostore="'+esc(name)+'">'
         +'<td style="padding:9px 8px;font-weight:800;color:var(--dark);white-space:nowrap">'+esc(LOC.display(name))+'</td>'
-        +'<td style="padding:9px 8px"><select class="qbo-cash" style="width:100%;max-width:240px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem">'
+        +'<td style="padding:9px 8px"><select class="qbo-cash" style="'+SELSTYLE+'">'
           +qboAcctOpts(QBO_ACCOUNTS,'Bank / Other Current Asset',cashish,m.cash_account_id)+'</select></td>'
-        +'<td style="padding:9px 8px"><select class="qbo-rev" style="width:100%;max-width:240px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem">'
+        +'<td style="padding:9px 8px"><select class="qbo-rev" style="'+SELSTYLE+'">'
           +qboAcctOpts(QBO_ACCOUNTS,'Income',incomeish,m.revenue_account_id)+'</select></td>'
+        +'<td style="padding:9px 8px"><select class="qbo-class" style="'+SELSTYLE+';max-width:200px">'
+          +classOpts(m.class_id)+'</select></td>'
         +'<td style="padding:9px 8px;text-align:right"><button class="btn sm qbo-save">Save</button></td>'
         +'</tr>';
-    }).join('')+'</table>';
+    }).join('')+'</table>'
+    +'<div style="margin-top:8px;font-size:.76rem;color:var(--grey);font-weight:600">The class rides on both journal-entry lines so your P&amp;L by Class attributes the month\'s cash revenue to the right store.</div>';
   $all('#qboMapBody .qbo-save').forEach(function(b){
     b.onclick=function(){ qboSaveMap(b.closest('tr')); };
   });
@@ -1090,13 +1102,15 @@ async function qboRenderMap(){
 async function qboSaveMap(row){
   if(!row)return;
   var store=row.getAttribute('data-qbostore');
-  var cash=row.querySelector('.qbo-cash'), rev=row.querySelector('.qbo-rev');
+  var cash=row.querySelector('.qbo-cash'), rev=row.querySelector('.qbo-rev'), cls=row.querySelector('.qbo-class');
   if(!cash.value||!rev.value){toast('Pick both accounts first',true);return;}
   var co=cash.options[cash.selectedIndex], ro=rev.options[rev.selectedIndex];
+  var xo=cls&&cls.selectedIndex>-1?cls.options[cls.selectedIndex]:null;
   var r=await sb.from('qbo_store_map').upsert({
     store:store,
     cash_account_id:cash.value, cash_account_name:co?co.getAttribute('data-name'):null,
     revenue_account_id:rev.value, revenue_account_name:ro?ro.getAttribute('data-name'):null,
+    class_id:(cls&&cls.value)||null, class_name:(cls&&cls.value&&xo)?xo.getAttribute('data-name'):null,
     updated_by:(AUTH&&AUTH.name)||'owner'
   },{onConflict:'store'});
   if(r.error)toast('Save failed — '+r.error.message,true);
