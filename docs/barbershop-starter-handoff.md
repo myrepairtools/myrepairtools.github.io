@@ -172,12 +172,59 @@ capability notes before patterns, because they shape the design:
 - Refunds stay in PayPal's own dashboard until much later. (We still do this with
   Square. Complexity you don't build is complexity that can't break.)
 
-## Part 5 — Getting Started (the checklist)
+## Part 5 — Getting Started: accounts, Claude, and hands-free wiring
 
-Accounts (one evening): GitHub (repo named `<something>.github.io` for free
-hosting) → Supabase project (save the URL + anon key; the service key never leaves
-edge-function secrets) → a domain if you want one ($12/yr, point it at Pages) →
-developer.paypal.com app (sandbox first — fake money until the flow works).
+The goal of this section: set things up ONCE so your AI can do everything itself —
+create tables, deploy server functions, push code live — instead of handing you
+instructions to follow manually. This is how the platform this handoff comes from
+is run: the owner talks, the AI ships.
+
+**Step 1 — GitHub (your code + free hosting).**
+Create a GitHub account, then a repository named `<yourusername>.github.io`
+(that exact name = free hosting). In the repo: Settings → Pages → Source: deploy
+from branch `main`. Your site is now live at `https://<yourusername>.github.io`
+the moment anything is pushed.
+
+**Step 2 — Claude Code, connected to GitHub.**
+Easiest path: **claude.ai/code** in your browser (no install). Connect the GitHub
+integration when prompted and grant it access to your repo — after that, every
+session can read your code AND push changes live on its own. (The desktop/CLI
+versions work too; the web one is the least setup.)
+
+**Step 3 — Supabase, wired for hands-free control.** This is the key step most
+people miss:
+1. Create a Supabase account + one project (pick a region near you). Save two
+   things from Project Settings → API: the **Project URL** and the **anon key**
+   (these are fine in your code).
+2. Now the autonomy wire: go to your Supabase **account** settings → **Access
+   Tokens** → generate a **Personal Access Token**. This token lets the AI use
+   Supabase's management API to create tables, run SQL, deploy edge functions,
+   store secrets, and schedule cron jobs — everything, unattended.
+3. Give it to Claude as an **environment variable named `SUPABASE_ACCESS_TOKEN`**
+   in your Claude Code environment settings (claude.ai/code → your environment →
+   environment variables). NOT in the repo, NOT pasted into chat if avoidable —
+   it's a master key to your backend; treat it like a bank password. Once it's
+   set, every session has it automatically.
+
+**Step 4 — PayPal.**
+developer.paypal.com → log in with your PayPal business account → create an app →
+copy the **sandbox** client ID + secret (fake-money mode; you flip to live keys
+only after the whole flow works). Hand these to Claude when it builds the payment
+function — it will store them as Supabase **function secrets** (server-side only)
+using the access token from Step 3. Same later for the live keys and anything
+else secret (SMS provider, etc.).
+
+**What your AI can now do without you:** write and push code (site deploys
+itself), create/change database tables, deploy server functions, store secrets,
+schedule background jobs, and verify its own work in a browser. **What still
+needs your hands:** creating the accounts above, email verifications, anything
+inside the PayPal/Zettle dashboards, buying a domain, and testing on your actual
+phone. A good session gives you short numbered steps for those and waits.
+
+**Sanity check to run once:** after Steps 1–3, ask your session to "create a table
+called `hello_test` in Supabase, then delete it, and push a one-line README to the
+repo." If both happen without asking you to do anything manual, the wiring is
+right — everything after this is just building.
 
 Then paste this into your first Claude Code session:
 
