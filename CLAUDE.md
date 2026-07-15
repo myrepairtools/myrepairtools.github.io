@@ -601,6 +601,12 @@ required reading) and delivery channels (web push + SMS + per-user preferences)
 are the next phases of the notifications project — every notification will write
 an `alerts` row regardless of channel so the feed is always complete.
 
+**Service worker (`sw.js`, registered by nav.js):** NETWORK-FIRST — every request
+goes to the live site (navigations force revalidation), the cache is only an
+offline fallback. Exists because iOS home-screen apps cling to stale caches
+(owners saw old code until delete/re-add). Normal deploys need no SW changes;
+bump its VERSION only to GC the cache bucket. Push notifications will live here.
+
 **Mobile app shell (nav.js):** nav.js owns standalone (A2HS) safe-area handling
 site-wide — it flags `html.mrt-standalone`, patches `viewport-fit=cover` into the
 viewport meta when a page didn't declare it, and grows `--cpr-top-h` by
