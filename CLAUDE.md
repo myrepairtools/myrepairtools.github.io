@@ -214,7 +214,9 @@ the row prevents double-posts; receipts stamp back onto `cash_journal`
 month is later edited) and every post logs to `qbo_post_log`. Account mapping per
 store lives in `qbo_store_map` (owner RLS), edited in **Settings → Integrations →
 QuickBooks Online** (Connect + per-store Cash-on-Hand/Revenue account dropdowns
-from the live QBO chart of accounts). Deposits deliberately stay in QBO's bank
+from the live QBO chart of accounts, plus a per-store **Class** — the owner's P&L
+is class-segmented, so post_je stamps ClassRef on both JE lines; `?action=classes`
+feeds the dropdown). Deposits deliberately stay in QBO's bank
 feed (recorded there as Transfers to Cash on Hand — the modal shows the total to
 match). Schema: docs/sql/cash-journal-schema.sql + cash-journal-qbo.sql.
 
