@@ -125,7 +125,9 @@ these when adding UI so a new tool looks native.
 - **`qrcode.js`** — vendored qrcode-generator (MIT); global `qrcode(type, ecc)`. Used by
   `lcd-buyback.html` for send-display labels; the extension carries its own copy.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
-  source of truth for the Commission Calculator + Dashboard. Never re-implement the math.
+  source of truth for the Commission Calculator (nav label "Payroll · Commission & Tips" —
+  same tool, payroll-focused name; file stays commission-calculator.html) + Dashboard.
+  Never re-implement the math.
 - **`commission-summary.js`** — one call (`window.CPRCommissionSummary.forMe()`) returning the
   signed-in user's current-month `{ commission, tips, total, goal }` using the engine. Used by
   the dashboard's My Commission widget; load `commission-engine.js` before it.
