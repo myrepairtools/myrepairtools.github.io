@@ -1905,6 +1905,29 @@ function wireMsTypeahead(er,g){
   inp.addEventListener('blur',function(){setTimeout(close,160);});   // close on outside click (mousedown on a row fires first)
 }
 
+/* ===== main view (Daily order / Battery order / Stock levels) + #hash deep-links ===== */
+var HASH_TABS=['daily','battery','stock'];
+function tabFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
+function curView(){var a=$('#viewTabs').querySelector('.tab.active');return a?a.getAttribute('data-v'):'daily';}
+function applyView(v){
+  $('#viewTabs').querySelectorAll('.tab').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-v')===v);});
+  $('#view-daily').classList.toggle('hide',v!=='daily');
+  $('#view-stock').classList.toggle('hide',v!=='stock');
+  $('#view-battery').classList.toggle('hide',v!=='battery');
+  $('#exportWrap').style.display=(v==='daily')?'':'none';
+  $('#samCovBtn').style.display=(v==='daily')?'':'none';
+  if(v!=='daily'){SAMCOVOPEN=false;renderSamCoverage();}
+  $('#batExport').style.display=(v==='battery')?'':'none';
+  if(v==='stock')renderStock();
+  if(v==='battery')loadBatteries();
+  try{if(location.hash.replace('#','')!==v)history.replaceState(null,'','#'+v);}catch(e){}
+}
+window.addEventListener('hashchange',function(){
+  var t=tabFromHash(); if(!t||t===curView())return;
+  if(!$('#view-groups').classList.contains('hide'))$('#grpBack').click();   // leave Part Configuration first
+  applyView(t);
+});
+
 async function init(){
   // export dropdown (with / without batteries)
   $('#exportBtn').addEventListener('click',function(e){e.stopPropagation();$('#exportMenu').classList.toggle('hide');});
@@ -1979,17 +2002,7 @@ async function init(){
   });
   $('#stockSearch').addEventListener('input',renderStock);
   $('#viewTabs').querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){
-    $('#viewTabs').querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});t.classList.add('active');
-    var v=t.getAttribute('data-v');
-    $('#view-daily').classList.toggle('hide',v!=='daily');
-    $('#view-stock').classList.toggle('hide',v!=='stock');
-    $('#view-battery').classList.toggle('hide',v!=='battery');
-    $('#exportWrap').style.display=(v==='daily')?'':'none';
-    $('#samCovBtn').style.display=(v==='daily')?'':'none';
-    if(v!=='daily'){SAMCOVOPEN=false;renderSamCoverage();}
-    $('#batExport').style.display=(v==='battery')?'':'none';
-    if(v==='stock')renderStock();
-    if(v==='battery')loadBatteries();
+    applyView(t.getAttribute('data-v'));
   });});
   document.addEventListener('click',function(e){var m=$('#optMenu');if(!m||m.classList.contains('hide'))return;if(e.target.closest('#optMenu')||e.target.closest('.opt'))return;m.classList.add('hide');});
   ['click','keydown'].forEach(function(ev){document.addEventListener(ev,touchIdle);});
@@ -1998,6 +2011,7 @@ async function init(){
   $('#lovPin').addEventListener('input',lovReady);
   $('#lovPin').addEventListener('keydown',function(e){if(e.key==='Enter'&&!$('#lovGo').disabled)doLogin();});
   $('#lovGo').addEventListener('click',doLogin);
+  var _ht=tabFromHash(); if(_ht&&_ht!==curView())applyView(_ht);   // #daily / #battery / #stock deep-link
   bootApp();
 }
 init();
