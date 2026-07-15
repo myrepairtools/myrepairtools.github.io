@@ -92,7 +92,8 @@
     { label:'Claim Payouts',    url:'claim-payouts.html',         icon:'📊', minRole:'owner', acc:'claims.view' },
     { label:'Commission Calculator', url:'commission-calculator.html', icon:'🧾', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' },
-    { label:'Cash Journal',     url:'cash-journal.html',          icon:'📒', minRole:'owner', acc:'cash.journal' }
+    { label:'Cash Journal',     url:'cash-journal.html',          icon:'📒', minRole:'owner', acc:'cash.journal' },
+    { label:'Expenses',         url:'expenses.html',              icon:'🧾', minRole:'owner', acc:'expenses.record' }
   ];
   // Settings — the rail gear is a real area now (design handoff): clicking it swaps
   // the pane to this list instead of navigating. Gear visibility stays staff.manage;

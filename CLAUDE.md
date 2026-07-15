@@ -230,6 +230,28 @@ feeds the dropdown). Deposits deliberately stay in QBO's bank
 feed (recorded there as Transfers to Cash on Hand — the modal shows the total to
 match). Schema: docs/sql/cash-journal-schema.sql + cash-journal-qbo.sql.
 
+**Expenses (mobile receipt recorder):** `expenses.html` (PRIVILEGED nav 'Expenses',
+permission key `expenses.record`, owner RLS) — the phone-first replacement for the
+QuickBooks receipt app, designed to be Added to Home Screen (`assets/expenses-manifest.json`,
+root-relative). Flow: snap/pick a receipt photo (canvas-downscaled to ≤1600px JPEG) →
+amount → date (local today) → Paid With (Bank/CC accounts) → expense account
+(type-to-search combobox over the QBO chart of accounts + last-5 recent chips) → Class,
+or **⚖️ Split Evenly Across Stores** (store toggle chips, all pre-selected, tap one off
+for a 2-store split, min 2; remainder cent rides the first line) → Save. Save uploads
+the photo to the private `receipts` storage bucket (`YYYY/MM/<uuid>.jpg`), inserts an
+`expense_receipts` row (status `pending`), then calls the **`qbo` edge function's
+`create_expense`** action, which books a QBO **Purchase** (PaymentType from the account
+type, one line per class on splits) and attaches the photo (Attachable multipart) so the
+bank feed offers a one-tap **Match**. Double-post safety: atomic claim
+(status `posting` + `qbo_claimed_at`, 2-min stale takeover), `DocNumber = MRT-<id8>`
+idempotency key with a recovery probe (query Purchase by DocNumber before creating),
+guarded final stamp; failures stamp status `failed` + error and the page's Recent list
+offers tap-to-retry on the SAME receipt row (409 `already_posted` counts as success).
+Chart of accounts/classes cache in localStorage (`cprExpQbo`, 1h) for instant paint.
+Note: elements hidden by a CSS class rule need `style.display='block'` to show —
+`display=''` falls back to the stylesheet's `display:none`. Schema:
+docs/sql/expenses-schema.sql.
+
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
 per-employee monthly targets set during 1:1s **in the commission dashboard's Goals tab**
