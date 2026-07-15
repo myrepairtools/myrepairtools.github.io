@@ -196,9 +196,11 @@ unique store+month; RLS owner-only via the new `is_owner()` helper). Surface:
 into the next month's `starting_cash` (an "adjusted" flag marks months where the
 start was overridden), revenue/on-hand compute live, and each month has a
 "📋 JE" copy block for the QBO journal entry (cash revenue, deposits to match in
-banking, Cash on Hand adjustment). A deposit suggestion is sourced from closed
-`cash_audits` (bank_deposit + small_to_bank; store names matched via CPRLocations
-aliases). The 2025+2026 history was imported from the owner's workbook.
+banking, Cash on Hand adjustment). Closed `cash_audits` feed BOTH suggestions:
+Cash Deposited (bank_deposit + small_to_bank) and Ending Cash (the audit's
+`cash_audit_locations.counted` summed — drawers + safes, verified to the dollar
+against the owner's workbook); store names matched via CPRLocations aliases.
+The 2025+2026 history was imported from the owner's workbook.
 **QBO push:** each complete month also has an "⬆ QBO" button → review modal →
 the **`qbo` edge function** posts the journal entry straight to QuickBooks Online
 (debit "Cash on Hand — <store>", credit the store-revenue income account; TxnDate

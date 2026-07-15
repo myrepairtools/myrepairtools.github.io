@@ -260,19 +260,35 @@ async function load(){
       qbo_posted_amount:num(row.qbo_posted_amount)};
   });
 
-  /* deposit helper — closed Cash Admin audits for the year (hidden silently on error) */
+  /* Cash Admin helper — closed audits for the year give BOTH suggestions
+     (hidden silently on error): deposited = bank_deposit + small_to_bank,
+     ending cash = the audit's counted locations summed (drawers + safes —
+     verified against the owner's workbook to the dollar). */
   AUD=null;
   var a=await sb.from('cash_audits')
-    .select('store,period,bank_deposit,small_to_bank')
+    .select('id,store,period,bank_deposit,small_to_bank')
     .eq('status','closed').gte('period',mkey(YEAR,1)).lte('period',mkey(YEAR,12));
   if(tok!==LOADTOKEN)return;
   if(!a.error&&a.data){
     AUD={};
+    var idToPeriod={};
     a.data.forEach(function(row){
       if(LOC.normalize(row.store)!==STORE)return;
-      var sum=(num(row.bank_deposit)||0)+(num(row.small_to_bank)||0);
-      AUD[row.period]=(AUD[row.period]||0)+sum;
+      idToPeriod[row.id]=row.period;
+      var rec=AUD[row.period]||(AUD[row.period]={dep:0,end:null});
+      rec.dep+=(num(row.bank_deposit)||0)+(num(row.small_to_bank)||0);
     });
+    var ids=Object.keys(idToPeriod).map(Number);
+    if(ids.length){
+      var lr=await sb.from('cash_audit_locations').select('audit_id,counted').in('audit_id',ids);
+      if(tok!==LOADTOKEN)return;
+      if(!lr.error&&lr.data){
+        lr.data.forEach(function(row){
+          var p=idToPeriod[row.audit_id];if(!p||!AUD[p])return;
+          AUD[p].end=(AUD[p].end||0)+(num(row.counted)||0);
+        });
+      }
+    }
   }
 
   gate.style.display='none';
@@ -319,6 +335,7 @@ function renderGrid(){
       +'<div class="hint carry" data-k="'+k+'" style="display:none"></div>'
       +'<div class="mrow"><label>Ending Cash</label>'
         +'<input type="number" step="0.01" data-k="'+k+'" data-f="ending" aria-label="Ending cash"></div>'
+      +'<div class="hint audend" data-k="'+k+'" style="display:none"></div>'
       +'<div class="mrow comp"><label>Store Revenue</label><span class="val rev" data-k="'+k+'">—</span></div>'
       +'<div class="mrow"><label>Cash Deposited</label>'
         +'<input type="number" step="0.01" data-k="'+k+'" data-f="deposited" aria-label="Cash deposited"></div>'
@@ -387,19 +404,32 @@ function updateCard(k){
     adj.title=pName+' ended on hand at '+money2(pOnh)+' — click to note why this month starts different';
   }else adj.style.display='none';
 
-  /* Cash Admin deposit suggestion (never auto-writes) */
+  /* Cash Admin suggestions (never auto-write): deposited + ending cash */
+  var rec=AUD?AUD[k]:null;
   var aud=q('.hint.aud');
-  var sum=AUD?AUD[k]:null;
-  if(sum!=null&&sum>0&&(s.deposited==null||Math.abs(s.deposited-sum)>0.005)){
+  var dep=rec?rec.dep:null;
+  if(dep!=null&&dep>0&&(s.deposited==null||Math.abs(s.deposited-dep)>0.005)){
     aud.style.display='';
-    aud.innerHTML='Cash Admin: '+money(sum)+' <button class="mini">Use</button>';
+    aud.innerHTML='Cash Admin: '+money(dep)+' <button class="mini">Use</button>';
     aud.querySelector('.mini').onclick=function(){
-      s.deposited=Math.round(sum*100)/100;
+      s.deposited=Math.round(dep*100)/100;
       var inp=document.querySelector('input[data-f="deposited"][data-k="'+k+'"]');
       if(inp)inp.value=String(s.deposited);
       afterEdit(k);
     };
   }else aud.style.display='none';
+  var audend=q('.hint.audend');
+  var cend=rec?rec.end:null;
+  if(cend!=null&&cend>0&&(s.ending==null||Math.abs(s.ending-cend)>0.005)){
+    audend.style.display='';
+    audend.innerHTML='Cash Admin counted: '+money(cend)+' <button class="mini">Use</button>';
+    audend.querySelector('.mini').onclick=function(){
+      s.ending=Math.round(cend*100)/100;
+      var inp=document.querySelector('input[data-f="ending"][data-k="'+k+'"]');
+      if(inp)inp.value=String(s.ending);
+      afterEdit(k);
+    };
+  }else audend.style.display='none';
 
   /* note row + 📝 state */
   q('.noterow').style.display=(NOTEOPEN[k]||(s.note&&s.note.trim()))?'':'none';
