@@ -16,6 +16,12 @@
 //           (store, 'YYYY-MM') from cash_journal, stamp the row + qbo_post_log, and
 //           return { ok, je_id, doc_number, amount, txn_date }. Amount is the row's
 //           SERVER-COMPUTED store_revenue — a client can never choose what gets posted.
+//   POST { action:'create_expense', receipt_id }  (owner JWT)
+//        -> post an expense receipt as a QBO Purchase (Check/CreditCard) from the
+//           pre-written expense_receipts row (amount, accounts, class or per-class
+//           split all come from the row — the request supplies ONLY the id), attach
+//           the receipt image from the private 'receipts' bucket, stamp the row, and
+//           return { ok, purchase_id, attachable_id, amount }.
 //
 // Intuit specifics worth knowing:
 //   - The OAuth callback carries a realmId query param (the QBO company id); every
@@ -288,6 +294,126 @@ async function postJournalEntry(body: Record<string, unknown>, staff: { display_
   return json({ ok: true, je_id: String(posted.Id), doc_number: posted.DocNumber || null, amount, txn_date, ...(warns.length ? { warn: warns.join(" ") } : {}) });
 }
 
+// ---- create_expense: post an expense receipt as a QBO Purchase ---------------
+
+async function createExpense(body: Record<string, unknown>, staff: { display_name: string }) {
+  const receipt_id = typeof body.receipt_id === "string" ? body.receipt_id.trim() : "";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receipt_id))
+    return json({ error: "bad_request", detail: "receipt_id must be a UUID." }, 400);
+
+  // The receipt row is the single source of truth — amount, accounts, and class
+  // split were all written server-side by the page. Never trust anything else
+  // from the request beyond the id.
+  const { data: row, error: rowErr } = await admin.from("expense_receipts")
+    .select("*").eq("id", receipt_id).maybeSingle();
+  if (rowErr) return json({ error: "db_error", detail: rowErr.message }, 500);
+  if (!row) return json({ error: "not_found", detail: "No expense receipt with that id." }, 404);
+  if (row.qbo_purchase_id)
+    return json({ error: "already_posted", purchase_id: String(row.qbo_purchase_id) }, 409);
+
+  const amount = Math.round(Number(row.amount) * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0 || !row.txn_date || !row.payment_account_id || !row.expense_account_id)
+    return json({ error: "bad_row", detail: "Receipt needs a positive amount, a date, and payment + expense accounts." }, 400);
+
+  const tok = await getToken();
+  if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+
+  // One expense line per class-split entry, or a single line with the row's class.
+  const desc = [row.vendor, row.memo].filter(Boolean).join(" — ") || undefined;
+  const expenseRef = { value: String(row.expense_account_id), ...(row.expense_account_name ? { name: String(row.expense_account_name) } : {}) };
+  const line = (amt: number, class_id: unknown, class_name: unknown) => ({
+    DetailType: "AccountBasedExpenseLineDetail",
+    Amount: amt,
+    Description: desc,
+    AccountBasedExpenseLineDetail: {
+      AccountRef: expenseRef,
+      ...(class_id ? { ClassRef: { value: String(class_id), ...(class_name ? { name: String(class_name) } : {}) } } : {}),
+    },
+  });
+  let lines: Array<ReturnType<typeof line>>;
+  if (Array.isArray(row.split) && row.split.length) {
+    lines = (row.split as Array<Record<string, unknown>>).map((e) => line(Number(e.amount), e.class_id, e.class_name));
+    const sum = lines.reduce((t, l) => t + l.Amount, 0);
+    if (lines.some((l) => !Number.isFinite(l.Amount) || l.Amount <= 0) || Math.abs(sum - amount) > 0.011)
+      return json({ error: "split_mismatch", detail: `Split lines must all be positive and total the receipt amount (${usd(sum)} vs ${usd(amount)}).` }, 400);
+  } else {
+    lines = [line(amount, row.class_id, row.class_name)];
+  }
+
+  const purchase = {
+    PaymentType: row.payment_account_type === "Credit Card" ? "CreditCard" : "Check",
+    AccountRef: { value: String(row.payment_account_id), ...(row.payment_account_name ? { name: String(row.payment_account_name) } : {}) },
+    TxnDate: String(row.txn_date),
+    PrivateNote: [[row.vendor, row.memo].filter(Boolean).join(" — "),
+      `Recorded via myRepairTools by ${row.created_by || staff.display_name}.`].filter(Boolean).join(" … "),
+    Line: lines,
+  };
+
+  let r: Response, d: any;
+  try {
+    r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/purchase?minorversion=${MINORVERSION}`, {
+      method: "POST", headers: qboHeaders(tok.access_token), body: JSON.stringify(purchase),
+    });
+    d = await r.json().catch(() => ({}));
+  } catch (e) {
+    return json({ error: "qbo_error", detail: String((e as Error)?.message || e) }, 502);
+  }
+  const posted = d?.Purchase;
+  if (!r.ok || !posted?.Id) {
+    const detail = faultDetail(d);
+    await admin.from("expense_receipts").update({ status: "failed", error: detail }).eq("id", receipt_id);
+    return json({ error: "qbo_error", detail, intuit_tid: tid(r) }, 502);
+  }
+  const purchase_id = String(posted.Id);
+
+  // Attach the receipt image (best effort — the Purchase already exists in QBO,
+  // so an attach failure must never fail the expense; it just warns).
+  const warns: string[] = [];
+  let attachable_id: string | null = null;
+  if (row.receipt_path) {
+    const dl = await admin.storage.from("receipts").download(String(row.receipt_path));
+    if (dl.error || !dl.data) {
+      warns.push(`Receipt image download failed (${dl.error?.message || "no data"}) — expense posted without the attachment.`);
+    } else {
+      const fileName = `receipt-${row.txn_date}-${receipt_id.slice(0, 8)}.jpg`;
+      const meta = {
+        AttachableRef: [{ EntityRef: { type: "Purchase", value: purchase_id } }],
+        FileName: fileName,
+        ContentType: "image/jpeg",
+      };
+      const form = new FormData();
+      form.append("file_metadata_01", new Blob([JSON.stringify(meta)], { type: "application/json" }));
+      form.append("file_content_01", dl.data, fileName);
+      try {
+        // No Content-Type header here — fetch sets the multipart boundary itself.
+        const ur = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/upload?minorversion=${MINORVERSION}`, {
+          method: "POST",
+          headers: { Authorization: "Bearer " + tok.access_token, Accept: "application/json" },
+          body: form,
+        });
+        const ud = await ur.json().catch(() => ({}));
+        attachable_id = ud?.AttachableResponse?.[0]?.Attachable?.Id ? String(ud.AttachableResponse[0].Attachable.Id) : null;
+        if (!ur.ok || !attachable_id)
+          warns.push(`Receipt attach failed (${faultDetail(ud)}) — expense posted without the attachment.`);
+      } catch (e) {
+        warns.push(`Receipt attach failed (${String((e as Error)?.message || e)}) — expense posted without the attachment.`);
+      }
+    }
+  }
+
+  // Stamp the row. The Purchase now EXISTS in QBO — a failed write-back must be
+  // surfaced, not swallowed, or a retry would double-post.
+  const stamp = await admin.from("expense_receipts").update({
+    qbo_purchase_id: purchase_id,
+    qbo_attachable_id: attachable_id,
+    status: "posted",
+    error: null,
+  }).eq("id", receipt_id);
+  if (stamp.error) warns.push(`Purchase ${purchase_id} was created in QBO but the receipt row failed to update (${stamp.error.message}) — verify in QBO before posting again.`);
+
+  return json({ ok: true, purchase_id, attachable_id, amount, ...(warns.length ? { warn: warns.join(" ") } : {}) });
+}
+
 // =============================================================================
 
 Deno.serve(async (req) => {
@@ -380,6 +506,9 @@ Deno.serve(async (req) => {
   }
   if (action === "post_je") {
     return await postJournalEntry(body, staff);
+  }
+  if (action === "create_expense") {
+    return await createExpense(body, staff);
   }
   return json({ error: "bad_action" }, 400);
 });
