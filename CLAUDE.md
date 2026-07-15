@@ -89,9 +89,16 @@ these when adding UI so a new tool looks native.
 ## Shared assets (`assets/`)
 
 - **`nav.js`** — the navigation shell. Injects the fixed icon-rail + slide-out menu pane
-  into every page, defines the canonical tool lists (`OPERATIONS` + `PRIVILEGED`), and
-  owns role-based visibility. **When you add or rename a tool, update the `OPERATIONS` or
-  `PRIVILEGED` array here** (and the tile in `index.html`) or it won't appear in the nav.
+  into every page, defines the canonical tool lists (`OPERATIONS` + `PRIVILEGED` +
+  `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
+  update the right area array here** (and the tile in `index.html`) or it won't appear in
+  the nav. **The rail-bottom gear is a real area** (not a link): clicking it swaps the pane
+  to the `SETTINGS` list (Team Members, Locations, Notifications, Page Settings, Commission,
+  Integrations, Roles & Permissions) and highlights the gear like any area icon. Most rows
+  deep-link to `settings.html#<tab>` (the page opens that tab from the hash and listens to
+  hashchange); Locations is its own page `settings-locations.html` (read-only registry of
+  `CPRLocations.list()`, permission key `settings.locations` — the "Add Location" button
+  opens guidance, the list itself still lives in locations.js).
   **Admin-page access pattern:** an admin page that manages a front-end tool (Cash Admin,
   Schedule Admin, Task Admin) is reached from an **`.adminbtn` button in the header of the
   tool it manages** (Cash Tracker / My Time / Checklist) — not from the nav menus. Keep its

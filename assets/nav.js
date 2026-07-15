@@ -94,6 +94,18 @@
     { label:'Profit First',     url:'profit-first.html',          icon:'🏦', minRole:'owner', acc:'profit.view' },
     { label:'Cash Journal',     url:'cash-journal.html',          icon:'📒', minRole:'owner', acc:'cash.journal' }
   ];
+  // Settings — the rail gear is a real area now (design handoff): clicking it swaps
+  // the pane to this list instead of navigating. Gear visibility stays staff.manage;
+  // rows gate individually. Hash links open that tab on settings.html directly.
+  var SETTINGS = [
+    { label:'Team Members',        url:'employee-records.html',    icon:'📁', acc:'staff.view' },
+    { label:'Locations',           url:'settings-locations.html',  icon:'📍', acc:'settings.locations' },
+    { label:'Notifications',       url:'settings.html#notif',      icon:'🔔', acc:'staff.manage' },
+    { label:'Page Settings',       url:'settings.html#pages',      icon:'📄', acc:'staff.manage' },
+    { label:'Commission',          url:'settings.html#commission', icon:'📈', acc:'staff.manage' },
+    { label:'Integrations',        url:'settings.html#integ',      icon:'🔌', acc:'staff.manage' },
+    { label:'Roles & Permissions', url:'settings.html#roles',      icon:'🛡️', acc:'staff.manage' }
+  ];
 
   var RANK = { none:0, employee:1, team_member:1, manager:2, admin:2, owner:3 };
   var COLLAPSE_KEY = 'cprNavCollapsed';   // desktop: menu pane collapsed to icon rail
@@ -267,7 +279,10 @@
   var inPricing = PRICING.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inReports = REPORTS.some(function(t){ return t.url.toLowerCase() === currentFile; });
   var inEmployees = EMPLOYEES.some(function(t){ return t.url.toLowerCase() === currentFile; });
-  var ACTIVE_AREA = inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
+  // settings pages highlight the gear (employee-records stays under Employees even
+  // though it's also listed in the Settings pane)
+  var inSettings = (currentFile === 'settings.html' || currentFile === 'settings-locations.html');
+  var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -295,6 +310,7 @@
   .cpr-rail .cpr-raildiv{ width:28px; height:1px; background:rgba(255,255,255,.16); margin:3px 0; }
   .cpr-rail .cpr-railgear{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:14px; text-decoration:none; opacity:.78; }
   .cpr-rail .cpr-railgear:hover{ background:rgba(255,255,255,.12); opacity:1; }
+  .cpr-rail .cpr-railgear.active{ background:var(--cpr-blue); opacity:1; }
   .cpr-usermenu{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
   .cpr-usermenu.show{ display:block; }
   .cpr-usermenu .who{ padding:9px 10px 8px; }
@@ -456,7 +472,10 @@
   }
 
   function linkHtml(t, tag){
-    var active = (t.url.toLowerCase() === currentFile) ? ' active' : '';
+    // hash links (settings.html#integ) are active only when their tab hash matches,
+    // so the five settings.html rows don't all light up at once
+    var u = t.url.toLowerCase(), base = u.split('#')[0], frag = u.indexOf('#') > -1 ? u.split('#')[1] : null;
+    var active = (base === currentFile && (!frag || ('#' + frag) === location.hash.toLowerCase())) ? ' active' : '';
     var tagHtml = tag ? (' <span class="tag '+(tag==='Owner'?'owner':'')+'">'+tag+'</span>') : '';
     var ic = t.img
       ? '<img src="'+esc(t.img)+'" alt="'+esc(t.icon||'')+'" onerror="this.outerHTML=this.alt">'
@@ -530,6 +549,10 @@
       return '<div class="cpr-fly-hd">Reports</div>'
         + REPORTS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
+    if (area === 'settings'){
+      return '<div class="cpr-fly-hd">Settings</div>'
+        + SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    }
     // admin area
     if (!NAV_ROLE){
       return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
@@ -580,6 +603,12 @@
         + (rep || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
+    if (area === 'settings'){
+      var st = SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      return hd + '<div class="cpr-grp">Settings</div>'
+        + (st || '<div class="cpr-foot" style="padding:8px 16px">Nothing here for your role yet.</div>')
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
     if (area === 'order'){
       var ord = ORDERING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       return hd + '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord
@@ -617,7 +646,10 @@
     var rep = REPORTS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (rep) h += '<div class="cpr-grp">Reports</div>' + rep;
     if (hasAdminArea()) h += '<div data-priv>' + privilegedHtml() + '</div>';
-    if (canSee({ acc:'staff.manage' })) h += '<div class="cpr-div"></div><a class="cpr-link" href="settings.html"><span class="ic">⚙️</span> Settings</a>';
+    if (canSee({ acc:'staff.manage' })){
+      var st = SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+      if (st) h += '<div class="cpr-grp">Settings</div>' + st;
+    }
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
   function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
@@ -626,6 +658,8 @@
   function setArea(area){
     ACTIVE_AREA = area;
     rail.querySelectorAll('.cpr-areabtn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-area')===area); });
+    var g = rail.querySelector('.cpr-railgear');                 // the gear is an area too
+    if (g) g.classList.toggle('active', area === 'settings');
     pane.innerHTML = paneInner(area);
     wirePriv();
   }
@@ -790,7 +824,7 @@
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
-      + '<a class="cpr-railgear" href="settings.html" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'</a>';
+      + '<button class="cpr-railgear'+(ACTIVE_AREA==='settings'?' active':'')+'" data-area="settings" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'</button>';
     document.body.insertBefore(rail, document.body.firstChild);
 
     // ── top bar (persistent): page title · clock (soon) · bell · identity ─
@@ -872,7 +906,7 @@
     }
     function showFlyout(area, btn){
       if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
-      if (['ops','hub','admin','order','pricing','employees','reports'].indexOf(area) < 0) return;
+      if (['ops','hub','admin','order','pricing','employees','reports','settings'].indexOf(area) < 0) return;
       clearTimeout(flyHideT);
       flyout.innerHTML = flyoutLinksHtml(area);
       flyout.classList.add('show');
@@ -885,7 +919,7 @@
     flyout.addEventListener('mouseenter', function(){ clearTimeout(flyHideT); });
     flyout.addEventListener('mouseleave', hideFlyoutSoon);
 
-    rail.querySelectorAll('.cpr-areabtn').forEach(function(b){
+    rail.querySelectorAll('.cpr-areabtn, .cpr-railgear[data-area]').forEach(function(b){
       b.onclick = function(){
         flyout.classList.remove('show');
         setArea(b.getAttribute('data-area'));
