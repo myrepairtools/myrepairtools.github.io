@@ -18,6 +18,15 @@
 
   if (window.self !== window.top) return;   // skip inside iframes
 
+  // Installed home-screen app: flag the root (CSS safe-area rules key off it, and
+  // the display-mode media query misses some iOS versions), and make sure env()
+  // actually resolves — it needs viewport-fit=cover, which not every page declares.
+  if (navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) {
+    document.documentElement.classList.add('mrt-standalone');
+    var vpMeta = document.querySelector('meta[name="viewport"]');
+    if (vpMeta && vpMeta.content.indexOf('viewport-fit') < 0) vpMeta.content += ',viewport-fit=cover';
+  }
+
   // Home-screen icon: give every page the myRepairTools app icon (iOS uses
   // apple-touch-icon; the SVG favicon is ignored for the home screen) + theme
   // color + web manifest. Injected here so all pages get it without per-file edits.
@@ -458,6 +467,16 @@
     .cpr-pane.open{ transform:translateX(0); }
     body{ margin-left:0 !important; }                       /* content goes full width */
   }
+
+  /* Added-to-Home-Screen (standalone): the iOS status bar draws over the page —
+     grow the top bar down by the safe-area inset on EVERY page. html:root
+     outranks the plain :root default above. */
+  @media (display-mode: standalone){
+    html:root{ --cpr-top-h:calc(52px + env(safe-area-inset-top)); }
+    .cpr-topbar{ padding-top:env(safe-area-inset-top); }
+  }
+  html.mrt-standalone{ --cpr-top-h:calc(52px + env(safe-area-inset-top)); }
+  html.mrt-standalone .cpr-topbar{ padding-top:env(safe-area-inset-top); }
 
   /* mobile app shell — bottom tab bar (Home/Tasks/My Time/Commission/More).
      --cpr-bb-h lets pages with their own fixed footers sit above it. */

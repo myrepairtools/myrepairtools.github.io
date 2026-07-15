@@ -87,7 +87,18 @@
     '.cpra-foot textarea:focus{border-color:#4FB0E3}' +
     '.cpra-send{flex:none;width:40px;height:40px;border:none;border-radius:11px;background:#DC282E;color:#fff;cursor:pointer;font-size:17px;font-weight:800}' +
     '.cpra-send:disabled{background:#E4A6A8;cursor:default}' +
-    '@media(max-width:520px){.cpra-panel{right:0;bottom:0;width:100vw;height:88vh;border-radius:16px 16px 0 0}.cpra-fab{right:16px;bottom:16px}}' +
+    /* mobile: a true full-screen sheet — safe-area padded, 16px input so iOS
+       doesn't zoom, and JS pins the height to the visual viewport when the
+       keyboard opens so the composer never hides behind it */
+    '@media(max-width:859px){' +
+      '.cpra-fab{right:16px}' +
+      '.cpra-panel{top:0;left:0;right:0;bottom:0;width:100%;max-width:none;height:100%;border:none;border-radius:0;box-shadow:none}' +
+      '.cpra-hd{padding-top:calc(13px + env(safe-area-inset-top))}' +
+      '.cpra-foot{padding-bottom:calc(10px + env(safe-area-inset-bottom))}' +
+      '.cpra-foot textarea{font-size:16px}' +
+      '.cpra-msg{font-size:.92rem}' +
+      '.cpra-send{width:44px;height:44px}' +
+    '}' +
     /* embed mode: the panel IS the page (RepairQ overlay hosts us in an iframe) */
     'body.cpra-embed .cpra-fab{display:none!important}' +
     'body.cpra-embed .cpra-panel{right:0;bottom:0;top:0;left:0;width:100%;height:100%;max-width:none;border:none;border-radius:0;box-shadow:none}' +
@@ -121,6 +132,18 @@
     els.body = panel.querySelector('.cpra-body');
     els.ta = panel.querySelector('textarea');
     els.send = panel.querySelector('.cpra-send');
+
+    // keyboard tracking (mobile sheet): shrink the panel to the visual viewport
+    // while the keyboard is up so the composer stays reachable; full height back
+    // when it closes. Skipped in embed mode (RepairQ iframe sizes us itself).
+    if (window.visualViewport && !document.body.classList.contains('cpra-embed')) {
+      window.visualViewport.addEventListener('resize', function () {
+        if (!panel.classList.contains('open') || window.innerWidth > 859) { panel.style.height = ''; return; }
+        var kb = window.innerHeight - window.visualViewport.height;
+        panel.style.height = kb > 60 ? window.visualViewport.height + 'px' : '';
+        if (kb > 60 && els.body) els.body.scrollTop = els.body.scrollHeight;
+      });
+    }
 
     function open() { panel.classList.add('open'); fab.style.display = 'none'; els.ta.focus(); if (!MSGS.length) greet(); }
     function close() { panel.classList.remove('open'); fab.style.display = 'flex'; }
