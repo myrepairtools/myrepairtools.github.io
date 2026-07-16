@@ -79,11 +79,13 @@
         var body = new URLSearchParams({
             YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0',
         });
+        // no keepalive: Chrome CORS-fails keepalive fetches from content
+        // scripts (extension-origin attribution) — the note silently vanishes
         fetch('/ajax/ticketNote/save', {
-            method: 'POST', credentials: 'same-origin', keepalive: true,
+            method: 'POST', credentials: 'same-origin',
             headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
             body: body.toString(),
-        }).catch(function () { /* log only */ });
+        }).catch(function () { stashNote(text); /* retry on next page */ });
     }
 
     // brand-new unsaved ticket: hold notes until a ticket number exists
