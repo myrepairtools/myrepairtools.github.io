@@ -1396,6 +1396,44 @@ Deno.serve(async (req) => {
       });
       return json({ ok: r.status >= 200 && r.status < 300, status: r.status, location: (r as any).location || null, data: r.json ?? null, body: r.json ? undefined : r.body });
     }
+    if (payload?.action === "sweep_blank_notes") {
+      // Blank-note janitor. RepairQ's 3-byte MySQL utf8 truncates notes at the
+      // first 4-byte char, so emoji-prefixed extension notes stored as EMPTY —
+      // and a blank note blocks the whole ticket from saving. Extension
+      // v2.5.81 stopped writing them; this sweeps stragglers from machines
+      // still on an older build. Scans the active ticket list and deletes any
+      // empty-bodied note it finds.
+      const ids: string[] = [];
+      const seen = new Set<string>();
+      for (let page = 1; page <= 4; page++) {
+        const r = await rqRequest({ method: "GET", path: page === 1 ? "/ticket" : `/ticket?Ticket_page=${page}`, headers: { accept: "text/html,*/*", "x-requested-with": "" } });
+        if (r.status !== 200) break;
+        const found = [...(r.body || "").matchAll(/<tr[^>]*data-id="(\d+)"/g)].map((m) => m[1]);
+        const fresh = found.filter((t) => !seen.has(t));
+        if (!fresh.length) break;
+        fresh.forEach((t) => { seen.add(t); ids.push(t); });
+      }
+      const noteRe = /\{"id":(\d+),"ticket_id":\d+,"user_id":\d+,"note":"((?:[^"\\]|\\.)*)"/g;
+      const deleted: Array<{ ticket: string; note_id: string }> = [];
+      const failed: Array<{ ticket: string; note_id?: string; error: string }> = [];
+      for (const t of ids) {
+        const r = await rqRequest({ method: "GET", path: `/ticket/${t}`, headers: { accept: "text/html,*/*", "x-requested-with": "" } });
+        if (r.status !== 200) { failed.push({ ticket: t, error: `HTTP ${r.status}` }); continue; }
+        const body = r.body || "";
+        const csrf = body.match(/value="([^"]+)" name="YII_CSRF_TOKEN"/)?.[1];
+        for (const m of body.matchAll(noteRe)) {
+          let text = "";
+          try { text = JSON.parse(`"${m[2]}"`); } catch { text = m[2]; }
+          if (String(text).trim()) continue;   // real note — leave it
+          if (!csrf) { failed.push({ ticket: t, note_id: m[1], error: "no csrf" }); continue; }
+          const del = await rqRequest({ method: "POST", path: "/ajax/ticketNote/delete", form: { YII_CSRF_TOKEN: csrf, id: m[1], noteId: m[1], ticketId: t } });
+          if (del.status === 200) deleted.push({ ticket: t, note_id: m[1] });
+          else failed.push({ ticket: t, note_id: m[1], error: `delete HTTP ${del.status}` });
+        }
+      }
+      if (deleted.length) console.log(`sweep_blank_notes: deleted ${deleted.length}`, JSON.stringify(deleted));
+      return json({ ok: true, scanned: ids.length, deleted, failed });
+    }
     if (payload?.action === "save_query") return await actionSaveQuery(payload);
     if (payload?.action === "list_queries") return await actionListQueries();
     if (payload?.action === "query") return await actionQuery(payload);
