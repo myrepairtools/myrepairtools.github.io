@@ -249,9 +249,21 @@
         // blocked the status change. CPR stores don't require a note on this
         // transition; if a store ever does, RepairQ pops its modal for the tech
         // to fill by hand. Net: our note lands, the status change goes through.
-        if (noteText) writeNote(noteText);
-        btn.click();                  // re-fire the real status change
-        setTimeout(function () { bypass = false; }, 1500);
+        var go = function () {
+            btn.click();              // re-fire the real status change
+            setTimeout(function () { bypass = false; }, 1500);
+        };
+        if (noteText) {
+            // Land the note BEFORE the status change navigates the page away
+            // (keepalive can't be trusted from a content script — see writeNote).
+            // Capped so a hung request can never hold the button hostage.
+            var done = false;
+            var once = function () { if (!done) { done = true; go(); } };
+            writeNote(noteText).then(once, once);
+            setTimeout(once, 1200);
+        } else {
+            go();
+        }
     }
 
     // The manual chooser (no saved follow-up, or the tech skipped at
@@ -342,22 +354,25 @@
     }
 
     // Every automated send gets logged on the ticket itself (Kade's rule) —
-    // the note is the record techs actually read. keepalive lets the write
-    // survive the page turn that follows the status change.
+    // the note is the record techs actually read. NO keepalive: Chrome
+    // attributes keepalive fetches from content scripts to the extension's
+    // origin, so the "same-origin" request CORS-fails and the note silently
+    // never lands (why ready-for-pickup notes were missing for weeks).
+    // Instead proceed() holds the status-change click until this settles.
     function writeNote(text) {
         // RepairQ's DB is 3-byte MySQL utf8: a 4-byte char (most emoji) silently
         // truncates the note from that char on — a leading emoji stores a BLANK
         // note, and blank notes block the ticket from saving. Strip them.
         text = String(text == null ? '' : text).replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();
-        if (!text) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
+        if (!text) return Promise.resolve();   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
-        if (!csrf || !id) return;
+        if (!csrf || !id) return Promise.resolve();
         var body = new URLSearchParams({
             YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0',
         });
-        fetch('/ajax/ticketNote/save', {
-            method: 'POST', credentials: 'same-origin', keepalive: true,
+        return fetch('/ajax/ticketNote/save', {
+            method: 'POST', credentials: 'same-origin',
             headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
             body: body.toString(),
         }).catch(function () { /* log only */ });
