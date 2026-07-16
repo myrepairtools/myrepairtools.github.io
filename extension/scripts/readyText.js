@@ -239,6 +239,7 @@
     }
 
     function proceed(btn, noteText) {
+        crumb('proceed', noteText ? 'with note' : 'no note');
         bypass = true;
         closePopup();
         // Record our informational note directly through the ajax endpoint
@@ -371,6 +372,7 @@
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) { noteDebug('skipped: csrf=' + !!csrf + ' ticket=' + (id || 'none')); return Promise.resolve(); }
+        crumb('writeNote start');
         return new Promise(function (resolve) {
             var fallback = function (why) {
                 fetch('/ajax/ticketNote/save', {
@@ -385,7 +387,7 @@
             try {
                 chrome.runtime.sendMessage({ type: 'note:save', payload: { ticketId: id, note: text, csrf: csrf } }, function (res) {
                     if (chrome.runtime.lastError) return fallback(chrome.runtime.lastError.message);
-                    if (res && res.ok) return resolve();
+                    if (res && res.ok) { crumb('writeNote ok', res.path || 'bg'); return resolve(); }
                     fallback((res && (res.error || ('HTTP ' + res.status + ' ' + (res.body || '')))) || 'no response');
                 });
             } catch (e) { fallback(String(e && e.message || e)); }
@@ -400,6 +402,20 @@
                 kind: 'debug', message: 'readyText writeNote: ' + detail,
                 ticket_no: ticketNo(), url: location.href.slice(0, 180),
                 store: storeName(), reporter: techName() || null,
+                ext_version: (chrome.runtime.getManifest() || {}).version,
+            } }, function () { void chrome.runtime.lastError; });
+        } catch (e) { /* diagnostics only */ }
+    }
+
+    // TEMP diagnostic breadcrumbs (v2.5.85): stamp every step of the
+    // ready-for-pickup flow so a failing machine shows exactly where its
+    // path diverges. Cheap silent rows; remove once the note bug is closed.
+    function crumb(step, extra) {
+        try {
+            chrome.runtime.sendMessage({ type: 'issue:report', payload: {
+                kind: 'debug',
+                message: 'rfp ' + step + (extra ? ': ' + String(extra).slice(0, 160) : ''),
+                ticket_no: ticketNo(), store: storeName(), reporter: techName() || null,
                 ext_version: (chrome.runtime.getManifest() || {}).version,
             } }, function () { void chrome.runtime.lastError; });
         } catch (e) { /* diagnostics only */ }
@@ -475,6 +491,7 @@
         } else {
             sendSms({ to: num, body: defaultMessage({ first: first }), ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
                 var ok = res && res.ok;
+                crumb('sent', ok ? 'ok' : 'fail ' + ((res && res.error) || '?'));
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
                 var note = ok
                     ? 'Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
@@ -534,8 +551,10 @@
         var t = ticketNo();
         if (!t) { popup(btn); return; }
         // Check the follow-up preference captured at check-in.
+        crumb('intercept');
         fn('contact_get', { ticket_no: t }).then(function (r) {
             var ct = r && r.contact;
+            crumb('pref', ct ? ct.method : 'none');
             if (ct && ct.method === 'skip') { popup(btn); return; }   // skipped at check-in — manual chooser
             if (ct && ct.method === 'text') {
                 if (CH.sendSms) { confirmAuto(btn, ct, 'text'); }
