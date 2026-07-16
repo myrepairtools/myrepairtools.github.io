@@ -79,7 +79,9 @@
     var INCLUDE = /(ready\s*for\s*repair|ready-for-repair|diagnos|in\s*repair|in\s*progress|new|open|approved)/i;
     var EXCLUDE = /(waiting|pending\s*notification|pickup|picked\s*up|repaired\b|closed|complete|invoic|quote|cancel|abandon|shipped|void)/i;
 
-    var cfg = { minsPer: 45, open: '10:00', close: '19:00', clock: true, promise: true };
+    // clock (the header promised-by ticker) defaults OFF — it crowds RepairQ's
+    // own header buttons off-screen on small laptops; opt back in via Options.
+    var cfg = { minsPer: 45, open: '10:00', close: '19:00', clock: false, promise: true };
     var snapshot = null, gateSkipped = false;
 
     // RepairQ locked (idle-timeout overlay) or on the login page — our UI
@@ -551,9 +553,9 @@
         getSnapshot();
         setInterval(function () { refreshSnapshot().catch(function () {}); }, SNAP_TTL);
 
-        // the pickup-time clock pill — its own toggle (wn.clock, default ON);
+        // the pickup-time clock pill — its own toggle (wn.clock, default OFF);
         // skip the returns page (KBB panel lives there)
-        if (cfg.clock !== false && !/rmaTracking/i.test(location.pathname)) {
+        if (cfg.clock === true && !/rmaTracking/i.test(location.pathname)) {
             injectPillStyles();
             placePill();
         }
@@ -580,7 +582,7 @@
             if (wn.open) cfg.open = wn.open;
             if (wn.close) cfg.close = wn.close;
             // both the advisor and the ticker off → nothing for this script to do
-            if (cfg.promise === false && cfg.clock === false) return;
+            if (cfg.promise === false && cfg.clock !== true) return;
             if (document.body) start();
             else document.addEventListener('DOMContentLoaded', start);
         }).catch(function () { if (document.body) start(); });

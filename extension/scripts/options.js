@@ -151,7 +151,7 @@ function restoreOptions() {
         setState(document.getElementById('smsPanel'), smsCfg.panel !== false, 'lcd-checkmark');
         setState(document.getElementById('wnEnabled'), !result.wn || result.wn.enabled !== false, 'lcd-checkmark');
         setState(document.getElementById('wnPromise'), !result.wn || result.wn.promise !== false, 'lcd-checkmark');
-        setState(document.getElementById('wnClock'), !result.wn || result.wn.clock !== false, 'lcd-checkmark');
+        setState(document.getElementById('wnClock'), !!(result.wn && result.wn.clock === true), 'lcd-checkmark');
         document.getElementById('wnMinsPer').value = (result.wn && result.wn.minsPer) || 45;
         document.getElementById('wnOpen').value = (result.wn && result.wn.open) || '10:00';
         document.getElementById('wnClose').value = (result.wn && result.wn.close) || '19:00';
