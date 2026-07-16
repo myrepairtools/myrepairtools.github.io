@@ -150,14 +150,20 @@
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
         if (!csrf || !id) return;
-        var body = new URLSearchParams({
-            YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0',
-        });
-        fetch('/ajax/ticketNote/save', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
-            body: body.toString(),
-        }).catch(function () { /* backup only */ });
+        // bg.js path first — the service worker outlives any page turn, so the
+        // write can't be killed by navigation; page fetch stays as fallback
+        var pageFetch = function () {
+            fetch('/ajax/ticketNote/save', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+                body: new URLSearchParams({ YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0' }).toString(),
+            }).catch(function () { /* backup only */ });
+        };
+        try {
+            chrome.runtime.sendMessage({ type: 'note:save', payload: { ticketId: id, note: text, csrf: csrf } }, function (res) {
+                if (chrome.runtime.lastError || !(res && res.ok)) pageFetch();
+            });
+        } catch (e) { pageFetch(); }
     }
 
     function methodLabel(v) { var m = METHODS.filter(function (x) { return x.v === v; })[0]; return m ? m.label : v; }

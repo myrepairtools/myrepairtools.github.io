@@ -254,13 +254,15 @@
             setTimeout(function () { bypass = false; }, 1500);
         };
         if (noteText) {
-            // Land the note BEFORE the status change navigates the page away
-            // (keepalive can't be trusted from a content script — see writeNote).
-            // Capped so a hung request can never hold the button hostage.
+            // Land the note BEFORE the status change navigates the page away.
+            // The bg.js path survives navigation anyway, so the cap firing
+            // early doesn't lose the note — this wait just favors the note
+            // being visible when the page comes back. Capped so a hung
+            // request can never hold the button hostage.
             var done = false;
             var once = function () { if (!done) { done = true; go(); } };
             writeNote(noteText).then(once, once);
-            setTimeout(once, 1200);
+            setTimeout(once, 2600);
         } else {
             go();
         }
@@ -354,11 +356,12 @@
     }
 
     // Every automated send gets logged on the ticket itself (Kade's rule) —
-    // the note is the record techs actually read. NO keepalive: Chrome
-    // attributes keepalive fetches from content scripts to the extension's
-    // origin, so the "same-origin" request CORS-fails and the note silently
-    // never lands (why ready-for-pickup notes were missing for weeks).
-    // Instead proceed() holds the status-change click until this settles.
+    // the note is the record techs actually read. The write goes through
+    // bg.js ('note:save'): the service worker outlives the page turn that
+    // follows the status change, so navigation can't kill the request the
+    // way it killed content-script fetches (why these notes were missing
+    // for weeks). Page-context fetch stays as the fallback, and a note that
+    // fails BOTH paths files a silent debug row on extension_issues.
     function writeNote(text) {
         // RepairQ's DB is 3-byte MySQL utf8: a 4-byte char (most emoji) silently
         // truncates the note from that char on — a leading emoji stores a BLANK
@@ -367,15 +370,39 @@
         if (!text) return Promise.resolve();   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
         var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
         var id = ticketNo();
-        if (!csrf || !id) return Promise.resolve();
-        var body = new URLSearchParams({
-            YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0',
+        if (!csrf || !id) { noteDebug('skipped: csrf=' + !!csrf + ' ticket=' + (id || 'none')); return Promise.resolve(); }
+        return new Promise(function (resolve) {
+            var fallback = function (why) {
+                fetch('/ajax/ticketNote/save', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+                    body: new URLSearchParams({ YII_CSRF_TOKEN: csrf, ticketId: id, note: text, print: '0', important: '0' }).toString(),
+                }).then(function (r) { return r.text().then(function (t) {
+                    if (!(r.ok && /"success"\s*:\s*true/.test(t))) noteDebug('bg: ' + why + ' | page: HTTP ' + r.status + ' ' + String(t).slice(0, 140));
+                    resolve();
+                }); }).catch(function (e) { noteDebug('bg: ' + why + ' | page: ' + String(e && e.message || e)); resolve(); });
+            };
+            try {
+                chrome.runtime.sendMessage({ type: 'note:save', payload: { ticketId: id, note: text, csrf: csrf } }, function (res) {
+                    if (chrome.runtime.lastError) return fallback(chrome.runtime.lastError.message);
+                    if (res && res.ok) return resolve();
+                    fallback((res && (res.error || ('HTTP ' + res.status + ' ' + (res.body || '')))) || 'no response');
+                });
+            } catch (e) { fallback(String(e && e.message || e)); }
         });
-        return fetch('/ajax/ticketNote/save', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
-            body: body.toString(),
-        }).catch(function () { /* log only */ });
+    }
+
+    // both write paths failed — file a silent debug row so it's diagnosable
+    // remotely (report-issue kind:'debug' skips the owner SMS)
+    function noteDebug(detail) {
+        try {
+            chrome.runtime.sendMessage({ type: 'issue:report', payload: {
+                kind: 'debug', message: 'readyText writeNote: ' + detail,
+                ticket_no: ticketNo(), url: location.href.slice(0, 180),
+                store: storeName(), reporter: techName() || null,
+                ext_version: (chrome.runtime.getManifest() || {}).version,
+            } }, function () { void chrome.runtime.lastError; });
+        } catch (e) { /* diagnostics only */ }
     }
 
     function fn(action, payload) {

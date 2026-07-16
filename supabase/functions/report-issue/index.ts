@@ -30,7 +30,11 @@ Deno.serve(async (req) => {
   const message = String(p?.message || "").trim();
   if (!message) return json({ ok: false, error: "message required" }, 400);
 
-  const row = {
+  // kind:'debug' = extension self-diagnostics (e.g. a note write that failed
+  // both paths) — logged for remote inspection, never texted to the owner
+  const isDebug = p?.kind === "debug";
+
+  const row: Record<string, unknown> = {
     message,
     store: p?.store || null,
     reporter: p?.reporter || null,
@@ -39,9 +43,12 @@ Deno.serve(async (req) => {
     ext_version: p?.ext_version || null,
     user_agent: p?.user_agent || null,
   };
+  if (isDebug) row.status = "debug";
 
   const { data, error } = await admin.from("extension_issues").insert(row).select("id").single();
   if (error) return json({ ok: false, error: error.message }, 500);
+
+  if (isDebug) return json({ ok: true, id: data.id });
 
   // fire the owner alert (best-effort — a texting hiccup must not lose the report)
   let sms: any = null;
