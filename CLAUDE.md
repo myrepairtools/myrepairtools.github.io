@@ -549,7 +549,14 @@ OFF** because it signs forms), and Clock Guard (blocks early clock-in, configura
 time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). Install unpacked or publish to the
 Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
 the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
-sync.
+sync. **RepairQ ticket notes must be 3-byte-utf8-safe:** RepairQ's MySQL silently
+truncates a note at the first 4-byte char (most emoji), so an emoji-PREFIXED note
+stores completely blank — and a blank note blocks the whole ticket from saving
+(the v2.5.80 Eugene incident). Every extension `writeNote` strips astral chars
+before posting and note prefixes stay ASCII/BMP (✔ ⚠ ⛔ are safe; 📣 🛡 are not).
+Safety net: `repairq-query`'s `sweep_blank_notes` action (the
+`repairq-blank-note-sweep` pg_cron, :20/:50 hourly) scans the active ticket list
+and deletes any empty-bodied note.
 
 **Knowledge Base ("the brain"):** `kb_categories` + `kb_articles` (light-markup body —
 same family as Communications, plus # headings, [links](url), ![images](url) from the
