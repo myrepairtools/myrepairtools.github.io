@@ -103,6 +103,31 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return true; // async
 });
 
+/* ---------------- RepairQ ticket-note write (background path) ---------------- */
+// Content-script fetches to /ajax/ticketNote/save have proven flaky (Chrome
+// origin-attribution quirks silently kill them). The service worker has host
+// permission for cpr.repairq.io, so a fetch from HERE rides the tech's own
+// RepairQ session cookies with no CORS in the way. Content scripts message
+// {type:'note:save', payload:{ticketId, note, csrf}}.
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'note:save') return;
+    var p = msg.payload || {};
+    var text = String(p.note == null ? '' : p.note)
+        .replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();   // RepairQ MySQL is 3-byte utf8 — emoji truncate the note to blank
+    if (!text || !p.ticketId || !p.csrf) { sendResponse({ ok: false, error: 'missing note/ticketId/csrf' }); return true; }
+    fetch('https://cpr.repairq.io/ajax/ticketNote/save', {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+        body: new URLSearchParams({ YII_CSRF_TOKEN: p.csrf, ticketId: String(p.ticketId), note: text, print: '0', important: '0' }).toString()
+    }).then(function (r) {
+        return r.text().then(function (t) {
+            var ok = r.ok && /"success"\s*:\s*true/.test(t);
+            sendResponse({ ok: ok, status: r.status, body: ok ? undefined : String(t).slice(0, 200) });
+        });
+    }).catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    return true; // async
+});
+
 /* ---------------- report an extension issue ---------------- */
 // Techs file glitches from a link in RepairQ. The report-issue edge function
 // logs the row to extension_issues AND texts the owner so it surfaces right away.
