@@ -104,27 +104,112 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 });
 
 /* ---------------- RepairQ ticket-note write (background path) ---------------- */
-// Content-script fetches to /ajax/ticketNote/save have proven flaky (Chrome
-// origin-attribution quirks silently kill them). The service worker has host
-// permission for cpr.repairq.io, so a fetch from HERE rides the tech's own
-// RepairQ session cookies with no CORS in the way. Content scripts message
-// {type:'note:save', payload:{ticketId, note, csrf}}.
+// The ticket-note write must survive the page turn that follows a status
+// change, so the SERVICE WORKER owns the whole outcome — the page that asked
+// for it may already be navigating by the time anything resolves:
+//   1) direct SW fetch (host permission → no CORS; session cookies when
+//      Chrome sends them for extension requests)
+//   2) if that fails, wait for the sender tab to finish (re)loading and run
+//      the write FROM the fresh page via chrome.scripting — page context,
+//      cookies + fresh CSRF guaranteed, and nothing navigating anymore
+//   3) if both fail, the SW itself files a kind:'debug' row on
+//      extension_issues so the failure is never invisible
+// Content scripts message {type:'note:save', payload:{ticketId, note, csrf}}.
+
+function noteWaitForTab(tabId, timeoutMs) {
+    return new Promise(function (resolve) {
+        var done = false;
+        var onUp = function (id, info) { if (id === tabId && info.status === 'complete') settle(); };
+        var finish = function () {
+            if (done) return; done = true;
+            try { chrome.tabs.onUpdated.removeListener(onUp); } catch (e) { /* gone */ }
+            resolve();
+        };
+        // small settle delay so the new document's forms (CSRF input) exist
+        var settle = function () { setTimeout(finish, 700); };
+        chrome.tabs.get(tabId, function (tab) {
+            if (chrome.runtime.lastError || !tab) { finish(); return; }
+            chrome.tabs.onUpdated.addListener(onUp);
+            if (tab.status === 'complete') settle();
+        });
+        setTimeout(finish, timeoutMs);
+    });
+}
+
+// runs INSIDE the RepairQ page (chrome.scripting) — plain page-world fetch
+function notePageWrite(ticketId, note) {
+    var el = document.getElementsByName('YII_CSRF_TOKEN')[0];
+    var csrf = el && el.value;
+    if (!csrf) return Promise.resolve({ ok: false, error: 'no csrf on page' });
+    return fetch('/ajax/ticketNote/save', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+        body: new URLSearchParams({ YII_CSRF_TOKEN: csrf, ticketId: ticketId, note: note, print: '0', important: '0' }).toString(),
+    }).then(function (r) {
+        return r.text().then(function (t) {
+            return { ok: r.ok && t.indexOf('"success":true') > -1, status: r.status, body: String(t).slice(0, 180) };
+        });
+    }).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; });
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || msg.type !== 'note:save') return;
     var p = msg.payload || {};
     var text = String(p.note == null ? '' : p.note)
         .replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();   // RepairQ MySQL is 3-byte utf8 — emoji truncate the note to blank
     if (!text || !p.ticketId || !p.csrf) { sendResponse({ ok: false, error: 'missing note/ticketId/csrf' }); return true; }
-    fetch('https://cpr.repairq.io/ajax/ticketNote/save', {
-        method: 'POST', credentials: 'include',
-        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
-        body: new URLSearchParams({ YII_CSRF_TOKEN: p.csrf, ticketId: String(p.ticketId), note: text, print: '0', important: '0' }).toString()
-    }).then(function (r) {
-        return r.text().then(function (t) {
-            var ok = r.ok && /"success"\s*:\s*true/.test(t);
-            sendResponse({ ok: ok, status: r.status, body: ok ? undefined : String(t).slice(0, 200) });
+    var tabId = sender && sender.tab && sender.tab.id;
+    var ticketId = String(p.ticketId);
+
+    var direct = function () {
+        return fetch('https://cpr.repairq.io/ajax/ticketNote/save', {
+            method: 'POST', credentials: 'include',
+            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
+            body: new URLSearchParams({ YII_CSRF_TOKEN: p.csrf, ticketId: ticketId, note: text, print: '0', important: '0' }).toString(),
+        }).then(function (r) {
+            return r.text().then(function (t) {
+                return { ok: r.ok && /"success"\s*:\s*true/.test(t), status: r.status, body: String(t).slice(0, 180) };
+            });
+        }).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; });
+    };
+
+    var inTab = function () {
+        if (!tabId) return Promise.resolve({ ok: false, error: 'no sender tab' });
+        return noteWaitForTab(tabId, 15000).then(function () {
+            return chrome.scripting.executeScript({
+                target: { tabId: tabId }, func: notePageWrite, args: [ticketId, text],
+            }).then(function (res) {
+                return (res && res[0] && res[0].result) || { ok: false, error: 'no executeScript result' };
+            });
+        }).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; });
+    };
+
+    var debugRow = function (detail) {
+        fetch(SB_FN + '/report-issue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': SB_ANON, 'Authorization': 'Bearer ' + SB_ANON },
+            body: JSON.stringify({
+                kind: 'debug', message: 'bg note:save: ' + detail,
+                ticket_no: ticketId, ext_version: chrome.runtime.getManifest().version,
+            }),
+        }).catch(function () { /* diagnostics only */ });
+    };
+
+    var respond = function (r) { try { sendResponse(r); } catch (e) { /* page gone — fine */ } };
+
+    direct().then(function (r1) {
+        if (r1.ok) { respond({ ok: true, path: 'direct' }); return; }
+        inTab().then(function (r2) {
+            if (r2.ok) { respond({ ok: true, path: 'tab' }); return; }
+            // one more chance: the first in-tab try can be killed by the very
+            // navigation we're dodging — wait out the reload and try again
+            inTab().then(function (r3) {
+                if (r3.ok) { respond({ ok: true, path: 'tab2' }); return; }
+                debugRow('direct=' + JSON.stringify(r1) + ' tab=' + JSON.stringify(r2) + ' tab2=' + JSON.stringify(r3));
+                respond({ ok: false, direct: r1, tab: r3 });
+            });
         });
-    }).catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
+    });
     return true; // async
 });
 
