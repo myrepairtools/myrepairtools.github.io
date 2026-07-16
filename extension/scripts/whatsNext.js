@@ -265,6 +265,33 @@
         if (form) form.insertBefore(btn, form.firstChild);
         else navSpot.parentElement.insertBefore(btn, navSpot);
 
+        // RepairQ's own header buttons (Price Check etc.) are floats that WRAP
+        // onto a hidden second line when the row overflows — they look "missing".
+        // Measure the truth and yield: drop our label first, then the whole
+        // button, so RepairQ's natives always win. Runs a beat after resize so
+        // the promise-time pill (which yields first) has already settled.
+        function headerCramped() {
+            var go = document.getElementById('quickSearchBtn');
+            var pc = document.querySelector('a[href="#priceCheck"]');
+            if (!go || !pc) return false;
+            var a = go.getBoundingClientRect(), b = pc.getBoundingClientRect();
+            if (!a.height || !b.height) return false;
+            return (b.top - a.top) > 20;
+        }
+        function fitBtn() {
+            var lbl = btn.querySelector('.mrt-wn-btnlbl');
+            btn.style.display = '';
+            if (lbl) lbl.style.display = '';
+            if (!headerCramped()) return;
+            if (lbl) lbl.style.display = 'none';      // stage 1: icon-only
+            requestAnimationFrame(function () {
+                if (headerCramped()) btn.style.display = 'none';   // stage 2: yield fully
+            });
+        }
+        setTimeout(fitBtn, 400);
+        var wnFitT = null;
+        window.addEventListener('resize', function () { clearTimeout(wnFitT); wnFitT = setTimeout(fitBtn, 450); });
+
         overlay = document.createElement('div');
         overlay.className = 'mrt-wn-overlay';
         overlay.innerHTML =

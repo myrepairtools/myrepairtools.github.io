@@ -475,15 +475,36 @@
             document.body.appendChild(pill);
         }
 
+        // RepairQ's own header buttons (Price Check etc.) are floats — when the
+        // row overflows they WRAP onto a hidden second line and look "missing"
+        // (Ben's small-laptop report). Media queries can't know every machine,
+        // so measure the truth: if RepairQ's Price Check button sits on a lower
+        // line than the search Go button, the row is cramped and the pill yields.
+        function headerCramped() {
+            var go = document.getElementById('quickSearchBtn');
+            var pc = document.querySelector('a[href="#priceCheck"]');
+            if (!go || !pc) return false;
+            var a = go.getBoundingClientRect(), b = pc.getBoundingClientRect();
+            if (!a.height || !b.height) return false;   // one of them hidden — can't judge
+            return (b.top - a.top) > 20;                // wrapped to a second line
+        }
+        function fitPill() {
+            if (!pill || !pill.classList.contains('mrt-pt-inrow')) return;
+            if (pill.style.display === 'none') return;  // already hidden by tick/lock
+            if (headerCramped()) pill.style.display = 'none';
+        }
         function tick() {
             if (!document.querySelector('.mrt-pt-pill')) return;
             if (isLockedOut()) { pill.style.display = 'none'; return; }   // hide over lock/login
             var html = pillText();
             if (html) { pill.innerHTML = html; pill.style.display = ''; }
             else pill.style.display = 'none';
+            requestAnimationFrame(fitPill);
         }
         getSnapshot().then(tick);
         setInterval(tick, 60000);                       // the clock keeps walking
+        var fitT = null;
+        window.addEventListener('resize', function () { clearTimeout(fitT); fitT = setTimeout(tick, 200); });
         // re-evaluate the instant RepairQ locks or unlocks (body class toggles)
         try { new MutationObserver(tick).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
         try {                                           // any tab's refresh updates every tab
