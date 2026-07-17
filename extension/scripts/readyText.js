@@ -324,15 +324,19 @@
                 if (act === 'text') {
                     var num = b.getAttribute('data-num');
                     b.innerHTML = 'Sending…'; b.disabled = true;
+                    // The confirmation note rides the send payload — the
+                    // messaging function writes it to the ticket SERVER-SIDE
+                    // after the text goes out (the browser could never win the
+                    // race against the page reload). No browser writeNote here.
                     var payload = {
                         to: num, body: defaultMessage(c), ticket_no: ticketNo(), store: storeName(),
                         template_key: 'ready_for_pickup', agent_name: techName(),
+                        note: 'Ready-for-pickup text sent to ' + pretty(num) + ' - myRepairTools (' + (techName() || 'staff') + ')',
                     };
                     sendSms(payload, function (res) {
                         var ok = res && res.ok;
                         b.innerHTML = ok ? '✓ Sent' : (((res && res.error) || 'Failed') + ' — proceeding');
-                        var note = ok ? 'Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')' : null;
-                        setTimeout(function () { proceed(btn, note); }, ok ? 550 : 1400);
+                        setTimeout(function () { proceed(btn); }, ok ? 550 : 1400);
                     });
                 } else if (act === 'call') {
                     infoToast('Call the customer: <b>' + pretty(b.getAttribute('data-num')) + '</b>', 4200);
@@ -489,13 +493,19 @@
                 setTimeout(function () { toast.remove(); proceed(btn); }, 2200);
             }
         } else {
-            sendSms({ to: num, body: defaultMessage({ first: first }), ticket_no: ticketNo(), store: storeName(), template_key: 'ready_for_pickup', agent_name: techName() }, function (res) {
+            // The confirmation note rides the send payload → messaging writes
+            // it to the ticket server-side once the text is out. Browser writeNote
+            // stays ONLY for the failure case (no server send to hang it off).
+            sendSms({
+                to: num, body: defaultMessage({ first: first }), ticket_no: ticketNo(), store: storeName(),
+                template_key: 'ready_for_pickup', agent_name: techName(),
+                note: 'Ready-for-pickup text sent to ' + pretty(num) + ' - myRepairTools (' + (techName() || 'staff') + ')',
+            }, function (res) {
                 var ok = res && res.ok;
-                crumb('sent', ok ? 'ok' : 'fail ' + ((res && res.error) || '?'));
+                crumb('sent', ok ? 'ok (server note)' : 'fail ' + ((res && res.error) || '?'));
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
-                var note = ok
-                    ? 'Ready-for-pickup text sent to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
-                    : 'Ready for pickup — automated text to ' + pretty(num) + ' did not send — myRepairTools (' + (techName() || 'staff') + ')';
+                var note = ok ? null
+                    : 'Ready for pickup - automated text to ' + pretty(num) + ' did not send - myRepairTools (' + (techName() || 'staff') + ')';
                 setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 1500);
             });
         }

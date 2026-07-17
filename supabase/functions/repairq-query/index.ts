@@ -1396,6 +1396,30 @@ Deno.serve(async (req) => {
       });
       return json({ ok: r.status >= 200 && r.status < 300, status: r.status, location: (r as any).location || null, data: r.json ?? null, body: r.json ? undefined : r.body });
     }
+    if (payload?.action === "note_add") {
+      // Write a ticket note SERVER-SIDE with our own authenticated session.
+      // The browser/extension path fought a losing battle with the page-reload
+      // that follows a status change (cookies dropped, requests killed mid-flight).
+      // Here there is no browser: fetch the ticket to mint a CSRF that matches
+      // OUR session, then POST the note. Rock-solid — same path used to clean
+      // notes all along. { ticket_no, note }.
+      const ticket = String(payload?.ticket_no || "").replace(/\D/g, "");
+      // RepairQ MySQL is 3-byte utf8 — a 4-byte char truncates the note (a
+      // leading emoji stores blank and bricks the ticket save). Strip them.
+      const noteText = String(payload?.note ?? "").replace(/[\u{10000}-\u{10FFFF}]/gu, "").trim();
+      if (!ticket) return json({ ok: false, error: "ticket_no required" }, 400);
+      if (!noteText) return json({ ok: false, error: "note empty (blank notes are rejected)" }, 400);
+      const pg = await rqRequest({ path: `/ticket/${ticket}`, method: "GET", headers: { accept: "text/html,*/*", "x-requested-with": "" } });
+      if (pg.status !== 200) return json({ ok: false, error: `ticket fetch ${pg.status}` }, 502);
+      const csrf = (pg.body.match(/value="([^"]+)" name="YII_CSRF_TOKEN"/) || pg.body.match(/name="YII_CSRF_TOKEN"[^>]*value="([^"]+)"/) || [])[1];
+      if (!csrf) return json({ ok: false, error: "no CSRF on ticket page" }, 502);
+      const save = await rqRequest({
+        method: "POST", path: "/ajax/ticketNote/save",
+        form: { YII_CSRF_TOKEN: csrf, ticketId: ticket, note: noteText, print: "0", important: "0" },
+      });
+      const saved = !!(save.json && save.json.success === true && save.json.note && save.json.note.id);
+      return json({ ok: saved, status: save.status, note_id: saved ? save.json.note.id : null, error: saved ? undefined : "save not confirmed" }, saved ? 200 : 502);
+    }
     if (payload?.action === "sweep_blank_notes") {
       // Blank-note janitor. RepairQ's 3-byte MySQL utf8 truncates notes at the
       // first 4-byte char, so emoji-prefixed extension notes stored as EMPTY —
