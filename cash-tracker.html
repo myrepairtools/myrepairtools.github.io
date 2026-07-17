@@ -507,7 +507,21 @@ function autoTinFor(till){
     return e.Operation==='Transfer' && e.ToLocation===till && String(e.Date)===today;
   }).reduce(function(s,e){return s+num(e.Amount);},0)*100)/100;
 }
-function prefillOpening(){var ob=$('#enOpening');if(ob){var t=$('#enVct')?$('#enVct').value:STATE.vct;ob.value=(computeBalances()[t]||0).toFixed(2);}}
+// The close form's opening balance = today's OPEN count for this till — NOT
+// the live computed balance, which already reflects the day's transfers and
+// payouts. Those belong in the Transfer In/Out boxes, so pulling the live
+// balance here counted them twice in Expected (the $20-window-cleaner bug).
+// Live balance stays as the fallback for a drawer never formally opened today.
+function prefillOpening(){
+  var ob=$('#enOpening'); if(!ob) return;
+  var t=$('#enVct')?$('#enVct').value:STATE.vct, today=todayISO(), open=null;
+  STATE.entries.forEach(function(e){
+    if(e.Operation==='Open' && e.Location===t && String(e.Date)===today && e.Counted!=='' && e.Counted!=null){
+      if(!open || Number(e.Id)>Number(open.Id)) open=e;
+    }
+  });
+  ob.value=(open?num(open.Counted):(computeBalances()[t]||0)).toFixed(2);
+}
 function denomTotal(){var t=0;$all('#enDenoms input').forEach(function(i){var c=num(i.value);t+=c*Number(i.dataset.v);var s=document.querySelector('[data-sub="'+i.dataset.k+'"]');if(s)s.textContent=c>0?money(c*Number(i.dataset.v)):'';});return Math.round(t*100)/100;}
 function rqVals(){var till=$('#enVct')?$('#enVct').value:STATE.vct;return {opening:num(($('#enOpening')||{}).value),payments:num(($('#enPayments')||{}).value),returns:num(($('#enReturns')||{}).value),payouts:num(($('#enPayouts')||{}).value),tin:num(($('#enTin')||{}).value),tout:num(($('#enTout')||{}).value)};}
 function rqExpected(v){return v.opening+v.payments-v.returns-v.payouts+v.tin-v.tout;}
