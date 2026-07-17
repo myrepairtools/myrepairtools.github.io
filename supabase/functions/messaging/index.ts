@@ -339,7 +339,27 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
     sent_by_name: sentBy.name || payload?.agent_name || null,
   });
 
+  // Log the outreach on the RepairQ ticket SERVER-SIDE. The browser could never
+  // land this note reliably — it raced the page reload that follows the status
+  // change. Here it's a plain authenticated server post via repairq-query;
+  // fire-and-forget so a note hiccup never fails the (already-sent) text.
+  if (ok && payload?.ticket_no && payload?.note) {
+    writeTicketNote(payload.ticket_no, payload.note).catch(() => {});
+  }
+
   return ok ? json({ ok: true, id: rcId, to, from: sentFrom, store }) : json({ ok: false, error: err }, 502);
+}
+
+// Post a note to a RepairQ ticket through repairq-query's authenticated session.
+async function writeTicketNote(ticketNo: string, note: string) {
+  const secret = Deno.env.get("REPAIRQ_PROXY_SECRET");
+  if (!secret) return;
+  const url = `${SB_URL}/functions/v1/repairq-query`;
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-cpr-rq-secret": secret, "apikey": SB_SERVICE, "Authorization": `Bearer ${SB_SERVICE}` },
+    body: JSON.stringify({ action: "note_add", ticket_no: ticketNo, note }),
+  });
 }
 
 const SELF_URL = `${SB_URL.replace(".supabase.co", ".functions.supabase.co")}/messaging`;
