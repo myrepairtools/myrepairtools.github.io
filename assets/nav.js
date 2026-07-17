@@ -91,6 +91,7 @@
   // (No `acc` yet — there's no 'reports.view' permission in the catalog, and canSee(acc)
   // would filter every report out of the list. The rail icon is rank-gated; pages gate by role.)
   var REPORTS = [
+    { label:'Google Traffic',  url:'google-traffic.html',  icon:'map-pin', minRole:'admin' },
     { label:'Overtime Report', url:'report-overtime.html', icon:'timer', minRole:'admin' }
   ];
   // Employees — people management (managers/owner): roster, scheduling, time off.

@@ -224,6 +224,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/team-hours-summary.js"></script>
 <script src="assets/holiday-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
+<script src="assets/gbp-summary.js"></script>
 <script src="assets/celebrations-summary.js"></script>
 <script src="assets/comms.js"></script>
 <script>
@@ -349,6 +350,13 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       can:function(){ return rank()>=RANK.manager; },
       render:function(){ return '<div data-hol-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
       mount:function(bd){ loadHolidayCheck(bd); } },
+
+    { id:'greviews', title:'Google Reviews', icon:'⭐', accent:'blue', defaultSize:'narrow',
+      desc:'Store ratings and unanswered Google reviews — synced nightly from your Business Profiles.',
+      link:{href:'google-traffic.html',x:'Open →'},
+      can:function(){ return rank()>=RANK.manager; },
+      render:function(){ return '<div data-gr-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
+      mount:function(bd){ loadGbpReviews(bd); } },
 
     { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
       desc:'Till & safe balances — managers only.', tag:{t:'preview',x:'Preview'},
@@ -641,6 +649,39 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       function wire(){ body.querySelectorAll('[data-th-store]').forEach(function(b){ b.onclick=function(){ var v=b.getAttribute('data-th-store'); try{localStorage.setItem('cprTeamHoursStore',v);}catch(e){} draw(v); }; }); }
       draw(sel);
     }, function(){});
+  }
+
+  function loadGbpReviews(bd){
+    if(!window.CPRGbp || !window.CPRGbp.snapshot) return;
+    var body=bd.querySelector('[data-gr-body]'); if(!body) return;
+    window.CPRGbp.snapshot().then(function(d){
+      if(!body) return;
+      if(!d){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">Sign in to see Google reviews.</div></div>'; return; }
+      if(!d.stores.length){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">Google isn’t connected yet.</div><div class="es">Open Google Traffic for the setup steps.</div></div>'; return; }
+      var ratings=d.stores.map(function(s){
+        var short=(window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s.store):s.store;
+        return '<span style="white-space:nowrap"><b>'+esc(short)+'</b> ⭐'+(s.rating!=null?Number(s.rating).toFixed(1):'—')+'</span>';
+      }).join('<span style="color:var(--grey)"> · </span>');
+      var un;
+      if(d.unanswered.count>0){
+        var late=d.unanswered.oldestHours>=24;
+        un='<div class="hoursline" style="display:flex;align-items:center;gap:8px;margin-top:9px">'
+          +'<span style="width:7px;height:7px;border-radius:50%;background:'+(late?'#DC282E':'#C9820B')+';flex:none"></span>'
+          +'<span class="hl" style="flex:1"><b>'+d.unanswered.count+' unanswered</b> · oldest '+d.unanswered.oldestHours+'h'+(late?' ⚠':'')+'</span></div>';
+      } else {
+        un='<div class="hoursline" style="margin-top:9px"><span class="hl" style="color:var(--green);font-weight:800">✓ Every review answered</span></div>';
+      }
+      var nw='';
+      if(d.newest){
+        var n=Math.max(0,Math.min(5,Number(d.newest.stars)||0));
+        var txt=String(d.newest.comment||'(rating only)');
+        nw='<div style="margin-top:8px;font-size:.78rem;color:var(--dark-grey);line-height:1.45">'
+          +'<span style="color:#E2A63C;letter-spacing:1px">'+('★★★★★'.slice(0,n))+'</span> '
+          +esc(txt.length>110?txt.slice(0,110)+'…':txt)
+          +' <span style="color:var(--grey);font-weight:700">— '+esc(d.newest.reviewer||'Anonymous')+'</span></div>';
+      }
+      body.innerHTML='<div style="font-size:.8rem;display:flex;gap:4px;flex-wrap:wrap">'+ratings+'</div>'+un+nw;
+    });
   }
 
   function loadHolidayCheck(bd){
