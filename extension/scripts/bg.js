@@ -136,6 +136,19 @@ function noteWaitForTab(tabId, timeoutMs) {
     });
 }
 
+// A real ticketNote/save returns JSON {"success":true,"note":{"id":…}}. An
+// UNAUTHENTICATED request (the SW direct path — Chrome doesn't attach RepairQ's
+// session cookie to extension-initiated fetches) bounces to a login page whose
+// HTML can loosely contain "success":true and false-match a substring test. So
+// require real proof: parse JSON and confirm a saved note object with an id.
+function noteSaved(status, bodyText) {
+    if (!(status >= 200 && status < 300)) return false;
+    try {
+        var d = JSON.parse(bodyText);
+        return !!(d && d.success === true && d.note && d.note.id);
+    } catch (e) { return false; }   // HTML (login/redirect) → not a save
+}
+
 // runs INSIDE the RepairQ page (chrome.scripting) — plain page-world fetch
 function notePageWrite(ticketId, note) {
     var el = document.getElementsByName('YII_CSRF_TOKEN')[0];
@@ -147,7 +160,9 @@ function notePageWrite(ticketId, note) {
         body: new URLSearchParams({ YII_CSRF_TOKEN: csrf, ticketId: ticketId, note: note, print: '0', important: '0' }).toString(),
     }).then(function (r) {
         return r.text().then(function (t) {
-            return { ok: r.ok && t.indexOf('"success":true') > -1, status: r.status, body: String(t).slice(0, 180) };
+            var ok = false;
+            try { var d = JSON.parse(t); ok = !!(d && d.success === true && d.note && d.note.id); } catch (e) { ok = false; }
+            return { ok: ok, status: r.status, body: String(t).slice(0, 180) };
         });
     }).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; });
 }
@@ -168,7 +183,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
             body: new URLSearchParams({ YII_CSRF_TOKEN: p.csrf, ticketId: ticketId, note: text, print: '0', important: '0' }).toString(),
         }).then(function (r) {
             return r.text().then(function (t) {
-                return { ok: r.ok && /"success"\s*:\s*true/.test(t), status: r.status, body: String(t).slice(0, 180) };
+                return { ok: noteSaved(r.status, t), status: r.status, body: String(t).slice(0, 180) };
             });
         }).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; });
     };
