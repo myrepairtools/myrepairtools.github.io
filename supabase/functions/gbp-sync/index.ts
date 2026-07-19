@@ -154,11 +154,16 @@ async function discover() {
   for (const a of accounts) {
     let pageToken = "";
     do {
-      const q = `${INFO}${a.name}/locations?readMask=name,title,metadata&pageSize=100` +
+      const q = `${INFO}${a.name}/locations?readMask=name,title,metadata,storefrontAddress&pageSize=100` +
         (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "");
       const d = await gGet(q);
       for (const l of (d.locations || []) as Record<string, any>[]) {
-        const store = await resolveStore(String(l.title || ""));
+        // Titles can be identical across listings ("CPR Cell Phone Repair"), so the
+        // storefront address (city etc.) is part of the match text.
+        const addr = (l.storefrontAddress || {}) as Record<string, any>;
+        const addrText = [...(addr.addressLines || []), addr.locality, addr.administrativeArea]
+          .filter(Boolean).join(" ");
+        const store = await resolveStore(`${l.title || ""} ${addrText}`);
         const meta = (l.metadata || {}) as Record<string, string>;
         if (store) {
           mapped.push({
@@ -166,7 +171,7 @@ async function discover() {
             place_id: meta.placeId || null, new_review_uri: meta.newReviewUri || null,
             maps_uri: meta.mapsUri || null, title: String(l.title || ""),
           });
-        } else unmatched.push(String(l.title || l.name));
+        } else unmatched.push(`${l.title || l.name}${addrText ? ` (${addrText})` : ""}`);
       }
       pageToken = String(d.nextPageToken || "");
     } while (pageToken);

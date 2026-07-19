@@ -30,6 +30,17 @@ Britt's private note holds the four secret **values**: client ID (also above, pu
 client secret (`GOCSPX-…`), refresh token, and the chosen `GBP_SYNC_SECRET`. Ask him to
 paste them where needed — never commit them to this repo.
 
+## DEPLOYED 2026-07-19 — the runbook below is DONE
+
+Phase 1 is live: secrets set, schema applied, `gbp-sync` deployed (JWT off), both
+crons installed, all 3 stores mapped, 18-month backfill complete (11,193 metric rows,
+4,256 keyword rows, 2,102 reviews; `last_error` null everywhere). One gotcha found:
+all three Google listings share the title "CPR Cell Phone Repair", so discover now
+also matches on `storefrontAddress` — and the Clackamas listing's address city is
+**Happy Valley**, which matches no store keyword, so its `gbp_locations` row was
+mapped manually (it persists; discover never overwrites unmatched stores' rows).
+Remaining: load `google-traffic.html` as a manager and eyeball the tabs (step 7).
+
 ## What REMAINS — the deploy runbook (~15 min, mostly Claude)
 
 Supabase project: **`xuvsehrevxackuhmbmry`** (same project as every other tool here).
