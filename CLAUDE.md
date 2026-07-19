@@ -585,6 +585,31 @@ committed). Nag reminders for unacknowledged required reading are deliberately d
 to the notifications project. Importing existing docs: give them to Claude in a session —
 it converts and inserts articles directly.
 
+**Google Traffic (GBP, Phase 1 "Measure"):** nightly pull of each store's Google
+Business Profile data into `gbp_*` tables (`gbp_locations`, `gbp_metrics_daily` +
+`gbp_metrics_monthly` view, `gbp_keywords_monthly`, `gbp_reviews` + `gbp_review_stats`
+view, `gbp_profile_snapshots`, `gbp_audit`; schema docs/sql/2026-07-10-gbp-schema.sql)
+via the **`gbp-sync` edge function** (secrets `GBP_CLIENT_ID`/`GBP_CLIENT_SECRET`/
+`GBP_REFRESH_TOKEN`/`GBP_SYNC_SECRET`; deployed with JWT verification OFF — it auths
+by `?secret=` like square-tips; actions discover/backfill/pull/keywords/status with
+per-store per-stage fault tolerance writing `gbp_locations.last_error`). Data
+realities: metrics lag 3–5 days (the nightly cron re-pulls a 10-day window; UI shows
+a "data through" stamp, never zeros for lag days); keywords are monthly, published
+after month end ("<15" is a Google threshold value, rendered as such); reviews come
+from the legacy **v4** API only (full-list pull each sync → edit upserts by Google
+review id + soft-delete detection); branded-vs-discovery is OUR derived keyword
+classification (contains "cpr" = branded, bare city term = unclassified). Surfaces:
+`google-traffic.html` (Reports nav, minRole admin — Compare / Trends / Keywords
+(benchmark diff view) / Reviews tabs, pickers.js month nav, `.storesel` store
+dropdown, hand-rolled SVG trend chart; store series colors come from CPRLocations
+order: blue/red/dark then amber/green) + the dashboard **Google Reviews** widget
+(`assets/gbp-summary.js`, `window.CPRGbp.summary()` — all staff; RLS read is
+authenticated on core tables, manager-only on snapshots/audit; all writes are
+service-role via the edge function only). Phase 2 (review requests + AI-drafted,
+human-approved reply queue) and Phase 3 (photo queue, hours/services push, weekly
+scorecard) are planned in docs/GBP_DESIGN_HANDOFF.md; the deploy runbook lives in
+docs/GBP_SESSION_HANDOFF.md.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);

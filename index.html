@@ -224,6 +224,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/team-hours-summary.js"></script>
 <script src="assets/holiday-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
+<script src="assets/gbp-summary.js"></script>
 <script src="assets/celebrations-summary.js"></script>
 <script src="assets/comms.js"></script>
 <script>
@@ -335,6 +336,16 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'<ul class="lb" data-lb-list></ul>'
         +'<div class="empty" data-lb-empty style="display:none;padding:14px 4px"><div class="et">No sales recorded yet this month.</div></div>'; },
       mount:function(bd,el){ loadLeaderboard(bd,el); } },
+
+    { id:'greviews', title:'Google Reviews', icon:'🔍', accent:'blue', defaultSize:'narrow',
+      desc:'Per-store Google ratings, unanswered reviews, and the newest review.',
+      link:{href:'google-traffic.html#reviews',x:'Open Google Traffic →'},
+      render:function(){ return ''
+        +'<div data-gr-stores class="hoursline" style="display:none;flex-wrap:wrap;gap:4px 10px"></div>'
+        +'<div data-gr-unans style="display:none"></div>'
+        +'<div data-gr-newest style="display:none"></div>'
+        +'<div class="empty" data-gr-empty style="display:none;padding:14px 4px"><div class="et" data-gr-msg>No Google data yet.</div></div>'; },
+      mount:function(bd){ loadGreviews(bd); } },
 
     { id:'teamhours', title:'Team Hours', icon:'⏱️', accent:'amber', defaultSize:'wide',
       desc:'Worked hours, shifts left, and projected total/OT this week — filter by store.',
@@ -601,6 +612,34 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       if(list) list.innerHTML = s.balances.map(function(b){
         return '<div class="hoursline" style="display:flex"><span class="hl">'+esc(b.name)+'</span><span class="hv">'+(Number(b.hours)||0).toFixed(1)+' hrs</span></div>';
       }).join('');
+    }, function(){});
+  }
+
+  function loadGreviews(bd){
+    if(!window.CPRGbp || !window.CPRGbp.summary){ return; }
+    window.CPRGbp.summary().then(function(s){
+      var st=bd.querySelector('[data-gr-stores]'), un=bd.querySelector('[data-gr-unans]'),
+          nw=bd.querySelector('[data-gr-newest]'), em=bd.querySelector('[data-gr-empty]'), msg=bd.querySelector('[data-gr-msg]');
+      if(!s || !s.stores || !s.stores.length){ if(em)em.style.display='block'; if(msg)msg.textContent='No Google review data yet.'; return; }
+      if(em)em.style.display='none';
+      var disp=function(x){ return (window.CPRLocations&&CPRLocations.display)?CPRLocations.display(x):x; };
+      if(st){ st.style.display='flex'; st.innerHTML=s.stores.map(function(x){
+        return '<span class="hl" style="white-space:nowrap">'+esc(disp(x.store))+' <b style="color:var(--dark)">⭐'+(x.rating!=null?x.rating.toFixed(1):'—')+'</b></span>';
+      }).join(''); }
+      if(un){
+        if(s.unanswered>0){
+          var ageMs=s.oldestUnansweredAt?Date.now()-new Date(s.oldestUnansweredAt).getTime():0, ageH=Math.round(ageMs/36e5);
+          var age=ageH>=48?Math.round(ageH/24)+'d':ageH+'h';
+          un.style.display='block';
+          un.innerHTML='<div class="hoursline" style="display:flex"><span class="hl" style="color:var(--red);font-weight:800">● '+s.unanswered+' unanswered</span><span class="hv" style="color:'+(ageH>=24?'var(--red)':'var(--amber,#C98A00)')+'">oldest '+age+(ageH>=24?' ⚠':'')+'</span></div>';
+        } else { un.style.display='block'; un.innerHTML='<div class="hoursline" style="display:flex"><span class="hl" style="color:var(--green,#2E9E5B)">✓ All reviews answered</span></div>'; }
+      }
+      if(nw && s.newest){
+        var stars=''; for(var i=0;i<5;i++) stars+= i<Number(s.newest.stars)?'★':'☆';
+        var text=(s.newest.comment||'').length>90?(s.newest.comment.slice(0,90)+'…'):(s.newest.comment||'(no text)');
+        nw.style.display='block';
+        nw.innerHTML='<div style="margin-top:7px;font-size:.78rem;font-weight:600;color:var(--dark-grey,#4E4E50);line-height:1.45">“'+esc(text)+'” <span style="color:#C98A00;white-space:nowrap">'+stars+'</span> · '+esc(disp(s.newest.store))+'</div>';
+      }
     }, function(){});
   }
 

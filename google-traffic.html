@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Traffic — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C98A00;--white:#fff;
+--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:1240px;margin:0 auto;padding:24px 28px 70px}
+.titlerow{display:flex;align-items:center;gap:9px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
+.mgrtag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;letter-spacing:.4px;text-transform:uppercase;
+color:var(--blue);border:1px solid #CFE7F5;background:#EFF8FD;border-radius:5px;padding:2px 6px}
+.sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin-top:2px}
+
+.hd{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.hd .spacer{flex:1}
+.fldl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--dark-grey);margin-bottom:4px}
+.storesel{width:196px;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.92rem;color:var(--dark);cursor:pointer}
+.storesel:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.mnav{display:inline-flex;align-items:stretch;height:36px;background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+.mbtn{width:34px;border:none;background:transparent;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark-grey);cursor:pointer}
+.mbtn:hover{background:rgba(79,176,227,.1);color:var(--blue)}
+.mbtn:disabled{opacity:.35;cursor:default}
+.mbtn:first-child{border-right:1.5px solid var(--border)}
+.mbtn:last-child{border-left:1.5px solid var(--border)}
+.mlbl{display:flex;align-items:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;color:var(--dark);padding:0 13px;cursor:pointer;white-space:nowrap}
+.mlbl:hover{background:rgba(79,176,227,.08)}
+
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;border:1.5px solid var(--border);border-radius:10px;
+background:#fff;color:var(--dark-grey);padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.tab:hover{border-color:var(--blue);color:var(--blue)}
+.tab.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+.tbadge{font-size:.62rem;font-weight:900;background:var(--red);color:#fff;border-radius:999px;min-width:17px;height:17px;
+display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+
+.banner{background:#FDF2F2;border:1px solid #F6C9CA;border-radius:11px;padding:10px 14px;margin-bottom:14px;
+font-size:.8rem;font-weight:700;color:#8f1d20}
+.banner b{font-family:'Nunito',sans-serif}
+
+/* Compare cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:12px}
+.scard{background:#fff;border:1px solid var(--border);border-top:4px solid var(--grey);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow)}
+.scard h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.dot{width:10px;height:10px;border-radius:50%}
+.srow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:3.5px 0;font-size:.83rem;font-weight:700}
+.srow .k{color:var(--dark-grey);font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;font-family:'Nunito',sans-serif;font-weight:800}
+.srow .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;white-space:nowrap}
+.srow .v .star{color:var(--amber)}
+.delta{font-size:.68rem;font-weight:800;margin-left:5px}
+.delta.up{color:var(--green)}.delta.dn{color:var(--red)}.delta.z{color:var(--grey)}
+.best{color:var(--amber);font-size:.8rem}
+.warn{color:var(--amber)}
+.bad{color:var(--red)}
+.gap{background:#fff;border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:11px;
+padding:10px 14px;font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px;line-height:1.55}
+.gap b{color:var(--dark);font-family:'Nunito',sans-serif}
+
+/* Trends */
+.panel{background:#fff;border:1px solid var(--border);border-radius:13px;padding:15px 17px;box-shadow:var(--shadow);margin-bottom:12px}
+.metricsel{height:34px;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.85rem;color:var(--dark);cursor:pointer}
+.metricsel:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.75rem;font-weight:800;font-family:'Nunito',sans-serif}
+.legend span{display:inline-flex;align-items:center;gap:6px;color:var(--dark-grey)}
+.chartwrap{overflow-x:auto}
+.chartwrap svg{display:block;min-width:640px;width:100%;height:auto}
+
+/* Keywords */
+.kwcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.kwcol{background:#fff;border:1px solid var(--border);border-top:4px solid var(--grey);border-radius:13px;padding:12px 14px;box-shadow:var(--shadow)}
+.kwcol h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.kwrow{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid #F2F3F6;font-size:.8rem;font-weight:700}
+.kwrow:first-of-type{border-top:none}
+.kwrow .kw{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kwrow .imp{font-family:'Nunito',sans-serif;font-weight:900;white-space:nowrap}
+.kwrow .imp.thr{color:var(--grey)}
+.kbadge{font-family:'Nunito',sans-serif;font-weight:900;font-size:.55rem;border-radius:5px;padding:1px 5px;letter-spacing:.3px}
+.kbadge.b{background:#EFF8FD;color:#1E7AA8;border:1px solid #CFE7F5}
+.kbadge.d{background:#F0FAF3;color:var(--green);border:1px solid #CFE9D8}
+.kbadge.u{background:var(--light-grey);color:var(--grey);border:1px solid var(--border)}
+.difftog{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;border:1.5px solid var(--border);border-radius:9px;
+background:#fff;color:var(--dark-grey);padding:7px 12px;cursor:pointer}
+.difftog.on{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* Reviews */
+.rvfilters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.rvcard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 15px;box-shadow:var(--shadow);margin-bottom:9px}
+.rvtop{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.stars{color:var(--amber);font-size:.9rem;letter-spacing:1px;white-space:nowrap}
+.stars .off{color:#E4E6EC}
+.rvname{font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem}
+.schip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;border-radius:999px;padding:2px 8px;color:#fff}
+.rvage{font-size:.7rem;font-weight:700;color:var(--grey);white-space:nowrap}
+.rvstat{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;white-space:nowrap}
+.rvstat.ok{color:var(--green)}
+.rvstat.due{color:var(--amber)}
+.rvstat.over{color:var(--red)}
+.rvtext{font-size:.85rem;font-weight:600;color:var(--dark);line-height:1.5}
+.rvtext.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.rvreply{margin-top:8px;background:#F6F7F9;border-radius:9px;padding:8px 11px;font-size:.78rem;font-weight:600;color:var(--dark-grey);line-height:1.5}
+.rvreply b{font-family:'Nunito',sans-serif;color:var(--dark)}
+
+.stamp{font-size:.7rem;font-weight:700;color:var(--grey);text-align:right;margin-top:6px}
+.empty{padding:60px 20px;text-align:center;color:var(--grey);font-weight:700}
+.hero{background:#fff;border:1px solid var(--border);border-radius:16px;padding:56px 24px;text-align:center;box-shadow:var(--shadow)}
+.hero .hi{font-size:2rem}
+.hero h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin:8px 0 6px}
+.hero p{font-size:.85rem;font-weight:700;color:var(--dark-grey);max-width:520px;margin:0 auto}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+@media(max-width:640px){main{padding:16px 12px 70px}.storesel{width:100%}}
+</style>
+</head>
+<body>
+<main>
+  <div class="hd">
+    <div>
+      <div class="titlerow"><h1>📈 Google Traffic</h1><span class="mgrtag">Managers</span></div>
+      <div class="sub">Impressions · Actions · Keywords · Reviews — all stores, side by side</div>
+    </div>
+    <div class="spacer"></div>
+    <div>
+      <div class="fldl">Store</div>
+      <select class="storesel" id="storeSel" aria-label="Store"></select>
+    </div>
+    <div>
+      <div class="fldl">Month</div>
+      <div class="mnav">
+        <button class="mbtn" id="mPrev" title="Previous month">‹</button>
+        <span class="mlbl" id="mLbl" title="Pick a month"></span>
+        <button class="mbtn" id="mNext" title="Next month">›</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="banner"></div>
+  <div id="body"><div class="empty">Loading…</div></div>
+  <div class="stamp" id="stamp"></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pickers.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* ============================================================
+   Google Traffic — Phase 1 "Measure" (read-only from Google).
+   Tables: gbp_locations / gbp_metrics_daily (+ gbp_metrics_monthly
+   view) / gbp_keywords_monthly / gbp_reviews (+ gbp_review_stats
+   view) / gbp_profile_snapshots. Data lands nightly via the
+   gbp-sync edge function; this page NEVER talks to Google.
+   Design: docs/GBP_DESIGN_HANDOFF.md · minRole admin.
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+var LOC=window.CPRLocations||{names:function(){return[];},normalize:function(s){return s;},
+  display:function(s){return s;},find:function(){return null;},sort:function(a){return a;},list:function(){return[];}};
+var MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+var MSHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var LSKEY='cprGbpView';
+/* canonical store series colors (design §16 Q1 proposal): by CPRLocations order,
+   scales past 3 stores by cycling the tail of the palette */
+var PALETTE=['#4FB0E3','#DC282E','#2D2D3B','#C98A00','#2E9E5B','#8B5CF6'];
+function storeColor(store){
+  var rec=LOC.find(store); var i=rec?(rec.order-1):(LOC.names().indexOf(store));
+  if(i<0) i=PALETTE.length-1;
+  return PALETTE[i%PALETTE.length];
+}
+var IMP_METRICS=['BUSINESS_IMPRESSIONS_DESKTOP_MAPS','BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
+  'BUSINESS_IMPRESSIONS_MOBILE_MAPS','BUSINESS_IMPRESSIONS_MOBILE_SEARCH'];
+
+/* ------------- view state (persisted + deep-linked) ------------- */
+var TABS=['compare','trends','keywords','reviews'];
+var TAB='compare', MONTH=firstOf(new Date()), STORE='';   // ''=All
+var TREND_METRIC='impressions', KW_DIFF=false, RV_UNANS=false, RV_STARS='';
+try{
+  var sv=JSON.parse(localStorage.getItem(LSKEY)||'{}');
+  if(TABS.indexOf(sv.tab)>-1)TAB=sv.tab;
+  if(sv.month&&/^\d{4}-\d{2}$/.test(sv.month)){var p=sv.month.split('-');var d=new Date(+p[0],+p[1]-1,1);if(d<=firstOf(new Date()))MONTH=d;}
+  if(sv.store&&LOC.find(sv.store))STORE=LOC.normalize(sv.store);
+  if(sv.metric)TREND_METRIC=sv.metric;
+}catch(e){}
+var h=(location.hash||'').replace('#','');
+if(TABS.indexOf(h)>-1)TAB=h;
+function persist(){
+  try{localStorage.setItem(LSKEY,JSON.stringify({tab:TAB,month:mstr(MONTH),store:STORE,metric:TREND_METRIC}));}catch(e){}
+  history.replaceState(null,'','#'+TAB);
+}
+window.addEventListener('hashchange',function(){
+  var t=(location.hash||'').replace('#','');
+  if(TABS.indexOf(t)>-1&&t!==TAB){TAB=t;persist();render();}
+});
+
+/* ------------- helpers ------------- */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');clearTimeout(toast._t);toast._t=setTimeout(function(){t.className='toast';},2400);}
+function firstOf(d){return new Date(d.getFullYear(),d.getMonth(),1);}
+function mstr(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
+function mshift(d,n){return new Date(d.getFullYear(),d.getMonth()+n,1);}
+function fmt(n){if(n==null||isNaN(n))return '—';return Math.round(n).toLocaleString('en-US');}
+function pct(n){return (n==null||isNaN(n))?'—':Math.round(n)+'%';}
+function ago(iso){
+  if(!iso)return '';
+  var ms=Date.now()-new Date(iso).getTime(),h=ms/36e5;
+  if(h<1)return Math.max(1,Math.round(ms/6e4))+'m';
+  if(h<48)return Math.round(h)+'h';
+  return Math.round(h/24)+'d';
+}
+function days(iso){return iso?Math.floor((Date.now()-new Date(iso).getTime())/864e5):null;}
+function durFmt(sec){
+  if(sec==null)return '—';
+  var h=sec/3600;
+  if(h<48)return Math.round(h)+'h';
+  return Math.round(h/24)+'d';
+}
+function starRow(n){var s='';for(var i=1;i<=5;i++)s+='<span'+(i<=n?'':' class="off"')+'>★</span>';return '<span class="stars">'+s+'</span>';}
+function delta(cur,prev){
+  if(cur==null||prev==null||prev===0)return '';
+  var d=Math.round((cur-prev)/prev*100);
+  if(!d)return '<span class="delta z">·0%</span>';
+  return d>0?'<span class="delta up">▲'+d+'%</span>':'<span class="delta dn">▼'+(-d)+'%</span>';
+}
+
+/* Adopt the shared front-door PIN session (same as every Supabase page). */
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+/* ------------- data state ------------- */
+var LOCS=[];        // gbp_locations rows
+var MONTHLY=[];     // gbp_metrics_monthly rows {store,month,metric,value}
+var RVSTATS={};     // store -> gbp_review_stats row
+var FEED=[];        // recent reviews (rich rows, feed + widget-ish uses)
+var RVCOUNT={};     // store -> {month:{n,starsum}} (velocity + rating trend)
+var SNAP={};        // store -> latest profile snapshot (media freshness)
+var KW={};          // 'YYYY-MM' -> {store:[{keyword,impressions,is_threshold,is_branded}]}
+var THROUGH=null;   // newest metrics date
+
+async function loadCore(){
+  var r=await Promise.all([
+    sb.from('gbp_locations').select('*').order('store'),
+    sb.from('gbp_metrics_monthly').select('*'),
+    sb.from('gbp_review_stats').select('*'),
+    sb.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at,reply_text,replied_at')
+      .is('deleted_at',null).order('created_at',{ascending:false}).limit(400),
+    sb.from('gbp_metrics_daily').select('date').order('date',{ascending:false}).limit(1),
+    sb.from('gbp_profile_snapshots').select('store,taken_at,media_count,latest_media_at')
+      .order('taken_at',{ascending:false}).limit(30)
+  ]);
+  LOCS=r[0].data||[]; MONTHLY=r[1].data||[];
+  RVSTATS={}; (r[2].data||[]).forEach(function(x){RVSTATS[x.store]=x;});
+  FEED=r[3].data||[];
+  THROUGH=(r[4].data&&r[4].data[0])?r[4].data[0].date:null;
+  SNAP={}; (r[5].data||[]).forEach(function(x){if(!SNAP[x.store])SNAP[x.store]=x;});
+  /* review counts per store+month (velocity + rating trends) — page through
+     created_at only; lifetime counts are ~1k rows so 1000-row pages are fine */
+  RVCOUNT={};
+  for(var off=0;off<5000;off+=1000){
+    var q=await sb.from('gbp_reviews').select('store,stars,created_at').is('deleted_at',null).range(off,off+999);
+    (q.data||[]).forEach(function(x){
+      var m=String(x.created_at).slice(0,7);
+      var st=RVCOUNT[x.store]||(RVCOUNT[x.store]={});
+      var c=st[m]||(st[m]={n:0,starsum:0});
+      c.n++; c.starsum+=Number(x.stars)||0;
+    });
+    if(!q.data||q.data.length<1000)break;
+  }
+}
+async function loadKeywords(m){
+  if(KW[m])return KW[m];
+  var out={};
+  /* per store, top 500 by impressions — plenty for the columns + diff view */
+  await Promise.all(stores().map(function(s){
+    return sb.from('gbp_keywords_monthly').select('keyword,impressions,is_threshold,is_branded')
+      .eq('store',s).eq('month',m).order('impressions',{ascending:false}).limit(500)
+      .then(function(q){out[s]=q.data||[];});
+  }));
+  KW[m]=out; return out;
+}
+
+function stores(){
+  var mapped=LOCS.map(function(l){return l.store;});
+  return LOC.sort(mapped.length?mapped:LOC.names());
+}
+function visStores(){return STORE?[STORE]:stores();}
+function mval(store,m,metric){
+  var v=0,found=false;
+  MONTHLY.forEach(function(r){
+    if(r.store!==store||r.month!==m)return;
+    if(metric==='impressions'){if(IMP_METRICS.indexOf(r.metric)>-1){v+=Number(r.value)||0;found=true;}}
+    else if(r.metric===metric){v+=Number(r.value)||0;found=true;}
+  });
+  return found?v:null;
+}
+function unansweredTotal(){
+  var n=0;visStores().forEach(function(s){n+=(RVSTATS[s]&&RVSTATS[s].unanswered)||0;});return n;
+}
+function discShare(kw){
+  if(!kw||!kw.length)return null;
+  var b=0,d=0;
+  kw.forEach(function(k){
+    var imp=Number(k.impressions)||0;
+    if(k.is_branded===true)b+=imp; else if(k.is_branded===false)d+=imp;
+  });
+  return (b+d)>0?d/(b+d)*100:null;
+}
+
+/* ------------- header / chrome ------------- */
+function drawChrome(){
+  var sel=$('#storeSel');
+  sel.innerHTML='<option value="">All Stores</option>'+stores().map(function(s){
+    return '<option value="'+esc(s)+'"'+(s===STORE?' selected':'')+'>CPR '+esc(LOC.display(s))+'</option>';}).join('');
+  $('#mLbl').textContent=MONL[MONTH.getMonth()]+' '+MONTH.getFullYear();
+  var histNote=mstr(MONTH)!==mstr(new Date());
+  $('#mLbl').style.color=histNote?'var(--amber)':'';
+  $('#mNext').disabled=!histNote;
+  var t=$('#tabs');
+  var names={compare:'Compare',trends:'Trends',keywords:'Keywords',reviews:'Reviews'};
+  var un=unansweredTotal();
+  t.innerHTML=TABS.map(function(k){
+    return '<button class="tab'+(k===TAB?' on':'')+'" data-t="'+k+'">'+names[k]
+      +(k==='reviews'&&un?'<span class="tbadge">'+un+'</span>':'')+'</button>';}).join('');
+  t.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){TAB=b.getAttribute('data-t');persist();render();};});
+  var errs=LOCS.filter(function(l){return l.last_error;});
+  $('#banner').innerHTML=errs.length
+    ?'<div class="banner">⚠ Sync errors — '+errs.map(function(l){return '<b>'+esc(LOC.display(l.store))+'</b>: '+esc(String(l.last_error).slice(0,160));}).join(' · ')+'</div>':'';
+  var last=LOCS.map(function(l){return l.last_sync_at;}).filter(Boolean).sort().pop();
+  $('#stamp').textContent=(THROUGH?'data through '+THROUGH:'no metric data yet')
+    +(last?' · synced '+new Date(last).toLocaleString():'');
+}
+
+/* ------------- Compare ------------- */
+function renderCompare(kwByStore){
+  var m=mstr(MONTH),pm=mstr(mshift(MONTH,-1));
+  var rows=visStores().map(function(s){
+    var rs=RVSTATS[s]||{},rc=(RVCOUNT[s]||{});
+    var snap=SNAP[s]||{};
+    return {
+      store:s,
+      imp:mval(s,m,'impressions'),impPrev:mval(s,pm,'impressions'),
+      disc:discShare(kwByStore[s]),
+      calls:mval(s,m,'CALL_CLICKS'),callsPrev:mval(s,pm,'CALL_CLICKS'),
+      dir:mval(s,m,'BUSINESS_DIRECTION_REQUESTS'),
+      web:mval(s,m,'WEBSITE_CLICKS'),
+      rating:rs.avg_rating!=null?Number(rs.avg_rating):null,total:rs.total||0,
+      newRv:(rc[m]&&rc[m].n)||0,newPrev:(rc[pm]&&rc[pm].n)||0,
+      replyRate:rs.total?Math.round(rs.replied/rs.total*100):null,
+      median:rs.median_reply_seconds!=null?Number(rs.median_reply_seconds):null,
+      photoDays:days(snap.latest_media_at)
+    };
+  });
+  function best(key,min){var v=null;rows.forEach(function(r){if(r[key]==null)return;if(v==null||(min?r[key]<v:r[key]>v))v=r[key];});return v;}
+  var b={imp:best('imp'),disc:best('disc'),calls:best('calls'),dir:best('dir'),web:best('web'),
+    rating:best('rating'),newRv:best('newRv'),replyRate:best('replyRate'),photoDays:best('photoDays',true)};
+  function star(r,key){return rows.length>1&&r[key]!=null&&r[key]===b[key]?' <span class="best">★</span>':'';}
+  var html='<div class="cards">'+rows.map(function(r){
+    return '<div class="scard" style="border-top-color:'+storeColor(r.store)+'">'
+      +'<h3><span class="dot" style="background:'+storeColor(r.store)+'"></span>'+esc(LOC.display(r.store))+'</h3>'
+      +'<div class="srow"><span class="k">👁 Impressions</span><span class="v">'+fmt(r.imp)+delta(r.imp,r.impPrev)+star(r,'imp')+'</span></div>'
+      +'<div class="srow"><span class="k">Discovery share</span><span class="v">'+(r.disc!=null?pct(r.disc):'—')+star(r,'disc')+'</span></div>'
+      +'<div class="srow"><span class="k">📞 Calls</span><span class="v">'+fmt(r.calls)+delta(r.calls,r.callsPrev)+star(r,'calls')+'</span></div>'
+      +'<div class="srow"><span class="k">🧭 Directions</span><span class="v">'+fmt(r.dir)+star(r,'dir')+'</span></div>'
+      +'<div class="srow"><span class="k">🌐 Website clicks</span><span class="v">'+fmt(r.web)+star(r,'web')+'</span></div>'
+      +'<div class="srow"><span class="k">⭐ Rating</span><span class="v">'+(r.rating!=null?r.rating.toFixed(1):'—')+' · '+fmt(r.total)+' total'+star(r,'rating')+'</span></div>'
+      +'<div class="srow"><span class="k">New this month</span><span class="v">+'+fmt(r.newRv)+delta(r.newRv,r.newPrev)+star(r,'newRv')+'</span></div>'
+      +'<div class="srow"><span class="k">Reply rate</span><span class="v'+(r.replyRate!=null&&r.replyRate<90?' warn':'')+'">'+pct(r.replyRate)+' · median '+durFmt(r.median)+star(r,'replyRate')+'</span></div>'
+      +'<div class="srow"><span class="k">📷 Last photo</span><span class="v'+(r.photoDays!=null&&r.photoDays>30?(r.photoDays>60?' bad':' warn'):'')+'">'+(r.photoDays!=null?r.photoDays+'d ago':'—')+star(r,'photoDays')+'</span></div>'
+      +'</div>';}).join('')+'</div>';
+  /* gap strip vs the benchmark (most-impressions) store */
+  if(rows.length>1){
+    var bench=rows.slice().sort(function(a,b2){return (b2.imp||0)-(a.imp||0);})[0];
+    var gaps=rows.filter(function(r){return r.store!==bench.store;}).map(function(r){
+      var bits=[];
+      if(r.disc!=null&&bench.disc!=null&&bench.disc-r.disc>=3)bits.push('−'+Math.round(bench.disc-r.disc)+'pt discovery share');
+      if(bench.newRv-r.newRv>=2)bits.push('−'+(bench.newRv-r.newRv)+' reviews/mo');
+      if(r.photoDays!=null&&bench.photoDays!=null&&r.photoDays-bench.photoDays>=14)bits.push('photos '+(r.photoDays-bench.photoDays)+'d staler');
+      if(r.replyRate!=null&&bench.replyRate!=null&&bench.replyRate-r.replyRate>=10)bits.push('−'+(bench.replyRate-r.replyRate)+'pt reply rate');
+      return bits.length?'<b>'+esc(LOC.display(r.store))+'</b>: '+bits.join(', ')+'.':null;
+    }).filter(Boolean);
+    if(gaps.length)html+='<div class="gap">Gap vs <b>'+esc(LOC.display(bench.store))+'</b> — '+gaps.join(' ')+'</div>';
+  }
+  return html;
+}
+
+/* ------------- Trends (hand-rolled SVG) ------------- */
+var TREND_DEFS={
+  impressions:{label:'Impressions'},CALL_CLICKS:{label:'Calls'},
+  BUSINESS_DIRECTION_REQUESTS:{label:'Directions'},WEBSITE_CLICKS:{label:'Website clicks'},
+  velocity:{label:'New reviews / month'},rating:{label:'Avg stars of new reviews'}
+};
+function trendSeries(metric){
+  var months=[];for(var i=11;i>=0;i--)months.push(mstr(mshift(MONTH,-i)));
+  var series=visStores().map(function(s){
+    var pts=months.map(function(m){
+      if(metric==='velocity'){var c=(RVCOUNT[s]||{})[m];return c?c.n:0;}
+      if(metric==='rating'){var c2=(RVCOUNT[s]||{})[m];return (c2&&c2.n)?c2.starsum/c2.n:null;}
+      return mval(s,m,metric==='impressions'?'impressions':metric);
+    });
+    return {store:s,pts:pts};
+  });
+  return {months:months,series:series};
+}
+function svgChart(t,metric){
+  var W=920,H=300,L=52,R=14,T=14,B=34,iw=W-L-R,ih=H-T-B;
+  var max=0;t.series.forEach(function(s){s.pts.forEach(function(v){if(v!=null&&v>max)max=v;});});
+  if(metric==='rating')max=5;
+  if(!max)return '<div class="empty">No data for this range yet.</div>';
+  max=max*1.08;
+  var x=function(i){return L+(t.months.length<2?0:i*(iw/(t.months.length-1)));};
+  var y=function(v){return T+ih-(v/max*ih);};
+  var g='';
+  for(var k=0;k<=4;k++){
+    var vv=max*k/4,yy=y(vv);
+    g+='<line x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'" stroke="#EDEEF2"/>'
+      +'<text x="'+(L-7)+'" y="'+(yy+4)+'" text-anchor="end" font-size="10" fill="#B9BDCB" font-family="Nunito Sans">'
+      +(metric==='rating'?(Math.round(vv*10)/10):fmt(vv))+'</text>';
+  }
+  t.months.forEach(function(m,i){
+    if(t.months.length>8&&i%2)return;
+    var p=m.split('-');
+    g+='<text x="'+x(i)+'" y="'+(H-10)+'" text-anchor="middle" font-size="10" fill="#B9BDCB" font-family="Nunito Sans">'+MSHORT[+p[1]-1]+(p[1]==='01'?' '+p[0].slice(2):'')+'</text>';
+  });
+  t.series.forEach(function(s){
+    var c=storeColor(s.store),line='',dots='';
+    s.pts.forEach(function(v,i){
+      if(v==null)return;
+      line+=(line?' L':'M')+' '+x(i).toFixed(1)+' '+y(v).toFixed(1);
+      dots+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3.4" fill="'+c+'"><title>'
+        +esc(LOC.display(s.store))+' · '+t.months[i]+' · '+(metric==='rating'?(Math.round(v*100)/100):fmt(v))+'</title></circle>';
+    });
+    g+='<path d="'+line+'" fill="none" stroke="'+c+'" stroke-width="2.4" stroke-linejoin="round"/>'+dots;
+  });
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="12-month trend">'+g+'</svg>';
+}
+function renderTrends(){
+  var t=trendSeries(TREND_METRIC);
+  return '<div class="panel">'
+    +'<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<select class="metricsel" id="metricSel">'+Object.keys(TREND_DEFS).map(function(k){
+      return '<option value="'+k+'"'+(k===TREND_METRIC?' selected':'')+'>'+TREND_DEFS[k].label+'</option>';}).join('')+'</select>'
+    +'<div class="legend">'+visStores().map(function(s){
+      return '<span><span class="dot" style="background:'+storeColor(s)+'"></span>'+esc(LOC.display(s))+'</span>';}).join('')+'</div>'
+    +'</div><div class="chartwrap">'+svgChart(t,TREND_METRIC)+'</div>'
+    +'<div class="stamp" style="text-align:left">12 months ending '+MONL[MONTH.getMonth()]+' '+MONTH.getFullYear()
+    +(TREND_METRIC==='rating'||TREND_METRIC==='velocity'?' · derived from the review feed':'')+'</div></div>';
+}
+
+/* ------------- Keywords ------------- */
+function kwBadge(k){
+  if(k.is_branded===true)return '<span class="kbadge b">BRAND</span>';
+  if(k.is_branded===false)return '<span class="kbadge d">DISC</span>';
+  return '<span class="kbadge u">?</span>';
+}
+function renderKeywords(kwByStore){
+  var vis=visStores();
+  var bench=null,bi=-1;
+  stores().forEach(function(s){
+    var tot=(kwByStore[s]||[]).reduce(function(a,k){return a+(Number(k.impressions)||0);},0);
+    if(tot>bi){bi=tot;bench=s;}
+  });
+  var head='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">'
+    +(stores().length>1?'<button class="difftog'+(KW_DIFF?' on':'')+'" id="kwDiff">Δ Only keywords '+esc(LOC.display(bench))+' has that a store doesn’t</button>':'')
+    +'<span style="font-size:.72rem;font-weight:700;color:var(--grey)">Google publishes keywords monthly, after month end — the current month is legitimately empty. &lt;15 = below Google’s reporting threshold. BRAND/DISC is our derived classification.</span></div>';
+  var cols=vis.map(function(s){
+    var list=kwByStore[s]||[];
+    if(KW_DIFF&&s!==bench){
+      /* diff view: show what the benchmark ranks for that this store does NOT */
+      var mine={};list.forEach(function(k){mine[k.keyword.toLowerCase()]=true;});
+      list=(kwByStore[bench]||[]).filter(function(k){return !mine[k.keyword.toLowerCase()];});
+    }
+    var rows=list.slice(0,60).map(function(k){
+      return '<div class="kwrow"><span class="kw" title="'+esc(k.keyword)+'">'+esc(k.keyword)+'</span>'
+        +kwBadge(k)+'<span class="imp'+(k.is_threshold?' thr':'')+'">'+(k.is_threshold?'&lt;15':fmt(k.impressions))+'</span></div>';
+    }).join('');
+    return '<div class="kwcol" style="border-top-color:'+storeColor(s)+'">'
+      +'<h3><span class="dot" style="background:'+storeColor(s)+'"></span>'+esc(LOC.display(s))
+      +(KW_DIFF&&s!==bench?' <span style="font-size:.62rem;color:var(--grey)">missing vs '+esc(LOC.display(bench))+'</span>':'')+'</h3>'
+      +(rows||'<div class="empty" style="padding:24px 8px">'+(KW_DIFF&&s!==bench?'No gap — covers every '+esc(LOC.display(bench))+' keyword.':'No keyword data for this month.')+'</div>')+'</div>';
+  }).join('');
+  return head+'<div class="kwcols">'+cols+'</div>';
+}
+
+/* ------------- Reviews ------------- */
+function renderReviews(){
+  var list=FEED.filter(function(r){
+    if(STORE&&r.store!==STORE)return false;
+    if(RV_UNANS&&r.reply_text)return false;
+    if(RV_STARS&&Number(r.stars)!==Number(RV_STARS))return false;
+    return true;
+  });
+  var un=unansweredTotal();
+  var head='<div class="rvfilters">'
+    +'<button class="difftog'+(RV_UNANS?' on':'')+'" id="rvUnans">● Unanswered'+(un?' '+un:'')+'</button>'
+    +'<select class="metricsel" id="rvStars"><option value="">★ any</option>'
+    +[5,4,3,2,1].map(function(n){return '<option value="'+n+'"'+(String(n)===String(RV_STARS)?' selected':'')+'>'+n+'★ only</option>';}).join('')+'</select>'
+    +'<span style="font-size:.72rem;font-weight:700;color:var(--grey)">Read-only in Phase 1 — the reply queue arrives with Phase 2.</span></div>';
+  var rows=list.slice(0,120).map(function(r){
+    var unans=!r.reply_text;
+    var ageH=(Date.now()-new Date(r.created_at).getTime())/36e5;
+    var stat=unans
+      ?(ageH>=24?'<span class="rvstat over">⚠ unanswered '+ago(r.created_at)+'</span>'
+        :ageH>=12?'<span class="rvstat due">⚠ unanswered '+ago(r.created_at)+'</span>'
+        :'<span class="rvstat due">unanswered</span>')
+      :'<span class="rvstat ok">✓ replied'+(r.replied_at?' '+ago(r.replied_at):'')+'</span>';
+    return '<div class="rvcard"><div class="rvtop">'+starRow(Number(r.stars)||0)
+      +'<span class="rvname">'+esc(r.reviewer_name||'Google user')+'</span>'
+      +'<span class="schip" style="background:'+storeColor(r.store)+'">'+esc(LOC.display(r.store))+'</span>'
+      +'<span class="rvage">'+ago(r.created_at)+' ago</span>'+stat+'</div>'
+      +(r.comment?'<div class="rvtext clamp" data-clamp title="Tap to expand">'+esc(r.comment)+'</div>':'<div class="rvtext" style="color:var(--grey)">(no text)</div>')
+      +(r.reply_text?'<div class="rvreply"><b>Our reply:</b> '+esc(r.reply_text)+'</div>':'')
+      +'</div>';
+  }).join('');
+  return head+(rows||'<div class="empty">No reviews match these filters.</div>');
+}
+
+/* ------------- render ------------- */
+var RENDERTOK=0;
+async function render(){
+  drawChrome();
+  var tok=++RENDERTOK,body=$('#body');
+  if(!LOCS.length){
+    body.innerHTML='<div class="hero"><div class="hi">🔌</div><h2>Not Connected</h2>'
+      +'<p>No Google Business Profile locations are mapped yet. The owner connects this in the deploy runbook '
+      +'(gbp-sync <code>?action=discover</code>) — see docs/GBP_SESSION_HANDOFF.md.</p></div>';
+    return;
+  }
+  if(TAB==='compare'||TAB==='keywords'){
+    body.innerHTML='<div class="empty">Loading…</div>';
+    var kw=await loadKeywords(mstr(MONTH));
+    if(tok!==RENDERTOK)return;
+    body.innerHTML=TAB==='compare'?renderCompare(kw):renderKeywords(kw);
+    if(TAB==='keywords'){var kd=$('#kwDiff');if(kd)kd.onclick=function(){KW_DIFF=!KW_DIFF;render();};}
+  }else if(TAB==='trends'){
+    body.innerHTML=renderTrends();
+    $('#metricSel').onchange=function(){TREND_METRIC=this.value;persist();render();};
+  }else{
+    body.innerHTML=renderReviews();
+    var ru=$('#rvUnans');if(ru)ru.onclick=function(){RV_UNANS=!RV_UNANS;render();};
+    var rs=$('#rvStars');if(rs)rs.onchange=function(){RV_STARS=this.value;render();};
+    body.querySelectorAll('[data-clamp]').forEach(function(el){el.onclick=function(){el.classList.toggle('clamp');};});
+  }
+}
+
+/* ------------- wiring ------------- */
+$('#storeSel').onchange=function(){STORE=this.value;persist();render();};
+$('#mPrev').onclick=function(){MONTH=mshift(MONTH,-1);persist();render();};
+$('#mNext').onclick=function(){
+  var n=mshift(MONTH,1);
+  if(n>firstOf(new Date())){toast('Future months aren’t available');return;}
+  MONTH=n;persist();render();
+};
+$('#mLbl').onclick=function(){
+  window.CPRPickers&&CPRPickers.month(this,{get:function(){return MONTH;},set:function(d){
+    if(d>firstOf(new Date())){toast('Future months aren’t available');return;}
+    MONTH=firstOf(d);persist();render();
+  }});
+};
+
+/* ------------- boot ------------- */
+(async function(){
+  var body=$('#body');
+  var sess=await ensureSession();
+  if(!sess){body.innerHTML='<div class="empty">Sign in from the nav to see Google Traffic.</div>';return;}
+  var me=(await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle()).data;
+  if(!me||['owner','admin'].indexOf(me.role)<0){
+    body.innerHTML='<div class="empty">Google Traffic is for managers and the owner.</div>';return;
+  }
+  try{await loadCore();}catch(e){body.innerHTML='<div class="empty">Couldn’t load Google data — '+esc(String(e&&e.message||e))+'</div>';return;}
+  persist();render();
+})();
+</script>
+</body>
+</html>
