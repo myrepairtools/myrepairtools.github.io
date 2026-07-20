@@ -222,7 +222,25 @@ async function actionCall(payload: any, sentBy: { id?: string; name?: string }) 
     sent_by: sentBy.id || null, sent_by_name: sentBy.name || payload?.agent_name || null,
   });
 
+  // Log the automated call on the RepairQ ticket SERVER-SIDE (same reliable
+  // path the ready-for-pickup TEXT note uses — the browser could never win
+  // the race against the status-change page reload). Fire-and-forget.
+  if (ok && payload?.ticket_no && payload?.note) {
+    writeTicketNote(payload.ticket_no, payload.note).catch(() => {});
+  }
+
   return ok ? json({ ok: true, sid, to, from, store }) : json({ ok: false, error: err }, 502);
+}
+
+// Post a note to a RepairQ ticket through repairq-query's authenticated session.
+async function writeTicketNote(ticketNo: string, note: string) {
+  const secret = Deno.env.get("REPAIRQ_PROXY_SECRET");
+  if (!secret) return;
+  await fetch(`${SB_URL}/functions/v1/repairq-query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-cpr-rq-secret": secret, "apikey": SB_SERVICE, "Authorization": `Bearer ${SB_SERVICE}` },
+    body: JSON.stringify({ action: "note_add", ticket_no: ticketNo, note }),
+  });
 }
 
 /* ---------------- entry ---------------- */

@@ -475,17 +475,20 @@
 
         if (calling) {
             try {
+                // The "call placed" note rides the payload → twilio-call writes it
+                // to the ticket server-side (same reliable path as the text note).
+                // Browser writeNote stays ONLY for the failure case.
                 chrome.runtime.sendMessage({ type: 'call:place', payload: {
                     to: num, store: storeName(), ticket_no: ticketNo(),
                     template_key: 'ready_for_pickup', agent_name: techName(),
                     customer_name: first, device: device(),
+                    note: 'Automated ready-for-pickup call placed to ' + pretty(num) + ' - myRepairTools (' + (techName() || 'staff') + ')',
                 } }, function (res) {
                     var r = chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res;
                     var ok = r && r.ok;
                     msg.textContent = ok ? '✓ Call placed' : '⚠ ' + ((r && r.error) || 'call failed');
-                    var note = ok
-                        ? 'Automated ready-for-pickup call placed to ' + pretty(num) + ' — myRepairTools (' + (techName() || 'staff') + ')'
-                        : 'Ready for pickup — automated call to ' + pretty(num) + ' did not place — myRepairTools (' + (techName() || 'staff') + ')';
+                    var note = ok ? null
+                        : 'Ready for pickup - automated call to ' + pretty(num) + ' did not place - myRepairTools (' + (techName() || 'staff') + ')';
                     setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 2200);
                 });
             } catch (e) {
