@@ -188,7 +188,7 @@
         var ov = document.createElement('div'); ov.id = 'mrt-fu-modal';
         ov.innerHTML =
             '<div class="mrt-fu-card">' +
-              '<div class="mrt-fu-hd"><h4>Follow Up</h4><span class="mrt-fu-hdsub">saved to this ticket only</span></div>' +
+              '<div class="mrt-fu-hd"><h4>Follow Up</h4><span class="mrt-fu-hdsub">saved to this ticket only</span><button type="button" class="mrt-fu-x" title="Close" aria-label="Close">✕</button></div>' +
               '<div class="mrt-fu-body">' +
                 '<div class="mrt-fu-q">How should we let the customer know their repair is ready?</div>' +
                 '<div class="mrt-fu-methods">' + enabledMethods().map(function (m) {
@@ -302,7 +302,10 @@
             }
             markPrompted(); closeModal();
         });
-        ov.addEventListener('click', function (e) { if (e.target === ov) { markPrompted(); closeModal(); } });
+        // No backdrop-click close: a stray tap outside used to dismiss a
+        // half-filled follow-up. Only a selection (Save/Skip) or the ✕ closes.
+        // The ✕ dismisses without recording, but marks prompted so it doesn't re-nag.
+        ov.querySelector('.mrt-fu-x').addEventListener('click', function () { markPrompted(); closeModal(); });
     }
     function closeModal() { var m = document.getElementById('mrt-fu-modal'); if (m) m.remove(); }
 
