@@ -1396,6 +1396,80 @@ Deno.serve(async (req) => {
       });
       return json({ ok: r.status >= 200 && r.status < 300, status: r.status, location: (r as any).location || null, data: r.json ?? null, body: r.json ? undefined : r.body });
     }
+    if (payload?.action === "sync_digest") {
+      // Capture the owner's daily digest (Looker dashboard 2273) into digest_raw.
+      // The 11 tiles (baked from the browser's querymanager batch) carry relative
+      // date filters ("today"/"1 months"/"7 days") that auto-roll each run. Runs
+      // each tile individually so results map 1:1 to a tile_key. Cron: daily.
+      const DASH = "2273";
+      const TILES: Array<{ key: string; q: any }> = [
+        { key: "daily_digest", q: { element_id: "9862", result_maker_id: "26851", sorts: ["ticket_item.all_sale_after_discount_total desc"], filters: [{ "catalog_item.sku": "-NULL", "ticket_item.is_child": "", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.is_closed": "Yes", "ticket.status": "closed", "ticket.claim_status": "", "ticket.status_updated_date": "today" }] } },
+        { key: "monthly_digest", q: { element_id: "9863", result_maker_id: "26850", sorts: ["ticket_item.all_sale_after_discount_total desc"], filters: [{ "catalog_item.sku": "-NULL", "ticket_item.is_child": "", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.is_closed": "Yes", "ticket.status": "closed", "ticket.claim_status": "", "ticket.status_updated_date": "1 months" }] } },
+        { key: "employee_breakdown", q: { element_id: "9864", result_maker_id: "26953", sorts: ["sold_by.full_name desc"], filters: [{ "catalog_item.sku": "-%zaggwarr%", "ticket_item.is_accessory_sale": "", "ticket_item.is_child": "No", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.status": "closed", "ticket.status_updated_date": "today", "sold_by.full_name": "-API Assurant,-Jeffrey Klotz,-Brandon Billings" }] } },
+        { key: "claims_completed_eugene", q: { element_id: "9865", result_maker_id: "28093", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Eugene", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
+        { key: "claims_completed_salem", q: { element_id: "10434", result_maker_id: "28094", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Salem Northeast", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
+        { key: "claims_completed_clackamas", q: { element_id: "12145", result_maker_id: "30884", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Clackamas OR", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
+        { key: "claim_payout_weekly", q: { element_id: "11173", result_maker_id: "30883", query_timezone: "America/Chicago", sorts: ["transaction.payment_amount_total desc 0"], filters: [{ "payment_method.name": "", "ticket.warranty_provider": "-EMPTY", "ticket.warranty_device_serial": "", "ticket.created_date": "", "ticket.claim_number": "", "transaction.deposit_posted_date": "7 days", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }] } },
+        { key: "express_repairs", q: { element_id: "11205", result_maker_id: "30880", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "EXPRESS-0001", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
+        { key: "device_cleanings", q: { element_id: "11206", result_maker_id: "30882", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "DEVICECLEAN", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
+        { key: "akko_plan_sales", q: { element_id: "11207", result_maker_id: "30881", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "AKKOPLAN,AKKOPLAN5,AKKOPLAN8,AKKOPLAN11", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
+        { key: "device_sales_today", q: { element_id: "12352", result_maker_id: "31223", sorts: [], filters: [{}, {}] } },
+      ];
+      // capture_date = "today" in America/Los_Angeles (the stores' timezone)
+      const laDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const out: any[] = [];
+      for (const t of TILES) {
+        try {
+          const body = {
+            plain_queries: [],
+            saved_queries: [{ ...t.q, generate_links: false, path_prefix: "/explore", server_table_calcs: false, source: "dashboard" }],
+            context: { id: DASH, type: "dashboard", session_id: "mrt" + t.q.element_id },
+            options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
+          };
+          const run = await lookerRun(body);
+          const rows: any[] = [];
+          for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+          await admin.from("digest_raw").upsert({
+            capture_date: laDate, tile_key: t.key, element_id: t.q.element_id,
+            rows, row_count: rows.length, captured_at: new Date().toISOString(),
+          }, { onConflict: "capture_date,tile_key" });
+          out.push({ tile: t.key, rows: rows.length });
+        } catch (e) {
+          out.push({ tile: t.key, error: String((e as Error).message || e) });
+        }
+      }
+      const okCount = out.filter((o) => o.error == null).length;
+      return json({ ok: okCount > 0, capture_date: laDate, tiles_ok: okCount, tiles_total: TILES.length, detail: out });
+    }
+    if (payload?.action === "looker_batch") {
+      // Replay a dashboard's saved-query tiles (captured from the browser's
+      // querymanager batch) with a FRESH server-minted Looker session. Each
+      // tile runs individually so results map 1:1 to its element_id (lookerRun
+      // only polls the first few task-ids in a multi-query batch). Relative
+      // date filters ("today"/"1 months") in the payload auto-roll each run.
+      const dashId = String(payload?.dashboard_id || "");
+      const queries = Array.isArray(payload?.saved_queries) ? payload.saved_queries : [];
+      if (!dashId || !queries.length) return json({ ok: false, error: "dashboard_id and saved_queries required" }, 400);
+      const tiles: any[] = [];
+      for (const q of queries) {
+        const elId = String(q?.element_id || "");
+        try {
+          const body = {
+            plain_queries: [],
+            saved_queries: [{ ...q, generate_links: false }],
+            context: { id: dashId, type: "dashboard", session_id: "mrt" + elId },
+            options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
+          };
+          const run = await lookerRun(body);
+          const rows: any[] = [];
+          for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+          tiles.push({ element_id: elId, result_maker_id: q?.result_maker_id ?? null, row_count: rows.length, rows: payload?.include_data ? rows : undefined });
+        } catch (e) {
+          tiles.push({ element_id: elId, error: String((e as Error).message || e) });
+        }
+      }
+      return json({ ok: true, dashboard_id: dashId, tiles });
+    }
     if (payload?.action === "note_add") {
       // Write a ticket note SERVER-SIDE with our own authenticated session.
       // The browser/extension path fought a losing battle with the page-reload
