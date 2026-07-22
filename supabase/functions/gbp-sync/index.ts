@@ -371,6 +371,19 @@ async function pullReviews(loc: Loc, full: boolean, since: string | null, depart
     const reviews = (d.reviews || []) as Record<string, any>[];
     if (!reviews.length) break;
     const rows = reviews.map((r) => reviewRow(loc, r, department));
+    // Google's LIST endpoint intermittently omits reviewReply during profile
+    // moderation/serving sweeps (2026-07-22: every reply hidden list-side while
+    // still present on direct GET — triggered by the department-listing rollout).
+    // A missing reply in the list payload must never erase a reply we hold;
+    // replies only change here when Google sends a NEW one.
+    const ids = rows.map((r) => r.id);
+    const { data: prev } = await admin.from("gbp_reviews").select("id,reply_text,replied_at").in("id", ids);
+    const prevReply: Record<string, { reply_text: string; replied_at: string | null }> = {};
+    for (const p of prev || []) if (p.reply_text) prevReply[String(p.id)] = { reply_text: p.reply_text, replied_at: p.replied_at };
+    for (const row of rows) {
+      const p = prevReply[row.id];
+      if (!row.reply_text && p) { row.reply_text = p.reply_text; row.replied_at = p.replied_at; }
+    }
     const { error } = await admin.from("gbp_reviews").upsert(rows, { onConflict: "id" });
     if (error) throw new Error("gbp_reviews_" + error.message);
     n += rows.length;
