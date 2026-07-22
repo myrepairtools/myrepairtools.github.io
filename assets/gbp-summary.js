@@ -8,9 +8,11 @@
  *
  * Exposes window.CPRGbp:
  *   snapshot() -> Promise<{stores, unanswered, newest, lastSync}|null>
- *     stores     = [{ store, rating, count }] in CPRLocations priority order
+ *     stores     = [{ store, rating, count, open }] in CPRLocations priority order
+ *                  (open = that store's unanswered count — the 60-width
+ *                  "waiting on a reply" column)
  *     unanswered = { count, oldestHours }        (live reviews with no reply)
- *     newest     = { store, stars, comment, reviewer, at } | null
+ *     newest     = latest 5★ WITH text { store, stars, comment, reviewer, at } | null
  *     lastSync   = newest gbp_locations.last_sync_at (null → not connected yet)
  */
 (function (root) {
@@ -48,14 +50,17 @@
         return Promise.all([
           client.from('gbp_locations').select('store,rating,review_count,last_sync_at'),
           client.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at')
-            .is('reply_text', null).is('deleted_at', null)
+            .is('reply_text', null).is('deleted_at', null).eq('legacy_unanswered', false)
             .order('created_at', { ascending: true }).limit(200),
           client.from('gbp_reviews').select('store,stars,comment,reviewer_name,created_at')
-            .is('deleted_at', null).order('created_at', { ascending: false }).limit(1),
+            .is('deleted_at', null).eq('stars', 5).not('comment', 'is', null)
+            .order('created_at', { ascending: false }).limit(1),
         ]).then(function(rs){
           var locs = (rs[0].data || []), un = (rs[1].data || []), nw = (rs[2].data || [])[0] || null;
           if (!locs.length) return { stores: [], unanswered: { count: 0, oldestHours: 0 }, newest: null, lastSync: null };
-          var stores = locs.map(function(l){ return { store: l.store, rating: l.rating != null ? Number(l.rating) : null, count: l.review_count != null ? Number(l.review_count) : null }; }).sort(storeSort);
+          var openBy = {};
+          un.forEach(function(r){ openBy[r.store] = (openBy[r.store] || 0) + 1; });
+          var stores = locs.map(function(l){ return { store: l.store, rating: l.rating != null ? Number(l.rating) : null, count: l.review_count != null ? Number(l.review_count) : null, open: openBy[l.store] || 0 }; }).sort(storeSort);
           var lastSync = locs.map(function(l){ return l.last_sync_at; }).filter(Boolean).sort().pop() || null;
           var oldestHours = un.length ? Math.max(0, Math.round((Date.now() - new Date(un[0].created_at).getTime()) / 3600000)) : 0;
           var newest = nw ? { store: nw.store, stars: nw.stars, comment: nw.comment, reviewer: nw.reviewer_name, at: nw.created_at } : null;

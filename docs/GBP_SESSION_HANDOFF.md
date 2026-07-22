@@ -30,6 +30,17 @@ Britt's private note holds the four secret **values**: client ID (also above, pu
 client secret (`GOCSPX-…`), refresh token, and the chosen `GBP_SYNC_SECRET`. Ask him to
 paste them where needed — never commit them to this repo.
 
+## DEPLOYED 2026-07-19 — the runbook below is DONE
+
+Phase 1 is live: secrets set, schema applied, `gbp-sync` deployed (JWT off), both
+crons installed, all 3 stores mapped, 18-month backfill complete (11,193 metric rows,
+4,256 keyword rows, 2,102 reviews; `last_error` null everywhere). One gotcha found:
+all three Google listings share the title "CPR Cell Phone Repair", so discover now
+also matches on `storefrontAddress` — and the Clackamas listing's address city is
+**Happy Valley**, which matches no store keyword, so its `gbp_locations` row was
+mapped manually (it persists; discover never overwrites unmatched stores' rows).
+Remaining: load `google-traffic.html` as a manager and eyeball the tabs (step 7).
+
 ## What REMAINS — the deploy runbook (~15 min, mostly Claude)
 
 Supabase project: **`xuvsehrevxackuhmbmry`** (same project as every other tool here).
@@ -77,3 +88,15 @@ Supabase project: **`xuvsehrevxackuhmbmry`** (same project as every other tool h
 Ask Britt for the `docs/GBP_DESIGN_HANDOFF.md` §16 design answers (store chart colors,
 tech widget visibility, AI reply tone kit, contact retention, QR cards, scorecard timing),
 then Phase 2 = review-request engine + AI-drafted reply queue (plan in the design doc).
+
+## UPDATE 2026-07-22 — design response received, reply engine BUILT & DEPLOYED
+
+Britt's design pass (GBP_Design_Response) answered §16 and was implemented the same
+day: google-traffic.html rebuilt to the scoreboard spec (3 tabs, benchmark matrix,
+gap badges, rule rail), reviews split out to **google-reviews.html** (feed + AI reply
+drawer + auto-reply manage + notification prefs), gbp-sync grew the review engine
+(`engine` cron */15, `draft`/`reply`/`queue`/`config` JWT actions), Phase 2 schema
+applied (docs/sql/2026-07-22-gbp-phase2.sql), `gbp-engine` cron installed. Auto-reply
+master toggle ships **OFF**; notification prefs are opt-in per user (empty at launch).
+Still deferred: the review-request engine ("Send asks…" button is a disabled Phase 2
+stub) and email notifications. See the GBP block in CLAUDE.md for the full contract.

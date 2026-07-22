@@ -558,6 +558,53 @@ Safety net: `repairq-query`'s `sweep_blank_notes` action (the
 `repairq-blank-note-sweep` pg_cron, :20/:50 hourly) scans the active ticket list
 and deletes any empty-bodied note.
 
+**Google Business Profile (Google Traffic + Google Reviews):** measures why Eugene
+wins on Google and runs the review-reply engine. Data layer (`docs/sql/2026-07-10-gbp-schema.sql`
++ `2026-07-22-gbp-phase2.sql`): `gbp_locations` (store ↔ Google listing map + lifetime
+rating + `phone` + `last_photo_at`), `gbp_metrics_daily` (+ monthly view),
+`gbp_keywords_monthly`, `gbp_reviews` (lifetime, upserted on Google review id),
+`gbp_profile_snapshots`, `gbp_audit` (every write to Google), `gbp_reply_queue`
+(auto-reply 3h hold), `gbp_notify_prefs` (per-user, self-RLS), `gbp_notify_log`
+(dedupe), `gbp_config` (auto-reply toggles). All filled by the **`gbp-sync` edge
+function** (secret `GBP_SYNC_SECRET` via `?secret=`; Google OAuth refresh-token secrets
+`GBP_CLIENT_ID/_SECRET/_REFRESH_TOKEN` — account britt@irepairphoneshop.com; reviews +
+replies ride the legacy **v4** API, the newer APIs don't have them). Crons:
+`gbp-sync-nightly` (11:05 UTC — metrics 10-day window, reviews, snapshot, phone/photo
+freshness), `gbp-keywords-monthly` (3rd, keywords finalize mid-following-month),
+**`gbp-engine` (*/15 — the review engine)**: incremental review pull → 1–3★ alerts +
+12h/24h SLA alerts (recent reviews only; via the alerts function + direct SMS per
+`gbp_notify_prefs`; 1–2★ ignores quiet hours) → auto-reply enqueue (**4–5★ only**, LLM
+draft via `ANTHROPIC_API_KEY` or rotating thank-you for rating-only, 3h hold) → posts
+due holds 9a–7p store time → Monday digest to Communications (kind 'gbp'). Guardrails
+(design response §3): 1–3★ NEVER auto-posts; every post (human or auto) writes to
+Google AND `gbp_audit`; 1–2★ drafts carry the store phone / take-it-offline; matching
+Google listings to stores uses title + storefrontAddress (all three listings are titled
+just "CPR Cell Phone Repair", and the Clackamas listing's city is **Happy Valley** — its
+`gbp_locations` row was mapped manually; discover never overwrites it). Surfaces:
+**`google-traffic.html`** (Reports nav, managers) — Compare (scoreboard matrix, columns =
+stores, ★ Benchmark = the month's impressions leader with `#FFF8EE` tint, sparklines,
+MoM deltas, gap badge rows, rule-generated "Why Eugene wins" / "Do next" right rail;
+null metric = grey · never 0) / Trends (metric chips incl. Rating, YoY legend) /
+Keywords (diff chips, `<15` threshold, `—` never appeared) with store dropdown + joined
+month control + hash tabs; **`google-reviews.html`** (Reports nav, managers, red
+unanswered nav pill via nav.js `badge:'gbp'`) — chronological feed (no month picker),
+status pills (🤖 auto in Xh / ✓ auto-replied AUTO / amber→red at 24h), reply drawer
+(desktop 430px / mobile full sheet: AI draft via `?action=draft`, ↻ regenerate, ✓
+Approve & post via `?action=reply` with staff JWT, skip/stepper through unanswered,
+once-per-session "public on Google" confirm), 🤖 Manage sheet (master + per-store
+toggles `?action=config_set`, hold queue edit/post-now/cancel `?action=queue_op`), ⚙
+notification settings (methods SMS/push/in-app, stores, triggers, quiet hours →
+`gbp_notify_prefs`), deep link `#r=<review-id>`. Dashboard **Google Reviews widget**
+(`assets/gbp-summary.js`, `window.CPRGbp.snapshot()`) → google-reviews.html. Browser
+actions auth by staff JWT (manager+); cron actions by secret. The ~1,200
+pre-engine unanswered reviews are **retired**: `gbp_reviews.legacy_unanswered`
+(one-time marking, docs/sql/2026-07-22-gbp-legacy-unanswered.sql — owner chose not
+to answer the backlog) excludes them from every unanswered count/filter/SLA surface;
+they render with a muted "no reply" pill and can still be answered by hand. New
+reviews are never flagged — keep the `.eq('legacy_unanswered', false)` filter on any
+new unanswered query. "Send asks…" (review-request engine) is the deferred Phase 2
+remainder.
+
 **Knowledge Base ("the brain"):** `kb_categories` + `kb_articles` (light-markup body —
 same family as Communications, plus # headings, [links](url), ![images](url) from the
 public `kb-media` storage bucket; tags, summary, status draft→published→archived,
