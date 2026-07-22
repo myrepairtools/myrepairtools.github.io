@@ -700,6 +700,17 @@ nav, managers: Library list+calendar, Reporting by calendar month, Fairness rota
 ledger). Dashboard My Tasks widget uses `assets/checklist-summary.js`
 (`window.CPRChecklist.forMe()/markDone()`). On-time = done_at ≤ due_at, stored on the
 instance/completion at check-off. End-of-shift nudges ship via the alerts fanout (see Alerts).
+**The template editor is a 4-step wizard** (Details → Schedule → Assignment → Review) and
+**assignment is per-location, not one setting fanned out.** A multi-store task = one
+`task_templates` row per store sharing a `group_id`; each store carries its OWN target,
+people, and per-weekday overrides (`day_assignments` jsonb, keyed by DOW 0-6 — Salem runs an
+opener/closer while Eugene works a mid). Step 2 sets the store list + per-store due times;
+step 3 shows location chips to pick which store's assignment you're editing, plus "Copy this
+store's assignment to all locations" (remaps store-specific people to each store's roster;
+shift/role targets carry over untouched). Editing reconciles the whole group (updates
+existing store rows, inserts added stores, archives removed ones). The generator's resolver
+applies each day's `day_assignments[dow]` override (else the row's default) per store — so
+"weekdays → Mid shift, weekends → Open shift" resolves the right person automatically.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 
