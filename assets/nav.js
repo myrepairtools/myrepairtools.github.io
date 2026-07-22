@@ -75,9 +75,13 @@
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'banknote', acc:'cash.view' },
     { label:'Contracts',            url:'contracts.html',           icon:'pen-line' },
-    { label:'Label Resizer',       url:'label-resizer.html',       icon:'printer' },
     { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'monitor-smartphone' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'wrench', acc:'damage.view' }
+  ];
+  // Utilities that live under Operations as their own "Tools" sub-group —
+  // single-purpose gadgets rather than day-to-day trackers.
+  var TOOLS = [
+    { label:'Label Resizer',       url:'label-resizer.html',       icon:'printer' }
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
@@ -765,9 +769,11 @@
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
     }
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    var tls = TOOLS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     return hd
       + '<div class="cpr-grp">Operations</div>'
       + ops
+      + (tls ? '<div class="cpr-grp">Tools</div>' + tls : '')
       + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
 
@@ -786,6 +792,8 @@
     if (ord) h += '<div class="cpr-grp">Ordering &amp; Inventory</div>' + ord;
     var ops = OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (ops) h += '<div class="cpr-grp">Operations</div>' + ops;
+    var tls = TOOLS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+    if (tls) h += '<div class="cpr-grp">Tools</div>' + tls;
     var emp = EMPLOYEES.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (emp) h += '<div class="cpr-grp">Employees</div>' + emp;
     var rep = REPORTS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');

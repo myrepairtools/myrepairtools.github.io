@@ -89,8 +89,9 @@ these when adding UI so a new tool looks native.
 ## Shared assets (`assets/`)
 
 - **`nav.js`** — the navigation shell. Injects the fixed icon-rail + slide-out menu pane
-  into every page, defines the canonical tool lists (`OPERATIONS` + `PRIVILEGED` +
-  `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
+  into every page, defines the canonical tool lists (`OPERATIONS` + `TOOLS` — a
+  "Tools" sub-group rendered under Operations for single-purpose utilities like the
+  Label Resizer — + `PRIVILEGED` + `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
   update the right area array here** (and the tile in `index.html`) or it won't appear in
   the nav. **The rail-bottom gear is a real area** (not a link): clicking it swaps the pane
   to the `SETTINGS` list (Team Members, Locations, Notifications, Page Settings, Commission,
