@@ -219,9 +219,9 @@ async function loadHist(staffId, endSat){
   if(HIST[key]) return HIST[key];
   const raw=new Date(endSat.getFullYear(),endSat.getMonth(),endSat.getDate()-(WEEKS_BACK*7-1));
   const start=new Date(raw.getFullYear(),raw.getMonth(),raw.getDate()-raw.getDay());   // snap back to Sunday → whole weeks only
-  const r=await sb.from('qbtime_timesheets').select('biz_date,seconds')
+  const r=await sb.from('qbtime_timesheets').select('biz_date,seconds,off_seconds')
     .eq('staff_id',staffId).gte('biz_date',iso(start)).lte('biz_date',iso(endSat));
-  const days={}; (r.data||[]).forEach(x=>{ if(!x.biz_date)return; days[String(x.biz_date).slice(0,10)]=(days[x.biz_date]||0)+(+x.seconds||0); });
+  const days={}; (r.data||[]).forEach(x=>{ if(!x.biz_date)return; days[String(x.biz_date).slice(0,10)]=(days[x.biz_date]||0)+Math.max(0,(+x.seconds||0)-(+x.off_seconds||0)); });
   return (HIST[key]={days:days, start:start});
 }
 async function drawDrill(host, row){

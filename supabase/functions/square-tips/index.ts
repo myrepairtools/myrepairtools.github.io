@@ -88,16 +88,12 @@ async function resolveStore(name: string): Promise<string | null> {
 }
 
 /* ---------- rollup: tips_daily + QB Time hours → commission_tips ---------- */
-async function ptoJobcodes(): Promise<Set<string>> {
-  const { data } = await admin.from("qbtime_jobcodes").select("qbt_id").eq("type", "pto");
-  return new Set((data || []).map((r) => String(r.qbt_id)));
-}
 async function monthHoursByName(period: string, store: string): Promise<Record<string, number>> {
-  const [{ data: staff }, { data: ts }, pto] = await Promise.all([
+  const [{ data: staff }, { data: ts }] = await Promise.all([
     admin.from("staff").select("id,display_name,home_store,active").eq("active", true),
-    admin.from("qbtime_timesheets").select("staff_id,seconds,jobcodes")
+    // off_seconds = PTO + Unpaid Time Off jobcode time (computed by qbtime-sync)
+    admin.from("qbtime_timesheets").select("staff_id,seconds,off_seconds")
       .gte("biz_date", period + "-01").lte("biz_date", monthEndISO(period)),
-    ptoJobcodes(),
   ]);
   const mine = new Map<number, string>();
   for (const s of staff || []) if (s.home_store === store) mine.set(Number(s.id), String(s.display_name));
@@ -105,10 +101,8 @@ async function monthHoursByName(period: string, store: string): Promise<Record<s
   for (const r of ts || []) {
     const sid = Number(r.staff_id);
     if (!sid || !mine.has(sid)) continue;
-    let s = Number(r.seconds) || 0;
-    const j = (r.jobcodes || {}) as Record<string, unknown>;
-    for (const k in j) if (pto.has(String(k))) s -= Number(j[k]) || 0;
-    secs.set(sid, (secs.get(sid) || 0) + Math.max(0, s));
+    const s = Math.max(0, (Number(r.seconds) || 0) - (Number(r.off_seconds) || 0));
+    secs.set(sid, (secs.get(sid) || 0) + s);
   }
   const out: Record<string, number> = {};
   for (const [sid, s] of secs) { const h = Math.round(s / 3600 * 100) / 100; if (h > 0) out[mine.get(sid)!] = h; }

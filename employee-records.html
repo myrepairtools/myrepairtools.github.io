@@ -386,7 +386,7 @@ async function load(){
     sb.from('staff_pips').select('*'),
     sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active,raw'),
     sb.from('qbtime_jobcodes').select('qbt_id,name,type'),
-    sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,on_the_clock').gte('biz_date',tsFrom),
+    sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,off_seconds,on_the_clock').gte('biz_date',tsFrom),
     sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,note,submitted_at'),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
@@ -553,12 +553,12 @@ function timeHtml(e){
   if(!rows.length)return '<div class="work-pad"><div class="empty-sm">No clocked time in the last 6 weeks.</div></div>';
   const wk={};
   rows.forEach(t=>{const d=new Date(t.biz_date+'T00:00:00');const sun=new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getDay());const k=isoOf(sun);
-    (wk[k]||(wk[k]={sec:0,days:[]}));wk[k].sec+=(+t.seconds||0);wk[k].days.push(t);});
+    (wk[k]||(wk[k]={sec:0,days:[]}));wk[k].sec+=Math.max(0,(+t.seconds||0)-(+t.off_seconds||0));wk[k].days.push(t);});
   let html='<div class="work-pad">';
   Object.keys(wk).sort().reverse().forEach(k=>{const W=wk[k];const sun=new Date(k+'T00:00:00');const sat=isoOf(new Date(sun.getFullYear(),sun.getMonth(),sun.getDate()+6));
     const tot=toHrs(W.sec),ot=Math.max(0,Math.round((tot-40)*10)/10);
     html+='<div class="tcard"><div class="tcard-hd"><b>'+fmt(k).replace(/,\s*\d{4}$/,'')+' – '+fmt(sat)+'</b><span>'+tot.toFixed(1)+' hrs'+(ot>0?' · <span style="color:var(--red)">'+ot+' OT</span>':'')+'</span></div>';
-    W.days.sort((a,b)=>a.biz_date<b.biz_date?-1:1).forEach(d=>{html+='<div class="trow"><span>'+esc(dowLabel(d.biz_date))+'</span><span>'+toHrs(d.seconds).toFixed(1)+' hrs'+(d.on_the_clock?'<span class="p-live">● on clock</span>':'')+'</span></div>';});
+    W.days.sort((a,b)=>a.biz_date<b.biz_date?-1:1).forEach(d=>{html+='<div class="trow"><span>'+esc(dowLabel(d.biz_date))+'</span><span>'+toHrs(Math.max(0,(+d.seconds||0)-(+d.off_seconds||0))).toFixed(1)+' hrs'+(d.on_the_clock?'<span class="p-live">● on clock</span>':'')+'</span></div>';});
     html+='</div>';});
   return html+'</div>';
 }

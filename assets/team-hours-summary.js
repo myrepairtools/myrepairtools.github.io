@@ -84,7 +84,7 @@
           client.from('shifts').select('id,name,active'),
           client.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
           client.from('staff_schedule').select('staff_id,store,shifts'),
-          client.from('qbtime_timesheets').select('staff_id,biz_date,seconds,on_the_clock').gte('biz_date',wkStart).lte('biz_date',wkEnd),
+          client.from('qbtime_timesheets').select('staff_id,biz_date,seconds,off_seconds,on_the_clock').gte('biz_date',wkStart).lte('biz_date',wkEnd),
           client.from('time_off_requests').select('staff_id,start_date,end_date,status').eq('status','approved').lte('start_date',wkEnd).gte('end_date',wkStart),
           client.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id').gte('ovr_date',wkStart).lte('ovr_date',wkEnd),
           client.from('holidays').select('id,holiday_date').gte('holiday_date',wkStart).lte('holiday_date',wkEnd),
@@ -116,8 +116,9 @@
           // worked seconds this week (total) + per date, and whether they're on the clock now
           var workedWk={}, workedByDate={}, onClock={};
           ts.forEach(function(r){ if(r.staff_id==null) return;
-            workedWk[r.staff_id]=(workedWk[r.staff_id]||0)+(+r.seconds||0);
-            if(r.biz_date){ (workedByDate[r.staff_id]||(workedByDate[r.staff_id]={}))[r.biz_date]=(workedByDate[r.staff_id][r.biz_date]||0)+(+r.seconds||0); }
+            var w=Math.max(0,(+r.seconds||0)-(+r.off_seconds||0));   // PTO/unpaid time off isn't worked time
+            workedWk[r.staff_id]=(workedWk[r.staff_id]||0)+w;
+            if(r.biz_date){ (workedByDate[r.staff_id]||(workedByDate[r.staff_id]={}))[r.biz_date]=(workedByDate[r.staff_id][r.biz_date]||0)+w; }
             if(r.on_the_clock) onClock[r.staff_id]=true; });
 
           var rows=staff.map(function(e){

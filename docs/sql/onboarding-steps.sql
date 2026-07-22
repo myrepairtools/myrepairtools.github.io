@@ -58,3 +58,28 @@ begin
       (mid, 80, 'Emergency contact & profile details', 'Phone, address, emergency contact, shirt size.', 'employee', 'profile.html');
   end if;
 end $$;
+-- Harden onboarding_step_done (verify finding): employees may only tick their
+-- OWN completions on EMPLOYEE-kind steps, and done_by must be themselves —
+-- manager-kind steps (I-9, payroll, credentials) are admin-only writes, so the
+-- attestation record can't be forged or erased from the console.
+drop policy if exists "own or admin write" on public.onboarding_step_done;
+create policy "own or admin write" on public.onboarding_step_done for insert
+  with check (
+    is_admin()
+    or (staff_id = my_staff_id() and done_by = my_staff_id()
+        and exists (select 1 from public.onboarding_steps s
+                    where s.id = step_id and s.who = 'employee'))
+  );
+drop policy if exists "own or admin delete" on public.onboarding_step_done;
+create policy "own or admin delete" on public.onboarding_step_done for delete
+  using (
+    is_admin()
+    or (staff_id = my_staff_id()
+        and exists (select 1 from public.onboarding_steps s
+                    where s.id = step_id and s.who = 'employee'))
+  );
+-- scope the new read policies to signed-in users (house convention)
+drop policy if exists "read steps" on public.onboarding_steps;
+create policy "read steps" on public.onboarding_steps for select to authenticated using (true);
+drop policy if exists "read modules" on public.onboarding_modules;
+create policy "read modules" on public.onboarding_modules for select to authenticated using (true);
