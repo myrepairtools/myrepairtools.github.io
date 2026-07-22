@@ -80,6 +80,54 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Diagnostic: probe an API endpoint with a store's stored token
+  // (OAuth 1.0a PLAINTEXT per the MS auth doc). Gated by the start key.
+  if (q.get("action") === "api_test") {
+    if (!START_KEY || q.get("k") !== START_KEY) return json({ error: "bad key" }, 403);
+    const store = q.get("store") || "";
+    const path = q.get("path") || "/api/rest/orders";
+    const { data: t } = await admin.from("integration_tokens").select("access_token, meta").eq("provider", `ms:${store}`).maybeSingle();
+    if (!t) return json({ error: "no token for store", store }, 404);
+    const tokSecret = t.meta?.access_token_secret || "";
+    const oauth = [
+      `oauth_consumer_key="${encodeURIComponent(MS_KEY)}"`,
+      `oauth_token="${encodeURIComponent(t.access_token)}"`,
+      `oauth_signature_method="PLAINTEXT"`,
+      `oauth_signature="${encodeURIComponent(MS_SECRET)}%26${encodeURIComponent(tokSecret)}"`,
+      `oauth_timestamp="${Math.floor(Date.now() / 1000)}"`,
+      `oauth_nonce="${crypto.randomUUID().replace(/-/g, "")}"`,
+      `oauth_version="1.0"`,
+    ].join(", ");
+    try {
+      const r = await fetch(`${MS_BASE}${path}`, {
+        headers: { Authorization: `OAuth ${oauth}`, Accept: "application/json" },
+        redirect: "manual",
+      });
+      const txt = await r.text();
+      return json({
+        store, path, status: r.status,
+        location: r.headers.get("location") || undefined,
+        content_type: r.headers.get("content-type") || undefined,
+        body: txt.slice(0, 1200),
+      });
+    } catch (e) {
+      return json({ store, path, error: String(e) }, 502);
+    }
+  }
+
+  // TEMP: fetch a public asset (brand icon) and return it base64 — this
+  // environment's egress is proxied but the edge runtime's isn't. Key-gated.
+  if (q.get("action") === "fetch_icon") {
+    if (!START_KEY || q.get("k") !== START_KEY) return json({ error: "bad key" }, 403);
+    try {
+      const r = await fetch(q.get("url") || "", { headers: { "User-Agent": "Mozilla/5.0" } });
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      return json({ status: r.status, content_type: r.headers.get("content-type"), size: buf.length, b64: btoa(bin) });
+    } catch (e) { return json({ error: String(e) }, 502); }
+  }
+
   // Step 1: kick off the browser sign-in (per store — each store has its own
   // cpr.parts account).
   if (q.get("action") === "start") {
