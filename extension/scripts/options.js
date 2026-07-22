@@ -143,10 +143,11 @@ function restoreOptions() {
         });
         setState(document.getElementById('aiEnabled'), !result.ai || result.ai.enabled !== false, 'lcd-checkmark');
         const smsCfg = result.sms || {};
-        // sendSms defaults ON (falls back to the legacy readyText flag); call + email default OFF.
+        // sendSms defaults ON (falls back to the legacy readyText flag); calls
+        // default ON now that Twilio is live; email defaults OFF.
         setState(document.getElementById('smsFollowUp'), smsCfg.followUp !== false, 'lcd-checkmark');
         setState(document.getElementById('smsSendSms'), smsCfg.sendSms !== undefined ? smsCfg.sendSms : (smsCfg.readyText !== false), 'lcd-checkmark');
-        setState(document.getElementById('smsSendCall'), smsCfg.sendCall === true, 'lcd-checkmark');
+        setState(document.getElementById('smsSendCall'), smsCfg.sendCall !== false, 'lcd-checkmark');
         setState(document.getElementById('smsSendEmail'), smsCfg.sendEmail === true, 'lcd-checkmark');
         setState(document.getElementById('smsPanel'), smsCfg.panel !== false, 'lcd-checkmark');
         setState(document.getElementById('wnEnabled'), !result.wn || result.wn.enabled !== false, 'lcd-checkmark');
