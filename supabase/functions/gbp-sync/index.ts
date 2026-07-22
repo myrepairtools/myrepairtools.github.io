@@ -402,6 +402,18 @@ async function setCfg(key: string, value: unknown, by: string) {
 function storeAutoOn(cfg: AutoCfg, store: string): boolean {
   return !!cfg.master && cfg.stores?.[store] !== false;  // missing store key = ON
 }
+// Reply style (gbp_config 'reply_style', edited in the Manage sheet):
+// signature = appended verbatim to EVERY draft (LLM, thank-you, drawer);
+// notes = freeform extra instructions woven into the LLM prompt.
+type ReplyStyle = { signature: string; notes: string };
+async function getStyle(): Promise<ReplyStyle> {
+  const s = await getCfg<Partial<ReplyStyle>>("reply_style", {});
+  return { signature: String(s.signature || ""), notes: String(s.notes || "") };
+}
+function signed(text: string, style: ReplyStyle): string {
+  const sig = style.signature.trim();
+  return (sig ? text.trim() + "\n\n" + sig : text.trim()).slice(0, 3800);
+}
 
 /* ---------- reply drafting ---------- */
 // Rating-only thank-yous rotate per store, never the same twice in a row.
@@ -420,11 +432,12 @@ async function thankYouFor(store: string): Promise<string> {
   if (i === last) i = (i + 1) % THANKS.length;
   rot[store] = i;
   await setCfg("thanks_rot", rot, "auto");
-  return THANKS[i];
+  return signed(THANKS[i], await getStyle());
 }
 type Rev = { id: string; store: string; stars: number | null; comment: string | null; reviewer_name: string | null; created_at: string | null };
 async function llmDraft(rev: Rev, phone: string | null): Promise<string> {
   if (!ANTHROPIC) throw new Error("missing_anthropic_key");
+  const style = await getStyle();
   const stars = Number(rev.stars) || 0;
   const low = stars <= 3;
   const city = rev.store.replace(/^CPR\s*/i, "");
@@ -435,6 +448,8 @@ async function llmDraft(rev: Rev, phone: string | null): Promise<string> {
     low
       ? `This review is negative (${stars} star${stars === 1 ? "" : "s"}). Apologize once, sincerely. Take the concern seriously without being defensive. Invite them to take it offline: ask them to call the store${phone ? ` at ${phone}` : ""} so a manager can make it right.`
       : "This review is positive. Thank them by first name if given, and keep it fresh and brief.",
+    ...(style.notes.trim() ? [`Owner's standing instructions: ${style.notes.trim()}`] : []),
+    ...(style.signature.trim() ? ["Do NOT add any sign-off or name — a signature is appended automatically."] : []),
     "Return ONLY the reply text — no quotes, no preamble.",
   ].join("\n");
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -453,7 +468,7 @@ async function llmDraft(rev: Rev, phone: string | null): Promise<string> {
   const text = (d.content || []).filter((c: Record<string, unknown>) => c.type === "text")
     .map((c: Record<string, string>) => c.text).join("").trim();
   if (!text) throw new Error("anthropic_empty");
-  return text.slice(0, 3800);
+  return signed(text, style);
 }
 
 /* ---------- posting a reply (the ONLY write path to Google) ---------- */
@@ -823,7 +838,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === "config") {
-      return json({ ok: true, auto_reply: await getCfg<AutoCfg>("auto_reply", { master: false, stores: {} }) });
+      return json({
+        ok: true,
+        auto_reply: await getCfg<AutoCfg>("auto_reply", { master: false, stores: {} }),
+        reply_style: await getStyle(),
+      });
     }
 
     if (action === "config_set") {
@@ -833,8 +852,16 @@ Deno.serve(async (req) => {
         for (const k of Object.keys(b.stores)) cfg.stores[k] = !!b.stores[k];
       }
       await setCfg("auto_reply", cfg, actor);
-      await admin.from("gbp_audit").insert({ actor, action: "auto_reply_config", store: null, payload: cfg });
-      return json({ ok: true, auto_reply: cfg });
+      let style: ReplyStyle | null = null;
+      if (b.reply_style && typeof b.reply_style === "object") {
+        style = {
+          signature: String(b.reply_style.signature || "").slice(0, 300),
+          notes: String(b.reply_style.notes || "").slice(0, 1000),
+        };
+        await setCfg("reply_style", style, actor);
+      }
+      await admin.from("gbp_audit").insert({ actor, action: "auto_reply_config", store: null, payload: { ...cfg, ...(style ? { reply_style: style } : {}) } });
+      return json({ ok: true, auto_reply: cfg, ...(style ? { reply_style: style } : {}) });
     }
 
     if (action === "backfill") {

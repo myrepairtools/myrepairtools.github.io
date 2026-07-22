@@ -158,7 +158,7 @@ async function fnGet(action){
 /* ===== state ===== */
 let SEL=(function(){try{return localStorage.getItem('cprGrvStore')||'All';}catch(e){return 'All';}})();
 let UNONLY=false, STARS=0, LIMIT=100;
-let LOCS=[], REVS=[], QMAP={}, CFG={master:false,stores:{}};
+let LOCS=[], REVS=[], QMAP={}, CFG={master:false,stores:{}}, STYLE={signature:'',notes:''};
 let DEEP=null;                     // #r=<id> deep link target
 let CONFIRMED=false;               // "public on Google" once per session
 try{ CONFIRMED=sessionStorage.getItem('cprGrvConfirmed')==='1'; }catch(e){}
@@ -177,13 +177,15 @@ async function load(){
     sb.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at,reply_text,replied_at,legacy_unanswered')
       .is('deleted_at',null).order('created_at',{ascending:false}).limit(600),
     sb.from('gbp_reply_queue').select('id,review_id,store,source,status,post_after,draft').in('status',['hold','posted']),
-    sb.from('gbp_config').select('key,value').eq('key','auto_reply').maybeSingle()
+    sb.from('gbp_config').select('key,value').in('key',['auto_reply','reply_style'])
   ]);
   LOCS=(locR.data||[]).sort((a,b)=>storeOrder(a.store)-storeOrder(b.store));
   REVS=rvR.data||[];
   QMAP={}; (qR.data||[]).forEach(q=>{ const cur=QMAP[q.review_id];
     if(!cur||q.status==='hold') QMAP[q.review_id]=q; });
-  CFG=(cR.data&&cR.data.value)||{master:false,stores:{}};
+  const cfgRows={}; (cR.data||[]).forEach(r=>{ cfgRows[r.key]=r.value; });
+  CFG=cfgRows.auto_reply||{master:false,stores:{}};
+  STYLE=cfgRows.reply_style||{signature:'',notes:''};
   render();
   if(DEEP){ const r=REVS.find(x=>x.id===DEEP); if(r) openDrawer(r.id); }
 }
@@ -363,6 +365,11 @@ async function openManage(){
   LOCS.forEach(l=>{ const on=CFG.stores&&CFG.stores[l.store]!==false;
     h+='<div class="togrow"><span class="tl">'+esc(shortStore(l.store))+'</span>'
       +'<label class="sw"><input type="checkbox" data-store="'+esc(l.store)+'"'+(on?' checked':'')+(CFG.master?'':' disabled')+'><i></i></label></div>'; });
+  h+='<div class="dlab" style="margin-top:20px">Reply Style</div>'
+    +'<div class="hint" style="margin:0 0 6px">Signature is added to the end of every draft — auto-replies, thank-yous, and drawer drafts.</div>'
+    +'<textarea data-sig placeholder="Signature (optional)" style="width:100%;min-height:58px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:.82rem">'+esc(STYLE.signature||'')+'</textarea>'
+    +'<textarea data-notes placeholder="Extra instructions for the AI (optional) — e.g. mention our 6-month warranty when it fits" style="width:100%;min-height:48px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:.82rem;margin-top:7px">'+esc(STYLE.notes||'')+'</textarea>'
+    +'<div class="qa" style="display:flex;gap:7px;margin-top:7px"><button class="pillbtn" data-savestyle style="background:var(--dark);color:#fff;border-color:var(--dark)">Save Style</button></div>';
   h+='<div class="dlab" style="margin-top:20px">Hold queue'+(queue.length?' · '+queue.length:'')+'</div>';
   if(!queue.length) h+='<div class="hint">Nothing waiting. 1–3★ never auto-posts — a person approves every one.</div>';
   queue.forEach(q=>{
@@ -381,6 +388,12 @@ async function openManage(){
   d.innerHTML=h;
   d.querySelector('[data-x]').onclick=closeDrawer;
   const saveCfg=async()=>{ try{ await fnCall('config_set',CFG); toast('Saved'); }catch(e){ toast('Save failed: '+e.message); } render(); };
+  const ss=d.querySelector('[data-savestyle]');
+  if(ss)ss.onclick=async()=>{
+    STYLE={signature:d.querySelector('[data-sig]').value,notes:d.querySelector('[data-notes]').value};
+    try{ await fnCall('config_set',{...CFG,reply_style:STYLE}); toast('Reply style saved'); }
+    catch(e){ toast('Save failed: '+e.message); }
+  };
   const master=d.querySelector('[data-master]');
   if(master)master.onchange=()=>{ CFG.master=master.checked;
     d.querySelectorAll('[data-store]').forEach(i=>{ i.disabled=!CFG.master; }); saveCfg(); };
