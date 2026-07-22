@@ -37,14 +37,26 @@ function → droplet (shared-secret auth) → MobileSentrix API.
       account); the callback auto-POSTs `/oauth/authorize/identifiercallback`
       and upserts the long-lived access token into `integration_tokens`
       (provider `mobilesentrix`; `meta.access_token_secret`, `meta.base_url`).
-- [ ] Owner completes the browser sign-in (one time) → token stored
-- [ ] Relay service built on the droplet (bootstrap script pasted via the DO web
-      console — owner keeps root access; no credentials shared into sessions)
-      — only needed if cpr.parts enforces the IP whitelist for API calls
-      (the form labeled it "for staging environment"; test direct-from-edge
-      first)
-- [ ] Supabase side: order poller → `qbo` function `create_expense`-style
-      Purchase with invoice attachment + per-store class splits
+- [x] All 3 stores connected (2026-07-22) — per-store tokens in
+      `integration_tokens` `ms:<store>` (each store has its own cpr.parts
+      account). Managed in **Settings → Integrations → MobileSentrix**.
+- [x] **No relay needed**: production API calls work straight from the edge
+      function — no IP whitelist in play. The droplet can be destroyed.
+- [x] **Order mirror**: `mobilesentrix` edge function `?action=sync` pulls each
+      store's orders (`/api/rest/orders`, OAuth 1.0a PLAINTEXT, incremental on
+      `updated_at` w/ 3-day overlap, 60-day first backfill) into `ms_orders`
+      (entity_id PK, items jsonb, admin-only RLS; docs/sql/ms-orders-schema.sql).
+      Cron `ms-orders-sync` hourly at :40; any signed-in staff can kick a sync
+      (15-min freshness guard).
+- [x] **Consumption report integration**: `ms_ordered_for_day(store, day)`
+      SECURITY DEFINER RPC (per-SKU qty actually ordered that Pacific day, no
+      dollars exposed) merges into the report's ORDERED state — real cpr.parts
+      purchases auto-check the Ordered column (raise-only; manual marks and
+      export bookkeeping still work). Page kicks a background sync on load.
+- [ ] **QBO expense booking: deliberately NOT built.** The owner will
+      micro-manage that build step-by-step (do not auto-post anything to QBO
+      from MobileSentrix data without explicit direction). Design notes below
+      stay for that future session.
 
 ## Auth process (from docs.mobilesentrix.com "Authentication Process")
 

@@ -426,8 +426,18 @@ private window between stores), then the callback auto-exchanges at
 `integration_tokens` provider `ms:<store>` (`meta.access_token_secret`). Everything
 logs to `ms_callback_log` (owner read). Owner-authed `?action=status` powers the
 **Settings → Integrations → MobileSentrix** card (per-store Connect/Reconnect
-buttons + status pills). Order→QBO-expense pipeline + droplet relay (only if the IP
-whitelist turns out to apply to production) per docs/mobilesentrix-pipeline.md.
+buttons + status pills). All 3 stores connected; production API works straight
+from the edge runtime (no IP whitelist — the droplet relay idea is dead). The
+**`mobilesentrix` edge function** (`?action=sync`; cron `ms-orders-sync` hourly
+:40, NOTIFY_SECRET; any staff JWT can kick it, 15-min freshness guard) mirrors
+each store's orders into **`ms_orders`** (entity_id PK, items jsonb w/ sku+qty,
+admin-only RLS; docs/sql/ms-orders-schema.sql). **Consumption report** merges the
+`ms_ordered_for_day(store, day)` SECURITY DEFINER RPC (per-SKU qty ordered that
+Pacific day — no dollars) into its ORDERED state, so real cpr.parts purchases
+auto-check the Ordered column (raise-only over manual/export marks; page kicks a
+background sync on load). **QBO booking from MS orders is deliberately NOT
+built** — the owner will drive that step-by-step; never auto-post to QBO from
+MS data without explicit direction (docs/mobilesentrix-pipeline.md).
 
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
