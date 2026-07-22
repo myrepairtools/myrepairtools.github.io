@@ -453,7 +453,12 @@ serves live cpr.parts price/availability (our account's cost) through a 30-min
 `ms_products` cache (authenticated read): order rows show cost + a red
 "MS out of stock" pill, and a **part-group's order SKU auto-picks the cheapest
 IN-STOCK member** (★ default = tiebreak/fallback; member rows show per-SKU
-price + MS stock). **QBO booking from MS orders is deliberately NOT
+price + MS stock). **Cross-store transfer chips**: rows with a suggested buy
+also ask `transfer_candidates(store, skus[])` (SECURITY DEFINER — store reads
+are can_see_store-scoped) whether another store holds that SKU above its own
+max; surplus renders a blue "⇄ <store> has N spare" chip (hover = per-SKU
+stock/max/30-day-usage detail; docs/sql/transfer-candidates.sql) so a transfer
+can beat a purchase. **QBO booking from MS orders is deliberately NOT
 built** — the owner will drive that step-by-step; never auto-post to QBO from
 MS data without explicit direction (docs/mobilesentrix-pipeline.md).
 
