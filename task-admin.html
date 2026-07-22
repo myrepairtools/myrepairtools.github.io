@@ -529,40 +529,53 @@ function storeOrd(s){const i=STORES.indexOf(s);return i<0?99:i;}
 // Templates created together for several stores share a group_id. Fan-out
 // targets (shift/role) can be edited across all their stores at once.
 function groupSibs(gid){return gid?TPLS.filter(x=>x.group_id===gid&&x.active&&!x.personal):[];}
+// Assignment lives PER LOCATION — Salem runs openers/closers, Eugene a mid,
+// so each store carries its own default target + per-day overrides. A location
+// is {store, dueTime, target, assignee, fallback, shift, role, pool, strategy,
+// completion, dayAssign, perDay}. The multi-store template = one row per loc.
+function blankAssign(store){
+  const staffL=STAFF.filter(s=>s.home_store===store&&s.role!=='owner');
+  return {target:'person',assignee:(staffL[0]||ME).id,fallback:'',shift:(SHIFTS[0]||{}).id,role:'any',
+    pool:staffL.map(s=>s.id),strategy:'rotate',completion:'any',dayAssign:{},perDay:false};
+}
+function locFromTpl(t){
+  return Object.assign({store:t.store,dueTime:t.due_time||'18:00',
+    target:t.target||'person',assignee:t.assignee_staff_id||(STAFF.filter(s=>s.home_store===t.store&&s.role!=='owner')[0]||ME).id,
+    fallback:t.fallback_staff_id||'',shift:t.shift_id||(SHIFTS[0]||{}).id,role:t.role_key||'any',
+    pool:(t.pool||[]).slice(),strategy:t.strategy||'rotate',completion:t.completion||'any',
+    dayAssign:(t.day_assignments&&typeof t.day_assignments==='object')?JSON.parse(JSON.stringify(t.day_assignments)):{},
+    perDay:Object.keys(t.day_assignments||{}).length>0});
+}
 function newDraft(){
   return {name:'',linkText:'',linkUrl:'',customUrl:'',priority:'normal',recur:'daily',
     weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
-    target:'person',assignee:(STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner')[0]||ME).id,fallback:'',
-    shift:(SHIFTS[0]||{}).id,role:'any',pool:STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner').map(s=>s.id),strategy:'rotate',completion:'any',
-    store:SEL,dueTime:'18:00',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',
-    dayAssign:{},   // per-weekday overrides {dow: {target, shift_id|assignee_staff_id|role_key|pool|strategy}}
-    locs:[{store:SEL,dueTime:'18:00'}]};   // create mode: one template per location, each with its own due time
+    dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',
+    __locSel:0,
+    locs:[Object.assign({store:SEL,dueTime:'18:00'},blankAssign(SEL))]};
 }
 function draftFrom(t){
   return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
     priority:t.priority||'normal',recur:t.recur||'daily',
     weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
-    target:t.target||'person',assignee:t.assignee_staff_id||ME.id,fallback:t.fallback_staff_id||'',
-    shift:t.shift_id||(SHIFTS[0]||{}).id,role:t.role_key||'any',pool:(t.pool||[]).slice(),strategy:t.strategy||'rotate',completion:t.completion||'any',
-    store:t.store||SEL,dueTime:t.due_time||'18:00',dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',
-    dayAssign:(t.day_assignments&&typeof t.day_assignments==='object')?JSON.parse(JSON.stringify(t.day_assignments)):{},
-    locs:[{store:t.store||SEL,dueTime:t.due_time||'18:00'}]};
+    dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',
+    __locSel:0,
+    locs:[locFromTpl(t)]};
 }
 function openEditor(t){
   EDIT_ID=t?t.id:null;
   EDIT_GID=t?(t.group_id||null):null;
   STEP=1;
   DRAFT=t?draftFrom(t):newDraft();
-  // fan-out targets: seed the locations list from every store in this group so
-  // one edit covers them all (and stores can be added/removed).
-  if(t&&(t.target==='shift'||t.target==='role')){
+  // editing: seed a location per store in this group, each keeping ITS OWN
+  // assignment — so one edit spans every store, none share an assignment.
+  if(t&&t.group_id){
     const sibs=groupSibs(t.group_id);const use=sibs.length?sibs:[t];
-    DRAFT.locs=use.slice().sort((a,b)=>storeOrd(a.store)-storeOrd(b.store)).map(x=>({store:x.store,dueTime:x.due_time||'18:00'}));
+    DRAFT.locs=use.slice().sort((a,b)=>storeOrd(a.store)-storeOrd(b.store)).map(locFromTpl);
   }
   drawEditor();
 }
-// the multi-location editor shows for new tasks and for editing fan-out targets
-function useLocsUI(){return !EDIT_ID || DRAFT.target==='shift' || DRAFT.target==='role';}
+// assignment is per-location now, so the multi-location editor always shows
+function useLocsUI(){return true;}
 function pillRow(items,cur,color,attr){
   return items.map(o=>'<button class="pill'+(String(cur)===String(o[0])?' on':'')+'" style="'+(String(cur)===String(o[0])?'background:'+(o[2]||color)+';border-color:'+(o[2]||color):'')+'" data-'+attr+'="'+esc(String(o[0]))+'">'+esc(o[1])+'</button>').join('');
 }
@@ -582,6 +595,23 @@ function ovOptsHtml(store,cur){
 }
 /* weekdays this recurrence actually runs — the only days an override matters */
 function overrideDays(d){ if(d.recur==='daily')return [1,2,3,4,5,6,0]; if(d.recur==='weekly')return [1,2,3,4,5,6,0].filter(w=>(d.weekdays||[]).indexOf(w)>-1); return []; }
+// copy one location's assignment onto another store, remapping store-specific
+// people to that store's roster (shift/role targets carry over untouched; a
+// per-day person override that has no match in the target store is dropped).
+function remapAssign(src,store){
+  const staffL=STAFF.filter(s=>s.home_store===store&&s.role!=='owner');
+  const ids=staffL.map(s=>s.id),has=id=>ids.indexOf(+id)>-1;
+  const a={target:src.target,strategy:src.strategy,completion:src.completion,
+    shift:src.shift,role:src.role,perDay:src.perDay,
+    assignee:has(src.assignee)?src.assignee:(staffL[0]||ME).id,
+    fallback:has(src.fallback)?src.fallback:'',
+    pool:(src.target==='group'&&(src.pool||[]).filter(has).length)?src.pool.filter(has):ids.slice(),
+    dayAssign:{}};
+  Object.keys(src.dayAssign||{}).forEach(w=>{const ov=src.dayAssign[w];
+    if(ov.target==='person'){if(has(ov.assignee_staff_id))a.dayAssign[w]=JSON.parse(JSON.stringify(ov));}
+    else a.dayAssign[w]=JSON.parse(JSON.stringify(ov));});
+  return a;
+}
 function defaultAssignText(d){
   if(d.target==='person'){const a=SBID[+d.assignee];return (a?a.display_name:'—')+(d.fallback&&SBID[+d.fallback]?' (fallback '+SBID[+d.fallback].display_name+')':'');}
   if(d.target==='shift'){const s=SHIFTS.find(x=>x.id===+d.shift);return 'Whoever works '+(s?s.name:'the shift')+' that day';}
@@ -591,7 +621,11 @@ function defaultAssignText(d){
 
 function drawEditor(){
   const d=DRAFT;
-  const storeStaffL=STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner');
+  if(!d.locs||!d.locs.length)d.locs=[Object.assign({store:SEL,dueTime:'18:00'},blankAssign(SEL))];
+  if(d.__locSel==null||d.__locSel>=d.locs.length)d.__locSel=0;
+  const L=d.locs[d.__locSel];               // the location whose assignment we're editing
+  const multiLoc=d.locs.length>1;
+  const storeStaffL=STAFF.filter(s=>s.home_store===L.store&&s.role!=='owner');
   const url=d.linkUrl==='__custom'?d.customUrl:d.linkUrl;
   let prev=esc(d.name||'');
   if(d.linkText&&url&&(d.name||'').indexOf(d.linkText)>-1){const at=d.name.indexOf(d.linkText);prev=esc(d.name.slice(0,at))+'<span class="clink" style="cursor:default">'+esc(d.linkText)+'</span>'+esc(d.name.slice(at+d.linkText.length));}
@@ -602,25 +636,25 @@ function drawEditor(){
     d.recur==='flexible'?'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="fld" style="width:80px;margin:0"><span class="fl">Times</span><input class="inp" id="eFlexN" value="'+esc(d.flexN)+'"></label><label class="fld" style="width:150px;margin:0"><span class="fl">per</span><select class="inp" id="eFlexPer"><option value="week"'+(d.flexPer==='week'?' selected':'')+'>week</option><option value="month"'+(d.flexPer==='month'?' selected':'')+'>month</option></select></label><div class="hint" style="padding-bottom:9px">Any day in the window — movable (e.g. clean the bathroom once a week).</div></div>':
     '<div class="hint">'+(d.recur==='daily'?'Generates fresh every day — overdue ones don’t pile up.':'Happens once. A one-off never auto-expires — it waits until done or a manager closes it.')+'</div>';
   const assignPanel=
-    d.target==='person'?'<div class="grid2"><label class="fld" style="margin:0"><span class="fl">Person</span><select class="inp" id="eAssignee">'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+d.assignee===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label><label class="fld" style="margin:0"><span class="fl">Fallback if off</span><select class="inp" id="eFallback"><option value="">None</option>'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+d.fallback===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label></div>':
-    d.target==='shift'?'<label class="fld" style="margin:0"><span class="fl">Shift (resolved from the schedule daily)</span><select class="inp" id="eShift">'+SHIFTS.map(s=>'<option value="'+s.id+'"'+(+d.shift===s.id?' selected':'')+'>'+esc(s.name)+' · '+esc(shortStore(d.store))+'</option>').join('')+'</select></label><div class="hint" style="margin-top:8px">e.g. “whoever closes '+esc(shortStore(d.store))+'” — picks the right person each day automatically.</div>':
-    d.target==='role'?'<label class="fld" style="margin:0"><span class="fl">Role</span><select class="inp" id="eRole"><option value="any"'+(d.role!=='manager'?' selected':'')+'>Any tech</option><option value="manager"'+(d.role==='manager'?' selected':'')+'>Manager</option></select></label>':
-    '<div class="hint" style="margin-bottom:9px">Pick the pool.</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+storeStaffL.map(s=>'<button class="pill'+(d.pool.indexOf(s.id)>-1?' on':'')+'" style="'+(d.pool.indexOf(s.id)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-pool="'+s.id+'">'+esc(s.display_name)+'</button>').join('')+'</div>';
-  const showStrat=d.target==='group',showComp=(d.target==='role'||d.target==='group');
+    L.target==='person'?'<div class="grid2"><label class="fld" style="margin:0"><span class="fl">Person</span><select class="inp" id="eAssignee">'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+L.assignee===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label><label class="fld" style="margin:0"><span class="fl">Fallback if off</span><select class="inp" id="eFallback"><option value="">None</option>'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+L.fallback===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label></div>':
+    L.target==='shift'?'<label class="fld" style="margin:0"><span class="fl">Shift (resolved from the schedule daily)</span><select class="inp" id="eShift">'+SHIFTS.map(s=>'<option value="'+s.id+'"'+(+L.shift===s.id?' selected':'')+'>'+esc(s.name)+' · '+esc(shortStore(L.store))+'</option>').join('')+'</select></label><div class="hint" style="margin-top:8px">e.g. “whoever closes '+esc(shortStore(L.store))+'” — picks the right person each day automatically.</div>':
+    L.target==='role'?'<label class="fld" style="margin:0"><span class="fl">Role</span><select class="inp" id="eRole"><option value="any"'+(L.role!=='manager'?' selected':'')+'>Any tech</option><option value="manager"'+(L.role==='manager'?' selected':'')+'>Manager</option></select></label>':
+    '<div class="hint" style="margin-bottom:9px">Pick the pool.</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+storeStaffL.map(s=>'<button class="pill'+(L.pool.indexOf(s.id)>-1?' on':'')+'" style="'+(L.pool.indexOf(s.id)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-pool="'+s.id+'">'+esc(s.display_name)+'</button>').join('')+'</div>';
+  const showStrat=L.target==='group',showComp=(L.target==='role'||L.target==='group');
   let sum='';
-  if(d.target==='person'){const a=SBID[+d.assignee];sum='Always '+(a?a.display_name:'—')+(d.fallback&&SBID[+d.fallback]?' — fallback '+SBID[+d.fallback].display_name:'')+'.';}
-  else if(d.target==='shift'){const s=SHIFTS.find(x=>x.id===+d.shift);sum='Resolves to whoever works '+(s?s.name:'the shift')+' at '+shortStore(d.store)+' that day.';}
-  else if(d.target==='role')sum=(d.completion==='each'?'Every ':'Any ')+(d.role==='manager'?'manager':'tech')+(d.completion==='each'?' must complete their own — shows a completion grid.':' completes it for the group.');
-  else sum=(d.strategy==='rotate'?'Round-robin through ':'Shared across ')+d.pool.map(id=>SBID[id]?firstName(SBID[id].display_name):'').filter(Boolean).join(', ')+(d.completion==='each'?' — each must complete.':' — any one completes it.');
-  // ---- per-day override section (Assignment step; daily/weekly only) ----
+  if(L.target==='person'){const a=SBID[+L.assignee];sum='Always '+(a?a.display_name:'—')+(L.fallback&&SBID[+L.fallback]?' — fallback '+SBID[+L.fallback].display_name:'')+'.';}
+  else if(L.target==='shift'){const s=SHIFTS.find(x=>x.id===+L.shift);sum='Resolves to whoever works '+(s?s.name:'the shift')+' at '+shortStore(L.store)+' that day.';}
+  else if(L.target==='role')sum=(L.completion==='each'?'Every ':'Any ')+(L.role==='manager'?'manager':'tech')+(L.completion==='each'?' must complete their own — shows a completion grid.':' completes it for the group.');
+  else sum=(L.strategy==='rotate'?'Round-robin through ':'Shared across ')+L.pool.map(id=>SBID[id]?firstName(SBID[id].display_name):'').filter(Boolean).join(', ')+(L.completion==='each'?' — each must complete.':' — any one completes it.');
+  // ---- per-day override section (this location; daily/weekly only) ----
   const odays=overrideDays(d);
-  const perDayOn=d.perDay!=null?!!d.perDay:(Object.keys(d.dayAssign||{}).length>0);
+  const perDayOn=L.perDay!=null?!!L.perDay:(Object.keys(L.dayAssign||{}).length>0);
   const dayOverrideSection=odays.length?(
     '<div class="panel">'+
-      '<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:700;font-size:.9rem"><input type="checkbox" id="eDayToggle"'+(perDayOn?' checked':'')+'> Assign differently on some days</label>'+
+      '<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:700;font-size:.9rem"><input type="checkbox" id="eDayToggle"'+(perDayOn?' checked':'')+'> Assign differently on some days'+(multiLoc?' — '+esc(shortStore(L.store)):'')+'</label>'+
       (perDayOn?
         '<div class="hint" style="margin:9px 0 8px">Set who gets it per day — leave “Same as default”. e.g. weekdays → Mid shift, weekends → Open shift.</div>'+
-        odays.map(function(w){return '<div class="locrow"><span class="locname" style="min-width:98px">'+DOWNAME[w]+'</span><select class="inp" data-dayov="'+w+'" style="flex:1">'+ovOptsHtml(d.store,d.dayAssign[w])+'</select></div>';}).join('')
+        odays.map(function(w){return '<div class="locrow"><span class="locname" style="min-width:98px">'+DOWNAME[w]+'</span><select class="inp" data-dayov="'+w+'" style="flex:1">'+ovOptsHtml(L.store,L.dayAssign[w])+'</select></div>';}).join('')
       :'<div class="hint" style="margin-top:7px">The default above applies every day.</div>')+
     '</div>'
   ):'';
@@ -637,48 +671,46 @@ function drawEditor(){
   const s2=
     '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Recurrence</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow(RECURS.map(r=>[r[0],r[1],'var(--dark)']),d.recur,'var(--dark)','recur')+'</div></div>'+
     '<div class="panel">'+recurPanel+'</div>'+
-    (!useLocsUI()?
-    '<div class="grid2" style="margin-bottom:6px">'+
-      '<label class="fld" style="margin:0"><span class="fl">Store</span><select class="inp" id="eStore">'+STORES.map(s=>'<option value="'+esc(s)+'"'+(d.store===s?' selected':'')+'>'+esc(shortStore(s))+'</option>').join('')+'</select></label>'+
-      '<label class="fld" style="margin:0"><span class="fl">Due time</span><input class="inp" type="time" id="eDueTime" value="'+esc(to24(d.dueTime))+'"></label>'+
-    '</div>'
-    :
     '<div class="fld" style="margin-bottom:6px"><span class="fl">Locations &amp; due times</span>'+
       '<div style="position:relative"><input class="inp" id="eLocSearch" placeholder="Search locations to add…" autocomplete="off"><div class="locsug" id="eLocSug"></div></div>'+
-      '<div id="eLocList">'+(d.locs||[]).map((L,i)=>
-        '<div class="locrow"><span class="locname">'+esc(shortStore(L.store))+'</span>'+
-          '<input class="inp loctime" type="time" data-li="'+i+'" value="'+esc(to24(L.dueTime))+'" title="Due time at '+esc(shortStore(L.store))+'">'+
-          '<button type="button" class="locx" data-li="'+i+'" title="Remove '+esc(shortStore(L.store))+'"'+((d.locs||[]).length<2?' disabled':'')+'>✕</button></div>').join('')+'</div>'+
-      '<div class="hint" style="margin-top:7px">'+(EDIT_ID?'Edits apply to every location here. Add or remove a store — each keeps its own due time.':'One template is created per location — same task, that location’s own due time (e.g. Salem closes earlier).')+'</div>'+
-    '</div>')+
+      '<div id="eLocList">'+(d.locs||[]).map((Lx,i)=>
+        '<div class="locrow"><span class="locname">'+esc(shortStore(Lx.store))+'</span>'+
+          '<input class="inp loctime" type="time" data-li="'+i+'" value="'+esc(to24(Lx.dueTime))+'" title="Due time at '+esc(shortStore(Lx.store))+'">'+
+          '<button type="button" class="locx" data-li="'+i+'" title="Remove '+esc(shortStore(Lx.store))+'"'+((d.locs||[]).length<2?' disabled':'')+'>✕</button></div>').join('')+'</div>'+
+      '<div class="hint" style="margin-top:7px">Add every store this runs at — each keeps its own due time AND its own assignment (set in the next step).</div>'+
+    '</div>'+
     (d.recur==='oneoff'?
       '<div style="margin-bottom:8px"><span class="fl" style="display:block;margin-bottom:6px">Due</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['same','Today','var(--dark)'],['after','After…','var(--dark)'],['date','On date','var(--dark)']],d.dueType,'var(--dark)','duety')+'</div></div>'+
       (d.dueType==='after'?'<div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:6px"><label class="fld" style="width:90px;margin:0"><span class="fl">In</span><input class="inp" id="eDueAfterN" value="'+esc(d.dueAfterN)+'"></label><label class="fld" style="width:140px;margin:0"><span class="fl">&nbsp;</span><select class="inp" id="eDueAfterUnit">'+['days','weeks','months'].map(u=>'<option value="'+u+'"'+(d.dueAfterUnit===u?' selected':'')+'>'+u+'</option>').join('')+'</select></label></div>':'')+
       (d.dueType==='date'?'<label class="fld" style="width:200px;margin-bottom:6px"><span class="fl">On date</span><input class="inp" type="date" id="eDueDate" value="'+esc(d.dueDate)+'"></label>':'')
     :'');
-  const s3=
-    '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assign to (default)</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['person','Person','var(--dark)'],['shift','Shift','var(--dark)'],['role','Role','var(--dark)'],['group','Group','var(--dark)']],d.target,'var(--dark)','tgt')+'</div></div>'+
+  const locChips=multiLoc?('<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assignment for which location?</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow(d.locs.map((Lx,i)=>[i,shortStore(Lx.store),'var(--blue)']),d.__locSel,'var(--blue)','locsel')+'</div><div class="hint" style="margin-top:6px">Each store has its own assignment — set Salem’s openers/closers separately from Eugene’s mid.</div></div>'):'';
+  const s3=locChips+
+    '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assign to (default)'+(multiLoc?' · '+esc(shortStore(L.store)):'')+'</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['person','Person','var(--dark)'],['shift','Shift','var(--dark)'],['role','Role','var(--dark)'],['group','Group','var(--dark)']],L.target,'var(--dark)','tgt')+'</div></div>'+
     '<div class="panel">'+assignPanel+
       '<div style="display:flex;gap:18px;margin-top:14px;flex-wrap:wrap">'+
-      (showStrat?'<div><span class="fl" style="display:block;margin-bottom:5px">Strategy</span><div style="display:flex;gap:6px">'+pillRow([['fixed','Fixed','var(--dark)'],['rotate','Rotate','var(--dark)']],d.strategy,'var(--dark)','strat')+'</div></div>':'')+
-      (showComp?'<div><span class="fl" style="display:block;margin-bottom:5px">Who must complete</span><div style="display:flex;gap:6px">'+pillRow([['any','Any one','var(--dark)'],['each','Each person','var(--dark)']],d.completion,'var(--dark)','comp')+'</div></div>':'')+
+      (showStrat?'<div><span class="fl" style="display:block;margin-bottom:5px">Strategy</span><div style="display:flex;gap:6px">'+pillRow([['fixed','Fixed','var(--dark)'],['rotate','Rotate','var(--dark)']],L.strategy,'var(--dark)','strat')+'</div></div>':'')+
+      (showComp?'<div><span class="fl" style="display:block;margin-bottom:5px">Who must complete</span><div style="display:flex;gap:6px">'+pillRow([['any','Any one','var(--dark)'],['each','Each person','var(--dark)']],L.completion,'var(--dark)','comp')+'</div></div>':'')+
       '</div><div class="hint" style="margin-top:11px">'+esc(sum)+'</div></div>'+
-    dayOverrideSection;
+    dayOverrideSection+
+    (multiLoc?'<button type="button" class="btn alt" data-copyall style="margin-top:10px;font-size:.82rem">Copy '+esc(shortStore(L.store))+'’s assignment to all locations</button>':'');
   const rvrow=(l,v)=>'<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><b style="min-width:118px;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800">'+l+'</b><span style="flex:1;font-size:.9rem;color:var(--dark)">'+v+'</span></div>';
   const recurTxt=d.recur==='daily'?'Every day':d.recur==='weekly'?('Weekly · '+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')):d.recur==='monthly'?('Monthly · '+(d.monthDates||'—')):d.recur==='flexible'?(d.flexN+'× per '+d.flexPer):'One-off';
-  const ovList=odays.filter(w=>d.dayAssign[w]);
-  const whereTxt=useLocsUI()?(d.locs||[]).map(L=>esc(shortStore(L.store))+' @ '+esc(to24(L.dueTime))).join(', '):esc(shortStore(d.store))+' @ '+esc(to24(d.dueTime));
+  // per-location assignment summary — the whole point of this pass
+  const assignSummary=d.locs.map(function(Lx){
+    const od=odays.filter(w=>Lx.dayAssign&&Lx.dayAssign[w]);
+    const per=od.length?'  ·  '+od.map(w=>DOWNAME[w].slice(0,3)+'→'+ovLabel(Lx.dayAssign[w])).join(', '):'';
+    return '<b>'+esc(shortStore(Lx.store))+' @ '+esc(to24(Lx.dueTime))+':</b> '+esc(defaultAssignText(Lx))+esc(per);
+  }).join('<br>');
   const s4=
     '<div class="panel">'+
       rvrow('Task',esc(d.name||'—'))+
       rvrow('Priority',esc(d.priority==='must'?'Must do today':d.priority==='asap'?'ASAP':'Normal'))+
       rvrow('When',esc(recurTxt))+
-      rvrow('Where',whereTxt)+
-      rvrow('Who — default',esc(defaultAssignText(d)))+
-      (ovList.length?rvrow('Per-day',ovList.map(w=>esc(DOWNAME[w]+' → '+ovLabel(d.dayAssign[w]))).join('<br>')):'')+
+      rvrow('Assignment',assignSummary)+
       (d.instr?rvrow('Instructions',esc(d.instr)):'')+
     '</div>'+
-    '<div class="hint" style="margin-top:2px">'+(EDIT_ID?'Changes apply to future occurrences.':(d.locs.length>1?'Creates '+d.locs.length+' templates — one per location.':'Creates one template.'))+'</div>';
+    '<div class="hint" style="margin-top:2px">'+(EDIT_ID?'Changes apply to future occurrences · '+d.locs.length+' store'+(d.locs.length===1?'':'s'):(d.locs.length>1?'Creates '+d.locs.length+' templates — one per location.':'Creates one template.'))+'</div>';
   const stepBody=STEP===1?s1:STEP===2?s2:STEP===3?s3:s4;
   const chips='<div style="display:flex;gap:6px;padding:2px 20px 6px">'+WSTEPS.map((s,i)=>{const n=i+1,on=n===STEP,done=n<STEP;return '<div style="flex:1;text-align:center;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:7px 3px;border-radius:8px;'+(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s[0]+'</div>';}).join('')+'</div>';
   const footer=
@@ -697,35 +729,42 @@ function drawEditor(){
   );
   const grab=()=>{
     const g=id=>{const el=$('#mdlWrap #'+id);return el?el.value:undefined;};
+    const L=d.locs[d.__locSel];               // assignment writes land on the selected location
     if(g('eName')!=null)d.name=g('eName');
     if(g('eLinkText')!=null)d.linkText=g('eLinkText');
     if(g('eCustomUrl')!=null)d.customUrl=g('eCustomUrl');
     if(g('eMonthDates')!=null)d.monthDates=g('eMonthDates');
     if(g('eFlexN')!=null)d.flexN=g('eFlexN');if(g('eFlexPer')!=null)d.flexPer=g('eFlexPer');
-    if(g('eAssignee')!=null)d.assignee=g('eAssignee');if(g('eFallback')!=null)d.fallback=g('eFallback');
-    if(g('eShift')!=null)d.shift=g('eShift');if(g('eRole')!=null)d.role=g('eRole');
-    if(g('eStore')!=null)d.store=g('eStore');if(g('eDueTime')!=null)d.dueTime=g('eDueTime');
+    if(L){
+      if(g('eAssignee')!=null)L.assignee=g('eAssignee');if(g('eFallback')!=null)L.fallback=g('eFallback');
+      if(g('eShift')!=null)L.shift=g('eShift');if(g('eRole')!=null)L.role=g('eRole');
+    }
     document.querySelectorAll('#mdlWrap .loctime').forEach(el=>{const i=+el.dataset.li;if(d.locs&&d.locs[i])d.locs[i].dueTime=el.value;});
     if(g('eDueAfterN')!=null)d.dueAfterN=g('eDueAfterN');if(g('eDueAfterUnit')!=null)d.dueAfterUnit=g('eDueAfterUnit');
     if(g('eDueDate')!=null)d.dueDate=g('eDueDate');if(g('eInstr')!=null)d.instr=g('eInstr');
-    const dt=$('#mdlWrap #eDayToggle');if(dt)d.perDay=dt.checked;
-    document.querySelectorAll('#mdlWrap [data-dayov]').forEach(el=>{const w=+el.dataset.dayov;const ov=ovParse(el.value);if(ov)d.dayAssign[w]=ov;else delete d.dayAssign[w];});
+    if(L){
+      const dt=$('#mdlWrap #eDayToggle');if(dt)L.perDay=dt.checked;
+      document.querySelectorAll('#mdlWrap [data-dayov]').forEach(el=>{const w=+el.dataset.dayov;const ov=ovParse(el.value);if(ov)L.dayAssign[w]=ov;else delete L.dayAssign[w];});
+    }
   };
   document.querySelectorAll('#mdlWrap [data-prio]').forEach(b=>b.onclick=()=>{grab();d.priority=b.dataset.prio;drawEditor();});
   document.querySelectorAll('#mdlWrap [data-recur]').forEach(b=>b.onclick=()=>{grab();d.recur=b.dataset.recur;drawEditor();});
-  document.querySelectorAll('#mdlWrap [data-tgt]').forEach(b=>b.onclick=()=>{grab();d.target=b.dataset.tgt;drawEditor();});
-  document.querySelectorAll('#mdlWrap [data-strat]').forEach(b=>b.onclick=()=>{grab();d.strategy=b.dataset.strat;drawEditor();});
-  document.querySelectorAll('#mdlWrap [data-comp]').forEach(b=>b.onclick=()=>{grab();d.completion=b.dataset.comp;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-locsel]').forEach(b=>b.onclick=()=>{grab();d.__locSel=+b.dataset.locsel;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-tgt]').forEach(b=>b.onclick=()=>{grab();d.locs[d.__locSel].target=b.dataset.tgt;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-strat]').forEach(b=>b.onclick=()=>{grab();d.locs[d.__locSel].strategy=b.dataset.strat;drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-comp]').forEach(b=>b.onclick=()=>{grab();d.locs[d.__locSel].completion=b.dataset.comp;drawEditor();});
   document.querySelectorAll('#mdlWrap [data-duety]').forEach(b=>b.onclick=()=>{grab();d.dueType=b.dataset.duety;drawEditor();});
   document.querySelectorAll('#mdlWrap [data-wd]').forEach(b=>b.onclick=()=>{grab();const wd=+b.dataset.wd;const at=d.weekdays.indexOf(wd);if(at>-1)d.weekdays.splice(at,1);else d.weekdays.push(wd);drawEditor();});
-  document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const id=+b.dataset.pool;const at=d.pool.indexOf(id);if(at>-1)d.pool.splice(at,1);else d.pool.push(id);drawEditor();});
+  document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const L=d.locs[d.__locSel];const id=+b.dataset.pool;const at=L.pool.indexOf(id);if(at>-1)L.pool.splice(at,1);else L.pool.push(id);drawEditor();});
   document.querySelectorAll('#mdlWrap [data-dayov]').forEach(sel=>sel.onchange=()=>{grab();drawEditor();});
-  const dtog=$('#mdlWrap #eDayToggle');if(dtog)dtog.onchange=()=>{grab();d.perDay=dtog.checked;if(!dtog.checked)d.dayAssign={};drawEditor();};
+  const dtog=$('#mdlWrap #eDayToggle');if(dtog)dtog.onchange=()=>{grab();const L=d.locs[d.__locSel];L.perDay=dtog.checked;if(!dtog.checked)L.dayAssign={};drawEditor();};
+  // copy the selected location's whole assignment to every other location,
+  // remapping store-specific people to each store's own roster (see remapAssign)
+  const ca=$('#mdlWrap [data-copyall]');if(ca)ca.onclick=()=>{grab();const src=d.locs[d.__locSel];d.locs.forEach((Lx,i)=>{if(i===d.__locSel)return;Object.assign(Lx,remapAssign(src,Lx.store));});drawEditor();toast('Copied to all locations');};
   const nx=$('#mdlWrap [data-next]');if(nx)nx.onclick=()=>{grab();if(STEP===1&&!String(d.name||'').trim()){toast('Give the task a name',true);return;}STEP=Math.min(4,STEP+1);drawEditor();};
   const bk=$('#mdlWrap [data-back]');if(bk)bk.onclick=()=>{grab();STEP=Math.max(1,STEP-1);drawEditor();};
   const lu=$('#mdlWrap #eLinkUrl');if(lu)lu.onchange=()=>{grab();d.linkUrl=lu.value;drawEditor();};
-  const st2=$('#mdlWrap #eStore');if(st2)st2.onchange=()=>{grab();d.store=st2.value;d.pool=STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner').map(s=>s.id);d.assignee=(STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner')[0]||ME).id;drawEditor();};
-  // locations search-add / per-location due time / remove (create mode)
+  // locations search-add / per-location due time / remove
   const ls=$('#mdlWrap #eLocSearch');
   if(ls){
     const sug=$('#mdlWrap #eLocSug');
@@ -737,8 +776,9 @@ function drawEditor(){
       sug.classList.toggle('open',hits.length>0&&document.activeElement===ls);
       sug.querySelectorAll('.locopt').forEach(o=>o.addEventListener('mousedown',e=>{
         e.preventDefault();grab();
-        d.locs.push({store:o.dataset.s,dueTime:(d.locs[d.locs.length-1]||{}).dueTime||'6:00 PM'});
-        d.store=d.locs[0].store;drawEditor();
+        const store=o.dataset.s;
+        d.locs.push(Object.assign({store:store,dueTime:(d.locs[d.locs.length-1]||{}).dueTime||'6:00 PM'},blankAssign(store)));
+        drawEditor();
         const nls=$('#mdlWrap #eLocSearch');if(nls)nls.focus();
       }));
     };
@@ -747,7 +787,7 @@ function drawEditor(){
     ls.addEventListener('blur',()=>setTimeout(()=>{sug.classList.remove('open');},150));
     document.querySelectorAll('#mdlWrap .locx').forEach(b=>b.onclick=()=>{
       if(d.locs.length<2)return;
-      grab();d.locs.splice(+b.dataset.li,1);d.store=d.locs[0].store;drawEditor();
+      grab();d.locs.splice(+b.dataset.li,1);if(d.__locSel>=d.locs.length)d.__locSel=d.locs.length-1;drawEditor();
     });
   }
   const lt=$('#mdlWrap #eLinkText');if(lt)lt.onchange=()=>{grab();drawEditor();};
@@ -758,8 +798,9 @@ async function saveTemplate(){
   const d=DRAFT;
   if(!String(d.name||'').trim()){toast('Give the task a name',true);return;}
   const url=d.linkUrl==='__custom'?String(d.customUrl||'').trim():d.linkUrl;
-  const row={
-    store:d.store,name:d.name.trim(),
+  // shared, task-level fields (same across every location)
+  const shared={
+    name:d.name.trim(),
     link_text:(d.linkText&&url&&d.name.indexOf(d.linkText)>-1)?d.linkText:null,
     link_url:(d.linkText&&url&&d.name.indexOf(d.linkText)>-1)?url:null,
     priority:d.priority,recur:d.recur,
@@ -767,49 +808,45 @@ async function saveTemplate(){
     month_dates:d.recur==='monthly'?String(d.monthDates||'').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=31):null,
     flex_n:d.recur==='flexible'?Math.max(1,+d.flexN||1):null,
     flex_per:d.recur==='flexible'?(d.flexPer==='month'?'month':'week'):null,
-    target:d.target,
-    assignee_staff_id:d.target==='person'?+d.assignee||null:null,
-    fallback_staff_id:(d.target==='person'&&d.fallback)?+d.fallback:null,
-    shift_id:d.target==='shift'?+d.shift||null:null,
-    role_key:d.target==='role'?d.role:null,
-    pool:d.target==='group'?d.pool:null,
-    strategy:d.strategy,completion:(['role','group'].indexOf(d.target)>-1)?d.completion:'any',
-    due_time:to24(d.dueTime),
     due_type:d.recur==='oneoff'?d.dueType:'same',
     due_after_n:(d.recur==='oneoff'&&d.dueType==='after')?+d.dueAfterN||null:null,
     due_after_unit:(d.recur==='oneoff'&&d.dueType==='after')?d.dueAfterUnit:null,
     due_date:(d.recur==='oneoff'&&d.dueType==='date'&&d.dueDate)?d.dueDate:null,
     instructions:String(d.instr||'').trim()||null,
-    // per-weekday assignment overrides — only kept for daily/weekly, and only
-    // for days the recurrence actually runs (see overrideDays)
-    day_assignments:(function(){
-      const days=overrideDays(d),out={};
-      days.forEach(w=>{ if(d.dayAssign&&d.dayAssign[w])out[w]=d.dayAssign[w]; });
-      return Object.keys(out).length?out:null;
-    })(),
     personal:false,updated_at:new Date().toISOString()
   };
-  if(row.recur==='weekly'&&!(row.weekdays||[]).length){toast('Pick at least one weekday',true);return;}
-  if(row.recur==='monthly'&&!(row.month_dates||[]).length){toast('Enter at least one date of the month',true);return;}
-  if(row.target==='group'&&!(row.pool||[]).length){toast('Pick at least one person for the pool',true);return;}
-  const useLocs=useLocsUI();
-  const locs=(useLocs&&d.locs&&d.locs.length)?d.locs:[{store:d.store,dueTime:d.dueTime}];
-  // fixed-person and group pools are store-specific people — they can't fan
-  // out to other stores. Shift/role targets resolve per store, so they can.
-  if(locs.length>1&&(row.target==='person'||row.target==='group')){
-    toast('Fixed-person and group tasks are store-specific — use Shift or Role for multi-location, or create per store',true);return;
+  if(shared.recur==='weekly'&&!(shared.weekdays||[]).length){toast('Pick at least one weekday',true);return;}
+  if(shared.recur==='monthly'&&!(shared.month_dates||[]).length){toast('Enter at least one date of the month',true);return;}
+  const odays=overrideDays(d);
+  // per-location assignment → its own row. Each store carries its own target,
+  // people, and per-weekday overrides; the shared fields ride along unchanged.
+  const rowFor=(L)=>{
+    const dayAssign=(function(){const out={};odays.forEach(w=>{if(L.dayAssign&&L.dayAssign[w])out[w]=L.dayAssign[w];});return Object.keys(out).length?out:null;})();
+    return Object.assign({},shared,{
+      store:L.store,due_time:to24(L.dueTime),
+      target:L.target,
+      assignee_staff_id:L.target==='person'?+L.assignee||null:null,
+      fallback_staff_id:(L.target==='person'&&L.fallback)?+L.fallback:null,
+      shift_id:L.target==='shift'?+L.shift||null:null,
+      role_key:L.target==='role'?L.role:null,
+      pool:L.target==='group'?L.pool:null,
+      strategy:L.strategy,completion:(['role','group'].indexOf(L.target)>-1)?L.completion:'any',
+      day_assignments:dayAssign
+    });
+  };
+  for(const L of d.locs){
+    if(L.target==='group'&&!(L.pool||[]).length){toast('Pick at least one person for the pool at '+shortStore(L.store),true);return;}
   }
+  const locs=d.locs;
   try{
     if(!EDIT_ID){
       // create: one template per location, all sharing a fresh group_id
       const gid=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():null;
-      const rows=locs.map(L=>Object.assign({},row,{store:L.store,due_time:to24(L.dueTime),created_by:ME.id,group_id:gid}));
+      const rows=locs.map(L=>Object.assign(rowFor(L),{created_by:ME.id,group_id:gid}));
       const r=await sb.from('task_templates').insert(rows).select();if(r.error)throw r.error;
-    } else if(!useLocs){
-      // person/group single-store edit
-      const r=await sb.from('task_templates').update(row).eq('id',EDIT_ID).select().single();if(r.error)throw r.error;
     } else {
-      // grouped fan-out edit: one edit reconciles every store in the group
+      // grouped edit: one edit reconciles every store in the group — updates
+      // existing store rows, inserts newly-added stores, archives removed ones
       let gid=EDIT_GID||((self.crypto&&crypto.randomUUID)?crypto.randomUUID():null);
       let sibs=groupSibs(gid);
       const cur=TPLS.find(x=>x.id===EDIT_ID);
@@ -818,7 +855,7 @@ async function saveTemplate(){
       const want={};locs.forEach(L=>{want[L.store]=1;});
       const ops=[];
       locs.forEach(L=>{
-        const base=Object.assign({},row,{store:L.store,due_time:to24(L.dueTime),group_id:gid});
+        const base=Object.assign(rowFor(L),{group_id:gid});
         const ex=bySt[L.store];
         ops.push(ex?sb.from('task_templates').update(base).eq('id',ex.id)
                    :sb.from('task_templates').insert(Object.assign({},base,{created_by:ME.id})));
@@ -830,7 +867,7 @@ async function saveTemplate(){
       const res=await Promise.all(ops);
       const bad=res.find(r=>r&&r.error);if(bad)throw bad.error;
     }
-    closeModal();toast(EDIT_ID?(useLocs&&locs.length>1?'Saved · '+locs.length+' stores':'Template updated'):(locs.length>1?locs.length+' templates created — one per location':'Template created'));
+    closeModal();toast(EDIT_ID?(locs.length>1?'Saved · '+locs.length+' stores':'Template updated'):(locs.length>1?locs.length+' templates created — one per location':'Template created'));
     const sess=(await sb.auth.getSession()).data.session;
     if(sess)await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}}).catch(()=>{});
     await loadCore();await loadReport();render();
