@@ -372,6 +372,12 @@ async function initAuth(){
 }
 
 /* ===== data load ===== */
+let NAMES={};                                   // staff_id -> display name (Logged by)
+const loggedBy=id=>id&&NAMES[id]?NAMES[id]:'';
+function discussedLine(x){
+  if(x.discussed)return 'Discussed with employee'+(x.discussedAt?(' on '+fmt(x.discussedAt)):' (date not recorded)');
+  return 'No conversation with the employee has been logged';
+}
 async function load(){
   const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
   const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes]=await Promise.all([
@@ -396,10 +402,12 @@ async function load(){
   };});
   (torRes&&torRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
     e.timeoff.push({id:r.id,type:r.type,start:isoOf(r.start_date),end:isoOf(r.end_date),status:r.status||'pending',note:r.note||'',submitted:r.submitted_at});});
+  NAMES={}; (stRes.data||[]).forEach(s=>{NAMES[s.id]=s.display_name;});
   (enRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;
     e.entries.push({id:r.id,date:isoOf(r.entry_date),incidentDate:isoOf(r.incident_date||r.entry_date),
       subject:r.subject||'(untitled)',type:r.entry_type||'observation',category:r.category||'general',
-      discussed:!!r.discussed,sections:r.sections||{}});});
+      discussed:!!r.discussed,discussedAt:isoOf(r.discussed_at)||'',createdBy:r.created_by||null,
+      sections:r.sections||{}});});
   (piRes.data||[]).forEach(r=>{const e=byId[r.staff_id];if(!e)return;const d=r.doc||{};
     e.pips.push({id:r.id,title:d.title||'Performance Improvement Plan',status:r.status||d.status||'draft',
       start:isoOf(r.start_date||d.start),review:isoOf(r.outcome_date||d.review),manager:d.manager||'',
@@ -610,7 +618,7 @@ function logHtml(e){
       +'<div class="crow"><span class="tbadge" style="background:'+t.bg+';color:'+t.fg+'">'+t.label+'</span><span class="cdate">'+esc(fmt(x.date))+'</span></div>'
       +'<div class="csubj">'+esc(x.subject)+'</div>'
       +'<div class="cmeta"><span class="catchip" style="color:'+c.fg+'"><span class="dot7" style="background:'+c.dot+'"></span>'+c.label+'</span>'
-      +(x.discussed&&x.type==='conversation'?'<span class="disc">&#10003; Discussed</span>':'')+'</div></div>';
+      +(x.discussed?'<span class="disc">&#10003; Discussed'+(x.discussedAt?' '+esc(fmt(x.discussedAt)):'')+'</span>':'')+'</div></div>';
   });
   let listInner;
   if(!e.entries.length)listInner='<div class="empty"><div class="ico">📋</div><div class="t">No entries yet</div><div class="s">Log the first observation, incident, or conversation for '+esc(e.name)+'.</div></div>';
@@ -635,9 +643,10 @@ function entryDetail(e,x){
     +'<div class="dbadges"><span class="tbadge" style="background:'+t.bg+';color:'+t.fg+';padding:3px 8px">'+t.label+'</span>'
     +'<span class="dcatchip" style="color:'+c.fg+';border:1px solid '+c.bd+';background:'+c.bg+'"><span class="dot7" style="background:'+c.dot+'"></span>'+c.label+'</span></div>'
     +'<h1 class="dtitle head">'+esc(x.subject)+'</h1>'
-    +'<div class="dmeta">'+esc(e.name+' · '+e.role+' · '+fmt(x.date))+'</div>'
+    +'<div class="dmeta">'+esc(e.name+' · '+e.role+' · '+fmt(x.date))+(loggedBy(x.createdBy)?esc(' · Logged by '+loggedBy(x.createdBy)):'')+'</div>'
+    +'<div class="dmeta" style="margin-top:3px;font-weight:700;color:'+(x.discussed?'#1B7A41':'#B87A00')+'">'+(x.discussed?'&#10003; ':'&#9888; ')+esc(discussedLine(x))+'</div>'
     +'<div class="dactions">'
-    +(x.type==='incident'&&!x.discussed?'<button class="btn-o gr" data-act="discuss">&#128172; Log Discussion</button>':'')
+    +(!x.discussed?'<button class="btn-o gr" data-act="discuss">&#128172; Log Discussion</button>':'')
     +'<button class="btn-o" data-act="download">&#8595; Download</button>'
     +'<button class="btn-o" data-act="edit">Edit</button>'
     +'<button class="btn-o del" data-act="delete">Delete</button></div>'
@@ -769,12 +778,14 @@ function openEntryEditor(e,x){
     +field('Subject','<input id="f_subject" class="fin" value="'+esc(x.subject||'')+'">')
     +'<div class="frow">'+field('Date logged','<input id="f_date" type="date" class="fin" value="'+esc(x.date||todayISO())+'">')
       +field('Incident date','<input id="f_inc" type="date" class="fin" value="'+esc(x.incidentDate||x.date||todayISO())+'">')+'</div>'
-    +'<label class="fcheck"><input type="checkbox" id="f_disc" '+(x.discussed?'checked':'')+'> Discussed with employee</label>'
+    +'<div class="frow" style="align-items:end"><label class="fcheck" style="padding-bottom:9px"><input type="checkbox" id="f_disc" '+(x.discussed?'checked':'')+'> Discussed with employee</label>'
+      +field('Conversation date','<input id="f_discdate" type="date" class="fin" value="'+esc(x.discussedAt||todayISO())+'"'+(x.discussed?'':' disabled')+'>')+'</div>'
     +ta('f_issue','Issue / What Happened',sec.issue)+ta('f_cause','Root Cause',sec.cause)
     +ta('f_coaching','Coaching Provided',sec.coaching)+ta('f_response','Employee Response',sec.response)
     +ta('f_actions','Action Items',sec.actions)
     +'<div class="mactions"><button class="btn-o" data-close>Cancel</button><button class="btn-red" id="f_save">'+(isNew?'Create entry':'Save changes')+'</button></div>'
   );
+  $('#f_disc').onchange=()=>{$('#f_discdate').disabled=!$('#f_disc').checked;};
   $('#f_save').onclick=()=>saveEntry(e,isNew?null:x.id);
 }
 async function saveEntry(e,id){
@@ -783,11 +794,12 @@ async function saveEntry(e,id){
     .forEach(([k,fid])=>{const t=v(fid).value.trim();if(t)sec[k]=t;});
   const rec={entry_type:v('f_type').value,category:v('f_cat').value,subject:v('f_subject').value.trim()||'(untitled)',
     entry_date:v('f_date').value||todayISO(),incident_date:v('f_inc').value||v('f_date').value||todayISO(),
-    discussed:v('f_disc').checked,sections:sec};
+    discussed:v('f_disc').checked,discussed_at:v('f_disc').checked?(v('f_discdate').value||todayISO()):null,
+    sections:sec};
   v('f_save').disabled=true;
   let res,newId=id;
   if(id)res=await sb.from('staff_entries').update(rec).eq('id',id);
-  else{rec.staff_id=e.id;const r=await sb.from('staff_entries').insert(rec).select('id').single();res=r;newId=r.data&&r.data.id;}
+  else{rec.staff_id=e.id;rec.created_by=AUTH?AUTH.id:null;const r=await sb.from('staff_entries').insert(rec).select('id').single();res=r;newId=r.data&&r.data.id;}
   if(res.error){v('f_save').disabled=false;toast(res.error.message,true);return;}
   closeModal();toast(id?'Entry updated':'Entry created');if(newId)S.entryId=newId;await load();
 }
@@ -799,8 +811,8 @@ function confirmDeleteEntry(e,x){
     if(r.error){$('#f_del').disabled=false;toast(r.error.message,true);return;}closeModal();toast('Entry deleted');S.entryId=null;await load();};
 }
 async function logDiscussion(x){
-  const r=await sb.from('staff_entries').update({discussed:true}).eq('id',x.id);
-  if(r.error){toast(r.error.message,true);return;}toast('Logged as discussed');await load();
+  const r=await sb.from('staff_entries').update({discussed:true,discussed_at:todayISO()}).eq('id',x.id);
+  if(r.error){toast(r.error.message,true);return;}toast('Logged as discussed today');await load();
 }
 
 function goalRow(g){g=g||{};return '<div class="goalrow"><input class="fin g_text" placeholder="Goal" value="'+esc(g.text||'')+'"><input class="fin g_dl" placeholder="Target" style="max-width:150px" value="'+esc(g.deadline||'')+'"><button class="btn-o" data-rmgoal style="padding:7px 11px">&times;</button></div>';}
@@ -836,7 +848,7 @@ async function savePip(e,p){
   v('p_save').disabled=true;
   let res,newId=p&&p.id;
   if(p&&p.id)res=await sb.from('staff_pips').update(rec).eq('id',p.id);
-  else{rec.staff_id=e.id;const r=await sb.from('staff_pips').insert(rec).select('id').single();res=r;newId=r.data&&r.data.id;}
+  else{rec.staff_id=e.id;rec.created_by=AUTH?AUTH.id:null;const r=await sb.from('staff_pips').insert(rec).select('id').single();res=r;newId=r.data&&r.data.id;}
   if(res.error){v('p_save').disabled=false;toast(res.error.message,true);return;}
   closeModal();toast(p&&p.id?'PIP saved':'PIP created');S.tab='pips';if(newId)S.pipId=newId;await load();
 }
@@ -973,7 +985,9 @@ function downloadEntry(e,x){
   const secs=Object.keys(SECLABELS).filter(k=>x.sections&&x.sections[k]).map(k=>'<h3>'+SECLABELS[k]+'</h3><div>'+richText(x.sections[k])+'</div>').join('');
   downloadDoc(slug(e.name+'-'+x.subject)+'.html',docShell(x.subject,
     '<p class="meta">'+esc(e.name+' · '+e.role+' · '+(e.store||''))+'</p>'
-    +'<p class="meta">'+t.label+' · '+c.label+' · '+esc(fmt(x.date))+(x.incidentDate?(' · Incident '+esc(fmt(x.incidentDate))):'')+'</p>'
+    +'<p class="meta">'+t.label+' · '+c.label+' · '+esc(fmt(x.date))+(x.incidentDate?(' · Incident '+esc(fmt(x.incidentDate))):'')
+      +(loggedBy(x.createdBy)?(' · Logged by '+esc(loggedBy(x.createdBy))):'')+'</p>'
+    +'<p class="meta" style="font-weight:bold;color:'+(x.discussed?'#1B7A41':'#B87A00')+'">'+(x.discussed?'&#10003; ':'&#9888; ')+esc(discussedLine(x))+'</p>'
     +'<h1>'+esc(x.subject)+'</h1>'+(secs||'<p>No write-up recorded.</p>')));
 }
 function downloadPip(e,p){
@@ -1010,14 +1024,14 @@ function flattenPip(p){const a=[];if(p.issues)a.push('Performance Issues: '+html
   return a.join('\n\n');}
 function buildCsv(e){
   const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-  const head=['record_type','date','incident_date','title','category_or_status','discussed','store','cost','ticket','details'];
+  const head=['record_type','date','incident_date','title','category_or_status','discussed','conversation_date','logged_by','store','cost','ticket','details'];
   const rows=[head.map(q).join(',')];
   e.entries.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(x=>rows.push(
-    ['Entry',x.date,x.incidentDate||'',x.subject,x.category,x.discussed?'yes':'no','','','',flattenSections(x.sections)].map(q).join(',')));
+    ['Entry',x.date,x.incidentDate||'',x.subject,x.category,x.discussed?'yes':'no',x.discussedAt||'',loggedBy(x.createdBy),'','','',flattenSections(x.sections)].map(q).join(',')));
   e.pips.forEach(p=>rows.push(
-    ['PIP',p.start||'',p.review||'',p.title,p.status,'','','','',flattenPip(p)].map(q).join(',')));
+    ['PIP',p.start||'',p.review||'',p.title,p.status,'','','','','','',flattenPip(p)].map(q).join(',')));
   dmgFor(e).forEach(r=>rows.push(
-    ['Tech Damage',r.date,'',r.part,r.mfr,'',r.store,r.cost,r.ticket,htmlToText(r.how)].map(q).join(',')));
+    ['Tech Damage',r.date,'',r.part,r.mfr,'','','',r.store,r.cost,r.ticket,htmlToText(r.how)].map(q).join(',')));
   return '﻿'+rows.join('\r\n');
 }
 function makePdf(jsPDF){const doc=new jsPDF({unit:'pt',format:'letter'});doc._y=56;return doc;}
@@ -1030,9 +1044,9 @@ function entryPdf(jsPDF,e,x){const doc=makePdf(jsPDF),t=TYPE[x.type]||TYPE.obser
   pdfBlock(doc,'CPR CELL PHONE REPAIR - OREGON',{size:9,style:'bold',color:[220,40,46],gap:2});
   pdfBlock(doc,t.label+'  ·  '+c.label,{size:8,style:'bold',color:[150,150,160],gap:6});
   pdfBlock(doc,x.subject,{size:16,style:'bold',gap:4});
-  pdfBlock(doc,e.name+'  ·  '+e.role+'  ·  '+fmt(x.date)+(x.incidentDate&&x.incidentDate!==x.date?('  ·  Incident '+fmt(x.incidentDate)):''),{size:9,color:[110,110,120],gap:10});
+  pdfBlock(doc,e.name+'  ·  '+e.role+'  ·  '+fmt(x.date)+(x.incidentDate&&x.incidentDate!==x.date?('  ·  Incident '+fmt(x.incidentDate)):'')+(loggedBy(x.createdBy)?('  ·  Logged by '+loggedBy(x.createdBy)):''),{size:9,color:[110,110,120],gap:10});
   Object.keys(SECLABELS).forEach(k=>{if(x.sections&&x.sections[k]){pdfBlock(doc,SECLABELS[k].toUpperCase(),{size:8,style:'bold',color:[120,120,130],gap:2});pdfBlock(doc,htmlToText(x.sections[k]),{size:10,gap:9});}});
-  if(x.discussed)pdfBlock(doc,'Discussed with employee.',{size:9,style:'bold',color:[46,158,91]});
+  pdfBlock(doc,discussedLine(x)+'.',{size:9,style:'bold',color:x.discussed?[46,158,91]:[184,122,0]});
   return doc.output('arraybuffer');}
 function pipPdf(jsPDF,e,p){const doc=makePdf(jsPDF),m=PIPST[p.status]||PIPST.draft;
   pdfBlock(doc,'CPR CELL PHONE REPAIR - OREGON',{size:9,style:'bold',color:[220,40,46],gap:2});
