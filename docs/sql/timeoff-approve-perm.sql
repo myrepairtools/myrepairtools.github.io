@@ -6,3 +6,7 @@ where not exists (select 1 from public.permissions where key='timeoff.approve');
 insert into public.role_permissions (role_id, permission_id)
 select 1, p.id from public.permissions p where p.key='timeoff.approve'
 and not exists (select 1 from public.role_permissions rp where rp.permission_id=p.id and rp.role_id=1);
+
+-- notification_channels: allow the 'sms' channel type
+alter table public.notification_channels drop constraint notification_channels_type_check;
+alter table public.notification_channels add constraint notification_channels_type_check check (type in ('email','webhook','inapp','sms'));
