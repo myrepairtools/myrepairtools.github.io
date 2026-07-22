@@ -92,6 +92,7 @@
   // would filter every report out of the list. The rail icon is rank-gated; pages gate by role.)
   var REPORTS = [
     { label:'Google Traffic',  url:'google-traffic.html',  icon:'map-pin', minRole:'admin' },
+    { label:'Google Reviews',  url:'google-reviews.html',  icon:'star', minRole:'admin', badge:'gbp' },
     { label:'Overtime Report', url:'report-overtime.html', icon:'timer', minRole:'admin' }
   ];
   // Employees — people management (managers/owner): roster, scheduling, time off.
@@ -514,6 +515,7 @@
     'house': '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
     'list-checks': '<path d="M13 5h8" /><path d="M13 12h8" /><path d="M13 19h8" /><path d="m3 17 2 2 4-4" /><path d="m3 7 2 2 4-4" />',
     'bell': '<path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />',
+    'star': '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />',
     'megaphone': '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" /><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" /><path d="M8 6v8" />',
     'chart-line': '<path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" />',
     'calendar-days': '<path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" />',
@@ -590,7 +592,26 @@
     var ic = t.img
       ? '<img src="'+esc(t.img)+'" alt="" onerror="this.outerHTML=\''+(NAV_SVG[t.icon]?'':esc(t.icon||''))+'\'">'
       : navIcon(t.icon||'');
-    return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+ic+'</span> '+esc(t.label)+tagHtml+'</a>';
+    return '<a class="cpr-link'+active+'" href="'+esc(t.url)+'"><span class="ic">'+ic+'</span> '+esc(t.label)+tagHtml+(t.badge?navCntHtml(t.badge):'')+'</a>';
+  }
+
+  // live count pills on menu rows (badge:'gbp' = unanswered Google reviews).
+  // Rendered inline so pane re-renders keep the number; refreshed once per page load.
+  var NAVCNT = {};
+  function navCntHtml(key){
+    var n = NAVCNT[key];
+    return '<span data-navcnt="'+key+'" style="'+(n?'':'display:none;')
+      +'margin-left:6px;background:#DC282E;color:#fff;font-size:.6rem;font-weight:900;border-radius:999px;padding:1px 7px;line-height:1.5;vertical-align:1px">'
+      +(n ? (n>9?'9+':n) : '')+'</span>';
+  }
+  function applyNavCnt(){
+    Object.keys(NAVCNT).forEach(function(k){
+      var n = NAVCNT[k];
+      document.querySelectorAll('[data-navcnt="'+k+'"]').forEach(function(el){
+        el.textContent = n ? (n>9?'9+':String(n)) : '';
+        el.style.display = n ? 'inline-block' : 'none';
+      });
+    });
   }
 
   // a tool is visible if its access permission is granted (perms not yet loaded -> show, to avoid a flash)
@@ -1008,6 +1029,12 @@
           // installed-app icon badge (the closest a web app gets to native widgets)
           try { if (navigator.setAppBadge){ if (n) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch(_){}
         }, function(){});
+        // unanswered Google reviews → count pill on the Google Reviews nav row (managers)
+        if (rank() >= RANK.manager){
+          c.from('gbp_reviews').select('id', { count:'exact', head:true }).is('reply_text', null).is('deleted_at', null).then(function(q){
+            NAVCNT.gbp = q.count || 0; applyNavCnt();
+          }, function(){});
+        }
       });
     });
 
