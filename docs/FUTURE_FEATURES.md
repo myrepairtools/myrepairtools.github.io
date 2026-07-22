@@ -492,3 +492,27 @@ Shape:
 
 This is the **same lookup engine** behind the future screen-pop and the SMS name resolver —
 build the tickets-by-phone action once, all three reuse it.
+
+---
+
+## Trusted devices — skip PIN relock on approved personal devices
+
+**Idea (Britt, Jul 2026 — decided to think on it; design agreed, not yet approved to build.)**
+Owner wants their personal laptop to stay signed in (no 5-min idle PIN relock), but
+NOT via anything an employee could accidentally leave enabled on a store computer.
+MAC-address whitelisting is impossible from a browser (privacy-walled, MACs randomized
+anyway); IP whitelisting is wrong (home IPs rotate, an IP isn't a person).
+
+Agreed shape — **request + approval registry** (mirrors the standalone-A2HS precedent:
+"a personal device's lock screen is the security boundary"):
+- Browser generates a random device ID (localStorage). "Trust this device" on the PIN
+  screen writes a `trusted_devices` row: staff_id, device_id, UA-derived description,
+  optional nickname, status **pending**.
+- Owner approves/denies in Settings → Team Members → Devices panel (own requests
+  auto-approve for owner role). List shows every device with last-seen; one-click revoke.
+- pin-gate: if this browser's device ID is approved AND belongs to the signed-in person
+  → behave like standalone mode (no idle relock). Missing/pending/revoked/other-person
+  → normal locking. Manual sign-out clears local trust.
+- Limits (accepted): browser-storage token, not hardware identity — clearing site data
+  fails safe back to PIN; per browser-profile, not per machine.
+- Alternative lighter v1 discussed: owner-only checkbox (employees never see the option).
