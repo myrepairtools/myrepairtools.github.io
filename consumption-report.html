@@ -431,7 +431,7 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
-        <th class="ctr" title="Checked = already ordered today (left out of the export). Exporting auto-checks what it ordered; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
+        <th class="ctr" title="Checked = already ordered today (left out of the export). Fills in automatically from real cpr.parts orders and from exports; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -488,7 +488,7 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
-        <th class="ctr" title="Checked = already ordered today (left out of the export). Exporting auto-checks what it ordered; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
+        <th class="ctr" title="Checked = already ordered today (left out of the export). Fills in automatically from real cpr.parts orders and from exports; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -887,7 +887,8 @@ async function loadAll(){
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
     loadSamsungRows(),
-    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',day)
+    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',day),
+    sb.rpc('ms_ordered_for_day',{p_store:store,p_day:day})
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
@@ -900,9 +901,30 @@ async function loadAll(){
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
   ORDERED={};((res[12]&&res[12].data)||[]).forEach(function(r){ORDERED[r.sku]=(r.ordered_qty||0);});
+  /* live truth from cpr.parts: quantities ACTUALLY ordered that day (ms_orders,
+     hourly sync + on-load kick) raise the manual/export marks — never lower them */
+  ((res[13]&&res[13].data)||[]).forEach(function(r){var q=Number(r.qty)||0;if(q>(ORDERED[r.sku]||0))ORDERED[r.sku]=q;});
   pills();render();renderStock();renderNoParts();renderFresh();renderCoverage();
+  kickMsSync();
   var atab=$('#viewTabs')&&$('#viewTabs').querySelector('.tab.active');
   if(atab&&atab.getAttribute('data-v')==='battery')loadBatteries();
+}
+
+/* Kick a MobileSentrix order sync in the background (once per page visit) so
+   the Ordered column reflects a cpr.parts purchase made minutes ago. The edge
+   function skips when data is <15 min old; if it actually pulled new orders,
+   reload so the merge picks them up. */
+var MS_KICKED=false;
+async function kickMsSync(){
+  if(MS_KICKED)return; MS_KICKED=true;
+  try{
+    var s=await sb.auth.getSession(); var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+    if(!tok)return;
+    var r=await fetch(SUPABASE_URL+'/functions/v1/mobilesentrix?action=sync',{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}});
+    var d=await r.json();
+    var pulled=(d&&d.results||[]).some(function(x){return (x.upserted||0)>0;});
+    if(pulled)loadAll();
+  }catch(e){/* background nicety — never break the page */}
 }
 
 /* ---- login overlay ---- */
