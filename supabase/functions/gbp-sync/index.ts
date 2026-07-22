@@ -18,9 +18,25 @@
 //              month's keywords mid-following-month; re-pulling absorbs revisions).
 //   status   — mapping + row counts + which secrets are present (sanity check).
 //
-// Auth: header x-cpr-secret or ?secret= must equal the GBP_SYNC_SECRET function
-// secret. Google auth: GBP_CLIENT_ID / GBP_CLIENT_SECRET / GBP_REFRESH_TOKEN
-// (offline OAuth for the Google account that manages the store profiles).
+// Phase 2 ("Reply") — the review engine (see docs/sql/2026-07-22-gbp-phase2.sql):
+//   engine   — the */15 cron: incremental review pull, 1–3★ + SLA alerts (via the
+//              alerts function + direct SMS per gbp_notify_prefs), auto-reply
+//              enqueue (4–5★ only, 3h hold) and posting (9a–7p store time),
+//              Monday digest to Communications. Secret-authed.
+//   draft    — POST {review_id}: LLM reply draft for the drawer (manager JWT).
+//   reply    — POST {review_id, text}: post a reply to Google + audit (manager JWT).
+//   queue    — GET: the hold queue. queue_op — POST {id, op:cancel|post_now|edit, text}.
+//   config   — GET auto-reply toggles. config_set — POST {master, stores} (manager JWT).
+//
+// Auth: cron/server actions need header x-cpr-secret or ?secret= equal to the
+// GBP_SYNC_SECRET function secret; browser actions accept a Supabase JWT for an
+// active staff row with role manager/admin/owner. Google auth: GBP_CLIENT_ID /
+// GBP_CLIENT_SECRET / GBP_REFRESH_TOKEN (offline OAuth for the GBP owner account).
+// Replies are written with the same business.manage scope. LLM drafts use the
+// project-wide ANTHROPIC_API_KEY secret; alerts ride NOTIFY_SECRET.
+// Guardrails (design response §3, verbatim): 1–3★ never auto-posts — a person
+// approves every one; every post (human or auto) writes to Google AND a
+// gbp_audit row; 1–2★ drafts always include the store phone / take-it-offline.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -30,7 +46,10 @@ const SECRET = Deno.env.get("GBP_SYNC_SECRET") || "";
 const G_ID = Deno.env.get("GBP_CLIENT_ID") || "";
 const G_SECRET = Deno.env.get("GBP_CLIENT_SECRET") || "";
 const G_REFRESH = Deno.env.get("GBP_REFRESH_TOKEN") || "";
+const ANTHROPIC = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
 const TZ = "America/Los_Angeles";
+const SITE = "https://myrepairtools.github.io/";
 
 const PERF = "https://businessprofileperformance.googleapis.com/v1/";
 const INFO = "https://mybusinessbusinessinformation.googleapis.com/v1/";
@@ -81,6 +100,22 @@ function dateParams(prefix: string, iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return `${prefix}.year=${y}&${prefix}.month=${m}&${prefix}.day=${d}`;
 }
+function laParts(): { hour: number; hm: string; weekday: string } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short",
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
+  const hour = Number(get("hour")) % 24;
+  return { hour, hm: `${String(hour).padStart(2, "0")}:${get("minute")}`, weekday: get("weekday") };
+}
+function isoWeek(): string {
+  const d = new Date();
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  const y1 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const w = Math.ceil(((t.getTime() - y1.getTime()) / 86400_000 + 1) / 7);
+  return `${t.getUTCFullYear()}-${String(w).padStart(2, "0")}`;
+}
 
 /* ---------- Google auth + fetch ---------- */
 let TOKEN: { v: string; exp: number } | null = null;
@@ -108,6 +143,19 @@ async function gGet(url: string, retry = 1): Promise<Record<string, unknown>> {
     await new Promise((res) => setTimeout(res, 2500));
     return gGet(url, retry - 1);
   }
+  const d = await r.json().catch(() => ({}));
+  if (r.status !== 200) {
+    throw new Error("google_" + r.status + "_" + JSON.stringify((d as { error?: { message?: string } }).error?.message || d).slice(0, 300));
+  }
+  return d as Record<string, unknown>;
+}
+async function gPut(url: string, body: unknown): Promise<Record<string, unknown>> {
+  const t = await gToken();
+  const r = await fetch(url, {
+    method: "PUT",
+    headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   const d = await r.json().catch(() => ({}));
   if (r.status !== 200) {
     throw new Error("google_" + r.status + "_" + JSON.stringify((d as { error?: { message?: string } }).error?.message || d).slice(0, 300));
@@ -307,6 +355,341 @@ async function snapshot(loc: Loc): Promise<boolean> {
   return true;
 }
 
+/* ---------- profile phone + photo freshness (nightly, cheap) ---------- */
+async function pullContactAndPhotos(loc: Loc): Promise<{ phone: string | null; last_photo_at: string | null }> {
+  let phone: string | null = null, lastPhoto: string | null = null;
+  try {
+    const d = await gGet(`${INFO}${loc.google_location_id}?readMask=phoneNumbers`);
+    phone = (d.phoneNumbers as Record<string, string> | undefined)?.primaryPhone || null;
+  } catch (_) { /* phone is a nice-to-have */ }
+  try {
+    const d = await gGet(`${V4}${loc.google_account}/${loc.google_location_id}/media?pageSize=100`);
+    for (const m of (d.mediaItems || []) as Record<string, any>[]) {
+      const t = m.createTime ? String(m.createTime) : null;
+      if (t && (!lastPhoto || t > lastPhoto)) lastPhoto = t;
+    }
+  } catch (_) { /* media list can 404 on listings with no media */ }
+  await admin.from("gbp_locations").update({ phone, last_photo_at: lastPhoto }).eq("store", loc.store);
+  return { phone, last_photo_at: lastPhoto };
+}
+
+/* ---------- browser auth: active manager/admin/owner via Supabase JWT ---------- */
+type Me = { id: number; name: string; role: string };
+async function staffFromReq(req: Request): Promise<Me | null> {
+  const m = (req.headers.get("authorization") || "").match(/^Bearer (.+)$/i);
+  if (!m) return null;
+  const { data } = await admin.auth.getUser(m[1]).catch(() => ({ data: { user: null } }));
+  const uid = data?.user?.id;
+  if (!uid) return null;
+  const { data: st } = await admin.from("staff").select("id,display_name,role,active")
+    .eq("auth_uid", uid).maybeSingle();
+  if (!st || st.active === false) return null;
+  if (!["manager", "admin", "owner"].includes(String(st.role))) return null;
+  return { id: Number(st.id), name: String(st.display_name || ""), role: String(st.role) };
+}
+
+/* ---------- config (gbp_config key/value) ---------- */
+type AutoCfg = { master: boolean; stores: Record<string, boolean> };
+async function getCfg<T>(key: string, fallback: T): Promise<T> {
+  const { data } = await admin.from("gbp_config").select("value").eq("key", key).maybeSingle();
+  return (data?.value as T) ?? fallback;
+}
+async function setCfg(key: string, value: unknown, by: string) {
+  const { error } = await admin.from("gbp_config").upsert(
+    { key, value, updated_by: by, updated_at: new Date().toISOString() }, { onConflict: "key" });
+  if (error) throw new Error("gbp_config_" + error.message);
+}
+function storeAutoOn(cfg: AutoCfg, store: string): boolean {
+  return !!cfg.master && cfg.stores?.[store] !== false;  // missing store key = ON
+}
+
+/* ---------- reply drafting ---------- */
+// Rating-only thank-yous rotate per store, never the same twice in a row.
+const THANKS = [
+  "Thanks so much for the five stars — we appreciate you trusting us with your device!",
+  "Thank you for the great rating! We're glad we could help — see you next time.",
+  "We appreciate the kind rating — thanks for choosing us for your repair!",
+  "Thanks for the stars! It was a pleasure helping you out.",
+  "Thank you! Reviews like yours mean a lot to our repair team.",
+  "Much appreciated — thanks for taking a moment to rate us!",
+];
+async function thankYouFor(store: string): Promise<string> {
+  const rot = await getCfg<Record<string, number>>("thanks_rot", {});
+  const last = Number(rot[store] ?? -1);
+  let i = Math.floor(Math.random() * THANKS.length);
+  if (i === last) i = (i + 1) % THANKS.length;
+  rot[store] = i;
+  await setCfg("thanks_rot", rot, "auto");
+  return THANKS[i];
+}
+type Rev = { id: string; store: string; stars: number | null; comment: string | null; reviewer_name: string | null; created_at: string | null };
+async function llmDraft(rev: Rev, phone: string | null): Promise<string> {
+  if (!ANTHROPIC) throw new Error("missing_anthropic_key");
+  const stars = Number(rev.stars) || 0;
+  const low = stars <= 3;
+  const city = rev.store.replace(/^CPR\s*/i, "");
+  const sys = [
+    `You write public replies to Google reviews for CPR Cell Phone Repair ${city}, a local phone/tablet/computer repair shop.`,
+    "Voice: warm, human, specific — like the store owner wrote it. Reference a concrete detail from the review when there is one.",
+    "Rules: under 70 words; no emojis, no hashtags; never offer discounts or incentives (Google policy); never argue, blame, or admit legal fault; no personal data beyond the reviewer's first name; don't start every reply the same way.",
+    low
+      ? `This review is negative (${stars} star${stars === 1 ? "" : "s"}). Apologize once, sincerely. Take the concern seriously without being defensive. Invite them to take it offline: ask them to call the store${phone ? ` at ${phone}` : ""} so a manager can make it right.`
+      : "This review is positive. Thank them by first name if given, and keep it fresh and brief.",
+    "Return ONLY the reply text — no quotes, no preamble.",
+  ].join("\n");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": ANTHROPIC, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-5", max_tokens: 300, system: sys,
+      messages: [{
+        role: "user",
+        content: `${stars}★ review from ${rev.reviewer_name || "a customer"}:\n"${(rev.comment || "").slice(0, 2000)}"`,
+      }],
+    }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.status !== 200) throw new Error("anthropic_" + r.status + "_" + JSON.stringify(d?.error?.message || "").slice(0, 200));
+  const text = (d.content || []).filter((c: Record<string, unknown>) => c.type === "text")
+    .map((c: Record<string, string>) => c.text).join("").trim();
+  if (!text) throw new Error("anthropic_empty");
+  return text.slice(0, 3800);
+}
+
+/* ---------- posting a reply (the ONLY write path to Google) ---------- */
+async function postReply(reviewId: string, text: string, actor: string, source: "manual" | "auto") {
+  const { data: rev } = await admin.from("gbp_reviews").select("id,store").eq("id", reviewId).maybeSingle();
+  if (!rev) throw new Error("review_not_found");
+  await gPut(`${V4}${reviewId}/reply`, { comment: text });
+  const now = new Date().toISOString();
+  await admin.from("gbp_reviews").update({ reply_text: text, replied_at: now }).eq("id", reviewId);
+  await admin.from("gbp_audit").insert({
+    actor, action: "reply_" + source, store: rev.store,
+    payload: { review_id: reviewId, text },
+  });
+  // a manual post supersedes any pending auto-reply for the same review
+  if (source === "manual") {
+    await admin.from("gbp_reply_queue").update({ status: "cancelled", decided_by: actor })
+      .eq("review_id", reviewId).eq("status", "hold");
+  }
+}
+
+/* ---------- notifications (alerts function + direct SMS per gbp prefs) ---------- */
+// Feed/push ride the alerts function (kind 'system' — per-kind push granularity
+// stays with alert_prefs); SMS is sent directly so the gear's SMS choice always
+// wins regardless of alert_prefs.
+async function fanoutAlert(staffIds: number[], title: string, body: string, link: string) {
+  if (!staffIds.length || !NOTIFY) return;
+  await fetch(`${SB_URL}/functions/v1/alerts`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "send", secret: NOTIFY, kind: "system", icon: "⭐", title, body, link, staff_ids: staffIds }),
+  }).catch(() => {});
+}
+async function fanoutSms(phones: string[], text: string) {
+  if (!NOTIFY) return;
+  for (const to of phones) {
+    await fetch(`${SB_URL}/functions/v1/messaging`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "system_send", secret: NOTIFY, to, body: text }),
+    }).catch(() => {});
+  }
+}
+type Pref = { staff_id: number; methods: Record<string, boolean>; stores: string[]; triggers: Record<string, boolean>; quiet: { start?: string; end?: string } | null; phone: string | null };
+async function loadPrefs(): Promise<Pref[]> {
+  const { data: rows } = await admin.from("gbp_notify_prefs").select("*");
+  if (!rows?.length) return [];
+  const ids = rows.map((r) => r.staff_id);
+  const [{ data: staff }, { data: profs }] = await Promise.all([
+    admin.from("staff").select("id,active").in("id", ids),
+    admin.from("staff_profiles").select("staff_id,phone").in("staff_id", ids),
+  ]);
+  const activeSet = new Set((staff || []).filter((s) => s.active !== false).map((s) => Number(s.id)));
+  const phones: Record<number, string> = {};
+  for (const p of profs || []) if (p.phone) phones[Number(p.staff_id)] = String(p.phone);
+  return (rows || []).filter((r) => activeSet.has(Number(r.staff_id))).map((r) => ({
+    staff_id: Number(r.staff_id),
+    methods: r.methods || {}, stores: Array.isArray(r.stores) ? r.stores : [],
+    triggers: r.triggers || {}, quiet: r.quiet || null,
+    phone: phones[Number(r.staff_id)] || null,
+  }));
+}
+function inQuiet(q: Pref["quiet"], hm: string): boolean {
+  if (!q?.start || !q?.end) return false;
+  return q.start > q.end ? (hm >= q.start || hm < q.end) : (hm >= q.start && hm < q.end);
+}
+// trigger defaults: low_star ON, sla ON, auto_digest OFF
+function subscribers(prefs: Pref[], store: string, trigger: string, ignoreQuiet: boolean, hm: string): Pref[] {
+  return prefs.filter((p) =>
+    (p.triggers[trigger] ?? (trigger !== "auto_digest")) &&
+    (!p.stores.length || p.stores.includes(store)) &&
+    (ignoreQuiet || !inQuiet(p.quiet, hm)));
+}
+async function logged(key: string): Promise<boolean> {
+  const { data } = await admin.from("gbp_notify_log").select("key").eq("key", key).maybeSingle();
+  return !!data;
+}
+async function logKey(key: string) {
+  await admin.from("gbp_notify_log").upsert({ key }, { onConflict: "key", ignoreDuplicates: true });
+}
+function excerpt(s: string | null, n: number): string {
+  const t = String(s || "").replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n - 1) + "…" : t;
+}
+
+/* ---------- the review engine (every-15-min cron): pull → alert → auto-reply → digest ---------- */
+async function engine() {
+  const locs = await mappedLocations();
+  if (!locs.length) return { ok: false, error: "no_locations_mapped" };
+  const out: Record<string, unknown> = {};
+
+  // 1 · incremental review pull (watermark, same as nightly)
+  let pulled = 0;
+  for (const l of locs) {
+    try {
+      const { data: mx } = await admin.from("gbp_reviews").select("updated_at")
+        .eq("store", l.store).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      pulled += (await pullReviews(l, !mx?.updated_at, mx?.updated_at || null)).n;
+    } catch (e) { out["pull_error_" + l.store] = String((e as Error)?.message || e).slice(0, 150); }
+  }
+  out.pulled = pulled;
+
+  const { hour, hm, weekday } = laParts();
+  const prefs = await loadPrefs();
+  const cfg = await getCfg<AutoCfg>("auto_reply", { master: false, stores: {} });
+  const nowMs = Date.now();
+  const shortName = (s: string) => s.replace(/^CPR\s*/i, "");
+  const reviewLink = (id: string) => SITE + "google-reviews.html#r=" + encodeURIComponent(id);
+
+  // 2 · 1–3★ alerts (recent only — the backfill is history, not news)
+  const { data: lows } = await admin.from("gbp_reviews")
+    .select("id,store,stars,comment,reviewer_name,created_at")
+    .lte("stars", 3).is("deleted_at", null)
+    .gte("created_at", new Date(nowMs - 72 * 3600_000).toISOString());
+  let lowSent = 0;
+  for (const r of lows || []) {
+    const key = "lowstar:" + r.id;
+    if (await logged(key)) continue;
+    await logKey(key);
+    const ignoreQuiet = Number(r.stars) <= 2;  // 1–2★ ignores quiet hours by default
+    const subs = subscribers(prefs, r.store, "low_star", ignoreQuiet, hm);
+    if (subs.length) {
+      const title = `⚠ ${r.stars}★ from ${r.reviewer_name || "a customer"} at ${shortName(r.store)}`;
+      const body = excerpt(r.comment, 120) || "(rating only — no text)";
+      await fanoutAlert(subs.filter((p) => p.methods.push !== false || p.methods.inapp !== false).map((p) => p.staff_id),
+        title, body, "google-reviews.html#r=" + encodeURIComponent(r.id));
+      const sms = subs.filter((p) => p.methods.sms && p.phone);
+      if (sms.length) {
+        await fanoutSms(sms.map((p) => p.phone!),
+          `⚠ ${r.stars}★ from ${r.reviewer_name || "a customer"} at ${shortName(r.store)}: '${excerpt(r.comment, 80) || "no text"}' — reply: ${reviewLink(r.id)}`);
+      }
+      lowSent++;
+    }
+  }
+  out.low_star_alerts = lowSent;
+
+  // 3 · SLA breaches: amber nudge at 12h unanswered, red at 24h (recent reviews only)
+  const { data: open } = await admin.from("gbp_reviews")
+    .select("id,store,stars,comment,reviewer_name,created_at")
+    .is("reply_text", null).is("deleted_at", null)
+    .gte("created_at", new Date(nowMs - 7 * 86400_000).toISOString());
+  let slaSent = 0;
+  for (const r of open || []) {
+    const ageH = (nowMs - new Date(r.created_at || 0).getTime()) / 3600_000;
+    for (const [th, keyP] of [[24, "sla24:"], [12, "sla12:"]] as [number, string][]) {
+      if (ageH < th) continue;
+      const key = keyP + r.id;
+      if (await logged(key)) break;  // 24h implies 12h was due; log both paths once each
+      await logKey(key);
+      const subs = subscribers(prefs, r.store, "sla", false, hm);
+      if (subs.length) {
+        const title = `${th >= 24 ? "🔴" : "🟡"} Review unanswered ${Math.floor(ageH)}h at ${shortName(r.store)}`;
+        const body = `${r.stars}★ from ${r.reviewer_name || "a customer"} — ${excerpt(r.comment, 100) || "rating only"}`;
+        await fanoutAlert(subs.map((p) => p.staff_id), title, body, "google-reviews.html#r=" + encodeURIComponent(r.id));
+        const sms = subs.filter((p) => p.methods.sms && p.phone);
+        if (sms.length) await fanoutSms(sms.map((p) => p.phone!), `${title} — reply: ${reviewLink(r.id)}`);
+        slaSent++;
+      }
+      break;
+    }
+  }
+  out.sla_alerts = slaSent;
+
+  // 4 · auto-reply enqueue: 4–5★ only, recent, one queue row per review, 3h hold
+  let queued = 0;
+  if (cfg.master) {
+    const { data: cands } = await admin.from("gbp_reviews")
+      .select("id,store,stars,comment,reviewer_name,created_at")
+      .gte("stars", 4).is("reply_text", null).is("deleted_at", null)
+      .gte("created_at", new Date(nowMs - 7 * 86400_000).toISOString())
+      .order("created_at", { ascending: true }).limit(30);
+    const ids = (cands || []).map((c) => c.id);
+    const { data: qRows } = ids.length
+      ? await admin.from("gbp_reply_queue").select("review_id").in("review_id", ids)
+      : { data: [] };
+    const queuedSet = new Set((qRows || []).map((q) => String(q.review_id)));
+    const phones: Record<string, string | null> = {};
+    for (const l of locs) phones[l.store] = (l as unknown as { phone?: string }).phone || null;
+    for (const c of (cands || []).slice(0, 8)) {   // cap LLM calls per run
+      if (queuedSet.has(c.id) || !storeAutoOn(cfg, c.store)) continue;
+      try {
+        const draft = c.comment ? await llmDraft(c as Rev, phones[c.store] ?? null) : await thankYouFor(c.store);
+        const { error } = await admin.from("gbp_reply_queue").insert({
+          review_id: c.id, store: c.store, source: "auto", draft,
+          status: "hold", post_after: new Date(nowMs + 3 * 3600_000).toISOString(),
+        });
+        if (!error) queued++;
+      } catch (e) { out["draft_error"] = String((e as Error)?.message || e).slice(0, 150); }
+    }
+  }
+  out.auto_queued = queued;
+
+  // 5 · post due holds — only 9 AM–7 PM store time, and only while the toggles stay on
+  let posted = 0;
+  if (hour >= 9 && hour < 19) {
+    const { data: due } = await admin.from("gbp_reply_queue").select("*")
+      .eq("status", "hold").lte("post_after", new Date().toISOString()).limit(20);
+    for (const q of due || []) {
+      if (q.source === "auto" && !storeAutoOn(cfg, q.store)) continue;  // toggled off → stays on hold
+      try {
+        await postReply(String(q.review_id), String(q.draft), "auto", "auto");
+        await admin.from("gbp_reply_queue").update({ status: "posted", posted_at: new Date().toISOString(), error: null }).eq("id", q.id);
+        posted++;
+      } catch (e) {
+        const msg = String((e as Error)?.message || e).slice(0, 300);
+        const stale = nowMs - new Date(q.post_after).getTime() > 24 * 3600_000;
+        await admin.from("gbp_reply_queue").update({ error: msg, ...(stale ? { status: "error" } : {}) }).eq("id", q.id);
+      }
+    }
+  }
+  out.auto_posted = posted;
+
+  // 6 · Monday digest of last week's auto-posts → Communications (+ opted-in alerts)
+  if (weekday === "Mon" && hour >= 9) {
+    const wk = "digest:" + isoWeek();
+    if (!(await logged(wk))) {
+      await logKey(wk);
+      const { data: autos } = await admin.from("gbp_reply_queue").select("store,posted_at")
+        .eq("status", "posted").eq("source", "auto")
+        .gte("posted_at", new Date(nowMs - 7 * 86400_000).toISOString());
+      if (autos?.length) {
+        const perStore: Record<string, number> = {};
+        for (const a of autos) perStore[a.store] = (perStore[a.store] || 0) + 1;
+        const lines = Object.keys(perStore).sort().map((s) => `${shortName(s)}: ${perStore[s]}`).join(" · ");
+        await admin.from("communications").upsert([{
+          source_key: wk, kind: "gbp",
+          title: `🤖 ${autos.length} review repl${autos.length === 1 ? "y" : "ies"} auto-posted last week`,
+          body: `${lines}. Every reply is in the Google Reviews feed with an AUTO label.`,
+        }], { onConflict: "source_key", ignoreDuplicates: true });
+        const subs = prefs.filter((p) => p.triggers.auto_digest === true);
+        await fanoutAlert(subs.map((p) => p.staff_id),
+          `🤖 Auto-replies last week: ${autos.length}`, lines, "google-reviews.html");
+        out.digest = autos.length;
+      }
+    }
+  }
+  return { ok: true, ...out };
+}
+
 /* ---------- per-store orchestration ----------
    Stages run independently per store: a reviews failure (e.g. the v4 API not
    yet allowlisted for the project) must not block metrics/keywords/snapshot.
@@ -345,11 +728,18 @@ async function scopedLocations(url: URL): Promise<Loc[]> {
   return locs;
 }
 
+const MGR_ACTIONS = ["draft", "reply", "queue", "queue_op", "config", "config_set"];
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   const url = new URL(req.url);
-  if (!authed(req, url)) return json({ ok: false, error: "unauthorized" }, 401);
   const action = url.searchParams.get("action") || "pull";
+  let me: Me | null = null;
+  if (MGR_ACTIONS.includes(action)) {
+    me = await staffFromReq(req);
+    if (!me && !authed(req, url)) return json({ ok: false, error: "unauthorized" }, 401);
+  } else if (!authed(req, url)) return json({ ok: false, error: "unauthorized" }, 401);
+  const actor = me ? me.name || ("staff:" + me.id) : "server";
   try {
     if (!G_ID || !G_SECRET || !G_REFRESH) {
       if (action !== "status") return json({ ok: false, error: "missing_google_secrets", need: ["GBP_CLIENT_ID", "GBP_CLIENT_SECRET", "GBP_REFRESH_TOKEN"] }, 500);
@@ -372,8 +762,78 @@ Deno.serve(async (req) => {
           return (await pullReviews(l, !mx?.updated_at, mx?.updated_at || null)).n;
         }],
         ["snapshot_changed", () => snapshot(l)],
+        ["contact", () => pullContactAndPhotos(l)],
       ]);
       return json({ ok: true, days, results });
+    }
+
+    if (action === "engine") return json(await engine());
+
+    if (action === "draft") {
+      const b = await req.json().catch(() => ({}));
+      const id = String(b.review_id || "");
+      const { data: rev } = await admin.from("gbp_reviews")
+        .select("id,store,stars,comment,reviewer_name,created_at").eq("id", id).maybeSingle();
+      if (!rev) return json({ ok: false, error: "review_not_found" }, 404);
+      const { data: loc } = await admin.from("gbp_locations").select("phone").eq("store", rev.store).maybeSingle();
+      const draft = rev.comment ? await llmDraft(rev as Rev, loc?.phone || null) : await thankYouFor(rev.store);
+      return json({ ok: true, draft });
+    }
+
+    if (action === "reply") {
+      const b = await req.json().catch(() => ({}));
+      const id = String(b.review_id || ""), text = String(b.text || "").trim();
+      if (!id || !text) return json({ ok: false, error: "review_id and text required" }, 400);
+      if (text.length > 4000) return json({ ok: false, error: "reply_too_long" }, 400);
+      await postReply(id, text, actor, "manual");
+      return json({ ok: true });
+    }
+
+    if (action === "queue") {
+      const { data: rows } = await admin.from("gbp_reply_queue").select("*")
+        .eq("status", "hold").order("post_after", { ascending: true });
+      const ids = (rows || []).map((r) => r.review_id);
+      const { data: revs } = ids.length
+        ? await admin.from("gbp_reviews").select("id,store,stars,comment,reviewer_name,created_at").in("id", ids)
+        : { data: [] };
+      const byId: Record<string, unknown> = {};
+      for (const r of revs || []) byId[String(r.id)] = r;
+      return json({ ok: true, queue: (rows || []).map((r) => ({ ...r, review: byId[String(r.review_id)] || null })) });
+    }
+
+    if (action === "queue_op") {
+      const b = await req.json().catch(() => ({}));
+      const qid = Number(b.id), op = String(b.op || "");
+      const { data: q } = await admin.from("gbp_reply_queue").select("*").eq("id", qid).maybeSingle();
+      if (!q || q.status !== "hold") return json({ ok: false, error: "queue_row_not_open" }, 404);
+      if (op === "cancel") {
+        await admin.from("gbp_reply_queue").update({ status: "cancelled", decided_by: actor }).eq("id", qid);
+      } else if (op === "edit") {
+        const text = String(b.text || "").trim();
+        if (!text) return json({ ok: false, error: "text required" }, 400);
+        await admin.from("gbp_reply_queue").update({ draft: text.slice(0, 4000), decided_by: actor }).eq("id", qid);
+      } else if (op === "post_now") {
+        await postReply(String(q.review_id), String(b.text || q.draft), actor, "auto");
+        await admin.from("gbp_reply_queue").update({
+          status: "posted", posted_at: new Date().toISOString(), decided_by: actor, error: null,
+        }).eq("id", qid);
+      } else return json({ ok: false, error: "bad_op" }, 400);
+      return json({ ok: true });
+    }
+
+    if (action === "config") {
+      return json({ ok: true, auto_reply: await getCfg<AutoCfg>("auto_reply", { master: false, stores: {} }) });
+    }
+
+    if (action === "config_set") {
+      const b = await req.json().catch(() => ({}));
+      const cfg: AutoCfg = { master: !!b.master, stores: {} };
+      if (b.stores && typeof b.stores === "object") {
+        for (const k of Object.keys(b.stores)) cfg.stores[k] = !!b.stores[k];
+      }
+      await setCfg("auto_reply", cfg, actor);
+      await admin.from("gbp_audit").insert({ actor, action: "auto_reply_config", store: null, payload: cfg });
+      return json({ ok: true, auto_reply: cfg });
     }
 
     if (action === "backfill") {

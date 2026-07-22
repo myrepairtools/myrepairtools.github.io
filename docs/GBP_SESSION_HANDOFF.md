@@ -88,3 +88,15 @@ Supabase project: **`xuvsehrevxackuhmbmry`** (same project as every other tool h
 Ask Britt for the `docs/GBP_DESIGN_HANDOFF.md` §16 design answers (store chart colors,
 tech widget visibility, AI reply tone kit, contact retention, QR cards, scorecard timing),
 then Phase 2 = review-request engine + AI-drafted reply queue (plan in the design doc).
+
+## UPDATE 2026-07-22 — design response received, reply engine BUILT & DEPLOYED
+
+Britt's design pass (GBP_Design_Response) answered §16 and was implemented the same
+day: google-traffic.html rebuilt to the scoreboard spec (3 tabs, benchmark matrix,
+gap badges, rule rail), reviews split out to **google-reviews.html** (feed + AI reply
+drawer + auto-reply manage + notification prefs), gbp-sync grew the review engine
+(`engine` cron */15, `draft`/`reply`/`queue`/`config` JWT actions), Phase 2 schema
+applied (docs/sql/2026-07-22-gbp-phase2.sql), `gbp-engine` cron installed. Auto-reply
+master toggle ships **OFF**; notification prefs are opt-in per user (empty at launch).
+Still deferred: the review-request engine ("Send asks…" button is a disabled Phase 2
+stub) and email notifications. See the GBP block in CLAUDE.md for the full contract.
