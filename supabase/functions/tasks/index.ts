@@ -134,27 +134,32 @@ async function generate(dateISO: string) {
     }
     if (!wants.length) continue;
 
-    // resolve assignment once per template per day
+    // resolve assignment once per template per day. A per-weekday OVERRIDE in
+    // day_assignments wins for that day (e.g. "weekdays → Mid shift, weekends →
+    // Open shift"); otherwise the template's own target applies. `A` is the
+    // effective assignment source; rotation state always stays on the template.
+    const dayOv = (t.day_assignments && t.day_assignments[String(dow)]) || null;
+    const A: any = dayOv ? { ...dayOv, store: t.store } : t;
     let assigned: number | null = null, kind = "Fixed", eligible: number[] = [];
-    if (t.target === "person") {
-      assigned = t.assignee_staff_id || null;
-      if (assigned && offToday.has(assigned) && t.fallback_staff_id) assigned = t.fallback_staff_id;
+    if (A.target === "person") {
+      assigned = A.assignee_staff_id || null;
+      if (assigned && offToday.has(assigned) && A.fallback_staff_id) assigned = A.fallback_staff_id;
       eligible = assigned ? [assigned] : [];
       kind = t.personal ? "Personal" : "Fixed";
-    } else if (t.target === "shift") {
-      const w = shiftWorkers(t.shift_id, t.store).filter((id) => !offToday.has(id));
+    } else if (A.target === "shift") {
+      const w = shiftWorkers(A.shift_id, t.store).filter((id) => !offToday.has(id));
       assigned = w[0] ?? null;
       eligible = w.length ? w : storeStaff(t.store, false);
-      kind = (shiftName[t.shift_id] || "Shift") + " · " + shortStore(t.store);
-    } else if (t.target === "role") {
-      const mgr = t.role_key === "manager";
+      kind = (shiftName[A.shift_id] || "Shift") + " · " + shortStore(t.store);
+    } else if (A.target === "role") {
+      const mgr = A.role_key === "manager";
       eligible = storeStaff(t.store, mgr);
       assigned = null;
       kind = mgr ? "Manager" : "Any tech";
-    } else if (t.target === "group") {
-      const pool: number[] = (t.pool || []).filter((id: number) => staffById[id]);
+    } else if (A.target === "group") {
+      const pool: number[] = (A.pool || []).filter((id: number) => staffById[id]);
       eligible = pool;
-      if (t.strategy === "rotate" && pool.length) {
+      if (A.strategy === "rotate" && pool.length) {
         const start = ((Number(t.rotation_pos) || 0) % pool.length + pool.length) % pool.length;
         let pick = -1;
         for (let i = 0; i < pool.length; i++) { const idx = (start + i) % pool.length; if (!offToday.has(pool[idx])) { pick = idx; break; } }
@@ -165,6 +170,8 @@ async function generate(dateISO: string) {
         (t as any).__nextPos = (pick + 1) % pool.length;
       } else { assigned = null; kind = "Group"; }
     }
+    // completion 'each' is a template-level property (grid of everyone); an
+    // override changing WHO is assigned still respects it.
     if (t.completion === "each") assigned = null;
 
     for (const w of wants) {
