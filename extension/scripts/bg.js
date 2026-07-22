@@ -474,3 +474,34 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     });
     return true; // async sendResponse
 });
+
+/* ── Label Resizer: grab the active tab's PDF and open the 4×6 tool ──────────
+   The popup menu sends label:grab with the tab's URL. The click that opened
+   the popup grants activeTab, so this fetch can read the PDF the tab is
+   showing. The bytes ride to label/label.html via chrome.storage.session
+   (never touch disk); anything unfetchable just opens the tool's drop zone. */
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'label:grab') return;
+    (async function () {
+        var stash = { name: msg.title || 'label', b64: null, kind: null };
+        try {
+            if (/^(https?|file):/.test(msg.url || '')) {
+                var r = await fetch(msg.url);
+                var ct = (r.headers.get('content-type') || '').toLowerCase();
+                var buf = await r.arrayBuffer();
+                var h = new Uint8Array(buf.slice(0, 4));
+                var isPdf = h[0] === 0x25 && h[1] === 0x50 && h[2] === 0x44 && h[3] === 0x46; /* %PDF */
+                if (isPdf || /pdf|image\//.test(ct)) {
+                    var u8 = new Uint8Array(buf), b = '';
+                    for (var i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+                    stash.b64 = btoa(b);
+                    stash.kind = (isPdf || /pdf/.test(ct)) ? 'pdf' : 'img';
+                }
+            }
+        } catch (e) { /* fall through — the tool opens with its drop zone */ }
+        try { await chrome.storage.session.set({ mrt_label_stash: stash }); } catch (e) { }
+        chrome.tabs.create({ url: chrome.runtime.getURL('label/label.html') });
+        sendResponse({ ok: true });
+    })();
+    return true; // async sendResponse
+});
