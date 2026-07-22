@@ -596,7 +596,17 @@ toggles `?action=config_set`, hold queue edit/post-now/cancel `?action=queue_op`
 notification settings (methods SMS/push/in-app, stores, triggers, quiet hours →
 `gbp_notify_prefs`), deep link `#r=<review-id>`. Dashboard **Google Reviews widget**
 (`assets/gbp-summary.js`, `window.CPRGbp.snapshot()`) → google-reviews.html. Browser
-actions auth by staff JWT (manager+); cron actions by secret. The ~1,200
+actions auth by staff JWT (manager+); cron actions by secret. **Department
+listings** (corporate's "Electronics at CPR" / "Video Game Console Repair at CPR",
+2 per store, manager access accepted 2026-07-22) live in `gbp_departments`
+(docs/sql/2026-07-22-gbp-departments.sql); discover maps them by title+address
+(address-equality fallback catches Happy Valley) and NEVER overwrites a store's
+main-listing row. Their reviews land in `gbp_reviews` under the parent store with
+`department` = listing title — feed (grey dept pill), counts, alerts, SLA, and
+auto-reply all cover them; store lifetime rating/review_count stay main-only, and
+review deletion sweeps are scoped per listing. Dept metrics/keywords deliberately
+not synced. Store pill colors on both pages read `stores.color` (Settings →
+Locations); the hard-coded palette is only a fallback. The ~1,200
 pre-engine unanswered reviews are **retired**: `gbp_reviews.legacy_unanswered`
 (one-time marking, docs/sql/2026-07-22-gbp-legacy-unanswered.sql — owner chose not
 to answer the backlog) excludes them from every unanswered count/filter/SLA surface;

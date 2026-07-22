@@ -203,8 +203,8 @@ async function discover() {
   const acc = await gGet(ACCT + "accounts");
   const accounts = (acc.accounts || []) as { name: string; accountName?: string }[];
   if (!accounts.length) return { ok: false, error: "no_google_accounts" };
-  const candidates: Loc[] = [];
-  const unmatched: string[] = [];
+  type Cand = Loc & { addrKey: string; label: string };
+  const all: (Omit<Cand, "store"> & { store: string | null })[] = [];
   for (const a of accounts) {
     let pageToken = "";
     do {
@@ -217,25 +217,41 @@ async function discover() {
         const addr = (l.storefrontAddress || {}) as Record<string, any>;
         const addrText = [...(addr.addressLines || []), addr.locality, addr.administrativeArea]
           .filter(Boolean).join(" ");
-        const store = await resolveStore(`${l.title || ""} ${addrText}`);
         const meta = (l.metadata || {}) as Record<string, string>;
-        if (store) {
-          candidates.push({
-            store, google_account: a.name, google_location_id: String(l.name),
-            place_id: meta.placeId || null, new_review_uri: meta.newReviewUri || null,
-            maps_uri: meta.mapsUri || null, title: String(l.title || ""),
-          });
-        } else unmatched.push(`${l.title || l.name}${addrText ? ` (${addrText})` : ""}`);
+        all.push({
+          store: await resolveStore(`${l.title || ""} ${addrText}`),
+          google_account: a.name, google_location_id: String(l.name),
+          place_id: meta.placeId || null, new_review_uri: meta.newReviewUri || null,
+          maps_uri: meta.mapsUri || null, title: String(l.title || ""),
+          addrKey: addrText.toLowerCase().replace(/[^a-z0-9]/g, ""),
+          label: `${l.title || l.name}${addrText ? ` (${addrText})` : ""}`,
+        });
       }
       pageToken = String(d.nextPageToken || "");
     } while (pageToken);
   }
   const existing = await mappedLocations();
   const existingByStore: Record<string, string> = {};
-  for (const e of existing) existingByStore[e.store] = e.google_location_id;
-  const mapped: Loc[] = [];
-  const departments: Loc[] = [];
-  const byStore: Record<string, Loc[]> = {};
+  const storeByLocId: Record<string, string> = {};
+  for (const e of existing) { existingByStore[e.store] = e.google_location_id; storeByLocId[e.google_location_id] = e.store; }
+  // second pass: a listing that didn't resolve by name inherits the store of a
+  // listing at the SAME street address that did (manually-mapped mains count too —
+  // that's how Happy Valley departments find CPR Clackamas)
+  const storeByAddr: Record<string, string> = {};
+  for (const c of all) {
+    const s = c.store || storeByLocId[c.google_location_id];
+    if (s && c.addrKey) storeByAddr[c.addrKey] = s;
+  }
+  const unmatched: string[] = [];
+  const candidates: Cand[] = [];
+  for (const c of all) {
+    const s = c.store || storeByLocId[c.google_location_id] || (c.addrKey ? storeByAddr[c.addrKey] : null);
+    if (s) candidates.push({ ...c, store: s });
+    else unmatched.push(c.label);
+  }
+  const mapped: Cand[] = [];
+  const departments: Cand[] = [];
+  const byStore: Record<string, Cand[]> = {};
   for (const c of candidates) (byStore[c.store] = byStore[c.store] || []).push(c);
   for (const store of Object.keys(byStore)) {
     const list = byStore[store];
@@ -250,8 +266,15 @@ async function discover() {
   if (mapped.length) {
     const stamp = new Date().toISOString();
     const { error } = await admin.from("gbp_locations").upsert(
-      mapped.map((m) => ({ ...m, connected_at: stamp })), { onConflict: "store" });
+      mapped.map(({ addrKey: _a, label: _l, ...m }) => ({ ...m, connected_at: stamp })), { onConflict: "store" });
     if (error) throw new Error("gbp_locations_" + error.message);
+  }
+  if (departments.length) {
+    const stamp = new Date().toISOString();
+    const { error } = await admin.from("gbp_departments").upsert(
+      departments.map(({ addrKey: _a, label: _l, ...m }) => ({ ...m, connected_at: stamp })),
+      { onConflict: "google_location_id" });
+    if (error) throw new Error("gbp_departments_" + error.message);
   }
   return { ok: true, mapped, departments, unmatched };
 }
@@ -312,11 +335,16 @@ async function pullKeywordsMonth(loc: Loc, ym: string): Promise<number> {
   return n;
 }
 
-/* ---------- reviews (v4 API, ordered by updateTime desc) ---------- */
-function reviewRow(loc: Loc, r: Record<string, any>) {
+/* ---------- reviews (v4 API, ordered by updateTime desc) ----------
+   Department listings share the parent store's row space: their reviews land
+   in gbp_reviews under the parent store with `department` = listing title, so
+   feed/alerts/SLA/auto-reply cover them for free. The store's lifetime
+   rating/review_count stay main-listing-only. */
+function reviewRow(loc: Loc, r: Record<string, any>, department: string | null) {
   return {
     id: String(r.name || (loc.google_account + "/" + loc.google_location_id + "/reviews/" + r.reviewId)),
     store: loc.store,
+    department,
     stars: STARS[String(r.starRating)] || null,
     comment: r.comment ? String(r.comment) : null,
     reviewer_name: r.reviewer?.displayName ? String(r.reviewer.displayName) : null,
@@ -330,7 +358,7 @@ function reviewRow(loc: Loc, r: Record<string, any>) {
     raw: r,
   };
 }
-async function pullReviews(loc: Loc, full: boolean, since: string | null): Promise<{ n: number; total: number | null; rating: number | null }> {
+async function pullReviews(loc: Loc, full: boolean, since: string | null, department: string | null = null): Promise<{ n: number; total: number | null; rating: number | null }> {
   const base = `${V4}${loc.google_account}/${loc.google_location_id}/reviews?pageSize=50`;
   let pageToken = "", n = 0, total: number | null = null, rating: number | null = null;
   const seen: string[] = [];
@@ -342,7 +370,7 @@ async function pullReviews(loc: Loc, full: boolean, since: string | null): Promi
     if (d.averageRating != null) rating = Math.round(Number(d.averageRating) * 100) / 100;
     const reviews = (d.reviews || []) as Record<string, any>[];
     if (!reviews.length) break;
-    const rows = reviews.map((r) => reviewRow(loc, r));
+    const rows = reviews.map((r) => reviewRow(loc, r, department));
     const { error } = await admin.from("gbp_reviews").upsert(rows, { onConflict: "id" });
     if (error) throw new Error("gbp_reviews_" + error.message);
     n += rows.length;
@@ -351,15 +379,21 @@ async function pullReviews(loc: Loc, full: boolean, since: string | null): Promi
     pageToken = String(d.nextPageToken || "");
   } while (pageToken);
   if (full) {
-    // deletion sweep: anything in the DB for this store that Google no longer returns
-    const { data: dbIds } = await admin.from("gbp_reviews").select("id").eq("store", loc.store).is("deleted_at", null);
+    // deletion sweep: anything in the DB for THIS LISTING that Google no longer
+    // returns (scoped by department so a dept pull can't tombstone main reviews)
+    let sweepQ = admin.from("gbp_reviews").select("id").eq("store", loc.store).is("deleted_at", null);
+    sweepQ = department == null ? sweepQ.is("department", null) : sweepQ.eq("department", department);
+    const { data: dbIds } = await sweepQ;
     const seenSet = new Set(seen);
     const gone = (dbIds || []).map((r) => String(r.id)).filter((id) => !seenSet.has(id));
     for (let i = 0; i < gone.length; i += 200) {
       await admin.from("gbp_reviews").update({ deleted_at: new Date().toISOString() }).in("id", gone.slice(i, i + 200));
     }
   }
-  await admin.from("gbp_locations").update({ rating, review_count: total }).eq("store", loc.store);
+  // lifetime rating/count on the store row reflect the MAIN listing only
+  if (department == null) {
+    await admin.from("gbp_locations").update({ rating, review_count: total }).eq("store", loc.store);
+  }
   return { n, total, rating };
 }
 
@@ -580,16 +614,32 @@ async function engine() {
   if (!locs.length) return { ok: false, error: "no_locations_mapped" };
   const out: Record<string, unknown> = {};
 
-  // 1 · incremental review pull (watermark, same as nightly)
+  // 1 · incremental review pull (watermark, same as nightly) — mains, then departments
   let pulled = 0;
   for (const l of locs) {
     try {
       const { data: mx } = await admin.from("gbp_reviews").select("updated_at")
-        .eq("store", l.store).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        .eq("store", l.store).is("department", null).order("updated_at", { ascending: false }).limit(1).maybeSingle();
       pulled += (await pullReviews(l, !mx?.updated_at, mx?.updated_at || null)).n;
     } catch (e) { out["pull_error_" + l.store] = String((e as Error)?.message || e).slice(0, 150); }
   }
   out.pulled = pulled;
+  const { data: depts } = await admin.from("gbp_departments").select("*");
+  let deptPulled = 0;
+  for (const dep of depts || []) {
+    try {
+      const { data: mx } = await admin.from("gbp_reviews").select("updated_at")
+        .eq("store", dep.store).eq("department", dep.title).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      const depLoc = { store: dep.store, google_account: dep.google_account, google_location_id: dep.google_location_id } as Loc;
+      deptPulled += (await pullReviews(depLoc, !mx?.updated_at, mx?.updated_at || null, dep.title)).n;
+      await admin.from("gbp_departments").update({ last_sync_at: new Date().toISOString(), last_error: null })
+        .eq("google_location_id", dep.google_location_id);
+    } catch (e) {
+      await admin.from("gbp_departments").update({ last_error: String((e as Error)?.message || e).slice(0, 300) })
+        .eq("google_location_id", dep.google_location_id);
+    }
+  }
+  out.dept_pulled = deptPulled;
 
   const { hour, hm, weekday } = laParts();
   const prefs = await loadPrefs();
@@ -794,10 +844,10 @@ Deno.serve(async (req) => {
       const results = await forEachLoc(locs, (l) => [
         ["metrics", () => pullMetrics(l, addDaysISO(today, -days), addDaysISO(today, -1))],
         ["reviews", async () => {
-          // watermark = newest review we already hold (self-heals after failed runs);
-          // empty table → full pull incl. deletion sweep
+          // watermark = newest MAIN-listing review we already hold (self-heals after
+          // failed runs); empty → full pull incl. deletion sweep
           const { data: mx } = await admin.from("gbp_reviews").select("updated_at")
-            .eq("store", l.store).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+            .eq("store", l.store).is("department", null).order("updated_at", { ascending: false }).limit(1).maybeSingle();
           return (await pullReviews(l, !mx?.updated_at, mx?.updated_at || null)).n;
         }],
         ["snapshot_changed", () => snapshot(l)],
@@ -935,13 +985,14 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       const { data: locs } = await admin.from("gbp_locations").select("store,title,google_location_id,place_id,rating,review_count,connected_at,last_sync_at,last_error");
+      const { data: depts } = await admin.from("gbp_departments").select("store,title,google_location_id,last_sync_at,last_error");
       const counts: Record<string, number | null> = {};
       for (const t of ["gbp_metrics_daily", "gbp_keywords_monthly", "gbp_reviews"]) {
         const { count } = await admin.from(t).select("*", { count: "exact", head: true });
         counts[t] = count ?? null;
       }
       return json({
-        ok: true, locations: locs || [], counts,
+        ok: true, locations: locs || [], departments: depts || [], counts,
         secrets: { client_id: !!G_ID, client_secret: !!G_SECRET, refresh_token: !!G_REFRESH, sync_secret: !!SECRET },
       });
     }
