@@ -82,7 +82,7 @@ async function boot(){
   if(!isMgr(AUTH.role)){ $('#page').innerHTML='<div class="gate">Compliance is for managers &amp; owners.</div>'; return; }
   const [st,a,m,r,asn,qz,att,sp,sd]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,active').eq('active',true).order('display_name'),
-    sb.from('kb_articles').select('id,title,slug,require_ack,module_id,sort_order,status,published_at').eq('status','published'),
+    sb.from('kb_articles').select('id,title,slug,require_ack,module_id,sort_order,status,published_at,min_role').eq('status','published'),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('kb_reads').select('article_id,staff_id,acknowledged_at'),
     sb.from('onboarding_assignments').select('staff_id,started_at'),
@@ -107,11 +107,16 @@ const passOf=(sid,qid)=>ATT.some(x=>x.staff_id===sid&&x.quiz_id===qid&&x.passed)
 const stepOf=(sid,stepId)=>SDONE[stepId+':'+sid]||null;
 const artDoneFor=(sid,a)=>{ const q=QUIZ[a.id]; return ackOf(sid,a.id)&&(!q||passOf(sid,q.id)); };
 /* merged per-module items, ordered like knowledge.html's moduleItems() */
+function itemCmp(x,y){ return (x.sort-y.sort)
+  || (x.kind===y.kind?0:(x.kind==='a'?-1:1))
+  || (x.kind==='a'?(x.a.id-y.a.id):(x.s.id-y.s.id)); }
 function itemsOf(modId){
   return ARTS.filter(a=>a.module_id===modId).map(a=>({kind:'a',a,sort:a.sort_order||0}))
     .concat(STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0})))
-    .sort((x,y)=>x.sort-y.sort);
+    .sort(itemCmp);
 }
+/* an article a person can't see (managers-only) isn't part of THEIR track */
+const canRead=(person,a)=>a.min_role!=='manager'||isMgr(person.role);
 
 function draw(){
   const staff=STAFF.filter(s=>SEL==='all'||s.home_store===SEL);
@@ -124,9 +129,11 @@ function draw(){
   const isOverdue=a=>a.published_at&&(now-new Date(a.published_at))>OVERDUE_DAYS*86400000;
   // per-person rollup (articles done + task steps done, same math as My Onboarding)
   const rows=staff.map(s=>{
-    const done=modArts.filter(a=>artDoneFor(s.id,a)).length
+    const myArts=modArts.filter(a=>canRead(s,a));
+    const myTotal=myArts.length+STEPS.length;
+    const done=myArts.filter(a=>artDoneFor(s.id,a)).length
       +STEPS.filter(st=>stepOf(s.id,st.id)).length;
-    const pct=totalItems?Math.round(done/totalItems*100):null;
+    const pct=myTotal?Math.round(done/myTotal*100):(totalItems?null:null);
     const quizPassed=moduleQuizzes.filter(a=>passOf(s.id,QUIZ[a.id].id)).length;
     const overdue=reqArts.filter(a=>isOverdue(a)&&!ackOf(s.id,a.id)).length;
     return {s,pct,done,quizPassed,overdue,started:(ASSIGN[s.id]||{}).started_at};
@@ -177,9 +184,12 @@ function openDetail(sid,modArts,reqArts){
     const items=itemsOf(m.id);
     if(!items.length)return;
     rows.push('<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding:10px 0 4px">'+esc(m.name)+'</div>');
+    const person=STAFF.find(x=>x.id===sid);
     items.forEach(it=>{
       if(it.kind==='a'){
-        const a=it.a,q=QUIZ[a.id],ok=artDoneFor(sid,a);
+        const a=it.a;
+        if(person&&!canRead(person,a))return;
+        const q=QUIZ[a.id],ok=artDoneFor(sid,a);
         rows.push('<div class="drow"><span class="pill '+(ok?'ok">✓':'no">—')+'</span><span style="flex:1">'+esc(a.title)+'</span>'
           +(q?'<span style="font-size:.72rem;color:var(--grey)">'+(passOf(sid,q.id)?'quiz ✓':'quiz —')+'</span>':'')
           +'<span style="font-size:.72rem;color:var(--grey)">article</span></div>');

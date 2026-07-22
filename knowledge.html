@@ -297,8 +297,13 @@ function reqOutstanding(){ return pubArts().filter(a=>a.require_ack&&!acked(a));
 function moduleItems(modId){
   const items=pubArts().filter(a=>a.module_id===modId).map(a=>({kind:'a',a,sort:a.sort_order||0,id:'a'+a.id}))
     .concat(STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0,id:'s'+s.id})));
-  return items.sort((x,y)=>(x.sort-y.sort)||(x.id<y.id?-1:1));
+  return items.sort(itemCmp);
 }
+/* canonical order for mixed module items: sort_order, then articles before
+   steps, then numeric id — IDENTICAL in Setup, My Onboarding & Compliance */
+function itemCmp(x,y){ return (x.sort-y.sort)
+  || (x.kind===y.kind?0:(x.kind==='a'?-1:1))
+  || (x.kind==='a'?(x.a.id-y.a.id):(x.s.id-y.s.id)); }
 function articleDone(a){ const q=QUIZ[a.id]; return !!acked(a)&&(!q||!q.nq||(MYATT[q.id]&&MYATT[q.id].passed)); }
 function itemDone(it){ return it.kind==='a'?articleDone(it.a):!!SDONE[it.s.id]; }
 /* full track: modules with their merged items; global sequential unlock */
@@ -596,11 +601,11 @@ async function drawOnboarding(){
 }
 
 /* ---------- Onboarding Setup (managers): modules + their mixed item lists ---------- */
-let MODSEL=null;
+let MODSEL=null,REORDERING=false;
 function setupItems(modId){   // setup view includes drafts (flagged), unlike the live track
   const arts=ARTS.filter(a=>a.module_id===modId&&a.status!=='archived').map(a=>({kind:'a',a,sort:a.sort_order||0}));
   const steps=STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0}));
-  return arts.concat(steps).sort((x,y)=>x.sort-y.sort);
+  return arts.concat(steps).sort(itemCmp);
 }
 async function renumber(modId,items){   // persist merged order as 10,20,30…
   for(let i=0;i<items.length;i++){
@@ -684,9 +689,12 @@ function drawModules(){
     MODSEL=null; await refresh();
   };
   const move=async(i,dir)=>{
-    const j=i+dir; if(j<0||j>=items.length)return;
-    const sw=items[i]; items[i]=items[j]; items[j]=sw;
-    await renumber(cur.id,items); await refresh();
+    if(REORDERING)return; REORDERING=true;
+    try{
+      const j=i+dir; if(j<0||j>=items.length)return;
+      const sw=items[i]; items[i]=items[j]; items[j]=sw;
+      await renumber(cur.id,items); await refresh();
+    }finally{ REORDERING=false; }
   };
   document.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>move(+b.dataset.up,-1));
   document.querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>move(+b.dataset.dn,1));

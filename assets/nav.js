@@ -700,7 +700,7 @@
     try{ items = JSON.parse(localStorage.getItem('cprKbNav')||'null'); }catch(e){}
     if (!items || !items.length){
       items = [ {h:'c=all', i:'📚', l:'All articles'}, {h:'c=req', i:'⭐', l:'Required reading'} ];
-      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'✏️',l:'Drafts'},{u:'kb-compliance.html',i:'📋',l:'Compliance'});
+      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'✏️',l:'Drafts'},{h:'modules',i:'🧩',l:'Onboarding Setup'},{u:'kb-compliance.html',i:'📋',l:'Compliance'});
     }
     var here = currentFile==='knowledge.html' ? location.hash.replace('#','') : '';
     var h = '<div class="cpr-grp">Knowledge Base</div>';
