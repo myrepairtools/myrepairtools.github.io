@@ -586,7 +586,7 @@ to the notifications project. Importing existing docs: give them to Claude in a 
 it converts and inserts articles directly.
 
 **KB v2 — onboarding & quizzes (design-handoff rebuild):** knowledge.html is now the
-full training surface: two-column library (230px category sidebar + list rows with
+full training surface: the **Browse list lives in the NAV PANE**, not the page — nav.js's 'kb' area renders it from a localStorage cache (`cprKbNav`) the page publishes on every draw (counts/badges live; hash links route in-page; static fallback pre-first-visit). The library is full-width list rows with
 per-user **Viewed** column — "Never" amber, red when required-unacked), restyled
 reading view (read-time meta, `!> ` amber callouts in the light markup, footer
 "✓ Mark as read" = `kb_reads.acknowledged_at`, the read receipt that feeds
