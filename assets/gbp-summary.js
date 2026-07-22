@@ -50,7 +50,7 @@
         return Promise.all([
           client.from('gbp_locations').select('store,rating,review_count,last_sync_at'),
           client.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at')
-            .is('reply_text', null).is('deleted_at', null)
+            .is('reply_text', null).is('deleted_at', null).eq('legacy_unanswered', false)
             .order('created_at', { ascending: true }).limit(200),
           client.from('gbp_reviews').select('store,stars,comment,reviewer_name,created_at')
             .is('deleted_at', null).eq('stars', 5).not('comment', 'is', null)
