@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Label Resizer · myRepairTools</title>
+<style>
+:root{--red:#E31837;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:var(--dark);background:var(--light-grey)}
+.top{background:var(--red);color:#fff;padding:11px 22px;display:flex;align-items:center;gap:12px}
+.top b{font-size:1.05rem;letter-spacing:-.2px}
+.top .h{opacity:.85;font-size:.8rem;font-weight:600}
+.top .sp{margin-left:auto;display:flex;gap:8px}
+.wrap{padding:18px 22px 60px;max-width:1250px}
+.btn{font-weight:800;font-size:.8rem;padding:9px 16px;border:1px solid var(--border);background:#fff;color:var(--dark);border-radius:10px;cursor:pointer}
+.btn.pri{background:var(--dark);border-color:var(--dark);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:7px 12px;font-size:.74rem}
+.cols{display:flex;gap:18px;align-items:flex-start}
+.main{flex:1;min-width:0}
+.side{flex:none;width:250px;position:sticky;top:14px}
+@media (max-width:900px){.cols{flex-direction:column}.side{width:100%;position:static}}
+.drop{border:2.5px dashed var(--grey);border-radius:16px;background:#fff;padding:52px 24px;text-align:center;cursor:pointer}
+.drop.over{border-color:var(--blue);background:#EAF6FD}
+.drop b{font-size:1.02rem}
+.drop .hint{color:var(--grey);font-weight:700;font-size:.82rem;margin-top:6px}
+.drop .ico{font-size:2rem;margin-bottom:8px}
+.pagecard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px}
+.pagecard .bar{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+.pagecard .bar .t{font-weight:900;font-size:.9rem}
+.pagecard .bar .h{font-size:.76rem;color:var(--grey);font-weight:700}
+.pagecard .bar .sp{margin-left:auto;display:flex;gap:7px}
+.canvwrap{position:relative;border:1px solid var(--light-grey);border-radius:8px;overflow:hidden;line-height:0}
+.canvwrap canvas{width:100%;height:auto;display:block;cursor:crosshair;touch-action:none}
+.marquee{position:absolute;border:2px solid var(--blue);background:rgba(79,176,227,.14);pointer-events:none;display:none}
+.qcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px}
+.qcard .t{font-weight:900;font-size:.95rem;margin-bottom:2px}
+.qcard .h{font-size:.74rem;color:var(--grey);font-weight:700;margin-bottom:10px}
+.qitem{position:relative;border:1px solid var(--border);border-radius:8px;margin-bottom:9px;aspect-ratio:2/3;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.qitem img{max-width:94%;max-height:96%}
+.qitem .x{position:absolute;top:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(45,45,59,.82);color:#fff;font-weight:800;font-size:.8rem;cursor:pointer;line-height:1}
+.qitem .n{position:absolute;top:5px;left:5px;background:rgba(45,45,59,.82);color:#fff;font-weight:800;font-size:.64rem;border-radius:6px;padding:2px 7px}
+.qitem .rot{position:absolute;bottom:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(45,45,59,.82);color:#fff;font-weight:800;font-size:.8rem;cursor:pointer;line-height:1}
+.qempty{font-size:.8rem;color:var(--grey);font-weight:700;padding:16px 4px;text-align:center}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-weight:800;font-size:.85rem;padding:11px 20px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:300}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div class="top">
+  <b>🏷️ Label Resizer</b><span class="h" id="srcName"></span>
+  <span class="sp"><button class="btn pri" id="printBtn" disabled>🖨 Print 4×6</button></span>
+</div>
+<div class="wrap">
+  <div class="cols">
+    <div class="main">
+      <div class="drop" id="drop">
+        <div class="ico">📄</div>
+        <b>Drop a label PDF or image here</b>
+        <div class="hint">…or click to choose a file. Pasting a screenshot (Ctrl+V) works too.</div>
+        <input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
+      </div>
+      <div id="pages"></div>
+    </div>
+    <div class="side">
+      <div class="qcard">
+        <div class="t">Print Queue</div>
+        <div class="h">Each item prints as its own 4×6 page. Sideways crops rotate upright automatically — ↻ flips any of them.</div>
+        <div id="queue"><div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then ✂ Add Selection.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script type="module" src="label.js"></script>
+</body>
+</html>
