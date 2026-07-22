@@ -453,12 +453,8 @@ serves live cpr.parts price/availability (our account's cost) through a 30-min
 `ms_products` cache (authenticated read): order rows show cost + a red
 "MS out of stock" pill, and a **part-group's order SKU auto-picks the cheapest
 IN-STOCK member** (★ default = tiebreak/fallback; member rows show per-SKU
-price + MS stock). **Cross-store transfer chips**: rows with a suggested buy
-also ask `transfer_candidates(store, skus[])` (SECURITY DEFINER — store reads
-are can_see_store-scoped) whether another store holds that SKU above its own
-max; surplus renders a blue "⇄ <store> has N spare" chip (hover = per-SKU
-stock/max/30-day-usage detail; docs/sql/transfer-candidates.sql) so a transfer
-can beat a purchase. **QBO booking from MS orders is deliberately NOT
+price + MS stock). Cross-store transfer chips were built then removed at the
+owner's request (2026-07-22) — don't resurrect without asking. **QBO booking from MS orders is deliberately NOT
 built** — the owner will drive that step-by-step; never auto-post to QBO from
 MS data without explicit direction (docs/mobilesentrix-pipeline.md).
 
@@ -534,12 +530,19 @@ function's `template_get` action (store override → default) and caches it in
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
 and Ben's RQ Mods (all its content scripts absorbed as-is; feature toggles preserved
-in Options). **The toolbar button opens a tool MENU** (popup/menu.html, v2.6.0):
+in Options). **The toolbar button opens a tool MENU** (popup/menu.html, v2.6.1):
 Price Calculator (the old popup) + **Label Resizer** — bg.js `label:grab` fetches the
 active tab's PDF/image (activeTab grant from the click), stashes the bytes in
 chrome.storage.session (never disk), and opens `label/label.html`, a bundled copy of
 label-resizer.html pre-loaded with that label (own pdf.js copy; site tool stays as
-the fallback). Unfetchable tabs just open the tool's drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
+the fallback). **Fully automatic**: both tools auto-detect the shipping label — a
+pdf.js operator-list scan pulls each page's embedded images (objs.get raced against
+a 1s timeout; group-scoped g_* objects never resolve), scores them (≥80k px,
+1.15–2.6 aspect, ≥85% grayscale samples, 4–60% ink → labels; logos are colorful and
+fail), queues the winner per page, and queues label-less pages (packing slips)
+auto-trimmed; the extension flow then opens the print dialog itself. Manual crop
+stays as the fallback for vector-drawn labels. Unfetchable tabs just open the
+tool's drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
 edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
 watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 /ticket/printLabel), vendored `scripts/qrcode.js`, and
