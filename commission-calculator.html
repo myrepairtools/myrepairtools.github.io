@@ -497,16 +497,13 @@ function monthEndISO(period){const p=period.split('-').map(Number);const d=new D
 async function loadQboHours(){
   const period=STATE.tipsPeriod||STATE.start.slice(0,7);
   if(STATE.qboHrsPeriod===period&&STATE.qboHrs)return STATE.qboHrs;
-  const [ts,jc]=await Promise.all([
-    sb.from('qbtime_timesheets').select('staff_id,seconds,jobcodes').gte('biz_date',period+'-01').lte('biz_date',monthEndISO(period)),
-    sb.from('qbtime_jobcodes').select('qbt_id,type').eq('type','pto')
+  const [ts]=await Promise.all([
+    sb.from('qbtime_timesheets').select('staff_id,seconds,off_seconds').gte('biz_date',period+'-01').lte('biz_date',monthEndISO(period))
   ]);
-  const pto=new Set((((jc&&jc.data)||[])).map(x=>String(x.qbt_id)));
+  // off_seconds = PTO + Unpaid Time Off jobcode time (computed by qbtime-sync)
   const secs={};(((ts&&ts.data)||[])).forEach(r=>{
     if(r.staff_id==null)return;
-    let s=Number(r.seconds)||0;const j=r.jobcodes||{};
-    for(const k in j){if(pto.has(String(k)))s-=Number(j[k])||0;}
-    secs[r.staff_id]=(secs[r.staff_id]||0)+Math.max(0,s);
+    secs[r.staff_id]=(secs[r.staff_id]||0)+Math.max(0,(Number(r.seconds)||0)-(Number(r.off_seconds)||0));
   });
   const byName={};
   for(const sid in secs){const st=STATE.staffById[sid];if(!st)continue;byName[st.display_name]=Math.round(secs[sid]/3600*100)/100;}

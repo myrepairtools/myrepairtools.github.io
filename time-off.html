@@ -199,14 +199,21 @@ async function addRequest(){
   if(!start||!end){toast('Pick start and end dates',true);return;}
   if(end<start){toast('End is before start',true);return;}
   const e=empById(Number(emp));
+  // adding YOURSELF never self-approves — someone else has to decide it
+  const self=AUTH&&Number(emp)===Number(AUTH.id);
   const row={staff_id:Number(emp),store:e?e.home_store:null,type:type,paid:(type!=='Unpaid'),start_date:start,end_date:end,note:note||null,
-    status:'approved',decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
+    status:self?'pending':'approved',
+    decided_by:self?null:((AUTH&&AUTH.id)||null),
+    decided_at:self?null:new Date().toISOString()};
   const res=await sb.from('time_off_requests').insert(row).select().single();
   if(res.error){toast(res.error.message||'Could not add',true);return;}
+  if(self)toast('Added as PENDING — your own time off needs another manager\u2019s approval');
   REQS.push(res.data); ADDING=false; AFORM={staff_id:'',type:'Vacation',start:'',end:'',note:''};
   toast('Time off added'+(e?' · '+e.display_name.split(' ')[0]:'')); render();
 }
 async function decide(id,status){
+  const req=REQS.find(x=>x.id===id);
+  if(req&&AUTH&&Number(req.staff_id)===Number(AUTH.id)&&status!=='pending'){toast('You can\u2019t decide your own request — another manager has to.',true);return;}
   const r=REQS.filter(x=>x.id===id)[0];if(!r)return;const prev=r.status;r.status=status;render();
   const patch=status==='pending'?{status,decided_by:null,decided_at:null}:{status,decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
   const res=await sb.from('time_off_requests').update(patch).eq('id',id);

@@ -410,11 +410,18 @@ async function syncTimesheets(token: string, startDate: string, endDate: string)
     page++;
   }
 
+  // time-off jobcodes (PTO family AND Unpaid Time Off — different QB type!)
+  // roll into off_seconds so consumers can show worked = seconds - off_seconds
+  const { data: offJc } = await admin.from("qbtime_jobcodes").select("qbt_id").in("type", ["pto", "unpaid_time_off"]);
+  const offSet = new Set((offJc || []).map((j) => String(j.qbt_id)));
+
   const stamp = new Date().toISOString();
   const rows = Array.from(byUserDay.entries()).map(([k, a]) => {
     const [uid, biz_date] = k.split("|");
+    let off = 0;
+    for (const jc in a.jobcodes) if (offSet.has(jc)) off += a.jobcodes[jc];
     return { qbt_user_id: uid, biz_date, staff_id: staffOf.get(uid) ?? null,
-      seconds: a.seconds, jobcodes: a.jobcodes, on_the_clock: a.onclock, updated_at: stamp };
+      seconds: a.seconds, off_seconds: off, jobcodes: a.jobcodes, on_the_clock: a.onclock, updated_at: stamp };
   });
 
   if (rows.length) {
