@@ -124,6 +124,13 @@ these when adding UI so a new tool looks native.
 - **`hyla/rq-device-catalog.json`** — RepairQ device catalog consumed by `hyla-orders.html`.
 - **`qrcode.js`** — vendored qrcode-generator (MIT); global `qrcode(type, ecc)`. Used by
   `lcd-buyback.html` for send-display labels; the extension carries its own copy.
+- **`pdfjs/`** — vendored pdf.js (pdfjs-dist 4.10.38, Apache-2.0; `pdf.min.mjs` +
+  `pdf.worker.min.mjs`, update steps in its README). Used by `label-resizer.html`
+  (Operations nav): drop any letter-size shipping-label PDF (or image / pasted
+  screenshot), drag-select the label (or ＋ whole page, auto-trimmed of white
+  margins), and print a clean **4×6** — one page per queued item, sideways crops
+  auto-rotate upright (per-item ↻ override). Replaces the paid "label resizer"
+  service; fully client-side, no backend.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
   source of truth for the Commission Calculator (nav label "Payroll · Commission & Tips" —
   same tool, payroll-focused name; file stays commission-calculator.html) + Dashboard.

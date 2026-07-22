@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Label Resizer · CPR Oregon</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--light-grey)}
+.wrap{padding:22px 26px 60px;max-width:1250px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spacing:-.4px;margin:0}
+.sub{font-weight:700;font-size:.85rem;color:var(--grey);margin-top:4px}
+.hd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.hd .sp{margin-left:auto;display:flex;gap:8px}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1px solid var(--border);background:#fff;color:var(--dark);border-radius:10px;cursor:pointer}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff}
+.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.cols{display:flex;gap:18px;align-items:flex-start}
+.main{flex:1;min-width:0}
+.side{flex:none;width:250px;position:sticky;top:76px}
+@media (max-width:900px){.cols{flex-direction:column}.side{width:100%;position:static}}
+
+.drop{border:2.5px dashed var(--grey);border-radius:16px;background:#fff;padding:56px 24px;text-align:center;cursor:pointer;transition:border-color .15s, background .15s}
+.drop.over{border-color:var(--blue);background:#EAF6FD}
+.drop b{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.drop .hint{color:var(--grey);font-weight:700;font-size:.82rem;margin-top:6px}
+.drop .ico{font-size:2rem;margin-bottom:8px}
+
+.pagecard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px}
+.pagecard .bar{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+.pagecard .bar .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem}
+.pagecard .bar .h{font-size:.76rem;color:var(--grey);font-weight:700}
+.pagecard .bar .sp{margin-left:auto;display:flex;gap:7px}
+.btn.sm{padding:7px 12px;font-size:.74rem}
+.canvwrap{position:relative;border:1px solid var(--light-grey);border-radius:8px;overflow:hidden;line-height:0}
+.canvwrap canvas{width:100%;height:auto;display:block;cursor:crosshair;touch-action:none}
+.marquee{position:absolute;border:2px solid var(--blue);background:rgba(79,176,227,.14);pointer-events:none;display:none}
+
+.qcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px}
+.qcard .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;margin-bottom:2px}
+.qcard .h{font-size:.74rem;color:var(--grey);font-weight:700;margin-bottom:10px}
+.qitem{position:relative;border:1px solid var(--border);border-radius:8px;margin-bottom:9px;aspect-ratio:2/3;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.qitem img{max-width:94%;max-height:96%}
+.qitem .x{position:absolute;top:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(45,45,59,.82);color:#fff;font-weight:800;font-size:.8rem;cursor:pointer;line-height:1}
+.qitem .n{position:absolute;top:5px;left:5px;background:rgba(45,45,59,.82);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;border-radius:6px;padding:2px 7px}
+.qitem .rot{position:absolute;bottom:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(45,45,59,.82);color:#fff;font-weight:800;font-size:.8rem;cursor:pointer;line-height:1}
+.qempty{font-size:.8rem;color:var(--grey);font-weight:700;padding:16px 4px;text-align:center}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;padding:11px 20px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:300}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <div>
+      <h1>🏷️ Label Resizer</h1>
+      <div class="sub">Turn any letter-size shipping-label PDF into clean 4×6 pages — label, packing slip, whatever the box needs.</div>
+    </div>
+    <div class="sp">
+      <button class="btn" id="resetBtn" style="display:none">Start Over</button>
+      <button class="btn pri" id="printBtn" disabled>🖨 Print 4×6</button>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="main">
+      <div class="drop" id="drop">
+        <div class="ico">📄</div>
+        <b>Drop a label PDF or image here</b>
+        <div class="hint">…or click to choose a file. Pasting a screenshot (Ctrl+V) works too.</div>
+        <input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
+      </div>
+      <div id="pages"></div>
+    </div>
+    <div class="side">
+      <div class="qcard">
+        <div class="t">Print Queue</div>
+        <div class="h">Each item prints as its own 4×6 page. Sideways crops rotate upright automatically.</div>
+        <div id="queue"><div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then ✂ Add Selection.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import * as pdfjsLib from '/assets/pdfjs/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/assets/pdfjs/pdf.worker.min.mjs';
+
+var $=function(s,c){return (c||document).querySelector(s);};
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
+
+var QUEUE=[];          /* [{canvas}] — upright, ready for a 4×6 page */
+var PAGE_N=0;
+
+/* ---------- intake ---------- */
+var drop=$('#drop'), fileInput=$('#file');
+drop.addEventListener('click',function(){fileInput.click();});
+fileInput.addEventListener('change',function(){handleFiles(fileInput.files);fileInput.value='';});
+['dragover','dragenter'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over');});});
+drop.addEventListener('drop',function(e){handleFiles(e.dataTransfer.files);});
+document.addEventListener('paste',function(e){
+  var items=(e.clipboardData&&e.clipboardData.items)||[];
+  for(var i=0;i<items.length;i++){
+    var f=items[i].getAsFile&&items[i].getAsFile();
+    if(f)handleFiles([f]);
+  }
+});
+
+async function handleFiles(files){
+  for(var i=0;i<files.length;i++){
+    var f=files[i];
+    try{
+      if(f.type==='application/pdf'||/\.pdf$/i.test(f.name))await addPdf(f);
+      else if(/^image\//.test(f.type))await addImage(f);
+      else toast('Not a PDF or image — skipped '+f.name,true);
+    }catch(e){toast('Could not read '+(f.name||'file')+' — '+e.message,true);}
+  }
+}
+
+async function addPdf(file){
+  var buf=await file.arrayBuffer();
+  var pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  for(var p=1;p<=pdf.numPages;p++){
+    var page=await pdf.getPage(p);
+    var v1=page.getViewport({scale:1});
+    var scale=Math.min(3, 1600/v1.width);          /* ~1600px wide — plenty for 300dpi 4×6 */
+    var vp=page.getViewport({scale:scale});
+    var c=document.createElement('canvas');
+    c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+    var ctx=c.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);   /* transparent PDFs print black otherwise */
+    await page.render({canvasContext:ctx,viewport:vp}).promise;
+    addPageCard(c);
+  }
+  $('#resetBtn').style.display='';
+}
+function addImage(file){
+  return new Promise(function(res,rej){
+    var img=new Image();
+    img.onload=function(){
+      var c=document.createElement('canvas');
+      var scale=Math.min(1, 2000/img.naturalWidth);
+      c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);
+      var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+      ctx.drawImage(img,0,0,c.width,c.height);
+      addPageCard(c);URL.revokeObjectURL(img.src);
+      $('#resetBtn').style.display='';res();
+    };
+    img.onerror=function(){rej(new Error('bad image'));};
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+/* ---------- page cards + drag-select ---------- */
+function addPageCard(canvas){
+  PAGE_N++;
+  var card=document.createElement('div');card.className='pagecard';
+  card.innerHTML='<div class="bar"><span class="t">Page '+PAGE_N+'</span>'
+    +'<span class="h">drag a box around what you want on the 4×6</span>'
+    +'<span class="sp">'
+    +'<button class="btn sm addsel" disabled>✂ Add Selection</button>'
+    +'<button class="btn sm addfull">＋ Add Whole Page</button>'
+    +'</span></div>'
+    +'<div class="canvwrap"><div class="marquee"></div></div>';
+  card.querySelector('.canvwrap').appendChild(canvas);
+  $('#pages').appendChild(card);
+
+  var wrapEl=card.querySelector('.canvwrap'), mq=card.querySelector('.marquee'),
+      addSel=card.querySelector('.addsel'), sel=null, drag=null;
+
+  function toCanvasXY(e){
+    var r=canvas.getBoundingClientRect();
+    var x=Math.max(0,Math.min(canvas.width,(e.clientX-r.left)*canvas.width/r.width));
+    var y=Math.max(0,Math.min(canvas.height,(e.clientY-r.top)*canvas.height/r.height));
+    return {x:x,y:y};
+  }
+  function drawMq(){
+    if(!sel){mq.style.display='none';return;}
+    var r=canvas.getBoundingClientRect(), k=r.width/canvas.width;
+    mq.style.display='block';
+    mq.style.left=(sel.x*k)+'px';mq.style.top=(sel.y*k)+'px';
+    mq.style.width=(sel.w*k)+'px';mq.style.height=(sel.h*k)+'px';
+  }
+  canvas.addEventListener('pointerdown',function(e){
+    e.preventDefault();canvas.setPointerCapture(e.pointerId);
+    drag=toCanvasXY(e);sel=null;drawMq();
+  });
+  canvas.addEventListener('pointermove',function(e){
+    if(!drag)return;
+    var p=toCanvasXY(e);
+    sel={x:Math.min(drag.x,p.x),y:Math.min(drag.y,p.y),w:Math.abs(p.x-drag.x),h:Math.abs(p.y-drag.y)};
+    drawMq();
+  });
+  canvas.addEventListener('pointerup',function(){
+    drag=null;
+    if(sel&&(sel.w<20||sel.h<20)){sel=null;drawMq();}
+    addSel.disabled=!sel;
+  });
+  window.addEventListener('resize',drawMq);
+
+  addSel.addEventListener('click',function(){
+    if(!sel)return;
+    enqueue(cropCanvas(canvas,sel));
+    sel=null;drawMq();addSel.disabled=true;
+  });
+  card.querySelector('.addfull').addEventListener('click',function(){
+    enqueue(autoTrim(canvas));
+  });
+}
+
+function cropCanvas(src,sel){
+  var c=document.createElement('canvas');
+  c.width=Math.round(sel.w);c.height=Math.round(sel.h);
+  c.getContext('2d').drawImage(src,sel.x,sel.y,sel.w,sel.h,0,0,c.width,c.height);
+  return c;
+}
+/* trim white margins so a whole page fills the 4×6 nicely */
+function autoTrim(src){
+  var ctx=src.getContext('2d'), d;
+  try{d=ctx.getImageData(0,0,src.width,src.height).data;}catch(e){return src;}
+  var W=src.width,H=src.height,minX=W,minY=H,maxX=0,maxY=0,step=2;
+  for(var y=0;y<H;y+=step)for(var x=0;x<W;x+=step){
+    var i=(y*W+x)*4;
+    if(d[i]<245||d[i+1]<245||d[i+2]<245){
+      if(x<minX)minX=x;if(x>maxX)maxX=x;
+      if(y<minY)minY=y;if(y>maxY)maxY=y;
+    }
+  }
+  if(maxX<=minX||maxY<=minY)return src;
+  var pad=10;
+  minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);
+  maxX=Math.min(W,maxX+pad);maxY=Math.min(H,maxY+pad);
+  return cropCanvas(src,{x:minX,y:minY,w:maxX-minX,h:maxY-minY});
+}
+
+/* ---------- queue ---------- */
+function rot90(canvas){
+  var r=document.createElement('canvas');
+  r.width=canvas.height;r.height=canvas.width;
+  var ctx=r.getContext('2d');
+  ctx.translate(r.width/2,r.height/2);ctx.rotate(Math.PI/2);
+  ctx.drawImage(canvas,-canvas.width/2,-canvas.height/2);
+  return r;
+}
+function enqueue(canvas){
+  /* clearly-sideways crop (like a landscape shipping label) → rotate upright;
+     the ↻ on each queued item flips anything the guess got wrong */
+  if(canvas.width>canvas.height*1.15)canvas=rot90(canvas);
+  QUEUE.push({canvas:canvas});
+  renderQueue();
+  toast('Added to the print queue');
+}
+function renderQueue(){
+  var q=$('#queue');
+  if(!QUEUE.length){
+    q.innerHTML='<div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then ✂ Add Selection.</div>';
+  }else{
+    q.innerHTML=QUEUE.map(function(it,i){
+      return '<div class="qitem"><span class="n">'+(i+1)+'</span><img src="'+it.canvas.toDataURL('image/png')+'" alt="">'
+        +'<button class="x" data-i="'+i+'" title="Remove">✕</button>'
+        +'<button class="rot" data-i="'+i+'" title="Rotate 90°">↻</button></div>';
+    }).join('');
+    q.querySelectorAll('.x').forEach(function(b){
+      b.addEventListener('click',function(){QUEUE.splice(+b.getAttribute('data-i'),1);renderQueue();});
+    });
+    q.querySelectorAll('.rot').forEach(function(b){
+      b.addEventListener('click',function(){var i=+b.getAttribute('data-i');QUEUE[i].canvas=rot90(QUEUE[i].canvas);renderQueue();});
+    });
+  }
+  $('#printBtn').disabled=!QUEUE.length;
+}
+
+/* ---------- print ---------- */
+$('#printBtn').addEventListener('click',function(){
+  if(!QUEUE.length)return;
+  var html='<!doctype html><html><head><style>'
+    +'@page{size:4in 6in;margin:0}html,body{margin:0;padding:0}'
+    +'.pg{width:4in;height:6in;display:flex;align-items:center;justify-content:center;page-break-after:always;overflow:hidden}'
+    +'.pg:last-child{page-break-after:auto}'
+    +'img{max-width:97%;max-height:98%}'
+    +'</style></head><body>'
+    +QUEUE.map(function(it){return '<div class="pg"><img src="'+it.canvas.toDataURL('image/png')+'"></div>';}).join('')
+    +'</body></html>';
+  var f=document.createElement('iframe');
+  f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  f.srcdoc=html;
+  f.onload=function(){
+    setTimeout(function(){
+      f.contentWindow.focus();f.contentWindow.print();
+      setTimeout(function(){f.remove();},60000);
+    },150);
+  };
+});
+
+$('#resetBtn').addEventListener('click',function(){
+  QUEUE=[];PAGE_N=0;$('#pages').innerHTML='';renderQueue();
+  $('#resetBtn').style.display='none';
+});
+</script>
+</body>
+</html>
