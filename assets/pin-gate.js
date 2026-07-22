@@ -93,8 +93,32 @@
       + '</svg>';
   }
   function reveal(){ if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
-  function armIdle(){ if (STANDALONE) return; ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){ window.addEventListener(ev, bumpIdle, { passive:true }); }); bumpIdle(); }
-  function bumpIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(signOutReload, IDLE_MS); }
+  // Idle sign-out is SHARED ACROSS TABS: activity in ANY tab keeps them all
+  // alive (a shared last-activity timestamp in localStorage). Without this, an
+  // idle tab fired signOut() — which clears the localStorage session and
+  // broadcasts to every tab — logging you out of the tab you were USING.
+  var ACT_KEY = 'cpr_last_activity', lastActWrite = 0;
+  function markActivity(){ try { localStorage.setItem(ACT_KEY, String(Date.now())); } catch(_){} }
+  function lastActivity(){ try { return Number(localStorage.getItem(ACT_KEY)) || 0; } catch(_){ return 0; } }
+  function armIdle(){
+    if (STANDALONE) return;
+    ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){ window.addEventListener(ev, bumpIdle, { passive:true }); });
+    // another tab's activity (shared key change) resets THIS tab's countdown
+    window.addEventListener('storage', function(e){ if (e.key === ACT_KEY) rearm(); });
+    bumpIdle();
+  }
+  function bumpIdle(){
+    var now = Date.now();
+    if (now - lastActWrite > 4000){ markActivity(); lastActWrite = now; }   // throttle cross-tab writes
+    rearm();
+  }
+  function rearm(){ clearTimeout(idleTimer); idleTimer = setTimeout(onIdle, IDLE_MS); }
+  function onIdle(){
+    // this tab went quiet — but only sign out if EVERY tab has been idle.
+    var since = Date.now() - lastActivity();
+    if (since < IDLE_MS){ idleTimer = setTimeout(onIdle, (IDLE_MS - since) + 500); return; }   // someone was active elsewhere
+    signOutReload();
+  }
   function signOutReload(){ loadSB().then(function(c){ if (c) c.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); }); else location.reload(); }); }
 
   function gateForm(msg){
