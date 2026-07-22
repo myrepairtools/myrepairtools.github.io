@@ -405,6 +405,7 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
       </div>
     </div>
     <button class="btn blue sm" id="batExport" style="display:none">⬇ Export batteries for MobileSentrix</button>
+    <button class="btn alt sm" id="printCountBtn" title="Print a count sheet of the items used this day — for the daily physical inventory count">🖨 Print count sheet</button>
   </div>
 
   <section id="view-daily">
@@ -1372,6 +1373,43 @@ function render(){
   $('#empty').classList.toggle('hide',rows.length>0);
 }
 
+/* Print a clean daily-consumption COUNT SHEET: every item used this day with a
+   blank "Counted" column to write the physical count in. This is the daily
+   inventory step — count what you consume so a yearly count isn't needed. */
+function printCountSheet(){
+  var rows=buildRows().filter(function(r){return r.used>0;})
+    .sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
+  var store=(window.CPRLocations&&CPRLocations.display)?('CPR '+CPRLocations.display(STATE.store)):(STATE.store||'CPR');
+  var day=($('#day')&&$('#day').value)||todayISO();
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var body=rows.map(function(r){
+    return '<tr><td class="nm">'+esc(r.name)+'</td><td class="sku">'+esc(r.sku)+'</td>'+
+           '<td class="ctr">'+r.used+'</td><td class="ctr">'+(r.instock!=null?r.instock:'')+'</td>'+
+           '<td class="cnt"></td></tr>';
+  }).join('')||'<tr><td colspan="5" style="text-align:center;padding:24px;color:#888">No consumption for this day.</td></tr>';
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>Consumption Count — '+esc(store)+' '+esc(day)+'</title>'+
+    '<style>'+
+    'body{font-family:Arial,Helvetica,sans-serif;margin:26px;color:#222}'+
+    'h1{font-size:18px;margin:0 0 2px}.meta{font-size:12px;color:#555;margin:0 0 4px}'+
+    '.sign{font-size:12px;color:#555;margin:10px 0 16px}'+
+    'table{width:100%;border-collapse:collapse;font-size:12.5px}'+
+    'th{text-align:left;text-transform:uppercase;font-size:9.5px;letter-spacing:.5px;color:#555;border-bottom:2px solid #333;padding:6px 8px}'+
+    'td{padding:7px 8px;border-bottom:1px solid #ddd}'+
+    'th.ctr,td.ctr{text-align:center}td.sku{color:#666;font-size:11px}'+
+    'td.cnt{width:90px;border-bottom:1px solid #333}th.cnt{width:90px;text-align:center}'+
+    'tr:nth-child(even) td{background:#f7f7f7}'+
+    '@media print{body{margin:0}}'+
+    '</style></head><body>'+
+    '<h1>Daily Consumption Count</h1>'+
+    '<div class="meta">'+esc(store)+' · '+esc(day)+' · '+rows.length+' item'+(rows.length===1?'':'s')+' used</div>'+
+    '<div class="sign">Counted by ______________________   Date ____________   ✓ matches stock?  ☐ Yes  ☐ No (note discrepancies)</div>'+
+    '<table><thead><tr><th>Item</th><th>SKU</th><th class="ctr">Used</th><th class="ctr">In&nbsp;Stock</th><th class="cnt">Counted</th></tr></thead>'+
+    '<tbody>'+body+'</tbody></table></body></html>';
+  var w=window.open('','_blank');
+  if(!w){alert('Allow pop-ups to print the count sheet.');return;}
+  w.document.write(html);w.document.close();
+  w.focus();setTimeout(function(){w.print();},250);
+}
 function todayISO(){return new Date().toISOString().slice(0,10);}
 function isoDaysAgo(n){var d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
 
@@ -1931,6 +1969,7 @@ window.addEventListener('hashchange',function(){
 async function init(){
   // export dropdown (with / without batteries)
   $('#exportBtn').addEventListener('click',function(e){e.stopPropagation();$('#exportMenu').classList.toggle('hide');});
+  var pcb=$('#printCountBtn'); if(pcb)pcb.addEventListener('click',printCountSheet);
   $('#exportMenu').querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){$('#exportMenu').classList.add('hide');exportOrder(b.getAttribute('data-bat')==='1');});});
   document.addEventListener('click',function(e){if(!e.target.closest('#exportWrap')){var m=$('#exportMenu');if(m)m.classList.add('hide');}});
   // battery-order controls
