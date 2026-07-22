@@ -64,7 +64,8 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
     </div>
     <div class="sp">
       <button class="btn" id="resetBtn" style="display:none">Start Over</button>
-      <button class="btn pri" id="printBtn" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg> Print 4×6</button>
+      <button class="btn" id="dlBtn" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg> Download</button>
+      <button class="btn pri" id="openBtn" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /></svg> Open 4×6 PDF</button>
     </div>
   </div>
 
@@ -81,7 +82,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
     <div class="side">
       <div class="qcard">
         <div class="t">Print Queue</div>
-        <div class="h">Each item prints as its own 4×6 page. Sideways crops rotate upright automatically.</div>
+        <div class="h">Each item becomes its own 4×6 PDF page. Sideways crops rotate upright automatically.</div>
         <div id="queue"><div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></svg> Add Selection.</div></div>
       </div>
     </div>
@@ -121,7 +122,7 @@ async function handleFiles(files){
   for(var i=0;i<files.length;i++){
     var f=files[i];
     try{
-      if(f.type==='application/pdf'||/\.pdf$/i.test(f.name))await addPdf(f);
+      if(f.type==='application/pdf'||/\.pdf$/i.test(f.name)){window.SRC_NAME=f.name;await addPdf(f);}
       else if(/^image\//.test(f.type))await addImage(f);
       else toast('Not a PDF or image — skipped '+f.name,true);
     }catch(e){toast('Could not read '+(f.name||'file')+' — '+e.message,true);}
@@ -148,7 +149,7 @@ async function addPdf(file){
     var pick=label||trimOrNull(c);
     if(pick){enqueue(pick);queued++;}
   }
-  if(queued)toast('Auto-converted — check the queue, then Print');
+  if(queued)toast('Auto-converted — Open or Download the 4\u00d76 PDF');
   $('#resetBtn').style.display='';
 }
 function addImage(file){
@@ -355,31 +356,75 @@ function renderQueue(){
       b.addEventListener('click',function(){var i=+b.getAttribute('data-i');QUEUE[i].canvas=rot90(QUEUE[i].canvas);renderQueue();});
     });
   }
-  $('#printBtn').disabled=!QUEUE.length;
+  $('#openBtn').disabled=$('#dlBtn').disabled=!QUEUE.length;
 }
 
-/* ---------- print ---------- */
-$('#printBtn').addEventListener('click',function(){
+/* ---------- output ---------- */
+/* ---------- 4x6 PDF file output ----------
+   The deliverable is a FILE: a real PDF with 288x432pt (4x6in) pages, one
+   queued item per page, built by hand (JPEG XObjects) — no library needed. */
+function s2u(s){var u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u;}
+function canvasJpegBytes(c){
+  var b=atob(c.toDataURL('image/jpeg',0.95).split(',')[1]);
+  var u=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
+  return u;
+}
+function buildPdf(){
+  var W=288,H=432,M=4,chunks=[],offset=0,xref=[];
+  function push(x){var u=(typeof x==='string')?s2u(x):x;chunks.push(u);offset+=u.length;}
+  function obj(id,body){xref[id]=offset;push(id+' 0 obj\n');push(body);push('\nendobj\n');}
+  push('%PDF-1.4\n');
+  var n=QUEUE.length,kidIds=[];
+  for(var i=0;i<n;i++)kidIds.push(3+i*3);
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2,'<< /Type /Pages /Kids ['+kidIds.map(function(k){return k+' 0 R';}).join(' ')+'] /Count '+n+' >>');
+  for(var p=0;p<n;p++){
+    var c=QUEUE[p].canvas,jpg=canvasJpegBytes(c);
+    var k=Math.min((W-2*M)/c.width,(H-2*M)/c.height);
+    var w=c.width*k,h=c.height*k,x=(W-w)/2,y=(H-h)/2;
+    var pid=3+p*3,cid=pid+1,xid=pid+2;
+    obj(pid,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /XObject << /Im'+p+' '+xid+' 0 R >> >> /Contents '+cid+' 0 R >>');
+    var stream='q\n'+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+x.toFixed(2)+' '+y.toFixed(2)+' cm\n/Im'+p+' Do\nQ\n';
+    obj(cid,'<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream');
+    xref[xid]=offset;
+    push(xid+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+c.width+' /Height '+c.height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpg.length+' >>\nstream\n');
+    push(jpg);push('\nendstream\nendobj\n');
+  }
+  var total=3+n*3,xs=offset;
+  var xstr='xref\n0 '+total+'\n0000000000 65535 f \n';
+  for(var id=1;id<total;id++)xstr+=('0000000000'+xref[id]).slice(-10)+' 00000 n \n';
+  xstr+='trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xs+'\n%%EOF';
+  push(xstr);
+  var len=0;chunks.forEach(function(u){len+=u.length;});
+  var out=new Uint8Array(len),o=0;chunks.forEach(function(u){out.set(u,o);o+=u.length;});
+  return new Blob([out],{type:'application/pdf'});
+}
+var PDF_URL=null;
+function pdfName(){
+  var base=(window.SRC_NAME||'label').replace(/\.[a-z0-9]+$/i,'').replace(/[^\w\- ]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60)||'label';
+  return base+' 4x6.pdf';
+}
+function pdfUrl(){
+  if(PDF_URL)URL.revokeObjectURL(PDF_URL);
+  PDF_URL=URL.createObjectURL(buildPdf());
+  return PDF_URL;
+}
+function doOpen(){
   if(!QUEUE.length)return;
-  var html='<!doctype html><html><head><style>'
-    +'@page{size:4in 6in;margin:0}html,body{margin:0;padding:0}'
-    +'.pg{width:4in;height:6in;display:flex;align-items:center;justify-content:center;page-break-after:always;overflow:hidden}'
-    +'.pg:last-child{page-break-after:auto}'
-    +'img{max-width:97%;max-height:98%}'
-    +'</style></head><body>'
-    +QUEUE.map(function(it){return '<div class="pg"><img src="'+it.canvas.toDataURL('image/png')+'"></div>';}).join('')
-    +'</body></html>';
-  var f=document.createElement('iframe');
-  f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(f);
-  f.srcdoc=html;
-  f.onload=function(){
-    setTimeout(function(){
-      f.contentWindow.focus();f.contentWindow.print();
-      setTimeout(function(){f.remove();},60000);
-    },150);
-  };
-});
+  var url=pdfUrl();
+  if(typeof chrome!=='undefined'&&chrome.tabs&&chrome.tabs.create)chrome.tabs.create({url:url});
+  else{var w=window.open(url,'_blank');if(!w)toast('Popup blocked — use Download instead',true);}
+}
+function doDownload(){
+  if(!QUEUE.length)return;
+  var a=document.createElement('a');
+  a.href=pdfUrl();a.download=pdfName();
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+$('#openBtn').addEventListener('click', doOpen);
+$('#dlBtn').addEventListener('click', doDownload);
 
 $('#resetBtn').addEventListener('click',function(){
   QUEUE=[];PAGE_N=0;$('#pages').innerHTML='';renderQueue();
