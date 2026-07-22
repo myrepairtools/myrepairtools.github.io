@@ -412,6 +412,23 @@ taken_by, Square ids, status — authenticated read). Payments taken here still 
 manual entry on the RepairQ ticket; `reference_id` carries the ticket # for
 reconciliation. Refunds deliberately stay in Square's dashboard.
 
+**MobileSentrix API (parts ordering — pipeline in progress):** approved api-consumer
+on cpr.parts (Consumer Name "iRepair Phone Shop, LLC" — the owner's real entity).
+Magento OAuth 1.0a: creds live ONLY as Supabase function secrets
+`MS_CONSUMER_KEY`/`MS_CONSUMER_SECRET` (+ `MS_START_KEY` gating the connect link) —
+**never commit them**. **Each store has its own cpr.parts account**, so tokens are
+per store: the **`ms-callback` edge function** is both the registered OAuth callback
+and the connect surface — `?action=start&k=<MS_START_KEY>` renders a store picker,
+logs a START marker (which store the flow is for), 302s into
+`/oauth/authorize/identifier` (owner signs in with THAT store's account; sign out /
+private window between stores), then the callback auto-exchanges at
+`/oauth/authorize/identifiercallback` and upserts the long-lived token into
+`integration_tokens` provider `ms:<store>` (`meta.access_token_secret`). Everything
+logs to `ms_callback_log` (owner read). Owner-authed `?action=status` powers the
+**Settings → Integrations → MobileSentrix** card (per-store Connect/Reconnect
+buttons + status pills). Order→QBO-expense pipeline + droplet relay (only if the IP
+whitelist turns out to apply to production) per docs/mobilesentrix-pipeline.md.
+
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
 RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_SERVER/_WEBHOOK_SECRET` +
