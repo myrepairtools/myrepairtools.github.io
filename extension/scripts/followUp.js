@@ -31,9 +31,8 @@
     ];
     // Channel automation (Options → RingCentral SMS). ON = the extension handles
     // it automatically (auto-text / auto-call at Ready-for-Pickup); OFF = still
-    // offered here, just handled manually by the tech. SMS + calls default on
-    // (Twilio live); email off.
-    var CH = { sendSms: true, sendCall: true, sendEmail: false };
+    // offered here, just handled manually by the tech. SMS defaults on; call/email off.
+    var CH = { sendSms: true, sendCall: false, sendEmail: false };
     // Every method is always offered now; the toggle only changes auto vs manual.
     function enabledMethods() { return METHODS.slice(); }
     // small "automated" / "manual" tag under a method (channels only; return has none)
@@ -594,7 +593,7 @@
             TT = (res && res.tt) || null;
             if (s.followUp === false) return;
             CH.sendSms = s.sendSms !== undefined ? s.sendSms : (s.readyText !== false); // legacy fallback
-            CH.sendCall = s.sendCall !== false;
+            CH.sendCall = s.sendCall === true;
             CH.sendEmail = s.sendEmail === true;
             start();
         }).catch(start);

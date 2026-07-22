@@ -44,10 +44,9 @@
 
     var BTN_SEL = 'a.save-ticket.ready_for_pickup, #Btnready_for_pickup, a.save-ticket[action="ready_for_pickup"]';
     var bypass = false;   // set true to let our re-fired click through
-    // Enabled follow-up channels (Options → RingCentral SMS). SMS and calls on
-    // by default (Twilio is live — Trust Hub approved, all store caller IDs
-    // verified); email off until that integration exists.
-    var CH = { sendSms: true, sendCall: true, sendEmail: false };
+    // Enabled follow-up channels (Options → RingCentral SMS). SMS on by default;
+    // call/email off until those integrations are set up for the store.
+    var CH = { sendSms: true, sendCall: false, sendEmail: false };
 
     function val(id) { var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; }
     function digits(s) { return (s || '').replace(/\D/g, ''); }
@@ -601,10 +600,9 @@
         chrome.storage.sync.get(['sms', 'tt']).then(function (res) {
             var s = (res && res.sms) || {};
             TT = (res && res.tt) || null;
-            // per-channel gates. SMS defaults on (legacy readyText fallback);
-            // calls default on since Twilio went live; email off.
+            // per-channel gates. SMS defaults on (legacy readyText fallback); call/email off.
             CH.sendSms = s.sendSms !== undefined ? s.sendSms : (s.readyText !== false);
-            CH.sendCall = s.sendCall !== false;
+            CH.sendCall = s.sendCall === true;
             CH.sendEmail = s.sendEmail === true;
             // Run the Ready-for-Pickup handler if the follow-up system is on in any form.
             var anyOn = (s.followUp !== false) || CH.sendSms || CH.sendCall || CH.sendEmail;
