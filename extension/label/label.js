@@ -301,6 +301,11 @@ function doPrint() {
       var q = await addPdf(u8.buffer, true);
       if (q > 0) { toast('Label auto-converted — opening print\u2026'); setTimeout(doPrint, 600); }
       else toast('Couldn\u2019t auto-detect the label — drag a box around it below', true);
+    } else if (st.captured) {
+      /* screenshot fallback — the page couldn't be read directly, so this is
+         the whole visible tab; let the user crop the label out of it */
+      await addImageBlob(new Blob([u8]));
+      toast('Grabbed a screenshot of the tab — drag a box around the label', true);
     } else {
       await addImageBlob(new Blob([u8]));
       var t = trimOrNull($('#pages').querySelector('canvas'));
