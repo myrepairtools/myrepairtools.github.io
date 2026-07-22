@@ -689,20 +689,34 @@ function drawEditor(){
     (multiLoc?'<button type="button" class="btn alt" data-copyall style="margin-top:10px;font-size:.82rem">Copy '+esc(shortStore(L.store))+'’s assignment to all locations</button>':'');
   const rvrow=(l,v)=>'<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><b style="min-width:118px;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800">'+l+'</b><span style="flex:1;font-size:.9rem;color:var(--dark)">'+v+'</span></div>';
   const recurTxt=d.recur==='daily'?'Every day':d.recur==='weekly'?('Weekly · '+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')):d.recur==='monthly'?('Monthly · '+(d.monthDates||'—')):d.recur==='flexible'?(d.flexN+'× per '+d.flexPer):'One-off';
-  // per-location assignment summary — the whole point of this pass
-  const assignSummary=d.locs.map(function(Lx){
-    const od=odays.filter(w=>Lx.dayAssign&&Lx.dayAssign[w]);
-    const per=od.length?'  ·  '+od.map(w=>DOWNAME[w].slice(0,3)+'→'+ovLabel(Lx.dayAssign[w])).join(', '):'';
-    return '<b>'+esc(shortStore(Lx.store))+' @ '+esc(to24(Lx.dueTime))+':</b> '+esc(defaultAssignText(Lx))+esc(per);
-  }).join('<br>');
+  // per-location assignment as a real table — one row per store, day overrides
+  // as compact day chips so multi-store / per-day tasks stay readable
+  const dayShort={0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
+  const th=(t,extra)=>'<th style="text-align:left;padding:0 12px 7px 0;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800;border-bottom:1px solid var(--border);'+(extra||'')+'">'+t+'</th>';
+  const td=(v,extra)=>'<td style="padding:10px 12px 10px 0;vertical-align:top;border-bottom:1px solid var(--border);font-size:.86rem;color:var(--dark);'+(extra||'')+'">'+v+'</td>';
+  const assignTable=
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+
+    '<thead><tr>'+th('Location')+th('Due')+th('Default')+(odays.length?th('By day'):'')+'</tr></thead><tbody>'+
+    d.locs.map(function(Lx){
+      const od=odays.filter(w=>Lx.dayAssign&&Lx.dayAssign[w]);
+      const chips=od.length?od.map(w=>'<span style="display:inline-block;background:var(--light-grey);border-radius:6px;padding:2px 8px;margin:0 4px 4px 0;font-size:.78rem;white-space:nowrap"><b style="color:var(--dark-grey);font-weight:800">'+dayShort[w]+'</b> '+esc(ovLabel(Lx.dayAssign[w]))+'</span>').join(''):'<span style="color:var(--grey)">—</span>';
+      return '<tr>'+
+        td(esc(shortStore(Lx.store)),'font-weight:800')+
+        td(esc(fmt12(to24(Lx.dueTime))),'white-space:nowrap;color:var(--dark-grey)')+
+        td(esc(defaultAssignText(Lx)))+
+        (odays.length?td(chips):'')+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
   const s4=
     '<div class="panel">'+
       rvrow('Task',esc(d.name||'—'))+
       rvrow('Priority',esc(d.priority==='must'?'Must do today':d.priority==='asap'?'ASAP':'Normal'))+
       rvrow('When',esc(recurTxt))+
-      rvrow('Assignment',assignSummary)+
       (d.instr?rvrow('Instructions',esc(d.instr)):'')+
-    '</div>';
+    '</div>'+
+    '<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey);margin:2px 0 8px">Assignment</div>'+
+    '<div class="panel">'+assignTable+'</div>';
   const stepBody=STEP===1?s1:STEP===2?s2:STEP===3?s3:s4;
   const chips='<div style="display:flex;gap:6px;padding:2px 20px 6px">'+WSTEPS.map((s,i)=>{const n=i+1,on=n===STEP,done=n<STEP;return '<div style="flex:1;text-align:center;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:7px 3px;border-radius:8px;'+(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s[0]+'</div>';}).join('')+'</div>';
   const footer=
