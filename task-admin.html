@@ -548,7 +548,7 @@ function locFromTpl(t){
 }
 function newDraft(){
   return {name:'',linkText:'',linkUrl:'',customUrl:'',priority:'normal',recur:'daily',
-    weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
+    weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',recurInterval:'1',recurAnchor:'',
     dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',
     __locSel:0,
     locs:[Object.assign({store:SEL,dueTime:'18:00'},blankAssign(SEL))]};
@@ -557,6 +557,7 @@ function draftFrom(t){
   return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
     priority:t.priority||'normal',recur:t.recur||'daily',
     weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
+    recurInterval:String(t.recur_interval||1),recurAnchor:t.recur_anchor?String(t.recur_anchor).slice(0,10):'',
     dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',
     __locSel:0,
     locs:[locFromTpl(t)]};
@@ -630,9 +631,18 @@ function drawEditor(){
   let prev=esc(d.name||'');
   if(d.linkText&&url&&(d.name||'').indexOf(d.linkText)>-1){const at=d.name.indexOf(d.linkText);prev=esc(d.name.slice(0,at))+'<span class="clink" style="cursor:default">'+esc(d.linkText)+'</span>'+esc(d.name.slice(at+d.linkText.length));}
   const wk=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],wkIdx=[0,1,2,3,4,5,6];
+  // "Repeat every N weeks/months" — bi-weekly etc. N=1 is normal; N>1 shows an
+  // anchor so the manager controls which week/month is the first "on" one.
+  const intUnit=d.recur==='weekly'?'week':'month',intN=Math.max(1,+d.recurInterval||1);
+  const intervalCtl=(d.recur==='weekly'||d.recur==='monthly')?
+    '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">'+
+      '<label class="fld" style="margin:0"><span class="fl">Repeat</span><select class="inp" id="eRecurInt" style="width:auto;min-width:150px">'+
+        [1,2,3,4].map(n=>'<option value="'+n+'"'+(intN===n?' selected':'')+'>'+(n===1?'Every '+intUnit:'Every '+n+' '+intUnit+'s')+'</option>').join('')+'</select></label>'+
+      (intN>1?'<label class="fld" style="margin:0"><span class="fl">Starting '+(intUnit==='week'?'week of':'month')+'</span><input class="inp" type="date" id="eRecurAnchor" value="'+esc(d.recurAnchor||'')+'"></label>':'')+
+    '</div>':'';
   const recurPanel=
-    d.recur==='weekly'?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>':
-    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>':
+    d.recur==='weekly'?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>'+intervalCtl:
+    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>'+intervalCtl:
     d.recur==='flexible'?'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="fld" style="width:80px;margin:0"><span class="fl">Times</span><input class="inp" id="eFlexN" value="'+esc(d.flexN)+'"></label><label class="fld" style="width:150px;margin:0"><span class="fl">per</span><select class="inp" id="eFlexPer"><option value="week"'+(d.flexPer==='week'?' selected':'')+'>week</option><option value="month"'+(d.flexPer==='month'?' selected':'')+'>month</option></select></label></div>':
     '';
   const assignPanel=
@@ -688,7 +698,10 @@ function drawEditor(){
     dayOverrideSection+
     (multiLoc?'<button type="button" class="btn alt" data-copyall style="margin-top:10px;font-size:.82rem">Copy '+esc(shortStore(L.store))+'’s assignment to all locations</button>':'');
   const rvrow=(l,v)=>'<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><b style="min-width:118px;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800">'+l+'</b><span style="flex:1;font-size:.9rem;color:var(--dark)">'+v+'</span></div>';
-  const recurTxt=d.recur==='daily'?'Every day':d.recur==='weekly'?('Weekly · '+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')):d.recur==='monthly'?('Monthly · '+(d.monthDates||'—')):d.recur==='flexible'?(d.flexN+'× per '+d.flexPer):'One-off';
+  const rInt=Math.max(1,+d.recurInterval||1);
+  const wkLabel=(rInt>1?'Every '+rInt+' weeks · ':'Weekly · ')+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'');
+  const moLabel=(rInt>1?'Every '+rInt+' months · ':'Monthly · ')+(d.monthDates||'—')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'');
+  const recurTxt=d.recur==='daily'?'Every day':d.recur==='weekly'?wkLabel:d.recur==='monthly'?moLabel:d.recur==='flexible'?(d.flexN+'× per '+d.flexPer):'One-off';
   // per-location assignment as a real table — one row per store, day overrides
   // as compact day chips so multi-store / per-day tasks stay readable
   const dayShort={0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
@@ -749,6 +762,7 @@ function drawEditor(){
     if(g('eCustomUrl')!=null)d.customUrl=g('eCustomUrl');
     if(g('eMonthDates')!=null)d.monthDates=g('eMonthDates');
     if(g('eFlexN')!=null)d.flexN=g('eFlexN');if(g('eFlexPer')!=null)d.flexPer=g('eFlexPer');
+    if(g('eRecurInt')!=null)d.recurInterval=g('eRecurInt');if(g('eRecurAnchor')!=null)d.recurAnchor=g('eRecurAnchor');
     if(L){
       if(g('eAssignee')!=null)L.assignee=g('eAssignee');if(g('eFallback')!=null)L.fallback=g('eFallback');
       if(g('eShift')!=null)L.shift=g('eShift');if(g('eRole')!=null)L.role=g('eRole');
@@ -769,6 +783,8 @@ function drawEditor(){
   document.querySelectorAll('#mdlWrap [data-comp]').forEach(b=>b.onclick=()=>{grab();d.locs[d.__locSel].completion=b.dataset.comp;drawEditor();});
   document.querySelectorAll('#mdlWrap [data-duety]').forEach(b=>b.onclick=()=>{grab();d.dueType=b.dataset.duety;drawEditor();});
   document.querySelectorAll('#mdlWrap [data-wd]').forEach(b=>b.onclick=()=>{grab();const wd=+b.dataset.wd;const at=d.weekdays.indexOf(wd);if(at>-1)d.weekdays.splice(at,1);else d.weekdays.push(wd);drawEditor();});
+  const ri=$('#mdlWrap #eRecurInt');if(ri)ri.onchange=()=>{grab();d.recurInterval=ri.value;if(+ri.value>1&&!d.recurAnchor)d.recurAnchor=TODAY;drawEditor();};
+  const ra=$('#mdlWrap #eRecurAnchor');if(ra)ra.onchange=()=>{grab();drawEditor();};
   document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const L=d.locs[d.__locSel];const id=+b.dataset.pool;const at=L.pool.indexOf(id);if(at>-1)L.pool.splice(at,1);else L.pool.push(id);drawEditor();});
   document.querySelectorAll('#mdlWrap [data-dayov]').forEach(sel=>sel.onchange=()=>{grab();drawEditor();});
   const dtog=$('#mdlWrap #eDayToggle');if(dtog)dtog.onchange=()=>{grab();const L=d.locs[d.__locSel];L.perDay=dtog.checked;if(!dtog.checked)L.dayAssign={};drawEditor();};
@@ -822,6 +838,8 @@ async function saveTemplate(){
     month_dates:d.recur==='monthly'?String(d.monthDates||'').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=31):null,
     flex_n:d.recur==='flexible'?Math.max(1,+d.flexN||1):null,
     flex_per:d.recur==='flexible'?(d.flexPer==='month'?'month':'week'):null,
+    recur_interval:(d.recur==='weekly'||d.recur==='monthly')?Math.max(1,Math.min(4,+d.recurInterval||1)):1,
+    recur_anchor:((d.recur==='weekly'||d.recur==='monthly')&&(+d.recurInterval>1))?(d.recurAnchor||TODAY):null,
     due_type:d.recur==='oneoff'?d.dueType:'same',
     due_after_n:(d.recur==='oneoff'&&d.dueType==='after')?+d.dueAfterN||null:null,
     due_after_unit:(d.recur==='oneoff'&&d.dueType==='after')?d.dueAfterUnit:null,

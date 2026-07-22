@@ -53,6 +53,16 @@ function dowOf(iso: string): number { return new Date(iso + "T12:00:00Z").getUTC
 function daysInMonth(iso: string): number { const [y, m] = iso.split("-").map(Number); return new Date(y, m, 0).getDate(); }
 function monthStart(iso: string): string { return iso.slice(0, 8) + "01"; }
 function weekStartMon(iso: string): string { const dow = dowOf(iso); return addDays(iso, -((dow + 6) % 7)); } // Monday
+function weekStartSun(iso: string): string { return addDays(iso, -dowOf(iso)); } // Sunday
+function weeksBetween(aISO: string, bISO: string): number { return Math.round((Date.parse(weekStartSun(bISO) + "T00:00:00Z") - Date.parse(weekStartSun(aISO) + "T00:00:00Z")) / 604800000); }
+function monthsBetween(aISO: string, bISO: string): number { const [ay, am] = aISO.split("-").map(Number); const [by, bm] = bISO.split("-").map(Number); return (by - ay) * 12 + (bm - am); }
+// every-N interval gate: fire only on units divisible by the interval, never
+// before the anchor. unit "week"|"month"; anchor falls back to created_at.
+function intervalOn(recur: "week" | "month", interval: number, anchor: string, dateISO: string): boolean {
+  if (interval <= 1) return true;
+  const n = recur === "week" ? weeksBetween(anchor, dateISO) : monthsBetween(anchor, dateISO);
+  return n >= 0 && n % interval === 0;
+}
 
 type Tpl = Record<string, any>;
 type Staff = { id: number; display_name: string; role: string; home_store: string; active: boolean; hide_from_recurring: boolean };
@@ -110,10 +120,16 @@ async function generate(dateISO: string) {
     const wants: Array<{ key: string; taskDate: string; dueDate: string }> = [];
     if (t.recur === "daily") wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
     else if (t.recur === "weekly") {
-      if ((t.weekdays || []).includes(dow)) wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
+      // recur_interval > 1 = every-N-weeks (bi-weekly etc), counted from the
+      // anchor week (or the template's creation week); see intervalOn.
+      const anchor = String(t.recur_anchor || t.created_at || dateISO).slice(0, 10);
+      if ((t.weekdays || []).includes(dow) && intervalOn("week", Number(t.recur_interval) || 1, anchor, dateISO))
+        wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
     } else if (t.recur === "monthly") {
       const dim = daysInMonth(dateISO), day = Number(dateISO.slice(8, 10));
-      if ((t.month_dates || []).some((d: number) => Math.min(Number(d) || 0, dim) === day)) wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
+      const anchor = String(t.recur_anchor || t.created_at || dateISO).slice(0, 10);
+      if ((t.month_dates || []).some((d: number) => Math.min(Number(d) || 0, dim) === day) && intervalOn("month", Number(t.recur_interval) || 1, anchor, dateISO))
+        wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
     } else if (t.recur === "oneoff") {
       let due = dateISO;
       if (t.due_type === "date" && t.due_date) due = String(t.due_date).slice(0, 10);
