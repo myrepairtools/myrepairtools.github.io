@@ -118,18 +118,23 @@ async function generate(dateISO: string) {
   for (const t of tpls) {
     // which gen_keys does this template want today?
     const wants: Array<{ key: string; taskDate: string; dueDate: string }> = [];
+    // window_days: the task appears on its scheduled day but is DUE this many
+    // days later (0 = same day). On-time keys off due_at, so completing any
+    // day inside the window scores on-time — no false "late" in reporting.
+    // Weekly/monthly only — dailies auto-close nightly, a window can't apply.
+    const winDue = addDays(dateISO, Math.max(0, Math.min(14, Number(t.window_days) || 0)));
     if (t.recur === "daily") wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
     else if (t.recur === "weekly") {
       // recur_interval > 1 = every-N-weeks (bi-weekly etc), counted from the
       // anchor week (or the template's creation week); see intervalOn.
       const anchor = String(t.recur_anchor || t.created_at || dateISO).slice(0, 10);
       if ((t.weekdays || []).includes(dow) && intervalOn("week", Number(t.recur_interval) || 1, anchor, dateISO))
-        wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
+        wants.push({ key: dateISO, taskDate: dateISO, dueDate: winDue });
     } else if (t.recur === "monthly") {
       const dim = daysInMonth(dateISO), day = Number(dateISO.slice(8, 10));
       const anchor = String(t.recur_anchor || t.created_at || dateISO).slice(0, 10);
       if ((t.month_dates || []).some((d: number) => Math.min(Number(d) || 0, dim) === day) && intervalOn("month", Number(t.recur_interval) || 1, anchor, dateISO))
-        wants.push({ key: dateISO, taskDate: dateISO, dueDate: dateISO });
+        wants.push({ key: dateISO, taskDate: dateISO, dueDate: winDue });
     } else if (t.recur === "oneoff") {
       let due = dateISO;
       if (t.due_type === "date" && t.due_date) due = String(t.due_date).slice(0, 10);

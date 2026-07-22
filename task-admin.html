@@ -548,7 +548,7 @@ function locFromTpl(t){
 }
 function newDraft(){
   return {name:'',linkText:'',linkUrl:'',customUrl:'',priority:'normal',recur:'daily',
-    weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',recurInterval:'1',recurAnchor:'',
+    weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',recurInterval:'1',recurAnchor:'',windowDays:'0',
     dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',
     __locSel:0,
     locs:[Object.assign({store:SEL,dueTime:'18:00'},blankAssign(SEL))]};
@@ -557,7 +557,7 @@ function draftFrom(t){
   return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
     priority:t.priority||'normal',recur:t.recur||'daily',
     weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
-    recurInterval:String(t.recur_interval||1),recurAnchor:t.recur_anchor?String(t.recur_anchor).slice(0,10):'',
+    recurInterval:String(t.recur_interval||1),recurAnchor:t.recur_anchor?String(t.recur_anchor).slice(0,10):'',windowDays:String(t.window_days||0),
     dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',
     __locSel:0,
     locs:[locFromTpl(t)]};
@@ -634,11 +634,17 @@ function drawEditor(){
   // "Repeat every N weeks/months" — bi-weekly etc. N=1 is normal; N>1 shows an
   // anchor so the manager controls which week/month is the first "on" one.
   const intUnit=d.recur==='weekly'?'week':'month',intN=Math.max(1,+d.recurInterval||1);
+  // completion window: appears on its day, due N days later (0 = same day).
+  // Labeled in words so "is the first day counted?" never comes up.
+  const winN=Math.max(0,+d.windowDays||0);
+  const winOpts=[[0,'Same day'],[1,'Next day'],[2,'2 days later'],[3,'3 days later'],[4,'4 days later'],[5,'5 days later'],[6,'6 days later'],[7,'A week later']];
   const intervalCtl=(d.recur==='weekly'||d.recur==='monthly')?
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">'+
       '<label class="fld" style="margin:0"><span class="fl">Repeat</span><select class="inp" id="eRecurInt" style="width:auto;min-width:150px">'+
         [1,2,3,4].map(n=>'<option value="'+n+'"'+(intN===n?' selected':'')+'>'+(n===1?'Every '+intUnit:'Every '+n+' '+intUnit+'s')+'</option>').join('')+'</select></label>'+
       (intN>1?'<label class="fld" style="margin:0"><span class="fl">Starting '+(intUnit==='week'?'week of':'month')+'</span><input class="inp" type="date" id="eRecurAnchor" value="'+esc(d.recurAnchor||'')+'"></label>':'')+
+      '<label class="fld" style="margin:0"><span class="fl">Due</span><select class="inp" id="eWindow" style="width:auto;min-width:140px">'+
+        winOpts.map(o=>'<option value="'+o[0]+'"'+(winN===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>'+
     '</div>':'';
   const recurPanel=
     d.recur==='weekly'?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>'+intervalCtl:
@@ -699,8 +705,9 @@ function drawEditor(){
     (multiLoc?'<button type="button" class="btn alt" data-copyall style="margin-top:10px;font-size:.82rem">Copy '+esc(shortStore(L.store))+'’s assignment to all locations</button>':'');
   const rvrow=(l,v)=>'<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><b style="min-width:118px;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800">'+l+'</b><span style="flex:1;font-size:.9rem;color:var(--dark)">'+v+'</span></div>';
   const rInt=Math.max(1,+d.recurInterval||1);
-  const wkLabel=(rInt>1?'Every '+rInt+' weeks · ':'Weekly · ')+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'');
-  const moLabel=(rInt>1?'Every '+rInt+' months · ':'Monthly · ')+(d.monthDates||'—')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'');
+  const winTxt=winN>0?(' · due '+(winN===1?'next day':winN+' days later')):'';
+  const wkLabel=(rInt>1?'Every '+rInt+' weeks · ':'Weekly · ')+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'')+winTxt;
+  const moLabel=(rInt>1?'Every '+rInt+' months · ':'Monthly · ')+(d.monthDates||'—')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'')+winTxt;
   const recurTxt=d.recur==='daily'?'Every day':d.recur==='weekly'?wkLabel:d.recur==='monthly'?moLabel:d.recur==='flexible'?(d.flexN+'× per '+d.flexPer):'One-off';
   // per-location assignment as a real table — one row per store, day overrides
   // as compact day chips so multi-store / per-day tasks stay readable
@@ -763,6 +770,7 @@ function drawEditor(){
     if(g('eMonthDates')!=null)d.monthDates=g('eMonthDates');
     if(g('eFlexN')!=null)d.flexN=g('eFlexN');if(g('eFlexPer')!=null)d.flexPer=g('eFlexPer');
     if(g('eRecurInt')!=null)d.recurInterval=g('eRecurInt');if(g('eRecurAnchor')!=null)d.recurAnchor=g('eRecurAnchor');
+    if(g('eWindow')!=null)d.windowDays=g('eWindow');
     if(L){
       if(g('eAssignee')!=null)L.assignee=g('eAssignee');if(g('eFallback')!=null)L.fallback=g('eFallback');
       if(g('eShift')!=null)L.shift=g('eShift');if(g('eRole')!=null)L.role=g('eRole');
@@ -840,6 +848,7 @@ async function saveTemplate(){
     flex_per:d.recur==='flexible'?(d.flexPer==='month'?'month':'week'):null,
     recur_interval:(d.recur==='weekly'||d.recur==='monthly')?Math.max(1,Math.min(4,+d.recurInterval||1)):1,
     recur_anchor:((d.recur==='weekly'||d.recur==='monthly')&&(+d.recurInterval>1))?(d.recurAnchor||TODAY):null,
+    window_days:(d.recur==='weekly'||d.recur==='monthly')?Math.max(0,Math.min(14,+d.windowDays||0)):0,
     due_type:d.recur==='oneoff'?d.dueType:'same',
     due_after_n:(d.recur==='oneoff'&&d.dueType==='after')?+d.dueAfterN||null:null,
     due_after_unit:(d.recur==='oneoff'&&d.dueType==='after')?d.dueAfterUnit:null,
