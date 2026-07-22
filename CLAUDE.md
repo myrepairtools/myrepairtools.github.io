@@ -682,7 +682,10 @@ per-day) with a ½-partial flag.
 
 **Checklist (store tasks):** `task_templates` **generate** `task_instances` — never render
 templates directly; the checklist shows instances. Template shape: recurrence
-(`oneoff|daily|weekly|monthly|flexible` + weekdays / month_dates / flex N-per-window),
+(`oneoff|daily|weekly|monthly|flexible` + weekdays / month_dates / flex N-per-window;
+weekly/monthly also carry `recur_interval` 1-4 + `recur_anchor` for every-N cadence —
+bi-weekly = weekly interval 2, so "every other Sunday" fires only on weeks divisible by
+the interval counted from the anchor week/month, never before it),
 target (`person`+fallback / `shift` resolved from the schedule / `role` any-tech-or-manager /
 `group` pool with strategy `fixed|rotate`), completion (`any|each` — each stores per-person
 `task_completions` rows and shows a completion grid), priority (normal/asap/must), a
