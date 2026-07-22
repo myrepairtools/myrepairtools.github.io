@@ -631,21 +631,16 @@ function drawEditor(){
   if(d.linkText&&url&&(d.name||'').indexOf(d.linkText)>-1){const at=d.name.indexOf(d.linkText);prev=esc(d.name.slice(0,at))+'<span class="clink" style="cursor:default">'+esc(d.linkText)+'</span>'+esc(d.name.slice(at+d.linkText.length));}
   const wk=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],wkIdx=[1,2,3,4,5,6,0];
   const recurPanel=
-    d.recur==='weekly'?'<div class="hint" style="margin-bottom:9px">Pick weekdays — choose two for twice a week.</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>':
-    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month (e.g. 5, 20)</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>':
-    d.recur==='flexible'?'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="fld" style="width:80px;margin:0"><span class="fl">Times</span><input class="inp" id="eFlexN" value="'+esc(d.flexN)+'"></label><label class="fld" style="width:150px;margin:0"><span class="fl">per</span><select class="inp" id="eFlexPer"><option value="week"'+(d.flexPer==='week'?' selected':'')+'>week</option><option value="month"'+(d.flexPer==='month'?' selected':'')+'>month</option></select></label><div class="hint" style="padding-bottom:9px">Any day in the window — movable (e.g. clean the bathroom once a week).</div></div>':
-    '<div class="hint">'+(d.recur==='daily'?'Generates fresh every day — overdue ones don’t pile up.':'Happens once. A one-off never auto-expires — it waits until done or a manager closes it.')+'</div>';
+    d.recur==='weekly'?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>':
+    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>':
+    d.recur==='flexible'?'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="fld" style="width:80px;margin:0"><span class="fl">Times</span><input class="inp" id="eFlexN" value="'+esc(d.flexN)+'"></label><label class="fld" style="width:150px;margin:0"><span class="fl">per</span><select class="inp" id="eFlexPer"><option value="week"'+(d.flexPer==='week'?' selected':'')+'>week</option><option value="month"'+(d.flexPer==='month'?' selected':'')+'>month</option></select></label></div>':
+    '';
   const assignPanel=
     L.target==='person'?'<div class="grid2"><label class="fld" style="margin:0"><span class="fl">Person</span><select class="inp" id="eAssignee">'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+L.assignee===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label><label class="fld" style="margin:0"><span class="fl">Fallback if off</span><select class="inp" id="eFallback"><option value="">None</option>'+storeStaffL.map(s=>'<option value="'+s.id+'"'+(+L.fallback===s.id?' selected':'')+'>'+esc(s.display_name)+'</option>').join('')+'</select></label></div>':
-    L.target==='shift'?'<label class="fld" style="margin:0"><span class="fl">Shift (resolved from the schedule daily)</span><select class="inp" id="eShift">'+SHIFTS.map(s=>'<option value="'+s.id+'"'+(+L.shift===s.id?' selected':'')+'>'+esc(s.name)+' · '+esc(shortStore(L.store))+'</option>').join('')+'</select></label><div class="hint" style="margin-top:8px">e.g. “whoever closes '+esc(shortStore(L.store))+'” — picks the right person each day automatically.</div>':
+    L.target==='shift'?'<label class="fld" style="margin:0"><span class="fl">Shift</span><select class="inp" id="eShift">'+SHIFTS.map(s=>'<option value="'+s.id+'"'+(+L.shift===s.id?' selected':'')+'>'+esc(s.name)+' · '+esc(shortStore(L.store))+'</option>').join('')+'</select></label>':
     L.target==='role'?'<label class="fld" style="margin:0"><span class="fl">Role</span><select class="inp" id="eRole"><option value="any"'+(L.role!=='manager'?' selected':'')+'>Any tech</option><option value="manager"'+(L.role==='manager'?' selected':'')+'>Manager</option></select></label>':
-    '<div class="hint" style="margin-bottom:9px">Pick the pool.</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+storeStaffL.map(s=>'<button class="pill'+(L.pool.indexOf(s.id)>-1?' on':'')+'" style="'+(L.pool.indexOf(s.id)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-pool="'+s.id+'">'+esc(s.display_name)+'</button>').join('')+'</div>';
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+storeStaffL.map(s=>'<button class="pill'+(L.pool.indexOf(s.id)>-1?' on':'')+'" style="'+(L.pool.indexOf(s.id)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-pool="'+s.id+'">'+esc(s.display_name)+'</button>').join('')+'</div>';
   const showStrat=L.target==='group',showComp=(L.target==='role'||L.target==='group');
-  let sum='';
-  if(L.target==='person'){const a=SBID[+L.assignee];sum='Always '+(a?a.display_name:'—')+(L.fallback&&SBID[+L.fallback]?' — fallback '+SBID[+L.fallback].display_name:'')+'.';}
-  else if(L.target==='shift'){const s=SHIFTS.find(x=>x.id===+L.shift);sum='Resolves to whoever works '+(s?s.name:'the shift')+' at '+shortStore(L.store)+' that day.';}
-  else if(L.target==='role')sum=(L.completion==='each'?'Every ':'Any ')+(L.role==='manager'?'manager':'tech')+(L.completion==='each'?' must complete their own — shows a completion grid.':' completes it for the group.');
-  else sum=(L.strategy==='rotate'?'Round-robin through ':'Shared across ')+L.pool.map(id=>SBID[id]?firstName(SBID[id].display_name):'').filter(Boolean).join(', ')+(L.completion==='each'?' — each must complete.':' — any one completes it.');
   // ---- per-day override section (this location; daily/weekly only) ----
   const odays=overrideDays(d);
   const perDayOn=L.perDay!=null?!!L.perDay:(Object.keys(L.dayAssign||{}).length>0);
@@ -653,9 +648,8 @@ function drawEditor(){
     '<div class="panel">'+
       '<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:700;font-size:.9rem"><input type="checkbox" id="eDayToggle"'+(perDayOn?' checked':'')+'> Assign differently on some days'+(multiLoc?' — '+esc(shortStore(L.store)):'')+'</label>'+
       (perDayOn?
-        '<div class="hint" style="margin:9px 0 8px">Set who gets it per day — leave “Same as default”. e.g. weekdays → Mid shift, weekends → Open shift.</div>'+
-        odays.map(function(w){return '<div class="locrow"><span class="locname" style="min-width:98px">'+DOWNAME[w]+'</span><select class="inp" data-dayov="'+w+'" style="flex:1">'+ovOptsHtml(L.store,L.dayAssign[w])+'</select></div>';}).join('')
-      :'<div class="hint" style="margin-top:7px">The default above applies every day.</div>')+
+        '<div style="margin-top:9px">'+odays.map(function(w){return '<div class="locrow"><span class="locname" style="min-width:98px">'+DOWNAME[w]+'</span><select class="inp" data-dayov="'+w+'" style="flex:1">'+ovOptsHtml(L.store,L.dayAssign[w])+'</select></div>';}).join('')+'</div>'
+      :'')+
     '</div>'
   ):'';
   // ---- step bodies ----
@@ -667,31 +661,30 @@ function drawEditor(){
       (d.linkUrl==='__custom'?'<label class="fld" style="margin:10px 0 0"><span class="fl">URL</span><input class="inp" id="eCustomUrl" value="'+esc(d.customUrl)+'" placeholder="https://…"></label>':'')+
       '<div style="margin-top:11px;font-size:.84rem;color:var(--dark-grey)">Renders as: <span style="font-weight:700;color:var(--dark)">'+(prev||'—')+'</span></div></div>'+
     '<div style="margin-bottom:18px"><span class="fl" style="display:block;margin-bottom:6px">Priority</span><div style="display:flex;gap:8px;flex-wrap:wrap">'+pillRow([['normal','Normal','var(--dark)'],['asap','Please do ASAP','#B45309'],['must','Must do today','var(--red)']],d.priority,'var(--dark)','prio')+'</div></div>'+
-    '<label class="fld"><span class="fl">Instructions <span style="text-transform:none;font-weight:600;color:var(--grey)">(links are clickable)</span></span><textarea class="inp" id="eInstr" rows="3" placeholder="Add steps, par levels, or paste a knowledge-base link…">'+esc(d.instr)+'</textarea></label>';
+    '<label class="fld"><span class="fl">Instructions</span><textarea class="inp" id="eInstr" rows="3" placeholder="Add steps, par levels, or paste a knowledge-base link…">'+esc(d.instr)+'</textarea></label>';
   const s2=
     '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Recurrence</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow(RECURS.map(r=>[r[0],r[1],'var(--dark)']),d.recur,'var(--dark)','recur')+'</div></div>'+
-    '<div class="panel">'+recurPanel+'</div>'+
+    (recurPanel?'<div class="panel">'+recurPanel+'</div>':'')+
     '<div class="fld" style="margin-bottom:6px"><span class="fl">Locations &amp; due times</span>'+
       '<div style="position:relative"><input class="inp" id="eLocSearch" placeholder="Search locations to add…" autocomplete="off"><div class="locsug" id="eLocSug"></div></div>'+
       '<div id="eLocList">'+(d.locs||[]).map((Lx,i)=>
         '<div class="locrow"><span class="locname">'+esc(shortStore(Lx.store))+'</span>'+
           '<input class="inp loctime" type="time" data-li="'+i+'" value="'+esc(to24(Lx.dueTime))+'" title="Due time at '+esc(shortStore(Lx.store))+'">'+
           '<button type="button" class="locx" data-li="'+i+'" title="Remove '+esc(shortStore(Lx.store))+'"'+((d.locs||[]).length<2?' disabled':'')+'>✕</button></div>').join('')+'</div>'+
-      '<div class="hint" style="margin-top:7px">Add every store this runs at — each keeps its own due time AND its own assignment (set in the next step).</div>'+
     '</div>'+
     (d.recur==='oneoff'?
       '<div style="margin-bottom:8px"><span class="fl" style="display:block;margin-bottom:6px">Due</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['same','Today','var(--dark)'],['after','After…','var(--dark)'],['date','On date','var(--dark)']],d.dueType,'var(--dark)','duety')+'</div></div>'+
       (d.dueType==='after'?'<div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:6px"><label class="fld" style="width:90px;margin:0"><span class="fl">In</span><input class="inp" id="eDueAfterN" value="'+esc(d.dueAfterN)+'"></label><label class="fld" style="width:140px;margin:0"><span class="fl">&nbsp;</span><select class="inp" id="eDueAfterUnit">'+['days','weeks','months'].map(u=>'<option value="'+u+'"'+(d.dueAfterUnit===u?' selected':'')+'>'+u+'</option>').join('')+'</select></label></div>':'')+
       (d.dueType==='date'?'<label class="fld" style="width:200px;margin-bottom:6px"><span class="fl">On date</span><input class="inp" type="date" id="eDueDate" value="'+esc(d.dueDate)+'"></label>':'')
     :'');
-  const locChips=multiLoc?('<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assignment for which location?</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow(d.locs.map((Lx,i)=>[i,shortStore(Lx.store),'var(--blue)']),d.__locSel,'var(--blue)','locsel')+'</div><div class="hint" style="margin-top:6px">Each store has its own assignment — set Salem’s openers/closers separately from Eugene’s mid.</div></div>'):'';
+  const locChips=multiLoc?('<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assignment for which location?</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow(d.locs.map((Lx,i)=>[i,shortStore(Lx.store),'var(--blue)']),d.__locSel,'var(--blue)','locsel')+'</div></div>'):'';
   const s3=locChips+
     '<div style="margin-bottom:12px"><span class="fl" style="display:block;margin-bottom:6px">Assign to (default)'+(multiLoc?' · '+esc(shortStore(L.store)):'')+'</span><div style="display:flex;gap:6px;flex-wrap:wrap">'+pillRow([['person','Person','var(--dark)'],['shift','Shift','var(--dark)'],['role','Role','var(--dark)'],['group','Group','var(--dark)']],L.target,'var(--dark)','tgt')+'</div></div>'+
     '<div class="panel">'+assignPanel+
-      '<div style="display:flex;gap:18px;margin-top:14px;flex-wrap:wrap">'+
+      ((showStrat||showComp)?'<div style="display:flex;gap:18px;margin-top:14px;flex-wrap:wrap">'+
       (showStrat?'<div><span class="fl" style="display:block;margin-bottom:5px">Strategy</span><div style="display:flex;gap:6px">'+pillRow([['fixed','Fixed','var(--dark)'],['rotate','Rotate','var(--dark)']],L.strategy,'var(--dark)','strat')+'</div></div>':'')+
       (showComp?'<div><span class="fl" style="display:block;margin-bottom:5px">Who must complete</span><div style="display:flex;gap:6px">'+pillRow([['any','Any one','var(--dark)'],['each','Each person','var(--dark)']],L.completion,'var(--dark)','comp')+'</div></div>':'')+
-      '</div><div class="hint" style="margin-top:11px">'+esc(sum)+'</div></div>'+
+      '</div>':'')+'</div>'+
     dayOverrideSection+
     (multiLoc?'<button type="button" class="btn alt" data-copyall style="margin-top:10px;font-size:.82rem">Copy '+esc(shortStore(L.store))+'’s assignment to all locations</button>':'');
   const rvrow=(l,v)=>'<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><b style="min-width:118px;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800">'+l+'</b><span style="flex:1;font-size:.9rem;color:var(--dark)">'+v+'</span></div>';
@@ -709,12 +702,11 @@ function drawEditor(){
       rvrow('When',esc(recurTxt))+
       rvrow('Assignment',assignSummary)+
       (d.instr?rvrow('Instructions',esc(d.instr)):'')+
-    '</div>'+
-    '<div class="hint" style="margin-top:2px">'+(EDIT_ID?'Changes apply to future occurrences · '+d.locs.length+' store'+(d.locs.length===1?'':'s'):(d.locs.length>1?'Creates '+d.locs.length+' templates — one per location.':'Creates one template.'))+'</div>';
+    '</div>';
   const stepBody=STEP===1?s1:STEP===2?s2:STEP===3?s3:s4;
   const chips='<div style="display:flex;gap:6px;padding:2px 20px 6px">'+WSTEPS.map((s,i)=>{const n=i+1,on=n===STEP,done=n<STEP;return '<div style="flex:1;text-align:center;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:7px 3px;border-radius:8px;'+(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s[0]+'</div>';}).join('')+'</div>';
   const footer=
-    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">Step '+STEP+' of 4 · '+WSTEPS[STEP-1][1]+'</div>'+
+    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">Step '+STEP+' of 4</div>'+
     (EDIT_ID&&STEP===4?'<button class="linkdel" data-arch>Archive'+(useLocsUI()&&(d.locs||[]).length>1?' (all '+d.locs.length+')':'')+'</button>':'')+
     '</div><div style="display:flex;gap:10px">'+
     (STEP>1?'<button class="btn alt" data-back>Back</button>':'<button class="btn alt" data-close>Cancel</button>')+
