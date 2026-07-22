@@ -638,6 +638,15 @@ function drawEditor(){
   // Labeled in words so "is the first day counted?" never comes up.
   const winN=Math.max(0,+d.windowDays||0);
   const winOpts=[[0,'Same day'],[1,'Next day'],[2,'2 days later'],[3,'3 days later'],[4,'4 days later'],[5,'5 days later'],[6,'6 days later'],[7,'A week later']];
+  // live preview of what the window resolves to: "Assigned Monday · due Wednesday"
+  const dueDay=(w,short)=>{const n=DOWNAME[(w+winN)%7];return (winN>=7?'next ':'')+(short?n.slice(0,3):n);};
+  let winPrev='';
+  if(winN>0&&d.recur==='weekly'&&(d.weekdays||[]).length){
+    const selDays=(d.weekdays||[]).slice().sort();
+    winPrev=selDays.length===1
+      ?('Assigned '+DOWNAME[selDays[0]]+' · due '+dueDay(selDays[0],false))
+      :selDays.map(w=>DOWNAME[w].slice(0,3)+' → '+dueDay(w,true)).join(' · ');
+  }
   const intervalCtl=(d.recur==='weekly'||d.recur==='monthly')?
     '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">'+
       '<label class="fld" style="margin:0"><span class="fl">Repeat</span><select class="inp" id="eRecurInt" style="width:auto;min-width:150px">'+
@@ -645,6 +654,7 @@ function drawEditor(){
       (intN>1?'<label class="fld" style="margin:0"><span class="fl">Starting '+(intUnit==='week'?'week of':'month')+'</span><input class="inp" type="date" id="eRecurAnchor" value="'+esc(d.recurAnchor||'')+'"></label>':'')+
       '<label class="fld" style="margin:0"><span class="fl">Due</span><select class="inp" id="eWindow" style="width:auto;min-width:140px">'+
         winOpts.map(o=>'<option value="'+o[0]+'"'+(winN===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>'+
+      (winPrev?'<div style="padding-bottom:11px;font-size:.84rem;font-weight:700;color:var(--dark-grey)">'+esc(winPrev)+'</div>':'')+
     '</div>':'';
   const recurPanel=
     d.recur==='weekly'?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>'+intervalCtl:
@@ -705,7 +715,7 @@ function drawEditor(){
     (multiLoc?'<button type="button" class="btn alt" data-copyall style="margin-top:10px;font-size:.82rem">Copy '+esc(shortStore(L.store))+'’s assignment to all locations</button>':'');
   const rvrow=(l,v)=>'<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)"><b style="min-width:118px;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800">'+l+'</b><span style="flex:1;font-size:.9rem;color:var(--dark)">'+v+'</span></div>';
   const rInt=Math.max(1,+d.recurInterval||1);
-  const winTxt=winN>0?(' · due '+(winN===1?'next day':winN+' days later')):'';
+  const winTxt=winN>0?(' · due '+(d.recur==='weekly'&&(d.weekdays||[]).length===1?dueDay(d.weekdays[0],false):(winN===1?'next day':winN+' days later'))):'';
   const wkLabel=(rInt>1?'Every '+rInt+' weeks · ':'Weekly · ')+(d.weekdays||[]).slice().sort().map(w=>wk[wkIdx.indexOf(w)]).join('/')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'')+winTxt;
   const moLabel=(rInt>1?'Every '+rInt+' months · ':'Monthly · ')+(d.monthDates||'—')+(rInt>1&&d.recurAnchor?' (from '+esc(d.recurAnchor)+')':'')+winTxt;
   const recurTxt=d.recur==='daily'?'Every day':d.recur==='weekly'?wkLabel:d.recur==='monthly'?moLabel:d.recur==='flexible'?(d.flexN+'× per '+d.flexPer):'One-off';
@@ -793,6 +803,7 @@ function drawEditor(){
   document.querySelectorAll('#mdlWrap [data-wd]').forEach(b=>b.onclick=()=>{grab();const wd=+b.dataset.wd;const at=d.weekdays.indexOf(wd);if(at>-1)d.weekdays.splice(at,1);else d.weekdays.push(wd);drawEditor();});
   const ri=$('#mdlWrap #eRecurInt');if(ri)ri.onchange=()=>{grab();d.recurInterval=ri.value;if(+ri.value>1&&!d.recurAnchor)d.recurAnchor=TODAY;drawEditor();};
   const ra=$('#mdlWrap #eRecurAnchor');if(ra)ra.onchange=()=>{grab();drawEditor();};
+  const wi=$('#mdlWrap #eWindow');if(wi)wi.onchange=()=>{grab();drawEditor();};
   document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const L=d.locs[d.__locSel];const id=+b.dataset.pool;const at=L.pool.indexOf(id);if(at>-1)L.pool.splice(at,1);else L.pool.push(id);drawEditor();});
   document.querySelectorAll('#mdlWrap [data-dayov]').forEach(sel=>sel.onchange=()=>{grab();drawEditor();});
   const dtog=$('#mdlWrap #eDayToggle');if(dtog)dtog.onchange=()=>{grab();const L=d.locs[d.__locSel];L.perDay=dtog.checked;if(!dtog.checked)L.dayAssign={};drawEditor();};
