@@ -181,7 +181,6 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .msprice{font-family:'Nunito Sans',sans-serif;font-size:.68rem;font-weight:700;color:var(--grey);white-space:nowrap}
 .msoos{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--red);background:#FDECEC;border:1px solid #F5C9C9;border-radius:5px;padding:1px 6px;white-space:nowrap}
 .mspend{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;color:#B8860B;background:#FDF6E3;border:1px solid #F0E2B6;border-radius:5px;padding:0 5px;white-space:nowrap}
-.xferchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;color:#1E7AA8;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:5px;padding:1px 6px;white-space:nowrap;margin-left:6px;cursor:help}
 .buysku select{font-size:.74rem;padding:4px 6px;border-radius:6px}
 /* "already ordered" — kept on the list, excluded from the MS export */
 .expchk{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;vertical-align:middle}
@@ -596,7 +595,6 @@ var ORDERED={};  /* orderSku → qty already ordered TODAY. Each MS export order
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
 var MSP={},MSP_INFLIGHT={};   /* cpr.parts live product data: sku → {price,in_stock,stock_qty,saleable,url} */
 var MSPEND={};               /* cpr.parts ordered-but-not-shipped qty per sku (bridges the RepairQ PO gap) */
-var XFER={},XFER_INFLIGHT={},XFER_STORE='';  /* cross-store surplus: sku → [{store,in_stock,eff_max,used_30d}] */
 var FLAGTYPES=[],SKUFLAGS={},GROUPOVR={}; /* custom flag defs; per-store sku->[flag_key]; per-store group_id->max */
 var STOCK_ASOF=null, CONS_ASOF=null; /* current store's last stock + consumption sync */
 /* kill-switch for the consignment-only flag. Set to true to instantly disable
@@ -1090,57 +1088,6 @@ async function msRefresh(rows){
   if(got){render();if(BATROWS&&BATROWS.length)renderBatteries();}
 }
 
-/* ---- cross-store transfer suggestions ----
-   For rows the report wants to BUY, ask the other stores whether they're
-   sitting on surplus (in stock above their own max) — a quick transfer can
-   beat a purchase. SECURITY DEFINER RPC because store reads are RLS-scoped. */
-function xferSkusOf(rows){
-  var set={};
-  rows.forEach(function(r){
-    if(!(r.suggest>0))return;
-    if(r.type==='group')r.members.forEach(function(m){set[m.sku]=1;});
-    else set[r.sku]=1;
-  });
-  return Object.keys(set);
-}
-async function xferRefresh(rows){
-  if(XFER_STORE!==STATE.store){XFER={};XFER_INFLIGHT={};XFER_STORE=STATE.store;}
-  var need=xferSkusOf(rows).filter(function(s){return !(s in XFER)&&!XFER_INFLIGHT[s];});
-  if(!need.length)return;
-  need.forEach(function(s){XFER_INFLIGHT[s]=1;});
-  try{
-    var r=await sb.rpc('transfer_candidates',{p_store:STATE.store,p_skus:need});
-    need.forEach(function(s){XFER[s]=[];});
-    var any=false;
-    ((r&&r.data)||[]).forEach(function(row){
-      (XFER[row.sku]||(XFER[row.sku]=[])).push(row);any=true;
-    });
-    if(any){render();if(BATROWS&&BATROWS.length)renderBatteries();}
-  }catch(e){/* suggestions are a nicety — never break the report */}
-  finally{need.forEach(function(s){delete XFER_INFLIGHT[s];});}
-}
-/* chip html for a row (or '' when no store has spare units) */
-function xferChip(r){
-  if(!(r.suggest>0))return '';
-  var skus=r.type==='group'?r.members.map(function(m){return m.sku;}):[r.sku];
-  var byStore={};
-  skus.forEach(function(sku){
-    (XFER[sku]||[]).forEach(function(d){
-      var spare=Math.max(0,(+d.in_stock||0)-(+d.eff_max||0));
-      if(spare<=0)return;
-      var b=byStore[d.store]||(byStore[d.store]={spare:0,lines:[]});
-      b.spare+=spare;
-      b.lines.push(sku+': '+d.in_stock+' in stock · max '+d.eff_max+' · '+d.used_30d+' used in 30d');
-    });
-  });
-  var stores=Object.keys(byStore).sort(function(a,b){return byStore[b].spare-byStore[a].spare;});
-  if(!stores.length)return '';
-  var top=stores[0], n=byStore[top].spare;
-  var title=stores.map(function(st){return st.replace(/^CPR\s*/,'')+' — '+byStore[st].lines.join(' | ');}).join('\n');
-  return '<span class="xferchip" title="'+title.replace(/"/g,'&quot;')+'">⇄ '+top.replace(/^CPR\s*/,'')
-    +' has '+n+' spare'+(stores.length>1?' +':'')+'</span>';
-}
-
 /* roll consumption up into used{sku}={sold,pulled} */
 function usedMap(){var m={};CONSUMPTION.forEach(function(c){m[c.sku]=(m[c.sku]||0)+(c.units||0);});return m;}
 
@@ -1410,7 +1357,6 @@ function renderOrderRows(tb, rows){
       : '';
     var ordTag=full?'<span class="skiptag">ordered</span>'
                    :(partial?'<span class="skiptag part">'+ordQty+' of '+r.suggest+' ordered</span>':'');
-    if(!full)ordTag+=xferChip(r);
     var tr=document.createElement('tr');
     if(hasDetail)tr.className='grp';else if(r._samChild)tr.className='samchild';
     if(full)tr.classList.add('skipped');
@@ -1511,7 +1457,6 @@ function render(){
   var rows=buildRows();
   renderOrderRows($('#rows'), clusterSamsung(rows));
   msRefresh(rows);
-  xferRefresh(rows);
   var totUsed=0,totOrder=0,below=0;
   rows.forEach(function(r){totUsed+=r.used;totOrder+=toOrderNow(r);if(r.instock===0)below++;});
   $('#kUsed').textContent=totUsed;
@@ -1636,7 +1581,6 @@ function renderBatteries(){
   BATROWS=rows;
   renderOrderRows($('#batRows'), rows);
   msRefresh(rows);
-  xferRefresh(rows);
   var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;totOrder+=toOrderNow(r);});
   $('#batUnits').textContent=totUsed;
   $('#batSkus').textContent=rows.length;

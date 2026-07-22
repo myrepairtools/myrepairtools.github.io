@@ -30,15 +30,16 @@ async function handleFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     try {
-      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) await addPdf(await f.arrayBuffer());
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) await addPdf(await f.arrayBuffer(), true);
       else if (/^image\//.test(f.type)) await addImageBlob(f);
       else toast('Not a PDF or image — skipped ' + f.name, true);
     } catch (e) { toast('Could not read ' + (f.name || 'file') + ' — ' + e.message, true); }
   }
 }
 
-async function addPdf(buf) {
+async function addPdf(buf, auto) {
   var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var queued = 0;
   for (var p = 1; p <= pdf.numPages; p++) {
     var page = await pdf.getPage(p);
     var v1 = page.getViewport({ scale: 1 });
@@ -49,7 +50,14 @@ async function addPdf(buf) {
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
     addPageCard(c);
+    if (auto) {
+      /* label page -> just the label; label-less page (packing slip) -> trimmed page */
+      var label = await findLabelImage(page);
+      var pick = label || trimOrNull(c);
+      if (pick) { enqueue(pick); queued++; }
+    }
   }
+  return queued;
 }
 function addImageBlob(blob) {
   return new Promise(function (res, rej) {
@@ -65,6 +73,78 @@ function addImageBlob(blob) {
     img.onerror = function () { rej(new Error('bad image')); };
     img.src = URL.createObjectURL(blob);
   });
+}
+
+
+/* ---------- automatic label detection ----------
+   Shipping labels in carrier/vendor PDFs are embedded raster images. Pull the
+   page's images out, keep the label-shaped, grayscale, barcode-dense ones
+   (logos are colorful, photos aren't ~1.5:1 monochrome), and queue the best.
+   Pages with no label image (packing slips) queue as auto-trimmed pages. */
+function imgObjToCanvas(im){
+  try{
+    var c=document.createElement('canvas');c.width=im.width;c.height=im.height;
+    var ctx=c.getContext('2d');
+    if(im.bitmap){ctx.drawImage(im.bitmap,0,0);return c;}
+    if(!im.data)return null;
+    var n=im.width*im.height,px=ctx.createImageData(im.width,im.height),d=im.data;
+    if(d.length===n*4)px.data.set(d);
+    else if(d.length===n*3){for(var i=0;i<n;i++){px.data[i*4]=d[i*3];px.data[i*4+1]=d[i*3+1];px.data[i*4+2]=d[i*3+2];px.data[i*4+3]=255;}}
+    else if(d.length===n){for(var j=0;j<n;j++){px.data[j*4]=px.data[j*4+1]=px.data[j*4+2]=d[j];px.data[j*4+3]=255;}}
+    else return null;
+    ctx.putImageData(px,0,0);return c;
+  }catch(e){return null;}
+}
+function labelScore(c){
+  var w=c.width,h=c.height;
+  if(w*h<80000)return 0;                                  /* too small to be a 4x6 label */
+  var r=Math.max(w,h)/Math.min(w,h);
+  if(r<1.15||r>2.6)return 0;                              /* squares (logos) and strips out */
+  var ctx=c.getContext('2d'),d;
+  try{d=ctx.getImageData(0,0,w,h).data;}catch(e){return 0;}
+  var n=0,gray=0,dark=0,step=Math.max(1,Math.floor(Math.sqrt(w*h/4000)));
+  for(var y=0;y<h;y+=step)for(var x=0;x<w;x+=step){
+    var i=(y*w+x)*4,R=d[i],G=d[i+1],B=d[i+2];
+    n++;
+    if(Math.max(R,G,B)-Math.min(R,G,B)<40)gray++;
+    if((R+G+B)/3<120)dark++;
+  }
+  if(!n)return 0;
+  var gf=gray/n,df=dark/n;
+  if(gf<0.85)return 0;                                    /* colorful -> logo/photo */
+  if(df<0.04||df>0.6)return 0;                            /* no ink, or a solid block */
+  return w*h*gf;
+}
+async function findLabelImage(page){
+  var ops;
+  try{ops=await page.getOperatorList();}catch(e){return null;}
+  var names=[];
+  for(var i=0;i<ops.fnArray.length;i++){
+    if(ops.fnArray[i]===pdfjsLib.OPS.paintImageXObject)names.push(ops.argsArray[i][0]);
+  }
+  var best=null;
+  for(var k=0;k<names.length;k++){
+    /* group-scoped objects (g_*) may never resolve from page.objs — race a
+       timeout so one odd image can't stall the whole document */
+    var im=await new Promise(function(res){
+      var done=false,t=setTimeout(function(){if(!done){done=true;res(null);}},1000);
+      try{page.objs.get(names[k],function(v){if(!done){done=true;clearTimeout(t);res(v);}});}
+      catch(e){if(!done){done=true;clearTimeout(t);res(null);}}
+    });
+    if(!im){try{im=page.commonObjs.get(names[k]);}catch(e){}}
+    if(!im||!im.width)continue;
+    var c=imgObjToCanvas(im);if(!c)continue;
+    var s=labelScore(c);
+    if(s>0&&(!best||s>best.s))best={c:c,s:s};
+  }
+  return best&&best.c;
+}
+/* auto-trimmed page, or null when the page is (nearly) empty */
+function trimOrNull(src){
+  var t=autoTrim(src);
+  if(t===src)return null;
+  if(t.width*t.height<src.width*src.height*0.01)return null;
+  return t;
 }
 
 /* ---------- page cards + drag-select ---------- */
@@ -183,7 +263,8 @@ function renderQueue() {
 }
 
 /* ---------- print ---------- */
-$('#printBtn').addEventListener('click', function () {
+$('#printBtn').addEventListener('click', doPrint);
+function doPrint() {
   if (!QUEUE.length) return;
   var html = '<!doctype html><html><head><style>'
     + '@page{size:4in 6in;margin:0}html,body{margin:0;padding:0}'
@@ -203,7 +284,7 @@ $('#printBtn').addEventListener('click', function () {
       setTimeout(function () { f.remove(); }, 60000);
     }, 150);
   };
-});
+}
 
 /* ---------- pre-load from the tab the user was on ---------- */
 (async function () {
@@ -216,7 +297,14 @@ $('#printBtn').addEventListener('click', function () {
     if (!st.b64) { toast('Couldn’t read that tab automatically — drop the file below instead', true); return; }
     var bin = atob(st.b64), u8 = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    if (st.kind === 'pdf') await addPdf(u8.buffer);
-    else await addImageBlob(new Blob([u8]));
+    if (st.kind === 'pdf') {
+      var q = await addPdf(u8.buffer, true);
+      if (q > 0) { toast('Label auto-converted — opening print\u2026'); setTimeout(doPrint, 600); }
+      else toast('Couldn\u2019t auto-detect the label — drag a box around it below', true);
+    } else {
+      await addImageBlob(new Blob([u8]));
+      var t = trimOrNull($('#pages').querySelector('canvas'));
+      if (t) { enqueue(t); toast('Label auto-converted — opening print\u2026'); setTimeout(doPrint, 600); }
+    }
   } catch (e) { toast('Auto-load failed — drop the file below instead', true); }
 })();
