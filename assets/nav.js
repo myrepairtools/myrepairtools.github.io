@@ -101,6 +101,7 @@
     // Schedule/Task Admin reached from buttons on My Time / Checklist (hidden from menus)
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'calendar-cog', minRole:'admin', acc:'schedule.admin', hidden:true },
     { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', minRole:'admin', hidden:true },
+    { label:'KB Compliance',  url:'kb-compliance.html',    icon:'clipboard-check', minRole:'admin', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' }
   ];
@@ -301,7 +302,8 @@
   // settings pages highlight the gear (employee-records stays under Employees even
   // though it's also listed in the Settings pane)
   var inSettings = (currentFile === 'settings.html');
-  var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
+  var inKb = (currentFile === 'knowledge.html' || currentFile === 'kb-compliance.html');
+  var ACTIVE_AREA = inKb ? 'kb' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -546,6 +548,7 @@
     'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" />',
     'tablet-smartphone': '<rect width="10" height="14" x="3" y="8" rx="2" /><path d="M5 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-2.4" /><path d="M8 18h.01" />',
     'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" />',
+    'clipboard-check': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" />',
     'package': '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /><path d="M12 22V12" /><polyline points="3.29 7 12 12 20.71 7" /><path d="m7.5 4.27 9 5.15" />',
     'recycle': '<path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5" /><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12" /><path d="m14 16-3 3 3 3" /><path d="M8.293 13.596 7.196 9.5 3.1 10.598" /><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843" /><path d="m13.378 9.633 4.096 1.098 1.097-4.096" />',
     'menu': '<path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h16" />',
@@ -709,8 +712,38 @@
     var ico = '<span class="cpr-tb-ico"><svg viewBox="13 8 48 48" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
     return wm + ico;
   }
+  // Knowledge Base pane: the KB's Browse list lives in the nav (no in-page
+  // sidebar). knowledge.html publishes its categories/counts to localStorage
+  // (cprKbNav) on every load; before the first visit we fall back to the core
+  // rows. Rows are hash links, so clicks route inside the open KB page.
+  function kbPaneHtml(){
+    var items = null;
+    try{ items = JSON.parse(localStorage.getItem('cprKbNav')||'null'); }catch(e){}
+    if (!items || !items.length){
+      items = [ {h:'c=all', i:'📚', l:'All articles'}, {h:'c=req', i:'⭐', l:'Required reading'} ];
+      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'✏️',l:'Drafts'},{u:'kb-compliance.html',i:'📋',l:'Compliance'});
+    }
+    var here = currentFile==='knowledge.html' ? location.hash.replace('#','') : '';
+    var h = '<div class="cpr-grp">Knowledge Base</div>';
+    items.forEach(function(it){
+      if (it.grp){ h += '<div class="cpr-grp">'+esc(it.grp)+'</div>'; return; }
+      var href = it.u ? it.u : 'knowledge.html#'+it.h;
+      var active = it.u ? (currentFile===it.u) : (currentFile==='knowledge.html' && (here===it.h || (!here && it.h==='c=all')));
+      h += '<a class="cpr-link'+(active?' active':'')+'" href="'+esc(href)+'">'
+        + '<span class="ic" style="font-size:15px;line-height:1">'+esc(it.i||'📄')+'</span>'
+        + '<span style="flex:1">'+esc(it.l)+'</span>'
+        + (it.b?'<span style="min-width:18px;text-align:center;background:#DC282E;color:#fff;border-radius:999px;font-size:.62rem;font-weight:800;padding:1px 6px">'+esc(String(it.b))+'</span>':'')
+        + (it.c?'<span style="font-size:.68rem;font-weight:800;color:#B9BDCB">'+esc(String(it.c))+'</span>':'')
+        + '</a>';
+    });
+    return h;
+  }
   function paneInner(area){
     var hd = '';   // brand now lives in the top bar; the pane starts at its tool list
+    if (area === 'kb'){
+      return hd + kbPaneHtml()
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -789,6 +822,12 @@
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
   function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
+  // KB pane rows are hash links — keep their active state in sync as the open
+  // KB page routes, and let knowledge.html refresh counts after it loads data.
+  window.addEventListener('hashchange', function(){
+    if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); }
+  });
+  window.CPRKbNav = { refresh: function(){ if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); } } };
 
   var rail, pane, scrim, top, usermenu;
   function setArea(area){

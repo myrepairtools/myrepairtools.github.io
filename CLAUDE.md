@@ -632,6 +632,26 @@ committed). Nag reminders for unacknowledged required reading are deliberately d
 to the notifications project. Importing existing docs: give them to Claude in a session —
 it converts and inserts articles directly.
 
+**KB v2 — onboarding & quizzes (design-handoff rebuild):** knowledge.html is now the
+full training surface: the **Browse list lives in the NAV PANE**, not the page — nav.js's 'kb' area renders it from a localStorage cache (`cprKbNav`) the page publishes on every draw (counts/badges live; hash links route in-page; static fallback pre-first-visit). The library is full-width list rows with
+per-user **Viewed** column — "Never" amber, red when required-unacked), restyled
+reading view (read-time meta, `!> ` amber callouts in the light markup, footer
+"✓ Mark as read" = `kb_reads.acknowledged_at`, the read receipt that feeds
+everything), **My Onboarding** (`#onboarding` — sequenced modules from
+`onboarding_modules` + articles' `module_id`/`sort_order`; steps unlock strictly in
+order, a step with a quiz isn't done until the quiz passes; assignment row created
+lazily in `onboarding_assignments`), **quizzes** (`kb_quizzes`/`kb_quiz_questions`
+readable; **correct answers live in `kb_quiz_answers` with no client read** — grading
+is the SECURITY DEFINER RPC `kb_quiz_grade` which records `kb_quiz_attempts` and
+returns only ok/hint per question; managers author via `kb_quiz_set_answer`/
+`kb_quiz_get_answers`; 80% pass, unlimited attempts, best kept), and the sidebar-card
+**article editor** (per-article `emoji`, module slot, quiz editor modal, archive/
+restore, publish still announces to Communications + alerts). `kb-compliance.html`
+(nav 'KB Compliance', Employees, manager+, hidden:true — linked from the KB sidebar's
+Manage section) is the roster view: store `.storesel` filter, stat tiles, per-person
+onboarding %, quizzes passed, receipt pills per required article, overdue = required
+still open 7+ days after publish. Schema: docs/sql/kb-onboarding-schema.sql.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);
