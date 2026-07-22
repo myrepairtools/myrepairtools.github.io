@@ -74,8 +74,8 @@ function addPageCard(canvas) {
   card.innerHTML = '<div class="bar"><span class="t">Page ' + PAGE_N + '</span>'
     + '<span class="h">drag a box around what you want on the 4×6</span>'
     + '<span class="sp">'
-    + '<button class="btn sm addsel" disabled>✂ Add Selection</button>'
-    + '<button class="btn sm addfull">＋ Add Whole Page</button>'
+    + '<button class="btn sm addsel" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></svg> Add Selection</button>'
+    + '<button class="btn sm addfull"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add Whole Page</button>'
     + '</span></div>'
     + '<div class="canvwrap"><div class="marquee"></div></div>';
   card.querySelector('.canvwrap').appendChild(canvas);
@@ -165,12 +165,12 @@ function enqueue(canvas) {
 function renderQueue() {
   var q = $('#queue');
   if (!QUEUE.length) {
-    q.innerHTML = '<div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then ✂ Add Selection.</div>';
+    q.innerHTML = '<div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></svg> Add Selection.</div>';
   } else {
     q.innerHTML = QUEUE.map(function (it, i) {
       return '<div class="qitem"><span class="n">' + (i + 1) + '</span><img src="' + it.canvas.toDataURL('image/png') + '" alt="">'
-        + '<button class="x" data-i="' + i + '" title="Remove">✕</button>'
-        + '<button class="rot" data-i="' + i + '" title="Rotate 90°">↻</button></div>';
+        + '<button class="x" data-i="' + i + '" title="Remove"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>'
+        + '<button class="rot" data-i="' + i + '" title="Rotate 90°"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg></button></div>';
     }).join('');
     q.querySelectorAll('.x').forEach(function (b) {
       b.addEventListener('click', function () { QUEUE.splice(+b.getAttribute('data-i'), 1); renderQueue(); });
