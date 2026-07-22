@@ -596,9 +596,14 @@ toggles `?action=config_set`, hold queue edit/post-now/cancel `?action=queue_op`
 notification settings (methods SMS/push/in-app, stores, triggers, quiet hours →
 `gbp_notify_prefs`), deep link `#r=<review-id>`. Dashboard **Google Reviews widget**
 (`assets/gbp-summary.js`, `window.CPRGbp.snapshot()`) → google-reviews.html. Browser
-actions auth by staff JWT (manager+); cron actions by secret. There are ~1,200
-historically-unanswered reviews — engine alerting is bounded to recent reviews on
-purpose. "Send asks…" (review-request engine) is the deferred Phase 2 remainder.
+actions auth by staff JWT (manager+); cron actions by secret. The ~1,200
+pre-engine unanswered reviews are **retired**: `gbp_reviews.legacy_unanswered`
+(one-time marking, docs/sql/2026-07-22-gbp-legacy-unanswered.sql — owner chose not
+to answer the backlog) excludes them from every unanswered count/filter/SLA surface;
+they render with a muted "no reply" pill and can still be answered by hand. New
+reviews are never flagged — keep the `.eq('legacy_unanswered', false)` filter on any
+new unanswered query. "Send asks…" (review-request engine) is the deferred Phase 2
+remainder.
 
 **Knowledge Base ("the brain"):** `kb_categories` + `kb_articles` (light-markup body —
 same family as Communications, plus # headings, [links](url), ![images](url) from the

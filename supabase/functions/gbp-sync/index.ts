@@ -587,10 +587,11 @@ async function engine() {
   }
   out.low_star_alerts = lowSent;
 
-  // 3 · SLA breaches: amber nudge at 12h unanswered, red at 24h (recent reviews only)
+  // 3 · SLA breaches: amber nudge at 12h unanswered, red at 24h (recent reviews only;
+  // legacy_unanswered = the retired pre-engine backlog — never actionable)
   const { data: open } = await admin.from("gbp_reviews")
     .select("id,store,stars,comment,reviewer_name,created_at")
-    .is("reply_text", null).is("deleted_at", null)
+    .is("reply_text", null).is("deleted_at", null).eq("legacy_unanswered", false)
     .gte("created_at", new Date(nowMs - 7 * 86400_000).toISOString());
   let slaSent = 0;
   for (const r of open || []) {

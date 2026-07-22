@@ -40,6 +40,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
 .s-ok{color:#1E7A45;background:#E9F6EE}
 .s-wait{color:#9A6700;background:#FCF3E3}
 .s-late{color:#B02329;background:#FCEDED}
+.s-leg{color:#7A7F8F;background:#EFF0F4}
 .stag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;border-radius:999px;padding:2px 9px;color:#fff}
 .starsel{height:32px;border:1px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-size:.78rem;font-weight:700;padding:0 8px}
 .empty{color:var(--grey);font-weight:700;padding:26px;text-align:center}
@@ -173,7 +174,7 @@ function boot(){
 async function load(){
   const [locR,rvR,qR,cR]=await Promise.all([
     sb.from('gbp_locations').select('store,rating,review_count,last_sync_at'),
-    sb.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at,reply_text,replied_at')
+    sb.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at,reply_text,replied_at,legacy_unanswered')
       .is('deleted_at',null).order('created_at',{ascending:false}).limit(600),
     sb.from('gbp_reply_queue').select('id,review_id,store,source,status,post_after,draft').in('status',['hold','posted']),
     sb.from('gbp_config').select('key,value').eq('key','auto_reply').maybeSingle()
@@ -188,7 +189,10 @@ async function load(){
 }
 
 /* ===== feed ===== */
-function unansweredList(){ return REVS.filter(r=>!r.reply_text&&(SEL==='All'||r.store===SEL)); }
+// legacy_unanswered = the retired pre-engine backlog (owner decision, see
+// docs/sql/2026-07-22-gbp-legacy-unanswered.sql): shown muted, never counted
+// as actionable, but a hand-written reply from the drawer still works.
+function unansweredList(){ return REVS.filter(r=>!r.reply_text&&!r.legacy_unanswered&&(SEL==='All'||r.store===SEL)); }
 function statusPill(r){
   const q=QMAP[r.id];
   if(r.reply_text){
@@ -200,6 +204,7 @@ function statusPill(r){
     const mins=Math.max(0,Math.round((new Date(q.post_after)-Date.now())/60000));
     return '<span class="spill s-wait">🤖 auto in '+(mins>=60?Math.round(mins/60)+'h':mins+'m')+'</span>';
   }
+  if(r.legacy_unanswered) return '<span class="spill s-leg">no reply</span>';
   const h=hrs(r.created_at);
   return '<span class="spill '+(h>=24?'s-late':'s-wait')+'">no reply · '+fmtAge(r.created_at)+(h>=24?' ⚠':'')+'</span>';
 }
@@ -217,7 +222,7 @@ function render(){
     +'</div>';
   let list=REVS.slice();
   if(SEL!=='All') list=list.filter(r=>r.store===SEL);
-  if(UNONLY) list=list.filter(r=>!r.reply_text);
+  if(UNONLY) list=list.filter(r=>!r.reply_text&&!r.legacy_unanswered);
   if(STARS) list=list.filter(r=>r.stars===STARS);
   const total=list.length;
   list=list.slice(0,LIMIT);
@@ -264,7 +269,8 @@ function openDrawer(id){
   DRAWER={id:id,draft:(QMAP[id]&&QMAP[id].status==='hold')?QMAP[id].draft:'',busy:false};
   renderDrawer();
   showSheet();
-  if(!r.reply_text&&!DRAWER.draft) genDraft();
+  // legacy backlog: no auto-draft on open (↻ Regenerate still drafts on demand)
+  if(!r.reply_text&&!DRAWER.draft&&!r.legacy_unanswered) genDraft();
 }
 function stepInfo(id){
   const un=unansweredList();

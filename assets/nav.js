@@ -1029,9 +1029,10 @@
           // installed-app icon badge (the closest a web app gets to native widgets)
           try { if (navigator.setAppBadge){ if (n) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch(_){}
         }, function(){});
-        // unanswered Google reviews → count pill on the Google Reviews nav row (managers)
+        // unanswered Google reviews → count pill on the Google Reviews nav row (managers).
+        // legacy_unanswered = the retired pre-engine backlog (owner decision) — never counted.
         if (rank() >= RANK.manager){
-          c.from('gbp_reviews').select('id', { count:'exact', head:true }).is('reply_text', null).is('deleted_at', null).then(function(q){
+          c.from('gbp_reviews').select('id', { count:'exact', head:true }).is('reply_text', null).is('deleted_at', null).eq('legacy_unanswered', false).then(function(q){
             NAVCNT.gbp = q.count || 0; applyNavCnt();
           }, function(){});
         }
