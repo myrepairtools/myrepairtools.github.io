@@ -540,9 +540,11 @@ pdf.js operator-list scan pulls each page's embedded images (objs.get raced agai
 a 1s timeout; group-scoped g_* objects never resolve), scores them (≥80k px,
 1.15–2.6 aspect, ≥85% grayscale samples, 4–60% ink → labels; logos are colorful and
 fail), queues the winner per page, and queues label-less pages (packing slips)
-auto-trimmed; the extension flow then opens the print dialog itself. Manual crop
-stays as the fallback for vector-drawn labels. Unfetchable tabs just open the
-tool's drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
+auto-trimmed. **The deliverable is a FILE**: a hand-built 4×6 PDF (288×432pt
+pages, JPEG XObjects — no pdf lib needed) — the extension flow opens it in a new
+tab (Chrome's viewer prints/saves it natively) and both tools have Open + 
+Download buttons. Manual crop stays as the fallback for vector-drawn labels.
+Unfetchable tabs get a captureVisibleTab screenshot to crop, else the drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
 edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
 watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 /ticket/printLabel), vendored `scripts/qrcode.js`, and

@@ -259,32 +259,76 @@ function renderQueue() {
       b.addEventListener('click', function () { var i = +b.getAttribute('data-i'); QUEUE[i].canvas = rot90(QUEUE[i].canvas); renderQueue(); });
     });
   }
-  $('#printBtn').disabled = !QUEUE.length;
+  $('#openBtn').disabled = $('#dlBtn').disabled = !QUEUE.length;
 }
 
-/* ---------- print ---------- */
-$('#printBtn').addEventListener('click', doPrint);
-function doPrint() {
-  if (!QUEUE.length) return;
-  var html = '<!doctype html><html><head><style>'
-    + '@page{size:4in 6in;margin:0}html,body{margin:0;padding:0}'
-    + '.pg{width:4in;height:6in;display:flex;align-items:center;justify-content:center;page-break-after:always;overflow:hidden}'
-    + '.pg:last-child{page-break-after:auto}'
-    + 'img{max-width:97%;max-height:98%}'
-    + '</style></head><body>'
-    + QUEUE.map(function (it) { return '<div class="pg"><img src="' + it.canvas.toDataURL('image/png') + '"></div>'; }).join('')
-    + '</body></html>';
-  var f = document.createElement('iframe');
-  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(f);
-  f.srcdoc = html;
-  f.onload = function () {
-    setTimeout(function () {
-      f.contentWindow.focus(); f.contentWindow.print();
-      setTimeout(function () { f.remove(); }, 60000);
-    }, 150);
-  };
+/* ---------- output ---------- */
+
+/* ---------- 4x6 PDF file output ----------
+   The deliverable is a FILE: a real PDF with 288x432pt (4x6in) pages, one
+   queued item per page, built by hand (JPEG XObjects) — no library needed. */
+function s2u(s){var u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u;}
+function canvasJpegBytes(c){
+  var b=atob(c.toDataURL('image/jpeg',0.95).split(',')[1]);
+  var u=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
+  return u;
 }
+function buildPdf(){
+  var W=288,H=432,M=4,chunks=[],offset=0,xref=[];
+  function push(x){var u=(typeof x==='string')?s2u(x):x;chunks.push(u);offset+=u.length;}
+  function obj(id,body){xref[id]=offset;push(id+' 0 obj\n');push(body);push('\nendobj\n');}
+  push('%PDF-1.4\n');
+  var n=QUEUE.length,kidIds=[];
+  for(var i=0;i<n;i++)kidIds.push(3+i*3);
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2,'<< /Type /Pages /Kids ['+kidIds.map(function(k){return k+' 0 R';}).join(' ')+'] /Count '+n+' >>');
+  for(var p=0;p<n;p++){
+    var c=QUEUE[p].canvas,jpg=canvasJpegBytes(c);
+    var k=Math.min((W-2*M)/c.width,(H-2*M)/c.height);
+    var w=c.width*k,h=c.height*k,x=(W-w)/2,y=(H-h)/2;
+    var pid=3+p*3,cid=pid+1,xid=pid+2;
+    obj(pid,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /XObject << /Im'+p+' '+xid+' 0 R >> >> /Contents '+cid+' 0 R >>');
+    var stream='q\n'+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+x.toFixed(2)+' '+y.toFixed(2)+' cm\n/Im'+p+' Do\nQ\n';
+    obj(cid,'<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream');
+    xref[xid]=offset;
+    push(xid+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+c.width+' /Height '+c.height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpg.length+' >>\nstream\n');
+    push(jpg);push('\nendstream\nendobj\n');
+  }
+  var total=3+n*3,xs=offset;
+  var xstr='xref\n0 '+total+'\n0000000000 65535 f \n';
+  for(var id=1;id<total;id++)xstr+=('0000000000'+xref[id]).slice(-10)+' 00000 n \n';
+  xstr+='trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xs+'\n%%EOF';
+  push(xstr);
+  var len=0;chunks.forEach(function(u){len+=u.length;});
+  var out=new Uint8Array(len),o=0;chunks.forEach(function(u){out.set(u,o);o+=u.length;});
+  return new Blob([out],{type:'application/pdf'});
+}
+var PDF_URL=null;
+function pdfName(){
+  var base=(window.SRC_NAME||'label').replace(/\.[a-z0-9]+$/i,'').replace(/[^\w\- ]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60)||'label';
+  return base+' 4x6.pdf';
+}
+function pdfUrl(){
+  if(PDF_URL)URL.revokeObjectURL(PDF_URL);
+  PDF_URL=URL.createObjectURL(buildPdf());
+  return PDF_URL;
+}
+function doOpen(){
+  if(!QUEUE.length)return;
+  var url=pdfUrl();
+  if(typeof chrome!=='undefined'&&chrome.tabs&&chrome.tabs.create)chrome.tabs.create({url:url});
+  else{var w=window.open(url,'_blank');if(!w)toast('Popup blocked — use Download instead',true);}
+}
+function doDownload(){
+  if(!QUEUE.length)return;
+  var a=document.createElement('a');
+  a.href=pdfUrl();a.download=pdfName();
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+$('#openBtn').addEventListener('click', doOpen);
+$('#dlBtn').addEventListener('click', doDownload);
 
 /* ---------- pre-load from the tab the user was on ---------- */
 (async function () {
@@ -293,13 +337,13 @@ function doPrint() {
     var st = got && got.mrt_label_stash;
     if (!st) return;
     chrome.storage.session.remove('mrt_label_stash');
-    if (st.name) $('#srcName').textContent = '· ' + st.name;
+    if (st.name) { window.SRC_NAME = st.name; $('#srcName').textContent = '· ' + st.name; }
     if (!st.b64) { toast('Couldn’t read that tab automatically — drop the file below instead', true); return; }
     var bin = atob(st.b64), u8 = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     if (st.kind === 'pdf') {
       var q = await addPdf(u8.buffer, true);
-      if (q > 0) { toast('Label auto-converted — opening print\u2026'); setTimeout(doPrint, 600); }
+      if (q > 0) { toast('Converted — opening the 4\u00d76 PDF\u2026'); setTimeout(doOpen, 500); }
       else toast('Couldn\u2019t auto-detect the label — drag a box around it below', true);
     } else if (st.captured) {
       /* screenshot fallback — the page couldn't be read directly, so this is
@@ -309,7 +353,7 @@ function doPrint() {
     } else {
       await addImageBlob(new Blob([u8]));
       var t = trimOrNull($('#pages').querySelector('canvas'));
-      if (t) { enqueue(t); toast('Label auto-converted — opening print\u2026'); setTimeout(doPrint, 600); }
+      if (t) { enqueue(t); toast('Converted — opening the 4\u00d76 PDF\u2026'); setTimeout(doOpen, 500); }
     }
   } catch (e) { toast('Auto-load failed — drop the file below instead', true); }
 })();
