@@ -24,7 +24,9 @@ function → droplet (shared-secret auth) → MobileSentrix API.
       credentials to the callback on activation, so the one-time payload is
       captured even if nobody's watching.
 - [ ] api-consumer request submitted on cpr.parts/api-consumer (form: consumer
-      name, callback URL, whitelist IP, optional file uploads)
+      name, callback URL, whitelist IP, optional file uploads).
+      Consumer Name = **iRepair Phone Shop, LLC** — the owner's actual entity
+      name (not placeholder text; don't "correct" it).
 - [ ] API credentials received from MobileSentrix
 - [ ] Relay service built on the droplet (bootstrap script pasted via the DO web
       console — owner keeps root access; no credentials shared into sessions)
