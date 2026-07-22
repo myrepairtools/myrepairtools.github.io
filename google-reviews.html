@@ -42,6 +42,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
 .s-late{color:#B02329;background:#FCEDED}
 .s-leg{color:#7A7F8F;background:#EFF0F4}
 .stag{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;border-radius:999px;padding:2px 9px;color:#fff}
+.dpill{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;border-radius:999px;padding:2px 8px;color:#5A6B93;background:#EEF2FA;border:1px solid #DCE3F2}
 .starsel{height:32px;border:1px solid var(--border);border-radius:9px;background:#fff;font-family:inherit;font-size:.78rem;font-weight:700;padding:0 8px}
 .empty{color:var(--grey);font-weight:700;padding:26px;text-align:center}
 .note{font-size:.9rem;color:var(--dark-grey);background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:20px}
@@ -125,8 +126,11 @@ const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 const isMgr=r=>['owner','admin','manager'].indexOf(r)>-1;
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
 function storeOrder(s){try{var x=CPRLocations.find(s);return x?x.order:99;}catch(e){return 99;}}
+// store colors come from the stores table (Settings → Locations); palette is the fallback
 const PALETTE={1:'#4FB0E3',2:'#DC282E',3:'#2D2D3B'};
-function storeColor(s){ return PALETTE[storeOrder(s)]||'#2E9E5B'; }
+let SCOLORS={};
+function storeColor(s){ return SCOLORS[s]||PALETTE[storeOrder(s)]||'#2E9E5B'; }
+function deptShort(d){ return String(d||'').replace(/\s+at\s+CPR.*$/i,''); }
 function fmtAge(iso){ if(!iso)return ''; const ms=Date.now()-new Date(iso).getTime();
   const h=Math.floor(ms/3600000); if(h<1)return Math.max(1,Math.floor(ms/60000))+'m'; if(h<48)return h+'h'; return Math.floor(h/24)+'d'; }
 function hrs(iso){ return (Date.now()-new Date(iso).getTime())/3600000; }
@@ -172,13 +176,15 @@ function boot(){
   load();
 }
 async function load(){
-  const [locR,rvR,qR,cR]=await Promise.all([
+  const [locR,rvR,qR,cR,scR]=await Promise.all([
     sb.from('gbp_locations').select('store,rating,review_count,last_sync_at'),
-    sb.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at,reply_text,replied_at,legacy_unanswered')
+    sb.from('gbp_reviews').select('id,store,stars,comment,reviewer_name,created_at,reply_text,replied_at,legacy_unanswered,department')
       .is('deleted_at',null).order('created_at',{ascending:false}).limit(600),
     sb.from('gbp_reply_queue').select('id,review_id,store,source,status,post_after,draft').in('status',['hold','posted']),
-    sb.from('gbp_config').select('key,value').in('key',['auto_reply','reply_style'])
+    sb.from('gbp_config').select('key,value').in('key',['auto_reply','reply_style']),
+    sb.from('stores').select('store,color')
   ]);
+  SCOLORS={}; (scR.data||[]).forEach(r=>{ if(r.color)SCOLORS[r.store]=r.color; });
   LOCS=(locR.data||[]).sort((a,b)=>storeOrder(a.store)-storeOrder(b.store));
   REVS=rvR.data||[];
   QMAP={}; (qR.data||[]).forEach(q=>{ const cur=QMAP[q.review_id];
@@ -234,6 +240,7 @@ function render(){
       +'<div class="top"><span class="stars">'+'★'.repeat(r.stars||0)+'<span style="color:#EDE3D2">'+'★'.repeat(Math.max(0,5-(r.stars||0)))+'</span></span>'
       +'<span class="who">'+esc(r.reviewer_name||'Anonymous')+'</span>'
       +'<span class="stag" style="background:'+storeColor(r.store)+'">'+esc(shortStore(r.store))+'</span>'
+      +(r.department?'<span class="dpill">'+esc(deptShort(r.department))+'</span>':'')
       +'<span class="age">'+esc(fmtAge(r.created_at))+' ago</span>'+statusPill(r)+'</div>'
       +(r.comment?'<div class="txt">'+esc(r.comment)+'</div>':'<div class="txt" style="color:var(--grey)">(rating only — no text)</div>')
       +(r.reply_text?'<div class="reply"><b>Our reply'+(QMAP[r.id]&&QMAP[r.id].source==='auto'&&QMAP[r.id].status==='posted'?' · AUTO':'')+(r.replied_at?' · '+esc(fmtAge(r.replied_at))+' ago':'')+':</b><br>'+esc(r.reply_text)+'</div>':'')
@@ -285,6 +292,7 @@ function renderDrawer(){
   let h='<div class="dh"><span class="stars" style="color:#E2A63C;letter-spacing:1px">'+'★'.repeat(r.stars||0)+'</span>'
     +'<span class="t">'+esc(r.reviewer_name||'Anonymous')+'</span>'
     +'<span class="stag" style="background:'+storeColor(r.store)+'">'+esc(shortStore(r.store))+'</span>'
+    +(r.department?'<span class="dpill">'+esc(deptShort(r.department))+'</span>':'')
     +'<button class="x" data-x>✕</button></div>';
   h+='<div class="db">';
   h+='<div class="quote"><div class="qt"><span class="age" style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(fmtAge(r.created_at))+' ago</span></div>'

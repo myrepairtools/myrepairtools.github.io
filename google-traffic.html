@@ -128,8 +128,10 @@ const MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','D
 
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
 function storeOrder(s){try{var x=CPRLocations.find(s);return x?x.order:99;}catch(e){return 99;}}
-const PALETTE={1:'#4FB0E3',2:'#DC282E',3:'#2D2D3B'};   // Eugene blue · Salem NE red · Clackamas dark
-function storeColor(s){ return PALETTE[storeOrder(s)]||'#2E9E5B'; }
+// store colors come from the stores table (Settings → Locations); palette is the fallback
+const PALETTE={1:'#4FB0E3',2:'#DC282E',3:'#2D2D3B'};
+let SCOLORS={};
+function storeColor(s){ return SCOLORS[s]||PALETTE[storeOrder(s)]||'#2E9E5B'; }
 function ymKey(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2); }
 function ymAdd(ym,n){ const p=ym.split('-').map(Number); const d=new Date(p[0],p[1]-1+n,1); return ymKey(d); }
 function ymLabel(ym){ const p=ym.split('-').map(Number); return MONL[p[1]-1]+' '+p[0]; }
@@ -183,12 +185,14 @@ function boot(){
   loadStatic();
 }
 async function loadStatic(){
-  const [locR,rmR,thR,opR]=await Promise.all([
+  const [locR,rmR,thR,opR,scR]=await Promise.all([
     sb.from('gbp_locations').select('*'),
     sb.from('gbp_reviews_monthly').select('*'),
     sb.from('gbp_metrics_daily').select('date').order('date',{ascending:false}).limit(1),
-    sb.from('gbp_reviews').select('store,created_at').is('reply_text',null).is('deleted_at',null).eq('legacy_unanswered',false)
+    sb.from('gbp_reviews').select('store,created_at').is('reply_text',null).is('deleted_at',null).eq('legacy_unanswered',false),
+    sb.from('stores').select('store,color')
   ]);
+  SCOLORS={}; (scR.data||[]).forEach(r=>{ if(r.color)SCOLORS[r.store]=r.color; });
   LOCS=(locR.data||[]).sort((a,b)=>storeOrder(a.store)-storeOrder(b.store));
   RMONTH=rmR.data||[];
   THROUGH=(thR.data&&thR.data[0])?String(thR.data[0].date).slice(0,10):null;
