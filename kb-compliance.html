@@ -77,43 +77,63 @@ async function resolveMe(sess){
 sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 (async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 
-let STAFF=[],ARTS=[],MODULES=[],READS=[],ASSIGN={},QUIZ={},ATT=[],SEL='all';
+let STAFF=[],ARTS=[],MODULES=[],READS=[],ASSIGN={},QUIZ={},ATT=[],STEPS=[],SDONE={},SBN={},SEL='all';
 async function boot(){
   if(!isMgr(AUTH.role)){ $('#page').innerHTML='<div class="gate">Compliance is for managers &amp; owners.</div>'; return; }
-  const [st,a,m,r,asn,qz,att]=await Promise.all([
+  const [st,a,m,r,asn,qz,att,sp,sd]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,active').eq('active',true).order('display_name'),
-    sb.from('kb_articles').select('id,title,slug,require_ack,module_id,sort_order,status,published_at').eq('status','published'),
+    sb.from('kb_articles').select('id,title,slug,require_ack,module_id,sort_order,status,published_at,min_role').eq('status','published'),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('kb_reads').select('article_id,staff_id,acknowledged_at'),
     sb.from('onboarding_assignments').select('staff_id,started_at'),
     sb.from('kb_quizzes').select('id,article_id,kb_quiz_questions(id)').eq('active',true),
-    sb.from('kb_quiz_attempts').select('quiz_id,staff_id,passed')
+    sb.from('kb_quiz_attempts').select('quiz_id,staff_id,passed'),
+    sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
+    sb.from('onboarding_step_done').select('id,step_id,staff_id,done_by,done_at')
   ]);
   STAFF=(st.data||[]).filter(s=>s.role!=='owner');
+  SBN={}; (st.data||[]).forEach(s=>SBN[s.id]=s.display_name);
   ARTS=a.data||[]; MODULES=m.data||[]; READS=r.data||[];
   ASSIGN={}; (asn.data||[]).forEach(x=>ASSIGN[x.staff_id]=x);
   QUIZ={}; (qz.data||[]).forEach(q=>{ if((q.kb_quiz_questions||[]).length)QUIZ[q.article_id]={id:q.id,nq:q.kb_quiz_questions.length}; });
   ATT=att.data||[];
+  const modIds=MODULES.map(m2=>m2.id);
+  STEPS=(sp.data||[]).filter(s=>modIds.indexOf(s.module_id)>-1);
+  SDONE={}; (sd.data||[]).forEach(x=>{ SDONE[x.step_id+':'+x.staff_id]=x; });
   draw();
 }
 const ackOf=(sid,aid)=>READS.some(x=>x.staff_id===sid&&x.article_id===aid&&x.acknowledged_at);
 const passOf=(sid,qid)=>ATT.some(x=>x.staff_id===sid&&x.quiz_id===qid&&x.passed);
+const stepOf=(sid,stepId)=>SDONE[stepId+':'+sid]||null;
+const artDoneFor=(sid,a)=>{ const q=QUIZ[a.id]; return ackOf(sid,a.id)&&(!q||passOf(sid,q.id)); };
+/* merged per-module items, ordered like knowledge.html's moduleItems() */
+function itemCmp(x,y){ return (x.sort-y.sort)
+  || (x.kind===y.kind?0:(x.kind==='a'?-1:1))
+  || (x.kind==='a'?(x.a.id-y.a.id):(x.s.id-y.s.id)); }
+function itemsOf(modId){
+  return ARTS.filter(a=>a.module_id===modId).map(a=>({kind:'a',a,sort:a.sort_order||0}))
+    .concat(STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0})))
+    .sort(itemCmp);
+}
+/* an article a person can't see (managers-only) isn't part of THEIR track */
+const canRead=(person,a)=>a.min_role!=='manager'||isMgr(person.role);
 
 function draw(){
   const staff=STAFF.filter(s=>SEL==='all'||s.home_store===SEL);
   const modArts=MODULES.map(m=>ARTS.filter(x=>x.module_id===m.id).sort((p,q)=>(p.sort_order-q.sort_order)||(p.id-q.id))).flat();
   const moduleQuizzes=modArts.filter(x=>QUIZ[x.id]);
+  const totalItems=modArts.length+STEPS.length;   // articles + task steps = the track
   const reqArts=ARTS.filter(x=>x.require_ack).sort((p,q)=>new Date(q.published_at||0)-new Date(p.published_at||0));
   const reqCols=reqArts.slice(0,4);
   const now=Date.now();
   const isOverdue=a=>a.published_at&&(now-new Date(a.published_at))>OVERDUE_DAYS*86400000;
-  // per-person rollup
+  // per-person rollup (articles done + task steps done, same math as My Onboarding)
   const rows=staff.map(s=>{
-    const done=modArts.filter(a=>{
-      const q=QUIZ[a.id];
-      return ackOf(s.id,a.id)&&(!q||passOf(s.id,q.id));
-    }).length;
-    const pct=modArts.length?Math.round(done/modArts.length*100):null;
+    const myArts=modArts.filter(a=>canRead(s,a));
+    const myTotal=myArts.length+STEPS.length;
+    const done=myArts.filter(a=>artDoneFor(s.id,a)).length
+      +STEPS.filter(st=>stepOf(s.id,st.id)).length;
+    const pct=myTotal?Math.round(done/myTotal*100):(totalItems?null:null);
     const quizPassed=moduleQuizzes.filter(a=>passOf(s.id,QUIZ[a.id].id)).length;
     const overdue=reqArts.filter(a=>isOverdue(a)&&!ackOf(s.id,a.id)).length;
     return {s,pct,done,quizPassed,overdue,started:(ASSIGN[s.id]||{}).started_at};
@@ -160,13 +180,31 @@ function draw(){
 function openDetail(sid,modArts,reqArts){
   const s=STAFF.find(x=>x.id===sid); if(!s)return;
   const rows=[];
-  modArts.forEach(a=>{
-    const q=QUIZ[a.id];
-    const ok=ackOf(sid,a.id)&&(!q||passOf(sid,q.id));
-    rows.push('<div class="drow"><span class="pill '+(ok?'ok">✓':'no">—')+'</span><span style="flex:1">'+esc(a.title)+'</span>'
-      +(q?'<span style="font-size:.72rem;color:var(--grey)">'+(passOf(sid,q.id)?'quiz ✓':'quiz —')+'</span>':'')+'</div>');
+  MODULES.forEach(m=>{
+    const items=itemsOf(m.id);
+    if(!items.length)return;
+    rows.push('<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding:10px 0 4px">'+esc(m.name)+'</div>');
+    const person=STAFF.find(x=>x.id===sid);
+    items.forEach(it=>{
+      if(it.kind==='a'){
+        const a=it.a;
+        if(person&&!canRead(person,a))return;
+        const q=QUIZ[a.id],ok=artDoneFor(sid,a);
+        rows.push('<div class="drow"><span class="pill '+(ok?'ok">✓':'no">—')+'</span><span style="flex:1">'+esc(a.title)+'</span>'
+          +(q?'<span style="font-size:.72rem;color:var(--grey)">'+(passOf(sid,q.id)?'quiz ✓':'quiz —')+'</span>':'')
+          +'<span style="font-size:.72rem;color:var(--grey)">article</span></div>');
+      }else{
+        const st=it.s,d=stepOf(sid,st.id);
+        rows.push('<div class="drow"><button class="pill '+(d?'ok':'no')+'" data-tgl="'+st.id+'" style="border:none;cursor:pointer" title="Click to '+(d?'un-mark':'mark done')+'">'+(d?'✓':'—')+'</button>'
+          +'<span style="flex:1">'+esc(st.title)
+          +(d?'<div style="font-size:.7rem;font-weight:600;color:var(--grey)">'+(d.done_by&&SBN[d.done_by]?esc(SBN[d.done_by])+' · ':'')+fmtD(d.done_at)+'</div>':'')+'</span>'
+          +'<span style="font-size:.72rem;color:var(--grey)">'+(st.who==='manager'?'manager step':'employee step')+'</span></div>');
+      }
+    });
   });
-  reqArts.filter(a=>!a.module_id).forEach(a=>{
+  const loose=reqArts.filter(a=>!a.module_id);
+  if(loose.length)rows.push('<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);padding:10px 0 4px">Required reading</div>');
+  loose.forEach(a=>{
     rows.push('<div class="drow"><span class="pill '+(ackOf(sid,a.id)?'ok">✓':'no">—')+'</span><span style="flex:1">'+esc(a.title)+'</span><span style="font-size:.72rem;color:var(--grey)">required</span></div>');
   });
   $('#mdlWrap').innerHTML='<div class="ovl"><div class="mdl">'
@@ -175,6 +213,21 @@ function openDetail(sid,modArts,reqArts){
     +'</div></div>';
   $('#mx').addEventListener('click',()=>{ $('#mdlWrap').innerHTML=''; });
   document.querySelector('#mdlWrap .ovl').addEventListener('mousedown',e=>{ if(e.target.classList.contains('ovl'))$('#mdlWrap').innerHTML=''; });
+  // manager tick-offs: toggle a step done row for THIS person, then repaint
+  document.querySelectorAll('#mdlWrap [data-tgl]').forEach(b=>b.addEventListener('click',async()=>{
+    const stepId=+b.dataset.tgl, cur=stepOf(sid,stepId);
+    b.disabled=true;
+    if(cur){
+      const r=await sb.from('onboarding_step_done').delete().eq('id',cur.id);
+      if(r.error){ b.disabled=false; return; }
+      delete SDONE[stepId+':'+sid];
+    }else{
+      const r=await sb.from('onboarding_step_done').insert({step_id:stepId,staff_id:sid,done_by:AUTH.id}).select().single();
+      if(r.error){ b.disabled=false; return; }
+      SDONE[stepId+':'+sid]=r.data;
+    }
+    draw(); openDetail(sid,modArts,reqArts);
+  }));
 }
 </script>
 </body>

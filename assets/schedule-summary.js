@@ -86,7 +86,7 @@
             client.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
             client.from('staff_schedule').select('staff_id,store,shifts').eq('staff_id',me.id),
             client.from('time_off_requests').select('staff_id,type,start_date,end_date,status').eq('staff_id',me.id).eq('status','approved'),
-            client.from('qbtime_timesheets').select('seconds,on_the_clock,biz_date').eq('staff_id',me.id).gte('biz_date',wkStart).lte('biz_date',wkEnd)
+            client.from('qbtime_timesheets').select('seconds,off_seconds,on_the_clock,biz_date').eq('staff_id',me.id).gte('biz_date',wkStart).lte('biz_date',wkEnd)
           ]).then(function(res){
             var sh=res[0], hr=res[1], sc=res[2], rq=res[3], ts=res[4];
             SHIFT_BY_ID={}; (sh.data||[]).forEach(function(x){ SHIFT_BY_ID[x.id]=x; });
@@ -109,7 +109,7 @@
             }
             // actual worked hours this week (Sun–Sat) from QB Time + OT over 40
             var workedSec=0, onClock=false;
-            (ts&&ts.data||[]).forEach(function(r){ workedSec+=(+r.seconds||0); if(r.on_the_clock) onClock=true; });
+            (ts&&ts.data||[]).forEach(function(r){ workedSec+=Math.max(0,(+r.seconds||0)-(+r.off_seconds||0)); if(r.on_the_clock) onClock=true; });
             var workedHours=Math.round((workedSec/3600)*10)/10, otHours=Math.round(Math.max(0,workedHours-40)*10)/10;
 
             return { name:me.display_name, today:today, weekHours:Math.round((weekMin/60)*10)/10,

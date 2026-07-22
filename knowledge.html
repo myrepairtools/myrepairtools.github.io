@@ -253,7 +253,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 (async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 
 /* ---------- state ---------- */
-let CATS=[],ARTS=[],READS={},MODULES=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={};
+let CATS=[],ARTS=[],READS={},MODULES=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
 let MODE='list';                 // list | article | onboarding | quiz | quizresult | edit
 let CAT=(function(){try{return localStorage.getItem('cprKbCat')||'all';}catch(e){return 'all';}})();
 let OPEN=null;                   // article being viewed/edited
@@ -261,7 +261,7 @@ let QZ=null;                     // {quiz, questions, idx, answers[], result}
 let SEARCHQ='',SRES=null,SEARCH_T=null;
 
 async function loadAll(){
-  const [c,a,r,m,asn,qz,att,st]=await Promise.all([
+  const [c,a,r,m,asn,qz,att,st,sp,sd]=await Promise.all([
     sb.from('kb_categories').select('*').order('sort'),
     sb.from('kb_articles').select('*').order('updated_at',{ascending:false}),
     sb.from('kb_reads').select('article_id,first_read_at,acknowledged_at,last_viewed_at').eq('staff_id',AUTH.id),
@@ -269,9 +269,12 @@ async function loadAll(){
     sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id).maybeSingle(),
     sb.from('kb_quizzes').select('id,article_id,pass_pct,active,kb_quiz_questions(id)').eq('active',true),
     sb.from('kb_quiz_attempts').select('quiz_id,score_pct,passed,attempt_no').eq('staff_id',AUTH.id),
-    sb.from('staff').select('id,display_name').eq('active',true)
+    sb.from('staff').select('id,display_name').eq('active',true),
+    sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
+    sb.from('onboarding_step_done').select('step_id,done_by,done_at').eq('staff_id',AUTH.id)
   ]);
   CATS=c.data||[]; ARTS=a.data||[]; MODULES=m.data||[]; ASSIGN=asn.data||null;
+  STEPS=sp.data||[]; SDONE={}; (sd.data||[]).forEach(x=>SDONE[x.step_id]=x);
   READS={}; (r.data||[]).forEach(x=>READS[x.article_id]=x);
   QUIZ={}; (qz.data||[]).forEach(q=>{ QUIZ[q.article_id]={id:q.id,pass_pct:q.pass_pct,nq:(q.kb_quiz_questions||[]).length}; });
   MYATT={}; (att.data||[]).forEach(x=>{ const cur=MYATT[x.quiz_id]||{best:0,passed:false,attempts:0};
@@ -288,19 +291,31 @@ function acked(a){ const r=READS[a.id]; return r&&r.acknowledged_at; }
 function viewedAt(a){ const r=READS[a.id]; return r?(r.last_viewed_at||r.first_read_at):null; }
 function pubArts(){ return ARTS.filter(a=>a.status==='published'); }
 function reqOutstanding(){ return pubArts().filter(a=>a.require_ack&&!acked(a)); }
-/* onboarding steps: published articles slotted into a module, in order */
-function moduleSteps(modId){ return pubArts().filter(a=>a.module_id===modId).sort((x,y)=>(x.sort_order-y.sort_order)||(x.id-y.id)); }
-function stepDone(a){ const q=QUIZ[a.id]; return !!acked(a)&&(!q||!q.nq||(MYATT[q.id]&&MYATT[q.id].passed)); }
-/* full track: modules with their steps; global sequential unlock */
+/* onboarding items: a module's track = its ARTICLES (kb_articles.module_id)
+   merged with its TASK STEPS (onboarding_steps — HR paperwork, account setups),
+   ordered together by sort_order. */
+function moduleItems(modId){
+  const items=pubArts().filter(a=>a.module_id===modId).map(a=>({kind:'a',a,sort:a.sort_order||0,id:'a'+a.id}))
+    .concat(STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0,id:'s'+s.id})));
+  return items.sort(itemCmp);
+}
+/* canonical order for mixed module items: sort_order, then articles before
+   steps, then numeric id — IDENTICAL in Setup, My Onboarding & Compliance */
+function itemCmp(x,y){ return (x.sort-y.sort)
+  || (x.kind===y.kind?0:(x.kind==='a'?-1:1))
+  || (x.kind==='a'?(x.a.id-y.a.id):(x.s.id-y.s.id)); }
+function articleDone(a){ const q=QUIZ[a.id]; return !!acked(a)&&(!q||!q.nq||(MYATT[q.id]&&MYATT[q.id].passed)); }
+function itemDone(it){ return it.kind==='a'?articleDone(it.a):!!SDONE[it.s.id]; }
+/* full track: modules with their merged items; global sequential unlock */
 function track(){
-  const mods=MODULES.map(mod=>({mod,steps:moduleSteps(mod.id)})).filter(x=>x.steps.length);
+  const mods=MODULES.map(mod=>({mod,items:moduleItems(mod.id)})).filter(x=>x.items.length);
   let nextFound=false;
   mods.forEach((mx,mi)=>{
-    mx.done=mx.steps.filter(stepDone).length;
-    mx.total=mx.steps.length;
-    mx.quizzes=mx.steps.filter(a=>QUIZ[a.id]&&QUIZ[a.id].nq).length;
-    mx.states=mx.steps.map(a=>{
-      if(stepDone(a))return 'done';
+    mx.done=mx.items.filter(itemDone).length;
+    mx.total=mx.items.length;
+    mx.quizzes=mx.items.filter(it=>it.kind==='a'&&QUIZ[it.a.id]&&QUIZ[it.a.id].nq).length;
+    mx.states=mx.items.map(it=>{
+      if(itemDone(it))return 'done';
       if(!nextFound){ nextFound=true; return 'next'; }
       return 'lock';
     });
@@ -310,7 +325,6 @@ function track(){
   return mods;
 }
 function obOutstanding(){ const t=track(); return t.reduce((n,mx)=>n+(mx.total-mx.done),0); }
-function obNextStep(){ const t=track(); for(const mx of t){ const i=mx.states.indexOf('next'); if(i>-1)return mx.steps[i]; } return null; }
 
 /* ---------- hash routing: #a=slug · #c=cat · #onboarding · #quiz=slug · #edit=id · #new ---------- */
 function applyHash(){
@@ -318,6 +332,7 @@ function applyHash(){
   let m;
   if((m=h.match(/^a=([\w-]+)/))){ const art=ARTS.find(x=>x.slug===m[1]); if(art){ openArticle(art.id); return true; } }
   if(h==='onboarding'){ MODE='onboarding'; draw(); return true; }
+  if(h==='modules'&&isMgr(AUTH.role)){ MODE='modules'; draw(); return true; }
   if((m=h.match(/^quiz=([\w-]+)/))){ const art=ARTS.find(x=>x.slug===m[1]); if(art&&QUIZ[art.id]){ startQuiz(art); return true; } }
   if((m=h.match(/^edit=(\d+)/))&&isMgr(AUTH.role)){ const art=ARTS.find(x=>x.id===+m[1]); if(art){ OPEN=art; MODE='edit'; draw(); return true; } }
   if(h==='new'&&isMgr(AUTH.role)){ OPEN=null; MODE='edit'; draw(); return true; }
@@ -364,6 +379,7 @@ function publishNav(){
     items.push({grp:'Manage'});
     items.push({h:'c=drafts',i:'✏️',l:'Drafts',c:nd||''});
     if(na)items.push({h:'c=archived',i:'🗄️',l:'Archived',c:na});
+    items.push({h:'modules',i:'🧩',l:'Onboarding Setup'});
     items.push({u:'kb-compliance.html',i:'📋',l:'Compliance'});
   }
   try{ localStorage.setItem('cprKbNav',JSON.stringify(items)); }catch(e){}
@@ -468,7 +484,8 @@ function drawArticle(){
   const author=SBN[a.updated_by]||SBN[a.created_by]||'';
   // next step in the same module
   let next=null;
-  if(mod){ const steps=moduleSteps(mod.id); const i=steps.findIndex(x=>x.id===a.id); if(i>-1&&steps[i+1])next=steps[i+1]; }
+  if(mod){ const items=moduleItems(mod.id); const i=items.findIndex(x=>x.kind==='a'&&x.a.id===a.id);
+    if(i>-1&&items[i+1])next=items[i+1].kind==='a'?items[i+1].a:null; }
   const inner=''
   +'<div class="crumb"><a data-nav="list">‹ Knowledge Base</a><span class="sep">/</span><span class="cat">'+esc(catName(a.category_id))+'</span>'
     +'<span style="flex:1"></span>'
@@ -518,10 +535,10 @@ async function drawOnboarding(){
   const t=track();
   const total=t.reduce((n,m)=>n+m.total,0), done=t.reduce((n,m)=>n+m.done,0);
   const pct=total?Math.round(done/total*100):0;
-  const quizPassed=t.reduce((n,mx)=>n+mx.steps.filter(a=>QUIZ[a.id]&&MYATT[QUIZ[a.id].id]&&MYATT[QUIZ[a.id].id].passed).length,0);
+  const quizPassed=t.reduce((n,mx)=>n+mx.items.filter(it=>it.kind==='a'&&QUIZ[it.a.id]&&MYATT[QUIZ[it.a.id].id]&&MYATT[QUIZ[it.a.id].id].passed).length,0);
   const curWeek=Math.min(t.findIndex(m=>!m.complete)+1||t.length,t.length)||1;
   let inner='';
-  if(!t.length){ inner='<div class="empty">No onboarding track yet — managers assign articles to a module in the article editor.</div>'; }
+  if(!t.length){ inner='<div class="empty">No onboarding track yet — managers build it in Onboarding Setup (nav → Manage).</div>'; }
   else{
     inner+='<div class="obhero"><div class="obtile">🎓</div><div style="min-width:0">'
       +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.98rem">Onboarding — '+esc(AUTH.name)+'</div>'
@@ -535,32 +552,207 @@ async function drawOnboarding(){
         +(mx.mod.subtitle?'<span class="ms">'+esc(mx.mod.subtitle)+'</span>':'')
         +'<span style="flex:1"></span>'
         +(locked
-          ?'<span class="ms">🔒 Unlocks when '+esc((t[mi-1]||{}).mod?t[mi-1].mod.name.split('—')[0].trim():'the previous week')+' is complete · '+mx.total+' article'+(mx.total===1?'':'s')+' · '+mx.quizzes+' quiz'+(mx.quizzes===1?'':'zes')+'</span>'
+          ?'<span class="ms">🔒 Unlocks when '+esc((t[mi-1]||{}).mod?t[mi-1].mod.name.split('—')[0].trim():'the previous week')+' is complete · '+mx.total+' item'+(mx.total===1?'':'s')+(mx.quizzes?' · '+mx.quizzes+' quiz'+(mx.quizzes===1?'':'zes'):'')+'</span>'
           :'<div class="modbar"><i style="width:'+Math.round(mx.done/mx.total*100)+'%"></i></div><span style="font-size:.72rem;font-weight:800;color:var(--dark-grey)">'+mx.done+' / '+mx.total+'</span>')
         +'</div>';
-      if(!locked)mx.steps.forEach((a,si)=>{
+      if(!locked)mx.items.forEach((it,si)=>{
         const st=mx.states[si];
-        const q=QUIZ[a.id]; const my=q?MYATT[q.id]:null;
-        const chip=q&&q.nq?(my&&my.passed
-          ?'<span class="quizchip pass">✓ Quiz '+my.best+'%</span>'
-          :'<span class="quizchip">Quiz · '+q.nq+' question'+(q.nq===1?'':'s')+'</span>'):'';
         const ics=st==='done'?['✓','var(--greenbg)','var(--greend)']:st==='next'?['▶','var(--blue)','#fff']:['🔒','var(--light-grey)','var(--grey)'];
-        inner+='<div class="steprow '+st+'">'
-          +'<div class="stepic" style="background:'+ics[1]+';color:'+ics[2]+'">'+ics[0]+'</div>'
-          +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+'</div>'
-          +'<div class="stepmeta">'+readMins(a.body)+' min · '+esc(catName(a.category_id))+'</div></div>'
-          +chip
-          +(st==='done'&&acked(a)?'<span class="footnote">'+fmtD(READS[a.id].acknowledged_at)+'</span>':'')
-          +(st==='next'?'<button class="btn pri sm" data-start="'+a.id+'">Start reading</button>':'')
-        +'</div>';
+        if(it.kind==='a'){
+          const a=it.a, q=QUIZ[a.id], my=q?MYATT[q.id]:null;
+          const chip=q&&q.nq?(my&&my.passed
+            ?'<span class="quizchip pass">✓ Quiz '+my.best+'%</span>'
+            :'<span class="quizchip">Quiz · '+q.nq+' question'+(q.nq===1?'':'s')+'</span>'):'';
+          inner+='<div class="steprow '+st+'">'
+            +'<div class="stepic" style="background:'+ics[1]+';color:'+ics[2]+'">'+ics[0]+'</div>'
+            +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+'</div>'
+            +'<div class="stepmeta">'+readMins(a.body)+' min · '+esc(catName(a.category_id))+'</div></div>'
+            +chip
+            +(st==='done'&&acked(a)?'<span class="footnote">'+fmtD(READS[a.id].acknowledged_at)+'</span>':'')
+            +(st==='next'?'<button class="btn pri sm" data-start="'+a.id+'">Start reading</button>':'')
+          +'</div>';
+        }else{
+          const s=it.s, d=SDONE[s.id], mine=s.who==='employee';
+          inner+='<div class="steprow '+st+'">'
+            +'<div class="stepic" style="background:'+ics[1]+';color:'+ics[2]+'">'+ics[0]+'</div>'
+            +'<div class="stepmain"><div class="steptitle">'+esc(s.title)+'</div>'
+            +'<div class="stepmeta">'+(mine?'Your step':'Done with your manager')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+            +(st==='done'&&d?'<span class="footnote">'+(d.done_by&&SBN[d.done_by]?esc(SBN[d.done_by])+' · ':'')+fmtD(d.done_at)+'</span>':'')
+            +(st==='next'&&s.link_url?'<a class="btn sm" style="text-decoration:none" href="'+esc(s.link_url)+'">Open</a>':'')
+            +(st==='next'?(mine
+              ?'<button class="btn pri sm" data-stepdone="'+s.id+'">Mark done ✓</button>'
+              :'<span class="quizchip" style="background:#FDF6E7;color:#7A5A08">Waiting on your manager</span>'):'')
+          +'</div>';
+        }
       });
       inner+='</div>';
     });
   }
   $('#page').innerHTML=''
-    +'<div class="hd"><div><h1>🎓 My Onboarding</h1><div class="sub">Assigned reading &amp; quizzes — complete in order</div></div></div>'
+    +'<div class="hd"><div><h1>🎓 My Onboarding</h1><div class="sub">Assigned reading, setup steps &amp; quizzes — complete in order</div></div></div>'
     +inner;
   document.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>openArticle(+b.dataset.start)));
+  document.querySelectorAll('[data-stepdone]').forEach(b=>b.addEventListener('click',async()=>{
+    b.disabled=true;
+    const r=await sb.from('onboarding_step_done').insert({step_id:+b.dataset.stepdone,staff_id:AUTH.id,done_by:AUTH.id}).select().single();
+    if(r.error){ toast('Could not save: '+r.error.message,true); b.disabled=false; return; }
+    SDONE[+b.dataset.stepdone]=r.data; toast('Step complete ✓'); draw();
+  }));
+}
+
+/* ---------- Onboarding Setup (managers): modules + their mixed item lists ---------- */
+let MODSEL=null,REORDERING=false;
+function setupItems(modId){   // setup view includes drafts (flagged), unlike the live track
+  const arts=ARTS.filter(a=>a.module_id===modId&&a.status!=='archived').map(a=>({kind:'a',a,sort:a.sort_order||0}));
+  const steps=STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0}));
+  return arts.concat(steps).sort(itemCmp);
+}
+async function renumber(modId,items){   // persist merged order as 10,20,30…
+  for(let i=0;i<items.length;i++){
+    const want=(i+1)*10, it=items[i];
+    if(it.sort===want)continue;
+    if(it.kind==='a')await sb.from('kb_articles').update({sort_order:want}).eq('id',it.a.id);
+    else await sb.from('onboarding_steps').update({sort_order:want}).eq('id',it.s.id);
+  }
+}
+function drawModules(){
+  const mods=MODULES.slice().sort((a,b)=>a.sort-b.sort);
+  if(!mods.some(m=>m.id===MODSEL))MODSEL=mods.length?mods[0].id:null;
+  const cur=mods.find(m=>m.id===MODSEL)||null;
+  const items=cur?setupItems(cur.id):[];
+  const left='<div class="sidecard"><div class="sgh">Modules</div>'
+    +mods.map(m=>'<button class="srowbtn'+(cur&&m.id===cur.id?' on':'')+'" data-msel="'+m.id+'"><span class="sic">'+(m.sort===0?'🧑‍💼':'📖')+'</span><span class="slb">'+esc(m.name)+'</span><span class="scount">'+setupItems(m.id).length+'</span></button>').join('')
+    +'<div class="sdiv"></div><button class="srowbtn" id="mAdd"><span class="sic">＋</span><span class="slb">Add a module</span></button></div>';
+  let right='';
+  if(!cur)right='<div class="empty">Add your first module — e.g. “Week 1 — Bench basics”.</div>';
+  else{
+    const rows=items.map((it,i)=>{
+      const ud='<span style="display:inline-flex;gap:4px;flex:none">'
+        +'<button class="btn sm" data-up="'+i+'"'+(i===0?' disabled':'')+' style="padding:4px 9px">↑</button>'
+        +'<button class="btn sm" data-dn="'+i+'"'+(i===items.length-1?' disabled':'')+' style="padding:4px 9px">↓</button></span>';
+      if(it.kind==='a'){
+        const a=it.a, q=QUIZ[a.id];
+        return '<div class="steprow"><div class="atile" style="width:28px;height:28px;font-size:.85rem">'+esc(artIcon(a))+'</div>'
+          +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+(a.status==='draft'?' <span class="achip draft">Draft</span>':'')+'</div>'
+          +'<div class="stepmeta">Article · '+esc(catName(a.category_id))+(q&&q.nq?' · quiz ('+q.nq+')':'')+(a.require_ack?' · required':'')+'</div></div>'
+          +ud+'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
+      }
+      const s=it.s;
+      return '<div class="steprow"><div class="atile" style="width:28px;height:28px;font-size:.85rem">'+(s.who==='manager'?'🧑‍💼':'☑️')+'</div>'
+        +'<div class="stepmain"><div class="steptitle">'+esc(s.title)+'</div>'
+        +'<div class="stepmeta">'+(s.who==='manager'?'Manager completes':'Employee completes')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+        +ud+'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
+    }).join('');
+    const addable=ARTS.filter(a=>a.status!=='archived'&&a.module_id!==cur.id);
+    right='<div class="modcard"><div class="modhd" style="gap:12px;flex-wrap:wrap">'
+      +'<input class="btn sm" id="mName" value="'+esc(cur.name)+'" style="font-weight:900;min-width:230px;flex:1;text-align:left">'
+      +'<input class="btn sm" id="mSub" value="'+esc(cur.subtitle||'')+'" placeholder="Subtitle (optional)" style="min-width:200px;flex:1;text-align:left;font-weight:600">'
+      +'<button class="btn sm" id="mSave">Save</button>'
+      +'<button class="btn sm" id="mUp">↑</button><button class="btn sm" id="mDn">↓</button>'
+      +'<button class="btn sm" id="mArch" style="color:var(--red)">Archive</button></div>'
+      +(rows||'<div class="empty" style="padding:22px">Nothing in this module yet.</div>')
+      +'<div style="display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--row);flex-wrap:wrap;align-items:center">'
+        +'<button class="btn pri sm" id="stAdd">＋ Add a task step</button>'
+        +(addable.length?'<select id="artAdd" class="btn sm" style="max-width:280px"><option value="">＋ Add an article…</option>'
+          +addable.map(a=>'<option value="'+a.id+'">'+esc(a.title)+(a.module_id?' (in '+esc((MODULES.find(m=>m.id===a.module_id)||{}).name||'another module')+')':'')+(a.status==='draft'?' — draft':'')+'</option>').join('')+'</select>':'')
+      +'</div></div>'
+      +'<div class="footnote">Order is the order employees complete it — articles and task steps mix freely. Task steps marked “Manager completes” are ticked off per person from Compliance.</div>';
+  }
+  $('#page').innerHTML=''
+    +'<div class="hd"><div><h1>🧩 Onboarding Setup</h1><div class="sub">Build the new-hire track — modules, reading, HR &amp; account steps</div></div></div>'
+    +'<div class="cols">'+left+'<div style="min-width:0">'+right+'</div></div>';
+  document.querySelectorAll('[data-msel]').forEach(b=>b.onclick=()=>{ MODSEL=+b.dataset.msel; draw(); });
+  $('#mAdd')&&($('#mAdd').onclick=async()=>{
+    const name=prompt('Module name (e.g. "Week 3 — Advanced repairs"):'); if(!name)return;
+    const maxSort=Math.max.apply(null,[0].concat(MODULES.map(m=>m.sort)));
+    const r=await sb.from('onboarding_modules').insert({name:name.trim(),sort:maxSort+1}).select().single();
+    if(r.error){ toast(r.error.message,true); return; }
+    MODSEL=r.data.id; await refresh();
+  });
+  if(!cur)return;
+  $('#mSave').onclick=async()=>{
+    const r=await sb.from('onboarding_modules').update({name:$('#mName').value.trim()||cur.name,subtitle:$('#mSub').value.trim()||null}).eq('id',cur.id);
+    if(r.error){ toast(r.error.message,true); return; }
+    toast('Module saved'); await refresh();
+  };
+  const bump=async dir=>{
+    const i=mods.findIndex(m=>m.id===cur.id), j=i+dir;
+    if(j<0||j>=mods.length)return;
+    await sb.from('onboarding_modules').update({sort:mods[j].sort}).eq('id',cur.id);
+    await sb.from('onboarding_modules').update({sort:cur.sort}).eq('id',mods[j].id);
+    await refresh();
+  };
+  $('#mUp').onclick=()=>bump(-1); $('#mDn').onclick=()=>bump(1);
+  $('#mArch').onclick=async()=>{
+    if(!confirm('Archive "'+cur.name+'"? Its articles stay in the KB; its task steps stop appearing.'))return;
+    await sb.from('onboarding_modules').update({active:false}).eq('id',cur.id);
+    MODSEL=null; await refresh();
+  };
+  const move=async(i,dir)=>{
+    if(REORDERING)return; REORDERING=true;
+    try{
+      const j=i+dir; if(j<0||j>=items.length)return;
+      const sw=items[i]; items[i]=items[j]; items[j]=sw;
+      await renumber(cur.id,items); await refresh();
+    }finally{ REORDERING=false; }
+  };
+  document.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>move(+b.dataset.up,-1));
+  document.querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>move(+b.dataset.dn,1));
+  document.querySelectorAll('[data-aedit]').forEach(b=>b.onclick=()=>{ const a=ARTS.find(x=>x.id===+b.dataset.aedit); if(a){ OPEN=a; MODE='edit'; setHash('edit='+a.id); draw(); } });
+  document.querySelectorAll('[data-arem]').forEach(b=>b.onclick=async()=>{
+    await sb.from('kb_articles').update({module_id:null}).eq('id',+b.dataset.arem); await refresh();
+  });
+  document.querySelectorAll('[data-sedit]').forEach(b=>b.onclick=()=>openStepEditor(cur,STEPS.find(s=>s.id===+b.dataset.sedit)));
+  document.querySelectorAll('[data-sdel]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Delete this step? Completion history for it is removed too.'))return;
+    await sb.from('onboarding_steps').delete().eq('id',+b.dataset.sdel); await refresh();
+  });
+  $('#stAdd').onclick=()=>openStepEditor(cur,null);
+  const aa=$('#artAdd'); if(aa)aa.onchange=async()=>{
+    const id=+aa.value; if(!id)return;
+    const maxSort=Math.max.apply(null,[0].concat(items.map(it=>it.sort)));
+    await sb.from('kb_articles').update({module_id:cur.id,sort_order:maxSort+10}).eq('id',id);
+    await refresh();
+  };
+}
+function openStepEditor(mod,s){
+  const isNew=!s; s=s||{who:'manager'};
+  const wrapEl=$('#mdlWrap');
+  let who=s.who||'manager';
+  function paint(){
+    wrapEl.innerHTML='<div class="ovl"><div class="mdl" style="width:520px">'
+      +'<div class="mdl-hd"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem">'+(isNew?'New task step':'Edit task step')+'</div><button class="mdl-x" data-close>✕</button></div>'
+      +'<div class="mdl-bd">'
+      +'<label class="fl" style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Step title</label>'
+      +'<input id="stTitle" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:12px" value="'+esc(s.title||'')+'" placeholder="e.g. I-9 employment eligibility verification">'
+      +'<label class="fl" style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Note (one line, optional)</label>'
+      +'<input id="stNote" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem;margin-bottom:12px" value="'+esc(s.note||'')+'" placeholder="What it involves / what to bring">'
+      +'<label class="fl" style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:6px">Who completes it</label>'
+      +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+        +'<button class="btn sm'+(who==='manager'?' dk':'')+'" data-who="manager">Manager (with the employee)</button>'
+        +'<button class="btn sm'+(who==='employee'?' dk':'')+'" data-who="employee">Employee themselves</button></div>'
+      +'<label class="fl" style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Link (optional — a page that does this step)</label>'
+      +'<input id="stLink" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem" value="'+esc(s.link_url||'')+'" placeholder="profile.html">'
+      +'</div>'
+      +'<div class="mdl-ft"><button class="btn sm" data-close>Cancel</button><button class="btn pri sm" id="stSave">'+(isNew?'Add step':'Save step')+'</button></div>'
+      +'</div></div>';
+    wrapEl.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{ wrapEl.innerHTML=''; });
+    wrapEl.querySelectorAll('[data-who]').forEach(b=>b.onclick=()=>{ who=b.dataset.who;
+      const t=$('#stTitle').value,n=$('#stNote').value,l=$('#stLink').value; paint();
+      $('#stTitle').value=t; $('#stNote').value=n; $('#stLink').value=l; });
+    $('#stSave').onclick=async()=>{
+      const title=$('#stTitle').value.trim(); if(!title){ toast('Give the step a title.',true); return; }
+      const row={title,note:$('#stNote').value.trim()||null,who,link_url:$('#stLink').value.trim()||null};
+      let r;
+      if(isNew){
+        const maxSort=Math.max.apply(null,[0].concat(setupItems(mod.id).map(it=>it.sort)));
+        r=await sb.from('onboarding_steps').insert(Object.assign(row,{module_id:mod.id,sort_order:maxSort+10}));
+      }else r=await sb.from('onboarding_steps').update(row).eq('id',s.id);
+      if(r.error){ toast(r.error.message,true); return; }
+      wrapEl.innerHTML=''; toast(isNew?'Step added':'Step saved'); await refresh();
+    };
+  }
+  paint();
 }
 
 /* ---------- quiz ---------- */
@@ -905,6 +1097,7 @@ async function announcePublish(a,isNew){
 function draw(){
   publishNav();   // keep the nav pane's counts/badges/active row current
   if(MODE==='article'&&OPEN)drawArticle();
+  else if(MODE==='modules'&&isMgr(AUTH.role))drawModules();
   else if(MODE==='onboarding')drawOnboarding();
   else if(MODE==='quiz'&&QZ)drawQuiz();
   else if(MODE==='quizresult'&&QZ&&QZ.result)drawQuizResult();

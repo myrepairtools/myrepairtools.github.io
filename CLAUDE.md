@@ -412,6 +412,23 @@ taken_by, Square ids, status — authenticated read). Payments taken here still 
 manual entry on the RepairQ ticket; `reference_id` carries the ticket # for
 reconciliation. Refunds deliberately stay in Square's dashboard.
 
+**MobileSentrix API (parts ordering — pipeline in progress):** approved api-consumer
+on cpr.parts (Consumer Name "iRepair Phone Shop, LLC" — the owner's real entity).
+Magento OAuth 1.0a: creds live ONLY as Supabase function secrets
+`MS_CONSUMER_KEY`/`MS_CONSUMER_SECRET` (+ `MS_START_KEY` gating the connect link) —
+**never commit them**. **Each store has its own cpr.parts account**, so tokens are
+per store: the **`ms-callback` edge function** is both the registered OAuth callback
+and the connect surface — `?action=start&k=<MS_START_KEY>` renders a store picker,
+logs a START marker (which store the flow is for), 302s into
+`/oauth/authorize/identifier` (owner signs in with THAT store's account; sign out /
+private window between stores), then the callback auto-exchanges at
+`/oauth/authorize/identifiercallback` and upserts the long-lived token into
+`integration_tokens` provider `ms:<store>` (`meta.access_token_secret`). Everything
+logs to `ms_callback_log` (owner read). Owner-authed `?action=status` powers the
+**Settings → Integrations → MobileSentrix** card (per-store Connect/Reconnect
+buttons + status pills). Order→QBO-expense pipeline + droplet relay (only if the IP
+whitelist turns out to apply to production) per docs/mobilesentrix-pipeline.md.
+
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
 RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_SERVER/_WEBHOOK_SECRET` +
@@ -648,9 +665,16 @@ per-user **Viewed** column — "Never" amber, red when required-unacked), restyl
 reading view (read-time meta, `!> ` amber callouts in the light markup, footer
 "✓ Mark as read" = `kb_reads.acknowledged_at`, the read receipt that feeds
 everything), **My Onboarding** (`#onboarding` — sequenced modules from
-`onboarding_modules` + articles' `module_id`/`sort_order`; steps unlock strictly in
-order, a step with a quiz isn't done until the quiz passes; assignment row created
-lazily in `onboarding_assignments`), **quizzes** (`kb_quizzes`/`kb_quiz_questions`
+`onboarding_modules`; a module's track MIXES articles (`module_id`/`sort_order`) with
+**task steps** (`onboarding_steps`: HR paperwork & account setups — I-9, W-4, QBO
+payroll, QB Time, RepairQ credentials — each `who` employee|manager; completions in
+`onboarding_step_done`, employee steps self-ticked, manager steps ticked per-person
+from KB Compliance's detail modal); items unlock strictly in order, a step with a
+quiz isn't done until the quiz passes; assignment row created lazily in
+`onboarding_assignments`; a seeded "Getting Set Up — HR & Accounts" module ships the
+standard steps), **Onboarding Setup** (`#modules`, manager-only, nav Manage group —
+create/rename/reorder modules, order their mixed items, add/edit task steps, attach
+articles; schema docs/sql/onboarding-steps.sql), **quizzes** (`kb_quizzes`/`kb_quiz_questions`
 readable; **correct answers live in `kb_quiz_answers` with no client read** — grading
 is the SECURITY DEFINER RPC `kb_quiz_grade` which records `kb_quiz_attempts` and
 returns only ok/hint per question; managers author via `kb_quiz_set_answer`/

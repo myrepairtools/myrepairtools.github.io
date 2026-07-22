@@ -745,12 +745,12 @@ function loadWorkedHours(weekStart){
   var s=new Date(weekStart), s0=new Date(s.getFullYear(),s.getMonth(),s.getDate()-s.getDay());
   var wkStart=iso(s0), wkEnd=iso(new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6));
   var tok=++WORKED_TOK;
-  sb.from('qbtime_timesheets').select('seconds,on_the_clock,biz_date').eq('staff_id',ME.id).gte('biz_date',wkStart).lte('biz_date',wkEnd)
+  sb.from('qbtime_timesheets').select('seconds,off_seconds,on_the_clock,biz_date').eq('staff_id',ME.id).gte('biz_date',wkStart).lte('biz_date',wkEnd)
     .then(function(r){
       if(tok!==WORKED_TOK)return;               // a newer week was requested; drop stale result
       var rows=(r&&r.data)||[]; if(r&&r.error){el.textContent='';return;}
       if(!rows.length){el.innerHTML='<span style="color:#cfd2dd">No clocked hours</span>';return;}
-      var sec=0,live=false; rows.forEach(function(x){sec+=(+x.seconds||0); if(x.on_the_clock)live=true;});
+      var sec=0,live=false; rows.forEach(function(x){sec+=Math.max(0,(+x.seconds||0)-(+x.off_seconds||0)); if(x.on_the_clock)live=true;});
       var h=Math.round(sec/360)/10, ot=Math.max(0,Math.round((h-40)*10)/10);
       el.innerHTML='Worked <b>'+h+' hrs</b>'+(ot>0?'<span class="ot">'+ot+' OT</span>':'')+(live?'<span class="live">● on the clock</span>':'');
     },function(){el.textContent='';});
@@ -1064,6 +1064,11 @@ async function wizSubmit(){
   w.saving=true;drawWiz();
   var r=await sb.from('time_off_requests').insert(row).select().single();
   if(r.error){w.saving=false;drawWiz();var e=document.getElementById('wzErr');if(e)e.textContent=r.error.message;return;}
+  try{var ss=(await sb.auth.getSession()).data.session;
+    if(ss)fetch(SB_URL+'/functions/v1/notify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ss.access_token,'apikey':ANON},
+      body:JSON.stringify({action:'send',event_key:'timeoff.requested',
+        subject:'Time-off request: '+(ME.display_name||'')+' · '+w.start+' to '+w.end,
+        text:w.type+(row.hours?' · '+row.hours+'h':'')+(row.note?' · '+row.note:'')+' — review in Time Off.'})}).catch(function(){});}catch(e2){}
   REQS.push(r.data);closePlanner();toast('✓ Sent to your manager');renderHeader();render();
 }
 
