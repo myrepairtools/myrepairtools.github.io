@@ -591,9 +591,16 @@ per-user **Viewed** column — "Never" amber, red when required-unacked), restyl
 reading view (read-time meta, `!> ` amber callouts in the light markup, footer
 "✓ Mark as read" = `kb_reads.acknowledged_at`, the read receipt that feeds
 everything), **My Onboarding** (`#onboarding` — sequenced modules from
-`onboarding_modules` + articles' `module_id`/`sort_order`; steps unlock strictly in
-order, a step with a quiz isn't done until the quiz passes; assignment row created
-lazily in `onboarding_assignments`), **quizzes** (`kb_quizzes`/`kb_quiz_questions`
+`onboarding_modules`; a module's track MIXES articles (`module_id`/`sort_order`) with
+**task steps** (`onboarding_steps`: HR paperwork & account setups — I-9, W-4, QBO
+payroll, QB Time, RepairQ credentials — each `who` employee|manager; completions in
+`onboarding_step_done`, employee steps self-ticked, manager steps ticked per-person
+from KB Compliance's detail modal); items unlock strictly in order, a step with a
+quiz isn't done until the quiz passes; assignment row created lazily in
+`onboarding_assignments`; a seeded "Getting Set Up — HR & Accounts" module ships the
+standard steps), **Onboarding Setup** (`#modules`, manager-only, nav Manage group —
+create/rename/reorder modules, order their mixed items, add/edit task steps, attach
+articles; schema docs/sql/onboarding-steps.sql), **quizzes** (`kb_quizzes`/`kb_quiz_questions`
 readable; **correct answers live in `kb_quiz_answers` with no client read** — grading
 is the SECURITY DEFINER RPC `kb_quiz_grade` which records `kb_quiz_attempts` and
 returns only ok/hint per question; managers author via `kb_quiz_set_answer`/
