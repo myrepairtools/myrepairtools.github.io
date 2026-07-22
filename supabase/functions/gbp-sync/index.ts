@@ -193,11 +193,17 @@ async function mappedLocations(): Promise<Loc[]> {
 }
 
 /* ---------- discover: Google accounts/locations → gbp_locations ---------- */
+// One row per store = that store's MAIN listing. Department listings corporate
+// creates alongside it ("Electronics at CPR", "Video Game Console Repair at
+// CPR") resolve to the same store by address, so: an existing mapping is never
+// overwritten, and among fresh candidates a title starting with "CPR" (the
+// main-profile pattern) beats an "… at CPR" department. Departments come back
+// in `departments` for visibility; they are not synced (yet).
 async function discover() {
   const acc = await gGet(ACCT + "accounts");
   const accounts = (acc.accounts || []) as { name: string; accountName?: string }[];
   if (!accounts.length) return { ok: false, error: "no_google_accounts" };
-  const mapped: Loc[] = [];
+  const candidates: Loc[] = [];
   const unmatched: string[] = [];
   for (const a of accounts) {
     let pageToken = "";
@@ -214,7 +220,7 @@ async function discover() {
         const store = await resolveStore(`${l.title || ""} ${addrText}`);
         const meta = (l.metadata || {}) as Record<string, string>;
         if (store) {
-          mapped.push({
+          candidates.push({
             store, google_account: a.name, google_location_id: String(l.name),
             place_id: meta.placeId || null, new_review_uri: meta.newReviewUri || null,
             maps_uri: meta.mapsUri || null, title: String(l.title || ""),
@@ -224,13 +230,30 @@ async function discover() {
       pageToken = String(d.nextPageToken || "");
     } while (pageToken);
   }
+  const existing = await mappedLocations();
+  const existingByStore: Record<string, string> = {};
+  for (const e of existing) existingByStore[e.store] = e.google_location_id;
+  const mapped: Loc[] = [];
+  const departments: Loc[] = [];
+  const byStore: Record<string, Loc[]> = {};
+  for (const c of candidates) (byStore[c.store] = byStore[c.store] || []).push(c);
+  for (const store of Object.keys(byStore)) {
+    const list = byStore[store];
+    const keep = existingByStore[store]
+      ? list.find((c) => c.google_location_id === existingByStore[store])
+      : (list.find((c) => /^cpr\b/i.test(c.title)) || list[0]);
+    for (const c of list) {
+      if (keep && c.google_location_id === keep.google_location_id) { if (!existingByStore[store]) mapped.push(c); }
+      else departments.push(c);
+    }
+  }
   if (mapped.length) {
     const stamp = new Date().toISOString();
     const { error } = await admin.from("gbp_locations").upsert(
       mapped.map((m) => ({ ...m, connected_at: stamp })), { onConflict: "store" });
     if (error) throw new Error("gbp_locations_" + error.message);
   }
-  return { ok: true, mapped, unmatched };
+  return { ok: true, mapped, departments, unmatched };
 }
 
 /* ---------- performance metrics ---------- */
