@@ -596,8 +596,13 @@ KBB serial (identical cross-system) else ticket # for no-serial parts; turns ~1h
 cross-referencing into seconds), Popup Blocker (auto-advances claim
 walkthrough / T&C / signature — bg.js injects a jSignature stroke MAIN-world — **default
 OFF** because it signs forms), and Clock Guard (blocks early clock-in, configurable
-time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). Install unpacked or publish to the
-Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
+time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). **The site hosts the current build**: `downloads/myrepairtools-extension.zip` (+
+`downloads/extension-manifest.json` for the version pill), downloaded from
+**`extension.html`** ("Get the Extension", Tools nav) — store machines update from
+there, no file shuttling. **Rebuild the zip on every extension change**
+(`cd extension && zip -qr ../downloads/myrepairtools-extension.zip . && cp
+manifest.json ../downloads/extension-manifest.json`). Install unpacked or publish to
+the Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
 the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
 sync. **RepairQ ticket notes must be 3-byte-utf8-safe:** RepairQ's MySQL silently
 truncates a note at the first 4-byte char (most emoji), so an emoji-PREFIXED note
