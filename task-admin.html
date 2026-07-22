@@ -712,6 +712,11 @@ function drawEditor(){
     (STEP>1?'<button class="btn alt" data-back>Back</button>':'<button class="btn alt" data-close>Cancel</button>')+
     (STEP<4?'<button class="btn" data-next>Next</button>':'<button class="btn" data-save>'+(EDIT_ID?(useLocsUI()&&(d.locs||[]).length>1?'Save '+d.locs.length+' stores':'Save changes'):(d.locs.length>1?'Create '+d.locs.length+' templates':'Create template'))+'</button>')+
     '</div></div>';
+  // a re-render rebuilds the modal's innerHTML, which resets scroll to the top.
+  // capture the body/overlay scroll first so editing a per-day row doesn't jump
+  // the whole modal back up.
+  const _bd=$('#mdlWrap .mdl-bd'),_ovl=$('#mdlWrap .ovl');
+  const _sbd=_bd?_bd.scrollTop:0,_sovl=_ovl?_ovl.scrollTop:0;
   openModal(
     '<div class="mdl" style="width:640px;border-top:3px solid var(--red)">'+
     '<div class="mdl-hd"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.15rem">'+(EDIT_ID?'Edit template':'New template')+'</div><button class="mdl-x" data-close>✕</button></div>'+
@@ -719,6 +724,9 @@ function drawEditor(){
     '<div class="mdl-bd">'+stepBody+'</div>'+
     footer+'</div>'
   );
+  const _nbd=$('#mdlWrap .mdl-bd'),_novl=$('#mdlWrap .ovl');
+  if(_nbd&&_sbd)_nbd.scrollTop=_sbd;
+  if(_novl&&_sovl)_novl.scrollTop=_sovl;
   const grab=()=>{
     const g=id=>{const el=$('#mdlWrap #'+id);return el?el.value:undefined;};
     const L=d.locs[d.__locSel];               // assignment writes land on the selected location
