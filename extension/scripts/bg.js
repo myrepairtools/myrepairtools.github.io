@@ -486,7 +486,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         var stash = { name: msg.title || 'label', b64: null, kind: null };
         try {
             if (/^(https?|file):/.test(msg.url || '')) {
-                var r = await fetch(msg.url);
+                // credentials:'include' — vendor label URLs often sit behind the
+                // session cookie the tab is signed in with; an 8s abort keeps a
+                // dead URL from hanging the popup.
+                var ctrl = new AbortController();
+                var tt = setTimeout(function () { ctrl.abort(); }, 8000);
+                var r = await fetch(msg.url, { credentials: 'include', signal: ctrl.signal });
+                clearTimeout(tt);
                 var ct = (r.headers.get('content-type') || '').toLowerCase();
                 var buf = await r.arrayBuffer();
                 var h = new Uint8Array(buf.slice(0, 4));
@@ -498,7 +504,19 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
                     stash.kind = (isPdf || /pdf/.test(ct)) ? 'pdf' : 'img';
                 }
             }
-        } catch (e) { /* fall through — the tool opens with its drop zone */ }
+        } catch (e) { /* fall through to the screenshot fallback */ }
+        if (!stash.b64) {
+            // Couldn't read the document itself — screenshot the visible tab
+            // (activeTab grants this) so the label on screen is still usable.
+            try {
+                var shot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+                if (shot && shot.indexOf('data:image/') === 0) {
+                    stash.b64 = shot.split(',')[1];
+                    stash.kind = 'img';
+                    stash.captured = true;
+                }
+            } catch (e) { /* tool opens with its drop zone */ }
+        }
         try { await chrome.storage.session.set({ mrt_label_stash: stash }); } catch (e) { }
         chrome.tabs.create({ url: chrome.runtime.getURL('label/label.html') });
         sendResponse({ ok: true });
