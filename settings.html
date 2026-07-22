@@ -563,6 +563,13 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 6px">Ready-for-Pickup calls (for customers whose follow-up preference is <b>Call</b>) go out through Twilio but present the store&rsquo;s own RingCentral number as caller&nbsp;ID &mdash; <b>once that number is verified</b>. Until then those calls fall back to a generic number. Verify each line below: Twilio will ring the store phone and read a 6&#8209;digit code &mdash; <b>have someone standing at that store&rsquo;s phone</b>, then type the code it reads into the phone keypad. <b>If an auto-attendant menu answers the line</b>, give the verify prompt the keys a caller presses to reach a person (e.g. <code>ww1</code> &mdash; w&nbsp;=&nbsp;half-second pause) so the call dials through the menu instead of getting stuck in it. If the menu can&rsquo;t be beaten by keypress, temporarily set that store&rsquo;s RingCentral auto-receptionist to ring a desk phone directly, verify, then put it back &mdash; it&rsquo;s one-time per store.</p>
           <div id="twStores" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey);margin-top:10px">Loading…</div>
           <div id="twHint" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin-top:12px"></div>
+
+          <!-- Spoken store hours: Google (live) vs manual text, per store -->
+          <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+            <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem">Spoken Store Hours</div>
+            <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:6px 0 4px">The hours line the call speaks after &ldquo;&hellip;is ready for pickup.&rdquo; <b>From Google (live)</b> reads <b>today&rsquo;s</b> hours off the store&rsquo;s Google Business Profile &mdash; hour and holiday changes made in RepairQ sync to Google, so holiday closures are announced correctly (&ldquo;closed today, open tomorrow&hellip;&rdquo;) with nothing to maintain. <b>Manual text</b> speaks exactly what you type, and is also the fallback if Google data is missing.</p>
+            <div id="twHours" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
+          </div>
         </div>
 
         <!-- Activity -->
@@ -1298,6 +1305,49 @@ async function twVerify(store,num){
     } else if(tries>=18){ clearInterval(twPoll); twPoll=null; if(hint)hint.innerHTML+='<div style="color:var(--grey);font-size:.8rem;margin-top:6px">(Still not verified — if the code didn\'t go through, tap Verify again.)</div>'; }
   },5000);
 }
+/* --- Spoken store hours (call_settings: google vs manual, per store) --- */
+var TW_HOURS=[];
+async function twRenderHours(){
+  if(INTEG_OPEN!=='ringcentral')return;
+  var box=$('#twHours'); if(!box)return;
+  box.textContent='Checking hours…';
+  var d=await twilioCall({action:'hours_status'});
+  if(INTEG_OPEN!=='ringcentral')return;
+  if(!d||!d.ok){ box.innerHTML='<span style="color:#C0392B">Could not load hours'+(d&&d.error?(' — '+esc(d.error)):'')+'.</span>'; return; }
+  TW_HOURS=d.stores||[];
+  box.innerHTML=TW_HOURS.map(function(s,i){
+    var manual=s.source==='manual', gOk=!!s.google_sentence;
+    return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px;background:#FBFBFC">'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<b style="font-family:\'Nunito\',sans-serif;color:var(--dark);min-width:150px">'+esc(s.store)+'</b>'
+      +'<select class="tw-hrs-src" data-i="'+i+'" style="padding:6px 9px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-weight:700;font-size:.84rem;background:#fff">'
+      +'<option value="google"'+(manual?'':' selected')+'>From Google (live)</option>'
+      +'<option value="manual"'+(manual?' selected':'')+'>Manual text</option>'
+      +'</select>'
+      +(manual?'<input type="text" class="tw-hrs-txt" data-i="'+i+'" value="'+esc(s.manual_text||'')+'" placeholder="e.g. Monday through Saturday, 10 AM to 7 PM" style="flex:1;min-width:230px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem">':'')
+      +'</div>'
+      +'<div style="margin-top:8px;font-size:.8rem;color:var(--dark-grey)">'
+      +(s.spoken
+        ?('The call would say: <i>&ldquo;'+esc(s.spoken)+'&rdquo;</i>')
+        :'<span style="color:#B8860B">⚠ No hours available — the call will skip the hours line.</span>')
+      +(!manual&&!gOk&&s.manual_text?' <span style="color:#B8860B">(no Google hours found — using the manual text as fallback)</span>':'')
+      +'</div>'
+      +'</div>';
+  }).join('')||'<span style="color:var(--grey)">No active store lines.</span>';
+  $all('.tw-hrs-src').forEach(function(el){ el.onchange=function(){ twSaveHours(+el.getAttribute('data-i'),{hours_source:el.value}); }; });
+  $all('.tw-hrs-txt').forEach(function(el){ el.onchange=function(){ twSaveHours(+el.getAttribute('data-i'),{hours_text:el.value.trim()}); }; });
+}
+async function twSaveHours(i,patch){
+  var s=TW_HOURS[i]; if(!s)return;
+  var row={store:s.store,
+    hours_source:patch.hours_source||s.source||'google',
+    hours_text:(patch.hours_text!==undefined?patch.hours_text:s.manual_text)||null,
+    updated_by:(window.CPRNavName||null),updated_at:new Date().toISOString()};
+  var r=await sb.from('call_settings').upsert(row);
+  if(r.error){ toast('Could not save hours — '+r.error.message,true); return; }
+  toast('Spoken hours saved');
+  twRenderHours();
+}
 function rcPhone(n){var d=String(n||'').replace(/\D/g,'');if(d.length===11&&d[0]==='1')d=d.slice(1);return d.length===10?('('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6)):String(n||'');}
 var RC_TEST=null; /* last test-action result */
 async function rcRenderStatus(){
@@ -1348,6 +1398,7 @@ async function rcRenderStatus(){
   rcRenderActivity();
   rcRenderSla();
   twRenderStatus();
+  twRenderHours();
   mtLoad();
 }
 
@@ -3201,7 +3252,7 @@ function initUI(){
   var rcR=$('#rcRefresh'); if(rcR)rcR.onclick=function(){rcRenderStatus();};
   var slaC=$('#slaSaveCfg'); if(slaC)slaC.onclick=slaSaveCfg;
   var slaA=$('#slaAdd'); if(slaA)slaA.onclick=slaAdd;
-  var twR=$('#twRefresh'); if(twR)twR.onclick=function(){twRenderStatus();};
+  var twR=$('#twRefresh'); if(twR)twR.onclick=function(){twRenderStatus();twRenderHours();};
   var mtK=$('#mtKey'); if(mtK)mtK.onchange=mtRender;
   var mtS=$('#mtStore'); if(mtS)mtS.onchange=mtRender;
   var mtB=$('#mtBody'); if(mtB)mtB.oninput=mtPreview;

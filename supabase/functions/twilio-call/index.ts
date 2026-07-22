@@ -22,8 +22,13 @@
 //                  pause, e.g. "ww1") — REQUIRED in practice for lines where
 //                  an auto-attendant/IVR answers, so the verification call
 //                  reaches a human instead of the menu.
+//   hours_status — per-store spoken-hours config (call_settings) + what the
+//                  call would say right now (google vs manual; Settings UI)
 //   call         — {to, store, ticket_no, template_key, agent_name,
-//                  customer_name, device} → place the ready-for-pickup call
+//                  customer_name, device} → place the ready-for-pickup call.
+//                  The spoken hours line resolves per store via call_settings:
+//                  'google' (default) = TODAY's hours (holiday-aware) from the
+//                  latest gbp_profile_snapshots row; 'manual' = hours_text.
 //
 // Deploy with verify_jwt OFF — the extension calls through bg.js with the
 // public anon key (same trust model as `messaging`; the Twilio creds never
@@ -86,6 +91,96 @@ async function ownedNumbers(): Promise<string[]> {
   return (r.data?.incoming_phone_numbers || []).map((n: any) => n.phone_number);
 }
 
+/* ---------------- spoken store hours ----------------
+   Per-store source lives in call_settings (Settings → Integrations →
+   RingCentral → Automated calls):
+     'google' (default) → TODAY's hours from the latest gbp_profile_snapshots
+       row — holiday specialHours override the regular week, and a closed-today
+       holiday speaks "closed today, open <day> from …" instead of wrong hours.
+       RepairQ hour edits sync to Google, gbp-sync pulls Google nightly, so
+       nothing here is hand-typed.
+     'manual' → hours_text verbatim.
+   Fallbacks: google-with-no-data → manual text → legacy store_lines.hours_text
+   → the hours sentence is simply skipped. */
+
+const TZ = "America/Los_Angeles"; // all stores are Oregon
+
+function dayParts(offsetDays: number) {
+  const d = new Date(Date.now() + offsetDays * 86400_000);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, year: "numeric", month: "numeric", day: "numeric", weekday: "long",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
+  return { year: +get("year"), month: +get("month"), day: +get("day"), weekday: get("weekday") };
+}
+
+// Google TimeOfDay → spoken time ("10 AM", "7:30 PM")
+function sayTime(t: any): string {
+  let h = Number(t?.hours ?? 0);
+  const m = Number(t?.minutes ?? 0);
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return m ? `${h}:${String(m).padStart(2, "0")} ${ap}` : `${h} ${ap}`;
+}
+
+// One day's open spans from a GBP profile: specialHours (holidays) override
+// regularHours. Returns null when closed / no data for that day.
+function daySpans(profile: any, offsetDays: number): string | null {
+  const d = dayParts(offsetDays);
+  const special = (profile?.specialHours?.specialHourPeriods || []).filter((p: any) =>
+    p?.startDate && Number(p.startDate.year) === d.year &&
+    Number(p.startDate.month) === d.month && Number(p.startDate.day) === d.day);
+  if (special.length) {
+    const spans = special.filter((p: any) => !p.closed && p.openTime && p.closeTime)
+      .map((p: any) => `${sayTime(p.openTime)} to ${sayTime(p.closeTime)}`);
+    return spans.length ? spans.join(" and ") : null;   // all-closed special day → null
+  }
+  const day = d.weekday.toUpperCase();
+  const spans = (profile?.regularHours?.periods || [])
+    .filter((p: any) => String(p.openDay || "").toUpperCase() === day && p.openTime && p.closeTime)
+    .map((p: any) => `${sayTime(p.openTime)} to ${sayTime(p.closeTime)}`);
+  return spans.length ? spans.join(" and ") : null;
+}
+
+// Full sentence from the store's latest Google snapshot, or null when the
+// store isn't mapped / has no snapshot. Store-name matching tolerates
+// prefix/suffix drift between store_lines and gbp_locations naming.
+async function googleHoursSentence(store: string): Promise<string | null> {
+  const norm = (s: string) => String(s || "").toLowerCase().replace(/^cpr\s+/, "").replace(/\s+or$/, "").trim();
+  const { data: locs } = await admin.from("gbp_locations").select("store");
+  const g = (locs || []).find((l: any) => norm(l.store) === norm(store));
+  if (!g) return null;
+  const { data: snap } = await admin.from("gbp_profile_snapshots").select("profile")
+    .eq("store", g.store).order("taken_at", { ascending: false }).limit(1).maybeSingle();
+  if (!snap?.profile) return null;
+  const today = daySpans(snap.profile, 0);
+  if (today) return `Our store hours today are ${today}.`;
+  for (let i = 1; i <= 7; i++) {                        // holiday: find the next open day
+    const spans = daySpans(snap.profile, i);
+    if (spans) {
+      const when = i === 1 ? "tomorrow" : "on " + dayParts(i).weekday;
+      return `We are closed today, but open ${when} from ${spans}.`;
+    }
+  }
+  return null;
+}
+
+// Resolve the hours sentence for a store per its call_settings row.
+async function hoursSentenceFor(store: string | null, line: { hours_text?: string | null } | null): Promise<string> {
+  if (!store) return "";
+  const { data: cs } = await admin.from("call_settings")
+    .select("hours_source, hours_text").eq("store", store).maybeSingle();
+  let sentence = "";
+  if (!cs || cs.hours_source !== "manual") {
+    sentence = (await googleHoursSentence(store).catch(() => null)) || "";
+  }
+  if (!sentence) {
+    const manual = String(cs?.hours_text || line?.hours_text || "").trim();
+    if (manual) sentence = `Our store hours are ${manual}.`;
+  }
+  return sentence;
+}
+
 // store → its line, alias-tolerant (mirror of messaging's lineForStore)
 async function lineFor(raw: string | null | undefined): Promise<{ store: string; sms_number: string; hours_text?: string | null } | null> {
   if (!raw) return null;
@@ -119,6 +214,28 @@ async function actionStatus() {
       verified: verified.has(l.sms_number),
     })),
   });
+}
+
+// Per-store hours config + what the call would say right now (Settings UI).
+// Read-only; the settings page WRITES call_settings directly under is_admin RLS.
+async function actionHoursStatus() {
+  const { data: lines } = await admin.from("store_lines").select("store, hours_text").eq("active", true);
+  const { data: cfg } = await admin.from("call_settings").select("store, hours_source, hours_text");
+  const byStore = new Map((cfg || []).map((c: any) => [c.store, c]));
+  const out = [];
+  for (const l of (lines || [])) {
+    const cs = byStore.get(l.store);
+    const google = await googleHoursSentence(l.store).catch(() => null);
+    const manual = String(cs?.hours_text || l.hours_text || "").trim();
+    out.push({
+      store: l.store,
+      source: cs?.hours_source || "google",
+      manual_text: manual,
+      google_sentence: google,                            // null = no GBP data mapped
+      spoken: await hoursSentenceFor(l.store, l).catch(() => ""),  // what a call now would say
+    });
+  }
+  return json({ ok: true, stores: out });
 }
 
 async function actionVerifyStart(payload: any) {
@@ -183,13 +300,13 @@ async function actionCall(payload: any, sentBy: { id?: string; name?: string }) 
   // droning the whole script twice).
   const name = String(payload?.customer_name || "").trim().split(/\s+/)[0] || "";
   const device = String(payload?.device || "").trim() || "device";
-  const hours = (line as any)?.hours_text || "";
+  const hours = await hoursSentenceFor(store, line).catch(() => "");
   const persona = String(payload?.caller_name || "Hope");
   const voice = String(payload?.voice || "Polly.Ruth-Generative");
   const msg =
     `Hi${name ? " " + name : ""}! This is ${persona} from CPR Cell Phone Repair, ` +
     `calling to let you know that your ${device} is ready for pickup. ` +
-    (hours ? `Our store hours are ${hours}. ` : "") +
+    (hours ? `${hours} ` : "") +
     `Please give us a call if you have any questions. Thank you!`;
   const recap = `Once more — this is ${persona} from CPR Cell Phone Repair, and your ${device} is ready for pickup. See you soon!`;
   const twiml =
@@ -289,6 +406,7 @@ Deno.serve(async (req) => {
 
   try {
     if (payload?.action === "status") return await actionStatus();
+    if (payload?.action === "hours_status") return await actionHoursStatus();
     if (payload?.action === "verify_start") return await actionVerifyStart(payload);
     if (payload?.action === "call") return await actionCall(payload, sentBy);
     return json({ ok: false, error: "unknown action" }, 400);

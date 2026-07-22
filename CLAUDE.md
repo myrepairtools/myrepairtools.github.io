@@ -459,8 +459,19 @@ Number / Customer Name / Contact Method / Email). Automated **voice calls** (met
 `call`): Ready-for-Pickup on a ticket whose saved preference is `call` places an
 automated Twilio voice call (same 5-second Undo as texts, ticket note logged) via the
 **`twilio-call` edge function** (secrets `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`;
-actions `status` / `call`; logs to `call_log`, authenticated read). The call speaks a
-ready-for-pickup message twice (voicemail-friendly, Polly voice) and presents the
+actions `status` / `hours_status` / `call`; logs to `call_log`, authenticated read).
+The call speaks a ready-for-pickup message twice (voicemail-friendly, Polly generative
+voice). **Spoken store hours** resolve per store via `call_settings` (store PK,
+`hours_source` google|manual, `hours_text`; read authenticated, write `is_admin()` —
+the browser edits it directly, `store_lines` stays locked): `google` (default) computes
+**today's** hours at call time from the latest `gbp_profile_snapshots` row — holiday
+`specialHours` override the regular week, closed-today speaks "closed today, open
+<day> from …" — so RepairQ hour/holiday edits flow through Google with nothing
+hand-typed; `manual` speaks `hours_text` verbatim and is the fallback when Google data
+is missing (legacy `store_lines.hours_text` is last-resort only). Managed in Settings →
+Integrations → RingCentral → Automated calls → **Spoken Store Hours** (per-store source
+dropdown + manual text + "the call would say" preview via `hours_status`). Schema:
+docs/sql/call-hours-source.sql. The call presents the
 store's own RingCentral number as caller ID once that number is added as a Twilio
 **Verified Caller ID** (Console → Phone Numbers → Verified Caller IDs — Twilio calls
 the store, someone enters the code; per store, one time); unverified stores fall back
