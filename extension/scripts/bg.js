@@ -32,6 +32,24 @@ var SB_FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1';
 var SB_REST = 'https://xuvsehrevxackuhmbmry.supabase.co/rest/v1';
 var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 
+/* ---------------- one-time migrations ---------------- */
+
+// v2.5.92 — automated ready-for-pickup CALLS default ON (Twilio live: Trust
+// Hub approved, every store's caller ID verified). Installs that saved
+// Options under the old default carry a persisted sendCall:false, which a
+// default change alone would never reach — flip them ON once. The Options
+// toggle still opts a browser back out afterward; callDefaulted marks the
+// migration done so that choice sticks.
+chrome.runtime.onInstalled.addListener(function () {
+    chrome.storage.sync.get('sms').then(function (res) {
+        var sms = (res && res.sms) || {};
+        if (sms.callDefaulted) return;
+        sms.sendCall = true;
+        sms.callDefaulted = true;
+        chrome.storage.sync.set({ sms: sms });
+    }).catch(function () { /* storage unavailable — defaults cover it */ });
+});
+
 /* ---------------- print gate ---------------- */
 
 // Serialized and run in the PAGE's MAIN world.

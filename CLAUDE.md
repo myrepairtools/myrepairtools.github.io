@@ -462,9 +462,14 @@ automated Twilio voice call (same 5-second Undo as texts, ticket note logged) vi
 actions `status` / `call`; logs to `call_log`, authenticated read). The call speaks a
 ready-for-pickup message twice (voicemail-friendly, Polly voice) and presents the
 store's own RingCentral number as caller ID once that number is added as a Twilio
-**Verified Caller ID** (Console → Phone Numbers → Verified Caller IDs — Twilio calls
-the store, someone enters the code; per store, one time); unverified stores fall back
-to a Twilio-owned number if any exist, else the call errors and the toast says so.
+**Verified Caller ID** (verifiable from Settings → Integrations → RingCentral →
+Automated calls — the `verify_start` action rings the store and returns the code to
+key in; per store, one time); unverified stores fall back to a Twilio-owned number if
+any exist, else the call errors and the toast says so. **LIVE since 2026-07: Trust Hub
+approved, all three stores' lines are verified caller IDs, and the extension's
+"Automate Phone call" toggle defaults ON** (v2.5.92 ships a one-time bg.js
+`onInstalled` migration flipping older installs' persisted `sendCall:false`;
+`sms.callDefaulted` marks it done so a later manual opt-out sticks).
 bg.js proxies `call:place`/`call:status`. A top-bar SMS inbox/compose panel is still
 deferred. When changing SMS/call behavior, keep `readyText.js` + `followUp.js` +
 `bg.js`'s `sms:`/`call:` proxies + the `messaging` and `twilio-call` functions in sync.
