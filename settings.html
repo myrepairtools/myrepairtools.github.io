@@ -433,6 +433,15 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:700;margin-top:2px">Month-end journal entries &mdash; Cash Journal posts store revenue straight to QBO</div>
           <div style="margin-top:12px"><span id="qboCardPill" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px;background:#F3F2F2;color:#8A8F9C;border:1px solid var(--border)">…</span></div>
         </div>
+        <!-- MobileSentrix -->
+        <div class="integ-card" data-integ="mobilesentrix" style="position:relative;padding:18px 18px 16px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <button class="integ-gear" data-integ="mobilesentrix" title="Settings" aria-label="MobileSentrix settings"
+            style="position:absolute;top:10px;right:10px;width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.95rem;line-height:1;color:var(--dark-grey)">⚙</button>
+          <div style="margin-bottom:10px"><svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true"><rect x="3" y="3" width="42" height="42" rx="11" fill="#F26722"/><text x="24" y="33" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="20" fill="#fff" text-anchor="middle">MS</text></svg></div>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">MobileSentrix</div>
+          <div style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:700;margin-top:2px">Parts ordering &middot; cpr.parts API &mdash; one account per store</div>
+          <div style="margin-top:12px"><span id="msCardPill" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px;background:#F3F2F2;color:#8A8F9C;border:1px solid var(--border)">…</span></div>
+        </div>
       </div>
     </div>
 
@@ -607,6 +616,24 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Account Mapping</div>
           <p style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--dark-grey);margin:8px 0 12px">Each store&rsquo;s journal entry <b>debits its Cash on Hand account</b> and <b>credits its Store Revenue account</b>. Pick the matching QBO accounts per store &mdash; the Cash Journal refuses to post a store until it&rsquo;s mapped.</p>
           <div id="qboMapBody" style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
+        </div>
+      </div>
+
+      <!-- MobileSentrix settings page -->
+      <div id="integ-mobilesentrix" class="integ-page hide" style="margin-top:14px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <span style="font-size:1.6rem">🔧</span>
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem">MobileSentrix</div>
+          <span style="flex:1"></span>
+          <span id="msPill" class="hide" style="font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:4px 10px"></span>
+        </div>
+
+        <div style="max-width:640px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Store Accounts</div>
+          <div id="msStatus" style="font-family:'Nunito Sans',sans-serif;font-size:.82rem;color:var(--grey);font-weight:700;margin-top:2px">Checking…</div>
+          <p style="font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--dark-grey);margin:12px 0 6px">Each store has its own cpr.parts account, so each store connects separately. <b>Connect</b> opens the cpr.parts sign-in &mdash; log in with <b>that store&rsquo;s</b> account and the access token is stored server-side (the browser never sees it; tokens don&rsquo;t expire unless revoked). <b>Sign out of cpr.parts, or use a private window, between stores</b> so each sign-in uses the right account.</p>
+          <div id="msStores" style="margin-top:12px;font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
+          <div id="msHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
         </div>
       </div>
     </div>
@@ -877,7 +904,7 @@ function renderTabs(){
   $('#view-commission').classList.toggle('hide',TAB!=='commission');
   $('#view-integ').classList.toggle('hide',TAB!=='integ');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
-  if(TAB==='integ'){renderInteg();qbtRenderStatus();rcRenderStatus();qboRenderStatus();}
+  if(TAB==='integ'){renderInteg();qbtRenderStatus();rcRenderStatus();qboRenderStatus();msRenderStatus();}
 }
 
 /* ===================== Integrations library ↔ detail ===================== */
@@ -892,7 +919,7 @@ function renderInteg(){
   $all('.integ-page').forEach(function(p){ p.classList.add('hide'); });
   if(open){ var pg=$('#integ-'+open); if(pg)pg.classList.remove('hide'); }
 }
-function integOpen(key){ INTEG_OPEN=key; lsSet('cprIntegOpen',key); renderInteg(); if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); }
+function integOpen(key){ INTEG_OPEN=key; lsSet('cprIntegOpen',key); renderInteg(); if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); if(key==='mobilesentrix')msRenderStatus(); }
 function integClose(){ INTEG_OPEN=null; lsSet('cprIntegOpen',''); renderInteg(); }
 
 /* ===================== QuickBooks Time (integrations) ===================== */
@@ -1218,6 +1245,68 @@ async function qboSaveMap(row){
   },{onConflict:'store'});
   if(r.error)toast('Save failed — '+r.error.message,true);
   else toast((window.CPRLocations?window.CPRLocations.display(store):store)+' mapping saved');
+}
+
+/* ===================== MobileSentrix (integrations) ===================== */
+var MS_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/ms-callback';
+function msCardPill(state){
+  var c=$('#msCardPill'); if(!c)return;
+  if(state==='on'){c.textContent='Connected';c.style.color='#1E9E5B';c.style.background='#E9F6EE';c.style.border='1px solid #CFE9D8';}
+  else if(state==='partial'){c.textContent='Partly connected';c.style.color='#B8860B';c.style.background='#FDF6E3';c.style.border='1px solid #F0E2B6';}
+  else if(state==='setup'){c.textContent='Setup needed';c.style.color='#B8860B';c.style.background='#FDF6E3';c.style.border='1px solid #F0E2B6';}
+  else if(state==='off'){c.textContent='Not connected';c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
+  else {c.textContent='…';c.style.color='#8A8F9C';c.style.background='#F3F2F2';c.style.border='1px solid var(--border)';}
+}
+async function msRenderStatus(){
+  var st=$('#msStatus'),pill=$('#msPill'),list=$('#msStores');
+  if(st)st.textContent='Checking…'; if(pill)pill.classList.add('hide');
+  var tok=await sessionToken();
+  var r=await fetch(MS_FN+'?action=status',{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}})
+    .then(function(x){return x.json().then(function(d){return {status:x.status,data:d};},function(){return {status:x.status,data:{}};});})
+    .catch(function(){return {status:0,data:{}};});
+  var d=r.data||{};
+  if(r.status===403||r.status===401){
+    msCardPill('off');
+    if(st)st.textContent='Owner sign-in required.';
+    if(list)list.textContent='';
+    return;
+  }
+  if(!d.configured){
+    msCardPill('setup');
+    if(st)st.textContent='API credentials not set (MS_CONSUMER_KEY / MS_CONSUMER_SECRET / MS_START_KEY Supabase secrets).';
+    if(list)list.textContent='';
+    return;
+  }
+  var stores=d.stores||[], on=stores.filter(function(s){return s.connected;}).length;
+  msCardPill(on===0?'off':(on===stores.length?'on':'partial'));
+  if(st)st.textContent=on+' of '+stores.length+' stores connected · '+(d.base_url||'');
+  if(pill){
+    var full=(on===stores.length&&on>0);
+    pill.textContent=full?'Connected':(on>0?(on+'/'+stores.length):'Off');
+    pill.style.color=full?'#1E9E5B':(on>0?'#B8860B':'#8A8F9C');
+    pill.style.background=full?'#E9F6EE':(on>0?'#FDF6E3':'#F3F2F2');
+    pill.style.border='1px solid '+(full?'#CFE9D8':(on>0?'#F0E2B6':'var(--border)'));
+    pill.classList.remove('hide');
+  }
+  if(!list)return;
+  list.innerHTML=stores.map(function(s){
+    var when=s.connected_at?new Date(s.connected_at).toLocaleDateString():'';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)">'
+      +'<b style="color:var(--dark);font-family:Nunito,sans-serif">'+esc(shortStore(s.store))+'</b>'
+      +'<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:3px 9px;'
+      +(s.connected?'color:#1E9E5B;background:#E9F6EE;border:1px solid #CFE9D8':'color:#8A8F9C;background:#F3F2F2;border:1px solid var(--border)')+'">'
+      +(s.connected?('Connected'+(when?(' · '+when):'')):'Not connected')+'</span>'
+      +'<span style="flex:1"></span>'
+      +'<button class="btn alt sm" data-msconnect="'+esc(s.store)+'">'+(s.connected?'Reconnect':'Connect')+'</button>'
+      +'</div>';
+  }).join('')||'<i>No active stores.</i>';
+  $all('[data-msconnect]').forEach(function(b){
+    b.onclick=function(){
+      if(!d.start_url){toast('Start key not set',true);return;}
+      window.open(d.start_url+'&store='+encodeURIComponent(b.getAttribute('data-msconnect')),'_blank');
+      var hint=$('#msHint'); if(hint)hint.textContent='Sign in with that store’s cpr.parts account in the new tab, then come back and refresh this page.';
+    };
+  });
 }
 
 /* ===================== RingCentral SMS (integrations) ===================== */
