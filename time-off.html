@@ -200,7 +200,7 @@ async function addRequest(){
   if(end<start){toast('End is before start',true);return;}
   const e=empById(Number(emp));
   // adding YOURSELF never self-approves — someone else has to decide it
-  const self=AUTH&&Number(emp)===Number(AUTH.id);
+  const self=(AUTH&&Number(emp)===Number(AUTH.id))||!canApprove();
   const row={staff_id:Number(emp),store:e?e.home_store:null,type:type,paid:(type!=='Unpaid'),start_date:start,end_date:end,note:note||null,
     status:self?'pending':'approved',
     decided_by:self?null:((AUTH&&AUTH.id)||null),
@@ -211,7 +211,12 @@ async function addRequest(){
   REQS.push(res.data); ADDING=false; AFORM={staff_id:'',type:'Vacation',start:'',end:'',note:''};
   toast('Time off added'+(e?' · '+e.display_name.split(' ')[0]:'')); render();
 }
+function canApprove(){var p=window.CPRPerms;
+  if(p)return p.indexOf('timeoff.approve')>-1;
+  return !!(AUTH&&AUTH.role==='owner');   // perms not loaded yet -> owner only
+}
 async function decide(id,status){
+  if(!canApprove()){toast('Approving time off requires the Approve Time Off permission.',true);return;}
   const req=REQS.find(x=>x.id===id);
   if(req&&AUTH&&Number(req.staff_id)===Number(AUTH.id)&&status!=='pending'){toast('You can\u2019t decide your own request — another manager has to.',true);return;}
   const r=REQS.filter(x=>x.id===id)[0];if(!r)return;const prev=r.status;r.status=status;render();
