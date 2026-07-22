@@ -154,5 +154,60 @@ Deno.serve(async (req) => {
     return json({ ok: true, results });
   }
 
+  // Live price + availability for specific SKUs (the consumption report's
+  // order list). Serves a 30-min cache (ms_products); fetches the rest fresh
+  // from cpr.parts in batches. price = our account's cost.
+  if (action === "products") {
+    const staff = await getStaff(req);
+    if (!staff) return json({ error: "forbidden" }, 403);
+    let skus: string[] = Array.isArray(body.skus) ? (body.skus as unknown[]).map((s) => String(s).trim()).filter(Boolean) : [];
+    skus = [...new Set(skus)].slice(0, 300);
+    if (!skus.length) return json({ products: [] });
+    const { data: cached } = await admin.from("ms_products").select("*").in("sku", skus);
+    const have = new Map<string, any>();
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    (cached || []).forEach((c: any) => { if (new Date(c.synced_at).getTime() > cutoff) have.set(c.sku, c); });
+    const need = skus.filter((s) => !have.has(s));
+    if (need.length && MS_KEY && MS_SECRET) {
+      const { data: toks } = await admin.from("integration_tokens")
+        .select("access_token, meta").like("provider", "ms:%").limit(1);
+      const t = toks?.[0];
+      if (t) {
+        const tokSecret = t.meta?.access_token_secret || "";
+        for (let i = 0; i < need.length; i += 25) {
+          const batch = need.slice(i, i + 25);
+          const qs = "limit=25&filter%5B1%5D%5Battribute%5D=sku" +
+            batch.map((s, j) => `&filter%5B1%5D%5Bin%5D%5B${j}%5D=${encodeURIComponent(s)}`).join("");
+          try {
+            const r = await fetch(`${MS_BASE}/api/rest/products?${qs}`, {
+              headers: { Authorization: oauthHeader(t.access_token, tokSecret), Accept: "application/json" },
+            });
+            if (!r.ok) continue;
+            const obj = await r.json().catch(() => null);
+            if (!obj || typeof obj !== "object") continue;
+            const rows = Object.values(obj).map((p: any) => ({
+              sku: String(p.sku),
+              name: p.name || null,
+              price: num(p.customer_price),
+              in_stock: p.is_in_stock === 1 || p.is_in_stock === true || p.is_in_stock === "1",
+              stock_qty: num(p.in_stock_qty),
+              saleable: !!p.is_saleable,
+              order_status: p.product_order_status_text || null,
+              url: p.url || null,
+              image_url: p.image_url || null,
+              synced_at: new Date().toISOString(),
+            })).filter((r2) => r2.sku);
+            if (rows.length) {
+              await admin.from("ms_products").upsert(rows, { onConflict: "sku" });
+              rows.forEach((r2) => have.set(r2.sku, r2));
+            }
+          } catch { /* batch is best-effort — stale cache below covers it */ }
+        }
+      }
+    }
+    (cached || []).forEach((c: any) => { if (!have.has(c.sku)) have.set(c.sku, c); });
+    return json({ products: skus.map((s) => have.get(s)).filter(Boolean) });
+  }
+
   return json({ error: "unknown_action" }, 400);
 });

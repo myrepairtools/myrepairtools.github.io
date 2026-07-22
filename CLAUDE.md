@@ -431,11 +431,21 @@ from the edge runtime (no IP whitelist — the droplet relay idea is dead). The
 **`mobilesentrix` edge function** (`?action=sync`; cron `ms-orders-sync` hourly
 :40, NOTIFY_SECRET; any staff JWT can kick it, 15-min freshness guard) mirrors
 each store's orders into **`ms_orders`** (entity_id PK, items jsonb w/ sku+qty,
-admin-only RLS; docs/sql/ms-orders-schema.sql). **Consumption report** merges the
-`ms_ordered_for_day(store, day)` SECURITY DEFINER RPC (per-SKU qty ordered that
-Pacific day — no dollars) into its ORDERED state, so real cpr.parts purchases
-auto-check the Ordered column (raise-only over manual/export marks; page kicks a
-background sync on load). **QBO booking from MS orders is deliberately NOT
+admin-only RLS; docs/sql/ms-orders-schema.sql). **Consumption report** wiring
+(all SECURITY DEFINER RPCs — no order dollars exposed to staff):
+`ms_ordered_for_day(store, day)` (per-SKU qty ordered that Pacific day) merges
+into the ORDERED state so real cpr.parts purchases auto-check the Ordered column
+(raise-only over manual/export marks; page kicks a background sync on load);
+`ms_pending_for_store(store)` (qty_ordered − shipped − canceled − refunded per
+item, 30-day window) counts ordered-but-unshipped units as incoming in the
+suggest math (`max − instock − onorder − pending`, amber `+N` chip on On Order) —
+RepairQ only shows a PO once MS ships, so this bridges that gap and hands off
+exactly as shipments post. The **`products` action** (staff JWT, ≤300 SKUs)
+serves live cpr.parts price/availability (our account's cost) through a 30-min
+`ms_products` cache (authenticated read): order rows show cost + a red
+"MS out of stock" pill, and a **part-group's order SKU auto-picks the cheapest
+IN-STOCK member** (★ default = tiebreak/fallback; member rows show per-SKU
+price + MS stock). **QBO booking from MS orders is deliberately NOT
 built** — the owner will drive that step-by-step; never auto-post to QBO from
 MS data without explicit direction (docs/mobilesentrix-pipeline.md).
 

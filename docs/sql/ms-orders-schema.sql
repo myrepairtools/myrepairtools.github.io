@@ -57,3 +57,53 @@ as $$
 $$;
 revoke execute on function public.ms_ordered_for_day(text, date) from public, anon;
 grant execute on function public.ms_ordered_for_day(text, date) to authenticated;
+
+-- Live product cache: price + availability for SKUs the consumption report is
+-- about to order, fetched on demand from cpr.parts (30-min freshness) by the
+-- mobilesentrix function's 'products' action. price = OUR account's cost.
+create table if not exists public.ms_products (
+  sku text primary key,
+  name text,
+  price numeric,
+  in_stock boolean,
+  stock_qty integer,
+  saleable boolean,
+  order_status text,
+  url text,
+  image_url text,
+  synced_at timestamptz not null default now()
+);
+alter table public.ms_products enable row level security;
+drop policy if exists "staff read" on public.ms_products;
+create policy "staff read" on public.ms_products for select to authenticated using (true);
+
+-- Ordered-but-not-yet-shipped per SKU: RepairQ only shows a PO once MS ships
+-- it (reserve/delayed orders land 4-5pm), so these units bridge the gap in the
+-- consumption report's On Order math. Per-item qty_shipped makes the hand-off
+-- exact: as MS ships, this shrinks precisely as RepairQ's on_order grows.
+create or replace function public.ms_pending_for_store(p_store text)
+returns table(sku text, qty numeric)
+language sql
+security definer
+set search_path = public
+as $$
+  select it->>'sku' as sku,
+         sum(greatest(0,
+             coalesce((it->>'qty')::numeric, 0)
+           - coalesce((it->>'qty_shipped')::numeric, 0)
+           - coalesce((it->>'qty_canceled')::numeric, 0)
+           - coalesce((it->>'qty_refunded')::numeric, 0))) as qty
+  from ms_orders o
+  cross join lateral jsonb_array_elements(o.items) it
+  where o.store = p_store
+    and o.ordered_at >= now() - interval '30 days'
+    and coalesce(o.status, '') not in ('Canceled', 'Closed')
+  group by 1
+  having sum(greatest(0,
+             coalesce((it->>'qty')::numeric, 0)
+           - coalesce((it->>'qty_shipped')::numeric, 0)
+           - coalesce((it->>'qty_canceled')::numeric, 0)
+           - coalesce((it->>'qty_refunded')::numeric, 0))) > 0
+$$;
+revoke execute on function public.ms_pending_for_store(text) from public, anon;
+grant execute on function public.ms_pending_for_store(text) to authenticated;
