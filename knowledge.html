@@ -323,7 +323,7 @@ function applyHash(){
   if(h==='new'&&isMgr(AUTH.role)){ OPEN=null; MODE='edit'; draw(); return true; }
   if((m=h.match(/^c=([\w-]+)$/))){
     const v=m[1];
-    if(['all','drafts','archived'].indexOf(v)>-1){ if((v==='drafts'||v==='archived')&&!isMgr(AUTH.role))return false;
+    if(['all','req','drafts','archived'].indexOf(v)>-1){ if((v==='drafts'||v==='archived')&&!isMgr(AUTH.role))return false;
       CAT=v; save(); MODE='list'; draw(); return true; }
     const cc=CATS.find(x=>String(x.id)===v||slugify(x.name)===v);
     if(cc){ CAT=String(cc.id); save(); MODE='list'; draw(); return true; }
@@ -332,7 +332,7 @@ function applyHash(){
   function save(){ try{localStorage.setItem('cprKbCat',CAT);}catch(e){} }
 }
 function setHash(h){ try{ if(location.hash.replace('#','')!==h) history.replaceState(null,'','#'+h); }catch(e){} }
-function catHash(){ if(['all','drafts','archived'].indexOf(String(CAT))>-1)return 'c='+CAT;
+function catHash(){ if(['all','req','drafts','archived'].indexOf(String(CAT))>-1)return 'c='+CAT;
   const c=catById(+CAT); return 'c='+(c?slugify(c.name):CAT); }
 window.addEventListener('hashchange',()=>{ if(!AUTH)return;
   if(!applyHash()&&!location.hash){ MODE='list'; OPEN=null; draw(); } });
@@ -347,54 +347,36 @@ async function refresh(first){
   draw();
 }
 
-/* ---------- shell (header + search + sidebar), shared by list & onboarding ---------- */
-function sidebar(){
-  const onb=obOutstanding();
-  const reqN=reqOutstanding().length;
-  const hasTrack=track().length>0;
-  const row=(key,icon,label,opts)=>{
-    const o=opts||{};
-    return '<button class="srowbtn'+(o.on?' on':'')+'" data-side="'+key+'"><span class="sic">'+icon+'</span><span class="slb">'+esc(label)+'</span>'
-      +(o.badge?'<span class="sbadge">'+o.badge+'</span>':'')
-      +(o.count?'<span class="scount">'+o.count+'</span>':'')+'</button>';
-  };
-  let html='<div class="sidecard"><div class="sgh">Browse</div>';
-  if(hasTrack)html+=row('onboarding','🎓','My onboarding',{on:MODE==='onboarding',badge:onb||''});
-  html+=row('all','📚','All articles',{on:MODE==='list'&&CAT==='all',count:pubArts().length});
-  if(reqN)html+=row('req','⭐','Required reading',{on:MODE==='list'&&CAT==='req',badge:reqN});
+/* ---------- Browse lives in the NAV pane, not the page. Publish the row list
+   (with live counts/badges) for nav.js's kb area, then ask it to re-render. */
+function publishNav(){
+  const items=[];
+  const onb=obOutstanding(), reqN=reqOutstanding().length;
+  if(track().length)items.push({h:'onboarding',i:'🎓',l:'My onboarding',b:onb||''});
+  items.push({h:'c=all',i:'📚',l:'All articles',c:pubArts().length});
+  if(reqN)items.push({h:'c=req',i:'⭐',l:'Required reading',b:reqN});
   CATS.forEach(c=>{
     const n=pubArts().filter(a=>a.category_id===c.id).length;
-    if(!n)return;
-    html+=row(String(c.id),c.icon||'📄',c.name,{on:MODE==='list'&&String(CAT)===String(c.id),count:n});
+    if(n)items.push({h:'c='+slugify(c.name),i:c.icon||'📄',l:c.name,c:n});
   });
   if(isMgr(AUTH.role)){
-    html+='<div class="sdiv"></div><div class="sgh">Manage</div>';
     const nd=ARTS.filter(a=>a.status==='draft').length, na=ARTS.filter(a=>a.status==='archived').length;
-    html+=row('drafts','✏️','Drafts',{on:MODE==='list'&&CAT==='drafts',count:nd||''});
-    if(na)html+=row('archived','🗄️','Archived',{on:MODE==='list'&&CAT==='archived',count:na});
-    html+=row('compliance','📋','Compliance',{});
+    items.push({grp:'Manage'});
+    items.push({h:'c=drafts',i:'✏️',l:'Drafts',c:nd||''});
+    if(na)items.push({h:'c=archived',i:'🗄️',l:'Archived',c:na});
+    items.push({u:'kb-compliance.html',i:'📋',l:'Compliance'});
   }
-  html+='</div>';
-  return html;
-}
-function wireSidebar(){
-  document.querySelectorAll('[data-side]').forEach(b=>b.addEventListener('click',()=>{
-    const k=b.dataset.side;
-    if(k==='onboarding'){ MODE='onboarding'; setHash('onboarding'); draw(); return; }
-    if(k==='compliance'){ location.href='kb-compliance.html'; return; }
-    CAT=k; try{localStorage.setItem('cprKbCat',CAT);}catch(e){}
-    MODE='list'; OPEN=null; setHash(catHash()); draw();
-  }));
+  try{ localStorage.setItem('cprKbNav',JSON.stringify(items)); }catch(e){}
+  if(window.CPRKbNav)window.CPRKbNav.refresh();
 }
 function shell(inner){
   return ''
   +'<div class="hd"><div><h1>📚 Knowledge Base</h1><div class="sub">SOPs, repair knowledge, training &amp; how-tos</div></div>'
   +'<div style="margin-left:auto">'+(isMgr(AUTH.role)?'<button class="btn dk sm" id="btnNew">＋ New article</button>':'')+'</div></div>'
   +'<div class="searchbox"><span class="ic">🔎</span><input id="q" value="'+esc(SEARCHQ)+'" placeholder="Search everything — “warranty”, “S24 back glass”, “opening checklist”…" autocomplete="off"></div>'
-  +'<div class="cols">'+sidebar()+'<div style="min-width:0">'+inner+'</div></div>';
+  +inner;
 }
 function wireShell(){
-  wireSidebar();
   const bn=$('#btnNew'); if(bn)bn.addEventListener('click',()=>{ OPEN=null; MODE='edit'; setHash('new'); draw(); });
   const q=$('#q'); if(q){
     q.addEventListener('input',()=>{ SEARCHQ=q.value.trim();
@@ -577,8 +559,7 @@ async function drawOnboarding(){
   }
   $('#page').innerHTML=''
     +'<div class="hd"><div><h1>🎓 My Onboarding</h1><div class="sub">Assigned reading &amp; quizzes — complete in order</div></div></div>'
-    +'<div class="cols">'+sidebar()+'<div style="min-width:0">'+inner+'</div></div>';
-  wireSidebar();
+    +inner;
   document.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>openArticle(+b.dataset.start)));
 }
 
@@ -922,6 +903,7 @@ async function announcePublish(a,isNew){
 
 /* ---------- draw ---------- */
 function draw(){
+  publishNav();   // keep the nav pane's counts/badges/active row current
   if(MODE==='article'&&OPEN)drawArticle();
   else if(MODE==='onboarding')drawOnboarding();
   else if(MODE==='quiz'&&QZ)drawQuiz();

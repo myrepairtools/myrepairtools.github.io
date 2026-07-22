@@ -302,7 +302,8 @@
   // settings pages highlight the gear (employee-records stays under Employees even
   // though it's also listed in the Settings pane)
   var inSettings = (currentFile === 'settings.html');
-  var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
+  var inKb = (currentFile === 'knowledge.html' || currentFile === 'kb-compliance.html');
+  var ACTIVE_AREA = inKb ? 'kb' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -711,8 +712,38 @@
     var ico = '<span class="cpr-tb-ico"><svg viewBox="13 8 48 48" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
     return wm + ico;
   }
+  // Knowledge Base pane: the KB's Browse list lives in the nav (no in-page
+  // sidebar). knowledge.html publishes its categories/counts to localStorage
+  // (cprKbNav) on every load; before the first visit we fall back to the core
+  // rows. Rows are hash links, so clicks route inside the open KB page.
+  function kbPaneHtml(){
+    var items = null;
+    try{ items = JSON.parse(localStorage.getItem('cprKbNav')||'null'); }catch(e){}
+    if (!items || !items.length){
+      items = [ {h:'c=all', i:'📚', l:'All articles'}, {h:'c=req', i:'⭐', l:'Required reading'} ];
+      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'✏️',l:'Drafts'},{u:'kb-compliance.html',i:'📋',l:'Compliance'});
+    }
+    var here = currentFile==='knowledge.html' ? location.hash.replace('#','') : '';
+    var h = '<div class="cpr-grp">Knowledge Base</div>';
+    items.forEach(function(it){
+      if (it.grp){ h += '<div class="cpr-grp">'+esc(it.grp)+'</div>'; return; }
+      var href = it.u ? it.u : 'knowledge.html#'+it.h;
+      var active = it.u ? (currentFile===it.u) : (currentFile==='knowledge.html' && (here===it.h || (!here && it.h==='c=all')));
+      h += '<a class="cpr-link'+(active?' active':'')+'" href="'+esc(href)+'">'
+        + '<span class="ic" style="font-size:15px;line-height:1">'+esc(it.i||'📄')+'</span>'
+        + '<span style="flex:1">'+esc(it.l)+'</span>'
+        + (it.b?'<span style="min-width:18px;text-align:center;background:#DC282E;color:#fff;border-radius:999px;font-size:.62rem;font-weight:800;padding:1px 6px">'+esc(String(it.b))+'</span>':'')
+        + (it.c?'<span style="font-size:.68rem;font-weight:800;color:#B9BDCB">'+esc(String(it.c))+'</span>':'')
+        + '</a>';
+    });
+    return h;
+  }
   function paneInner(area){
     var hd = '';   // brand now lives in the top bar; the pane starts at its tool list
+    if (area === 'kb'){
+      return hd + kbPaneHtml()
+        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
+    }
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -791,6 +822,12 @@
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
   function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
+  // KB pane rows are hash links — keep their active state in sync as the open
+  // KB page routes, and let knowledge.html refresh counts after it loads data.
+  window.addEventListener('hashchange', function(){
+    if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); }
+  });
+  window.CPRKbNav = { refresh: function(){ if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); } } };
 
   var rail, pane, scrim, top, usermenu;
   function setArea(area){
