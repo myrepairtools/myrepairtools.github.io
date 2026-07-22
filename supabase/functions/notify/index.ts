@@ -129,6 +129,14 @@ async function deliver(ch: Channel, subject: string, text: string, keyword: stri
     }
     const target = (ch.target || "").trim();
     if (!target) return { channel: ch.name, ok: false, via: ch.type, error: "no_target" };
+    if (ch.type === "sms") {
+      const r = await fetch((Deno.env.get("SUPABASE_URL") || "") + "/functions/v1/messaging", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "system_send", secret: NOTIFY_SECRET, to: target, body: subject + (text ? " — " + text : "") }) });
+      const j = await r.json().catch(() => ({} as Record<string, unknown>));
+      if (!r.ok || (j as { ok?: boolean }).ok === false) return { channel: ch.name, ok: false, via: "sms", error: String((j as { error?: string }).error || `http_${r.status}`) };
+      return { channel: ch.name, ok: true, via: "sms" };
+    }
     if (ch.type === "webhook") {
       const r = await fetch(target, { method: "POST", headers: { "Content-Type": "application/json" }, body: webhookBody(ch.webhook_format, subject, text, keyword, data) });
       if (!r.ok) return { channel: ch.name, ok: false, via: "webhook", error: `http_${r.status}` };
