@@ -30,9 +30,14 @@ async function handleFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     try {
-      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) await addPdf(await f.arrayBuffer(), true);
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+        window.SRC_NAME = f.name; $('#srcName').textContent = '\u00b7 ' + f.name;
+        var q = await addPdf(await f.arrayBuffer(), true);
+        if (q > 0) { toast('Converted \u2014 downloading the 4\u00d76 PDF\u2026'); setTimeout(doDownload, 400); }
+        else toast('Couldn\u2019t auto-detect the label \u2014 drag a box around it below', true);
+      }
       else if (/^image\//.test(f.type)) await addImageBlob(f);
-      else toast('Not a PDF or image — skipped ' + f.name, true);
+      else toast('Not a PDF or image \u2014 skipped ' + f.name, true);
     } catch (e) { toast('Could not read ' + (f.name || 'file') + ' — ' + e.message, true); }
   }
 }
@@ -329,31 +334,3 @@ function doDownload(){
 
 $('#openBtn').addEventListener('click', doOpen);
 $('#dlBtn').addEventListener('click', doDownload);
-
-/* ---------- pre-load from the tab the user was on ---------- */
-(async function () {
-  try {
-    var got = await chrome.storage.session.get('mrt_label_stash');
-    var st = got && got.mrt_label_stash;
-    if (!st) return;
-    chrome.storage.session.remove('mrt_label_stash');
-    if (st.name) { window.SRC_NAME = st.name; $('#srcName').textContent = '· ' + st.name; }
-    if (!st.b64) { toast('Couldn’t read that tab automatically — drop the file below instead', true); return; }
-    var bin = atob(st.b64), u8 = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    if (st.kind === 'pdf') {
-      var q = await addPdf(u8.buffer, true);
-      if (q > 0) { toast('Converted — opening the 4\u00d76 PDF\u2026'); setTimeout(doOpen, 500); }
-      else toast('Couldn\u2019t auto-detect the label — drag a box around it below', true);
-    } else if (st.captured) {
-      /* screenshot fallback — the page couldn't be read directly, so this is
-         the whole visible tab; let the user crop the label out of it */
-      await addImageBlob(new Blob([u8]));
-      toast('Grabbed a screenshot of the tab — drag a box around the label', true);
-    } else {
-      await addImageBlob(new Blob([u8]));
-      var t = trimOrNull($('#pages').querySelector('canvas'));
-      if (t) { enqueue(t); toast('Converted — opening the 4\u00d76 PDF\u2026'); setTimeout(doOpen, 500); }
-    }
-  } catch (e) { toast('Auto-load failed — drop the file below instead', true); }
-})();

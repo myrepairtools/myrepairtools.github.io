@@ -475,83 +475,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return true; // async sendResponse
 });
 
-/* ── Label Resizer: grab the active tab's PDF and open the 4×6 tool ──────────
-   The popup menu sends label:grab with the tab's URL. The click that opened
-   the popup grants activeTab, so this fetch can read the PDF the tab is
-   showing. The bytes ride to label/label.html via chrome.storage.session
-   (never touch disk); anything unfetchable just opens the tool's drop zone. */
+/* ── Label Resizer: open the converter tool ─────────────────────────────────
+   Upload-first, like the paid labelresizer.com flow the owner wants: the tool
+   opens with a drop zone; dropping a label PDF auto-converts it and downloads
+   a clean 4x6 PDF. (Tab-grabbing was removed — Chrome's file:// and viewer
+   restrictions made it degrade to screenshots too often.) */
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || msg.type !== 'label:grab') return;
-    (async function () {
-        var stash = { name: msg.title || 'label', b64: null, kind: null };
-        try {
-            // Chrome forbids extension code from reading file:// regardless of
-            // permissions — those tabs go straight to the print-to-PDF path.
-            if (/^https?:/.test(msg.url || '')) {
-                // credentials:'include' — vendor label URLs often sit behind the
-                // session cookie the tab is signed in with; an 8s abort keeps a
-                // dead URL from hanging the popup.
-                var ctrl = new AbortController();
-                var tt = setTimeout(function () { ctrl.abort(); }, 8000);
-                var r = await fetch(msg.url, { credentials: 'include', signal: ctrl.signal });
-                clearTimeout(tt);
-                var ct = (r.headers.get('content-type') || '').toLowerCase();
-                var buf = await r.arrayBuffer();
-                var h = new Uint8Array(buf.slice(0, 4));
-                var isPdf = h[0] === 0x25 && h[1] === 0x50 && h[2] === 0x44 && h[3] === 0x46; /* %PDF */
-                if (isPdf || /pdf|image\//.test(ct)) {
-                    var u8 = new Uint8Array(buf), b = '';
-                    for (var i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
-                    stash.b64 = btoa(b);
-                    stash.kind = (isPdf || /pdf/.test(ct)) ? 'pdf' : 'img';
-                }
-            }
-        } catch (e) { /* fall through to print-to-PDF */ }
-        if (!stash.b64 && msg.tabId != null) {
-            // Universal grab: ask Chrome to "print" the tab to a PDF in memory
-            // (debugger API). Works on file:// PDFs, blob viewers, and plain
-            // HTML label pages — output is vector-sharp, and the converter
-            // crops it to the 4x6 exactly like a fetched document.
-            var target = { tabId: msg.tabId };
-            try {
-                await chrome.debugger.attach(target, '1.3');
-                // Best: the PDF viewer holds the ORIGINAL file as a page
-                // resource — read those exact bytes (keeps every page).
-                try {
-                    await chrome.debugger.sendCommand(target, 'Page.enable');
-                    var tree = await chrome.debugger.sendCommand(target, 'Page.getResourceTree');
-                    var frame = tree && tree.frameTree && tree.frameTree.frame;
-                    if (frame) {
-                        var rc = await chrome.debugger.sendCommand(target, 'Page.getResourceContent', { frameId: frame.id, url: msg.url });
-                        if (rc && rc.content && rc.base64Encoded && atob(rc.content.slice(0, 8)).indexOf('%PDF') === 0) {
-                            stash.b64 = rc.content; stash.kind = 'pdf';
-                        }
-                    }
-                } catch (e) { /* not a direct PDF resource — print instead */ }
-                if (!stash.b64) {
-                    var out = await chrome.debugger.sendCommand(target, 'Page.printToPDF', {
-                        printBackground: true,
-                        marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0
-                    });
-                    if (out && out.data) { stash.b64 = out.data; stash.kind = 'pdf'; stash.printed = true; }
-                }
-            } catch (e) { /* fall through to the screenshot fallback */ }
-            try { await chrome.debugger.detach(target); } catch (e) { }
-        }
-        if (!stash.b64) {
-            // Last resort — screenshot the visible tab (activeTab grants this).
-            try {
-                var shot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-                if (shot && shot.indexOf('data:image/') === 0) {
-                    stash.b64 = shot.split(',')[1];
-                    stash.kind = 'img';
-                    stash.captured = true;
-                }
-            } catch (e) { /* tool opens with its drop zone */ }
-        }
-        try { await chrome.storage.session.set({ mrt_label_stash: stash }); } catch (e) { }
-        chrome.tabs.create({ url: chrome.runtime.getURL('label/label.html') });
-        sendResponse({ ok: true });
-    })();
-    return true; // async sendResponse
+    chrome.tabs.create({ url: chrome.runtime.getURL('label/label.html') });
+    sendResponse({ ok: true });
 });
