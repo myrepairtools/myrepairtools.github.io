@@ -61,6 +61,10 @@ function saveOptions(done) {
     for (const k in mcprIds) { mcpr[k] = document.getElementById(mcprIds[k]).getAttribute('data-checked') === 'checked'; }
     mcpr.clockTime = document.getElementById('mcprClockTime').value || '09:40';
     mcpr.priceModel = document.getElementById('mcprPriceModel').value === 'cap' ? 'cap' : 'franchise';
+    const hyla = {
+        offerFill: document.getElementById('hylaOfferFill').getAttribute('data-checked') === 'checked',
+        pct: Math.min(100, Math.max(50, Number(document.getElementById('hylaPct').value) || 95))
+    };
     // ticket-type rules grid (which ticket types each popup runs on)
     const TT_FEATURES = ['followUp', 'promise', 'ready', 'blacklist'];
     const TT_TYPES = ['repair', 'claim', 'sale', 'tradein', 'refurbish'];
@@ -81,7 +85,7 @@ function saveOptions(done) {
         customQuickLinkName3, customQuickLinkUrl3, customQuickLinkFrame3,
         enabled: checkedBoxes,
         cbt: { enabled: true, text: cbtText },
-        lcd, ai, wn, mcpr, sms, tt
+        lcd, ai, wn, mcpr, sms, tt, hyla
     }, () => { if (typeof done === 'function') done(); });
 }
 
@@ -124,7 +128,7 @@ function restoreOptions() {
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
         'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
-        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms', 'tt'
+        'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms', 'tt', 'hyla'
     ]).then((result) => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
         document.getElementById('customQuickLinkUrl1').value = result.customQuickLinkUrl1 || '';
@@ -165,6 +169,10 @@ function restoreOptions() {
         }
         document.getElementById('mcprClockTime').value = mcpr.clockTime || '09:40';
         document.getElementById('mcprPriceModel').value = mcpr.priceModel === 'cap' ? 'cap' : 'franchise';
+
+        const hylaCfg = result.hyla || {};
+        setState(document.getElementById('hylaOfferFill'), hylaCfg.offerFill !== false, 'lcd-checkmark');
+        document.getElementById('hylaPct').value = (hylaCfg.pct >= 50 && hylaCfg.pct <= 100) ? hylaCfg.pct : 95;
 
         const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
         for (const k in lcdIds) {
@@ -218,7 +226,7 @@ function addButtonListeners() {
 
     // text inputs debounce-save; number/time save on change
     document.querySelectorAll('input[type="text"]').forEach((inp) => inp.addEventListener('input', () => scheduleSave(500)));
-    ['wnMinsPer', 'wnOpen', 'wnClose', 'mcprClockTime', 'mcprPriceModel'].forEach((id) => {
+    ['wnMinsPer', 'wnOpen', 'wnClose', 'mcprClockTime', 'mcprPriceModel', 'hylaPct'].forEach((id) => {
         document.getElementById(id).addEventListener('change', () => scheduleSave());
     });
 }
