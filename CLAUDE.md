@@ -530,25 +530,20 @@ function's `template_get` action (store override → default) and caches it in
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
 and Ben's RQ Mods (all its content scripts absorbed as-is; feature toggles preserved
-in Options). **The toolbar button opens a tool MENU** (popup/menu.html, v2.6.1):
-Price Calculator (the old popup) + **Label Resizer** — bg.js `label:grab` fetches the
-active tab's PDF/image (activeTab grant from the click), stashes the bytes in
-chrome.storage.session (never disk), and opens `label/label.html`, a bundled copy of
-label-resizer.html pre-loaded with that label (own pdf.js copy; site tool stays as
-the fallback). **Fully automatic**: both tools auto-detect the shipping label — a
-pdf.js operator-list scan pulls each page's embedded images (objs.get raced against
-a 1s timeout; group-scoped g_* objects never resolve), scores them (≥80k px,
-1.15–2.6 aspect, ≥85% grayscale samples, 4–60% ink → labels; logos are colorful and
-fail), queues the winner per page, and queues label-less pages (packing slips)
-auto-trimmed. **The deliverable is a FILE**: a hand-built 4×6 PDF (288×432pt
-pages, JPEG XObjects — no pdf lib needed) — the extension flow opens it in a new
-tab (Chrome's viewer prints/saves it natively) and both tools have Open + 
-Download buttons. Manual crop stays as the fallback for vector-drawn labels.
-Chrome forbids extension reads of file:// tabs (downloaded labels) regardless of
-permissions, so bg.js uses the debugger API ("debugger" permission, brief
-attach): Page.getResourceContent pulls the PDF viewer's EXACT original bytes,
-else Page.printToPDF re-prints any tab (vector) — then captureVisibleTab
-screenshot, else the drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
+in Options). **The toolbar button opens a tool MENU** (popup/menu.html, v2.7.0):
+Price Calculator (the old popup) + **Label Resizer** — opens `label/label.html`, a
+bundled copy of label-resizer.html (own pdf.js copy; site tool stays as the
+fallback). **Upload-first, like the labelresizer.com service it replaces** (ALL
+tab-grabbing — fetch/debugger/screenshot — was removed at the owner's request
+after Chrome's file:// and viewer restrictions kept degrading it): drop the label
+PDF and the tool auto-detects the label — a pdf.js operator-list scan pulls each
+page's embedded images (objs.get raced against a 1s timeout; group-scoped g_*
+objects never resolve), scores them (≥80k px, 1.15–2.6 aspect, ≥85% grayscale
+samples, 4–60% ink → labels; logos are colorful and fail), queues the winner per
+page and label-less pages (packing slips) auto-trimmed — then **builds a 4×6 PDF
+FILE (288×432pt pages, JPEG XObjects, no pdf lib) and auto-downloads it as
+"<name> 4x6.pdf"**. Open + Download buttons re-emit it; manual crop stays as the
+fallback for undetectable labels. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
 edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
 watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 /ticket/printLabel), vendored `scripts/qrcode.js`, and
