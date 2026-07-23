@@ -544,7 +544,11 @@ auto-trimmed. **The deliverable is a FILE**: a hand-built 4×6 PDF (288×432pt
 pages, JPEG XObjects — no pdf lib needed) — the extension flow opens it in a new
 tab (Chrome's viewer prints/saves it natively) and both tools have Open + 
 Download buttons. Manual crop stays as the fallback for vector-drawn labels.
-Unfetchable tabs get a captureVisibleTab screenshot to crop, else the drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
+Chrome forbids extension reads of file:// tabs (downloaded labels) regardless of
+permissions, so bg.js uses the debugger API ("debugger" permission, brief
+attach): Page.getResourceContent pulls the PDF viewer's EXACT original bytes,
+else Page.printToPDF re-prints any tab (vector) — then captureVisibleTab
+screenshot, else the drop zone. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
 edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
 watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 /ticket/printLabel), vendored `scripts/qrcode.js`, and

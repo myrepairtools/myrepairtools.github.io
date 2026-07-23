@@ -484,16 +484,10 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || msg.type !== 'label:grab') return;
     (async function () {
         var stash = { name: msg.title || 'label', b64: null, kind: null };
-        // Downloaded PDFs opened from disk are file:// tabs — Chrome only lets
-        // the extension read those when "Allow access to file URLs" is on.
-        if (/^file:/.test(msg.url || '')) {
-            var fileOk = await new Promise(function (res) {
-                try { chrome.extension.isAllowedFileSchemeAccess(res); } catch (e) { res(false); }
-            });
-            if (!fileOk) stash.file_blocked = true;
-        }
         try {
-            if (!stash.file_blocked && /^(https?|file):/.test(msg.url || '')) {
+            // Chrome forbids extension code from reading file:// regardless of
+            // permissions — those tabs go straight to the print-to-PDF path.
+            if (/^https?:/.test(msg.url || '')) {
                 // credentials:'include' — vendor label URLs often sit behind the
                 // session cookie the tab is signed in with; an 8s abort keeps a
                 // dead URL from hanging the popup.
@@ -512,10 +506,40 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
                     stash.kind = (isPdf || /pdf/.test(ct)) ? 'pdf' : 'img';
                 }
             }
-        } catch (e) { /* fall through to the screenshot fallback */ }
+        } catch (e) { /* fall through to print-to-PDF */ }
+        if (!stash.b64 && msg.tabId != null) {
+            // Universal grab: ask Chrome to "print" the tab to a PDF in memory
+            // (debugger API). Works on file:// PDFs, blob viewers, and plain
+            // HTML label pages — output is vector-sharp, and the converter
+            // crops it to the 4x6 exactly like a fetched document.
+            var target = { tabId: msg.tabId };
+            try {
+                await chrome.debugger.attach(target, '1.3');
+                // Best: the PDF viewer holds the ORIGINAL file as a page
+                // resource — read those exact bytes (keeps every page).
+                try {
+                    await chrome.debugger.sendCommand(target, 'Page.enable');
+                    var tree = await chrome.debugger.sendCommand(target, 'Page.getResourceTree');
+                    var frame = tree && tree.frameTree && tree.frameTree.frame;
+                    if (frame) {
+                        var rc = await chrome.debugger.sendCommand(target, 'Page.getResourceContent', { frameId: frame.id, url: msg.url });
+                        if (rc && rc.content && rc.base64Encoded && atob(rc.content.slice(0, 8)).indexOf('%PDF') === 0) {
+                            stash.b64 = rc.content; stash.kind = 'pdf';
+                        }
+                    }
+                } catch (e) { /* not a direct PDF resource — print instead */ }
+                if (!stash.b64) {
+                    var out = await chrome.debugger.sendCommand(target, 'Page.printToPDF', {
+                        printBackground: true,
+                        marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0
+                    });
+                    if (out && out.data) { stash.b64 = out.data; stash.kind = 'pdf'; stash.printed = true; }
+                }
+            } catch (e) { /* fall through to the screenshot fallback */ }
+            try { await chrome.debugger.detach(target); } catch (e) { }
+        }
         if (!stash.b64) {
-            // Couldn't read the document itself — screenshot the visible tab
-            // (activeTab grants this) so the label on screen is still usable.
+            // Last resort — screenshot the visible tab (activeTab grants this).
             try {
                 var shot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
                 if (shot && shot.indexOf('data:image/') === 0) {
