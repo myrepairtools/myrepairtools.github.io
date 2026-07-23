@@ -484,8 +484,16 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || msg.type !== 'label:grab') return;
     (async function () {
         var stash = { name: msg.title || 'label', b64: null, kind: null };
+        // Downloaded PDFs opened from disk are file:// tabs — Chrome only lets
+        // the extension read those when "Allow access to file URLs" is on.
+        if (/^file:/.test(msg.url || '')) {
+            var fileOk = await new Promise(function (res) {
+                try { chrome.extension.isAllowedFileSchemeAccess(res); } catch (e) { res(false); }
+            });
+            if (!fileOk) stash.file_blocked = true;
+        }
         try {
-            if (/^(https?|file):/.test(msg.url || '')) {
+            if (!stash.file_blocked && /^(https?|file):/.test(msg.url || '')) {
                 // credentials:'include' — vendor label URLs often sit behind the
                 // session cookie the tab is signed in with; an 8s abort keeps a
                 // dead URL from hanging the popup.

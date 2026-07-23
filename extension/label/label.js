@@ -338,7 +338,15 @@ $('#dlBtn').addEventListener('click', doDownload);
     if (!st) return;
     chrome.storage.session.remove('mrt_label_stash');
     if (st.name) { window.SRC_NAME = st.name; $('#srcName').textContent = '· ' + st.name; }
-    if (!st.b64) { toast('Couldn’t read that tab automatically — drop the file below instead', true); return; }
+    if (st.file_blocked) {
+      var note = document.createElement('div');
+      note.style.cssText = 'background:#FDF6E3;border:1px solid #F0E2B6;border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:.86rem;line-height:1.55';
+      note.innerHTML = '<b>One-time setup for downloaded labels:</b> Chrome blocks extensions from reading files on this computer until you allow it. '
+        + 'Open <code>chrome://extensions</code> → <b>myRepairTools</b> → <b>Details</b> → turn on <b>Allow access to file URLs</b>. '
+        + 'Then run Label Resizer on that tab again — or just drop the PDF below right now.';
+      $('.main').insertBefore(note, $('#drop'));
+    }
+    if (!st.b64) { if (!st.file_blocked) toast('Couldn’t read that tab automatically — drop the file below instead', true); return; }
     var bin = atob(st.b64), u8 = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     if (st.kind === 'pdf') {
