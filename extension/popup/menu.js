@@ -8,7 +8,7 @@ document.getElementById('label').addEventListener('click', function () {
     var t = (tabs && tabs[0]) || {};
     // bg fetches the tab's PDF (activeTab grant from this click), stashes it,
     // and opens the resizer tab pre-loaded — no save/upload round-trip.
-    chrome.runtime.sendMessage({ type: 'label:grab', url: t.url || '', title: t.title || '' }, function () {
+    chrome.runtime.sendMessage({ type: 'label:grab', url: t.url || '', title: t.title || '', tabId: t.id }, function () {
       window.close();
     });
   });
