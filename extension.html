@@ -33,9 +33,9 @@ code{font-size:.8rem;background:#F6F6F8;border:1px solid var(--border);border-ra
   <div class="card">
     <div class="vrow">
       <span class="pill" id="ver">v…</span>
-      <a class="btn" href="downloads/myrepairtools-extension.zip" download>
+      <a class="btn" id="dl" href="downloads/myrepairtools-extension.zip" download>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg>
-        Download myRepairTools.zip
+        <span id="dlLabel">Download myRepairTools.zip</span>
       </a>
     </div>
   </div>
@@ -43,7 +43,7 @@ code{font-size:.8rem;background:#F6F6F8;border:1px solid var(--border);border-ra
   <div class="card">
     <h2>First-Time Install (Per Machine)</h2>
     <ol>
-      <li>Download the zip above and <b>extract it</b> to a permanent folder — e.g. <code>Documents\myRepairTools</code>. Don't run it from the Downloads folder.</li>
+      <li>Download the zip above (it saves with the version in the name, e.g. <code>myrepairtools-extension-2.7.2.zip</code>) and <b>extract it</b> to a permanent folder — e.g. <code>Documents\myRepairTools</code>. Don't run it from the Downloads folder.</li>
       <li>Open <code>chrome://extensions</code> and switch on <b>Developer mode</b> (top-right).</li>
       <li>Click <b>Load unpacked</b> and pick the folder you extracted.</li>
       <li>Pin myRepairTools to the toolbar (puzzle-piece icon → 📌).</li>
@@ -64,8 +64,16 @@ code{font-size:.8rem;background:#F6F6F8;border:1px solid var(--border);border-ra
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script>
+/* The zip lives at one canonical path (so the build never changes), but the
+   SAVED file carries the version — machines end up with myrepairtools-extension-2.7.2.zip
+   instead of a pile of "(1)(2)(3)" copies you can't tell apart. Same-origin, so
+   the download attribute's filename is honored. */
 fetch('downloads/extension-manifest.json').then(function(r){return r.json();}).then(function(m){
   document.getElementById('ver').textContent='v'+m.version+' · current';
+  var v=String(m.version||'').replace(/[^0-9A-Za-z._-]/g,'');
+  if(!v)return;
+  var a=document.getElementById('dl'); if(a)a.setAttribute('download','myrepairtools-extension-'+v+'.zip');
+  var l=document.getElementById('dlLabel'); if(l)l.textContent='Download myRepairTools '+v+'.zip';
 }).catch(function(){document.getElementById('ver').textContent='current build';});
 </script>
 </body>

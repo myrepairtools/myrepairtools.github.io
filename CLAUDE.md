@@ -638,7 +638,10 @@ OFF** because it signs forms), and Clock Guard (blocks early clock-in, configura
 time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). **The site hosts the current build**: `downloads/myrepairtools-extension.zip` (+
 `downloads/extension-manifest.json` for the version pill), downloaded from
 **`extension.html`** ("Get the Extension", Tools nav) — store machines update from
-there, no file shuttling. **Rebuild the zip on every extension change**
+there, no file shuttling. The zip keeps ONE canonical path, but the page reads the
+manifest version and sets the anchor's `download` filename, so it saves as
+`myrepairtools-extension-<version>.zip` (no ambiguous "(1)(2)" copies on store
+machines) — nothing to change at build time. **Rebuild the zip on every extension change**
 (`cd extension && zip -qr ../downloads/myrepairtools-extension.zip . && cp
 manifest.json ../downloads/extension-manifest.json`). Install unpacked or publish to
 the Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
