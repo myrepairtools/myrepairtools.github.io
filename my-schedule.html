@@ -1057,19 +1057,23 @@ async function wizSubmit(){
   var dayHours={},partials={};
   wizDates().forEach(function(di){var d=w.days[di];
     if(!d.off&&d.use&&Number(d.hours)>0){dayHours[di]=Number(d.hours);if(d.partial)partials[di]=true;}});
+  // the owner is the top approver — their own request auto-approves (no one else can decide it)
+  var isOwner=ME.role==='owner';
   var row={staff_id:ME.id,store:ME.home_store,type:w.type,paid:isPaidType(w.type),start_date:w.start,end_date:w.end,
     hours:total,day_hours:Object.keys(dayHours).length?dayHours:null,
     partial_days:Object.keys(partials).length?partials:null,
-    note:String(w.note||'').trim()||null,status:'pending'};
+    note:String(w.note||'').trim()||null,
+    status:isOwner?'approved':'pending',
+    decided_by:isOwner?ME.id:null,decided_at:isOwner?new Date().toISOString():null};
   w.saving=true;drawWiz();
   var r=await sb.from('time_off_requests').insert(row).select().single();
   if(r.error){w.saving=false;drawWiz();var e=document.getElementById('wzErr');if(e)e.textContent=r.error.message;return;}
-  try{var ss=(await sb.auth.getSession()).data.session;
+  if(!isOwner){try{var ss=(await sb.auth.getSession()).data.session;
     if(ss)fetch(SB_URL+'/functions/v1/notify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ss.access_token,'apikey':ANON},
       body:JSON.stringify({action:'send',event_key:'timeoff.requested',
-        subject:'Time-off request: '+(ME.display_name||'')+' · '+w.start+' to '+w.end,
-        text:w.type+(row.hours?' · '+row.hours+'h':'')+(row.note?' · '+row.note:'')+' — review in Time Off.'})}).catch(function(){});}catch(e2){}
-  REQS.push(r.data);closePlanner();toast('✓ Sent to your manager');renderHeader();render();
+        subject:'Time-off request: '+(ME.name||'')+' · '+w.start+' to '+w.end,
+        text:w.type+(row.hours?' · '+row.hours+'h':'')+(row.note?' · '+row.note:'')+' — review in Time Off.'})}).catch(function(){});}catch(e2){}}
+  REQS.push(r.data);closePlanner();toast(isOwner?'✓ Time off booked':'✓ Sent to your manager');renderHeader();render();
 }
 
 initAuth();
