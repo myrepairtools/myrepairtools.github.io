@@ -636,7 +636,8 @@ replies ride the legacy **v4** API, the newer APIs don't have them). Crons:
 `gbp-sync-nightly` (11:05 UTC — metrics 10-day window, reviews, snapshot, phone/photo
 freshness), `gbp-keywords-monthly` (3rd, keywords finalize mid-following-month),
 **`gbp-engine` (*/15 — the review engine)**: incremental review pull → 1–3★ alerts +
-12h/24h SLA alerts (recent reviews only; via the alerts function + direct SMS per
+24h SLA alerts (recent reviews only; no 12h nudge — evening review + 3h hold +
+9 AM posting window crosses 12h routinely; via the alerts function + direct SMS per
 `gbp_notify_prefs`; 1–2★ ignores quiet hours) → auto-reply enqueue (**4–5★ only**, LLM
 draft via `ANTHROPIC_API_KEY` or rotating thank-you for rating-only, 3h hold) → posts
 due holds 9a–7p store time → Monday digest to Communications (kind 'gbp'). Guardrails
