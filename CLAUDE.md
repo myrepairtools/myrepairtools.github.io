@@ -132,6 +132,9 @@ these when adding UI so a new tool looks native.
   margins), and print a clean **4×6** — one page per queued item, sideways crops
   auto-rotate upright (per-item ↻ override). Replaces the paid "label resizer"
   service; fully client-side, no backend.
+- **`xlsx.min.js`** — vendored SheetJS `xlsx.mini.min.js` v0.18.5 (Apache-2.0); global
+  `window.XLSX`, read-only `.xlsx/.xls/.csv` parsing. Loaded as a classic `<script>` by
+  `inventory-editor.html`. Update: `npm pack xlsx@<ver>` → copy `package/dist/xlsx.mini.min.js`.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
   source of truth for the Commission Calculator (nav label "Payroll · Commission & Tips" —
   same tool, payroll-focused name; file stays commission-calculator.html) + Dashboard.
@@ -457,6 +460,33 @@ price + MS stock). Cross-store transfer chips were built then removed at the
 owner's request (2026-07-22) — don't resurrect without asking. **QBO booking from MS orders is deliberately NOT
 built** — the owner will drive that step-by-step; never auto-post to QBO from
 MS data without explicit direction (docs/mobilesentrix-pipeline.md).
+
+**Inventory Editor (bulk RepairQ status change from a file):** `inventory-editor.html`
+(Operations → **Tools** nav, admin/owner — `minRole:'admin'`) does what a one-off RMA
+pull-back needed: change hundreds of units' RepairQ status from a scanned list. Flow:
+pick store + **From** status (default Instock) + **To** status (default RMA Credit) →
+**paste** rows (from Excel/Sheets) or drop a **.csv/.xlsx** (every sheet read;
+`assets/xlsx.min.js`) → **Preview** (resolve) → **Run** (apply). Input is one SKU/serial
+per line; a 2nd column is a qty, or just repeat the line per unit (both aggregate); a
+header row is ignored; **serials auto-detected**. All RepairQ writes run server-side in
+the **`repairq-query` edge function's `inventory_status` action** (browser gated by a
+signed-in admin/owner Supabase JWT via `admin.auth.getUser` — the RepairQ session never
+touches the browser; the older `raw`/PROXY_SECRET path stays server-only). Two modes:
+`resolve` (Looker maps SKU→`catalog_item.id`, unmatched values→`inventory_item.serial_number`;
+`getStatusCounts` gives live per-status counts — the preview flags not-found, over-scan
+"only N here", and nothing-to-move) and `apply` (**non-serialized SKUs move by qty via
+`removeStock`** cond=1/carrier=0/supplier=0, verified against before/after counts + one
+retry; **serials flip via their own `/inventory/edit/{id}` form** — `flipUnit`/`parseEditForm`,
+which carries the unit's own condition/carrier/supplier, no bucket guessing). Move qty =
+`min(scanned, live in from-status)`, so scanning more than stock just moves all available.
+**Re-runnable/idempotent-ish:** every write re-reads live counts first and only moves what's
+still in the From status, so an interrupted run is safe to re-upload (already-moved units
+are left alone). The browser drives resolve in 40-row chunks and apply in 15-row chunks with
+a progress bar, then offers a **receipt CSV** (per row: result, moved, detail). `removeStock`
+ignores CSRF (a mismatched-session token still succeeded across 532 live writes), so the
+action doesn't manage tokens for it; the edit-form POST parses a same-session token. RepairQ
+status ids: 2 Instock · 8 Pulled · 3 Pending RMA · 96 RMA Credit · 95 RMA Sent · 94 RMA
+Rejected · 97 Ordered · 93 Write Off · 99 Damaged · 98 Shrinkage · 1 Sold.
 
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
@@ -826,7 +856,23 @@ pages/QBO use) plus `day_hours jsonb` ({date: hours}); `qbtime-sync` writes exac
 per-day entries to QB Time with a **14-day lookback** for late filings (falls back to an
 even split for legacy rows; a 0-hour request — all days fell on regular days off — is
 marked synced without writing). `time-off.html` shows real request hours (hover for
-per-day) with a ½-partial flag.
+per-day) with a ½-partial flag. **Approve/deny** lives on `time-off.html` (permission
+`timeoff.approve`, owner-only by default); on mobile the row's **Status pill is the
+control** — tapping it opens an action sheet (the Actions column is hidden on phones,
+where the table reflows to cards). An **owner's own** request auto-approves at creation
+(they're the top approver) and owners may decide their own; everyone else's own request
+stays pending and no one can self-approve.
+
+**Store scoping (`app_settings`):** a general owner-managed key-value settings table
+(`app_settings` — key text pk, value jsonb, RLS read-all / write `is_owner()`;
+docs/sql/app-settings-schema.sql). First key **`schedule.store_scoping`** (default
+`false`): OFF = My Time coverage + time-off visibility span **all** stores (everyone sees
+everyone — the single-region-owner-covers-all default); ON = scoped per store as the shop
+grows. Toggle in **Settings → Locations → "Schedule visibility"** (owner-only). `my-schedule.html`
+reads it (`SCOPE_BY_STORE`): `myStores()` returns all stores when off (or for any owner),
+and `isTeammate(e)` widens the teammate filter — when on, a person shows in a store's view
+if it's their home store OR one of their `authorized_stores` (so the owner, authorized
+everywhere, always appears). New global toggles should become new `app_settings` keys.
 
 **Checklist (store tasks):** `task_templates` **generate** `task_instances` — never render
 templates directly; the checklist shows instances. Template shape: recurrence

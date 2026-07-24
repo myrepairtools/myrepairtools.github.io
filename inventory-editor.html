@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Editor — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C98A00;--white:#fff;
+--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:1180px;margin:0;padding:24px 28px 80px}
+.titlerow{display:flex;align-items:center;gap:9px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
+.tag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;letter-spacing:.4px;text-transform:uppercase;
+color:var(--red);border:1px solid #F6C9CA;background:#FFF1F1;border-radius:5px;padding:2px 6px}
+.sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin-top:2px}
+
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-top:16px;box-shadow:var(--shadow)}
+.card>.ct{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;margin-bottom:2px}
+.card>.ch{color:var(--dark-grey);font-size:.8rem;font-weight:700;margin-bottom:14px}
+
+.hd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.fldl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--dark-grey);margin-bottom:4px}
+.storesel,.statsel,.noteinp{height:38px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.9rem;color:var(--dark)}
+.storesel{width:200px;cursor:pointer}.statsel{width:180px;cursor:pointer}.noteinp{width:260px;font-weight:600}
+.storesel:focus,.statsel:focus,.noteinp:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.arrow{font-family:'Nunito',sans-serif;font-weight:900;color:var(--grey);font-size:1.3rem;padding-bottom:5px}
+
+.drop{border:2px dashed var(--grey);border-radius:12px;background:#FAFAFB;padding:20px;text-align:center;cursor:pointer;transition:.15s}
+.drop.over{border-color:var(--blue);background:#EAF6FD}
+.drop b{font-size:.92rem}.drop .h{color:var(--grey);font-weight:700;font-size:.78rem;margin-top:4px}
+textarea#paste{width:100%;min-height:150px;border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;
+font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;color:var(--dark);resize:vertical;margin-top:12px}
+textarea#paste:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.pillrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.cnt{font-weight:800;font-size:.82rem;color:var(--dark-grey)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-family:'Nunito',sans-serif;font-weight:800;
+font-size:.85rem;padding:10px 18px;border:1.5px solid var(--border);background:#fff;color:var(--dark);border-radius:10px;cursor:pointer}
+.btn.pri{background:var(--dark);border-color:var(--dark);color:#fff}
+.btn.go{background:var(--red);border-color:var(--red);color:#fff}
+.btn.alt{background:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:7px 13px;font-size:.78rem}
+
+.tiles{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.tile{flex:1;min-width:120px;background:#FAFAFB;border:1px solid var(--border);border-radius:10px;padding:11px 14px}
+.tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem}
+.tile .l{font-size:.72rem;font-weight:700;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.3px;margin-top:1px}
+.tile.warn .n{color:var(--amber)}.tile.bad .n{color:var(--red)}.tile.good .n{color:var(--green)}
+
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{text-align:left;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.3px;
+color:var(--dark-grey);padding:8px 10px;border-bottom:2px solid var(--border);position:sticky;top:0;background:#fff}
+td{padding:8px 10px;border-bottom:1px solid var(--light-grey);vertical-align:top}
+.tbwrap{max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:10px}
+tr.r-notfound td,tr.r-skipped td{color:var(--grey)}
+.badge{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.3px}
+.badge.sku{background:#E9F5FC;color:#2E7CA6}.badge.serial{background:#EFEAFB;color:#6B4F9E}
+.badge.nf{background:#F3F2F2;color:#8A8A93}
+.badge.done{background:#E7F6EE;color:var(--green)}.badge.failed{background:#FDECEC;color:var(--red)}
+.badge.skip{background:#F3F2F2;color:#8A8A93}.badge.error{background:#FDECEC;color:var(--red)}
+.warnx{color:var(--amber);font-weight:800;font-size:.76rem}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+.prog{height:10px;background:var(--light-grey);border-radius:20px;overflow:hidden;margin:12px 0 6px}
+.prog>i{display:block;height:100%;width:0;background:var(--blue);transition:width .2s}
+.progtx{font-weight:800;font-size:.8rem;color:var(--dark-grey)}
+
+.mask{position:fixed;inset:0;background:rgba(45,45,59,.5);display:none;align-items:center;justify-content:center;z-index:800}
+.mask.show{display:flex}
+.modal{background:#fff;border-radius:16px;padding:24px;max-width:440px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin-bottom:8px}
+.modal p{font-size:.88rem;color:var(--dark-grey);font-weight:600;line-height:1.5}
+.modal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark);margin:12px 0}
+.modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.gate{background:#FFF1F1;border:1px solid #F6C9CA;border-radius:12px;padding:22px;text-align:center;color:var(--red);
+font-weight:800;margin-top:20px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="hd" style="margin-bottom:2px">
+    <div>
+      <div class="titlerow"><h1>📦 Inventory Editor</h1><span class="tag" id="roleTag">Admin</span></div>
+      <div class="sub">Bulk-change RepairQ inventory status from a scanned list — RMA pull-backs, pulls, write-offs.</div>
+    </div>
+  </div>
+
+  <div id="gate" class="gate hide"></div>
+
+  <div id="app" class="hide">
+    <!-- 1 · Setup -->
+    <div class="card">
+      <div class="ct">1 · What are you changing?</div>
+      <div class="ch">Pick the store and the status move. The default is a pull-back: Instock → RMA Credit.</div>
+      <div class="hd">
+        <div><div class="fldl">Store</div><select class="storesel" id="storeSel"></select></div>
+        <div><div class="fldl">From status</div><select class="statsel" id="fromSel"></select></div>
+        <div class="arrow">→</div>
+        <div><div class="fldl">To status</div><select class="statsel" id="toSel"></select></div>
+        <div><div class="fldl">Note on each unit</div><input class="noteinp" id="noteInp" maxlength="180" placeholder="Updated via myRepairTools"></div>
+      </div>
+    </div>
+
+    <!-- 2 · List -->
+    <div class="card">
+      <div class="ct">2 · Paste or upload your list</div>
+      <div class="ch">One SKU or serial per line. Add a quantity in a second column (comma or tab), or just repeat the line once per unit — both work. A header row is ignored. Serials are detected automatically.</div>
+      <div class="drop" id="drop">
+        <b>Drop a CSV or Excel file here</b>
+        <div class="h">…or click to choose. Every sheet in an .xlsx is read. Scanned straight from Excel/Sheets? Paste below instead.</div>
+        <input type="file" id="file" accept=".csv,.tsv,.txt,.xlsx,.xls" hidden>
+      </div>
+      <textarea id="paste" placeholder="107082011430&#10;107082011430&#10;GH82-35878A, 2&#10;NOTONBOXC3808A"></textarea>
+      <div class="pillrow">
+        <button class="btn pri" id="previewBtn">Preview changes</button>
+        <button class="btn alt sm" id="clearBtn">Clear</button>
+        <span class="cnt" id="parseCnt"></span>
+      </div>
+    </div>
+
+    <!-- 3 · Preview -->
+    <div class="card hide" id="previewCard">
+      <div class="ct">3 · Review before running</div>
+      <div class="ch" id="previewSub"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="tbwrap"><table id="pvTable"><thead><tr>
+        <th>Value</th><th>Type</th><th>Item</th><th>Scanned</th><th>In from-status</th><th>Will move</th><th>Note</th>
+      </tr></thead><tbody id="pvBody"></tbody></table></div>
+      <div class="pillrow" style="margin-top:14px">
+        <button class="btn go" id="runBtn">Run the changes →</button>
+        <span class="cnt" id="runHint"></span>
+      </div>
+    </div>
+
+    <!-- 4 · Run / receipt -->
+    <div class="card hide" id="runCard">
+      <div class="ct">4 · Results</div>
+      <div class="ch" id="runSub"></div>
+      <div class="prog"><i id="progBar"></i></div>
+      <div class="progtx" id="progTx"></div>
+      <div class="tiles hide" id="rcTiles" style="margin-top:14px"></div>
+      <div class="tbwrap hide" id="rcWrap"><table><thead><tr>
+        <th>Value</th><th>Item</th><th>Result</th><th>Moved</th><th>Detail</th>
+      </tr></thead><tbody id="rcBody"></tbody></table></div>
+      <div class="pillrow hide" id="dlRow" style="margin-top:14px">
+        <button class="btn pri" id="dlBtn">⬇ Download receipt (CSV)</button>
+        <button class="btn alt" id="againBtn">Start another</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="mask" id="mask"><div class="modal">
+  <h3 id="mTitle">Confirm</h3>
+  <p id="mBody"></p>
+  <div class="big" id="mBig"></div>
+  <div class="row">
+    <button class="btn alt" id="mCancel">Cancel</button>
+    <button class="btn go" id="mOk">Yes, run it</button>
+  </div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/xlsx.min.js"></script>
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="operations"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* ============================================================
+   Inventory Editor — bulk RepairQ status changes from a file.
+   Upload/paste a SKU/serial list → resolve (classify + live counts)
+   → review → apply. All RepairQ writes run server-side in the
+   repairq-query edge function's `inventory_status` action (admin/
+   owner JWT); the RepairQ session never touches the browser.
+   Non-serialized SKUs move by qty (removeStock, verified+retry);
+   serials flip via their own edit form. Re-runnable: every write
+   rechecks live counts first, so an interrupted run is safe to
+   re-upload — only what's still in the "from" status moves.
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL="https://xuvsehrevxackuhmbmry.supabase.co";
+var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY";
+var FN=SB_URL+"/functions/v1/repairq-query";
+var sb=createClient(SB_URL,ANON);
+
+// RepairQ inventory statuses (id → label). onHand first, then historical.
+var STATUSES=[
+  {id:2,name:"Instock"},{id:8,name:"Pulled"},{id:3,name:"Pending RMA"},
+  {id:4,name:"Pending Refurb"},{id:5,name:"Pending Restock"},{id:11,name:"Pending Transfer"},
+  {id:9,name:"Parts Only"},{id:10,name:"DO NOT USE"},
+  {id:96,name:"RMA Credit"},{id:95,name:"RMA Sent"},{id:94,name:"RMA Rejected"},
+  {id:97,name:"Ordered"},{id:7,name:"Back Ordered"},{id:99,name:"Damaged"},
+  {id:98,name:"Shrinkage"},{id:93,name:"Write Off"},{id:6,name:"Voided"},{id:1,name:"Sold"}
+];
+var STATNAME={}; STATUSES.forEach(function(s){STATNAME[s.id]=s.name;});
+
+var STATE={rows:[],resolved:[],receipt:[]};
+var RESOLVE_CHUNK=40, APPLY_CHUNK=15;
+
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
+
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+async function token(){var s=await ensureSession();return (s&&s.access_token)||ANON;}
+
+async function callFn(body){
+  var tok=await token();
+  var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},body:JSON.stringify(body)});
+  var j=await r.json().catch(function(){return {ok:false,error:'bad response ('+r.status+')'};});
+  if(!r.ok||j.ok===false) throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+
+/* ---- boot: role gate + store list + status dropdowns ---- */
+(async function boot(){
+  var s=await ensureSession();
+  var staff=null;
+  if(s){ try{ staff=(await sb.from('staff').select('display_name,role').eq('auth_uid',s.user.id).maybeSingle()).data; }catch(e){} }
+  var role=(staff&&staff.role)||'';
+  if(role!=='admin'&&role!=='owner'){
+    $('#gate').classList.remove('hide');
+    $('#gate').innerHTML='🔒 This tool writes to live RepairQ inventory and is limited to managers and the owner.'+
+      (role?'':'<br><br>Sign in with your PIN first.');
+    return;
+  }
+  $('#roleTag').textContent=role==='owner'?'Owner':'Admin';
+  $('#app').classList.remove('hide');
+
+  // store dropdown from store_lines (RepairQ names — what the API needs)
+  var sel=$('#storeSel');
+  try{
+    var st=(await sb.from('store_lines').select('store').eq('active',true).order('store')).data||[];
+    st.forEach(function(r){var o=document.createElement('option');o.value=r.store;o.textContent=r.store;sel.appendChild(o);});
+    var mine=staff&&staff.home_store; // best-effort default
+  }catch(e){}
+  if(!sel.options.length){ ['CPR Eugene','CPR Salem Northeast','CPR Clackamas OR'].forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);}); }
+
+  // status dropdowns
+  function fill(elId,def){var el=$('#'+elId);STATUSES.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===def)o.selected=true;el.appendChild(o);});}
+  fill('fromSel',2); fill('toSel',96);
+})();
+
+/* ---- parse input into aggregated {value, qty} ---- */
+function looksHeader(v){ return /^(sku|serial|serial\s*number|item|part|part\s*number|qty|quantity|count|barcode)$/i.test(String(v).trim()); }
+function aggregate(pairs){
+  // pairs: [{value, qty}]  → sum qty per distinct value, keep first-seen order
+  var map={},order=[];
+  pairs.forEach(function(p){
+    var v=String(p.value||'').trim(); if(!v) return;
+    var q=Math.max(1, parseInt(p.qty,10)||1);
+    if(!(v in map)){map[v]=0;order.push(v);}
+    map[v]+=q;
+  });
+  return order.map(function(v){return {value:v,qty:map[v]};});
+}
+function parseText(text){
+  var lines=String(text||'').split(/\r?\n/), pairs=[], first=true;
+  lines.forEach(function(ln){
+    if(!ln.trim()) return;
+    var f=ln.split(/[,\t;]/).map(function(x){return x.trim();}).filter(function(x){return x!=='';});
+    if(!f.length) return;
+    if(first){ first=false; if(looksHeader(f[0])) return; }
+    var qty=(f[1]!=null&&/^\d+$/.test(f[1]))?parseInt(f[1],10):1;
+    pairs.push({value:f[0],qty:qty});
+  });
+  return aggregate(pairs);
+}
+function parseWorkbook(buf){
+  var wb=XLSX.read(buf,{type:'array'}), pairs=[];
+  wb.SheetNames.forEach(function(nm){
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,blankrows:false});
+    var first=true;
+    rows.forEach(function(r){
+      if(!r||r[0]==null||String(r[0]).trim()==='') return;
+      if(first){first=false; if(looksHeader(r[0])) return;}
+      var qty=(r[1]!=null&&/^\d+$/.test(String(r[1]).trim()))?parseInt(r[1],10):1;
+      pairs.push({value:String(r[0]).trim(),qty:qty});
+    });
+  });
+  return aggregate(pairs);
+}
+function setRows(rows){
+  STATE.rows=rows;
+  var units=rows.reduce(function(a,r){return a+r.qty;},0);
+  $('#parseCnt').textContent=rows.length?(rows.length+' SKUs/serials · '+units+' units'):'';
+  $('#previewBtn').disabled=!rows.length;
+}
+
+$('#paste').addEventListener('input',function(){ setRows(parseText(this.value)); });
+$('#clearBtn').addEventListener('click',function(){ $('#paste').value=''; setRows([]); $('#previewCard').classList.add('hide'); $('#runCard').classList.add('hide'); });
+
+var drop=$('#drop'), fileInp=$('#file');
+drop.addEventListener('click',function(){fileInp.click();});
+drop.addEventListener('dragover',function(e){e.preventDefault();drop.classList.add('over');});
+drop.addEventListener('dragleave',function(){drop.classList.remove('over');});
+drop.addEventListener('drop',function(e){e.preventDefault();drop.classList.remove('over');if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);});
+fileInp.addEventListener('change',function(){if(this.files[0])readFile(this.files[0]);});
+function readFile(f){
+  var name=f.name.toLowerCase();
+  var rd=new FileReader();
+  if(/\.(xlsx|xls)$/.test(name)){
+    rd.onload=function(){ try{ var rows=parseWorkbook(rd.result); $('#paste').value=rows.map(function(r){return r.qty>1?(r.value+', '+r.qty):r.value;}).join('\n'); setRows(rows); toast(rows.length+' rows loaded from '+f.name); }catch(e){ toast('Could not read that file',true); } };
+    rd.readAsArrayBuffer(f);
+  }else{
+    rd.onload=function(){ var rows=parseText(rd.result); $('#paste').value=String(rd.result); setRows(rows); toast(rows.length+' rows loaded from '+f.name); };
+    rd.readAsText(f);
+  }
+}
+
+/* ---- preview (resolve) ---- */
+$('#previewBtn').addEventListener('click', preview);
+async function preview(){
+  if(!STATE.rows.length) return;
+  var store=$('#storeSel').value, fromS=parseInt($('#fromSel').value,10);
+  var btn=$('#previewBtn'); btn.disabled=true; var orig=btn.textContent; btn.textContent='Checking RepairQ…';
+  try{
+    var out=[];
+    for(var i=0;i<STATE.rows.length;i+=RESOLVE_CHUNK){
+      var chunk=STATE.rows.slice(i,i+RESOLVE_CHUNK);
+      btn.textContent='Checking… '+Math.min(i+RESOLVE_CHUNK,STATE.rows.length)+'/'+STATE.rows.length;
+      var j=await callFn({action:'inventory_status',mode:'resolve',location:store,from_status:fromS,rows:chunk});
+      out=out.concat(j.rows||[]);
+    }
+    STATE.resolved=out;
+    renderPreview();
+  }catch(e){ toast(e.message||'Preview failed',true); }
+  finally{ btn.disabled=false; btn.textContent=orig; }
+}
+function willMove(r){
+  if(r.kind==='notfound') return 0;
+  if(r.kind==='serial') return 1;
+  var live=(r.live_in_from==null)?0:r.live_in_from;
+  return Math.min(r.qty||1, live);
+}
+function renderPreview(){
+  var rows=STATE.resolved, fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[parseInt($('#toSel').value,10)];
+  var units=0,nf=0,shortc=0,nonec=0,sku=0,ser=0;
+  var body=$('#pvBody'); body.innerHTML='';
+  rows.forEach(function(r){
+    var mv=willMove(r); units+=mv;
+    if(r.kind==='notfound') nf++;
+    else if(r.kind==='serial') ser++;
+    else { sku++; var live=(r.live_in_from==null)?0:r.live_in_from; if(live<=0)nonec++; else if((r.qty||1)>live)shortc++; }
+    var warn='';
+    if(r.kind==='notfound') warn='<span class="warnx">not in RepairQ — skipped</span>';
+    else if(r.kind==='sku'){ var live=(r.live_in_from==null)?0:r.live_in_from; if(live<=0)warn='<span class="warnx">none in '+fromN+'</span>'; else if((r.qty||1)>live)warn='<span class="warnx">only '+live+' here — moving all</span>'; }
+    var kb=r.kind==='sku'?'<span class="badge sku">SKU</span>':r.kind==='serial'?'<span class="badge serial">Serial</span>':'<span class="badge nf">Not found</span>';
+    var tr=document.createElement('tr'); tr.className='r-'+r.kind;
+    tr.innerHTML='<td class="mono">'+esc(r.value)+'</td><td>'+kb+'</td><td>'+esc(r.name||(r.sku?r.sku:'—'))+'</td>'+
+      '<td>'+(r.qty||1)+'</td><td>'+(r.kind==='serial'?'—':(r.live_in_from==null?'?':r.live_in_from))+'</td>'+
+      '<td><b>'+mv+'</b></td><td>'+warn+'</td>';
+    body.appendChild(tr);
+  });
+  var tiles=[
+    {n:units,l:'units will move',c:'good'},
+    {n:sku+ser,l:'matched',c:''},
+    {n:nf,l:'not in RepairQ',c:nf?'warn':''},
+    {n:shortc,l:'scan &gt; stock',c:shortc?'warn':''},
+    {n:nonec,l:'nothing to move',c:nonec?'bad':''}
+  ];
+  $('#tiles').innerHTML=tiles.map(function(t){return '<div class="tile '+t.c+'"><div class="n">'+t.n+'</div><div class="l">'+t.l+'</div></div>';}).join('');
+  $('#previewSub').innerHTML='Moving from <b>'+fromN+'</b> → <b>'+toN+'</b> at <b>'+esc($('#storeSel').value)+'</b>. Nothing is written until you press Run.';
+  $('#runHint').textContent=units?('Ready — '+units+' units'):'Nothing to move';
+  $('#runBtn').disabled=!units;
+  $('#previewCard').classList.remove('hide'); $('#runCard').classList.add('hide');
+  $('#previewCard').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+/* ---- run (apply) ---- */
+$('#runBtn').addEventListener('click',function(){
+  var fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[parseInt($('#toSel').value,10)];
+  var units=STATE.resolved.reduce(function(a,r){return a+willMove(r);},0);
+  $('#mTitle').textContent='Run the changes?';
+  $('#mBody').innerHTML='This writes to <b>live RepairQ inventory</b> at '+esc($('#storeSel').value)+'. It only moves units currently in <b>'+fromN+'</b>, so it’s safe to re-run if anything is interrupted.';
+  $('#mBig').textContent='Move '+units+' units · '+fromN+' → '+toN;
+  $('#mask').classList.add('show');
+});
+$('#mCancel').addEventListener('click',function(){$('#mask').classList.remove('show');});
+$('#mOk').addEventListener('click',function(){$('#mask').classList.remove('show');apply();});
+
+async function apply(){
+  var store=$('#storeSel').value, fromS=parseInt($('#fromSel').value,10), toS=parseInt($('#toSel').value,10);
+  var note=($('#noteInp').value||'').trim()||'Updated via myRepairTools';
+  var work=STATE.resolved.filter(function(r){return r.kind!=='notfound' && willMove(r)>0;});
+  var skipped=STATE.resolved.filter(function(r){return r.kind==='notfound' || willMove(r)<=0;});
+  STATE.receipt=[];
+  $('#runCard').classList.remove('hide'); $('#rcTiles').classList.add('hide'); $('#rcWrap').classList.add('hide'); $('#dlRow').classList.add('hide');
+  $('#rcBody').innerHTML='';
+  $('#runSub').innerHTML='Applying '+STATE.resolved.reduce(function(a,r){return a+willMove(r);},0)+' unit moves ('+STATNAME[fromS]+' → '+STATNAME[toS]+')…';
+  $('#runBtn').disabled=true; $('#previewBtn').disabled=true;
+  $('#runCard').scrollIntoView({behavior:'smooth',block:'nearest'});
+  var done=0, total=work.length;
+  function prog(){var pct=total?Math.round(done/total*100):100;$('#progBar').style.width=pct+'%';$('#progTx').textContent='Processed '+done+' of '+total+' SKUs/serials';}
+  prog();
+  try{
+    for(var i=0;i<work.length;i+=APPLY_CHUNK){
+      var chunk=work.slice(i,i+APPLY_CHUNK).map(function(r){return {value:r.value,kind:r.kind,catalog_id:r.catalog_id,item_id:r.item_id,qty:r.qty,name:r.name};});
+      var j=await callFn({action:'inventory_status',mode:'apply',location:store,from_status:fromS,to_status:toS,note:note,rows:chunk});
+      (j.receipt||[]).forEach(function(rec){STATE.receipt.push(rec);appendReceiptRow(rec);});
+      done=Math.min(i+APPLY_CHUNK,work.length); prog();
+    }
+    // fold in the skipped rows so the receipt is complete
+    skipped.forEach(function(r){var rec={value:r.value,kind:r.kind,name:r.name||null,status:'skipped',moved:0,reason:(r.kind==='notfound'?'not in RepairQ':'none in from-status')};STATE.receipt.push(rec);appendReceiptRow(rec);});
+    finishRun();
+  }catch(e){ toast(e.message||'Run failed — see what completed below',true); $('#progTx').textContent='Stopped: '+(e.message||'error')+' — '+done+'/'+total+' done. Fixing the issue and re-running is safe.'; finishRun(); }
+}
+function appendReceiptRow(rec){
+  var st=rec.status||'error';
+  var b='<span class="badge '+(st==='done'?'done':st==='skipped'?'skip':st==='failed'?'failed':'error')+'">'+st+'</span>';
+  var detail=rec.reason||rec.error||(rec.short?('short '+rec.short):'')||'';
+  if(rec.kind==='sku'&&st==='done'&&rec.live_before!=null) detail=detail||(STATNAME[parseInt($('#fromSel').value,10)]+' '+rec.live_before+'→'+rec.post_from);
+  var tr=document.createElement('tr'); tr.className='r-'+(st==='skipped'?'skipped':'');
+  tr.innerHTML='<td class="mono">'+esc(rec.value)+'</td><td>'+esc(rec.name||'—')+'</td><td>'+b+'</td><td><b>'+(rec.moved||0)+'</b></td><td>'+esc(detail)+'</td>';
+  $('#rcBody').appendChild(tr);
+}
+function finishRun(){
+  var rc=STATE.receipt;
+  var moved=rc.reduce(function(a,r){return a+(r.moved||0);},0);
+  var done=rc.filter(function(r){return r.status==='done';}).length;
+  var fail=rc.filter(function(r){return r.status==='failed'||r.status==='error';}).length;
+  var skip=rc.filter(function(r){return r.status==='skipped';}).length;
+  $('#rcTiles').classList.remove('hide'); $('#rcWrap').classList.remove('hide'); $('#dlRow').classList.remove('hide');
+  var tiles=[{n:moved,l:'units moved',c:'good'},{n:done,l:'SKUs done',c:''},{n:fail,l:'failed',c:fail?'bad':''},{n:skip,l:'skipped',c:skip?'warn':''}];
+  $('#rcTiles').innerHTML=tiles.map(function(t){return '<div class="tile '+t.c+'"><div class="n">'+t.n+'</div><div class="l">'+t.l+'</div></div>';}).join('');
+  $('#runSub').innerHTML='<b>'+moved+' units moved</b> to '+STATNAME[parseInt($('#toSel').value,10)]+'.'+(fail?(' <span class="warnx">'+fail+' failed — re-running is safe (already-moved units are left alone).</span>'):'');
+  if($('#progBar').style.width!=='100%'){$('#progBar').style.width='100%';}
+  $('#runBtn').disabled=false; $('#previewBtn').disabled=false;
+}
+
+$('#dlBtn').addEventListener('click',function(){
+  var fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[parseInt($('#toSel').value,10)], store=$('#storeSel').value;
+  var head=['value','item','type','result','moved','from_status','to_status','store','detail'];
+  var lines=[head.join(',')];
+  STATE.receipt.forEach(function(r){
+    var detail=r.reason||r.error||(r.short?('short '+r.short):'')||'';
+    lines.push([r.value,csv(r.name||''),r.kind||'',r.status||'',r.moved||0,fromN,toN,store,csv(detail)].map(csv).join(','));
+  });
+  var blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='inventory-'+toN.replace(/\s+/g,'-').toLowerCase()+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+});
+$('#againBtn').addEventListener('click',function(){
+  $('#paste').value=''; setRows([]); STATE.resolved=[]; STATE.receipt=[];
+  $('#previewCard').classList.add('hide'); $('#runCard').classList.add('hide');
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function csv(s){s=String(s==null?'':s);return /[",\n]/.test(s)?('"'+s.replace(/"/g,'""')+'"'):s;}
+</script>
+</body>
+</html>

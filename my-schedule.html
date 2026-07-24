@@ -289,7 +289,7 @@ async function initAuth(){
 }
 
 /* ===== data ===== */
-var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], HOLBYDATE={}, HOLNAME={}, HOLHMAP={}, OVR={};
+var STAFF=[], STORES=[], SHIFT_BY_ID={}, HOURS={}, SCHED={}, REQS=[], HOLBYDATE={}, HOLNAME={}, HOLHMAP={}, OVR={}, SCOPE_BY_STORE=false;
 var HOL_AMBER='#C9820B';
 function lsGet(k,d){try{var v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
@@ -371,6 +371,10 @@ function shiftView(r,wd){
 }
 function weekStart(d){var x=new Date(d);x.setDate(x.getDate()-x.getDay());x.setHours(0,0,0,0);return x;}
 function myStores(){
+  // store scoping OFF (default for a single-region shop): everyone sees every
+  // store. Flip schedule.store_scoping on in Settings once stores run
+  // independently. Owners always see all stores regardless.
+  if(!SCOPE_BY_STORE||ME.role==='owner') return STORES.map(function(s){return s.store;});
   var set={};if(ME.home_store)set[ME.home_store]=1;
   var sh=(SCHED[ME.id]&&SCHED[ME.id].shifts)||{};
   Object.keys(sh).forEach(function(k){var r=dayRec(ME.id,k);if(r.store)set[r.store]=1;});
@@ -378,13 +382,23 @@ function myStores(){
   var order=STORES.map(function(s){return s.store;});
   return Object.keys(set).sort(function(a,b){return order.indexOf(a)-order.indexOf(b);});
 }
+// Is this person part of the store(s) I'm looking at? With scoping off, everyone
+// is a teammate. With it on, match home store OR any store they're authorized to
+// cover — so the owner (authorized everywhere) shows up in every store's view.
+function isTeammate(e){
+  if(!SCOPE_BY_STORE) return true;
+  var ms=myStores();
+  if(ms.indexOf(e.home_store)>-1) return true;
+  var au=e.authorized_stores||[];
+  return e.role==='owner'||ms.some(function(s){return au.indexOf(s)>-1;});
+}
 function approvedOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='approved'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
 /* partial day: they're away for some hours but still work the rest of the shift */
 function apPartial(ap,isoDate){return !!(ap&&ap.partial_days&&ap.partial_days[isoDate]);}
 function apAway(ap,isoDate){return (ap&&ap.day_hours&&Number(ap.day_hours[isoDate]))||0;}
 function pendingOn(staffId,isoDate){return REQS.filter(function(r){return r.staff_id===staffId&&r.status==='pending'&&r.start_date<=isoDate&&r.end_date>=isoDate;})[0]||null;}
 async function load(){
-  var [st,so,sh,hr,sc,rq,ho,hh,ov]=await Promise.all([
+  var [st,so,sh,hr,sc,rq,ho,hh,ov,cfg]=await Promise.all([
     sb.from('staff_directory').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color').eq('active',true),
     sb.from('stores').select('store,display_order,active,color').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active'),
@@ -393,8 +407,10 @@ async function load(){
     sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,hours,paid,day_hours,partial_days'),
     sb.from('holidays').select('id,holiday_date,name'),
     sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
-    sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id')
+    sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
+    sb.from('app_settings').select('value').eq('key','schedule.store_scoping').maybeSingle()
   ]);
+  SCOPE_BY_STORE=(cfg&&cfg.data&&cfg.data.value===true)||false;
   STAFF=(st.data||[]);
   STORES=(so.data||[]).filter(function(s){return s.active!==false;});
   SHIFT_BY_ID={};(sh.data||[]).forEach(function(s){SHIFT_BY_ID[s.id]=s;});
@@ -620,7 +636,7 @@ function reqDays(s,e){return Math.max(1,Math.round((new Date(e)-new Date(s))/864
 /* teammates (same store) whose pending/approved time off overlaps the chosen range */
 function conflictsFor(start,end){
   var myStoreNames=myStores();
-  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
+  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&isTeammate(e);}).map(function(e){return e.id;});
   return REQS.filter(function(r){return r.staff_id!==ME.id&&teammates.indexOf(r.staff_id)>-1&&r.status!=='denied'&&r.start_date<=end&&r.end_date>=start;});
 }
 function conflictText(conflicts){return conflicts.map(function(o){var e=staffById(o.staff_id);return (e?e.display_name.split(' ')[0]:'')+' ('+fmtRange(o.start_date,o.end_date)+')';}).join(', ');}
@@ -873,7 +889,7 @@ function wizStep1Html(){
   var today=iso(new Date());
   var Y=WIZ.mon.getFullYear(),M=WIZ.mon.getMonth(),first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
   var myStoreNames=myStores();
-  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&myStoreNames.indexOf(e.home_store)>-1;}).map(function(e){return e.id;});
+  var teammates=STAFF.filter(function(e){return e.id!==ME.id&&isTeammate(e);}).map(function(e){return e.id;});
   function peopleOn(di){return REQS.filter(function(r){return r.status!=='denied'&&(r.staff_id===ME.id||teammates.indexOf(r.staff_id)>-1)&&r.start_date<=di&&r.end_date>=di;})
     .map(function(r){var mine=r.staff_id===ME.id;var e=staffById(r.staff_id)||{};return {mine:mine,name:mine?'You':(e.display_name||'?'),ini:mine?'ME':initials(e.display_name),color:mine?(TYPES[r.type]||'#4FB0E3'):(e.avatar_color||avatarBg(r.staff_id)),type:r.type,status:r.status};})
     .sort(function(a,b){return (a.mine?0:1)-(b.mine?0:1);});}
@@ -1057,19 +1073,23 @@ async function wizSubmit(){
   var dayHours={},partials={};
   wizDates().forEach(function(di){var d=w.days[di];
     if(!d.off&&d.use&&Number(d.hours)>0){dayHours[di]=Number(d.hours);if(d.partial)partials[di]=true;}});
+  // the owner is the top approver — their own request auto-approves (no one else can decide it)
+  var isOwner=ME.role==='owner';
   var row={staff_id:ME.id,store:ME.home_store,type:w.type,paid:isPaidType(w.type),start_date:w.start,end_date:w.end,
     hours:total,day_hours:Object.keys(dayHours).length?dayHours:null,
     partial_days:Object.keys(partials).length?partials:null,
-    note:String(w.note||'').trim()||null,status:'pending'};
+    note:String(w.note||'').trim()||null,
+    status:isOwner?'approved':'pending',
+    decided_by:isOwner?ME.id:null,decided_at:isOwner?new Date().toISOString():null};
   w.saving=true;drawWiz();
   var r=await sb.from('time_off_requests').insert(row).select().single();
   if(r.error){w.saving=false;drawWiz();var e=document.getElementById('wzErr');if(e)e.textContent=r.error.message;return;}
-  try{var ss=(await sb.auth.getSession()).data.session;
+  if(!isOwner){try{var ss=(await sb.auth.getSession()).data.session;
     if(ss)fetch(SB_URL+'/functions/v1/notify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ss.access_token,'apikey':ANON},
       body:JSON.stringify({action:'send',event_key:'timeoff.requested',
-        subject:'Time-off request: '+(ME.display_name||'')+' · '+w.start+' to '+w.end,
-        text:w.type+(row.hours?' · '+row.hours+'h':'')+(row.note?' · '+row.note:'')+' — review in Time Off.'})}).catch(function(){});}catch(e2){}
-  REQS.push(r.data);closePlanner();toast('✓ Sent to your manager');renderHeader();render();
+        subject:'Time-off request: '+(ME.name||'')+' · '+w.start+' to '+w.end,
+        text:w.type+(row.hours?' · '+row.hours+'h':'')+(row.note?' · '+row.note:'')+' — review in Time Off.'})}).catch(function(){});}catch(e2){}}
+  REQS.push(r.data);closePlanner();toast(isOwner?'✓ Time off booked':'✓ Sent to your manager');renderHeader();render();
 }
 
 initAuth();

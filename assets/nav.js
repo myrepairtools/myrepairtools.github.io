@@ -81,6 +81,7 @@
   // Utilities that live under Operations as their own "Tools" sub-group —
   // single-purpose gadgets rather than day-to-day trackers.
   var TOOLS = [
+    { label:'Inventory Editor',    url:'inventory-editor.html',    icon:'package', minRole:'admin' },
     { label:'Label Resizer',       url:'label-resizer.html',       icon:'printer' },
     { label:'Get the Extension',   url:'extension.html',           icon:'download' }
   ];
