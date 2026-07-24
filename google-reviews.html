@@ -131,6 +131,14 @@ const PALETTE={1:'#4FB0E3',2:'#DC282E',3:'#2D2D3B'};
 let SCOLORS={};
 function storeColor(s){ return SCOLORS[s]||PALETTE[storeOrder(s)]||'#2E9E5B'; }
 function deptShort(d){ return String(d||'').replace(/\s+at\s+CPR.*$/i,''); }
+// when a hold is due, posting still waits for the 9 AM–7 PM store-time window
+// (viewer local time ≈ store time — all stores are Pacific, like the viewer)
+function postEta(postAfter){
+  const ms=new Date(postAfter)-Date.now();
+  if(ms>60000){ const m=Math.round(ms/60000); return 'in '+(m>=60?Math.round(m/60)+'h':m+'m'); }
+  const h=new Date().getHours();
+  return (h>=9&&h<19)?'any minute':'at 9 AM';
+}
 function fmtAge(iso){ if(!iso)return ''; const ms=Date.now()-new Date(iso).getTime();
   const h=Math.floor(ms/3600000); if(h<1)return Math.max(1,Math.floor(ms/60000))+'m'; if(h<48)return h+'h'; return Math.floor(h/24)+'d'; }
 function hrs(iso){ return (Date.now()-new Date(iso).getTime())/3600000; }
@@ -209,8 +217,7 @@ function statusPill(r){
     return '<span class="spill s-ok">'+(auto?'✓ auto-replied · 🤖':'✓ replied'+(t?' '+t:''))+'</span>';
   }
   if(q&&q.status==='hold'){
-    const mins=Math.max(0,Math.round((new Date(q.post_after)-Date.now())/60000));
-    return '<span class="spill s-wait">🤖 auto in '+(mins>=60?Math.round(mins/60)+'h':mins+'m')+'</span>';
+    return '<span class="spill s-wait">🤖 auto '+esc(postEta(q.post_after)).replace('any minute','soon')+'</span>';
   }
   if(r.legacy_unanswered) return '<span class="spill s-leg">no reply</span>';
   const h=hrs(r.created_at);
@@ -382,12 +389,11 @@ async function openManage(){
   if(!queue.length) h+='<div class="hint">Nothing waiting. 1–3★ never auto-posts — a person approves every one.</div>';
   queue.forEach(q=>{
     const rv=q.review||{};
-    const mins=Math.max(0,Math.round((new Date(q.post_after)-Date.now())/60000));
     h+='<div class="qrow" data-qid="'+q.id+'"><div class="qh">'
       +'<span class="stars" style="color:#E2A63C">'+'★'.repeat(rv.stars||0)+'</span>'
       +'<span>'+esc(rv.reviewer_name||'Anonymous')+'</span>'
       +'<span class="stag" style="background:'+storeColor(q.store)+'">'+esc(shortStore(q.store))+'</span>'
-      +'<span class="sub" style="margin-left:auto">posts in '+(mins>=60?Math.round(mins/60)+'h':mins+'m')+'</span></div>'
+      +'<span class="sub" style="margin-left:auto">posts '+esc(postEta(q.post_after))+'</span></div>'
       +(rv.comment?'<div style="color:var(--dark-grey)">'+esc(String(rv.comment).slice(0,140))+'</div>':'')
       +'<textarea data-qd>'+esc(q.draft)+'</textarea>'
       +'<div class="qa"><button class="go" data-qpost>Post Now</button><button data-qsave>Save Edit</button><button data-qcancel>Cancel</button></div></div>';
