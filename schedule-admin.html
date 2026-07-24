@@ -124,6 +124,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue) !i
 .toggle.on{background:var(--blue)}.toggle.on::after{left:19px}
 .toggle.grn.on{background:var(--green)}
 @media(max-width:640px){.shmd{grid-template-columns:1fr}}
+/* mobile top-of-page: pills collapse into a dropdown that lives on the My Time row; action buttons share one row */
+.locdd{display:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey);background:#fff;border:1px solid var(--border);border-radius:9px;padding:8px 10px;cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B9BDCB' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:26px}
+@media(max-width:640px){
+  .seg.locseg{display:none}
+  .locdd{display:inline-flex}
+  .toolbar{gap:8px}
+  .toolbar .btn{padding:7px 10px;font-size:.72rem;white-space:nowrap}
+}
 /* holidays table */
 .htbl-wrap{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden}
 .htbl{width:100%;border-collapse:collapse}
@@ -169,7 +177,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue) !i
 
 <div id="app" class="app">
   <main>
-    <div class="hubbar"><h1>Schedule Admin</h1><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><a class="adminbtn" href="my-schedule.html" title="Back to My Time">🗓️ My Time</a><div class="hub" id="hub"></div></div></div>
+    <div class="hubbar"><h1>Schedule Admin</h1><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><a class="adminbtn" href="my-schedule.html" title="Back to My Time">🗓️ My Time</a><select id="locSel" class="locdd" title="Filter by location"></select><div class="hub" id="hub"></div></div></div>
     <div id="view"></div>
   </main>
 </div>
@@ -376,6 +384,17 @@ function render(){
   else if(VIEW==='holidays')renderHolidays();
   else renderMonthly();
   injectSchedChangeBar();
+  /* mobile location dropdown (hubbar row) mirrors the filter pills; hidden where FILTER doesn't apply */
+  var sel=$('#locSel');
+  if(sel){
+    var usesFilter=(VIEW==='weekly'||VIEW==='thisweek');
+    sel.style.display=usesFilter?'':'none';
+    if(usesFilter){
+      var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));
+      sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o)+'"'+(o===FILTER?' selected':'')+'>'+(o==='All'?'All locations':esc(shortStore(o)))+'</option>';}).join('');
+      sel.onchange=function(){FILTER=sel.value;render();};
+    }
+  }
 }
 /* "Schedule change" is a static action on every tab — right-aligned on the same row as the
    location filter pills. Turning it on jumps to This Week, where the per-week edits live. */
@@ -442,7 +461,7 @@ function injectSchedChangeBar(){
 }
 function filterPillsHtml(){
   var opts=['All'].concat(visibleStores().map(function(s){return s.store;}));
-  return '<div class="seg">'+opts.map(function(o){var lbl=o==='All'?'All':shortStore(o);return '<button data-fp="'+esc(o)+'"'+(o===FILTER?' class="on"':'')+'>'+esc(lbl)+'</button>';}).join('')+'</div>';
+  return '<div class="seg locseg">'+opts.map(function(o){var lbl=o==='All'?'All':shortStore(o);return '<button data-fp="'+esc(o)+'"'+(o===FILTER?' class="on"':'')+'>'+esc(lbl)+'</button>';}).join('')+'</div>';
 }
 function filterStores(){var vs=visibleStores();return FILTER==='All'?vs:vs.filter(function(s){return s.store===FILTER;});}
 function legendHtml(){return '<div class="legend"><span class="lgt">Shifts</span>'+SHIFTS.filter(function(s){return s.active;}).map(function(s){return '<span class="lg"><span class="av" style="width:10px;height:10px;background:'+esc(s.color||'#4FB0E3')+';border-radius:50%"></span>'+esc(s.name)+'</span>';}).join('')+'</div>';}

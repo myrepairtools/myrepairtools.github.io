@@ -20,7 +20,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
 .seg button.on{background:var(--blue);color:#fff}
 .seg .div{width:1px;background:var(--border)}
 .pend{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;color:#fff;background:var(--red);border-radius:999px;padding:2px 9px}
-.totbl{background:#fff;border:1px solid var(--border);border-radius:13px;overflow:hidden}
+.totbl{background:#fff;border:1px solid var(--border);border-radius:13px;overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);text-align:left;padding:11px 14px;border-bottom:1px solid var(--border);background:#fafafa}
 td{padding:11px 14px;border-bottom:1px solid var(--light-grey);font-size:.85rem;vertical-align:middle}
@@ -53,6 +53,48 @@ tr:last-child td{border-bottom:none}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:700;font-size:.82rem;padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;z-index:4000}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{background:var(--red)}
+/* status pill doubles as the approve/deny control (tap → action sheet) */
+.sbtn{display:inline-flex;align-items:center;gap:4px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;
+  border-radius:999px;padding:4px 11px;border:none;cursor:pointer;transition:filter .12s}
+.sbtn:hover{filter:brightness(.96)}
+.sbtn .cv{font-size:.7em;opacity:.7}
+/* action sheet (bottom sheet on mobile, centered card on desktop) */
+.shmask{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:flex-end;justify-content:center;
+  z-index:3500;opacity:0;pointer-events:none;transition:opacity .18s}
+.shmask.show{opacity:1;pointer-events:auto}
+.sheet{background:#fff;width:100%;max-width:460px;border-radius:18px 18px 0 0;
+  padding:20px 20px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.2);
+  transform:translateY(24px);transition:transform .18s}
+.shmask.show .sheet{transform:translateY(0)}
+.sheet h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.08rem;margin:0 0 2px}
+.sheet .meta{font-size:.82rem;color:var(--dark-grey);font-weight:700;margin:0 0 14px}
+.sheet .warn{font-size:.82rem;color:var(--red);font-weight:700;margin:0 0 6px}
+.sheet .shbtn{display:block;width:100%;font-family:'Nunito',sans-serif;font-weight:800;font-size:.98rem;
+  border-radius:12px;padding:14px;margin-top:10px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer}
+.sheet .shbtn.appr{background:var(--green);border-color:var(--green);color:#fff}
+.sheet .shbtn.deny{background:#fff;border-color:var(--red);color:var(--red)}
+.sheet .shbtn.undo{background:var(--dark);border-color:var(--dark);color:#fff}
+@media(min-width:721px){
+  .shmask{align-items:center}
+  .sheet{border-radius:16px;max-width:380px;transform:scale(.96)}
+  .shmask.show .sheet{transform:scale(1)}
+}
+/* phones: table reflows into stacked cards so nothing is clipped off-screen */
+@media(max-width:720px){
+  .wrap{padding:18px 14px 80px}
+  .totbl{border:none;background:transparent;border-radius:0;overflow:visible}
+  .totbl table,.totbl thead,.totbl tbody,.totbl tr,.totbl td{display:block;width:100%}
+  .totbl thead{display:none}
+  .totbl tr{background:#fff!important;border:1px solid var(--border);border-radius:13px;margin-bottom:12px;
+    padding:4px 2px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+  .totbl td{border:none;padding:9px 15px;display:flex;justify-content:space-between;align-items:center;gap:14px;text-align:right}
+  .totbl td::before{content:attr(data-label);font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;
+    text-transform:uppercase;letter-spacing:.5px;color:var(--grey);text-align:left;white-space:nowrap}
+  .totbl td:first-child{text-align:left}
+  .totbl td:first-child::before{display:none}
+  .totbl td.actcell{display:none}   /* actions live on the tappable status pill on mobile */
+  .sbtn{font-size:.74rem;padding:8px 14px}
+}
 </style>
 </head>
 <body>
@@ -170,13 +212,16 @@ function render(){
     const act=r.status==='pending'
       ? '<span class="act"><button class="deny" data-deny="'+r.id+'">Deny</button><button class="appr" data-appr="'+r.id+'">Approve</button></span>'
       : '<span class="act"><button class="undo" data-undo="'+r.id+'">Undo</button></span>';
-    return '<tr style="background:'+(r.status==='pending'?'#FFFCF7':'#fff')+'"><td><div class="empname">'+avHtml(e,28,'.66rem')+'<div><div class="nmline" style="font-size:.84rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-size:.68rem;color:var(--grey);font-weight:700">'+esc(shortStore(e.home_store))+'</div>'+flags+'</div></div></td>'
-      +'<td><span class="tag" style="font-size:.56rem;color:'+c+';background:'+hexA(c,0.13)+';padding:2px 8px">'+esc(r.type)+'</span></td>'
-      +'<td style="white-space:nowrap;font-weight:700;color:var(--dark-grey)">'+esc(fmtRange(r.start_date,r.end_date))+'</td>'
-      +'<td style="white-space:nowrap"'+(perDay?' title="'+esc(perDay)+'"':'')+'><span class="hrs">'+hrs+' hrs<span class="d">'+days+(days===1?' day':' days')+(dh?' · hover for per-day':'')+'</span></span></td>'
-      +'<td style="white-space:nowrap;color:#9aa0b0;font-weight:700">'+esc(sub)+'</td>'
-      +'<td><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></td>'
-      +'<td style="text-align:right;white-space:nowrap">'+act+'</td></tr>';
+    const canAct=r.status==='pending'||r.status==='approved'||r.status==='denied';
+    const statusBtn='<button class="sbtn" data-statusact="'+r.id+'" style="'+statusStyle(r.status)+'" title="Tap to change">'
+      +statusLabel(r.status)+(canAct?' <span class="cv">▾</span>':'')+'</button>';
+    return '<tr style="background:'+(r.status==='pending'?'#FFFCF7':'#fff')+'"><td data-label="Employee"><div class="empname">'+avHtml(e,28,'.66rem')+'<div><div class="nmline" style="font-size:.84rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-size:.68rem;color:var(--grey);font-weight:700">'+esc(shortStore(e.home_store))+'</div>'+flags+'</div></div></td>'
+      +'<td data-label="Type"><span class="tag" style="font-size:.56rem;color:'+c+';background:'+hexA(c,0.13)+';padding:2px 8px">'+esc(r.type)+'</span></td>'
+      +'<td data-label="Dates" style="white-space:nowrap;font-weight:700;color:var(--dark-grey)">'+esc(fmtRange(r.start_date,r.end_date))+'</td>'
+      +'<td data-label="Hours" style="white-space:nowrap"'+(perDay?' title="'+esc(perDay)+'"':'')+'><span class="hrs">'+hrs+' hrs<span class="d">'+days+(days===1?' day':' days')+(dh?' · hover for per-day':'')+'</span></span></td>'
+      +'<td data-label="Requested" style="white-space:nowrap;color:#9aa0b0;font-weight:700">'+esc(sub)+'</td>'
+      +'<td data-label="Status">'+statusBtn+'</td>'
+      +'<td class="actcell" data-label="Actions" style="text-align:right;white-space:nowrap">'+act+'</td></tr>';
   }).join('');
   html+='<div class="totbl"><table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Hours</th><th>Requested</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead><tbody>'+body+'</tbody></table>'
     +(rows.length?'':'<div class="empty"><div class="big">🗂️</div><div class="t">No requests match these filters</div><div class="sub" style="margin-top:2px">Try a different status or switch the range to Past or All.</div></div>')
@@ -187,6 +232,7 @@ function render(){
   $('#view').querySelectorAll('[data-appr]').forEach(b=>b.onclick=()=>decide(Number(b.getAttribute('data-appr')),'approved'));
   $('#view').querySelectorAll('[data-deny]').forEach(b=>b.onclick=()=>decide(Number(b.getAttribute('data-deny')),'denied'));
   $('#view').querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>decide(Number(b.getAttribute('data-undo')),'pending'));
+  $('#view').querySelectorAll('[data-statusact]').forEach(b=>b.onclick=()=>openStatusSheet(Number(b.getAttribute('data-statusact'))));
   const ao=$('#view').querySelector('[data-addopen]'); if(ao)ao.onclick=()=>{ADDING=true;render();};
   const ac=$('#view').querySelector('[data-addcancel]'); if(ac)ac.onclick=()=>{ADDING=false;render();};
   const at=$('#af_type'); if(at){const upd=()=>{const n=$('#af_paidnote'); if(n)n.textContent=(at.value==='Unpaid')?'Unpaid — documented, does not use PTO.':'Paid time off (PTO).';}; at.onchange=upd; upd();}
@@ -199,8 +245,8 @@ async function addRequest(){
   if(!start||!end){toast('Pick start and end dates',true);return;}
   if(end<start){toast('End is before start',true);return;}
   const e=empById(Number(emp));
-  // adding YOURSELF never self-approves — someone else has to decide it
-  const self=(AUTH&&Number(emp)===Number(AUTH.id))||!canApprove();
+  // adding YOURSELF stays pending — unless you're the owner (top approver, auto-approves)
+  const self=(AUTH&&Number(emp)===Number(AUTH.id)&&AUTH.role!=='owner')||!canApprove();
   const row={staff_id:Number(emp),store:e?e.home_store:null,type:type,paid:(type!=='Unpaid'),start_date:start,end_date:end,note:note||null,
     status:self?'pending':'approved',
     decided_by:self?null:((AUTH&&AUTH.id)||null),
@@ -220,10 +266,36 @@ function canApprove(){var p=window.CPRPerms;
   if(p)return p.indexOf('timeoff.approve')>-1;
   return !!(AUTH&&AUTH.role==='owner');   // perms not loaded yet -> owner only
 }
+// Tapping a status pill opens a small action sheet — the mobile-friendly way to
+// approve/deny (the row's Actions column is hidden on phones). Owner-only per policy.
+function openStatusSheet(id){
+  const r=REQS.find(x=>x.id===id); if(!r) return;
+  if(!canApprove()){toast('Changing a request status requires the Approve Time Off permission.',true);return;}
+  const e=empById(r.staff_id)||{display_name:'?'};
+  const ownBlocked=AUTH&&AUTH.role!=='owner'&&Number(r.staff_id)===Number(AUTH.id);
+  let mask=document.getElementById('shmask');
+  if(!mask){mask=document.createElement('div');mask.id='shmask';mask.className='shmask';document.body.appendChild(mask);
+    mask.addEventListener('click',ev=>{if(ev.target===mask)closeSheet();});}
+  let btns='';
+  if(r.status==='pending'){
+    btns=ownBlocked
+      ? '<p class="warn">This is your own request — another manager has to decide it.</p>'
+      : '<button class="shbtn appr" data-do="approved">Approve</button><button class="shbtn deny" data-do="denied">Deny</button>';
+  }else{
+    btns='<button class="shbtn undo" data-do="pending">Reopen to pending</button>';
+  }
+  mask.innerHTML='<div class="sheet"><h3>'+esc(e.display_name)+'</h3>'
+    +'<p class="meta">'+esc(r.type)+' &middot; '+esc(fmtRange(r.start_date,r.end_date))+' &middot; '+statusLabel(r.status)+'</p>'
+    +btns+'<button class="shbtn" data-do="cancel">Cancel</button></div>';
+  mask.querySelectorAll('[data-do]').forEach(b=>b.onclick=()=>{const d=b.getAttribute('data-do');closeSheet();if(d!=='cancel')decide(id,d);});
+  requestAnimationFrame(()=>mask.classList.add('show'));
+}
+function closeSheet(){const m=document.getElementById('shmask');if(m)m.classList.remove('show');}
+
 async function decide(id,status){
   if(!canApprove()){toast('Approving time off requires the Approve Time Off permission.',true);return;}
   const req=REQS.find(x=>x.id===id);
-  if(req&&AUTH&&Number(req.staff_id)===Number(AUTH.id)&&status!=='pending'){toast('You can\u2019t decide your own request — another manager has to.',true);return;}
+  if(req&&AUTH&&AUTH.role!=='owner'&&Number(req.staff_id)===Number(AUTH.id)&&status!=='pending'){toast('You can\u2019t decide your own request — another manager has to.',true);return;}
   const r=REQS.filter(x=>x.id===id)[0];if(!r)return;const prev=r.status;r.status=status;render();
   const patch=status==='pending'?{status,decided_by:null,decided_at:null}:{status,decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
   const res=await sb.from('time_off_requests').update(patch).eq('id',id);

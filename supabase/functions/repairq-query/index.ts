@@ -1343,6 +1343,66 @@ async function runSavedQueryAs(loc: string, dashId: string, elementId: string, r
   return { ok: true, loc, dashboard_id: dashId, element_id: elementId, row_count: rows.length, store_key: storeKey, distinct_stores: stores, columns: Object.keys(rows[0] || {}), sample: rows.slice(0, 5) };
 }
 
+// Parse a RepairQ /inventory/edit page into a flat form-field map: every
+// InventoryItemForm[*] + InventoryItemUpdateReason[*] field + the catalog id +
+// the session's CSRF token, taking each <select>'s SELECTED option and the note
+// <textarea>. Repost this (with only status_id changed) to move ONE unit — it
+// carries the unit's own condition/carrier/supplier, so no bucket guessing.
+function parseEditForm(b: string): Record<string, string> {
+  const f: Record<string, string> = {};
+  const wanted = (n: string) =>
+    n.startsWith("InventoryItemForm[") || n.startsWith("InventoryItemUpdateReason[") || n === "original_catalog_item_id";
+  for (const m of b.matchAll(/<input\b[^>]*>/gi)) {
+    const tag = m[0];
+    const name = (tag.match(/\bname="([^"]+)"/) || [])[1];
+    if (!name || !wanted(name)) continue;
+    const type = (tag.match(/\btype="([^"]*)"/) || [])[1] || "text";
+    const val = (tag.match(/\bvalue="([^"]*)"/) || [])[1] || "";
+    if (type === "checkbox") { if (/\bchecked\b/i.test(tag)) f[name] = val || "1"; }
+    else if (type === "submit" || type === "button") { /* skip */ }
+    else if (!(name in f)) f[name] = val;
+  }
+  for (const m of b.matchAll(/<select\b[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/select>/gi)) {
+    const name = m[1];
+    if (!wanted(name)) continue;
+    const body = m[2];
+    const sel = body.match(/<option\b[^>]*\bselected\b[^>]*\bvalue="([^"]*)"/i) ||
+      body.match(/<option\b[^>]*\bvalue="([^"]*)"[^>]*\bselected\b/i);
+    f[name] = sel ? sel[1] : "";
+  }
+  for (const m of b.matchAll(/<textarea\b[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/gi)) {
+    if (m[1].startsWith("InventoryItemForm[")) f[m[1]] = m[2].trim();
+  }
+  const csrf = (b.match(/name="YII_CSRF_TOKEN"[^>]*value="([^"]*)"/) ||
+    b.match(/value="([^"]*)"[^>]*name="YII_CSRF_TOKEN"/) || [])[1];
+  if (csrf) f["YII_CSRF_TOKEN"] = csrf;
+  return f;
+}
+
+// Flip ONE inventory unit fromStatus → toStatus via its own edit form. Reads the
+// current form, refuses if the unit isn't in fromStatus (so re-runs are safe),
+// changes only the status, appends the note, verifies from the reloaded form.
+async function flipUnit(itemId: string | number, fromStatus: number, toStatus: number, note: string):
+  Promise<{ ok: boolean; skipped?: boolean; reason?: string; error?: string }> {
+  const g = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+  const b = g.body || "";
+  if (!b || /site\/login/i.test((g as any).location || "")) return { ok: false, error: "could not load edit form" };
+  const f = parseEditForm(b);
+  const cur = f["InventoryItemForm[status_id]"];
+  if (cur == null || cur === "") return { ok: false, error: "form parse failed" };
+  if (Number(cur) !== fromStatus) return { ok: false, skipped: true, reason: `unit is status ${cur}, not ${fromStatus}` };
+  f["InventoryItemForm[status_id]"] = String(toStatus);
+  f["InventoryItemUpdateReason[value]"] = String(toStatus);
+  f["InventoryItemUpdateReason[previous_value]"] = String(fromStatus);
+  const prev = f["InventoryItemForm[note]"] || "";
+  f["InventoryItemForm[note]"] = (prev ? prev + "\n" : "") + note;
+  const w = await rqRequest({ method: "POST", path: `/inventory/edit/${itemId}`, form: f });
+  const v = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+  const vf = parseEditForm(v.body || "");
+  if (Number(vf["InventoryItemForm[status_id]"]) === toStatus) return { ok: true };
+  return { ok: false, error: `post ${w.status}, status still ${vf["InventoryItemForm[status_id]"] ?? "?"}` };
+}
+
 /* ---------------- entry ---------------- */
 
 Deno.serve(async (req) => {
@@ -1369,6 +1429,146 @@ Deno.serve(async (req) => {
     } catch (e) {
       return json({ ok: false, error: String((e as Error).message || e) }, 500);
     }
+  }
+
+  // Bulk inventory status change (the "Inventory Editor" tool). Browser-driven,
+  // gated by a signed-in admin/owner (not the server secret) so the RepairQ
+  // credentials never touch the page. Move units from one status to another at a
+  // store: non-serialized SKUs move by qty via removeStock (verified + one
+  // retry); a serial flips via its own edit form. Re-runnable — every write
+  // rechecks live counts first, so only what's actually in the "from" status
+  // moves, and an interrupted run is safe to re-upload.
+  if (payload?.action === "inventory_status") {
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u, error: uerr } = await admin.auth.getUser(tok);
+    if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
+    const { data: st } = await admin.from("staff")
+      .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    const role = st?.role || "";
+    if (role !== "admin" && role !== "owner") return json({ ok: false, error: "admin access required" }, 403);
+
+    const mode = String(payload.mode || "");
+    const locName = String(payload.location || "").trim();
+    if (!locName) return json({ ok: false, error: "location required" }, 400);
+    const locId = await resolveLoc(locName);
+
+    // ad-hoc Looker query over inventory_item (default session sees all stores)
+    const lk = async (fields: string[], filters: Record<string, string>, sorts: string[] = []) => {
+      const pq = {
+        model: "repairq_cpr", view: "inventory_item", fields, pivots: [], fill_fields: [],
+        filters, filter_expression: "", sorts, limit: "5000", column_limit: "50", total: false,
+        row_total: "", subtotals: [], dynamic_fields: "", query_timezone: "", element_id: "mrtinv",
+        client_id: "mrtinv", generate_links: false, path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+      };
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: true, generate_links: false, streaming: false }, plain_queries: [pq] });
+      const rows: any[] = [];
+      for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+      return rows;
+    };
+    // live per-status counts for a catalog at this store (aggregate across buckets)
+    const counts = async (catalogId: string | number): Promise<Record<number, number> | null> => {
+      const r = await rqRequest({
+        method: "POST", path: "/ajax/inventoryItem/getStatusCounts",
+        form: { catalogItemId: String(catalogId), locationId: String(locId), conditionId: "", carrierId: "", supplierId: "" },
+      });
+      const d: any = r.json;
+      if (!d || d.success !== true) return null;
+      const m: Record<number, number> = {};
+      for (const x of [...(d.onHand || []), ...(d.historical || [])]) m[Number(x.status_id)] = Number(x.count) || 0;
+      return m;
+    };
+
+    if (mode === "resolve") {
+      const fromStatus = Number(payload.from_status);
+      const inRows: Array<{ value: string; qty: number }> = Array.isArray(payload.rows) ? payload.rows : [];
+      const vals = inRows.map((r) => ({ value: String(r.value || "").trim(), qty: Math.max(1, Number(r.qty) || 1) })).filter((r) => r.value);
+      const skuList = [...new Set(vals.map((v) => v.value))];
+      const skuMap = new Map<string, { cid: any; name: string }>();
+      for (let i = 0; i < skuList.length; i += 40) {
+        const batch = skuList.slice(i, i + 40);
+        const rows = await lk(["catalog_item.id", "catalog_item.sku", "catalog_item.name"],
+          { "catalog_item.sku": batch.join(","), "location.short_name": locName });
+        for (const r of rows) { const s = String(r["catalog_item.sku"]); if (!skuMap.has(s)) skuMap.set(s, { cid: r["catalog_item.id"], name: r["catalog_item.name"] }); }
+      }
+      const unmatched = skuList.filter((s) => !skuMap.has(s));
+      const serMap = new Map<string, { iid: any; cid: any; sku: string; name: string }>();
+      for (let i = 0; i < unmatched.length; i += 40) {
+        const batch = unmatched.slice(i, i + 40);
+        const rows = await lk(["inventory_item.id", "inventory_item.serial_number", "catalog_item.id", "catalog_item.sku", "catalog_item.name"],
+          { "inventory_item.serial_number": batch.join(","), "location.short_name": locName });
+        for (const r of rows) { const sn = String(r["inventory_item.serial_number"]); if (sn && !serMap.has(sn)) serMap.set(sn, { iid: r["inventory_item.id"], cid: r["catalog_item.id"], sku: String(r["catalog_item.sku"]), name: r["catalog_item.name"] }); }
+      }
+      const countCache = new Map<string, Record<number, number> | null>();
+      const liveFor = async (cid: any) => { const k = String(cid); if (!countCache.has(k)) countCache.set(k, await counts(cid)); return countCache.get(k)!; };
+      const out: any[] = [];
+      for (const v of vals) {
+        if (skuMap.has(v.value)) {
+          const m = skuMap.get(v.value)!;
+          const c = await liveFor(m.cid);
+          out.push({ value: v.value, kind: "sku", catalog_id: m.cid, name: m.name, qty: v.qty, live_in_from: c ? (c[fromStatus] || 0) : null });
+        } else if (serMap.has(v.value)) {
+          const m = serMap.get(v.value)!;
+          out.push({ value: v.value, kind: "serial", item_id: m.iid, catalog_id: m.cid, sku: m.sku, name: m.name, qty: 1, live_in_from: null });
+        } else {
+          out.push({ value: v.value, kind: "notfound", qty: v.qty });
+        }
+      }
+      return json({ ok: true, mode: "resolve", location: locName, from_status: fromStatus, rows: out });
+    }
+
+    if (mode === "apply") {
+      const fromStatus = Number(payload.from_status);
+      const toStatus = Number(payload.to_status);
+      if (!fromStatus || !toStatus || fromStatus === toStatus) return json({ ok: false, error: "valid distinct from/to status required" }, 400);
+      const note = String(payload.note || "Updated via myRepairTools").replace(/[\u{10000}-\u{10FFFF}]/gu, "").slice(0, 180);
+      const overStock = payload.over_stock === true;
+      const rows: any[] = Array.isArray(payload.rows) ? payload.rows : [];
+      const receipt: any[] = [];
+      for (const row of rows) {
+        const rec: any = { value: row.value, kind: row.kind, name: row.name || null };
+        try {
+          if (row.kind === "sku") {
+            const pre = await counts(row.catalog_id);
+            if (!pre) { rec.status = "error"; rec.error = "precheck failed"; rec.moved = 0; receipt.push(rec); continue; }
+            const live = pre[fromStatus] || 0; const preTo = pre[toStatus] || 0;
+            rec.live_before = live;
+            const reqQty = Math.max(1, Number(row.qty) || 1);
+            const want = overStock ? live : Math.min(reqQty, live);
+            if (want <= 0) { rec.status = "skipped"; rec.reason = "none in from-status"; rec.moved = 0; receipt.push(rec); continue; }
+            let ok = false;
+            for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+              const w = await rqRequest({
+                method: "POST", path: "/ajax/inventoryItem/removeStock", form: {
+                  catalogItemId: String(row.catalog_id), statusId: String(fromStatus), locationId: String(locId),
+                  conditionId: "1", carrierId: "0", supplierId: "0", qtyToRemove: String(want),
+                  newStatus: String(toStatus), updateReason: "", serials: "", note,
+                },
+              });
+              const post = await counts(row.catalog_id);
+              if (post && post[fromStatus] === live - want && (post[toStatus] || 0) === preTo + want) {
+                ok = true; rec.post_from = post[fromStatus]; rec.post_to = post[toStatus] || 0;
+              } else if (attempt === 1) {
+                rec.error = (w.json && (w.json as any).message) ? String((w.json as any).message).replace(/<[^>]+>/g, "").trim().slice(0, 160) : "write not verified";
+              }
+            }
+            rec.status = ok ? "done" : "failed"; rec.moved = ok ? want : 0;
+            if (reqQty > want && !overStock) rec.short = reqQty - want;
+          } else if (row.kind === "serial") {
+            const r = await flipUnit(row.item_id, fromStatus, toStatus, note);
+            rec.status = r.ok ? "done" : (r.skipped ? "skipped" : "failed");
+            rec.moved = r.ok ? 1 : 0;
+            if (r.error) rec.error = r.error;
+            if (r.reason) rec.reason = r.reason;
+          } else {
+            rec.status = "skipped"; rec.reason = "not found in RepairQ"; rec.moved = 0;
+          }
+        } catch (e) { rec.status = "error"; rec.error = String((e as Error).message || e).slice(0, 160); rec.moved = rec.moved || 0; }
+        receipt.push(rec);
+      }
+      return json({ ok: true, mode: "apply", location: locName, from_status: fromStatus, to_status: toStatus, receipt });
+    }
+
+    return json({ ok: false, error: "mode must be 'resolve' or 'apply'" }, 400);
   }
 
   // admin gate — server-side callers only
