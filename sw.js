@@ -68,6 +68,13 @@ self.addEventListener('fetch', (e) => {
     } catch (err) {
       const hit = await caches.match(req);
       if (hit) return hit;
+      // A navigation we've never cached under this exact URL (query strings,
+      // deep links) would otherwise hand the user Chrome's "can't reach server"
+      // page. Try the same path without its query before giving up.
+      if (req.mode === 'navigate') {
+        const loose = await caches.match(req, { ignoreSearch: true });
+        if (loose) return loose;
+      }
       throw err;
     }
   })());

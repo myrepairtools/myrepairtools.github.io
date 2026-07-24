@@ -14,7 +14,15 @@
  * ========================================================================= */
 (function () {
   'use strict';
-  if (window.self !== window.top) return;
+  // Skipped inside an iframe (RepairQ embeds) — EXCEPT an explicit ?embed=1
+  // surface like the extension's New Contract modal. That iframe gets its own
+  // partitioned storage, so it can't see the top-level myrepairtools session:
+  // without a gate of its own the page waits forever for a session that never
+  // arrives and the modal just sits blank. Let the tech sign in right there.
+  var IS_EMBED = (function () {
+    try { return new URLSearchParams(location.search).get('embed') === '1'; } catch (e) { return false; }
+  })();
+  if (window.self !== window.top && !IS_EMBED) return;
 
   var SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
   var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
@@ -117,8 +125,24 @@
     // this tab went quiet — but only sign out if EVERY tab has been idle.
     var since = Date.now() - lastActivity();
     if (since < IDLE_MS){ idleTimer = setTimeout(onIdle, (IDLE_MS - since) + 500); return; }   // someone was active elsewhere
-    signOutReload();
+    signOutLock();
   }
+  // Idle lock renders the PIN box IN PLACE — it must not navigate. Reloading a
+  // machine that has been sitting idle (wifi asleep, laptop dozing) hands you
+  // Chrome's "can't reach server" page instead of the lock screen, and the only
+  // way out is a manual refresh. Signing back in still reloads, but by then the
+  // person is at the keyboard and the network is awake.
+  function signOutLock(){
+    loadSB().then(function(c){
+      var done = function(){ lockInPlace('Signed out — inactive'); };
+      if (c) c.auth.signOut().then(done, done); else done();
+    }, function(){ lockInPlace('Signed out — inactive'); });
+  }
+  function lockInPlace(msg){
+    try { if (host && !host.parentNode) (document.body || document.documentElement).appendChild(host); } catch (_) {}
+    gateForm(msg || '');
+  }
+  // explicit "switch user" — the person is right there, so a clean reload is fine
   function signOutReload(){ loadSB().then(function(c){ if (c) c.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); }); else location.reload(); }); }
 
   function gateForm(msg){

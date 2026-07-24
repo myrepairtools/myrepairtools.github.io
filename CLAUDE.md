@@ -252,7 +252,15 @@ device whose lock screen is the security boundary, and iOS firing the expired id
 timer on resume forced a PIN on every open. Sign in once per install; the 5-min
 relock still applies to regular browser use on shared store machines. (Each iOS
 home-screen install is its own storage silo — separate sign-ins per installed app
-is Apple behavior, not ours.)
+is Apple behavior, not ours.) **The idle lock renders the PIN box in place — it must
+never navigate.** Reloading a machine that has been idle (wifi asleep) lands on
+Chrome's "can't reach server" page instead of the lock, and only a manual refresh
+escapes; signing back IN still reloads, which is safe because someone is at the
+keyboard. sw.js also falls back to an `ignoreSearch` cache match for navigations.
+**Iframe rule:** all gates skip inside iframes EXCEPT a `?embed=1` surface (the
+extension's New Contract modal) — that iframe has its own partitioned storage, so
+it can't see the top-level session and would otherwise sit blank forever; pin-gate
+runs there so the tech can sign in inside the modal.
 
 **Expenses (mobile receipt recorder):** `expenses.html` (PRIVILEGED nav 'Expenses',
 permission key `expenses.record`, owner RLS) — the phone-first replacement for the
