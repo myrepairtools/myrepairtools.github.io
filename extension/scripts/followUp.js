@@ -270,8 +270,12 @@
             if (!payload.ticket_no) {
                 // check-in/create page — no ticket number yet. Stash the choice;
                 // boot() flushes it (Supabase + note) when the saved ticket loads.
+                // Show the chip right away: with no confirmation here, techs
+                // couldn't tell the answer had been captured at all.
                 pendingSet(payload);
                 markCreatePopped();
+                renderChip();
+                keepBlockAlive();
                 closeModal();
                 return;
             }
@@ -292,6 +296,9 @@
                 // check-in page: stash the skip so the saved ticket doesn't re-ask
                 pendingSet({ method: 'skip' });
                 markCreatePopped();
+                current = { method: 'skip' };
+                renderChip();          // leaves a "Set follow up" card to change their mind
+                keepBlockAlive();
                 closeModal();
                 return;
             }
@@ -532,6 +539,16 @@
             // the customer being added so we can pop the modal immediately.
             if (/\/ticket\/(repair|claim|add)/.test(location.pathname)) {
                 try { sessionStorage.setItem(CHECKIN_KEY, String(Date.now())); } catch (e) {}
+                // a choice already captured on this check-in: show it on the
+                // customer card so it's visibly saved before the ticket exists
+                var pend0 = pendingGet();
+                if (pend0) {
+                    markCreatePopped();
+                    current = (pend0.method === 'skip') ? { method: 'skip' }
+                            : { method: pend0.method, contact_number: pend0.number, contact_name: pend0.name, contact_email: pend0.email };
+                    renderChip();
+                    keepBlockAlive();
+                }
                 watchCustomerAdd();
             }
             return;
@@ -585,8 +602,10 @@
     // save swaps the <dl>), which silently takes our card with it. Watch
     // for the card going missing and re-render once the summary is back;
     // renderChip() no-ops while the edit form has the <dl> torn down.
-    var keepTimer = null;
+    var keepTimer = null, keepStarted = false;
     function keepBlockAlive() {
+        if (keepStarted) return;   // one observer per page — save/boot both call this
+        keepStarted = true;
         new MutationObserver(function () {
             if (document.querySelector('.mrt-fu-block')) return;
             clearTimeout(keepTimer);
