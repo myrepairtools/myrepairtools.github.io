@@ -32,19 +32,48 @@
         new MutationObserver(inject).observe(document.documentElement, { childList: true, subtree: true });
     }
 
+    /* ---- find a home in the TRANSACTIONS section (view + edit pages) ----
+       "Request Payment" is the natural spot, but RepairQ only renders it when a
+       Virtual Cash Terminal is assigned to the workstation — on a machine with
+       no terminal the whole payment bar is absent and the button silently never
+       appeared. Walk down to the Transactions panel itself so it always shows,
+       and only leave the section as a true last resort. */
+    function transactionsSpot() {
+        var rp = document.getElementById('BtnRequestPayment');
+        if (rp && rp.parentElement) return { el: rp.parentElement, mode: 'prepend' };
+        var tb = document.querySelector('.transaction-buttons');
+        if (tb && tb.parentElement && tb.id !== 'mrt-new-contract') return { el: tb.parentElement, mode: 'prepend' };
+        // no transaction buttons at all (no terminal): put it in the panel body
+        var heads = document.querySelectorAll('h1, h2, h3, h4, h5, legend, .sub-head, .head');
+        for (var i = 0; i < heads.length; i++) {
+            if (!/^transactions\b/i.test((heads[i].textContent || '').replace(/\s+/g, ' ').trim())) continue;
+            var hd = heads[i].closest('.sub-head') || heads[i].closest('.head') || heads[i];
+            var n = hd.nextElementSibling;
+            while (n) {                              // nearest content box after the header
+                if (/\b(block-content|content|panel-body|body)\b/.test(n.className || '')) return { el: n, mode: 'append' };
+                n = n.nextElementSibling;
+            }
+            var box = hd.parentElement;              // header with no sibling box — use its wrapper
+            if (box) return { el: box, mode: 'append' };
+        }
+        var span8 = document.querySelector('#ticket > div:nth-child(3) > div > div > div.span8');
+        return span8 ? { el: span8, mode: 'prepend' } : null;
+    }
+
     /* ---- inject the button into the Transactions bar ---- */
     function inject() {
         if (document.getElementById('mrt-new-contract')) return;
-        var rp = document.getElementById('BtnRequestPayment');
-        if (!rp || !rp.parentElement) return;
-        var bar = rp.parentElement;                 // .form-inline holding "Credit:" + Request Payment
+        var spot = transactionsSpot();
+        if (!spot) return;                          // not ready — retry on the next DOM tick
+        var bar = spot.el, mode = spot.mode;
         var a = document.createElement('a');
         a.id = 'mrt-new-contract';
         a.className = 'transaction-buttons btn mrt-nc-btn';
         a.href = '#';
         a.innerHTML = '<i class="icon-file"></i> New Contract';
         a.addEventListener('click', function (e) { e.preventDefault(); openOverlay(); });
-        bar.insertBefore(a, bar.firstChild);        // left of the whole Credit group
+        if (mode === 'append') bar.appendChild(a);
+        else bar.insertBefore(a, bar.firstChild);   // left of the whole Credit group
     }
 
     /* ---- scrape ticket context for the pre-fill ---- */

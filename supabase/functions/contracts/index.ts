@@ -218,22 +218,71 @@ Deno.serve(async (req) => {
       const b = await req.json().catch(() => ({}));
       const c = await byToken(String(b.t || ""));
       if (!c) return json({ ok: false, error: "not_found" }, 404);
-      if (!c.customer_email) return json({ ok: false, error: "no_customer_email" }, 400);
       if (c.status === "void") return json({ ok: false, error: "void" }, 409);
+
+      // Delivery method: 'email' | 'text' | 'both'. Legacy callers sent nothing
+      // and meant email; keep that, but fall back to text when there's only a
+      // phone on file so a missing email can't dead-end the send.
+      const asked = String(b.method || "").toLowerCase();
+      const method = ["email", "text", "both"].includes(asked)
+        ? asked : (c.customer_email ? "email" : "text");
+      const wantEmail = method === "email" || method === "both";
+      const wantText = method === "text" || method === "both";
+      if (wantEmail && !c.customer_email) return json({ ok: false, error: "no_customer_email" }, 400);
+      if (wantText && !c.customer_phone) return json({ ok: false, error: "no_customer_phone" }, 400);
+
       const link = SITE + "/contract-sign.html?t=" + c.token;
-      const txt = "Hi " + c.customer_name + ",\n\n"
-        + "Here is your " + (c.contract_type ? String(c.contract_type).toLowerCase() + " " : "") + "repair agreement from CPR Cell Phone Repair"
-        + (c.store ? " (" + c.store + ")" : "") + (c.device ? " for your " + c.device : "") + ".\n\n"
-        + "Review and sign here:\n" + link + "\n\n"
-        + (Number(c.collect) > 0 ? "Payment of $" + Number(c.collect).toFixed(2) + " is collected right after signing, on the same page.\n\n" : "")
-        + "Questions? Just reply to this email or call the store.\n\n— CPR Cell Phone Repair";
-      const r = await sendEmail(String(c.customer_email), "Your CPR repair agreement — review & sign", txt);
-      if (!r.ok) return json({ ok: false, error: r.error }, 500);
-      await admin.from("contracts").update({
-        status: c.status === "draft" ? "sent" : c.status,
-        sent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).eq("id", c.id);
-      return json({ ok: true });
+      const first = String(c.customer_name || "").trim().split(/\s+/)[0] || "there";
+      const results: Record<string, { ok: boolean; error?: string }> = {};
+
+      if (wantEmail) {
+        const txt = "Hi " + c.customer_name + ",\n\n"
+          + "Here is your " + (c.contract_type ? String(c.contract_type).toLowerCase() + " " : "") + "repair agreement from CPR Cell Phone Repair"
+          + (c.store ? " (" + c.store + ")" : "") + (c.device ? " for your " + c.device : "") + ".\n\n"
+          + "Review and sign here:\n" + link + "\n\n"
+          + (Number(c.collect) > 0 ? "Payment of $" + Number(c.collect).toFixed(2) + " is collected right after signing, on the same page.\n\n" : "")
+          + "Questions? Just reply to this email or call the store.\n\n— CPR Cell Phone Repair";
+        const r = await sendEmail(String(c.customer_email), "Your CPR repair agreement — review & sign", txt);
+        results.email = { ok: r.ok, error: r.error };
+      }
+
+      if (wantText) {
+        // Sent through the STORE's own RingCentral line (messaging resolves the
+        // line from the store name); creds stay inside that function. The staff
+        // JWT rides along so sms_log records who sent it.
+        const sms = "Hi " + first + ", here's your repair agreement from CPR Cell Phone Repair"
+          + (c.device ? " for your " + c.device : "") + " — review and sign here: " + link
+          + (Number(c.collect) > 0 ? " ($" + Number(c.collect).toFixed(2) + " due at signing.)" : "");
+        try {
+          const mr = await fetch(SB_URL + "/functions/v1/messaging", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": req.headers.get("Authorization") || "",
+              "apikey": Deno.env.get("SUPABASE_ANON_KEY") || "",
+            },
+            body: JSON.stringify({
+              action: "send", to: c.customer_phone, body: sms, store: c.store,
+              ticket_no: c.ticket_ref || null, template_key: "contract_link",
+              agent_name: String(staff?.display_name || "") || null,
+            }),
+          });
+          const md = await mr.json().catch(() => ({}));
+          results.text = { ok: mr.ok && md?.ok !== false, error: md?.error };
+        } catch (e) {
+          results.text = { ok: false, error: String((e as Error)?.message || e) };
+        }
+      }
+
+      const anyOk = Object.values(results).some((r) => r.ok);
+      if (anyOk) {
+        await admin.from("contracts").update({
+          status: c.status === "draft" ? "sent" : c.status,
+          sent_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq("id", c.id);
+      }
+      const firstErr = Object.values(results).find((r) => !r.ok)?.error;
+      return json({ ok: anyOk, method, results, ...(anyOk ? {} : { error: firstErr || "send_failed" }) }, anyOk ? 200 : 500);
     }
 
     return json({ ok: false, error: "unknown_action" }, 400);

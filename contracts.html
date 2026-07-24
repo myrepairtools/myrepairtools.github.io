@@ -64,6 +64,16 @@ label.f{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:
 .pm-opt .d{font-size:.72rem;color:var(--grey);font-weight:600;margin-top:2px;line-height:1.4}
 .pm-opt.on{border-color:var(--red);background:#FEF6F6}
 .linkbox{display:flex;gap:8px;align-items:center;background:var(--light-grey);border-radius:10px;padding:10px 13px;font-size:.8rem;word-break:break-all}
+/* delivery-method picker (text / email / both) */
+.sendopts{display:flex;flex-direction:column;gap:9px;margin:4px 0 2px}
+.sendopt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;font:inherit;transition:.12s}
+.sendopt:hover{border-color:var(--grey)}
+.sendopt.on{border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.sendopt .so-i{font-size:1.25rem;flex:none}
+.sendopt .so-t{display:flex;flex-direction:column;min-width:0}
+.sendopt .so-t b{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem}
+.sendopt .so-t span{font-size:.76rem;color:var(--grey);font-weight:700;overflow:hidden;text-overflow:ellipsis}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:11px 18px;border-radius:10px;z-index:3000;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .note{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;font-size:.86rem;color:var(--dark-grey)}
@@ -215,21 +225,14 @@ function render(){
       +'<td class="r">'+money(r.price)+(Number(r.diag_fee)>0?'<div style="font-size:.64rem;font-weight:700;color:var(--grey)">−'+money(r.diag_fee)+' diag</div>':'')+'</td>'
       +'<td><div class="ract">'
         +'<button class="btn alt sm" data-copy="'+esc(r.token)+'">🔗 Link</button>'
-        +(r.customer_email&&(r.status==='draft'||r.status==='sent')?'<button class="btn alt sm" data-mail="'+esc(r.token)+'">✉️</button>':'')
+        +((r.customer_email||r.customer_phone)&&(r.status==='draft'||r.status==='sent')?'<button class="btn alt sm" data-send="'+r.id+'" title="Text or email the signing link">📤 Send</button>':'')
         +'<a class="btn alt sm" style="text-decoration:none" href="'+SIGN_URL+esc(r.token)+'" target="_blank">Open</a>'
         +'<button class="btn alt sm" data-sheet="'+r.id+'" title="Print the work order that travels with the device">🖨</button>'
         +(r.pay_mode==='instore'&&r.status==='signed'?'<button class="btn alt sm" data-inpaid="'+r.id+'" style="color:var(--green)">✓ Paid</button>':'')
         +(r.status!=='paid'&&r.status!=='void'?'<button class="btn alt sm" data-void="'+r.id+'" style="color:var(--red)">Void</button>':'')
       +'</div></td></tr>';}).join('')+'</tbody></table></div>';
   $all('[data-copy]').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(SIGN_URL+b.getAttribute('data-copy')).then(()=>toast('Signing link copied — text or AirDrop it to the customer'),()=>toast('Copy failed',true));});
-  $all('[data-mail]').forEach(b=>b.onclick=async()=>{
-    b.disabled=true;
-    const sess=(await sb.auth.getSession()).data.session;
-    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},body:JSON.stringify({t:b.getAttribute('data-mail')})}).then(x=>x.json()).catch(()=>({}));
-    b.disabled=false;
-    if(d.ok){toast('✉️ Signing link emailed');const r=ROWS.find(x=>x.token===b.getAttribute('data-mail'));if(r&&r.status==='draft'){r.status='sent';render();}}
-    else toast('Email failed: '+(d.error||'error'),true);
-  });
+  $all('[data-send]').forEach(b=>b.onclick=()=>{const r=ROWS.find(x=>x.id===+b.getAttribute('data-send'));if(r)openSend(r);});
   $all('[data-sheet]').forEach(b=>b.onclick=()=>{const r=ROWS.find(x=>x.id===+b.getAttribute('data-sheet'));if(r)printVendorSheet(r);});
   $all('[data-inpaid]').forEach(b=>b.onclick=async()=>{
     if(!confirm('Payment was taken in RepairQ / Square Terminal — mark this contract paid?'))return;
@@ -507,6 +510,51 @@ function openForm(TMPL){
   };
   if(EMBED)applyContractCtx();          // pre-fill from the RepairQ ticket
 }
+/* Send the signing link — the tech picks the delivery method. Text goes out on
+   the store's own RingCentral line; email rides the same transport as notify.
+   Only channels we actually have a destination for are offered. */
+function openSend(r){
+  const hasP=!!r.customer_phone, hasE=!!r.customer_email;
+  if(!hasP&&!hasE){toast('No phone or email on this contract',true);return;}
+  let method=hasP?'text':'email';
+  const back=document.createElement('div');back.className='mback';
+  const opt=(v,icon,label,dest,on)=>'<button class="sendopt'+(on?' on':'')+'" data-m="'+v+'">'
+    +'<span class="so-i">'+icon+'</span><span class="so-t"><b>'+label+'</b><span>'+esc(dest)+'</span></span></button>';
+  back.innerHTML='<div class="modal">'
+    +'<div class="m-hd"><span>Send the signing link</span><button class="m-x" data-x>×</button></div>'
+    +'<div class="m-sub">'+esc(r.customer_name)+(r.device?' · '+esc(r.device):'')+' — choose how to send it.</div>'
+    +'<div class="sendopts">'
+      +(hasP?opt('text','💬','Text message',fmtPhone(r.customer_phone),method==='text'):'')
+      +(hasE?opt('email','✉️','Email',r.customer_email,method==='email'):'')
+      +(hasP&&hasE?opt('both','📤','Text + email','send both',false):'')
+    +'</div>'
+    +'<div class="m-ft"><button class="btn alt" data-x>Cancel</button><button class="btn" id="sndGo">Send</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',e=>{if(e.target===back)back.remove();});
+  back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
+  back.querySelectorAll('.sendopt').forEach(b=>b.onclick=()=>{
+    method=b.getAttribute('data-m');
+    back.querySelectorAll('.sendopt').forEach(x=>x.classList.toggle('on',x===b));
+  });
+  back.querySelector('#sndGo').onclick=async()=>{
+    const go=back.querySelector('#sndGo');go.disabled=true;go.textContent='Sending…';
+    const sess=(await sb.auth.getSession()).data.session;
+    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},
+      body:JSON.stringify({t:r.token,method:method})}).then(x=>x.json()).catch(()=>({}));
+    go.disabled=false;go.textContent='Send';
+    if(d.ok){
+      const res=d.results||{};
+      const sent=[res.text&&res.text.ok?'texted':null,res.email&&res.email.ok?'emailed':null].filter(Boolean).join(' + ');
+      const failed=[res.text&&!res.text.ok?'text':null,res.email&&!res.email.ok?'email':null].filter(Boolean).join(', ');
+      toast('✓ Signing link '+(sent||'sent')+(failed?(' — '+failed+' failed'):''),!!failed);
+      if(r.status==='draft'){r.status='sent';}
+      back.remove();render();
+    } else toast('Send failed: '+(d.error||'error'),true);
+  };
+}
+function fmtPhone(p){const d=String(p||'').replace(/\D/g,'').slice(-10);return d.length===10?('('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6)):String(p||'');}
+
 function openShare(r){
   const link=SIGN_URL+r.token;
   const back=document.createElement('div');back.className='mback';
@@ -519,7 +567,7 @@ function openShare(r){
     +'<div class="linkbox"><span style="flex:1">'+esc(link)+'</span></div>'
     +'<div class="m-ft">'
     +'<button class="btn alt" id="shSheet">🖨 Vendor sheet</button>'
-    +(r.customer_email?'<button class="btn alt" id="shMail">✉️ Email it</button>':'')
+    +((r.customer_email||r.customer_phone)?'<button class="btn alt" id="shSend">📤 Text / email it</button>':'')
     +'<a class="btn alt" style="text-decoration:none" href="'+link+'" target="_blank">Open for signing</a>'
     +'<button class="btn" id="shCopy">🔗 Copy link</button></div>'
     +'</div>';
@@ -528,14 +576,7 @@ function openShare(r){
   back.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>back.remove());
   back.querySelector('#shCopy').onclick=()=>navigator.clipboard.writeText(link).then(()=>toast('Link copied'),()=>toast('Copy failed',true));
   back.querySelector('#shSheet').onclick=()=>printVendorSheet(r);
-  const m=back.querySelector('#shMail');if(m)m.onclick=async()=>{
-    m.disabled=true;
-    const sess=(await sb.auth.getSession()).data.session;
-    const d=await fetch(FN+'?action=send',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(sess&&sess.access_token||'')},body:JSON.stringify({t:r.token})}).then(x=>x.json()).catch(()=>({}));
-    m.disabled=false;
-    if(d.ok){toast('✉️ Emailed to '+r.customer_email);r.status='sent';render();}
-    else toast('Email failed: '+(d.error||'error'),true);
-  };
+  const m=back.querySelector('#shSend');if(m)m.onclick=()=>{back.remove();openSend(r);};
 }
 
 </script>

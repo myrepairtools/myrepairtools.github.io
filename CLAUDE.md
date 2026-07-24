@@ -364,8 +364,15 @@ payment link — sign → pay is one motion. Templates, the clause library, and 
 editor like the Templates tab; `contract_libraries` is the managed category list
 (services and templates reference a library by name, renames cascade). The `contracts` edge function does
 the customer side (view / sign — creates the Square quick-pay link with a redirect back /
-paystatus — flips to paid by checking the Square order / send — emails the link via
-Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
+paystatus — flips to paid by checking the Square order / send). Store→Square location
+resolved by name like square-tips. **Delivery: `send` takes `method` `text|email|both`**
+— email via Resend/Gmail like notify, text through the **store's own RingCentral line**
+(it POSTs the `messaging` function's `send`, forwarding the staff JWT so `sms_log` records
+the sender; `template_key:'contract_link'` appends the STOP hint). Omitted `method` =
+email, falling back to text when only a phone is on file. Returns per-channel `results`
+and only stamps `sent_at`/status when at least one channel succeeds. The page's 📤 Send
+button (list row + share modal) opens a delivery picker offering only channels the
+contract actually has a destination for.
 
 **LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
 Galaxy Note / Galaxy Z / Pixel screen repair gets graded good/bad; **only GOOD pulls are
