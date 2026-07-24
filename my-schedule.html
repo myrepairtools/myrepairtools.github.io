@@ -183,6 +183,22 @@ body.web main{max-width:1180px;padding:24px 28px 60px}
 .web .mini{width:20px;height:20px;font-size:.54rem}
 .web .moff{font-size:.66rem}
 body.mfull main{max-width:none}   /* month view fills the viewport instead of the 680/1180 column */
+/* approver: status pills are tappable → bottom action sheet (same pattern as time-off.html) */
+.sbadge[data-decide],.sbadge[data-decide-own]{cursor:pointer;border:none}
+.shmask{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:flex-end;justify-content:center;
+  z-index:3500;opacity:0;pointer-events:none;transition:opacity .18s}
+.shmask.show{opacity:1;pointer-events:auto}
+.sheet{background:#fff;width:100%;max-width:460px;border-radius:18px 18px 0 0;
+  padding:20px 20px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.2);
+  transform:translateY(24px);transition:transform .18s}
+.shmask.show .sheet{transform:translateY(0)}
+.sheet h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.08rem;margin:0 0 2px}
+.sheet .smeta{font-size:.82rem;color:var(--dark-grey);font-weight:700;margin:0 0 14px}
+.sheet .shbtn{display:block;width:100%;font-family:'Nunito',sans-serif;font-weight:800;font-size:.98rem;
+  border-radius:12px;padding:14px;margin-top:10px;border:1.5px solid var(--border);background:#fff;color:var(--dark);cursor:pointer}
+.sheet .shbtn.appr{background:var(--green);border-color:var(--green);color:#fff}
+.sheet .shbtn.deny{background:#fff;border-color:var(--red);color:var(--red)}
+@media(min-width:861px){.shmask{align-items:center}.sheet{border-radius:16px;max-width:380px}}
 </style>
 </head>
 <body>
@@ -653,24 +669,59 @@ function renderTimeoff(){
   var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
   var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';
     var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';
-    return '<div class="req" style="border-left:4px solid '+c+'"><div class="meta"><div style="display:flex;align-items:center;gap:7px"><span class="dr">'+esc(fmtRange(r.start_date,r.end_date))+'</span><span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+'">'+esc(r.type)+'</span></div><div class="sm">'+dayCount(r.start_date,r.end_date)+hrs+(r.status==='pending'?' · tap to cancel':'')+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'"':'')+'>'+statusLabel(r.status)+'</span></div>';
+    var ownPend=r.status==='pending';
+    var ownAttr=ownPend?(canDecide()?' data-decide-own="'+r.id+'"':' data-cancel="'+r.id+'"'):'';
+    var ownHint=ownPend?(canDecide()?' · tap the status to decide':' · tap to cancel'):'';
+    return '<div class="req" style="border-left:4px solid '+c+'"><div class="meta"><div style="display:flex;align-items:center;gap:7px"><span class="dr">'+esc(fmtRange(r.start_date,r.end_date))+'</span><span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+'">'+esc(r.type)+'</span></div><div class="sm">'+dayCount(r.start_date,r.end_date)+hrs+ownHint+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+ownAttr+'>'+statusLabel(r.status)+(ownPend&&canDecide()?' ▾':'')+'</span></div>';
   }).join(''):'<div class="empty">No requests yet.</div>';
 
   var today=iso(new Date());
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
   var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};
-    return '<div class="req"><span class="me-av" style="width:28px;height:28px;font-size:.62rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div class="meta"><div class="dr">'+esc(e.display_name)+'</div><div class="sm">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(r.type)+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';
+    var dec=r.status==='pending'&&canDecide();
+    return '<div class="req"><span class="me-av" style="width:28px;height:28px;font-size:.62rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div class="meta"><div class="dr">'+esc(e.display_name)+'</div><div class="sm">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(r.type)+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(dec?' data-decide="'+r.id+'"':'')+'>'+statusLabel(r.status)+(dec?' ▾':'')+'</span></div>';
   }).join(''):'<div class="empty">No upcoming team time off.</div>';
 
   $('#view').innerHTML=form+'<div class="sect">My requests</div>'+mineHtml+'<div class="sect">Team time off</div><div class="empty" style="margin:-4px 0 8px">All locations · so you can plan around each other</div>'+teamHtml;
 
   if($('#openReq'))$('#openReq').onclick=openPlanner;   // opens the 3-step wizard
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
+  $('#view').querySelectorAll('[data-decide]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide')),false);};});
+  $('#view').querySelectorAll('[data-decide-own]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide-own')),true);};});
 }
 async function cancelRequest(id){
   var r=await sb.from('time_off_requests').delete().eq('id',id);
   if(r.error){toast(r.error.message,true);return;}
   REQS=REQS.filter(function(x){return x.id!==id;});toast('Request canceled');renderHeader();render();
+}
+/* ===== approve/deny from My Time (owner) — tap a pending pill → action sheet ===== */
+function canDecide(){return !!(ME&&ME.role==='owner');}
+function openDecideSheet(id,own){
+  var r=REQS.filter(function(x){return x.id===id;})[0]; if(!r)return;
+  var e=staffById(r.staff_id)||{display_name:own?'Your request':'?'};
+  var mask=document.getElementById('shmask');
+  if(!mask){mask=document.createElement('div');mask.id='shmask';mask.className='shmask';document.body.appendChild(mask);
+    mask.addEventListener('click',function(ev){if(ev.target===mask)mask.classList.remove('show');});}
+  var btns='<button class="shbtn appr" data-do="approved">Approve</button>'
+    +'<button class="shbtn deny" data-do="denied">Deny</button>'
+    +(own?'<button class="shbtn" data-do="cancelreq">Cancel the request</button>':'')
+    +'<button class="shbtn" data-do="close">Close</button>';
+  mask.innerHTML='<div class="sheet"><h3>'+esc(own?'Your request':e.display_name)+'</h3>'
+    +'<p class="smeta">'+esc(r.type)+' · '+esc(fmtRange(r.start_date,r.end_date))+' · '+statusLabel(r.status)+'</p>'+btns+'</div>';
+  mask.querySelectorAll('[data-do]').forEach(function(b){b.onclick=function(){
+    var d=b.getAttribute('data-do');mask.classList.remove('show');
+    if(d==='approved'||d==='denied')decideReq(id,d);
+    else if(d==='cancelreq')cancelRequest(id);
+  };});
+  requestAnimationFrame(function(){mask.classList.add('show');});
+}
+async function decideReq(id,status){
+  var r=REQS.filter(function(x){return x.id===id;})[0]; if(!r)return;
+  var prev=r.status;r.status=status;renderHeader();render();
+  var res=await sb.from('time_off_requests').update({status:status,decided_by:ME.id,decided_at:new Date().toISOString()}).eq('id',id);
+  if(res.error){r.status=prev;renderHeader();render();toast(res.error.message||'Could not update',true);return;}
+  var e=staffById(r.staff_id);
+  toast((status==='approved'?'Approved':'Denied')+(e?' · '+e.display_name.split(' ')[0]:''));
 }
 
 /* ===== web (desktop) layout ===== */
@@ -786,10 +837,14 @@ function timeoffPanelHtml(web){
   var actions='<button class="btn btn-red" id="openReq" style="height:48px;width:100%">+ Request Time Off</button>';
   var form='';
   var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
-  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+hrs+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(r.status==='pending'?' data-cancel="'+r.id+'" title="Tap to cancel"':'')+'>'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
+  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';
+    var ownAttr=r.status==='pending'?(canDecide()?' data-decide-own="'+r.id+'" title="Tap to decide"':' data-cancel="'+r.id+'" title="Tap to cancel"'):'';
+    return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+hrs+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+ownAttr+'>'+statusLabel(r.status)+(r.status==='pending'&&canDecide()?' ▾':'')+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
   var today=iso(new Date());
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
-  var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};return '<div style="display:flex;align-items:center;gap:9px"><span class="me-av" style="width:26px;height:26px;font-size:.6rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.76rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'">'+statusLabel(r.status)+'</span></div>';}).join(''):'<div class="empty">No upcoming team time off.</div>';
+  var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};
+    var dec=r.status==='pending'&&canDecide();
+    return '<div style="display:flex;align-items:center;gap:9px"><span class="me-av" style="width:26px;height:26px;font-size:.6rem;background:'+esc((e.avatar_color)||avatarBg(r.staff_id))+'">'+(e.avatar?esc(e.avatar):esc(initials(e.display_name)))+'</span><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.76rem">'+esc(e.display_name)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(fmtRange(r.start_date,r.end_date))+' · '+esc(shortStore(e.home_store))+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+(dec?' data-decide="'+r.id+'" title="Tap to decide"':'')+'>'+statusLabel(r.status)+(dec?' ▾':'')+'</span></div>';}).join(''):'<div class="empty">No upcoming team time off.</div>';
   return actions+form
     +'<div class="card" id="holCard" style="display:none;padding:13px 15px;border-top:3px solid #C9820B"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">🎉 Upcoming holiday</div><div id="holBody"></div></div>'
     +'<div class="card" style="padding:13px 15px"><div style="font-family:Nunito;font-weight:900;font-size:.82rem;margin-bottom:9px">PTO balance</div><div id="ptoBal" style="display:flex;flex-wrap:wrap;gap:8px"><span class="empty">Loading…</span></div></div>'
@@ -799,6 +854,8 @@ function timeoffPanelHtml(web){
 function wireTimeoffPanel(){
   if($('#openReq'))$('#openReq').onclick=openPlanner;   // opens the 3-step wizard
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
+  $('#view').querySelectorAll('[data-decide]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide')),false);};});
+  $('#view').querySelectorAll('[data-decide-own]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide-own')),true);};});
 }
 /* ===== Request Time Off — 3-step wizard (everything stays in the modal) =====
    Step 1 pick dates on the calendar (your own booked days now show as ME chips) ·
