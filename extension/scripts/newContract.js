@@ -46,7 +46,7 @@
         var ua = document.getElementById('mrt-update-assignee');
         if (ua && ua.parentElement) return { el: ua.parentElement, after: ua };   // right of Update Assignee
         var props = document.querySelector('.properties .properties-form.ticket-properties');
-        if (props) return { el: props, mode: 'append' };   // same row even if Update Assignee is off
+        if (props) return { el: props, mode: 'append', props: true };   // same row even if Update Assignee is off
         var rp = document.getElementById('BtnRequestPayment');
         if (rp && rp.parentElement) return { el: rp.parentElement, mode: 'prepend' };
         var tb = document.querySelector('.transaction-buttons');
@@ -74,11 +74,16 @@
         var spot = transactionsSpot();
         if (!spot) return;                          // not ready — retry on the next DOM tick
         var bar = spot.el, mode = spot.mode;
+        // Match the neighbours. In the properties row it sits beside "Update
+        // Assignee" (a solid btn-primary), so wear RepairQ's own primary classes
+        // and let its stylesheet do the work — the inverted white treatment was
+        // built for the white Transactions bar and reads washed-out here.
+        var native = !!(spot.after || spot.props);
         var a = document.createElement('a');
         a.id = 'mrt-new-contract';
-        a.className = 'transaction-buttons btn mrt-nc-btn';
+        a.className = native ? 'btn btn-new btn-primary mrt-nc-native' : 'transaction-buttons btn mrt-nc-btn';
         a.href = '#';
-        a.innerHTML = '<i class="icon-file"></i> New Contract';
+        a.innerHTML = '<i class="icon-file' + (native ? ' icon-white' : '') + '"></i> New Contract';
         a.addEventListener('click', function (e) { e.preventDefault(); openOverlay(); });
         if (spot.after) bar.insertBefore(a, spot.after.nextSibling);   // immediately right of Update Assignee
         else if (mode === 'append') bar.appendChild(a);
