@@ -275,6 +275,7 @@
                 closeModal();
                 return;
             }
+            pendingClear();   // an on-ticket answer supersedes any check-in stash
             fn('contact_set', payload);
             // permanent backup note
             var who = payload.name || 'customer';
@@ -297,6 +298,7 @@
             // remember the skip ON THE TICKET so it never re-asks anywhere
             if (!current) {
                 current = { method: 'skip' };
+                pendingClear();
                 fn('contact_set', { ticket_no: ticketNo(), store: storeName(), method: 'skip', agent_name: techName() });
                 renderChip();
             }
@@ -464,7 +466,7 @@
             var raw = sessionStorage.getItem(PENDING_KEY);
             if (!raw) return null;
             var o = JSON.parse(raw);
-            if (!o || !o.ts || (Date.now() - o.ts) > 10 * 60000) { pendingClear(); return null; }
+            if (!o || !o.ts || (Date.now() - o.ts) > 30 * 60000) { pendingClear(); return null; }
             return o.p || null;
         } catch (e) { return null; }
     }
@@ -543,11 +545,16 @@
             // a fallback anchor. Cap the wait at ~6s and proceed regardless.
             var tries = 0;
             (function whenSummaryReady() {
-                if (!ddFor('contact number') && !customerBlock() && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
+                // ALSO wait for the status label: the flush below keys off
+                // isNewStatus(), and deciding before the label paints silently
+                // dropped check-in follow-ups (the modal then re-popped empty —
+                // "it deleted the one I already made").
+                var statusReady = !!document.querySelector('#summary .block-content span.fullsize.label, #summary .block-content span.label');
+                if ((!statusReady || (!ddFor('contact number') && !customerBlock())) && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
                 // flush a follow-up choice captured on the numberless check-in
                 // page onto this freshly-saved ticket (status "New").
                 var pend = !current ? pendingGet() : null;
-                if (pend && isNewStatus()) flushPending(pend);
+                if (pend && (isNewStatus() || /\/ticket\/edit\//.test(location.pathname))) { flushPending(pend); pend = null; }
                 renderChip();
                 // auto-pop = check-in only: the EDIT page, or the first ticket
                 // page after a create (the post-save landing is a VIEW page,
@@ -563,7 +570,12 @@
                 // A brand-new ticket lands on a VIEW page (/ticket/<id>) with status
                 // "New"; the create-page flag doesn't fire for every RepairQ check-in
                 // URL, so key off the status too. wasPrompted() keeps it to one pop.
-                if ((isEdit || fresh || isNewStatus()) && !current && !wasPrompted() && !isClosedPage()) openModal(null);
+                // safety net: if a check-in answer is still pending (flush was
+                // skipped), open the modal PRE-FILLED with it — never blank.
+                if ((isEdit || fresh || isNewStatus()) && !current && !wasPrompted() && !isClosedPage())
+                    openModal(pend && pend.method !== 'skip'
+                        ? { method: pend.method, contact_number: pend.number, contact_name: pend.name, contact_email: pend.email }
+                        : null);
                 keepBlockAlive();
             })();
         });
