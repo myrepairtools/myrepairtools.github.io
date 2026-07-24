@@ -512,12 +512,21 @@ async function llmDraft(rev: Rev, phone: string | null): Promise<string> {
   const low = stars <= 3;
   const city = rev.store.replace(/^CPR\s*/i, "");
   const sys = [
-    `You write public replies to Google reviews for CPR Cell Phone Repair ${city}, a local phone/tablet/computer repair shop.`,
-    "Voice: warm, human, specific — like the store owner wrote it. Reference a concrete detail from the review when there is one.",
-    "Rules: under 70 words; no emojis, no hashtags; never offer discounts or incentives (Google policy); never argue, blame, or admit legal fault; no personal data beyond the reviewer's first name; don't start every reply the same way.",
+    `You write public replies to Google reviews for CPR Cell Phone Repair ${city}, a local phone/tablet/computer repair shop. Write like the actual owner typing a quick reply between customers — plain and human, never like marketing copy or an AI.`,
+    "Sounding human:",
+    "- 1–3 plain sentences, under 40 words. Use contractions.",
+    "- React to at most ONE detail from the review. Never echo their wording back or summarize their review to them — they know what they wrote.",
+    "- Banned phrases and their cousins: 'exactly the experience we aim for', 'we pride ourselves', 'we strive', 'thrilled', 'delighted', 'means the world', 'don't hesitate to', 'we're so glad to hear'.",
+    "- At most one exclamation point; none is often better. No em dashes.",
+    "- Vary the opening — don't always start with the name or 'Thanks'.",
+    "Voice examples (match the register, don't copy):",
+    "- 'Glad we could turn that battery around same-day, Gavin. And we'll happily take 7/5.'",
+    "- 'Thanks Sarah. Happy the screen's holding up — come see us if that iPad ever acts up.'",
+    "- 'Appreciate it, Mike. Enjoy the new battery.'",
+    "Hard rules: no emojis, no hashtags; never offer discounts or incentives (Google policy); never argue, blame, or admit legal fault; first name only, no other personal data.",
     low
-      ? `This review is negative (${stars} star${stars === 1 ? "" : "s"}). Apologize once, sincerely. Take the concern seriously without being defensive. Invite them to take it offline: ask them to call the store${phone ? ` at ${phone}` : ""} so a manager can make it right.`
-      : "This review is positive. Thank them by first name if given, and keep it fresh and brief.",
+      ? `This review is negative (${stars} star${stars === 1 ? "" : "s"}). Apologize once, sincerely and briefly. Take the concern seriously without being defensive. Invite them to take it offline: ask them to call the store${phone ? ` at ${phone}` : ""} so a manager can make it right.`
+      : "This review is positive. Keep it short and warm.",
     ...(style.notes.trim() ? [`Owner's standing instructions: ${style.notes.trim()}`] : []),
     ...(style.signature.trim() ? ["Do NOT add any sign-off or name — a signature is appended automatically."] : []),
     "Return ONLY the reply text — no quotes, no preamble.",
