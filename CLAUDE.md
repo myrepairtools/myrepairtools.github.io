@@ -89,8 +89,9 @@ these when adding UI so a new tool looks native.
 ## Shared assets (`assets/`)
 
 - **`nav.js`** — the navigation shell. Injects the fixed icon-rail + slide-out menu pane
-  into every page, defines the canonical tool lists (`OPERATIONS` + `PRIVILEGED` +
-  `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
+  into every page, defines the canonical tool lists (`OPERATIONS` + `TOOLS` — a
+  "Tools" sub-group rendered under Operations for single-purpose utilities like the
+  Label Resizer — + `PRIVILEGED` + `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
   update the right area array here** (and the tile in `index.html`) or it won't appear in
   the nav. **The rail-bottom gear is a real area** (not a link): clicking it swaps the pane
   to the `SETTINGS` list (Team Members, Locations, Notifications, Page Settings, Commission,
@@ -124,6 +125,13 @@ these when adding UI so a new tool looks native.
 - **`hyla/rq-device-catalog.json`** — RepairQ device catalog consumed by `hyla-orders.html`.
 - **`qrcode.js`** — vendored qrcode-generator (MIT); global `qrcode(type, ecc)`. Used by
   `lcd-buyback.html` for send-display labels; the extension carries its own copy.
+- **`pdfjs/`** — vendored pdf.js (pdfjs-dist 4.10.38, Apache-2.0; `pdf.min.mjs` +
+  `pdf.worker.min.mjs`, update steps in its README). Used by `label-resizer.html`
+  (Operations nav): drop any letter-size shipping-label PDF (or image / pasted
+  screenshot), drag-select the label (or ＋ whole page, auto-trimmed of white
+  margins), and print a clean **4×6** — one page per queued item, sideways crops
+  auto-rotate upright (per-item ↻ override). Replaces the paid "label resizer"
+  service; fully client-side, no backend.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
   source of truth for the Commission Calculator (nav label "Payroll · Commission & Tips" —
   same tool, payroll-focused name; file stays commission-calculator.html) + Dashboard.
@@ -426,8 +434,29 @@ private window between stores), then the callback auto-exchanges at
 `integration_tokens` provider `ms:<store>` (`meta.access_token_secret`). Everything
 logs to `ms_callback_log` (owner read). Owner-authed `?action=status` powers the
 **Settings → Integrations → MobileSentrix** card (per-store Connect/Reconnect
-buttons + status pills). Order→QBO-expense pipeline + droplet relay (only if the IP
-whitelist turns out to apply to production) per docs/mobilesentrix-pipeline.md.
+buttons + status pills). All 3 stores connected; production API works straight
+from the edge runtime (no IP whitelist — the droplet relay idea is dead). The
+**`mobilesentrix` edge function** (`?action=sync`; cron `ms-orders-sync` hourly
+:40, NOTIFY_SECRET; any staff JWT can kick it, 15-min freshness guard) mirrors
+each store's orders into **`ms_orders`** (entity_id PK, items jsonb w/ sku+qty,
+admin-only RLS; docs/sql/ms-orders-schema.sql). **Consumption report** wiring
+(all SECURITY DEFINER RPCs — no order dollars exposed to staff):
+`ms_ordered_for_day(store, day)` (per-SKU qty ordered that Pacific day) merges
+into the ORDERED state so real cpr.parts purchases auto-check the Ordered column
+(raise-only over manual/export marks; page kicks a background sync on load);
+`ms_pending_for_store(store)` (qty_ordered − shipped − canceled − refunded per
+item, 30-day window) counts ordered-but-unshipped units as incoming in the
+suggest math (`max − instock − onorder − pending`, amber `+N` chip on On Order) —
+RepairQ only shows a PO once MS ships, so this bridges that gap and hands off
+exactly as shipments post. The **`products` action** (staff JWT, ≤300 SKUs)
+serves live cpr.parts price/availability (our account's cost) through a 30-min
+`ms_products` cache (authenticated read): order rows show cost + a red
+"MS out of stock" pill, and a **part-group's order SKU auto-picks the cheapest
+IN-STOCK member** (★ default = tiebreak/fallback; member rows show per-SKU
+price + MS stock). Cross-store transfer chips were built then removed at the
+owner's request (2026-07-22) — don't resurrect without asking. **QBO booking from MS orders is deliberately NOT
+built** — the owner will drive that step-by-step; never auto-post to QBO from
+MS data without explicit direction (docs/mobilesentrix-pipeline.md).
 
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
@@ -501,7 +530,20 @@ function's `template_get` action (store override → default) and caches it in
 **Chrome extension (`extension/`):** **myRepairTools** — MV3 extension for
 `cpr.repairq.io`, the rebranded merge of the old Price Calculator popup ("CPR Tools")
 and Ben's RQ Mods (all its content scripts absorbed as-is; feature toggles preserved
-in Options). New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
+in Options). **The toolbar button opens a tool MENU** (popup/menu.html, v2.7.0):
+Price Calculator (the old popup) + **Label Resizer** — opens `label/label.html`, a
+bundled copy of label-resizer.html (own pdf.js copy; site tool stays as the
+fallback). **Upload-first, like the labelresizer.com service it replaces** (ALL
+tab-grabbing — fetch/debugger/screenshot — was removed at the owner's request
+after Chrome's file:// and viewer restrictions kept degrading it): drop the label
+PDF and the tool auto-detects the label — a pdf.js operator-list scan pulls each
+page's embedded images (objs.get raced against a 1s timeout; group-scoped g_*
+objects never resolve), scores them (≥80k px, 1.15–2.6 aspect, ≥85% grayscale
+samples, 4–60% ink → labels; logos are colorful and fail), queues the winner per
+page and label-less pages (packing slips) auto-trimmed — then **builds a 4×6 PDF
+FILE (288×432pt pages, JPEG XObjects, no pdf lib) and auto-downloads it as
+"<name> 4x6.pdf"**. Open + Download buttons re-emit it; manual crop stays as the
+fallback for undetectable labels. New parts: `scripts/bg.js` (print gate injector + LCD API proxy — the
 edge-function URL and LCD secret live here), `scripts/lcdCapture.js` (ticket-item
 watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 /ticket/printLabel), vendored `scripts/qrcode.js`, and
@@ -563,8 +605,13 @@ KBB serial (identical cross-system) else ticket # for no-serial parts; turns ~1h
 cross-referencing into seconds), Popup Blocker (auto-advances claim
 walkthrough / T&C / signature — bg.js injects a jSignature stroke MAIN-world — **default
 OFF** because it signs forms), and Clock Guard (blocks early clock-in, configurable
-time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). Install unpacked or publish to the
-Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
+time, default OFF). All toggles in Options (storage.sync objects `wn`, `mcpr`). **The site hosts the current build**: `downloads/myrepairtools-extension.zip` (+
+`downloads/extension-manifest.json` for the version pill), downloaded from
+**`extension.html`** ("Get the Extension", Tools nav) — store machines update from
+there, no file shuttling. **Rebuild the zip on every extension change**
+(`cd extension && zip -qr ../downloads/myrepairtools-extension.zip . && cp
+manifest.json ../downloads/extension-manifest.json`). Install unpacked or publish to
+the Chrome Web Store (steps in `extension/README.md`). When changing LCD behavior, update
 the extension AND check `lcd-buyback.html` + the `lcd-buyback` edge function stay in
 sync. **RepairQ ticket notes must be 3-byte-utf8-safe:** RepairQ's MySQL silently
 truncates a note at the first 4-byte char (most emoji), so an emoji-PREFIXED note

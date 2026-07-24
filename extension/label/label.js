@@ -1,0 +1,336 @@
+// Label Resizer (extension edition) — same tool as myrepairtools.com's
+// label-resizer.html, but pre-loaded with whatever PDF/image the active tab
+// was showing when the user picked it from the extension menu (bg.js stashes
+// the bytes in chrome.storage.session; nothing is saved to disk).
+import * as pdfjsLib from './pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.mjs';
+
+var $ = function (s, c) { return (c || document).querySelector(s); };
+function toast(m, err) { var t = $('#toast'); t.textContent = m; t.className = 'toast show' + (err ? ' err' : ''); setTimeout(function () { t.className = 'toast'; }, 2600); }
+
+var QUEUE = [];
+var PAGE_N = 0;
+
+/* ---------- intake ---------- */
+var drop = $('#drop'), fileInput = $('#file');
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () { handleFiles(fileInput.files); fileInput.value = ''; });
+['dragover', 'dragenter'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+drop.addEventListener('drop', function (e) { handleFiles(e.dataTransfer.files); });
+document.addEventListener('paste', function (e) {
+  var items = (e.clipboardData && e.clipboardData.items) || [];
+  for (var i = 0; i < items.length; i++) {
+    var f = items[i].getAsFile && items[i].getAsFile();
+    if (f) handleFiles([f]);
+  }
+});
+
+async function handleFiles(files) {
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    try {
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+        window.SRC_NAME = f.name; $('#srcName').textContent = '\u00b7 ' + f.name;
+        var q = await addPdf(await f.arrayBuffer(), true);
+        if (q > 0) { toast('Converted \u2014 downloading the 4\u00d76 PDF\u2026'); setTimeout(doDownload, 400); }
+        else toast('Couldn\u2019t auto-detect the label \u2014 drag a box around it below', true);
+      }
+      else if (/^image\//.test(f.type)) await addImageBlob(f);
+      else toast('Not a PDF or image \u2014 skipped ' + f.name, true);
+    } catch (e) { toast('Could not read ' + (f.name || 'file') + ' — ' + e.message, true); }
+  }
+}
+
+async function addPdf(buf, auto) {
+  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var queued = 0;
+  for (var p = 1; p <= pdf.numPages; p++) {
+    var page = await pdf.getPage(p);
+    var v1 = page.getViewport({ scale: 1 });
+    var vp = page.getViewport({ scale: Math.min(3, 1600 / v1.width) });
+    var c = document.createElement('canvas');
+    c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    addPageCard(c);
+    if (auto) {
+      /* label page -> just the label; label-less page (packing slip) -> trimmed page */
+      var label = await findLabelImage(page);
+      var pick = label || trimOrNull(c);
+      if (pick) { enqueue(pick); queued++; }
+    }
+  }
+  return queued;
+}
+function addImageBlob(blob) {
+  return new Promise(function (res, rej) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas');
+      var scale = Math.min(1, 2000 / img.naturalWidth);
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      var ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      addPageCard(c); URL.revokeObjectURL(img.src); res();
+    };
+    img.onerror = function () { rej(new Error('bad image')); };
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+
+/* ---------- automatic label detection ----------
+   Shipping labels in carrier/vendor PDFs are embedded raster images. Pull the
+   page's images out, keep the label-shaped, grayscale, barcode-dense ones
+   (logos are colorful, photos aren't ~1.5:1 monochrome), and queue the best.
+   Pages with no label image (packing slips) queue as auto-trimmed pages. */
+function imgObjToCanvas(im){
+  try{
+    var c=document.createElement('canvas');c.width=im.width;c.height=im.height;
+    var ctx=c.getContext('2d');
+    if(im.bitmap){ctx.drawImage(im.bitmap,0,0);return c;}
+    if(!im.data)return null;
+    var n=im.width*im.height,px=ctx.createImageData(im.width,im.height),d=im.data;
+    if(d.length===n*4)px.data.set(d);
+    else if(d.length===n*3){for(var i=0;i<n;i++){px.data[i*4]=d[i*3];px.data[i*4+1]=d[i*3+1];px.data[i*4+2]=d[i*3+2];px.data[i*4+3]=255;}}
+    else if(d.length===n){for(var j=0;j<n;j++){px.data[j*4]=px.data[j*4+1]=px.data[j*4+2]=d[j];px.data[j*4+3]=255;}}
+    else return null;
+    ctx.putImageData(px,0,0);return c;
+  }catch(e){return null;}
+}
+function labelScore(c){
+  var w=c.width,h=c.height;
+  if(w*h<80000)return 0;                                  /* too small to be a 4x6 label */
+  var r=Math.max(w,h)/Math.min(w,h);
+  if(r<1.15||r>2.6)return 0;                              /* squares (logos) and strips out */
+  var ctx=c.getContext('2d'),d;
+  try{d=ctx.getImageData(0,0,w,h).data;}catch(e){return 0;}
+  var n=0,gray=0,dark=0,step=Math.max(1,Math.floor(Math.sqrt(w*h/4000)));
+  for(var y=0;y<h;y+=step)for(var x=0;x<w;x+=step){
+    var i=(y*w+x)*4,R=d[i],G=d[i+1],B=d[i+2];
+    n++;
+    if(Math.max(R,G,B)-Math.min(R,G,B)<40)gray++;
+    if((R+G+B)/3<120)dark++;
+  }
+  if(!n)return 0;
+  var gf=gray/n,df=dark/n;
+  if(gf<0.85)return 0;                                    /* colorful -> logo/photo */
+  if(df<0.04||df>0.6)return 0;                            /* no ink, or a solid block */
+  return w*h*gf;
+}
+async function findLabelImage(page){
+  var ops;
+  try{ops=await page.getOperatorList();}catch(e){return null;}
+  var names=[];
+  for(var i=0;i<ops.fnArray.length;i++){
+    if(ops.fnArray[i]===pdfjsLib.OPS.paintImageXObject)names.push(ops.argsArray[i][0]);
+  }
+  var best=null;
+  for(var k=0;k<names.length;k++){
+    /* group-scoped objects (g_*) may never resolve from page.objs — race a
+       timeout so one odd image can't stall the whole document */
+    var im=await new Promise(function(res){
+      var done=false,t=setTimeout(function(){if(!done){done=true;res(null);}},1000);
+      try{page.objs.get(names[k],function(v){if(!done){done=true;clearTimeout(t);res(v);}});}
+      catch(e){if(!done){done=true;clearTimeout(t);res(null);}}
+    });
+    if(!im){try{im=page.commonObjs.get(names[k]);}catch(e){}}
+    if(!im||!im.width)continue;
+    var c=imgObjToCanvas(im);if(!c)continue;
+    var s=labelScore(c);
+    if(s>0&&(!best||s>best.s))best={c:c,s:s};
+  }
+  return best&&best.c;
+}
+/* auto-trimmed page, or null when the page is (nearly) empty */
+function trimOrNull(src){
+  var t=autoTrim(src);
+  if(t===src)return null;
+  if(t.width*t.height<src.width*src.height*0.01)return null;
+  return t;
+}
+
+/* ---------- page cards + drag-select ---------- */
+function addPageCard(canvas) {
+  PAGE_N++;
+  var card = document.createElement('div'); card.className = 'pagecard';
+  card.innerHTML = '<div class="bar"><span class="t">Page ' + PAGE_N + '</span>'
+    + '<span class="h">drag a box around what you want on the 4×6</span>'
+    + '<span class="sp">'
+    + '<button class="btn sm addsel" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></svg> Add Selection</button>'
+    + '<button class="btn sm addfull"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add Whole Page</button>'
+    + '</span></div>'
+    + '<div class="canvwrap"><div class="marquee"></div></div>';
+  card.querySelector('.canvwrap').appendChild(canvas);
+  $('#pages').appendChild(card);
+
+  var mq = card.querySelector('.marquee'), addSel = card.querySelector('.addsel'), sel = null, drag = null;
+  function toCanvasXY(e) {
+    var r = canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(canvas.width, (e.clientX - r.left) * canvas.width / r.width)),
+      y: Math.max(0, Math.min(canvas.height, (e.clientY - r.top) * canvas.height / r.height))
+    };
+  }
+  function drawMq() {
+    if (!sel) { mq.style.display = 'none'; return; }
+    var r = canvas.getBoundingClientRect(), k = r.width / canvas.width;
+    mq.style.display = 'block';
+    mq.style.left = (sel.x * k) + 'px'; mq.style.top = (sel.y * k) + 'px';
+    mq.style.width = (sel.w * k) + 'px'; mq.style.height = (sel.h * k) + 'px';
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    e.preventDefault(); canvas.setPointerCapture(e.pointerId);
+    drag = toCanvasXY(e); sel = null; drawMq();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var p = toCanvasXY(e);
+    sel = { x: Math.min(drag.x, p.x), y: Math.min(drag.y, p.y), w: Math.abs(p.x - drag.x), h: Math.abs(p.y - drag.y) };
+    drawMq();
+  });
+  canvas.addEventListener('pointerup', function () {
+    drag = null;
+    if (sel && (sel.w < 20 || sel.h < 20)) { sel = null; drawMq(); }
+    addSel.disabled = !sel;
+  });
+  window.addEventListener('resize', drawMq);
+
+  addSel.addEventListener('click', function () {
+    if (!sel) return;
+    enqueue(cropCanvas(canvas, sel));
+    sel = null; drawMq(); addSel.disabled = true;
+  });
+  card.querySelector('.addfull').addEventListener('click', function () { enqueue(autoTrim(canvas)); });
+}
+
+function cropCanvas(src, sel) {
+  var c = document.createElement('canvas');
+  c.width = Math.round(sel.w); c.height = Math.round(sel.h);
+  c.getContext('2d').drawImage(src, sel.x, sel.y, sel.w, sel.h, 0, 0, c.width, c.height);
+  return c;
+}
+function autoTrim(src) {
+  var ctx = src.getContext('2d'), d;
+  try { d = ctx.getImageData(0, 0, src.width, src.height).data; } catch (e) { return src; }
+  var W = src.width, H = src.height, minX = W, minY = H, maxX = 0, maxY = 0, step = 2;
+  for (var y = 0; y < H; y += step) for (var x = 0; x < W; x += step) {
+    var i = (y * W + x) * 4;
+    if (d[i] < 245 || d[i + 1] < 245 || d[i + 2] < 245) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX <= minX || maxY <= minY) return src;
+  var pad = 10;
+  return cropCanvas(src, {
+    x: Math.max(0, minX - pad), y: Math.max(0, minY - pad),
+    w: Math.min(W, maxX + pad) - Math.max(0, minX - pad),
+    h: Math.min(H, maxY + pad) - Math.max(0, minY - pad)
+  });
+}
+
+/* ---------- queue ---------- */
+function rot90(canvas) {
+  var r = document.createElement('canvas');
+  r.width = canvas.height; r.height = canvas.width;
+  var ctx = r.getContext('2d');
+  ctx.translate(r.width / 2, r.height / 2); ctx.rotate(Math.PI / 2);
+  ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+  return r;
+}
+function enqueue(canvas) {
+  if (canvas.width > canvas.height * 1.15) canvas = rot90(canvas);
+  QUEUE.push({ canvas: canvas });
+  renderQueue();
+  toast('Added to the print queue');
+}
+function renderQueue() {
+  var q = $('#queue');
+  if (!QUEUE.length) {
+    q.innerHTML = '<div class="qempty">Nothing queued yet.<br>Drag a box around the shipping label, then <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12" /><path d="M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" /></svg> Add Selection.</div>';
+  } else {
+    q.innerHTML = QUEUE.map(function (it, i) {
+      return '<div class="qitem"><span class="n">' + (i + 1) + '</span><img src="' + it.canvas.toDataURL('image/png') + '" alt="">'
+        + '<button class="x" data-i="' + i + '" title="Remove"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>'
+        + '<button class="rot" data-i="' + i + '" title="Rotate 90°"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg></button></div>';
+    }).join('');
+    q.querySelectorAll('.x').forEach(function (b) {
+      b.addEventListener('click', function () { QUEUE.splice(+b.getAttribute('data-i'), 1); renderQueue(); });
+    });
+    q.querySelectorAll('.rot').forEach(function (b) {
+      b.addEventListener('click', function () { var i = +b.getAttribute('data-i'); QUEUE[i].canvas = rot90(QUEUE[i].canvas); renderQueue(); });
+    });
+  }
+  $('#openBtn').disabled = $('#dlBtn').disabled = !QUEUE.length;
+}
+
+/* ---------- output ---------- */
+
+/* ---------- 4x6 PDF file output ----------
+   The deliverable is a FILE: a real PDF with 288x432pt (4x6in) pages, one
+   queued item per page, built by hand (JPEG XObjects) — no library needed. */
+function s2u(s){var u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u;}
+function canvasJpegBytes(c){
+  var b=atob(c.toDataURL('image/jpeg',0.95).split(',')[1]);
+  var u=new Uint8Array(b.length);
+  for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
+  return u;
+}
+function buildPdf(){
+  var W=288,H=432,M=4,chunks=[],offset=0,xref=[];
+  function push(x){var u=(typeof x==='string')?s2u(x):x;chunks.push(u);offset+=u.length;}
+  function obj(id,body){xref[id]=offset;push(id+' 0 obj\n');push(body);push('\nendobj\n');}
+  push('%PDF-1.4\n');
+  var n=QUEUE.length,kidIds=[];
+  for(var i=0;i<n;i++)kidIds.push(3+i*3);
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2,'<< /Type /Pages /Kids ['+kidIds.map(function(k){return k+' 0 R';}).join(' ')+'] /Count '+n+' >>');
+  for(var p=0;p<n;p++){
+    var c=QUEUE[p].canvas,jpg=canvasJpegBytes(c);
+    var k=Math.min((W-2*M)/c.width,(H-2*M)/c.height);
+    var w=c.width*k,h=c.height*k,x=(W-w)/2,y=(H-h)/2;
+    var pid=3+p*3,cid=pid+1,xid=pid+2;
+    obj(pid,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /XObject << /Im'+p+' '+xid+' 0 R >> >> /Contents '+cid+' 0 R >>');
+    var stream='q\n'+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+x.toFixed(2)+' '+y.toFixed(2)+' cm\n/Im'+p+' Do\nQ\n';
+    obj(cid,'<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream');
+    xref[xid]=offset;
+    push(xid+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+c.width+' /Height '+c.height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpg.length+' >>\nstream\n');
+    push(jpg);push('\nendstream\nendobj\n');
+  }
+  var total=3+n*3,xs=offset;
+  var xstr='xref\n0 '+total+'\n0000000000 65535 f \n';
+  for(var id=1;id<total;id++)xstr+=('0000000000'+xref[id]).slice(-10)+' 00000 n \n';
+  xstr+='trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xs+'\n%%EOF';
+  push(xstr);
+  var len=0;chunks.forEach(function(u){len+=u.length;});
+  var out=new Uint8Array(len),o=0;chunks.forEach(function(u){out.set(u,o);o+=u.length;});
+  return new Blob([out],{type:'application/pdf'});
+}
+var PDF_URL=null;
+function pdfName(){
+  var base=(window.SRC_NAME||'label').replace(/\.[a-z0-9]+$/i,'').replace(/[^\w\- ]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60)||'label';
+  return base+' 4x6.pdf';
+}
+function pdfUrl(){
+  if(PDF_URL)URL.revokeObjectURL(PDF_URL);
+  PDF_URL=URL.createObjectURL(buildPdf());
+  return PDF_URL;
+}
+function doOpen(){
+  if(!QUEUE.length)return;
+  var url=pdfUrl();
+  if(typeof chrome!=='undefined'&&chrome.tabs&&chrome.tabs.create)chrome.tabs.create({url:url});
+  else{var w=window.open(url,'_blank');if(!w)toast('Popup blocked — use Download instead',true);}
+}
+function doDownload(){
+  if(!QUEUE.length)return;
+  var a=document.createElement('a');
+  a.href=pdfUrl();a.download=pdfName();
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+$('#openBtn').addEventListener('click', doOpen);
+$('#dlBtn').addEventListener('click', doDownload);

@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Case Studio — Design Your Case</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Customer-facing mockup page: no site gate, no nav — reached by direct link only. */
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:linear-gradient(180deg,#FAFAFC 0%,#F0F1F5 100%);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+button{font-family:'Nunito',sans-serif}
+.top{background:var(--dark);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40;padding-top:calc(12px + env(safe-area-inset-top))}
+.top .logo{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;white-space:nowrap}
+.top .logo b{color:var(--red)}
+.top .tag{font-size:.68rem;font-weight:700;color:var(--grey);letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.top .spacer{flex:1}
+.mockpill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:4px 11px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;letter-spacing:.6px;color:#fff;white-space:nowrap}
+.wrap{max-width:1060px;margin:0 auto;padding:18px 14px calc(96px + env(safe-area-inset-bottom))}
+.cols{display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+/* ---------- stage ---------- */
+.stagecol{position:sticky;top:76px}
+@media(max-width:820px){.stagecol{position:static}}
+.modelrow{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+select.modelsel{flex:1;min-width:0;height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.95rem;color:var(--dark)}
+select.modelsel:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.pricechip{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;color:var(--red);background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:8px 13px;white-space:nowrap}
+.viewtog{display:flex;background:#E7E8EE;border-radius:11px;padding:3px;margin-bottom:12px}
+.viewtog button{flex:1;border:none;background:transparent;border-radius:8px;padding:8px 6px;font-weight:800;font-size:.8rem;color:var(--dark-grey);cursor:pointer}
+.viewtog button.on{background:#fff;color:var(--dark);box-shadow:0 1px 3px rgba(45,45,59,.12)}
+.stage{position:relative;margin:0 auto;width:min(100%,380px);border-radius:18px;touch-action:none;user-select:none;-webkit-user-select:none}
+@media(max-width:820px){.stage{width:min(100%,340px,calc((100dvh - 430px) * var(--ar,0.55)))}}
+.stage.print{background:
+  repeating-conic-gradient(#e9eaef 0% 25%, #f8f8fa 0% 50%) 0 0/16px 16px;border:1px solid var(--border)}
+.stage canvas{display:block;width:100%;height:auto;border-radius:18px}
+.stage svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.stagehint{text-align:center;font-size:.74rem;font-weight:700;color:var(--grey);margin-top:9px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:10px;min-height:30px}
+.chip{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1.5px solid var(--border);border-radius:999px;padding:5px 7px 5px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey);cursor:pointer;max-width:170px}
+.chip .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.on{border-color:var(--blue);color:var(--dark);box-shadow:0 0 0 3px rgba(79,176,227,.14)}
+.chip .x{width:19px;height:19px;border-radius:999px;background:var(--light-grey);display:flex;align-items:center;justify-content:center;font-size:.72rem;color:var(--dark-grey);flex:none}
+.chip .x:hover{background:#FBE9EA;color:var(--red)}
+/* ---------- panel ---------- */
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);margin-bottom:14px;padding:16px}
+.card h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+.addrow{display:flex;gap:9px;flex-wrap:wrap}
+.addbtn{flex:1;min-width:130px;border:1.5px solid var(--border);background:#fff;border-radius:11px;padding:12px 10px;font-weight:800;font-size:.88rem;color:var(--dark);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.addbtn:hover{border-color:var(--blue)}
+.addbtn .ico{font-size:1.05rem}
+.emojirow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.emojirow button{border:1.5px solid var(--border);background:#fff;border-radius:9px;width:38px;height:38px;font-size:1.15rem;cursor:pointer;font-family:'Nunito Sans',sans-serif}
+.emojirow button:hover{border-color:var(--blue)}
+.fldlab{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin:12px 0 6px;display:flex;justify-content:space-between}
+.fldlab:first-of-type{margin-top:0}
+.fldlab .val{color:var(--grey);text-transform:none;letter-spacing:0}
+input[type=range]{width:100%;accent-color:var(--red)}
+input[type=text].txt{width:100%;font-family:'Nunito Sans',sans-serif;font-size:1rem;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;color:var(--dark)}
+input[type=text].txt:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+select.sel{width:100%;height:40px;padding:0 10px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.9rem;color:var(--dark)}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:34px;height:34px;border-radius:10px;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--border);cursor:pointer;flex:none}
+.sw.on{box-shadow:0 0 0 2.5px var(--blue)}
+.sw.custom{display:flex;align-items:center;justify-content:center;font-size:1rem;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden}
+.sw.custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.sbtn{border:1.5px solid var(--border);background:#fff;border-radius:9px;padding:8px 13px;font-weight:800;font-size:.78rem;color:var(--dark-grey);cursor:pointer}
+.sbtn:hover{border-color:var(--blue);color:var(--dark)}
+.sbtn.danger:hover{border-color:var(--red);color:var(--red)}
+.cta{width:100%;background:var(--red);color:#fff;border:none;border-radius:12px;padding:14px;font-weight:900;font-size:.98rem;cursor:pointer;margin-top:6px}
+.cta.dark{background:var(--dark)}
+.cta.ghost{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+.cta+.cta{margin-top:9px}
+.meta{background:var(--light-grey);border-radius:10px;padding:11px 13px;font-size:.8rem;font-weight:600;color:var(--dark-grey);line-height:1.55;margin-bottom:11px}
+.meta b{font-family:'Nunito',sans-serif;color:var(--dark)}
+details.how{background:#fff;border:1px dashed var(--grey);border-radius:14px;padding:14px 16px;margin-bottom:14px;color:var(--dark-grey);font-size:.85rem;line-height:1.6}
+details.how summary{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;color:var(--dark);cursor:pointer}
+details.how ol{margin:10px 0 0 18px}
+details.how li{margin-bottom:7px}
+details.how code{background:var(--light-grey);border-radius:5px;padding:1px 6px;font-size:.78rem}
+details.how pre{background:#2D2D3B;color:#DDE1EC;border-radius:10px;padding:12px;font-size:.72rem;overflow-x:auto;margin-top:9px;line-height:1.5}
+/* ---------- dock (mobile) ---------- */
+.dock{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:10px 12px calc(10px + env(safe-area-inset-bottom));gap:9px}
+@media(max-width:820px){.dock{display:flex}}
+.dock button{flex:1;border:none;border-radius:11px;padding:13px 8px;font-weight:900;font-size:.86rem;cursor:pointer}
+.dock .dl{background:var(--red);color:#fff}
+.dock .mk{background:var(--dark);color:#fff}
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;border-radius:999px;padding:11px 20px;opacity:0;pointer-events:none;transition:.25s;z-index:60;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.dz{outline:3px dashed var(--blue);outline-offset:-3px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <div class="logo">Case <b>Studio</b></div>
+    <div class="tag">Design your own printed case</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="mockpill">MOCKUP · v0.1</span>
+</header>
+
+<div class="wrap">
+  <div class="cols">
+
+    <!-- ============ STAGE ============ -->
+    <section class="stagecol">
+      <div class="modelrow">
+        <select class="modelsel" id="modelSel" aria-label="Phone model"></select>
+        <div class="pricechip" id="priceChip">$34.99</div>
+      </div>
+      <div class="viewtog">
+        <button id="vMock" class="on">📱 On the Phone</button>
+        <button id="vPrint">🖨 Print File</button>
+      </div>
+      <div class="stage" id="stage">
+        <canvas id="cv"></canvas>
+        <svg id="ov"></svg>
+      </div>
+      <div class="stagehint" id="stageHint">Tap a layer to select · drag to move · pinch or scroll to resize · ◉ handle rotates</div>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <!-- ============ PANEL ============ -->
+    <section>
+      <div class="card">
+        <h2>✨ Add to Your Case</h2>
+        <div class="addrow">
+          <button class="addbtn" id="btnPhoto"><span class="ico">📷</span> Add a Photo</button>
+          <button class="addbtn" id="btnText"><span class="ico" style="font-family:'Nunito';font-weight:900">T</span> Add Text</button>
+        </div>
+        <div class="emojirow" id="emojiRow"></div>
+      </div>
+
+      <div class="card" id="layerCard" style="display:none">
+        <h2 id="layerCardTitle">Selected Layer</h2>
+
+        <div id="photoCtrls" style="display:none">
+          <div class="btnrow" style="margin-bottom:4px">
+            <button class="sbtn" id="pFill">Fill Case</button>
+            <button class="sbtn" id="pFit">Fit Inside</button>
+            <button class="sbtn" id="pCenter">Center</button>
+            <button class="sbtn" id="pReplace">Replace…</button>
+          </div>
+          <div class="fldlab">Size <span class="val" id="pSizeVal"></span></div>
+          <input type="range" id="pSize" min="10" max="260" step="1">
+          <div class="fldlab">Rotation <span class="val" id="pRotVal"></span></div>
+          <input type="range" id="pRot" min="-180" max="180" step="1">
+        </div>
+
+        <div id="textCtrls" style="display:none">
+          <div class="fldlab">Your Text</div>
+          <input type="text" class="txt" id="tText" maxlength="80" placeholder="Type something…">
+          <div class="fldlab">Font</div>
+          <select class="sel" id="tFont"></select>
+          <div class="fldlab">Color</div>
+          <div class="swatches" id="tSwatches"></div>
+          <div class="fldlab">Size <span class="val" id="tSizeVal"></span></div>
+          <input type="range" id="tSize" min="4" max="40" step="1">
+          <div class="fldlab">Rotation <span class="val" id="tRotVal"></span></div>
+          <input type="range" id="tRot" min="-180" max="180" step="1">
+        </div>
+
+        <div id="emojiCtrls" style="display:none">
+          <div class="fldlab">Size <span class="val" id="eSizeVal"></span></div>
+          <input type="range" id="eSize" min="6" max="70" step="1">
+          <div class="fldlab">Rotation <span class="val" id="eRotVal"></span></div>
+          <input type="range" id="eRot" min="-180" max="180" step="1">
+        </div>
+
+        <div class="btnrow" style="margin-top:12px">
+          <button class="sbtn" id="lyFront">⬆ Bring Forward</button>
+          <button class="sbtn" id="lyBack">⬇ Send Back</button>
+          <button class="sbtn danger" id="lyDel">✕ Remove</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🎨 Background</h2>
+        <div class="swatches" id="bgSwatches"></div>
+      </div>
+
+      <div class="card">
+        <h2>🖨 Print &amp; Order</h2>
+        <div class="meta" id="printMeta"></div>
+        <button class="cta" id="btnPrintDl">⬇ Download Print File (300 DPI PNG)</button>
+        <button class="cta dark" id="btnMockDl">⬇ Download Mockup Image</button>
+        <button class="cta ghost" id="btnOrder">🛒 Add to Order — <span id="orderPrice">$34.99</span></button>
+        <div class="btnrow" style="margin-top:12px">
+          <button class="sbtn danger" id="btnReset">Start Over</button>
+        </div>
+      </div>
+
+      <details class="how">
+        <summary>🔧 How this works (notes for the build)</summary>
+        <ol>
+          <li><b>It's just two images stacked.</b> Bottom layer: the customer's artwork, clipped to the case shape (a canvas here). Top layer: the phone mockup with a <b>transparent window</b> where the print area is, <code>pointer-events:none</code> so drags pass through. That's the whole Canva trick — same registration, same pixel size, art under, window on top.</li>
+          <li><b>The top image must be a PNG with real alpha.</b> The #1 way this fails: exporting the mockup layer as a JPEG (no transparency) or with a white background — then it just covers the art. From Canva/Photoshop: hide the mask/art layer, export PNG, keep the print window fully transparent.</li>
+          <li><b>Both exports must be the exact same canvas size.</b> One document, two exports (art-area guide + mockup overlay). If the sizes or positions differ even slightly, nothing lines up. Never crop one of them.</li>
+          <li><b>Don't use the PSD in the browser.</b> Browsers can't render PSDs — export flat PNGs from it. The PSD is only the master file.</li>
+          <li><b>The iPhone 16 Pro model on this page IS the real manufacturer pair</b> — the showroom photo (opaque JPEG) + the print mask (PNG whose black shape is the print area, everything else transparent). Both exported from the same 1500×1500 doc, so they register perfectly. The page draws the customer's art, clips it with the mask (<code>destination-in</code>), lays it over the photo, then multiplies the photo's own shading back over the print area so the art looks like it's under the clear case. Adding another real model is just two exports + one config entry:</li>
+        </ol>
+        <pre>assets: {
+  photo: 'assets/cases/ip16pro-clear-photo.jpg', // showroom photo
+  mask:  'assets/cases/ip16pro-clear-mask.png',  // print shape, alpha PNG
+  px:    { w: 1500, h: 1500 },                   // the doc's pixel size
+  print: { x: 448, y: 108, w: 604, h: 1268 },    // mask shape bbox, doc px
+  cutoutPx: { x: 460, y: 112, w: 582, h: 352, r: 80 } // pop-out plate window
+}</pre>
+        <ol start="6">
+          <li><b>Print files are physical, not screen-sized.</b> Export renders at 300 DPI from the case's real millimeter dimensions, adds 2 mm bleed, and punches the camera opening transparent (the ring pops out for flat UV printing and reinstalls after — the opening itself is a hole).</li>
+          <li><b>Next steps for the real site:</b> save designs to a <code>case_designs</code> Supabase table (token link like contracts), Square checkout, and an order queue page for the shop.</li>
+        </ol>
+      </details>
+    </section>
+  </div>
+</div>
+
+<div class="dock">
+  <button class="dl" id="dockPrint">⬇ Print File</button>
+  <button class="mk" id="dockMock">⬇ Mockup</button>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="file" accept="image/*" hidden>
+
+<script>
+'use strict';
+/* =====================================================================
+   Case Studio — design-suite mockup.
+   Everything is drawn in MILLIMETERS of the real case back, then scaled:
+   once for the screen preview, once at 300 DPI for the print file. That
+   keeps screen, mockup and print pixel-perfectly registered from one
+   set of numbers per model.
+   ===================================================================== */
+const DPI = 300, PXMM = DPI / 25.4;      // print pixels per mm
+const PAD = 9;                            // stage margin around the case, mm
+const BLEED = 2;                          // print bleed, mm
+const SAFE = 3;                           // keep-text-inside margin, mm
+
+/* Two kinds of model:
+
+   1. `assets` models — the PRODUCTION path. Two same-size exports from the
+      manufacturer PSD / Canva doc: a showroom photo of the phone in the clear
+      case, and the print-area mask exported with everything else transparent
+      (black shape = printable area, plate window knocked out). `print` is the
+      mask shape's bounding box in doc pixels; `cutoutPx` is the pop-out plate
+      window. mm.w is the real printed width — confirm against the PSD's
+      physical size; mm.h follows the mask's aspect.
+
+   2. Drawn models — no asset files needed; the page draws its own phone
+      overlay (inline SVG). Camera shapes are mm from the case's top-left:
+      kind 'plate' = one removable plate/ring assembly (the punch is the
+      plate), kind 'lenses' = individual lens rings (the punch is each circle). */
+const MODELS = [
+  { id:'iphone-16-pro-clear', name:'iPhone 16 Pro · Real Case Photo', price:34.99,
+    mm:{ w:74.8, h:157.0, corner:14 },
+    assets:{ photo:'assets/cases/ip16pro-clear-photo.jpg',
+             mask:'assets/cases/ip16pro-clear-mask.png',
+             px:{ w:1500, h:1500 },
+             print:{ x:448, y:108, w:604, h:1268 },
+             cutoutPx:{ x:460, y:112, w:582, h:352, r:80 } } },
+  { id:'iphone-16-pro-max', name:'iPhone 16 Pro Max', price:34.99,
+    mm:{ w:80.8, h:166.2, corner:15 },
+    camera:{ kind:'plate', x:8, y:8, w:41, h:41, r:12,
+      lenses:[{cx:20,cy:19.5,r:8},{cx:20,cy:37.5,r:8},{cx:36.5,cy:28.5,r:8}],
+      flash:{cx:39,cy:15.5,r:2.4}, dot:{cx:39,cy:41.5,r:2} } },
+  { id:'iphone-16-pro', name:'iPhone 16 Pro', price:34.99,
+    mm:{ w:74.8, h:152.9, corner:14 },
+    camera:{ kind:'plate', x:7.5, y:7.5, w:38.5, h:38.5, r:11,
+      lenses:[{cx:18.7,cy:18.3,r:7.4},{cx:18.7,cy:35.2,r:7.4},{cx:34.3,cy:26.7,r:7.4}],
+      flash:{cx:36.5,cy:14.5,r:2.3}, dot:{cx:36.5,cy:39,r:1.9} } },
+  { id:'iphone-16', name:'iPhone 16', price:29.99,
+    mm:{ w:74.9, h:150.9, corner:14 },
+    camera:{ kind:'plate', x:9, y:9, w:15.5, h:34, r:7.75,
+      lenses:[{cx:16.75,cy:17.5,r:5.6},{cx:16.75,cy:34.5,r:5.6}],
+      flash:{cx:31,cy:14,r:2.4} } },
+  { id:'iphone-15', name:'iPhone 15', price:29.99,
+    mm:{ w:74.9, h:150.9, corner:14 },
+    camera:{ kind:'plate', x:8, y:8, w:31, h:31, r:10,
+      lenses:[{cx:17.5,cy:17.5,r:6.4},{cx:29.5,cy:29.5,r:6.4}],
+      flash:{cx:30.5,cy:16.5,r:2.2} } },
+  { id:'galaxy-s25', name:'Samsung Galaxy S25', price:29.99,
+    mm:{ w:73.9, h:149.9, corner:13 },
+    camera:{ kind:'lenses',
+      lenses:[{cx:15.5,cy:14,r:5.4},{cx:15.5,cy:25.5,r:5.4},{cx:15.5,cy:37,r:5.4}],
+      flash:{cx:25.5,cy:19.5,r:2} } },
+];
+
+const FONTS = [
+  { label:'Nunito (rounded)', css:"'Nunito', sans-serif" },
+  { label:'Georgia (serif)', css:"Georgia, 'Times New Roman', serif" },
+  { label:'Arial Black (bold)', css:"'Arial Black', Arial, sans-serif" },
+  { label:'Impact (poster)', css:"Impact, 'Arial Narrow Bold', sans-serif" },
+  { label:'Courier (typewriter)', css:"'Courier New', monospace" },
+  { label:'Comic Sans (fun)', css:"'Comic Sans MS', 'Comic Sans', cursive" },
+];
+const TEXT_COLORS = ['#FFFFFF','#2D2D3B','#DC282E','#4FB0E3','#F5C518','#2E9E5B','#FF8AC2','#8B5CF6'];
+const BGS = [
+  { t:'solid', a:'#FFFFFF' }, { t:'solid', a:'#2D2D3B' }, { t:'solid', a:'#DC282E' },
+  { t:'solid', a:'#4FB0E3' }, { t:'solid', a:'#F5C518' }, { t:'solid', a:'#2E9E5B' },
+  { t:'solid', a:'#FFD9E8' }, { t:'solid', a:'#111318' },
+  { t:'grad', a:'#FF9A8B', b:'#FF6A88' }, { t:'grad', a:'#a18cd1', b:'#fbc2eb' },
+  { t:'grad', a:'#84fab0', b:'#8fd3f4' }, { t:'grad', a:'#2D2D3B', b:'#4FB0E3' },
+  { t:'grad', a:'#f6d365', b:'#fda085' }, { t:'grad', a:'#0f2027', b:'#2c5364' },
+];
+const EMOJI = ['❤️','🔥','⭐','😎','🌈','🦋','💀','🌸','⚡','🎮','🐾','✌️'];
+const LS_KEY = 'mrtCaseStudio1';
+
+/* ---------------- state ---------------- */
+let model = MODELS[0];
+let view = 'mockup';                       // 'mockup' | 'print'
+let bg = { ...BGS[0] };
+let layers = [];                           // {id,type:'image'|'text'|'emoji',x,y,wMm|size,rot,...}
+let selId = null;
+let nextId = 1;
+let replaceTarget = null;                  // layer id being replaced via file input
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('cv'), ov = $('ov'), ctx = cv.getContext('2d');
+const sel = () => layers.find(l => l.id === selId) || null;
+
+const stageW = () => model.mm.w + PAD * 2;
+const stageH = () => model.mm.h + PAD * 2;
+
+/* ---------------- toast ---------------- */
+let toastT = null;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ---------------- canvas sizing ---------------- */
+let cssW = 0, cssH = 0, pxPerMM = 1;
+function sizeCanvas(){
+  const r = stage.getBoundingClientRect();
+  if (!r.width) return;
+  cssW = r.width; cssH = r.width * (stageH() / stageW());
+  pxPerMM = cssW / stageW();
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.height = cssH + 'px';
+  stage.style.setProperty('--ar', (stageW() / stageH()).toFixed(4));
+  draw();
+}
+new ResizeObserver(() => sizeCanvas()).observe(stage);
+
+/* ---------------- shape helpers (all mm, case-local coords) ---------------- */
+function rrectPath(c, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+function cameraPunchPath(c){
+  const cam = model.camera;
+  c.beginPath();
+  if (cam.kind === 'plate'){
+    rrectPath(c, cam.x, cam.y, cam.w, cam.h, cam.r);
+  } else {
+    for (const l of cam.lenses){ c.moveTo(l.cx + l.r + 1.2, l.cy); c.arc(l.cx, l.cy, l.r + 1.2, 0, Math.PI * 2); }
+  }
+  if (cam.flash){ c.moveTo(cam.flash.cx + cam.flash.r + .8, cam.flash.cy); c.arc(cam.flash.cx, cam.flash.cy, cam.flash.r + .8, 0, Math.PI * 2); }
+}
+
+/* ---------------- layer drawing (c is scaled so 1 unit = 1mm, origin = case top-left) ---------------- */
+function layerBounds(c, l){
+  if (l.type === 'image'){
+    const h = l.wMm * (l.imgH / l.imgW);
+    return { w:l.wMm, h };
+  }
+  if (l.type === 'emoji') return { w:l.size * 1.15, h:l.size * 1.15 };
+  // text: measure
+  c.save(); c.font = `${l.bold ? '800 ' : ''}${l.size}px ${l.font}`;
+  const lines = String(l.text || ' ').split('\n');
+  let w = 0; for (const ln of lines) w = Math.max(w, c.measureText(ln).width);
+  c.restore();
+  return { w:Math.max(w, 4), h:l.size * 1.25 * lines.length };
+}
+function drawLayer(c, l){
+  c.save();
+  c.translate(l.x, l.y); c.rotate(l.rot * Math.PI / 180);
+  if (l.type === 'image' && l.img){
+    const b = layerBounds(c, l);
+    c.drawImage(l.img, -b.w / 2, -b.h / 2, b.w, b.h);
+  } else if (l.type === 'text'){
+    c.font = `${l.bold ? '800 ' : ''}${l.size}px ${l.font}`;
+    c.fillStyle = l.color; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const lines = String(l.text || '').split('\n');
+    const lh = l.size * 1.25, y0 = -(lines.length - 1) * lh / 2;
+    lines.forEach((ln, i) => c.fillText(ln, 0, y0 + i * lh));
+  } else if (l.type === 'emoji'){
+    c.font = `${l.size}px 'Nunito Sans', sans-serif`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(l.char, 0, l.size * 0.06);
+  }
+  c.restore();
+}
+function paintBg(c, x, y, w, h){
+  if (bg.t === 'grad'){
+    const g = c.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, bg.a); g.addColorStop(1, bg.b);
+    c.fillStyle = g;
+  } else c.fillStyle = bg.a;
+  c.fillRect(x, y, w, h);
+}
+/* Draw the whole design. c must already be scaled so 1 unit = 1mm with
+   origin at the CASE top-left. bleed>0 extends the clip for print output.
+   Asset models skip the vector clip — the manufacturer's alpha mask does the
+   clipping afterwards — and just overfill the edges. */
+function drawDesign(c, bleed){
+  const { w, h, corner } = model.mm;
+  c.save();
+  if (model.assets){
+    paintBg(c, -3, -3, w + 6, h + 6);
+  } else {
+    if (bleed > 0){
+      rrectPath(c, -bleed, -bleed, w + bleed * 2, h + bleed * 2, corner + bleed);
+    } else {
+      rrectPath(c, 0, 0, w, h, corner);
+    }
+    c.clip();
+    paintBg(c, -bleed, -bleed, w + bleed * 2, h + bleed * 2);
+  }
+  for (const l of layers) drawLayer(c, l);
+  c.restore();
+}
+function drawHint(c){
+  if (layers.length) return;
+  c.save();
+  if (!model.assets){ rrectPath(c, 0, 0, model.mm.w, model.mm.h, model.mm.corner); c.clip(); }
+  c.fillStyle = (bg.t === 'solid' && bg.a === '#FFFFFF') ? '#C9CCD6' : 'rgba(255,255,255,.65)';
+  c.font = `800 5px 'Nunito', sans-serif`;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('Add a photo, text', model.mm.w / 2, model.mm.h * 0.52);
+  c.fillText('or emoji to start ✨', model.mm.w / 2, model.mm.h * 0.52 + 7.5);
+  c.restore();
+}
+
+/* ---------------- real-asset rendering (photo + alpha mask) ---------------- */
+/* The crop of the source doc we show on the stage: the print bbox plus PAD mm
+   of margin, so the on-screen geometry matches the drawn models exactly. */
+function assetView(){
+  const a = model.assets, ppm = a.print.w / model.mm.w;   // doc px per mm
+  const m = PAD * ppm;
+  return { x:a.print.x - m, y:a.print.y - m, w:a.print.w + 2 * m, h:a.print.h + 2 * m, ppm };
+}
+function assetsReady(){ return !!(model._photo && model._mask); }
+/* Draw the composited scene at outW×outH: photo → masked art → the photo's
+   own shading multiplied back over the print area (that's the "under a clear
+   case" look). opts: {photo, hint} */
+function renderAssetScene(c, outW, outH, opts){
+  const v = assetView();
+  const s = outW / stageW();                              // out px per mm
+  const od = document.createElement('canvas');
+  od.width = outW; od.height = outH;
+  const o = od.getContext('2d');
+  o.scale(s, s); o.translate(PAD, PAD);
+  drawDesign(o, 0);
+  if (opts.hint) drawHint(o);
+  o.setTransform(1, 0, 0, 1, 0, 0);
+  o.globalCompositeOperation = 'destination-in';
+  o.drawImage(model._mask, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+  if (opts.photo){
+    c.drawImage(model._photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    c.drawImage(od, 0, 0);
+    const pd = document.createElement('canvas');
+    pd.width = outW; pd.height = outH;
+    const p = pd.getContext('2d');
+    p.drawImage(model._photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    p.globalCompositeOperation = 'destination-in';
+    p.drawImage(model._mask, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    c.globalCompositeOperation = 'multiply';
+    c.drawImage(pd, 0, 0);
+    c.globalCompositeOperation = 'source-over';
+  } else {
+    c.drawImage(od, 0, 0);
+  }
+}
+
+/* ---------------- screen draw ---------------- */
+function drawSelectionMM(){
+  // expects ctx scaled to mm with origin at the case top-left
+  const s = sel();
+  if (!s || view === 'print') return;
+  const b = layerBounds(ctx, s);
+  ctx.save();
+  ctx.translate(s.x, s.y); ctx.rotate(s.rot * Math.PI / 180);
+  ctx.lineWidth = 1.5 / pxPerMM;
+  ctx.strokeStyle = '#4FB0E3';
+  ctx.setLineDash([5 / pxPerMM, 4 / pxPerMM]);
+  ctx.strokeRect(-b.w / 2 - 1, -b.h / 2 - 1, b.w + 2, b.h + 2);
+  ctx.setLineDash([]);
+  const hr = 9 / pxPerMM;               // handle radius in mm
+  ctx.beginPath(); ctx.arc(b.w / 2 + 1, b.h / 2 + 1, hr, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.lineWidth = 2 / pxPerMM; ctx.stroke();
+  ctx.beginPath(); ctx.arc(b.w / 2 + 1, b.h / 2 + 1, hr * 0.35, 0, Math.PI * 2);
+  ctx.fillStyle = '#4FB0E3'; ctx.fill();
+  ctx.restore();
+}
+function draw(){
+  if (!cssW) return;
+  const dpr = cv.width / cssW;
+  const isPrint = view === 'print';
+
+  if (model.assets){
+    if (!assetsReady()) return;                 // draw() re-runs when images land
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    renderAssetScene(ctx, cv.width, cv.height,
+      { photo:!isPrint, hint:!isPrint && !layers.length });
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.save(); ctx.scale(pxPerMM, pxPerMM); ctx.translate(PAD, PAD);
+    drawSelectionMM();
+    ctx.restore();
+    return;
+  }
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  ctx.save();
+  ctx.scale(pxPerMM, pxPerMM);
+  ctx.translate(PAD, PAD);
+  drawDesign(ctx, isPrint ? BLEED : 0);
+  if (isPrint){
+    // punch the camera opening so the checkerboard shows the physical hole
+    ctx.save(); ctx.globalCompositeOperation = 'destination-out';
+    cameraPunchPath(ctx); ctx.fill(); ctx.restore();
+  }
+  if (!isPrint) drawHint(ctx);
+  drawSelectionMM();
+  ctx.restore();
+}
+
+/* ---------------- overlay SVG (the "clear case on the phone" look) ---------------- */
+function svgRrect(x, y, w, h, r, attrs){
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ${attrs}/>`;
+}
+function buildMockupOverlay(){
+  const { w, h, corner } = model.mm;
+  const W = stageW(), H = stageH();
+  if (model.assets){
+    // the real photo carries the whole "phone in a clear case" look — no SVG needed
+    ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    ov.innerHTML = '';
+    return;
+  }
+  const cam = model.camera;
+  const rim = 2.4;                         // visible case side wall, mm
+  let d = `<defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a4a55"/><stop offset="1" stop-color="#191920"/>
+    </linearGradient>
+    <radialGradient id="glass" cx="0.35" cy="0.3" r="1">
+      <stop offset="0" stop-color="#3d4a63"/><stop offset="0.5" stop-color="#131b2b"/><stop offset="1" stop-color="#05070d"/>
+    </radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.38" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8e9ee"/><stop offset="1" stop-color="#9a9ca8"/>
+    </linearGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2.2" stdDeviation="3.4" flood-color="#2D2D3B" flood-opacity="0.28"/>
+    </filter>
+  </defs>`;
+
+  // If the model carries a real mockup export, use it — this is the production path.
+  if (model.overlay){
+    const o = model.overlay, mmPerPx = w / o.print.w;
+    const iw = o.px.w * mmPerPx, ih = o.px.h * mmPerPx;
+    const ix = PAD - o.print.x * mmPerPx, iy = PAD - o.print.y * mmPerPx;
+    ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    ov.innerHTML = d + `<image href="${o.url}" x="${ix}" y="${iy}" width="${iw}" height="${ih}"/>`;
+    return;
+  }
+
+  // drop shadow body behind everything (transparent fill keeps the window clear)
+  d += svgRrect(PAD - rim, PAD - rim, w + rim * 2, h + rim * 2, corner + rim,
+    `fill="#000" fill-opacity="0.001" filter="url(#sh)"`);
+
+  // clear case side wall: band between outer edge and print area
+  d += `<path fill-rule="evenodd" fill="#EDF1F6" fill-opacity="0.55" d="
+    ${rrectD(PAD - rim, PAD - rim, w + rim * 2, h + rim * 2, corner + rim)}
+    ${rrectD(PAD, PAD, w, h, corner)}"/>`;
+  d += svgRrect(PAD - rim, PAD - rim, w + rim * 2, h + rim * 2, corner + rim,
+    `fill="none" stroke="#B8BFCC" stroke-width="0.5" stroke-opacity="0.9"`);
+  d += svgRrect(PAD, PAD, w, h, corner, `fill="none" stroke="#fff" stroke-width="0.45" stroke-opacity="0.75"`);
+
+  // side buttons (outside the case wall)
+  const bx = PAD - rim;
+  d += svgRrect(bx - 1.1, PAD + 28, 1.2, 9, 0.6, `fill="#B7BCC8"`);   // action
+  d += svgRrect(bx - 1.1, PAD + 42, 1.2, 14, 0.6, `fill="#B7BCC8"`);  // vol up/down
+  d += svgRrect(bx - 1.1, PAD + 60, 1.2, 14, 0.6, `fill="#B7BCC8"`);
+  d += svgRrect(PAD + w + rim - 0.1, PAD + 40, 1.2, 20, 0.6, `fill="#B7BCC8"`); // power
+
+  // camera assembly (the reinstalled ring + lenses, ON TOP of the print)
+  if (cam.kind === 'plate'){
+    d += svgRrect(PAD + cam.x - 0.9, PAD + cam.y - 0.9, cam.w + 1.8, cam.h + 1.8, cam.r + 0.9, `fill="url(#ring)"`);
+    d += svgRrect(PAD + cam.x, PAD + cam.y, cam.w, cam.h, cam.r, `fill="url(#plate)"`);
+  }
+  for (const l of cam.lenses){
+    const cx = PAD + l.cx, cy = PAD + l.cy;   // lens coords are absolute case coords
+    if (cam.kind === 'lenses')
+      d += `<circle cx="${cx}" cy="${cy}" r="${l.r + 1.1}" fill="url(#ring)"/>`;
+    d += `<circle cx="${cx}" cy="${cy}" r="${l.r}" fill="#23232b"/>
+      <circle cx="${cx}" cy="${cy}" r="${l.r * 0.72}" fill="url(#glass)"/>
+      <circle cx="${cx}" cy="${cy}" r="${l.r * 0.3}" fill="#0a1220"/>
+      <circle cx="${cx - l.r * 0.32}" cy="${cy - l.r * 0.36}" r="${l.r * 0.14}" fill="#9fc4e8" fill-opacity="0.9"/>`;
+  }
+  if (cam.flash){
+    d += `<circle cx="${PAD + cam.flash.cx}" cy="${PAD + cam.flash.cy}" r="${cam.flash.r}" fill="#F3E9C9"/>
+      <circle cx="${PAD + cam.flash.cx}" cy="${PAD + cam.flash.cy}" r="${cam.flash.r * 0.55}" fill="#E8D08A"/>`;
+  }
+  if (cam.dot) d += `<circle cx="${PAD + cam.dot.cx}" cy="${PAD + cam.dot.cy}" r="${cam.dot.r}" fill="#1a1a22"/>`;
+
+  // glossy clear-case reflections across the back (very light)
+  d += `<clipPath id="caseclip">${svgRrect(PAD, PAD, w, h, corner, '')}</clipPath>`;
+  d += `<g clip-path="url(#caseclip)">
+    ${svgRrect(PAD, PAD, w, h, corner, `fill="url(#gloss)"`)}
+    <path d="M ${PAD + w * 0.06} ${PAD - 4} L ${PAD + w * 0.3} ${PAD - 4} L ${PAD - 2} ${PAD + h * 0.42} L ${PAD - 2} ${PAD + h * 0.2} Z" fill="#fff" fill-opacity="0.10"/>
+    <path d="M ${PAD + w * 0.55} ${PAD - 4} L ${PAD + w * 0.63} ${PAD - 4} L ${PAD + w * 0.1} ${PAD + h + 4} L ${PAD + w * 0.02} ${PAD + h + 4} Z" fill="#fff" fill-opacity="0.06"/>
+  </g>`;
+
+  ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  ov.innerHTML = d;
+}
+function rrectD(x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  return `M${x + r},${y} h${w - 2 * r} a${r},${r} 0 0 1 ${r},${r} v${h - 2 * r} a${r},${r} 0 0 1 ${-r},${r} h${-(w - 2 * r)} a${r},${r} 0 0 1 ${-r},${-r} v${-(h - 2 * r)} a${r},${r} 0 0 1 ${r},${-r} Z `;
+}
+function buildPrintOverlay(){
+  const { w, h, corner } = model.mm;
+  const W = stageW(), H = stageH();
+  const cam = model.camera;
+  let d = `<defs><pattern id="hatch" width="2.4" height="2.4" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+    <line x1="0" y1="0" x2="0" y2="2.4" stroke="#DC282E" stroke-width="0.7" stroke-opacity="0.55"/>
+  </pattern></defs>`;
+  const lab0 = (x, y, t, anchor = 'middle', col = '#4E4E50') =>
+    `<text x="${x}" y="${y}" font-size="2.6" font-weight="800" font-family="Nunito, sans-serif" fill="${col}" text-anchor="${anchor}">${t}</text>`;
+  if (model.assets){
+    // guides come from the manufacturer mask: bbox outline + the plate window
+    const a = model.assets, ppm = a.print.w / w;
+    const cut = a.cutoutPx;
+    const cx = PAD + (cut.x - a.print.x) / ppm, cy = PAD + (cut.y - a.print.y) / ppm;
+    const cw = cut.w / ppm, ch = cut.h / ppm, cr = cut.r / ppm;
+    d += svgRrect(PAD, PAD, w, h, corner, `fill="none" stroke="#2D2D3B" stroke-width="0.5" stroke-dasharray="2.2 1.6"`);
+    d += svgRrect(cx, cy, cw, ch, cr, `fill="url(#hatch)" stroke="#DC282E" stroke-width="0.45"`);
+    d += lab0(PAD + w / 2, PAD - 3, `${model.mm.w} × ${model.mm.h} mm · shape from manufacturer mask`);
+    d += lab0(PAD + w / 2, PAD + h + 5.5, `hatched = camera plate opening (ring installs after)`);
+    ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    ov.innerHTML = d;
+    return;
+  }
+  // bleed edge
+  d += svgRrect(PAD - BLEED, PAD - BLEED, w + BLEED * 2, h + BLEED * 2, corner + BLEED,
+    `fill="none" stroke="#DC282E" stroke-width="0.45" stroke-opacity="0.65"`);
+  // cut line
+  d += svgRrect(PAD, PAD, w, h, corner,
+    `fill="none" stroke="#2D2D3B" stroke-width="0.5" stroke-dasharray="2.2 1.6"`);
+  // safe area
+  d += svgRrect(PAD + SAFE, PAD + SAFE, w - SAFE * 2, h - SAFE * 2, Math.max(2, corner - SAFE),
+    `fill="none" stroke="#4FB0E3" stroke-width="0.4" stroke-dasharray="1.2 1.4" stroke-opacity="0.9"`);
+  // camera keep-out
+  let hole = '';
+  if (cam.kind === 'plate') hole = rrectD(PAD + cam.x, PAD + cam.y, cam.w, cam.h, cam.r);
+  else hole = cam.lenses.map(l => `M${PAD + l.cx + l.r + 1.2},${PAD + l.cy} a${l.r + 1.2},${l.r + 1.2} 0 1 0 -0.01,0 Z `).join('');
+  if (cam.flash) hole += `M${PAD + cam.flash.cx + cam.flash.r + .8},${PAD + cam.flash.cy} a${cam.flash.r + .8},${cam.flash.r + .8} 0 1 0 -0.01,0 Z `;
+  d += `<path d="${hole}" fill="url(#hatch)" stroke="#DC282E" stroke-width="0.45"/>`;
+  // labels
+  d += lab0(PAD + w / 2, PAD - BLEED - 2, `${model.mm.w} × ${model.mm.h} mm · cut ┄ · bleed ${BLEED} mm`, 'middle');
+  d += lab0(PAD + w / 2, PAD + h + BLEED + 5, `safe area ${SAFE} mm ┄ · camera prints as a hole`, 'middle');
+  ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  ov.innerHTML = d;
+}
+function buildOverlay(){ view === 'mockup' ? buildMockupOverlay() : buildPrintOverlay(); }
+
+/* ---------------- pointer interaction ---------------- */
+function evtMm(e){
+  const r = cv.getBoundingClientRect();
+  return { x:(e.clientX - r.left) / pxPerMM - PAD, y:(e.clientY - r.top) / pxPerMM - PAD };
+}
+function hitLayer(p){
+  const c = ctx;
+  for (let i = layers.length - 1; i >= 0; i--){
+    const l = layers[i], b = layerBounds(c, l);
+    const dx = p.x - l.x, dy = p.y - l.y, a = -l.rot * Math.PI / 180;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) <= b.w / 2 + 1.5 && Math.abs(ly) <= b.h / 2 + 1.5) return l;
+  }
+  return null;
+}
+function hitHandle(p){
+  const s = sel(); if (!s) return false;
+  const b = layerBounds(ctx, s), a = s.rot * Math.PI / 180;
+  const hx = s.x + (b.w / 2 + 1) * Math.cos(a) - (b.h / 2 + 1) * Math.sin(a);
+  const hy = s.y + (b.w / 2 + 1) * Math.sin(a) + (b.h / 2 + 1) * Math.cos(a);
+  const hr = 12 / pxPerMM;
+  return Math.hypot(p.x - hx, p.y - hy) <= hr;
+}
+const ptrs = new Map();
+let drag = null; // {mode:'move'|'handle'|'pinch', ...}
+cv.addEventListener('pointerdown', e => {
+  if (view === 'print') return;
+  cv.setPointerCapture(e.pointerId);
+  const p = evtMm(e);
+  ptrs.set(e.pointerId, p);
+  if (ptrs.size === 2){
+    const s = sel();
+    if (s){
+      const [a, b] = [...ptrs.values()];
+      drag = { mode:'pinch', d0:Math.hypot(b.x - a.x, b.y - a.y), a0:Math.atan2(b.y - a.y, b.x - a.x),
+               w0:s.wMm ?? s.size, r0:s.rot };
+    }
+    return;
+  }
+  if (hitHandle(p)){
+    const s = sel(), cx = s.x, cy = s.y;
+    drag = { mode:'handle', cx, cy, d0:Math.hypot(p.x - cx, p.y - cy),
+             a0:Math.atan2(p.y - cy, p.x - cx), w0:s.wMm ?? s.size, r0:s.rot };
+    return;
+  }
+  const l = hitLayer(p);
+  if (l){
+    selId = l.id;
+    drag = { mode:'move', ox:p.x - l.x, oy:p.y - l.y };
+  } else {
+    selId = null; drag = null;
+  }
+  syncPanel(); syncChips(); draw();
+});
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const p = evtMm(e);
+  ptrs.set(e.pointerId, p);
+  const s = sel();
+  if (!drag || !s) return;
+  if (drag.mode === 'pinch' && ptrs.size === 2){
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(b.x - a.x, b.y - a.y), an = Math.atan2(b.y - a.y, b.x - a.x);
+    applySize(s, drag.w0 * (d / Math.max(drag.d0, 0.01)));
+    s.rot = norm180(drag.r0 + (an - drag.a0) * 180 / Math.PI);
+  } else if (drag.mode === 'handle'){
+    const d = Math.hypot(p.x - drag.cx, p.y - drag.cy), an = Math.atan2(p.y - drag.cy, p.x - drag.cx);
+    applySize(s, drag.w0 * (d / Math.max(drag.d0, 0.01)));
+    s.rot = norm180(drag.r0 + (an - drag.a0) * 180 / Math.PI);
+  } else if (drag.mode === 'move'){
+    s.x = p.x - drag.ox; s.y = p.y - drag.oy;
+  }
+  syncPanel(); draw();
+});
+function endPtr(e){
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2 && drag && drag.mode === 'pinch') drag = null;
+  if (!ptrs.size){ drag = null; saveSoon(); }
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('wheel', e => {
+  const s = sel(); if (!s || view === 'print') return;
+  e.preventDefault();
+  applySize(s, (s.wMm ?? s.size) * (e.deltaY < 0 ? 1.06 : 0.94));
+  syncPanel(); draw(); saveSoon();
+}, { passive:false });
+function applySize(s, v){
+  v = Math.max(3, Math.min(v, 300));
+  if (s.type === 'image') s.wMm = v; else s.size = v;
+}
+const norm180 = a => { a = ((a + 180) % 360 + 360) % 360 - 180; return Math.round(a * 10) / 10; };
+
+document.addEventListener('keydown', e => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
+  const s = sel(); if (!s) return;
+  const step = e.shiftKey ? 5 : 1;
+  if (e.key === 'Delete' || e.key === 'Backspace'){ removeLayer(s.id); e.preventDefault(); return; }
+  if (e.key === 'ArrowLeft') s.x -= step; else if (e.key === 'ArrowRight') s.x += step;
+  else if (e.key === 'ArrowUp') s.y -= step; else if (e.key === 'ArrowDown') s.y += step;
+  else return;
+  e.preventDefault(); draw(); saveSoon();
+});
+
+/* ---------------- layers CRUD ---------------- */
+function addImageLayer(src, img, replaceId){
+  if (replaceId != null){
+    const l = layers.find(x => x.id === replaceId);
+    if (l){ l.src = src; l.img = img; l.imgW = img.naturalWidth; l.imgH = img.naturalHeight; fitLayer(l, 'fill'); selId = l.id; finish(); return; }
+  }
+  const l = { id:nextId++, type:'image', src, img, imgW:img.naturalWidth, imgH:img.naturalHeight,
+              x:model.mm.w / 2, y:model.mm.h / 2, wMm:model.mm.w, rot:0 };
+  fitLayer(l, 'fill');
+  layers.push(l); selId = l.id; finish();
+  function finish(){ syncPanel(); syncChips(); draw(); saveSoon(); toast('Photo added — drag to position it'); }
+}
+function fitLayer(l, mode){
+  const ar = l.imgH / l.imgW, W = model.mm.w + BLEED * 2 + 2, H = model.mm.h + BLEED * 2 + 2;
+  l.rot = 0; l.x = model.mm.w / 2; l.y = model.mm.h / 2;
+  if (mode === 'fill') l.wMm = Math.max(W, H / ar);
+  else l.wMm = Math.min(model.mm.w - 8, (model.mm.h - 8) / ar);
+}
+function addTextLayer(){
+  const l = { id:nextId++, type:'text', text:'Your text', font:FONTS[0].css, color:TEXT_COLORS[1],
+              bold:true, size:11, x:model.mm.w / 2, y:model.mm.h * 0.62, rot:0 };
+  layers.push(l); selId = l.id;
+  syncPanel(); syncChips(); draw(); saveSoon();
+  const inp = $('tText'); inp.focus(); inp.select();
+}
+function addEmojiLayer(ch){
+  const l = { id:nextId++, type:'emoji', char:ch, size:22,
+              x:model.mm.w / 2, y:model.mm.h * 0.45, rot:0 };
+  layers.push(l); selId = l.id;
+  syncPanel(); syncChips(); draw(); saveSoon();
+}
+function removeLayer(id){
+  layers = layers.filter(l => l.id !== id);
+  if (selId === id) selId = null;
+  syncPanel(); syncChips(); draw(); saveSoon();
+}
+function reorder(id, dir){
+  const i = layers.findIndex(l => l.id === id);
+  if (i < 0) return;
+  const j = i + dir;
+  if (j < 0 || j >= layers.length) return;
+  [layers[i], layers[j]] = [layers[j], layers[i]];
+  draw(); syncChips(); saveSoon();
+}
+
+/* ---------------- file handling ---------------- */
+function pickPhoto(replaceId){
+  replaceTarget = replaceId ?? null;
+  $('file').value = ''; $('file').click();
+}
+$('file').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (f) ingestFile(f);
+});
+function ingestFile(f){
+  if (!/^image\//.test(f.type)){ toast('That file isn’t an image'); return; }
+  const rd = new FileReader();
+  rd.onload = () => {
+    const im = new Image();
+    im.onload = () => {
+      // downscale huge photos; keep PNG for transparency, else JPEG
+      const MAXP = 2200;
+      let src = rd.result;
+      if (im.naturalWidth > MAXP || im.naturalHeight > MAXP){
+        const k = Math.min(MAXP / im.naturalWidth, MAXP / im.naturalHeight);
+        const oc = document.createElement('canvas');
+        oc.width = Math.round(im.naturalWidth * k); oc.height = Math.round(im.naturalHeight * k);
+        oc.getContext('2d').drawImage(im, 0, 0, oc.width, oc.height);
+        src = (f.type === 'image/png') ? oc.toDataURL('image/png') : oc.toDataURL('image/jpeg', 0.88);
+        const im2 = new Image();
+        im2.onload = () => addImageLayer(src, im2, replaceTarget);
+        im2.src = src;
+      } else {
+        addImageLayer(src, im, replaceTarget);
+      }
+      replaceTarget = null;
+    };
+    im.onerror = () => toast('Couldn’t read that image');
+    im.src = rd.result;
+  };
+  rd.readAsDataURL(f);
+}
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('dz'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('dz'));
+stage.addEventListener('drop', e => {
+  e.preventDefault(); stage.classList.remove('dz');
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) ingestFile(f);
+});
+window.addEventListener('paste', e => {
+  for (const it of (e.clipboardData?.items || [])){
+    if (/^image\//.test(it.type)){ const f = it.getAsFile(); if (f){ ingestFile(f); e.preventDefault(); return; } }
+  }
+});
+
+/* ---------------- panel sync ---------------- */
+function syncPanel(){
+  const s = sel(), card = $('layerCard');
+  card.style.display = s ? 'block' : 'none';
+  $('photoCtrls').style.display = s && s.type === 'image' ? 'block' : 'none';
+  $('textCtrls').style.display = s && s.type === 'text' ? 'block' : 'none';
+  $('emojiCtrls').style.display = s && s.type === 'emoji' ? 'block' : 'none';
+  if (!s) return;
+  $('layerCardTitle').textContent = s.type === 'image' ? '🖼 Photo' : s.type === 'text' ? '🔤 Text' : `${s.char} Emoji`;
+  if (s.type === 'image'){
+    $('pSize').value = Math.round(s.wMm); $('pSizeVal').textContent = Math.round(s.wMm) + ' mm wide';
+    $('pRot').value = Math.round(s.rot); $('pRotVal').textContent = Math.round(s.rot) + '°';
+  } else if (s.type === 'text'){
+    if (document.activeElement !== $('tText')) $('tText').value = s.text;
+    $('tFont').value = s.font;
+    $('tSize').value = Math.round(s.size); $('tSizeVal').textContent = Math.round(s.size) + ' mm';
+    $('tRot').value = Math.round(s.rot); $('tRotVal').textContent = Math.round(s.rot) + '°';
+    [...$('tSwatches').children].forEach(el => el.classList.toggle('on', el.dataset.c === s.color));
+  } else {
+    $('eSize').value = Math.round(s.size); $('eSizeVal').textContent = Math.round(s.size) + ' mm';
+    $('eRot').value = Math.round(s.rot); $('eRotVal').textContent = Math.round(s.rot) + '°';
+  }
+}
+function syncChips(){
+  const box = $('chips'); box.innerHTML = '';
+  for (const l of layers){
+    const c = document.createElement('span');
+    c.className = 'chip' + (l.id === selId ? ' on' : '');
+    const label = l.type === 'image' ? '🖼 Photo' : l.type === 'emoji' ? l.char : ('🔤 ' + (l.text || 'Text'));
+    c.innerHTML = `<span class="t"></span><span class="x">✕</span>`;
+    c.querySelector('.t').textContent = label;
+    c.addEventListener('click', e => {
+      if (e.target.classList.contains('x')){ removeLayer(l.id); return; }
+      selId = l.id; syncPanel(); syncChips(); draw();
+    });
+    box.appendChild(c);
+  }
+}
+
+/* ---------------- control wiring ---------------- */
+$('btnPhoto').addEventListener('click', () => pickPhoto(null));
+$('btnText').addEventListener('click', addTextLayer);
+EMOJI.forEach(ch => {
+  const b = document.createElement('button'); b.textContent = ch;
+  b.addEventListener('click', () => addEmojiLayer(ch));
+  $('emojiRow').appendChild(b);
+});
+$('pFill').addEventListener('click', () => { const s = sel(); if (s){ fitLayer(s, 'fill'); syncPanel(); draw(); saveSoon(); } });
+$('pFit').addEventListener('click', () => { const s = sel(); if (s){ fitLayer(s, 'fit'); syncPanel(); draw(); saveSoon(); } });
+$('pCenter').addEventListener('click', () => { const s = sel(); if (s){ s.x = model.mm.w / 2; s.y = model.mm.h / 2; syncPanel(); draw(); saveSoon(); } });
+$('pReplace').addEventListener('click', () => { const s = sel(); if (s) pickPhoto(s.id); });
+$('pSize').addEventListener('input', e => { const s = sel(); if (s){ s.wMm = +e.target.value; syncPanel(); draw(); saveSoon(); } });
+$('pRot').addEventListener('input', e => { const s = sel(); if (s){ s.rot = +e.target.value; syncPanel(); draw(); saveSoon(); } });
+$('tText').addEventListener('input', e => { const s = sel(); if (s && s.type === 'text'){ s.text = e.target.value; draw(); syncChips(); saveSoon(); } });
+FONTS.forEach(f => {
+  const o = document.createElement('option'); o.value = f.css; o.textContent = f.label;
+  $('tFont').appendChild(o);
+});
+$('tFont').addEventListener('change', e => { const s = sel(); if (s){ s.font = e.target.value; draw(); saveSoon(); } });
+TEXT_COLORS.forEach(cH => {
+  const el = document.createElement('span');
+  el.className = 'sw'; el.style.background = cH; el.dataset.c = cH;
+  el.addEventListener('click', () => { const s = sel(); if (s && s.type === 'text'){ s.color = cH; syncPanel(); draw(); saveSoon(); } });
+  $('tSwatches').appendChild(el);
+});
+$('tSize').addEventListener('input', e => { const s = sel(); if (s){ s.size = +e.target.value; syncPanel(); draw(); saveSoon(); } });
+$('tRot').addEventListener('input', e => { const s = sel(); if (s){ s.rot = +e.target.value; syncPanel(); draw(); saveSoon(); } });
+$('eSize').addEventListener('input', e => { const s = sel(); if (s){ s.size = +e.target.value; syncPanel(); draw(); saveSoon(); } });
+$('eRot').addEventListener('input', e => { const s = sel(); if (s){ s.rot = +e.target.value; syncPanel(); draw(); saveSoon(); } });
+$('lyDel').addEventListener('click', () => { const s = sel(); if (s) removeLayer(s.id); });
+$('lyFront').addEventListener('click', () => { if (selId != null) reorder(selId, +1); });
+$('lyBack').addEventListener('click', () => { if (selId != null) reorder(selId, -1); });
+
+/* backgrounds */
+BGS.forEach((b, i) => {
+  const el = document.createElement('span');
+  el.className = 'sw';
+  el.style.background = b.t === 'grad' ? `linear-gradient(135deg, ${b.a}, ${b.b})` : b.a;
+  el.dataset.i = i;
+  el.addEventListener('click', () => { bg = { ...b }; syncBgSw(i); draw(); saveSoon(); });
+  $('bgSwatches').appendChild(el);
+});
+const custom = document.createElement('span');
+custom.className = 'sw custom'; custom.title = 'Custom color';
+custom.innerHTML = '<input type="color" value="#ffffff">';
+custom.querySelector('input').addEventListener('input', e => {
+  bg = { t:'solid', a:e.target.value }; syncBgSw(-1); draw(); saveSoon();
+});
+$('bgSwatches').appendChild(custom);
+function syncBgSw(idx){
+  [...$('bgSwatches').children].forEach(el =>
+    el.classList.toggle('on', el.dataset.i != null && +el.dataset.i === idx));
+}
+
+/* model + view */
+MODELS.forEach(m => {
+  const o = document.createElement('option'); o.value = m.id; o.textContent = m.name;
+  $('modelSel').appendChild(o);
+});
+$('modelSel').addEventListener('change', e => setModel(e.target.value));
+function setModel(id){
+  model = MODELS.find(m => m.id === id) || MODELS[0];
+  $('modelSel').value = model.id;
+  $('priceChip').textContent = '$' + model.price.toFixed(2);
+  $('orderPrice').textContent = '$' + model.price.toFixed(2);
+  if (model.assets){
+    $('printMeta').innerHTML =
+      `<b>${model.name}</b> · real manufacturer mockup + print mask<br>` +
+      `Print file: <b>${Math.round(model.mm.w * PXMM)} × ${Math.round(model.mm.h * PXMM)} px</b> ` +
+      `@ 300 DPI · clipped to the exact mask shape (pop-out camera plate prints as a hole)`;
+    if (!assetsReady() && !model._loading){
+      model._loading = true;
+      const m = model, ph = new Image(), mk = new Image();
+      let n = 0;
+      const done = () => {
+        if (++n < 2) return;
+        m._photo = ph; m._mask = mk;
+        if (model === m){ sizeCanvas(); buildOverlay(); draw(); }
+      };
+      ph.onload = done; mk.onload = done;
+      ph.onerror = mk.onerror = () => { m._loading = false; toast('Couldn’t load the case mockup images'); };
+      ph.src = m.assets.photo; mk.src = m.assets.mask;
+    }
+  } else {
+    $('printMeta').innerHTML =
+      `<b>${model.name}</b> · case back <b>${model.mm.w} × ${model.mm.h} mm</b><br>` +
+      `Print file: <b>${Math.round((model.mm.w + BLEED * 2) * PXMM)} × ${Math.round((model.mm.h + BLEED * 2) * PXMM)} px</b> ` +
+      `@ 300 DPI incl. ${BLEED} mm bleed · camera opening punched out (ring installs after printing)`;
+  }
+  sizeCanvas(); buildOverlay(); draw(); saveSoon();
+}
+$('vMock').addEventListener('click', () => setView('mockup'));
+$('vPrint').addEventListener('click', () => setView('print'));
+function setView(v){
+  view = v;
+  $('vMock').classList.toggle('on', v === 'mockup');
+  $('vPrint').classList.toggle('on', v === 'print');
+  stage.classList.toggle('print', v === 'print');
+  $('stageHint').textContent = v === 'print'
+    ? 'This is the file the UV printer gets — checkerboard = transparent (the camera hole)'
+    : 'Tap a layer to select · drag to move · pinch or scroll to resize · ◉ handle rotates';
+  buildOverlay(); draw();
+}
+
+/* ---------------- export ---------------- */
+function download(canvas, name){
+  canvas.toBlob(blob => {
+    if (!blob){ toast('Export failed — try a smaller photo'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
+}
+function exportPrint(){
+  if (model.assets){
+    if (!assetsReady()){ toast('Still loading the case images — try again in a second'); return; }
+    const a = model.assets;
+    const W = Math.round(model.mm.w * PXMM), H = Math.round(model.mm.h * PXMM);
+    const oc = document.createElement('canvas');
+    oc.width = W; oc.height = H;
+    const c = oc.getContext('2d');
+    c.scale(PXMM, PXMM);
+    drawDesign(c, 0);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'destination-in';
+    c.drawImage(model._mask, a.print.x, a.print.y, a.print.w, a.print.h, 0, 0, W, H);
+    download(oc, `case-${model.id}-print-300dpi.png`);
+    toast(`Print file saved — ${W} × ${H} px, clipped to the manufacturer mask`);
+    return;
+  }
+  const W = Math.round((model.mm.w + BLEED * 2) * PXMM);
+  const H = Math.round((model.mm.h + BLEED * 2) * PXMM);
+  const oc = document.createElement('canvas');
+  oc.width = W; oc.height = H;
+  const c = oc.getContext('2d');
+  c.scale(PXMM, PXMM); c.translate(BLEED, BLEED);
+  drawDesign(c, BLEED);
+  c.save(); c.globalCompositeOperation = 'destination-out';
+  cameraPunchPath(c); c.fill(); c.restore();
+  download(oc, `case-${model.id}-print-300dpi.png`);
+  toast(`Print file saved — ${W} × ${H} px @ 300 DPI`);
+}
+function exportMockup(){
+  const scale = 1100 / stageW();                 // ~1100px wide share image
+  const oc = document.createElement('canvas');
+  oc.width = Math.round(stageW() * scale); oc.height = Math.round(stageH() * scale);
+  const c = oc.getContext('2d');
+  const g = c.createLinearGradient(0, 0, 0, oc.height);
+  g.addColorStop(0, '#FAFAFC'); g.addColorStop(1, '#EDEEF3');
+  c.fillStyle = g; c.fillRect(0, 0, oc.width, oc.height);
+  if (model.assets){
+    if (!assetsReady()){ toast('Still loading the case images — try again in a second'); return; }
+    renderAssetScene(c, oc.width, oc.height, { photo:true });
+    download(oc, `case-${model.id}-mockup.png`);
+    toast('Mockup image saved');
+    return;
+  }
+  c.save(); c.scale(scale, scale); c.translate(PAD, PAD);
+  drawDesign(c, 0);
+  c.restore();
+  // rasterize the SVG overlay on top
+  const wasPrint = view === 'print';
+  if (wasPrint) buildMockupOverlay();
+  const svgTxt = new XMLSerializer().serializeToString(ov);
+  if (wasPrint) buildOverlay();
+  const url = URL.createObjectURL(new Blob([svgTxt], { type:'image/svg+xml' }));
+  const im = new Image();
+  im.onload = () => {
+    c.drawImage(im, 0, 0, oc.width, oc.height);
+    URL.revokeObjectURL(url);
+    download(oc, `case-${model.id}-mockup.png`);
+    toast('Mockup image saved');
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); toast('Mockup export failed'); };
+  im.src = url;
+}
+$('btnPrintDl').addEventListener('click', exportPrint);
+$('dockPrint').addEventListener('click', exportPrint);
+$('btnMockDl').addEventListener('click', exportMockup);
+$('dockMock').addEventListener('click', exportMockup);
+$('btnOrder').addEventListener('click', () =>
+  toast('Mockup only — ordering & checkout come with the real build 🙂'));
+$('btnReset').addEventListener('click', () => {
+  if (!confirm('Start over? This clears your whole design.')) return;
+  layers = []; selId = null; bg = { ...BGS[0] };
+  try{ localStorage.removeItem(LS_KEY); }catch(_){}
+  syncPanel(); syncChips(); syncBgSw(0); draw();
+});
+
+/* ---------------- autosave (device-local; Supabase comes with the real build) ---------------- */
+let saveT = null;
+function saveSoon(){ clearTimeout(saveT); saveT = setTimeout(saveNow, 500); }
+function saveNow(){
+  try{
+    const data = {
+      model:model.id, bg,
+      layers:layers.map(l => {
+        const o = { ...l }; delete o.img; return o;
+      })
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  }catch(_){ /* quota — photo too big to autosave; design still works this session */ }
+}
+function restore(){
+  let data = null;
+  try{ data = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); }catch(_){}
+  if (!data) return false;
+  if (data.model && MODELS.some(m => m.id === data.model)) model = MODELS.find(m => m.id === data.model);
+  if (data.bg) bg = data.bg;
+  const arr = Array.isArray(data.layers) ? data.layers : [];
+  for (const o of arr){
+    o.id = nextId++;
+    if (o.type === 'image' && o.src){
+      const im = new Image();
+      im.onload = () => { o.img = im; draw(); };
+      im.src = o.src;
+    }
+    layers.push(o);
+  }
+  return true;
+}
+
+/* ---------------- boot ---------------- */
+const had = restore();
+setModel(model.id);
+syncBgSw(BGS.findIndex(b => b.t === bg.t && b.a === bg.a && b.b === bg.b));
+syncChips(); syncPanel();
+if (had && layers.length) toast('Welcome back — your design was saved on this device');
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+</script>
+</body>
+</html>

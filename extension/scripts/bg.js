@@ -474,3 +474,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     });
     return true; // async sendResponse
 });
+
+/* ── Label Resizer: open the converter tool ─────────────────────────────────
+   Upload-first, like the paid labelresizer.com flow the owner wants: the tool
+   opens with a drop zone; dropping a label PDF auto-converts it and downloads
+   a clean 4x6 PDF. (Tab-grabbing was removed — Chrome's file:// and viewer
+   restrictions made it degrade to screenshots too often.) */
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'label:grab') return;
+    chrome.tabs.create({ url: chrome.runtime.getURL('label/label.html') });
+    sendResponse({ ok: true });
+});

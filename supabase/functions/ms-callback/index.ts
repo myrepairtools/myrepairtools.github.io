@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
         store, path, status: r.status,
         location: r.headers.get("location") || undefined,
         content_type: r.headers.get("content-type") || undefined,
-        body: txt.slice(0, 1200),
+        body: txt.slice(0, 8000),
       });
     } catch (e) {
       return json({ store, path, error: String(e) }, 502);

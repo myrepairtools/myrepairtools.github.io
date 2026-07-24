@@ -178,6 +178,9 @@ tr.grp.open .chev{transform:rotate(90deg)}
 .sugg.go{color:var(--red)}
 .sugg.zero{color:var(--grey)}
 .buysku{font-size:.74rem;color:var(--dark-grey)}
+.msprice{font-family:'Nunito Sans',sans-serif;font-size:.68rem;font-weight:700;color:var(--grey);white-space:nowrap}
+.msoos{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;color:var(--red);background:#FDECEC;border:1px solid #F5C9C9;border-radius:5px;padding:1px 6px;white-space:nowrap}
+.mspend{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;color:#B8860B;background:#FDF6E3;border:1px solid #F0E2B6;border-radius:5px;padding:0 5px;white-space:nowrap}
 .buysku select{font-size:.74rem;padding:4px 6px;border-radius:6px}
 /* "already ordered" — kept on the list, excluded from the MS export */
 .expchk{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;vertical-align:middle}
@@ -431,7 +434,7 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
-        <th class="ctr" title="Checked = already ordered today (left out of the export). Exporting auto-checks what it ordered; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
+        <th class="ctr" title="Checked = already ordered today (left out of the export). Fills in automatically from real cpr.parts orders and from exports; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -488,7 +491,7 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
         <th class="ctr">Max</th>
         <th class="ctr">Suggest</th>
         <th class="ctr">Order SKU</th>
-        <th class="ctr" title="Checked = already ordered today (left out of the export). Exporting auto-checks what it ordered; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
+        <th class="ctr" title="Checked = already ordered today (left out of the export). Fills in automatically from real cpr.parts orders and from exports; a partly-covered SKU shows 'N of M ordered' and still exports the rest.">Ordered</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -590,6 +593,8 @@ var ORDERED={};  /* orderSku → qty already ordered TODAY. Each MS export order
 
 /* in-memory caches the render layer reads (refilled per active store) */
 var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPARTS={},SNAP={},CNAMES={};
+var MSP={},MSP_INFLIGHT={};   /* cpr.parts live product data: sku → {price,in_stock,stock_qty,saleable,url} */
+var MSPEND={};               /* cpr.parts ordered-but-not-shipped qty per sku (bridges the RepairQ PO gap) */
 var FLAGTYPES=[],SKUFLAGS={},GROUPOVR={}; /* custom flag defs; per-store sku->[flag_key]; per-store group_id->max */
 var STOCK_ASOF=null, CONS_ASOF=null; /* current store's last stock + consumption sync */
 /* kill-switch for the consignment-only flag. Set to true to instantly disable
@@ -887,7 +892,9 @@ async function loadAll(){
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
     loadSamsungRows(),
-    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',day)
+    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',day),
+    sb.rpc('ms_ordered_for_day',{p_store:store,p_day:day}),
+    sb.rpc('ms_pending_for_store',{p_store:store})
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
   var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
@@ -900,9 +907,34 @@ async function loadAll(){
   var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
   ORDERED={};((res[12]&&res[12].data)||[]).forEach(function(r){ORDERED[r.sku]=(r.ordered_qty||0);});
+  /* live truth from cpr.parts: quantities ACTUALLY ordered that day (ms_orders,
+     hourly sync + on-load kick) raise the manual/export marks — never lower them */
+  ((res[13]&&res[13].data)||[]).forEach(function(r){var q=Number(r.qty)||0;if(q>(ORDERED[r.sku]||0))ORDERED[r.sku]=q;});
+  /* MS ordered-but-not-yet-shipped units count as incoming: RepairQ only shows
+     a PO once MS ships it, so these bridge the gap (per-item qty_shipped makes
+     the hand-off exact — as MS ships, this shrinks as RepairQ's on-order grows) */
+  MSPEND={};((res[14]&&res[14].data)||[]).forEach(function(r){MSPEND[r.sku]=Number(r.qty)||0;});
   pills();render();renderStock();renderNoParts();renderFresh();renderCoverage();
+  kickMsSync();
   var atab=$('#viewTabs')&&$('#viewTabs').querySelector('.tab.active');
   if(atab&&atab.getAttribute('data-v')==='battery')loadBatteries();
+}
+
+/* Kick a MobileSentrix order sync in the background (once per page visit) so
+   the Ordered column reflects a cpr.parts purchase made minutes ago. The edge
+   function skips when data is <15 min old; if it actually pulled new orders,
+   reload so the merge picks them up. */
+var MS_KICKED=false;
+async function kickMsSync(){
+  if(MS_KICKED)return; MS_KICKED=true;
+  try{
+    var s=await sb.auth.getSession(); var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+    if(!tok)return;
+    var r=await fetch(SUPABASE_URL+'/functions/v1/mobilesentrix?action=sync',{headers:{'Authorization':'Bearer '+tok,'apikey':ANON}});
+    var d=await r.json();
+    var pulled=(d&&d.results||[]).some(function(x){return (x.upserted||0)>0;});
+    if(pulled)loadAll();
+  }catch(e){/* background nicety — never break the page */}
 }
 
 /* ---- login overlay ---- */
@@ -1012,6 +1044,50 @@ async function doLogin(){
 /* member sku -> group */
 function groupOf(sku){for(var i=0;i<GROUPS.length;i++){for(var j=0;j<GROUPS[i].members.length;j++){if(GROUPS[i].members[j].sku===sku)return GROUPS[i];}}return null;}
 
+/* ---- cpr.parts live product data (price + availability) ---- */
+function msAvail(p){ return !!(p&&p.in_stock&&p.saleable!==false); }
+/* cheapest in-stock member of a pool; ties go to the ★ default */
+function msBestSku(g){
+  var best=null;
+  g.members.forEach(function(m){
+    var p=MSP[m.sku];
+    if(!p||!msAvail(p)||p.price==null)return;
+    var pr=Number(p.price);
+    if(!best||pr<best.pr||(pr===best.pr&&m.sku===g.def))best={sku:m.sku,pr:pr};
+  });
+  return best&&best.sku;
+}
+function msSkusOf(rows){
+  var set={};
+  rows.forEach(function(r){
+    if(r.orderSku)set[r.orderSku]=1;
+    if(r.type==='group')r.members.forEach(function(m){set[m.sku]=1;});
+  });
+  return Object.keys(set);
+}
+async function loadMsProducts(skus){
+  var need=skus.filter(function(s){return s&&!MSP[s]&&!MSP_INFLIGHT[s];});
+  if(!need.length)return false;
+  need.forEach(function(s){MSP_INFLIGHT[s]=1;});
+  try{
+    var sess=await sb.auth.getSession();
+    var tok=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
+    if(!tok)return false;
+    var r=await fetch(SUPABASE_URL+'/functions/v1/mobilesentrix',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+      body:JSON.stringify({action:'products',skus:need})});
+    var d=await r.json();
+    var got=0;((d&&d.products)||[]).forEach(function(p){if(p&&p.sku){MSP[p.sku]=p;got++;}});
+    return got>0;
+  }catch(e){return false;}
+  finally{need.forEach(function(s){delete MSP_INFLIGHT[s];});}
+}
+/* after a render: fetch live data for the SKUs on screen, then re-render once */
+async function msRefresh(rows){
+  var got=await loadMsProducts(msSkusOf(rows));
+  if(got){render();if(BATROWS&&BATROWS.length)renderBatteries();}
+}
+
 /* roll consumption up into used{sku}={sold,pulled} */
 function usedMap(){var m={};CONSUMPTION.forEach(function(c){m[c.sku]=(m[c.sku]||0)+(c.units||0);});return m;}
 
@@ -1039,29 +1115,32 @@ function buildRows(used, filter){
     var blocked=stop.indexOf(sku)>-1;
     var noSuggest=blocked||isSpecialOrder(sku);
     var mx=effMax(sku);
+    var pend=MSPEND[sku]||0;   /* on cpr.parts, not yet shipped → counts as incoming */
     rows.push({type:'sku',sku:sku,name:nm,used:u,
-      instock:s.instock,onorder:s.onorder,max:mx,stop:blocked,
+      instock:s.instock,onorder:s.onorder,onorderMs:pend,max:mx,stop:blocked,
       claimElig:claimRep.hasOwnProperty(sku)?claimRep[sku]:null,flagSku:sku,
-      suggest:noSuggest?0:Math.max(0,mx-s.instock-s.onorder),orderSku:sku});
+      suggest:noSuggest?0:Math.max(0,mx-s.instock-s.onorder-pend),orderSku:sku});
   });
   GROUPS.forEach(function(g){
     if(!seenGrp[g.id])return;
-    var used2=0,instock=0,onorder=0,members=[],usedSkus=[],cElig=null;
+    var used2=0,instock=0,onorder=0,pend2=0,members=[],usedSkus=[],cElig=null;
     g.members.forEach(function(m){
-      var s=SNAP[m.sku]||{instock:0,onorder:0};var u=used[m.sku]||0;
-      used2+=u;instock+=s.instock;onorder+=s.onorder;
+      var s=SNAP[m.sku]||{instock:0,onorder:0};var u=used[m.sku]||0;var mp=MSPEND[m.sku]||0;
+      used2+=u;instock+=s.instock;onorder+=s.onorder;pend2+=mp;
       if(claimRep.hasOwnProperty(m.sku))cElig=(cElig||0)+claimRep[m.sku];
       if(u>0)usedSkus.push(m.sku);
-      members.push({sku:m.sku,name:m.name,instock:s.instock,onorder:s.onorder,used:u});
+      members.push({sku:m.sku,name:m.name,instock:s.instock,onorder:s.onorder,onorderMs:mp,used:u});
     });
-    var pref=g.def||(g.members[0]&&g.members[0].sku)||'';
+    /* order SKU: cheapest IN-STOCK member on cpr.parts wins; the ★ default is
+       the tiebreak and the fallback when live data hasn't loaded / all are out */
+    var pref=msBestSku(g)||g.def||(g.members[0]&&g.members[0].sku)||'';
     var blocked=stop.indexOf(pref)>-1;
     var noSuggest=blocked||isSpecialOrder(pref);
     var gmx=effGroupMax(g.id);
     rows.push({type:'group',gid:g.id,name:g.name,used:used2,
-      instock:instock,onorder:onorder,max:gmx,usedSkus:usedSkus,stop:blocked,
+      instock:instock,onorder:onorder,onorderMs:pend2,max:gmx,usedSkus:usedSkus,stop:blocked,
       claimElig:cElig,flagSku:pref,
-      suggest:noSuggest?0:Math.max(0,gmx-instock-onorder),orderSku:pref,members:members});
+      suggest:noSuggest?0:Math.max(0,gmx-instock-onorder-pend2),orderSku:pref,members:members});
   });
   if(filter){ rows=rows.filter(filter); rows.sort(function(a,b){return b.suggest-a.suggest;}); return rows; }
   var keyOf=function(r){return r.type==='group'?('g:'+r.gid):r.sku;};
@@ -1253,8 +1332,14 @@ function renderOrderRows(tb, rows){
   rows.forEach(function(r){
     var sCls=r.suggest>0?'go':'zero';
     var hasDetail=(r.type==='group');
+    var mp=MSP[r.orderSku];
+    var msBits='';
+    if(r.suggest>0&&mp){
+      if(mp.price!=null)msBits+=' <span class="msprice">$'+Number(mp.price).toFixed(2)+'</span>';
+      if(!msAvail(mp))msBits+='<div><span class="msoos">MS out of stock</span></div>';
+    }
     var orderCell=r.suggest>0
-      ? '<span class="buysku">'+r.orderSku+'</span>'
+      ? '<span class="buysku">'+r.orderSku+'</span>'+msBits
       : '<span class="buysku" style="color:var(--grey)">—</span>';
     var badges='';
     if(r.type==='group')badges+='<span class="poolbadge">⬡ Pool · '+r.members.length+'</span>';
@@ -1281,7 +1366,7 @@ function renderOrderRows(tb, rows){
       +'<td class="ctr"><b>'+r.used+'</b></td>'
       +'<td class="ctr">'+r.instock+'</td>'
       +'<td class="ctr">'+claimPill(r.claimElig)+'</td>'
-      +'<td class="ctr">'+r.onorder+'</td>'
+      +'<td class="ctr">'+r.onorder+((r.onorderMs||0)>0?' <span class="mspend" title="Ordered on cpr.parts, not yet shipped — RepairQ will show it once MS ships">+'+r.onorderMs+'</span>':'')+'</td>'
       +'<td class="ctr">'+maxCell(r.type==='group'?'gidstore':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
       +'<td class="ctr"><span class="sugg '+sCls+'">'+r.suggest+'</span></td>'
       +'<td class="ctr">'+orderCell+'</td>'
@@ -1293,13 +1378,20 @@ function renderOrderRows(tb, rows){
     if(r.type==='group'){
       r.members.forEach(function(m){
         var isDef=(m.sku===r.orderSku);
+        var pm=MSP[m.sku],pmBits='';
+        if(pm){
+          if(pm.price!=null)pmBits+=' <span class="msprice">$'+Number(pm.price).toFixed(2)+'</span>';
+          pmBits+=msAvail(pm)
+            ?' <span class="msprice" style="color:var(--green)">'+(pm.stock_qty!=null?pm.stock_qty+' at MS':'in stock')+'</span>'
+            :' <span class="msoos">MS out of stock</span>';
+        }
         var mtr=document.createElement('tr');mtr.className='member';mtr.style.display='none';
         mtr.innerHTML='<td class="sku">'+m.sku+'</td>'
-          +'<td class="itm">'+m.name+(isDef?' <span class="gtag" style="color:var(--green);background:#E9F6EE;border-color:#CFE9D8">default</span>':'')+'</td>'
+          +'<td class="itm">'+m.name+(isDef?' <span class="gtag" style="color:var(--green);background:#E9F6EE;border-color:#CFE9D8">order this</span>':'')+pmBits+'</td>'
           +'<td class="ctr">'+m.used+'</td>'
           +'<td class="ctr">'+m.instock+'</td>'
           +'<td class="ctr"></td>'
-          +'<td class="ctr">'+m.onorder+'</td>'
+          +'<td class="ctr">'+m.onorder+((m.onorderMs||0)>0?' <span class="mspend">+'+m.onorderMs+'</span>':'')+'</td>'
           +'<td class="ctr"></td><td class="ctr"></td><td></td><td></td><td></td><td></td>';
         tb.appendChild(mtr);detailRows.push(mtr);
       });
@@ -1364,6 +1456,7 @@ function refreshOrderKpis(){
 function render(){
   var rows=buildRows();
   renderOrderRows($('#rows'), clusterSamsung(rows));
+  msRefresh(rows);
   var totUsed=0,totOrder=0,below=0;
   rows.forEach(function(r){totUsed+=r.used;totOrder+=toOrderNow(r);if(r.instock===0)below++;});
   $('#kUsed').textContent=totUsed;
@@ -1487,6 +1580,7 @@ function renderBatteries(){
   var rows=buildRows(BATUSED, function(r){return hasBatteryFlag(r.flagSku);});
   BATROWS=rows;
   renderOrderRows($('#batRows'), rows);
+  msRefresh(rows);
   var totUsed=0,totOrder=0; rows.forEach(function(r){totUsed+=r.used;totOrder+=toOrderNow(r);});
   $('#batUnits').textContent=totUsed;
   $('#batSkus').textContent=rows.length;
