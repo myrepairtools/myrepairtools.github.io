@@ -787,7 +787,10 @@ count per page load, and mirrors it onto the installed-app icon via
 `POST {action:'send', kind, title, body?, link?, staff_ids|all_active, secret?}`
 (auth = NOTIFY_SECRET for crons/server, or admin/manager/owner JWT for browser
 surfaces) — always writes the feed rows, then fans out per `alert_prefs`
-({kind:{push,sms}}; missing = push ON, sms OFF; kind 'comms' push is LOCKED ON):
+({kind:{push,sms}}; missing = push ON, sms OFF; kind 'comms' push is LOCKED ON;
+**two tiers** — kinds `schedule`+`system` are ALERTS (urgent): push AND SMS are
+auto-enrolled for everyone, prefs can't disable them (profile.html shows them
+under a locked "Alerts — urgent" group); the rest are Notifications):
 Web Push (VAPID_* secrets; npm:web-push; dead endpoints pruned) to every device
 in `push_subscriptions`, and SMS via the messaging function's secret-guarded
 `system_send` action, which sends from the OFFICIAL company line

@@ -200,8 +200,17 @@ var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6I
 var sb=createClient(SB_URL,ANON);
 
 var VAPID_PUBLIC='BNil1VM0Oi6oyk3rS2Y1QnxKx2st_k2tmxOBtQTRLmPU83Kw9kM72AilxY11UuGLexEt683x6EgJQLen3D0TOCg';
-var KINDS=[['comms','Communications'],['task','Task nudges'],['schedule','Schedule'],
-['kb','Required reading'],['goal','Goals & wins'],['birthday','Birthdays'],['anniversary','Anniversaries']];
+/* Two tiers: ALERTS are urgent must-know-now (schedule changes) — push + text are
+   auto-enrolled for everyone and can't be turned off. Notifications are the helpful
+   stuff — push on by default, text is opt-in per person. */
+var KIND_GROUPS=[
+  {label:'Alerts — urgent', hint:'Always delivered by push and text',
+   kinds:[['schedule','Schedule changes']], locked:true},
+  {label:'Notifications', hint:'Helpful updates — text is optional',
+   kinds:[['comms','Communications'],['task','Task nudges'],['kb','Required reading'],
+          ['goal','Goals & wins'],['birthday','Birthdays'],['anniversary','Anniversaries']], locked:false}
+];
+var KINDS=KIND_GROUPS.reduce(function(a,g){return a.concat(g.kinds);},[]);
 
 var ME=null;      // staff row {id, display_name, role, home_store, birthday}
 var OB={};        // staff_profiles.onboarding jsonb
@@ -366,13 +375,17 @@ async function savePrefs(){
 }
 function renderMatrix(){
   var html='';
-  KINDS.forEach(function(k){
-    var kind=k[0],label=k[1],p=prefFor(kind),lockPush=(kind==='comms');
-    html+='<tr><td class="kn">'+esc(label)+(lockPush?'<span class="lock" title="Always on">🔒</span>':'')+'</td>';
-    html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="push"'
-      +((lockPush||p.push)?' checked':'')+(lockPush?' disabled':'')+'></label></td>';
-    html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="sms"'
-      +(p.sms?' checked':'')+'></label></td></tr>';
+  KIND_GROUPS.forEach(function(g){
+    html+='<tr><td colspan="3" style="padding:10px 0 4px"><div style="font-family:Nunito;font-weight:900;font-size:.72rem;letter-spacing:.4px;text-transform:uppercase;color:'+(g.locked?'var(--red)':'var(--dark-grey)')+'">'+esc(g.label)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.68rem;color:var(--grey)">'+esc(g.hint)+'</div></td></tr>';
+    g.kinds.forEach(function(k){
+      var kind=k[0],label=k[1],p=prefFor(kind);
+      var lockPush=g.locked||kind==='comms', lockSms=g.locked;
+      html+='<tr><td class="kn">'+esc(label)+((lockPush&&lockSms)?'<span class="lock" title="Always on">🔒</span>':(lockPush?'<span class="lock" title="Push always on">🔒</span>':''))+'</td>';
+      html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="push"'
+        +((lockPush||p.push)?' checked':'')+(lockPush?' disabled':'')+'></label></td>';
+      html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="sms"'
+        +((lockSms||p.sms)?' checked':'')+(lockSms?' disabled':'')+'></label></td></tr>';
+    });
   });
   $('#mtxBody').innerHTML=html;
   $('#mtxBody').querySelectorAll('input[type=checkbox]').forEach(function(cb){
