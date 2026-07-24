@@ -697,8 +697,10 @@ async function engine() {
   }
   out.low_star_alerts = lowSent;
 
-  // 3 · SLA breaches: amber nudge at 12h unanswered, red at 24h (recent reviews only;
-  // legacy_unanswered = the retired pre-engine backlog — never actionable)
+  // 3 · SLA breach: one alert at 24h unanswered (recent reviews only;
+  // legacy_unanswered = the retired pre-engine backlog — never actionable).
+  // No 12h nudge on purpose: an evening review + 3h hold + the 9 AM posting
+  // window crosses 12h routinely, so a 12h alert would fire on every one.
   const { data: open } = await admin.from("gbp_reviews")
     .select("id,store,stars,comment,reviewer_name,created_at")
     .is("reply_text", null).is("deleted_at", null).eq("legacy_unanswered", false)
@@ -706,21 +708,18 @@ async function engine() {
   let slaSent = 0;
   for (const r of open || []) {
     const ageH = (nowMs - new Date(r.created_at || 0).getTime()) / 3600_000;
-    for (const [th, keyP] of [[24, "sla24:"], [12, "sla12:"]] as [number, string][]) {
-      if (ageH < th) continue;
-      const key = keyP + r.id;
-      if (await logged(key)) break;  // 24h implies 12h was due; log both paths once each
-      await logKey(key);
-      const subs = subscribers(prefs, r.store, "sla", false, hm);
-      if (subs.length) {
-        const title = `${th >= 24 ? "🔴" : "🟡"} Review unanswered ${Math.floor(ageH)}h at ${shortName(r.store)}`;
-        const body = `${r.stars}★ from ${r.reviewer_name || "a customer"} — ${excerpt(r.comment, 100) || "rating only"}`;
-        await fanoutAlert(subs.map((p) => p.staff_id), title, body, "google-reviews.html#r=" + encodeURIComponent(r.id));
-        const sms = subs.filter((p) => p.methods.sms && p.phone);
-        if (sms.length) await fanoutSms(sms.map((p) => p.phone!), `${title} — reply: ${reviewLink(r.id)}`);
-        slaSent++;
-      }
-      break;
+    if (ageH < 24) continue;
+    const key = "sla24:" + r.id;
+    if (await logged(key)) continue;
+    await logKey(key);
+    const subs = subscribers(prefs, r.store, "sla", false, hm);
+    if (subs.length) {
+      const title = `🔴 Review unanswered ${Math.floor(ageH)}h at ${shortName(r.store)}`;
+      const body = `${r.stars}★ from ${r.reviewer_name || "a customer"} — ${excerpt(r.comment, 100) || "rating only"}`;
+      await fanoutAlert(subs.map((p) => p.staff_id), title, body, "google-reviews.html#r=" + encodeURIComponent(r.id));
+      const sms = subs.filter((p) => p.methods.sms && p.phone);
+      if (sms.length) await fanoutSms(sms.map((p) => p.phone!), `${title} — reply: ${reviewLink(r.id)}`);
+      slaSent++;
     }
   }
   out.sla_alerts = slaSent;
