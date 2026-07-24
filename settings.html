@@ -300,6 +300,18 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
       <div class="empty hide" id="storeEmpty">No stores.</div>
     </div>
     <div class="bar"><span class="spacer"></span><button class="btn alt sm" id="addStore">+ Add store</button></div>
+
+    <div class="sect-h" style="margin-top:24px" id="schedVisH">Schedule visibility</div>
+    <div class="card" id="schedVisCard" style="display:flex;align-items:center;gap:16px;padding:16px 18px">
+      <div style="flex:1">
+        <div style="font-weight:800">Separate schedule &amp; time off by store</div>
+        <div style="color:var(--grey);font-weight:700;font-size:.82rem;margin-top:3px;line-height:1.45">
+          <b style="color:var(--dark-grey)">Off</b> — everyone sees every store's coverage and time-off requests
+          (best while one person covers across stores). <b style="color:var(--dark-grey)">On</b> — each store only
+          sees its own; turn this on as you grow. Owners always see every store.</div>
+      </div>
+      <button class="toggle" id="scopeToggle" aria-label="Separate schedule by store"></button>
+    </div>
   </section>
 
   <!-- NOTIFICATIONS TAB -->
@@ -654,6 +666,7 @@ var NOTIFY_FN=SB_URL+'/functions/v1/notify';
 var sb=createClient(SB_URL,ANON);
 /* ==================== */
 var AUTH=null;        /* logged-in staff {name, role, home_store, authorized_stores} */
+var APPSET={}, APPSCOPE=false;  /* global app_settings; APPSCOPE = schedule.store_scoping */
 var ME_ROLE='admin';/* from list_staff_admin */
 var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 
@@ -858,8 +871,21 @@ async function loadPages(){
   HYLA_GUIDE=hylaParse(HYLA_SET.guideSteps,[]);
 }
 function hylaParse(v,def){ try{ var a=JSON.parse(v||'[]'); return a.length?a:def; }catch(e){ return def; } }
+async function loadAppSettings(){
+  var r=await sb.from('app_settings').select('key,value');
+  APPSET={};(r.error?[]:(r.data||[])).forEach(function(row){APPSET[row.key]=row.value;});
+  APPSCOPE=APPSET['schedule.store_scoping']===true;
+}
+async function toggleScope(){
+  if(!(AUTH&&AUTH.role==='owner'))return;
+  var next=!APPSCOPE;
+  var r=await sb.from('app_settings').upsert({key:'schedule.store_scoping',value:next,updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(r.error){toast(r.error.message||'Could not save',true);return;}
+  APPSCOPE=next;var t=$('#scopeToggle');if(t)t.classList.toggle('on',APPSCOPE);
+  toast(APPSCOPE?'Now separated by store':'Everyone sees all stores');
+}
 async function load(){
-  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission()]);
+  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission(),loadAppSettings()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
   await loadRegs();
   renderAll();
@@ -1893,6 +1919,13 @@ function renderLoc(){
     sb1.appendChild(tr);
   });
   if(owner)sb1.querySelectorAll('[data-estore]').forEach(function(b){b.onclick=function(){openStore(b.getAttribute('data-estore'));};});
+  var sv=$('#scopeToggle');
+  if(sv){
+    $('#schedVisH').style.display=owner?'':'none';
+    $('#schedVisCard').style.display=owner?'flex':'none';
+    sv.classList.toggle('on',!!APPSCOPE);
+    sv.onclick=owner?toggleScope:null;
+  }
 }
 function renderRegs(){
   if(!$('#regStore'))return;

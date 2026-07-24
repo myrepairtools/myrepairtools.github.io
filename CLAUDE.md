@@ -856,7 +856,23 @@ pages/QBO use) plus `day_hours jsonb` ({date: hours}); `qbtime-sync` writes exac
 per-day entries to QB Time with a **14-day lookback** for late filings (falls back to an
 even split for legacy rows; a 0-hour request — all days fell on regular days off — is
 marked synced without writing). `time-off.html` shows real request hours (hover for
-per-day) with a ½-partial flag.
+per-day) with a ½-partial flag. **Approve/deny** lives on `time-off.html` (permission
+`timeoff.approve`, owner-only by default); on mobile the row's **Status pill is the
+control** — tapping it opens an action sheet (the Actions column is hidden on phones,
+where the table reflows to cards). An **owner's own** request auto-approves at creation
+(they're the top approver) and owners may decide their own; everyone else's own request
+stays pending and no one can self-approve.
+
+**Store scoping (`app_settings`):** a general owner-managed key-value settings table
+(`app_settings` — key text pk, value jsonb, RLS read-all / write `is_owner()`;
+docs/sql/app-settings-schema.sql). First key **`schedule.store_scoping`** (default
+`false`): OFF = My Time coverage + time-off visibility span **all** stores (everyone sees
+everyone — the single-region-owner-covers-all default); ON = scoped per store as the shop
+grows. Toggle in **Settings → Locations → "Schedule visibility"** (owner-only). `my-schedule.html`
+reads it (`SCOPE_BY_STORE`): `myStores()` returns all stores when off (or for any owner),
+and `isTeammate(e)` widens the teammate filter — when on, a person shows in a store's view
+if it's their home store OR one of their `authorized_stores` (so the owner, authorized
+everywhere, always appears). New global toggles should become new `app_settings` keys.
 
 **Checklist (store tasks):** `task_templates` **generate** `task_instances` — never render
 templates directly; the checklist shows instances. Template shape: recurrence
