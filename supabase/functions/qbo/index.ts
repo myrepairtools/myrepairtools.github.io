@@ -658,6 +658,25 @@ Deno.serve(async (req) => {
       .sort((a, b) => a.name.localeCompare(b.name));
     return json({ vendors });
   }
+  if (action === "employees") {
+    // Active employee contact list — used to pre-fill staff_profiles phone
+    // numbers (SMS alerts need a number on file). Read-only, owner-gated.
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+    const q = "select Id, DisplayName, GivenName, FamilyName, PrimaryPhone, Mobile from Employee where Active = true maxresults 200";
+    const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+    const employees = ((d?.QueryResponse?.Employee || []) as Array<Record<string, any>>)
+      .map((e) => ({
+        id: String(e.Id),
+        name: (e.DisplayName as string) || `${e.GivenName || ""} ${e.FamilyName || ""}`.trim(),
+        phone: e.Mobile?.FreeFormNumber || e.PrimaryPhone?.FreeFormNumber || null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return json({ employees });
+  }
   if (action === "extract_receipt") {
     return await extractReceipt(body);
   }
