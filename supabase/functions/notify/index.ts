@@ -114,6 +114,7 @@ async function sendEmail(to: string, subject: string, text: string): Promise<{ o
 // event_key -> feed post kind, so in-app posts read naturally in the Communications widget
 function kindForEvent(eventKey: string): string {
   if (eventKey.startsWith("schedule.")) return "schedule";
+  if (eventKey === "contracts.paid") return "shoutout";   // money in — reads as a win in the feed
   if (eventKey === "commission.goal_hit") return "shoutout";
   if (eventKey === "records.anniversary") return "anniversary";
   return "announcement";

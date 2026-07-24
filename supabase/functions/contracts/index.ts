@@ -26,6 +26,7 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const NOTIFY_FROM = Deno.env.get("NOTIFY_FROM") || "onboarding@resend.dev";
 const GMAIL_USER = Deno.env.get("GMAIL_USER") || "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") || "";
+const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 const SITE = "https://myrepairtools.github.io";
 const SQ_API = "https://connect.squareup.com/v2/";
 const SQ_VERSION = "2025-01-23";
@@ -157,9 +158,40 @@ async function checkPaid(c: Record<string, unknown>): Promise<Record<string, unk
   if (paidCents >= wanted && wanted > 0) {
     const patch = { status: "paid", paid_at: new Date().toISOString(), paid_amount: Math.round(paidCents) / 100, updated_at: new Date().toISOString() };
     await admin.from("contracts").update(patch).eq("id", c.id);
+    await notifyPaid({ ...c, ...patch });
     return { ...c, ...patch };
   }
   return c;
+}
+
+// Contract paid → routed notification (Settings › Notifications, rule
+// 'contracts.paid'). Fires from the customer's own pay redirect, so there's no
+// staff JWT here — authenticate to notify with NOTIFY_SECRET. Best-effort: a
+// notification problem must never break the payment flip.
+async function notifyPaid(c: Record<string, unknown>): Promise<void> {
+  if (!NOTIFY_SECRET) return;
+  try {
+    const amt = Number(c.paid_amount || c.collect || 0);
+    const who = String(c.customer_name || "Customer");
+    const subject = "Contract paid — " + who + (amt > 0 ? " · $" + amt.toFixed(2) : "");
+    const text = who + " paid" + (amt > 0 ? " $" + amt.toFixed(2) : "") + " for their "
+      + (c.contract_type ? String(c.contract_type).toLowerCase() + " " : "") + "repair agreement"
+      + (c.device ? " (" + c.device + ")" : "") + "."
+      + (c.store ? "\nStore: " + c.store : "")
+      + (c.ticket_ref ? "\nTicket: " + c.ticket_ref : "")
+      + "\n\nOpen: " + SITE + "/contracts.html";
+    await fetch(SB_URL + "/functions/v1/notify?secret=" + encodeURIComponent(NOTIFY_SECRET), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "send", event_key: "contracts.paid", subject, text,
+        data: {
+          event: "contract_paid", customer: who, amount: amt, store: c.store || null,
+          device: c.device || null, ticket: c.ticket_ref || null,
+          link: SITE + "/contracts.html",
+        },
+      }),
+    });
+  } catch { /* notification is best-effort */ }
 }
 
 Deno.serve(async (req) => {

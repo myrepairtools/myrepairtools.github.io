@@ -241,6 +241,7 @@ function render(){
     const u=await sb.from('contracts').update({status:'paid',paid_at:new Date().toISOString(),paid_amount:r?r.price:null,updated_at:new Date().toISOString()}).eq('id',id);
     if(u.error){toast(u.error.message,true);return;}
     if(r){r.status='paid';r.paid_at=new Date().toISOString();}render();toast('✓ Marked paid (in store)');
+    notifyPaid(r);   // same routed notification the Square pay path fires
   });
   $all('[data-void]').forEach(b=>b.onclick=async()=>{
     if(!confirm('Void this contract? The customer link stops working.'))return;
@@ -554,6 +555,24 @@ function openSend(r){
   };
 }
 function fmtPhone(p){const d=String(p||'').replace(/\D/g,'').slice(-10);return d.length===10?('('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6)):String(p||'');}
+/* Marking an in-store payment fires the same 'contracts.paid' rule the Square
+   redirect does, so both payment paths land in Settings › Notifications. */
+async function notifyPaid(r){
+  if(!r)return;
+  try{
+    const sess=(await sb.auth.getSession()).data.session; if(!sess)return;
+    const amt=Number(r.paid_amount||r.price||0);
+    const subject='Contract paid — '+r.customer_name+(amt>0?' · '+money(amt):'');
+    const text=r.customer_name+' paid'+(amt>0?' '+money(amt):'')+' for their repair agreement'
+      +(r.device?' ('+r.device+')':'')+'.'+(r.store?'\nStore: '+r.store:'')
+      +(r.ticket_ref?'\nTicket: '+r.ticket_ref:'')+'\nTaken in store.'
+      +'\n\nOpen: '+location.origin+'/contracts.html';
+    await fetch(SB_URL+'/functions/v1/notify',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.access_token},
+      body:JSON.stringify({action:'send',event_key:'contracts.paid',subject,text,
+        data:{event:'contract_paid',customer:r.customer_name,amount:amt,store:r.store||null,in_store:true}})});
+  }catch(e){ /* best-effort — never block the paid flip */ }
+}
 
 function openShare(r){
   const link=SIGN_URL+r.token;

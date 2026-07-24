@@ -372,7 +372,22 @@ the sender; `template_key:'contract_link'` appends the STOP hint). Omitted `meth
 email, falling back to text when only a phone is on file. Returns per-channel `results`
 and only stamps `sent_at`/status when at least one channel succeeds. The page's 📤 Send
 button (list row + share modal) opens a delivery picker offering only channels the
-contract actually has a destination for.
+contract actually has a destination for. **Paid → notification:** both payment paths
+fire the routed rule **`contracts.paid`** ("Contract paid → notify", Settings ›
+Notifications — a Notification, deliberately NOT an urgent alert): the Square path from
+`checkPaid` server-side (customer's own redirect, so it authenticates to `notify` with
+`NOTIFY_SECRET`), and the in-store "✓ Paid" button from the page with the staff JWT.
+Both are best-effort — a notification failure never blocks the paid flip. Route it to
+channels in Settings; it ships routed to the Communications feed (kind 'shoutout').
+NOTE: the paid flip is still **lazy** — `checkPaid` only runs on the customer's
+view/paystatus hit, so a customer who pays and closes the tab leaves the row 'signed'
+(and unnotified) until the link is opened again. A cron sweep of signed contracts with
+a `square_order_id` would close that gap. **In-RepairQ entry point:** the extension's
+`newContract.js` puts a "New Contract" button in the ticket's properties row **next to
+Update Assignee** (owner's pick) and opens contracts.html in an embedded overlay. Its
+page guard must accept RepairQ's real view URL **`/ticket/<id>`** — there is no
+`/ticket/view/<id>`; a guard demanding view|edit silently disabled the button on every
+view page (fixed v2.7.4).
 
 **LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
 Galaxy Note / Galaxy Z / Pixel screen repair gets graded good/bad; **only GOOD pulls are

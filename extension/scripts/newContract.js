@@ -14,7 +14,10 @@
 (function () {
     'use strict';
     if (window.self !== window.top) return;
-    if (!/\/ticket\/(view|edit)\//i.test(location.pathname)) return;
+    // RepairQ's VIEW url is /ticket/<id> — there is no /ticket/view/<id>. The old
+    // guard demanded view|edit, so this script bailed on every real view page and
+    // the button never appeared there at all. Accept both shapes, saved tickets only.
+    if (!/^\/ticket\/(?:view\/|edit\/)?\d+/i.test(location.pathname)) return;
 
     var CONTRACT_URL = 'https://myrepairtools.com/contracts.html?embed=1';
     var overlay = null, iframe = null, ctx = null;
@@ -32,13 +35,18 @@
         new MutationObserver(inject).observe(document.documentElement, { childList: true, subtree: true });
     }
 
-    /* ---- find a home in the TRANSACTIONS section (view + edit pages) ----
-       "Request Payment" is the natural spot, but RepairQ only renders it when a
-       Virtual Cash Terminal is assigned to the workstation — on a machine with
-       no terminal the whole payment bar is absent and the button silently never
-       appeared. Walk down to the Transactions panel itself so it always shows,
-       and only leave the section as a true last resort. */
+    /* ---- where the button lives ----
+       Owner's pick: the ticket-properties row, right beside "Update Assignee".
+       (It used to hang off #BtnRequestPayment in the Transactions bar, but
+       RepairQ only renders that when a Virtual Cash Terminal is assigned to the
+       workstation — on a terminal-less machine the whole payment bar, and our
+       button with it, simply never appeared.) The Transactions chain is kept
+       below as a fallback for layouts without a properties row. */
     function transactionsSpot() {
+        var ua = document.getElementById('mrt-update-assignee');
+        if (ua && ua.parentElement) return { el: ua.parentElement, after: ua };   // right of Update Assignee
+        var props = document.querySelector('.properties .properties-form.ticket-properties');
+        if (props) return { el: props, mode: 'append' };   // same row even if Update Assignee is off
         var rp = document.getElementById('BtnRequestPayment');
         if (rp && rp.parentElement) return { el: rp.parentElement, mode: 'prepend' };
         var tb = document.querySelector('.transaction-buttons');
@@ -72,7 +80,8 @@
         a.href = '#';
         a.innerHTML = '<i class="icon-file"></i> New Contract';
         a.addEventListener('click', function (e) { e.preventDefault(); openOverlay(); });
-        if (mode === 'append') bar.appendChild(a);
+        if (spot.after) bar.insertBefore(a, spot.after.nextSibling);   // immediately right of Update Assignee
+        else if (mode === 'append') bar.appendChild(a);
         else bar.insertBefore(a, bar.firstChild);   // left of the whole Credit group
     }
 
@@ -80,7 +89,7 @@
     function txt(el) { return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : ''; }
     function scrape() {
         var c = {};
-        var m = location.pathname.match(/\/ticket\/(?:view|edit)\/(\d+)/);
+        var m = location.pathname.match(/\/ticket\/(?:view\/|edit\/)?(\d+)/);
         if (m) c.ticket = m[1];                     // RepairQ ticket #
 
         // edit page: customer fields are form inputs
