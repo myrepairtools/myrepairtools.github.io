@@ -413,40 +413,116 @@ function makeShiftsBtn(){
 function makeNotifyBtn(){
   var btn=document.createElement('button');btn.className='btn';btn.id='notifyBtn';
   btn.textContent='📣 Notify staff';btn.title='Email staff to check My Time after a schedule change';
-  btn.onclick=notifyStaff;return btn;
+  btn.onclick=openNotifyModal;return btn;
 }
 /* Manual broadcast: fires the schedule.manual_broadcast rule -> whatever channels are routed
    to it in Settings › Notifications (e.g. the owner's work email -> Power Automate -> Teams). */
-async function notifyStaff(){
-  if(!confirm('Notify all staff to check their updated schedule in My Time?'))return;
-  var btn=$('#notifyBtn');if(btn){btn.disabled=true;btn.textContent='Sending…';}
+/* ---- Notify modal: pre-fills what changed since the last broadcast ---- */
+async function detectScheduleChanges(){
+  // last broadcast = my own copy of the last 'Schedule updated' alert (everyone
+  // gets the all_active fanout, so any manager's send is visible to me)
+  var last=null;
+  try{
+    var la=await sb.from('alerts').select('created_at').eq('kind','schedule')
+      .like('title','Schedule updated%').order('created_at',{ascending:false}).limit(1);
+    if(la.data&&la.data[0])last=la.data[0].created_at;
+  }catch(e){}
+  var since=last||new Date(Date.now()-7*864e5).toISOString();
+  var res=await Promise.all([
+    sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,updated_at').gte('updated_at',since),
+    sb.from('staff_schedule').select('staff_id,updated_at').gte('updated_at',since)
+  ]);
+  var ovrs=(res[0].data||[]), tmpl=(res[1].data||[]);
+  // group per-date changes by week -> person -> weekday names
+  var weeks={};
+  ovrs.forEach(function(o){
+    var d=new Date(o.ovr_date+'T12:00');
+    var wk=weekStart(d).toISOString().slice(0,10);
+    var w=weeks[wk]=weeks[wk]||{};
+    var e=empById(o.staff_id);var nm=e?e.display_name.split(' ')[0]:('#'+o.staff_id);
+    (w[nm]=w[nm]||[]).push(d.toLocaleDateString('en-US',{weekday:'short'}));
+  });
+  var lines=[];
+  Object.keys(weeks).sort().forEach(function(wk){
+    var label=new Date(wk+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    var parts=Object.keys(weeks[wk]).sort().map(function(nm){
+      var days=weeks[wk][nm].filter(function(v,i,a){return a.indexOf(v)===i;});
+      return nm+' ('+days.join(', ')+')';
+    });
+    lines.push('Week of '+label+': '+parts.join(', '));
+  });
+  var tmplNames=tmpl.map(function(t){var e=empById(t.staff_id);return e?e.display_name.split(' ')[0]:null;})
+    .filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;});
+  if(tmplNames.length)lines.push('Recurring schedule updated: '+tmplNames.join(', '));
+  return {since:last, lines:lines};
+}
+var NB_BACK=null,NB_WRAP=null;
+function closeNotifyModal(){if(NB_BACK){NB_BACK.remove();NB_BACK=null;}if(NB_WRAP){NB_WRAP.remove();NB_WRAP=null;}}
+async function openNotifyModal(){
+  closePop&&closePop();
+  var back=document.createElement('div');back.className='pop-back';back.style.zIndex=200;back.style.background='rgba(45,45,59,.34)';back.onclick=closeNotifyModal;
+  var wrap=document.createElement('div');wrap.style.cssText='position:fixed;inset:0;z-index:210;display:flex;align-items:flex-start;justify-content:center;padding:96px 16px 40px;overflow:auto;pointer-events:none';
+  var card=document.createElement('div');card.style.cssText='pointer-events:auto;width:100%;max-width:560px;background:#fff;border-radius:16px;border-top:3px solid var(--red);box-shadow:0 24px 60px rgba(45,45,59,.3);overflow:hidden';
+  document.body.appendChild(back);document.body.appendChild(wrap);wrap.appendChild(card);
+  NB_BACK=back;NB_WRAP=wrap;
+  card.innerHTML='<div style="padding:18px 22px;border-bottom:1px solid #EEF0F4;display:flex;align-items:center;gap:10px">'
+    +'<div style="font-family:Nunito;font-weight:900;font-size:1.1rem">Notify Staff</div>'
+    +'<div style="font-family:\'Nunito Sans\';font-weight:700;font-size:.76rem;color:var(--grey)">Push + text + routed channels</div>'
+    +'<span style="flex:1"></span><button id="nbX" style="border:none;background:none;font-size:1.3rem;color:var(--grey);cursor:pointer;line-height:1">✕</button></div>'
+    +'<div style="padding:18px 22px">'
+    +'<div id="nbDetect" style="background:var(--light-grey);border-radius:10px;padding:11px 14px;font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px">Looking at what changed…</div>'
+    +'<label style="display:block;font-family:Nunito;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px">Message to staff</label>'
+    +'<textarea id="nbMsg" rows="5" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:\'Nunito Sans\';font-weight:600;font-size:.9rem;color:var(--dark);resize:vertical"></textarea>'
+    +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:5px">Everyone gets this as a push notification and a text — keep it short. A link to My Time rides along automatically.</div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'
+    +'<button class="btn" id="nbCancel">Cancel</button>'
+    +'<button class="btn" id="nbSend" style="background:var(--red);border-color:var(--red);color:#fff">📣 Send to All Staff</button></div></div>';
+  $('#nbX').onclick=closeNotifyModal;$('#nbCancel').onclick=closeNotifyModal;
+  $('#nbSend').onclick=function(){sendNotify($('#nbMsg').value.trim());};
+  var fallback='Open My Time to see your latest shifts and any time-off changes.';
+  $('#nbMsg').value=fallback;
+  try{
+    var det=await detectScheduleChanges();
+    if(det.lines.length){
+      $('#nbDetect').innerHTML='<b>Changed since the last notify'+(det.since?(' ('+new Date(det.since).toLocaleDateString('en-US',{month:'short',day:'numeric'})+')'):'')+':</b><br>'+det.lines.map(esc).join('<br>');
+      $('#nbMsg').value=det.lines.join('\n')+'\nOpen My Time for your updated shifts.';
+    }else{
+      $('#nbDetect').textContent='No schedule edits detected since the last notify — write your own note below.';
+    }
+  }catch(e){$('#nbDetect').textContent='Couldn’t auto-detect changes — write your own note below.';}
+}
+async function sendNotify(msg){
+  if(!msg){toast('Write a short note first',true);return;}
+  var btn=$('#nbSend');if(btn){btn.disabled=true;btn.textContent='Sending…';}
   try{
     var tok=await sessionToken();
-    /* personal alerts feed + push/text per prefs — rides alongside the rule channels */
+    /* personal alerts feed + push/text per prefs — rides alongside the rule channels.
+       Title must keep the 'Schedule updated' prefix: it's how the modal finds the
+       last broadcast for change detection. */
     fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
       body:JSON.stringify({action:'send',kind:'schedule',all_active:true,
-        title:'Schedule updated',body:'Open My Time to see your latest shifts and any time-off changes.',
+        title:'Schedule updated',body:msg,
         link:'my-schedule.html'})}).catch(function(){});
     var scope=(FILTER&&FILTER!=='All')?shortStore(FILTER):'All stores';
     var whenLabel=new Date().toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     var r=await fetch(NOTIFY_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
       body:JSON.stringify({action:'send',event_key:'schedule.manual_broadcast',
         subject:'Schedule updated — please check My Time',
-        text:'The work schedule was just updated — open My Time to see your latest shifts and any time-off changes.'
+        text:msg
           +'\n\nUpdated by: '+((AUTH&&AUTH.name)||'A manager')
           +'\nWhen: '+whenLabel
           +'\nStores: '+scope
           +'\nOpen: https://myrepairtools.github.io/my-schedule.html',
         data:{event:'schedule_change',changedBy:(AUTH&&AUTH.name)||'A manager',changedAt:new Date().toISOString(),whenLabel:whenLabel,scope:scope,link:'https://myrepairtools.github.io/my-schedule.html'}})});
     var d=await r.json().catch(function(){return {};});
-    if(r.ok&&d.ok&&d.results&&d.results.length)toast('✓ Staff notified');
+    if(r.ok&&d.ok&&d.results&&d.results.length){toast('✓ Staff notified');closeNotifyModal();}
     else if(d.skipped==='rule_disabled')toast('Turn on “Schedule change → notify staff” in Settings › Notifications',true);
     else if(d.skipped==='no_channels')toast('Add + route a channel under Settings › Notifications first',true);
     else{var err=(d.results&&d.results[0]&&d.results[0].error)||d.error||('http '+r.status);
       toast(err==='email_not_configured'?'Email isn’t connected yet (add a RESEND_API_KEY)':('Notify failed: '+err),true);}
   }catch(e){toast('Notify failed: '+(e&&e.message||e),true);}
-  if(btn){btn.disabled=false;btn.textContent='📣 Notify staff';}
+  if(btn){btn.disabled=false;btn.textContent='📣 Send to All Staff';}
 }
 function injectSchedChangeBar(){
   if(VIEW==='holidays')return;   // schedule actions (Notify/Shifts/Schedule change) belong to the schedule tabs, not Holidays
