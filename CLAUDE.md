@@ -256,7 +256,14 @@ is Apple behavior, not ours.) **The idle lock renders the PIN box in place — i
 never navigate.** Reloading a machine that has been idle (wifi asleep) lands on
 Chrome's "can't reach server" page instead of the lock, and only a manual refresh
 escapes; signing back IN still reloads, which is safe because someone is at the
-keyboard. sw.js also falls back to an `ignoreSearch` cache match for navigations.
+keyboard. **A resuming app is not a signed-out app:** an installed app (Expenses)
+wakes with an expired access token and must refresh it — if the network isn't up
+yet `getSession()` fails OR HANGS, and pin-gate used to fall straight to a PIN box
+(useless offline, since signing in needs the same network). It now races
+getSession with a 4s timeout and, whenever credentials are still in localStorage,
+holds on "Reconnecting…" and retries — healing instantly on `online` /
+`visibilitychange`. Only a genuinely credential-less device gets the PIN box
+(supabase-js clears storage itself when a refresh token is really dead). sw.js also falls back to an `ignoreSearch` cache match for navigations.
 **Iframe rule:** all gates skip inside iframes EXCEPT a `?embed=1` surface (the
 extension's New Contract modal) — that iframe has its own partitioned storage, so
 it can't see the top-level session and would otherwise sit blank forever; pin-gate

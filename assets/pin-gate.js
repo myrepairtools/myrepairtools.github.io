@@ -53,7 +53,7 @@
   var STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
     || window.navigator.standalone === true;
 
-  var sb = null, sbReady = null, idleTimer = null;
+  var sb = null, sbReady = null, idleTimer = null, netWait = false;
   // The Supabase client is an ESM import from a public CDN. esm.sh has frequent
   // blips (slow / rate-limited / momentarily down) that used to fail the whole
   // front door ("Offline — could not load sign-in") even for already-signed-in
@@ -100,7 +100,7 @@
       + '<text x="74" y="44" font-family="&#39;Nunito&#39;,&#39;Trebuchet MS&#39;,sans-serif" font-size="30" font-weight="800"><tspan fill="#FFFFFF">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
       + '</svg>';
   }
-  function reveal(){ if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
+  function reveal(){ netWait = false; if (host && host.parentNode) host.parentNode.removeChild(host); armIdle(); }
   // Idle sign-out is SHARED ACROSS TABS: activity in ANY tab keeps them all
   // alive (a shared last-activity timestamp in localStorage). Without this, an
   // idle tab fired signOut() — which clears the localStorage session and
@@ -139,6 +139,7 @@
     }, function(){ lockInPlace('Signed out — inactive'); });
   }
   function lockInPlace(msg){
+    netWait = false;
     try { if (host && !host.parentNode) (document.body || document.documentElement).appendChild(host); } catch (_) {}
     gateForm(msg || '');
   }
@@ -207,13 +208,29 @@
     loadSB().then(function(c){
     if (!c){
       if (tries > 0){ setTimeout(function(){ boot(tries - 1); }, 800); return; }   // transient blip — retry quietly
+      netWait = true;
       gateForm('Offline — reconnecting…');                                          // still failing: show status…
       setTimeout(function(){ boot(4); }, 3000);                                      // …and keep self-healing in the background
       return;
     }
-    c.auth.getSession().then(function(res){
+    // getSession() can HANG (not reject) when the network is gone — a resuming
+    // app would sit on the loading dots forever. Race it.
+    Promise.race([
+      c.auth.getSession(),
+      new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, 4000); })
+    ]).then(function(res){
       var sess = res && res.data && res.data.session;
-      if (!sess){ gateForm(''); return; }
+      // No session in hand is NOT the same as "signed out". A backgrounded app
+      // (installed Expenses, a phone waking up) resumes with an expired access
+      // token and refreshes it — if the network isn't up yet that refresh fails
+      // and we used to demand a PIN, which is useless offline anyway since
+      // signing in needs the same network. Retry while credentials are still on
+      // the device; supabase-js clears them itself if the token is truly dead.
+      if (!sess){
+        if (storedCreds()){ waitForNet(tries); return; }
+        gateForm(''); return;
+      }
+      netWait = false;
       c.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
         var role = sr && sr.data ? sr.data.role : null;
         var nm = sr && sr.data ? sr.data.display_name : '';
@@ -224,8 +241,39 @@
           if (perms.indexOf(NEED_PERM) > -1) reveal(); else noAccess(nm);
         }, function(){ reveal(); });                           // perm read failed -> fail open (data still RLS-protected)
       }, function(){ reveal(); });                            // role read failed -> fail open
-    }, function(){ gateForm(''); });
+    }, function(){                                            // getSession itself threw — same rule as above
+      if (storedCreds()){ waitForNet(tries); return; }
+      gateForm('');
+    });
     });
   }
+
+  // Are this device's credentials still on file? (supabase-js wipes them when a
+  // refresh token is genuinely rejected, so "present" means worth retrying.)
+  function storedCreds(){
+    try {
+      var raw = localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token');
+      if (!raw) return false;
+      var o = JSON.parse(raw);
+      return !!(o && (o.refresh_token || (o.currentSession && o.currentSession.refresh_token)));
+    } catch (_) { return false; }
+  }
+  // Hold the lock on "Reconnecting…" instead of demanding a PIN, and keep
+  // retrying quietly until the network comes back.
+  function waitForNet(tries){
+    netWait = true;
+    // Say what's happening straight away rather than sitting on the dots — but
+    // only redraw the form once, so a retry never wipes a PIN mid-typing.
+    var err = host.querySelector('#cpr-pg-err');
+    if (!err) gateForm('Reconnecting…');
+    else if (err.textContent !== 'Reconnecting…') err.textContent = 'Reconnecting…';
+    setTimeout(function(){ if (netWait) boot(tries > 0 ? tries - 1 : 4); }, tries > 0 ? 800 : 3000);
+  }
+  // A resumed app or a returning network should heal instantly, not on the next
+  // 3s tick — but only while we're actually waiting on the network, so this
+  // never wipes a PIN someone is mid-way through typing.
+  window.addEventListener('online', function(){ if (netWait) boot(4); });
+  document.addEventListener('visibilitychange', function(){ if (netWait && !document.hidden) boot(4); });
+
   boot(4);
 })();
