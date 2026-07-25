@@ -719,6 +719,10 @@ var ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_membe
 
 /* ===== auth (lifted from cash-admin) ===== */
 var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
+/* Installed home-screen apps are personal devices (phone lock = the security
+   boundary) and iOS fires the idle timer on resume — same rule as pin-gate:
+   never idle-relock in standalone. The 5-min relock stays for store browsers. */
+var STANDALONE=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
 /* best available session token: getSession can intermittently return null when
    several Supabase clients share storage, so fall back to the token in storage. */
@@ -750,7 +754,7 @@ async function authFn(body){
 function lockErr(t){var e=$('#lkErr');if(e)e.textContent=t||'';}
 function showLock(){$('#app').classList.remove('show');var lk=$('#lockScreen');if(lk)lk.classList.remove('hide');var pin=$('#lkPin');if(pin)pin.value='';}
 function idleExpired(){var t=+localStorage.getItem('settings_last_active')||0;return Date.now()-t>IDLE_MS;}
-function resetIdle(){var now=Date.now();clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('settings_last_active',String(now));}}
+function resetIdle(){var now=Date.now();clearTimeout(idleTimer);if(!STANDALONE)idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('settings_last_active',String(now));}}
 function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;showLock();}
 function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
 async function populateLockNames(){
