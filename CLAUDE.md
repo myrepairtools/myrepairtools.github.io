@@ -525,6 +525,32 @@ action doesn't manage tokens for it; the edit-form POST parses a same-session to
 status ids: 2 Instock · 8 Pulled · 3 Pending RMA · 96 RMA Credit · 95 RMA Sent · 94 RMA
 Rejected · 97 Ordered · 93 Write Off · 99 Damaged · 98 Shrinkage · 1 Sold.
 
+**Interview booking (our own scheduler — Microsoft Bookings replacement):** the host
+declares weekly windows and NOTHING else gets a vote — no calendar sync, so nothing can
+silently block a slot (the whole reason we left Teams). Tables (docs/sql/interviews-schema.sql):
+`interview_settings` (per-host: active, slot_minutes 30, buffer_minutes 15, lead_hours 12,
+horizon_days 21, max_per_day, blurb), `interview_availability` (staff_id, store, weekday,
+start_min/end_min — store-local minutes), `interview_blackouts` (a date off; staff_id null =
+everyone), `interview_bookings` (random `token` = the candidate's capability URL, status
+booked|canceled|completed|no_show). **Slots are COMPUTED, never generated** — the
+`interviews` edge function derives availability − bookings − blackouts on every request, so
+there's no cron and nothing to backfill; `book` re-derives the slot server-side and refuses a
+posted time that isn't currently open (double-book returns `slot_taken`). Surfaces:
+**`interview.html`** — public, no gates/nav (the token is the credential): month calendar →
+pick a day → that day's times → name/phone/email → booked; `?t=<token>` shows the candidate
+their booking with reschedule/cancel; `?h=<staff_id>` is one host's link, bare URL shows
+every accepting host. **`interviews.html`** (Employees nav, manager+) — Upcoming (mark
+done/no-show/cancel), My availability (weekly windows, slot rules, days off, pause toggle),
+Booking link (copy your link or the shared one). Confirmations: SMS from the store's own
+RingCentral line via `messaging`, email via Resend→**Gmail SMTP fallback** (only Gmail is
+configured today, so email works through that). A `interviews-remind-hourly` pg_cron
+(`?action=remind`, NOTIFY_SECRET) texts/emails each candidate once ~24h out. **Notifying the
+team:** the HOST gets a personal alert (alerts fanout, kind `interview` — a Notification, push
+on/text opt-in, in profile.html's prefs matrix) on book/cancel/reschedule, AND the routed rules
+`interviews.booked` / `interviews.canceled` fire for the team (Settings › Notifications).
+`stores.address` (edited in Settings → Locations) is what puts the street address in the
+candidate's confirmation — **blank until someone fills it in; never guess a store address.**
+
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all
 RingCentral creds (`RINGCENTRAL_CLIENT_ID/_CLIENT_SECRET/_SERVER/_WEBHOOK_SECRET` +

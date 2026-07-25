@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interviews — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C98A00;--white:#fff;
+--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:1080px;margin:0;padding:24px 28px 80px}
+h1{font-family:'Nunito';font-weight:900;font-size:1.45rem}
+.sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin-top:2px}
+.hd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.hd .spacer{flex:1}
+.tabs{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.tabs button{font-family:'Nunito';font-weight:800;font-size:.8rem;border:none;background:#fff;color:var(--dark-grey);padding:9px 15px;cursor:pointer}
+.tabs button.on{background:var(--blue);color:#fff}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card .ct{font-family:'Nunito';font-weight:900;font-size:.95rem;margin-bottom:2px}
+.card .ch{color:var(--dark-grey);font-size:.8rem;font-weight:700;margin-bottom:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-family:'Nunito';font-weight:800;
+font-size:.85rem;padding:10px 16px;border:1.5px solid var(--border);background:#fff;color:var(--dark);border-radius:10px;cursor:pointer}
+.btn.pri{background:var(--dark);border-color:var(--dark);color:#fff}
+.btn.red{background:var(--red);border-color:var(--red);color:#fff}
+.btn.sm{padding:7px 12px;font-size:.76rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;font-family:'Nunito';font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.3px;
+color:var(--dark-grey);padding:8px 10px;border-bottom:2px solid var(--border)}
+td{padding:10px;border-bottom:1px solid var(--light-grey);vertical-align:middle}
+.pill{display:inline-block;font-family:'Nunito';font-weight:800;font-size:.64rem;text-transform:uppercase;
+letter-spacing:.3px;padding:3px 9px;border-radius:999px}
+.pill.booked{background:#E9F5FC;color:#2E7CA6}.pill.completed{background:#E7F6EE;color:var(--green)}
+.pill.canceled{background:#F3F2F2;color:#8A8A93}.pill.no_show{background:#FDECEC;color:var(--red)}
+.wk{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start;margin-bottom:10px}
+.wk .dn{font-family:'Nunito';font-weight:800;font-size:.85rem;padding-top:9px}
+.wins{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.win{display:inline-flex;align-items:center;gap:8px;background:#F7FBFE;border:1.5px solid #D6ECF8;
+border-radius:10px;padding:7px 10px;font-weight:700;font-size:.82rem}
+.win b{font-family:'Nunito';font-weight:800}
+.win .x{border:none;background:none;color:var(--grey);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px}
+.win .st{font-size:.7rem;color:var(--grey);font-weight:700}
+.addwin{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.addwin select,.addwin input{height:34px;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;
+font-family:'Nunito Sans';font-weight:700;font-size:.8rem;background:#fff;color:var(--dark)}
+.addwin select:focus,.addwin input:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.cfg{display:flex;gap:16px;flex-wrap:wrap}
+.cfg label{display:flex;flex-direction:column;gap:5px;font-family:'Nunito';font-weight:800;font-size:.7rem;
+text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)}
+.cfg input,.cfg select{width:130px;height:36px;padding:5px 10px;border:1.5px solid var(--border);border-radius:9px;
+font-family:'Nunito Sans';font-weight:700;font-size:.88rem;background:#fff;color:var(--dark)}
+.cfg input:focus,.cfg select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.linkbox{display:flex;gap:9px;align-items:center;background:var(--light-grey);border-radius:11px;padding:11px 14px;
+font-size:.85rem;word-break:break-all;font-weight:700}
+.sw{display:flex;align-items:center;gap:10px}
+.toggle{width:42px;height:24px;border-radius:20px;border:none;background:var(--grey);position:relative;cursor:pointer;flex:none;transition:.15s}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.empty{color:var(--grey);font-weight:700;font-size:.85rem;padding:22px;text-align:center}
+.gate{background:#FFF1F1;border:1px solid #F6C9CA;border-radius:12px;padding:22px;text-align:center;color:var(--red);font-weight:800}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito';font-weight:800;font-size:.85rem;opacity:0;pointer-events:none;transition:.18s;z-index:900}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.hide{display:none!important}
+@media(max-width:720px){main{padding:18px 14px 80px}.wk{grid-template-columns:1fr}.wk .dn{padding-top:0}}
+</style>
+</head>
+<body>
+<main>
+  <div class="hd">
+    <div>
+      <h1>🗓️ Interviews</h1>
+      <div class="sub">Your booking page — you decide when you're available, nothing else does.</div>
+    </div>
+  </div>
+  <div id="gate" class="gate hide"></div>
+  <div id="app" class="hide">
+    <div class="tabs" id="tabs">
+      <button data-t="upcoming" class="on">Upcoming</button>
+      <button data-t="availability">My availability</button>
+      <button data-t="link">Booking link</button>
+    </div>
+    <div id="view"></div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="employees"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* ============================================================
+   Interviews — the staff side of our own booking service.
+   Weekly windows (interview_availability) + per-host settings
+   drive the public page; slots are computed live by the
+   `interviews` edge function, so there is nothing to generate
+   and nothing that can silently block your time.
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+var SITE=location.origin;
+var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var ME=null, TAB='upcoming', CFG=null, WINS=[], BOOKINGS=[], STORES=[], BLACKOUTS=[];
+
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function hhmm(min){var h=Math.floor(min/60),m=min%60,ap=h>=12?'PM':'AM',h12=h%12||12;return h12+(m?(':'+String(m).padStart(2,'0')):'')+' '+ap;}
+function toMin(v){var p=String(v||'').split(':');return (+p[0])*60+(+p[1]||0);}
+function toHM(min){return String(Math.floor(min/60)).padStart(2,'0')+':'+String(min%60).padStart(2,'0');}
+function fmtWhen(iso){return new Date(iso).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',
+  hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'});}
+
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+(async function boot(){
+  var s=await ensureSession();
+  var staff=null;
+  if(s){try{staff=(await sb.from('staff').select('id,display_name,role,home_store').eq('auth_uid',s.user.id).maybeSingle()).data;}catch(e){}}
+  if(!staff||(staff.role!=='admin'&&staff.role!=='owner')){
+    $('#gate').classList.remove('hide');
+    $('#gate').innerHTML='🔒 Interview scheduling is for managers and the owner.'+(staff?'':'<br><br>Sign in with your PIN first.');
+    return;
+  }
+  ME=staff; $('#app').classList.remove('hide');
+  try{ STORES=((await sb.from('stores').select('store,active,display_order').order('display_order')).data||[])
+        .filter(function(x){return x.active!==false;}); }catch(e){ STORES=[]; }
+  await load();
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(b){
+    b.onclick=function(){TAB=b.getAttribute('data-t');
+      Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(x){x.classList.toggle('on',x===b);});
+      try{history.replaceState(null,'','#'+TAB);}catch(e){} render();};
+  });
+  var h=(location.hash||'').replace('#','');
+  if(['upcoming','availability','link'].indexOf(h)>-1){TAB=h;
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(x){x.classList.toggle('on',x.getAttribute('data-t')===h);});}
+  render();
+})();
+
+async function load(){
+  var [cfg,wins,books,blk]=await Promise.all([
+    sb.from('interview_settings').select('*').eq('staff_id',ME.id).maybeSingle(),
+    sb.from('interview_availability').select('*').eq('staff_id',ME.id).order('weekday').order('start_min'),
+    sb.from('interview_bookings').select('*').gte('starts_at',new Date(Date.now()-14*864e5).toISOString()).order('starts_at'),
+    sb.from('interview_blackouts').select('*').eq('staff_id',ME.id).gte('block_date',new Date().toISOString().slice(0,10)).order('block_date')
+  ]);
+  CFG=cfg.data||null; WINS=wins.data||[]; BOOKINGS=books.data||[]; BLACKOUTS=blk.data||[];
+}
+
+function render(){
+  if(TAB==='upcoming')renderUpcoming();
+  else if(TAB==='availability')renderAvail();
+  else renderLink();
+}
+
+/* ---------- upcoming interviews ---------- */
+function renderUpcoming(){
+  var now=Date.now();
+  var mine=BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(ME.id);});
+  var up=mine.filter(function(b){return b.status==='booked'&&new Date(b.starts_at).getTime()>=now-3600e3;});
+  var past=mine.filter(function(b){return up.indexOf(b)<0;}).reverse();
+  var rows=function(list,isUp){
+    if(!list.length)return '<tr><td colspan="6"><div class="empty">'+(isUp?'No interviews booked yet.':'Nothing here yet.')+'</div></td></tr>';
+    return list.map(function(b){
+      return '<tr><td><b>'+esc(fmtWhen(b.starts_at))+'</b></td>'
+        +'<td>'+esc(b.candidate_name)+(b.position?'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(b.position)+'</div>':'')+'</td>'
+        +'<td>'+(b.candidate_phone?esc(b.candidate_phone):'')+(b.candidate_email?'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(b.candidate_email)+'</div>':'')+'</td>'
+        +'<td>'+esc(b.store||'—')+'</td>'
+        +'<td><span class="pill '+esc(b.status)+'">'+esc(b.status.replace('_',' '))+'</span></td>'
+        +'<td style="text-align:right;white-space:nowrap">'
+          +(b.status==='booked'?'<button class="btn sm" data-done="'+b.id+'">Done</button> '
+            +'<button class="btn sm" data-noshow="'+b.id+'">No-show</button> '
+            +'<button class="btn sm" data-cxl="'+b.id+'" style="color:var(--red)">Cancel</button>':'')
+        +'</td></tr>';
+    }).join('');
+  };
+  $('#view').innerHTML='<div class="card"><div class="ct">Upcoming</div>'
+    +'<div class="ch">Booked through your public page. Marking one Done or No-show keeps your history clean.</div>'
+    +'<table><thead><tr><th>When</th><th>Candidate</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
+    +'<tbody>'+rows(up,true)+'</tbody></table></div>'
+    +(past.length?'<div class="card"><div class="ct">Recent</div><div class="ch">Last two weeks.</div>'
+      +'<table><thead><tr><th>When</th><th>Candidate</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
+      +'<tbody>'+rows(past,false)+'</tbody></table></div>':'');
+  bindStatus();
+}
+function bindStatus(){
+  var set=async function(id,status){
+    var r=await sb.from('interview_bookings').update({status:status,updated_at:new Date().toISOString()}).eq('id',id);
+    if(r.error){toast(r.error.message,true);return;}
+    var b=BOOKINGS.filter(function(x){return x.id===id;})[0]; if(b)b.status=status;
+    toast(status==='completed'?'Marked done':status==='no_show'?'Marked no-show':'Canceled'); render();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-done]'),function(b){b.onclick=function(){set(+b.getAttribute('data-done'),'completed');};});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-noshow]'),function(b){b.onclick=function(){set(+b.getAttribute('data-noshow'),'no_show');};});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-cxl]'),function(b){b.onclick=function(){
+    if(confirm('Cancel this interview? The slot opens back up.'))set(+b.getAttribute('data-cxl'),'canceled');};});
+}
+
+/* ---------- availability ---------- */
+function renderAvail(){
+  var on=CFG&&CFG.active!==false;
+  var storeOpts=STORES.map(function(s){return '<option value="'+esc(s.store)+'">'+esc(s.store)+'</option>';}).join('');
+  var wk='';
+  for(var d=0;d<7;d++){
+    var mine=WINS.filter(function(w){return Number(w.weekday)===d;});
+    wk+='<div class="wk"><div class="dn">'+DAYS[d]+'</div><div class="wins">'
+      +(mine.length?mine.map(function(w){
+          return '<span class="win"><b>'+hhmm(w.start_min)+' – '+hhmm(w.end_min)+'</b>'
+            +'<span class="st">'+esc(w.store||'any store')+'</span>'
+            +'<button class="x" data-del="'+w.id+'" title="Remove">×</button></span>';
+        }).join('')
+        :'<span style="color:var(--grey);font-weight:700;font-size:.82rem">Not available</span>')
+      +'<span class="addwin"><button class="btn sm" data-add="'+d+'">+ Add</button></span>'
+      +'</div></div>';
+  }
+  $('#view').innerHTML=
+    '<div class="card"><div class="sw"><button class="toggle'+(on?' on':'')+'" id="actTog"></button>'
+      +'<div><div class="ct" style="margin:0">'+(on?'Accepting interviews':'Paused — nothing is bookable')+'</div>'
+      +'<div class="ch" style="margin:0">Turn this off any time; your windows stay saved.</div></div></div></div>'
+    +'<div class="card"><div class="ct">Weekly windows</div>'
+      +'<div class="ch">The only thing that decides when candidates can book you. Times are store-local.</div>'
+      +wk+'</div>'
+    +'<div class="card"><div class="ct">Slot rules</div><div class="ch">How your windows get chopped into bookable times.</div>'
+      +'<div class="cfg">'
+        +'<label>Interview length<input type="number" id="cSlot" min="10" max="180" step="5" value="'+((CFG&&CFG.slot_minutes)||30)+'"></label>'
+        +'<label>Gap after<input type="number" id="cBuf" min="0" max="120" step="5" value="'+((CFG&&CFG.buffer_minutes)!=null?CFG.buffer_minutes:15)+'"></label>'
+        +'<label>Min notice (hrs)<input type="number" id="cLead" min="0" max="168" value="'+((CFG&&CFG.lead_hours)!=null?CFG.lead_hours:12)+'"></label>'
+        +'<label>Book out (days)<input type="number" id="cHor" min="1" max="60" value="'+((CFG&&CFG.horizon_days)||21)+'"></label>'
+        +'<label>Max per day<input type="number" id="cMax" min="1" max="12" value="'+((CFG&&CFG.max_per_day)||4)+'"></label>'
+      +'</div>'
+      +'<div style="margin-top:14px"><button class="btn pri" id="saveCfg">Save rules</button></div></div>'
+    +'<div class="card"><div class="ct">Days off</div><div class="ch">Block a specific date — vacation, training, whatever. Your weekly windows stay untouched.</div>'
+      +'<div class="wins" style="margin-bottom:12px">'
+      +(BLACKOUTS.length?BLACKOUTS.map(function(b){
+          return '<span class="win"><b>'+esc(new Date(b.block_date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}))+'</b>'
+            +(b.reason?'<span class="st">'+esc(b.reason)+'</span>':'')
+            +'<button class="x" data-delblk="'+b.id+'">×</button></span>';
+        }).join(''):'<span style="color:var(--grey);font-weight:700;font-size:.82rem">None</span>')
+      +'</div>'
+      +'<div class="addwin"><input type="date" id="blkDate"><input id="blkWhy" placeholder="Reason (optional)" style="min-width:170px">'
+      +'<button class="btn sm" id="addBlk">Block this day</button></div></div>'
+    +'<datalist id="storeList">'+storeOpts+'</datalist>';
+
+  $('#actTog').onclick=async function(){
+    var next=!(CFG&&CFG.active!==false);
+    var r=await sb.from('interview_settings').upsert({staff_id:ME.id,active:next,updated_at:new Date().toISOString()},{onConflict:'staff_id'}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    CFG=r.data; toast(next?'Accepting interviews':'Paused'); render();
+  };
+  $('#saveCfg').onclick=async function(){
+    var row={staff_id:ME.id,
+      slot_minutes:+$('#cSlot').value||30, buffer_minutes:+$('#cBuf').value||0,
+      lead_hours:+$('#cLead').value||0, horizon_days:+$('#cHor').value||21,
+      max_per_day:+$('#cMax').value||4, active:(CFG?CFG.active!==false:true),
+      updated_at:new Date().toISOString()};
+    var r=await sb.from('interview_settings').upsert(row,{onConflict:'staff_id'}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    CFG=r.data; toast('Rules saved');
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-add]'),function(b){
+    b.onclick=function(){ addWindow(+b.getAttribute('data-add'), b.parentElement); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-del]'),function(b){
+    b.onclick=async function(){
+      var r=await sb.from('interview_availability').delete().eq('id',+b.getAttribute('data-del'));
+      if(r.error){toast(r.error.message,true);return;}
+      WINS=WINS.filter(function(w){return w.id!==+b.getAttribute('data-del');}); toast('Window removed'); render();
+    };
+  });
+  $('#addBlk').onclick=async function(){
+    var d=$('#blkDate').value; if(!d){toast('Pick a date',true);return;}
+    var r=await sb.from('interview_blackouts').insert({staff_id:ME.id,block_date:d,reason:$('#blkWhy').value.trim()||null}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    BLACKOUTS.push(r.data); toast('Day blocked'); render();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-delblk]'),function(b){
+    b.onclick=async function(){
+      var id=+b.getAttribute('data-delblk');
+      var r=await sb.from('interview_blackouts').delete().eq('id',id);
+      if(r.error){toast(r.error.message,true);return;}
+      BLACKOUTS=BLACKOUTS.filter(function(x){return x.id!==id;}); render();
+    };
+  });
+}
+function addWindow(day,host){
+  var store=(ME.home_store||(STORES[0]&&STORES[0].store)||'');
+  host.innerHTML='<span class="addwin">'
+    +'<input type="time" id="nwS" value="14:00"> <span style="font-weight:700">to</span> <input type="time" id="nwE" value="16:00">'
+    +'<select id="nwStore">'+STORES.map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===store?' selected':'')+'>'+esc(s.store)+'</option>';}).join('')+'</select>'
+    +'<button class="btn sm pri" id="nwSave">Add</button><button class="btn sm" id="nwX">Cancel</button></span>';
+  $('#nwX').onclick=render;
+  $('#nwSave').onclick=async function(){
+    var s=toMin($('#nwS').value), e=toMin($('#nwE').value);
+    if(!(e>s)){toast('End must be after start',true);return;}
+    var r=await sb.from('interview_availability').insert({staff_id:ME.id,store:$('#nwStore').value,weekday:day,start_min:s,end_min:e}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    WINS.push(r.data); toast(DAYS[day]+' '+hhmm(s)+'–'+hhmm(e)+' added'); render();
+  };
+}
+
+/* ---------- booking link ---------- */
+function renderLink(){
+  var mine=SITE+'/interview.html?h='+ME.id;
+  var any=SITE+'/interview.html';
+  var on=CFG&&CFG.active!==false;
+  var winCount=WINS.length;
+  $('#view').innerHTML='<div class="card"><div class="ct">Your booking link</div>'
+    +'<div class="ch">Send this to a candidate — they pick a time, we text and email the confirmation. No sign-in for them.</div>'
+    +'<div class="linkbox"><span style="flex:1">'+esc(mine)+'</span></div>'
+    +'<div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">'
+      +'<button class="btn pri" id="cpMine">🔗 Copy my link</button>'
+      +'<a class="btn" href="'+esc(mine)+'" target="_blank" style="text-decoration:none">Preview</a>'
+    +'</div></div>'
+    +'<div class="card"><div class="ct">Everyone\'s link</div>'
+    +'<div class="ch">Shows open times across every host who\'s accepting — good for a job posting.</div>'
+    +'<div class="linkbox"><span style="flex:1">'+esc(any)+'</span></div>'
+    +'<div style="margin-top:12px"><button class="btn" id="cpAny">🔗 Copy shared link</button></div></div>'
+    +(!on||!winCount?'<div class="card" style="border-color:#F6C9CA;background:#FFF8F8"><div class="ct" style="color:var(--red)">'
+      +(!winCount?'No weekly windows yet':'You\'re paused')+'</div><div class="ch" style="margin:0">'
+      +(!winCount?'Add at least one window under <b>My availability</b> or your link will show no times.'
+                 :'Nothing is bookable until you switch yourself back on under <b>My availability</b>.')
+      +'</div></div>':'');
+  $('#cpMine').onclick=function(){navigator.clipboard.writeText(mine).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});};
+  $('#cpAny').onclick=function(){navigator.clipboard.writeText(any).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});};
+}
+</script>
+</body>
+</html>
