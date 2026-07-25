@@ -111,7 +111,7 @@
     { label:'KB Compliance',  url:'kb-compliance.html',    icon:'clipboard-check', minRole:'admin', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' },
-    { label:'Interviews',     url:'interviews.html',       icon:'calendar-days', minRole:'admin' }
+    { label:'Bookings',       url:'interviews.html',       icon:'calendar-days', minRole:'admin' }
   ];
   var PRIVILEGED = [
     // Cash Admin reached from a button on Cash Tracker (hidden from menus)

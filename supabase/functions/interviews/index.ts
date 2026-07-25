@@ -357,6 +357,71 @@ Deno.serve(async (req) => {
         host: hostName, store: slot.store, address: addr, confirm: { sms: smsOk, email: mailOk } });
     }
 
+    // Staff-made booking (the Bookings page's "+ New booking"): a manager books a
+    // candidate onto a host directly — phone screens, walk-ins, "come in
+    // tomorrow at 10". Unlike the public `book`, the time is free-form (not
+    // restricted to derived slots, no lead-time rule) — the only hard rule is
+    // no overlap with an existing booking for that host. Candidate confirmations
+    // + host alert + team rule all fire exactly like a public booking.
+    if (action === "staff_book") {
+      const auth = req.headers.get("Authorization")?.replace("Bearer ", "") || "";
+      const { data: u } = await admin.auth.getUser(auth);
+      if (!u?.user) return json({ ok: false, error: "unauthorized" }, 401);
+      const { data: me } = await admin.from("staff").select("id, display_name, role")
+        .eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+      if (!me || !["admin", "manager", "owner"].includes(String((me as any).role))) {
+        return json({ ok: false, error: "forbidden" }, 403);
+      }
+      const staffId = Number(body.staff_id || 0);
+      const startsAt = new Date(String(body.starts_at || ""));
+      const name = String(body.candidate_name || "").trim();
+      const phone = String(body.candidate_phone || "").trim();
+      const email = String(body.candidate_email || "").trim();
+      if (!staffId || isNaN(startsAt.getTime()) || !name) return json({ ok: false, error: "missing_fields" }, 400);
+      const { data: host } = await admin.from("staff").select("id, display_name").eq("id", staffId).maybeSingle();
+      if (!host) return json({ ok: false, error: "host_not_found" }, 404);
+      const { data: cfg } = await admin.from("interview_settings").select("slot_minutes").eq("staff_id", staffId).maybeSingle();
+      const mins = Math.min(240, Math.max(10, Number(body.duration_minutes) || Number((cfg as any)?.slot_minutes) || 30));
+      const endsAt = new Date(startsAt.getTime() + mins * 60000);
+
+      // refuse an overlap with anything already booked for this host
+      const { data: clash } = await admin.from("interview_bookings")
+        .select("id, starts_at, ends_at").eq("staff_id", staffId).eq("status", "booked")
+        .lt("starts_at", endsAt.toISOString()).gt("ends_at", startsAt.toISOString()).limit(1);
+      if (clash && clash.length) return json({ ok: false, error: "overlap" }, 409);
+
+      const row = {
+        token: token(), staff_id: staffId, store: String(body.store || "").trim() || null,
+        starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(),
+        candidate_name: name, candidate_phone: phone || null, candidate_email: email || null,
+        position: String(body.position || "").trim() || null,
+        notes: (String(body.notes || "").trim() || null) as string | null,
+      };
+      const ins = await admin.from("interview_bookings").insert(row).select().single();
+      if (ins.error) return json({ ok: false, error: ins.error.message }, 500);
+      const b = ins.data as any;
+      const hostName = (host as any).display_name;
+      const addr = await storeAddress(b.store);
+      const link = SITE + "/interview.html?t=" + b.token;
+      const when = prettyWhen(startsAt);
+      const smsOk = phone ? await sendSms(phone,
+        "Your CPR interview is set: " + when + (b.store ? " at " + b.store : "") + " with " + hostName
+        + ". Details, or need to change it: " + link, b.store) : false;
+      const mailOk = email ? await sendEmail(email, "Your CPR interview — " + when,
+        candidateText(b, hostName, addr, link, "Hi " + name.split(/\s+/)[0] + " — your interview is scheduled.")) : false;
+      await admin.from("interview_bookings").update({ confirm_sms: smsOk, confirm_email: mailOk }).eq("id", b.id);
+      if (Number((me as any).id) !== staffId) {
+        await notifyHost(staffId, "Interview booked — " + when,
+          name + (row.position ? " · " + row.position : "") + (b.store ? " · " + b.store : "")
+          + " — scheduled by " + (me as any).display_name + ".");
+      }
+      await notifyTeam("interviews.booked", "Interview booked — " + name + " · " + when,
+        name + " was booked by " + (me as any).display_name + ".\nWhen: " + when + "\nWith: " + hostName
+        + (b.store ? "\nWhere: " + b.store : "") + "\n\nOpen: " + SITE + "/interviews.html");
+      return json({ ok: true, token: b.token, id: b.id, starts_at: b.starts_at, ends_at: b.ends_at,
+        confirm: { sms: smsOk, email: mailOk } });
+    }
+
     if (action === "view") {
       const t = String(url.searchParams.get("t") || body.t || "");
       if (!t) return json({ ok: false, error: "no_token" }, 400);

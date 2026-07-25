@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Interviews — CPR</title>
+<title>Bookings — CPR</title>
 <link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -12,7 +12,7 @@
 --ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
-main{max-width:1080px;margin:0;padding:24px 28px 80px}
+main{max-width:1120px;margin:0;padding:24px 28px 80px}
 h1{font-family:'Nunito';font-weight:900;font-size:1.45rem}
 .sub{color:var(--dark-grey);font-size:.85rem;font-weight:700;margin-top:2px}
 .hd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -37,6 +37,38 @@ td{padding:10px;border-bottom:1px solid var(--light-grey);vertical-align:middle}
 letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 .pill.booked{background:#E9F5FC;color:#2E7CA6}.pill.completed{background:#E7F6EE;color:var(--green)}
 .pill.canceled{background:#F3F2F2;color:#8A8A93}.pill.no_show{background:#FDECEC;color:var(--red)}
+.pill.paused{background:#FCF3E3;color:var(--amber)}.pill.hosting{background:#E7F6EE;color:var(--green)}
+
+/* month calendar overview */
+.calbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.calbar .navbox{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.calbar .navbox button{font-family:'Nunito';font-weight:800;border:none;background:#fff;padding:8px 12px;cursor:pointer;font-size:.9rem;color:var(--dark)}
+.calbar .navbox .lbl{font-size:.88rem;padding:8px 12px;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+.calwrap{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.cal-wd{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border);background:#FAFAFB}
+.cal-wd span{padding:8px 4px;text-align:center;font-family:'Nunito';font-weight:800;font-size:.64rem;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.4px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal .d{min-height:96px;border-right:1px solid var(--light-grey);border-bottom:1px solid var(--light-grey);
+  padding:6px;cursor:pointer;background:#fff;transition:background .1s;text-align:left;border-top:none;border-left:none;font:inherit;color:inherit}
+.cal .d:nth-child(7n){border-right:none}
+.cal .d:hover{background:#F7FBFE}
+.cal .d.oth{background:#FBFBFC;color:var(--grey)}
+.cal .d.sel{box-shadow:inset 0 0 0 2px var(--blue)}
+.cal .dn{font-family:'Nunito';font-weight:800;font-size:.78rem;margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.cal .dn .today{background:var(--red);color:#fff;border-radius:6px;padding:1px 6px}
+.chip{display:block;width:100%;text-align:left;font-family:'Nunito Sans';font-weight:700;font-size:.68rem;
+  background:#E9F5FC;color:#20618A;border:none;border-left:3px solid var(--blue);border-radius:5px;
+  padding:2px 6px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.chip.done{background:#E7F6EE;color:#1F6B41;border-left-color:var(--green)}
+.chip.bad{background:#FDECEC;color:#9E2A2E;border-left-color:var(--red);text-decoration:line-through}
+.chip .hst{opacity:.7}
+.more{font-size:.64rem;font-weight:800;color:var(--grey)}
+
+/* host cards */
+.hostrow td .nm{font-family:'Nunito';font-weight:800}
+.winsum{font-size:.76rem;color:var(--dark-grey);font-weight:700;line-height:1.5}
+
+/* availability editor (per host) */
 .wk{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start;margin-bottom:10px}
 .wk .dn{font-family:'Nunito';font-weight:800;font-size:.85rem;padding-top:9px}
 .wins{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -48,13 +80,11 @@ border-radius:10px;padding:7px 10px;font-weight:700;font-size:.82rem}
 .addwin{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .addwin select,.addwin input{height:34px;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;
 font-family:'Nunito Sans';font-weight:700;font-size:.8rem;background:#fff;color:var(--dark)}
-.addwin select:focus,.addwin input:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
 .cfg{display:flex;gap:16px;flex-wrap:wrap}
 .cfg label{display:flex;flex-direction:column;gap:5px;font-family:'Nunito';font-weight:800;font-size:.7rem;
 text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)}
-.cfg input,.cfg select{width:130px;height:36px;padding:5px 10px;border:1.5px solid var(--border);border-radius:9px;
+.cfg input{width:120px;height:36px;padding:5px 10px;border:1.5px solid var(--border);border-radius:9px;
 font-family:'Nunito Sans';font-weight:700;font-size:.88rem;background:#fff;color:var(--dark)}
-.cfg input:focus,.cfg select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
 .linkbox{display:flex;gap:9px;align-items:center;background:var(--light-grey);border-radius:11px;padding:11px 14px;
 font-size:.85rem;word-break:break-all;font-weight:700}
 .sw{display:flex;align-items:center;gap:10px}
@@ -63,27 +93,42 @@ font-size:.85rem;word-break:break-all;font-weight:700}
 .toggle.on{background:var(--green)}.toggle.on::after{left:20px}
 .empty{color:var(--grey);font-weight:700;font-size:.85rem;padding:22px;text-align:center}
 .gate{background:#FFF1F1;border:1px solid #F6C9CA;border-radius:12px;padding:22px;text-align:center;color:var(--red);font-weight:800}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+
+/* modal */
+.mback{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:center;justify-content:center;z-index:800;padding:16px}
+.modal{background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal h3{font-family:'Nunito';font-weight:900;font-size:1.12rem;margin-bottom:4px}
+.modal .msub{color:var(--dark-grey);font-weight:700;font-size:.82rem;margin-bottom:14px}
+.modal .fldl{font-family:'Nunito';font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:11px 0 5px}
+.modal input,.modal select,.modal textarea{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;
+font-family:'Nunito Sans';font-weight:700;font-size:.92rem;background:#fff;color:var(--dark)}
+.modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal .ft{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.merr{color:var(--red);font-weight:800;font-size:.8rem;margin-top:9px;min-height:1em}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
 padding:12px 18px;border-radius:12px;font-family:'Nunito';font-weight:800;font-size:.85rem;opacity:0;pointer-events:none;transition:.18s;z-index:900}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .hide{display:none!important}
-@media(max-width:720px){main{padding:18px 14px 80px}.wk{grid-template-columns:1fr}.wk .dn{padding-top:0}}
+@media(max-width:720px){main{padding:18px 12px 80px}.cal .d{min-height:74px;padding:4px}.chip{font-size:.6rem;padding:2px 4px}.wk{grid-template-columns:1fr}.wk .dn{padding-top:0}}
 </style>
 </head>
 <body>
 <main>
   <div class="hd">
     <div>
-      <h1>🗓️ Interviews</h1>
-      <div class="sub">Your booking page — you decide when you're available, nothing else does.</div>
+      <h1>🗓️ Bookings</h1>
+      <div class="sub">Interviews &amp; appointments — you decide the availability, nothing else does.</div>
     </div>
+    <div class="spacer"></div>
+    <button class="btn red" id="newBk">+ New Booking</button>
   </div>
   <div id="gate" class="gate hide"></div>
   <div id="app" class="hide">
     <div class="tabs" id="tabs">
-      <button data-t="upcoming" class="on">Upcoming</button>
-      <button data-t="availability">My availability</button>
-      <button data-t="link">Booking link</button>
+      <button data-t="calendar" class="on">Calendar</button>
+      <button data-t="hosts">Hosts</button>
+      <button data-t="links">Booking Links</button>
     </div>
     <div id="view"></div>
   </div>
@@ -91,32 +136,41 @@ padding:12px 18px;border-radius:12px;font-family:'Nunito';font-weight:800;font-s
 <div class="toast" id="toast"></div>
 
 <script src="assets/locations.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js" data-section="employees"></script>
 <script type="module">
 import { createClient } from "/assets/supabase-js.js";
 /* ============================================================
-   Interviews — the staff side of our own booking service.
-   Weekly windows (interview_availability) + per-host settings
-   drive the public page; slots are computed live by the
-   `interviews` edge function, so there is nothing to generate
-   and nothing that can silently block your time.
+   Bookings — management side of our own booking service.
+   Calendar overview of every upcoming booking · Hosts roster
+   (who can take bookings + each host's weekly availability,
+   editable centrally by managers) · booking links. Slots are
+   computed live by the `interviews` edge function; "+ New
+   Booking" books a candidate directly via staff_book.
    ============================================================ */
 var $=function(s,c){return (c||document).querySelector(s);};
+var $all=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
 var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
 var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var FN=SB_URL+'/functions/v1/interviews';
 var sb=createClient(SB_URL,ANON);
-var SITE=location.origin;
 var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-var ME=null, TAB='upcoming', CFG=null, WINS=[], BOOKINGS=[], STORES=[], BLACKOUTS=[];
+var TZ='America/Los_Angeles';
+var ME=null, TAB='calendar', MON=new Date(), SELDAY=null;
+var STAFF=[], STORES=[], SETTINGS=[], WINS=[], BOOKINGS=[], BLACKOUTS=[], HED=null;
 
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function hhmm(min){var h=Math.floor(min/60),m=min%60,ap=h>=12?'PM':'AM',h12=h%12||12;return h12+(m?(':'+String(m).padStart(2,'0')):'')+' '+ap;}
 function toMin(v){var p=String(v||'').split(':');return (+p[0])*60+(+p[1]||0);}
-function toHM(min){return String(Math.floor(min/60)).padStart(2,'0')+':'+String(min%60).padStart(2,'0');}
-function fmtWhen(iso){return new Date(iso).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',
-  hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'});}
+function dkey(iso){return new Date(iso).toLocaleDateString('en-CA',{timeZone:TZ});}
+function fmtT(iso){return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:TZ});}
+function fmtWhen(iso){return new Date(iso).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:TZ});}
+function staffById(id){return STAFF.filter(function(s){return Number(s.id)===Number(id);})[0]||null;}
+function hostName(id){var s=staffById(id);return s?s.display_name:'?';}
+function initials(n){return String(n||'').split(/\s+/).map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();}
+function cfgFor(id){return SETTINGS.filter(function(s){return Number(s.staff_id)===Number(id);})[0]||null;}
 
 async function ensureSession(){
   try{
@@ -129,6 +183,12 @@ async function ensureSession(){
   }catch(e){}
   return null;
 }
+async function callFn(body){
+  var s=await ensureSession();
+  var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json',
+    'Authorization':'Bearer '+((s&&s.access_token)||ANON),'apikey':ANON},body:JSON.stringify(body)});
+  return r.json().catch(function(){return {ok:false,error:'bad response'};});
+}
 
 (async function boot(){
   var s=await ensureSession();
@@ -136,68 +196,109 @@ async function ensureSession(){
   if(s){try{staff=(await sb.from('staff').select('id,display_name,role,home_store').eq('auth_uid',s.user.id).maybeSingle()).data;}catch(e){}}
   if(!staff||(staff.role!=='admin'&&staff.role!=='owner')){
     $('#gate').classList.remove('hide');
-    $('#gate').innerHTML='🔒 Interview scheduling is for managers and the owner.'+(staff?'':'<br><br>Sign in with your PIN first.');
+    $('#gate').innerHTML='🔒 Bookings is for managers and the owner.'+(staff?'':'<br><br>Sign in with your PIN first.');
     return;
   }
   ME=staff; $('#app').classList.remove('hide');
-  try{ STORES=((await sb.from('stores').select('store,active,display_order').order('display_order')).data||[])
-        .filter(function(x){return x.active!==false;}); }catch(e){ STORES=[]; }
   await load();
-  Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(b){
+  $all('#tabs button').forEach(function(b){
     b.onclick=function(){TAB=b.getAttribute('data-t');
-      Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(x){x.classList.toggle('on',x===b);});
-      try{history.replaceState(null,'','#'+TAB);}catch(e){} render();};
+      $all('#tabs button').forEach(function(x){x.classList.toggle('on',x===b);});
+      HED=null; try{history.replaceState(null,'','#'+TAB);}catch(e){} render();};
   });
   var h=(location.hash||'').replace('#','');
-  if(['upcoming','availability','link'].indexOf(h)>-1){TAB=h;
-    Array.prototype.forEach.call(document.querySelectorAll('#tabs button'),function(x){x.classList.toggle('on',x.getAttribute('data-t')===h);});}
+  if(['calendar','hosts','links'].indexOf(h)>-1){TAB=h;
+    $all('#tabs button').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-t')===h);});}
+  window.addEventListener('hashchange',function(){
+    var h2=(location.hash||'').replace('#','');
+    if(['calendar','hosts','links'].indexOf(h2)>-1&&h2!==TAB){TAB=h2;HED=null;
+      $all('#tabs button').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-t')===h2);});render();}
+  });
+  $('#newBk').onclick=openNewBooking;
   render();
 })();
 
 async function load(){
-  var [cfg,wins,books,blk]=await Promise.all([
-    sb.from('interview_settings').select('*').eq('staff_id',ME.id).maybeSingle(),
-    sb.from('interview_availability').select('*').eq('staff_id',ME.id).order('weekday').order('start_min'),
-    sb.from('interview_bookings').select('*').gte('starts_at',new Date(Date.now()-14*864e5).toISOString()).order('starts_at'),
-    sb.from('interview_blackouts').select('*').eq('staff_id',ME.id).gte('block_date',new Date().toISOString().slice(0,10)).order('block_date')
+  var from=new Date();from.setMonth(from.getMonth()-2);
+  var [st,so,cfg,wins,books,blk]=await Promise.all([
+    sb.from('staff').select('id,display_name,role,home_store,active').eq('active',true).order('display_name'),
+    sb.from('stores').select('store,active,display_order,color').order('display_order'),
+    sb.from('interview_settings').select('*'),
+    sb.from('interview_availability').select('*').order('weekday').order('start_min'),
+    sb.from('interview_bookings').select('*').gte('starts_at',from.toISOString()).order('starts_at'),
+    sb.from('interview_blackouts').select('*').gte('block_date',new Date(Date.now()-864e5).toISOString().slice(0,10)).order('block_date')
   ]);
-  CFG=cfg.data||null; WINS=wins.data||[]; BOOKINGS=books.data||[]; BLACKOUTS=blk.data||[];
+  STAFF=st.data||[]; STORES=(so.data||[]).filter(function(x){return x.active!==false;});
+  SETTINGS=cfg.data||[]; WINS=wins.data||[]; BOOKINGS=books.data||[]; BLACKOUTS=blk.data||[];
 }
 
 function render(){
-  if(TAB==='upcoming')renderUpcoming();
-  else if(TAB==='availability')renderAvail();
-  else renderLink();
+  if(TAB==='calendar')renderCal();
+  else if(TAB==='hosts')(HED?renderHostEditor():renderHosts());
+  else renderLinks();
 }
 
-/* ---------- upcoming interviews ---------- */
-function renderUpcoming(){
-  var now=Date.now();
-  var mine=BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(ME.id);});
-  var up=mine.filter(function(b){return b.status==='booked'&&new Date(b.starts_at).getTime()>=now-3600e3;});
-  var past=mine.filter(function(b){return up.indexOf(b)<0;}).reverse();
-  var rows=function(list,isUp){
-    if(!list.length)return '<tr><td colspan="6"><div class="empty">'+(isUp?'No interviews booked yet.':'Nothing here yet.')+'</div></td></tr>';
-    return list.map(function(b){
-      return '<tr><td><b>'+esc(fmtWhen(b.starts_at))+'</b></td>'
-        +'<td>'+esc(b.candidate_name)+(b.position?'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(b.position)+'</div>':'')+'</td>'
-        +'<td>'+(b.candidate_phone?esc(b.candidate_phone):'')+(b.candidate_email?'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(b.candidate_email)+'</div>':'')+'</td>'
-        +'<td>'+esc(b.store||'—')+'</td>'
-        +'<td><span class="pill '+esc(b.status)+'">'+esc(b.status.replace('_',' '))+'</span></td>'
-        +'<td style="text-align:right;white-space:nowrap">'
-          +(b.status==='booked'?'<button class="btn sm" data-done="'+b.id+'">Done</button> '
-            +'<button class="btn sm" data-noshow="'+b.id+'">No-show</button> '
-            +'<button class="btn sm" data-cxl="'+b.id+'" style="color:var(--red)">Cancel</button>':'')
-        +'</td></tr>';
-    }).join('');
-  };
-  $('#view').innerHTML='<div class="card"><div class="ct">Upcoming</div>'
-    +'<div class="ch">Booked through your public page. Marking one Done or No-show keeps your history clean.</div>'
-    +'<table><thead><tr><th>When</th><th>Candidate</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
-    +'<tbody>'+rows(up,true)+'</tbody></table></div>'
-    +(past.length?'<div class="card"><div class="ct">Recent</div><div class="ch">Last two weeks.</div>'
-      +'<table><thead><tr><th>When</th><th>Candidate</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
-      +'<tbody>'+rows(past,false)+'</tbody></table></div>':'');
+/* ================= Calendar overview ================= */
+function renderCal(){
+  var y=MON.getFullYear(), m=MON.getMonth();
+  var first=new Date(y,m,1), start=new Date(y,m,1-first.getDay());
+  var todayK=dkey(new Date().toISOString());
+  var byDay={};
+  BOOKINGS.forEach(function(b){var k=dkey(b.starts_at);(byDay[k]=byDay[k]||[]).push(b);});
+  var cells='';
+  for(var i=0;i<42;i++){
+    var d=new Date(start);d.setDate(start.getDate()+i);
+    var k=d.toLocaleDateString('en-CA');
+    var inMon=d.getMonth()===m;
+    var list=(byDay[k]||[]).filter(function(b){return b.status!=='canceled';});
+    var chips=list.slice(0,3).map(function(b){
+      var cls=b.status==='completed'?' done':(b.status==='no_show'?' bad':'');
+      return '<span class="chip'+cls+'">'+esc(fmtT(b.starts_at))+' '+esc(String(b.candidate_name).split(/\s+/)[0])
+        +' <span class="hst">· '+esc(initials(hostName(b.staff_id)))+'</span></span>';
+    }).join('')+(list.length>3?'<span class="more">+'+(list.length-3)+' more</span>':'');
+    cells+='<button class="d'+(inMon?'':' oth')+(k===SELDAY?' sel':'')+'" data-day="'+k+'">'
+      +'<span class="dn">'+(k===todayK?'<span class="today">'+d.getDate()+'</span>':d.getDate())+'</span>'+chips+'</button>';
+  }
+  var upN=BOOKINGS.filter(function(b){return b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
+  $('#view').innerHTML=
+    '<div class="calbar">'
+      +'<div class="navbox"><button id="cPrev">‹</button><button class="lbl" id="cLbl" title="Pick a month" style="cursor:pointer;font-family:Nunito;font-weight:800">'
+        +MON.toLocaleDateString('en-US',{month:'long',year:'numeric'})+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button id="cNext">›</button></div>'
+      +'<button class="btn sm" id="cToday">Today</button>'
+      +'<span style="flex:1"></span>'
+      +'<span class="sub" style="margin:0">'+upN+' upcoming</span>'
+    +'</div>'
+    +'<div class="calwrap"><div class="cal-wd"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>'
+    +'<div class="cal">'+cells+'</div></div>'
+    +'<div id="dayPane"></div>';
+  $('#cPrev').onclick=function(){MON=new Date(y,m-1,1);render();};
+  $('#cNext').onclick=function(){MON=new Date(y,m+1,1);render();};
+  $('#cToday').onclick=function(){MON=new Date();SELDAY=todayK;render();};
+  if(window.CPRPickers&&CPRPickers.month)$('#cLbl').onclick=function(ev){ev.stopPropagation();CPRPickers.month($('#cLbl'),{get:function(){return new Date(MON);},set:function(d){MON=new Date(d.getFullYear(),d.getMonth(),1);render();}});};
+  $all('[data-day]').forEach(function(b){b.onclick=function(){SELDAY=b.getAttribute('data-day');render();};});
+  if(SELDAY)renderDayPane(byDay[SELDAY]||[]);
+}
+function renderDayPane(list){
+  var d=new Date(SELDAY+'T12:00');
+  var rows=list.length?list.map(function(b){
+    return '<tr><td style="white-space:nowrap"><b>'+esc(fmtT(b.starts_at))+'</b></td>'
+      +'<td><span style="font-family:Nunito;font-weight:800">'+esc(b.candidate_name)+'</span>'
+        +(b.position?'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(b.position)+'</div>':'')+'</td>'
+      +'<td>'+esc(hostName(b.staff_id))+'</td>'
+      +'<td>'+(b.candidate_phone?esc(b.candidate_phone):'')+(b.candidate_email?'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(b.candidate_email)+'</div>':'')+'</td>'
+      +'<td>'+esc(b.store||'—')+'</td>'
+      +'<td><span class="pill '+esc(b.status)+'">'+esc(b.status.replace('_',' '))+'</span></td>'
+      +'<td style="text-align:right;white-space:nowrap">'
+        +(b.status==='booked'?'<button class="btn sm" data-done="'+b.id+'">Done</button> '
+          +'<button class="btn sm" data-noshow="'+b.id+'">No-show</button> '
+          +'<button class="btn sm" data-cxl="'+b.id+'" style="color:var(--red)">Cancel</button>':'')
+      +'</td></tr>';
+  }).join(''):'<tr><td colspan="7"><div class="empty">Nothing booked this day.</div></td></tr>';
+  $('#dayPane').innerHTML='<div class="card" style="margin-top:14px"><div class="ct">'
+    +d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+'</div>'
+    +'<div class="ch">Tap a booking to act on it — or use + New Booking for this day.</div>'
+    +'<table><thead><tr><th>Time</th><th>Candidate</th><th>Host</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>';
   bindStatus();
 }
 function bindStatus(){
@@ -205,102 +306,233 @@ function bindStatus(){
     var r=await sb.from('interview_bookings').update({status:status,updated_at:new Date().toISOString()}).eq('id',id);
     if(r.error){toast(r.error.message,true);return;}
     var b=BOOKINGS.filter(function(x){return x.id===id;})[0]; if(b)b.status=status;
-    toast(status==='completed'?'Marked done':status==='no_show'?'Marked no-show':'Canceled'); render();
+    toast(status==='completed'?'Marked done':status==='no_show'?'Marked no-show':'Canceled — slot is open again'); render();
   };
-  Array.prototype.forEach.call(document.querySelectorAll('[data-done]'),function(b){b.onclick=function(){set(+b.getAttribute('data-done'),'completed');};});
-  Array.prototype.forEach.call(document.querySelectorAll('[data-noshow]'),function(b){b.onclick=function(){set(+b.getAttribute('data-noshow'),'no_show');};});
-  Array.prototype.forEach.call(document.querySelectorAll('[data-cxl]'),function(b){b.onclick=function(){
-    if(confirm('Cancel this interview? The slot opens back up.'))set(+b.getAttribute('data-cxl'),'canceled');};});
+  $all('[data-done]').forEach(function(b){b.onclick=function(){set(+b.getAttribute('data-done'),'completed');};});
+  $all('[data-noshow]').forEach(function(b){b.onclick=function(){set(+b.getAttribute('data-noshow'),'no_show');};});
+  $all('[data-cxl]').forEach(function(b){b.onclick=function(){
+    if(confirm('Cancel this booking? The slot opens back up.'))set(+b.getAttribute('data-cxl'),'canceled');};});
 }
 
-/* ---------- availability ---------- */
-function renderAvail(){
-  var on=CFG&&CFG.active!==false;
-  var storeOpts=STORES.map(function(s){return '<option value="'+esc(s.store)+'">'+esc(s.store)+'</option>';}).join('');
+/* ================= New booking (individual or first-available) ================= */
+function openNewBooking(){
+  var hosts=SETTINGS.filter(function(s){return s.active!==false&&staffById(s.staff_id);});
+  if(!hosts.length){toast('Add a host first (Hosts tab)',true);return;}
+  var back=document.createElement('div');back.className='mback';
+  var d0=SELDAY||new Date().toLocaleDateString('en-CA');
+  back.innerHTML='<div class="modal">'
+    +'<h3>New Booking</h3><div class="msub">Book a candidate directly — they get the same text/email confirmation, and the host is notified.</div>'
+    +'<div class="fldl">Host</div><select id="nbHost">'
+      +'<option value="">Anyone — first available</option>'
+      +hosts.map(function(h){return '<option value="'+h.staff_id+'">'+esc(hostName(h.staff_id))+'</option>';}).join('')
+    +'</select>'
+    +'<div id="nbSlotWrap"></div>'
+    +'<div class="fldl">Candidate name</div><input id="nbName" autocomplete="off">'
+    +'<div class="row2"><div><div class="fldl">Mobile</div><input id="nbPhone" inputmode="tel"></div>'
+    +'<div><div class="fldl">Email</div><input id="nbEmail" inputmode="email"></div></div>'
+    +'<div class="fldl">Position (optional)</div><input id="nbRole">'
+    +'<div class="merr" id="nbErr"></div>'
+    +'<div class="ft"><button class="btn" data-x>Cancel</button><button class="btn pri" id="nbGo">Book It</button></div>'
+    +'</div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(e){if(e.target===back)back.remove();});
+  back.querySelector('[data-x]').onclick=function(){back.remove();};
+  var mode='slots', OPEN=[];
+  function slotWrap(){
+    var hostId=back.querySelector('#nbHost').value;
+    var w=back.querySelector('#nbSlotWrap');
+    if(mode==='custom'&&hostId){
+      w.innerHTML='<div class="fldl">Date &amp; time (any time — your call)</div>'
+        +'<div class="row2"><input type="date" id="nbDate" value="'+d0+'"><input type="time" id="nbTime" value="10:00"></div>'
+        +'<div style="margin-top:7px"><button class="btn sm" id="nbUseSlots">← Pick from open slots instead</button></div>';
+      w.querySelector('#nbUseSlots').onclick=function(){mode='slots';slotWrap();};
+      return;
+    }
+    w.innerHTML='<div class="fldl">Open times</div><div class="empty" style="padding:12px">Loading…</div>';
+    fetch(FN+'?action=slots'+(hostId?'&host='+hostId:'')).then(function(r){return r.json();}).then(function(r){
+      OPEN=r.slots||[];
+      var opts=OPEN.slice(0,120).map(function(s,i){
+        return '<option value="'+i+'">'+esc(fmtWhen(s.starts_at))+(hostId?'':' — '+esc(s.name))+'</option>';}).join('');
+      w.innerHTML='<div class="fldl">Open times</div>'
+        +(OPEN.length?'<select id="nbSlot">'+opts+'</select>':'<div class="empty" style="padding:10px">No open slots'+(hostId?'':' for any host')+'.</div>')
+        +(hostId?'<div style="margin-top:7px"><button class="btn sm" id="nbCustom">Pick any date &amp; time instead</button></div>':'');
+      var c=w.querySelector('#nbCustom'); if(c)c.onclick=function(){mode='custom';slotWrap();};
+    });
+  }
+  back.querySelector('#nbHost').onchange=function(){mode='slots';slotWrap();};
+  slotWrap();
+  back.querySelector('#nbGo').onclick=async function(){
+    var err=back.querySelector('#nbErr');
+    var name=back.querySelector('#nbName').value.trim();
+    var phone=back.querySelector('#nbPhone').value.trim();
+    var email=back.querySelector('#nbEmail').value.trim();
+    if(!name){err.textContent='Candidate name is required.';return;}
+    if(!phone&&!email){err.textContent='Add a mobile or email so they get the confirmation.';return;}
+    var go=this; go.disabled=true; go.textContent='Booking…';
+    var d;
+    var hostId=back.querySelector('#nbHost').value;
+    if(mode==='custom'&&hostId){
+      var dt=back.querySelector('#nbDate').value, tm=back.querySelector('#nbTime').value;
+      if(!dt||!tm){err.textContent='Pick a date and time.';go.disabled=false;go.textContent='Book It';return;}
+      // interpret as store-local (Pacific) wall time
+      var iso=new Date(dt+'T'+tm+':00'+pacOffset(dt)).toISOString();
+      var st=staffById(hostId);
+      d=await callFn({action:'staff_book',staff_id:+hostId,starts_at:iso,candidate_name:name,
+        candidate_phone:phone,candidate_email:email,position:back.querySelector('#nbRole').value.trim(),
+        store:(st&&st.home_store)||''});
+    }else{
+      var sel=back.querySelector('#nbSlot');
+      if(!sel){err.textContent='No slot picked.';go.disabled=false;go.textContent='Book It';return;}
+      var slot=OPEN[+sel.value];
+      d=await callFn({action:'staff_book',staff_id:slot.staff_id,starts_at:slot.starts_at,
+        candidate_name:name,candidate_phone:phone,candidate_email:email,
+        position:back.querySelector('#nbRole').value.trim(),store:slot.store||''});
+    }
+    if(!d.ok){
+      go.disabled=false;go.textContent='Book It';
+      err.textContent=d.error==='overlap'?'That host already has a booking then — pick another time.':(d.error||'Could not book.');
+      return;
+    }
+    back.remove();
+    var sent=[d.confirm&&d.confirm.sms?'texted':null,d.confirm&&d.confirm.email?'emailed':null].filter(Boolean).join(' + ');
+    toast('✓ Booked'+(sent?' — '+sent:''));
+    await load(); SELDAY=dkey(d.starts_at); MON=new Date(SELDAY+'T12:00'); render();
+  };
+}
+// Pacific-offset suffix for a calendar date ('-07:00' PDT / '-08:00' PST)
+function pacOffset(dateStr){
+  var probe=new Date(dateStr+'T12:00:00Z');
+  var s=new Intl.DateTimeFormat('en-US',{timeZone:TZ,timeZoneName:'shortOffset'}).format(probe);
+  var m=s.match(/GMT([+-]\d+)/); var h=m?parseInt(m[1],10):-8;
+  return (h<0?'-':'+')+String(Math.abs(h)).padStart(2,'0')+':00';
+}
+
+/* ================= Hosts roster ================= */
+function renderHosts(){
+  var hostRows=SETTINGS.map(function(cfg){
+    var s=staffById(cfg.staff_id); if(!s)return '';
+    var wins=WINS.filter(function(w){return Number(w.staff_id)===Number(cfg.staff_id)&&w.active!==false;});
+    var sum=wins.length?wins.map(function(w){return DAYS[w.weekday].slice(0,3)+' '+hhmm(w.start_min)+'–'+hhmm(w.end_min);}).join(' · '):'No windows yet';
+    var upN=BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(cfg.staff_id)&&b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
+    return '<tr class="hostrow"><td><span class="nm">'+esc(s.display_name)+'</span>'
+      +'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(s.role==='owner'?'Owner':'Manager')+' · '+esc(s.home_store||'')+'</div></td>'
+      +'<td><div class="winsum">'+esc(sum)+'</div></td>'
+      +'<td style="text-align:center;font-family:Nunito;font-weight:900">'+upN+'</td>'
+      +'<td><span class="pill '+(cfg.active!==false?'hosting">Accepting':'paused">Paused')+'</span></td>'
+      +'<td style="text-align:right;white-space:nowrap">'
+        +'<button class="btn sm" data-edit="'+cfg.staff_id+'">Availability</button> '
+        +'<button class="btn sm" data-pause="'+cfg.staff_id+'">'+(cfg.active!==false?'Pause':'Resume')+'</button> '
+        +'<button class="btn sm" data-unhost="'+cfg.staff_id+'" style="color:var(--red)">Remove</button>'
+      +'</td></tr>';
+  }).join('');
+  var candidates=STAFF.filter(function(s){return !cfgFor(s.id);});
+  $('#view').innerHTML='<div class="card"><div class="ct">Who can get a booking</div>'
+    +'<div class="ch">Each host has their own windows and their own link. Add someone, then set their availability.</div>'
+    +'<table><thead><tr><th>Host</th><th>Weekly windows</th><th style="text-align:center">Upcoming</th><th>Status</th><th></th></tr></thead>'
+    +'<tbody>'+(hostRows||'<tr><td colspan="5"><div class="empty">No hosts yet.</div></td></tr>')+'</tbody></table>'
+    +'<div style="margin-top:14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
+      +'<select id="addHostSel" style="height:38px;padding:6px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans;font-weight:700;background:#fff">'
+        +'<option value="">Add a host…</option>'
+        +candidates.map(function(s){return '<option value="'+s.id+'">'+esc(s.display_name)+' — '+esc(s.home_store||'')+'</option>';}).join('')
+      +'</select>'
+      +'<button class="btn pri sm" id="addHostGo">+ Add</button>'
+    +'</div></div>';
+  $('#addHostGo').onclick=async function(){
+    var id=+$('#addHostSel').value; if(!id){toast('Pick a person first',true);return;}
+    var r=await sb.from('interview_settings').upsert({staff_id:id,active:true,updated_at:new Date().toISOString()},{onConflict:'staff_id'}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    SETTINGS.push(r.data); toast(hostName(id)+' can take bookings — set their windows'); HED=id; render();
+  };
+  $all('[data-edit]').forEach(function(b){b.onclick=function(){HED=+b.getAttribute('data-edit');render();};});
+  $all('[data-pause]').forEach(function(b){b.onclick=async function(){
+    var id=+b.getAttribute('data-pause'), cfg=cfgFor(id), next=!(cfg.active!==false);
+    var r=await sb.from('interview_settings').update({active:next,updated_at:new Date().toISOString()}).eq('staff_id',id);
+    if(r.error){toast(r.error.message,true);return;}
+    cfg.active=next; toast(hostName(id)+(next?' is accepting again':' paused')); render();
+  };});
+  $all('[data-unhost]').forEach(function(b){b.onclick=async function(){
+    var id=+b.getAttribute('data-unhost');
+    if(!confirm('Remove '+hostName(id)+' as a host? Their windows are deleted; existing bookings stay.'))return;
+    await sb.from('interview_availability').delete().eq('staff_id',id);
+    var r=await sb.from('interview_settings').delete().eq('staff_id',id);
+    if(r.error){toast(r.error.message,true);return;}
+    SETTINGS=SETTINGS.filter(function(s){return Number(s.staff_id)!==id;});
+    WINS=WINS.filter(function(w){return Number(w.staff_id)!==id;});
+    toast('Removed'); render();
+  };});
+}
+
+/* ================= per-host availability editor ================= */
+function renderHostEditor(){
+  var cfg=cfgFor(HED); if(!cfg){HED=null;render();return;}
+  var who=hostName(HED), mine=Number(HED)===Number(ME.id);
+  var wins=WINS.filter(function(w){return Number(w.staff_id)===Number(HED);});
+  var blks=BLACKOUTS.filter(function(b){return Number(b.staff_id)===Number(HED);});
   var wk='';
   for(var d=0;d<7;d++){
-    var mine=WINS.filter(function(w){return Number(w.weekday)===d;});
+    var dayWins=wins.filter(function(w){return Number(w.weekday)===d;});
     wk+='<div class="wk"><div class="dn">'+DAYS[d]+'</div><div class="wins">'
-      +(mine.length?mine.map(function(w){
+      +(dayWins.length?dayWins.map(function(w){
           return '<span class="win"><b>'+hhmm(w.start_min)+' – '+hhmm(w.end_min)+'</b>'
             +'<span class="st">'+esc(w.store||'any store')+'</span>'
             +'<button class="x" data-del="'+w.id+'" title="Remove">×</button></span>';
-        }).join('')
-        :'<span style="color:var(--grey);font-weight:700;font-size:.82rem">Not available</span>')
-      +'<span class="addwin"><button class="btn sm" data-add="'+d+'">+ Add</button></span>'
-      +'</div></div>';
+        }).join(''):'<span style="color:var(--grey);font-weight:700;font-size:.82rem">Not available</span>')
+      +'<span class="addwin"><button class="btn sm" data-add="'+d+'">+ Add</button></span></div></div>';
   }
-  $('#view').innerHTML=
-    '<div class="card"><div class="sw"><button class="toggle'+(on?' on':'')+'" id="actTog"></button>'
-      +'<div><div class="ct" style="margin:0">'+(on?'Accepting interviews':'Paused — nothing is bookable')+'</div>'
-      +'<div class="ch" style="margin:0">Turn this off any time; your windows stay saved.</div></div></div></div>'
+  $('#view').innerHTML='<div class="card" style="display:flex;align-items:center;gap:12px">'
+      +'<button class="btn sm" id="backHosts">‹ Hosts</button>'
+      +'<div><div class="ct" style="margin:0">'+esc(who)+(mine?' (you)':'')+'</div>'
+      +'<div class="ch" style="margin:0">Availability &amp; rules — changes apply to new bookings immediately.</div></div></div>'
     +'<div class="card"><div class="ct">Weekly windows</div>'
-      +'<div class="ch">The only thing that decides when candidates can book you. Times are store-local.</div>'
-      +wk+'</div>'
-    +'<div class="card"><div class="ct">Slot rules</div><div class="ch">How your windows get chopped into bookable times.</div>'
+      +'<div class="ch">The only thing that decides when '+esc(who.split(' ')[0])+' can be booked. Times are store-local.</div>'+wk+'</div>'
+    +'<div class="card"><div class="ct">Slot rules</div>'
       +'<div class="cfg">'
-        +'<label>Interview length<input type="number" id="cSlot" min="10" max="180" step="5" value="'+((CFG&&CFG.slot_minutes)||30)+'"></label>'
-        +'<label>Gap after<input type="number" id="cBuf" min="0" max="120" step="5" value="'+((CFG&&CFG.buffer_minutes)!=null?CFG.buffer_minutes:15)+'"></label>'
-        +'<label>Min notice (hrs)<input type="number" id="cLead" min="0" max="168" value="'+((CFG&&CFG.lead_hours)!=null?CFG.lead_hours:12)+'"></label>'
-        +'<label>Book out (days)<input type="number" id="cHor" min="1" max="60" value="'+((CFG&&CFG.horizon_days)||21)+'"></label>'
-        +'<label>Max per day<input type="number" id="cMax" min="1" max="12" value="'+((CFG&&CFG.max_per_day)||4)+'"></label>'
-      +'</div>'
-      +'<div style="margin-top:14px"><button class="btn pri" id="saveCfg">Save rules</button></div></div>'
-    +'<div class="card"><div class="ct">Days off</div><div class="ch">Block a specific date — vacation, training, whatever. Your weekly windows stay untouched.</div>'
+        +'<label>Length (min)<input type="number" id="cSlot" min="10" max="180" step="5" value="'+(cfg.slot_minutes||30)+'"></label>'
+        +'<label>Gap after<input type="number" id="cBuf" min="0" max="120" step="5" value="'+(cfg.buffer_minutes!=null?cfg.buffer_minutes:15)+'"></label>'
+        +'<label>Min notice (hrs)<input type="number" id="cLead" min="0" max="168" value="'+(cfg.lead_hours!=null?cfg.lead_hours:12)+'"></label>'
+        +'<label>Book out (days)<input type="number" id="cHor" min="1" max="60" value="'+(cfg.horizon_days||21)+'"></label>'
+        +'<label>Max per day<input type="number" id="cMax" min="1" max="12" value="'+(cfg.max_per_day||4)+'"></label>'
+      +'</div><div style="margin-top:14px"><button class="btn pri" id="saveCfg">Save Rules</button></div></div>'
+    +'<div class="card"><div class="ct">Days off</div><div class="ch">Block a date — vacation, training. Weekly windows stay saved.</div>'
       +'<div class="wins" style="margin-bottom:12px">'
-      +(BLACKOUTS.length?BLACKOUTS.map(function(b){
+      +(blks.length?blks.map(function(b){
           return '<span class="win"><b>'+esc(new Date(b.block_date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}))+'</b>'
             +(b.reason?'<span class="st">'+esc(b.reason)+'</span>':'')
             +'<button class="x" data-delblk="'+b.id+'">×</button></span>';
         }).join(''):'<span style="color:var(--grey);font-weight:700;font-size:.82rem">None</span>')
-      +'</div>'
-      +'<div class="addwin"><input type="date" id="blkDate"><input id="blkWhy" placeholder="Reason (optional)" style="min-width:170px">'
-      +'<button class="btn sm" id="addBlk">Block this day</button></div></div>'
-    +'<datalist id="storeList">'+storeOpts+'</datalist>';
-
-  $('#actTog').onclick=async function(){
-    var next=!(CFG&&CFG.active!==false);
-    var r=await sb.from('interview_settings').upsert({staff_id:ME.id,active:next,updated_at:new Date().toISOString()},{onConflict:'staff_id'}).select().single();
-    if(r.error){toast(r.error.message,true);return;}
-    CFG=r.data; toast(next?'Accepting interviews':'Paused'); render();
-  };
+      +'</div><div class="addwin"><input type="date" id="blkDate"><input id="blkWhy" placeholder="Reason (optional)" style="min-width:170px">'
+      +'<button class="btn sm" id="addBlk">Block This Day</button></div></div>';
+  $('#backHosts').onclick=function(){HED=null;render();};
   $('#saveCfg').onclick=async function(){
-    var row={staff_id:ME.id,
-      slot_minutes:+$('#cSlot').value||30, buffer_minutes:+$('#cBuf').value||0,
-      lead_hours:+$('#cLead').value||0, horizon_days:+$('#cHor').value||21,
-      max_per_day:+$('#cMax').value||4, active:(CFG?CFG.active!==false:true),
-      updated_at:new Date().toISOString()};
+    var row={staff_id:HED,slot_minutes:+$('#cSlot').value||30,buffer_minutes:+$('#cBuf').value||0,
+      lead_hours:+$('#cLead').value||0,horizon_days:+$('#cHor').value||21,max_per_day:+$('#cMax').value||4,
+      active:cfg.active!==false,updated_at:new Date().toISOString()};
     var r=await sb.from('interview_settings').upsert(row,{onConflict:'staff_id'}).select().single();
     if(r.error){toast(r.error.message,true);return;}
-    CFG=r.data; toast('Rules saved');
+    var i=SETTINGS.indexOf(cfg); SETTINGS[i]=r.data; toast('Rules saved');
   };
-  Array.prototype.forEach.call(document.querySelectorAll('[data-add]'),function(b){
-    b.onclick=function(){ addWindow(+b.getAttribute('data-add'), b.parentElement); };
-  });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-del]'),function(b){
-    b.onclick=async function(){
-      var r=await sb.from('interview_availability').delete().eq('id',+b.getAttribute('data-del'));
-      if(r.error){toast(r.error.message,true);return;}
-      WINS=WINS.filter(function(w){return w.id!==+b.getAttribute('data-del');}); toast('Window removed'); render();
-    };
-  });
+  $all('[data-add]').forEach(function(b){b.onclick=function(){addWindow(+b.getAttribute('data-add'),b.parentElement);};});
+  $all('[data-del]').forEach(function(b){b.onclick=async function(){
+    var id=+b.getAttribute('data-del');
+    var r=await sb.from('interview_availability').delete().eq('id',id);
+    if(r.error){toast(r.error.message,true);return;}
+    WINS=WINS.filter(function(w){return w.id!==id;}); toast('Window removed'); render();
+  };});
   $('#addBlk').onclick=async function(){
     var d=$('#blkDate').value; if(!d){toast('Pick a date',true);return;}
-    var r=await sb.from('interview_blackouts').insert({staff_id:ME.id,block_date:d,reason:$('#blkWhy').value.trim()||null}).select().single();
+    var r=await sb.from('interview_blackouts').insert({staff_id:HED,block_date:d,reason:$('#blkWhy').value.trim()||null}).select().single();
     if(r.error){toast(r.error.message,true);return;}
     BLACKOUTS.push(r.data); toast('Day blocked'); render();
   };
-  Array.prototype.forEach.call(document.querySelectorAll('[data-delblk]'),function(b){
-    b.onclick=async function(){
-      var id=+b.getAttribute('data-delblk');
-      var r=await sb.from('interview_blackouts').delete().eq('id',id);
-      if(r.error){toast(r.error.message,true);return;}
-      BLACKOUTS=BLACKOUTS.filter(function(x){return x.id!==id;}); render();
-    };
-  });
+  $all('[data-delblk]').forEach(function(b){b.onclick=async function(){
+    var id=+b.getAttribute('data-delblk');
+    var r=await sb.from('interview_blackouts').delete().eq('id',id);
+    if(r.error){toast(r.error.message,true);return;}
+    BLACKOUTS=BLACKOUTS.filter(function(x){return x.id!==id;}); render();
+  };});
 }
 function addWindow(day,host){
-  var store=(ME.home_store||(STORES[0]&&STORES[0].store)||'');
+  var st=staffById(HED), store=(st&&st.home_store)||(STORES[0]&&STORES[0].store)||'';
   host.innerHTML='<span class="addwin">'
     +'<input type="time" id="nwS" value="14:00"> <span style="font-weight:700">to</span> <input type="time" id="nwE" value="16:00">'
     +'<select id="nwStore">'+STORES.map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===store?' selected':'')+'>'+esc(s.store)+'</option>';}).join('')+'</select>'
@@ -309,36 +541,33 @@ function addWindow(day,host){
   $('#nwSave').onclick=async function(){
     var s=toMin($('#nwS').value), e=toMin($('#nwE').value);
     if(!(e>s)){toast('End must be after start',true);return;}
-    var r=await sb.from('interview_availability').insert({staff_id:ME.id,store:$('#nwStore').value,weekday:day,start_min:s,end_min:e}).select().single();
+    var r=await sb.from('interview_availability').insert({staff_id:HED,store:$('#nwStore').value,weekday:day,start_min:s,end_min:e}).select().single();
     if(r.error){toast(r.error.message,true);return;}
     WINS.push(r.data); toast(DAYS[day]+' '+hhmm(s)+'–'+hhmm(e)+' added'); render();
   };
 }
 
-/* ---------- booking link ---------- */
-function renderLink(){
-  var mine=SITE+'/interview.html?h='+ME.id;
-  var any=SITE+'/interview.html';
-  var on=CFG&&CFG.active!==false;
-  var winCount=WINS.length;
-  $('#view').innerHTML='<div class="card"><div class="ct">Your booking link</div>'
-    +'<div class="ch">Send this to a candidate — they pick a time, we text and email the confirmation. No sign-in for them.</div>'
-    +'<div class="linkbox"><span style="flex:1">'+esc(mine)+'</span></div>'
-    +'<div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">'
-      +'<button class="btn pri" id="cpMine">🔗 Copy my link</button>'
-      +'<a class="btn" href="'+esc(mine)+'" target="_blank" style="text-decoration:none">Preview</a>'
-    +'</div></div>'
-    +'<div class="card"><div class="ct">Everyone\'s link</div>'
-    +'<div class="ch">Shows open times across every host who\'s accepting — good for a job posting.</div>'
+/* ================= Booking links ================= */
+function renderLinks(){
+  var any=location.origin+'/interview.html';
+  var rows=SETTINGS.filter(function(c){return staffById(c.staff_id);}).map(function(c){
+    var link=any+'?h='+c.staff_id;
+    return '<tr><td><span style="font-family:Nunito;font-weight:800">'+esc(hostName(c.staff_id))+'</span>'
+      +(c.active===false?' <span class="pill paused">Paused</span>':'')+'</td>'
+      +'<td style="font-size:.76rem;color:var(--dark-grey);font-weight:700;word-break:break-all">'+esc(link)+'</td>'
+      +'<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-cp="'+esc(link)+'">🔗 Copy</button> '
+      +'<a class="btn sm" style="text-decoration:none" href="'+esc(link)+'" target="_blank">Preview</a></td></tr>';
+  }).join('');
+  $('#view').innerHTML='<div class="card"><div class="ct">Shared link — anyone available</div>'
+    +'<div class="ch">Shows open times across every accepting host. Use this on job postings.</div>'
     +'<div class="linkbox"><span style="flex:1">'+esc(any)+'</span></div>'
-    +'<div style="margin-top:12px"><button class="btn" id="cpAny">🔗 Copy shared link</button></div></div>'
-    +(!on||!winCount?'<div class="card" style="border-color:#F6C9CA;background:#FFF8F8"><div class="ct" style="color:var(--red)">'
-      +(!winCount?'No weekly windows yet':'You\'re paused')+'</div><div class="ch" style="margin:0">'
-      +(!winCount?'Add at least one window under <b>My availability</b> or your link will show no times.'
-                 :'Nothing is bookable until you switch yourself back on under <b>My availability</b>.')
-      +'</div></div>':'');
-  $('#cpMine').onclick=function(){navigator.clipboard.writeText(mine).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});};
-  $('#cpAny').onclick=function(){navigator.clipboard.writeText(any).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});};
+    +'<div style="margin-top:12px"><button class="btn pri" data-cp="'+esc(any)+'">🔗 Copy Shared Link</button></div></div>'
+    +'<div class="card"><div class="ct">Per-host links</div>'
+    +'<div class="ch">A candidate on this link only sees that person\'s open times.</div>'
+    +'<table><thead><tr><th>Host</th><th>Link</th><th></th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="3"><div class="empty">No hosts yet — add one under Hosts.</div></td></tr>')+'</tbody></table></div>';
+  $all('[data-cp]').forEach(function(b){b.onclick=function(){
+    navigator.clipboard.writeText(b.getAttribute('data-cp')).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});};});
 }
 </script>
 </body>

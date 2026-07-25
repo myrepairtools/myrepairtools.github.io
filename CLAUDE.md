@@ -535,13 +535,25 @@ everyone), `interview_bookings` (random `token` = the candidate's capability URL
 booked|canceled|completed|no_show). **Slots are COMPUTED, never generated** — the
 `interviews` edge function derives availability − bookings − blackouts on every request, so
 there's no cron and nothing to backfill; `book` re-derives the slot server-side and refuses a
-posted time that isn't currently open (double-book returns `slot_taken`). Surfaces:
+posted time that isn't currently open (double-book returns `slot_taken`); `staff_book`
+(admin/manager/owner JWT) books on a host's behalf with ANY free-form time — only an
+overlap with that host's existing bookings refuses (lead/slot rules don't apply to staff).
+Surfaces:
 **`interview.html`** — public, no gates/nav (the token is the credential): month calendar →
 pick a day → that day's times → name/phone/email → booked; `?t=<token>` shows the candidate
 their booking with reschedule/cancel; `?h=<staff_id>` is one host's link, bare URL shows
-every accepting host. **`interviews.html`** (Employees nav, manager+) — Upcoming (mark
-done/no-show/cancel), My availability (weekly windows, slot rules, days off, pause toggle),
-Booking link (copy your link or the shared one). Confirmations: SMS from the store's own
+every accepting host. **`interviews.html`** (nav label **"Bookings"**, Employees, manager+) —
+the management surface, three tabs: **Calendar** (month-grid overview of every host's
+bookings — chips per day, day pane with Done/No-show/Cancel actions; the month label opens
+the pickers.js month popover — remember `CPRPickers.month()` OPENS immediately, so call it
+from the label's onclick, never at render); **Hosts** (who can get a booking: add any active
+staff as a host via `interview_settings` upsert, pause/resume/remove, and an inline per-host
+editor for weekly windows, slot rules, and days-off blackouts — admins edit anyone by RLS);
+**Booking Links** (shared + per-host copy buttons). The **"+ New Booking" modal** books for
+a specific host (pick an open slot OR any custom date/time) or "first available" (slot list
+across all accepting hosts), requiring at least one contact method — it calls `staff_book`,
+so confirmations + host/team notifications fire exactly like a self-serve booking.
+Confirmations: SMS from the store's own
 RingCentral line via `messaging`, email via Resend→**Gmail SMTP fallback** (only Gmail is
 configured today, so email works through that). A `interviews-remind-hourly` pg_cron
 (`?action=remind`, NOTIFY_SECRET) texts/emails each candidate once ~24h out. **Notifying the
