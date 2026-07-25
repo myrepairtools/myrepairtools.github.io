@@ -146,10 +146,12 @@ async function getValidToken(): Promise<string> {
       refresh_lock_at: null,
       updated_at: new Date().toISOString(),
     };
-    for (let w = 0; w < 3; w++) {
+    // exponential backoff (~7.5s max) — the old refresh token is already consumed
+    // at the provider, so losing this write kills the connection; ride out an API blip.
+    for (let w = 0; w < 5; w++) {
       const res = await admin.from("integration_tokens").update(rotated).eq("provider", PROVIDER);
       if (!res.error) return d.access_token as string;
-      await sleep(500);
+      await sleep(500 * Math.pow(2, w));
     }
     console.error("qbtime: FAILED to persist rotated refresh token — connection dies on next refresh");
     await alertRefreshDead("rotated token could not be saved to the database", tok.meta);
