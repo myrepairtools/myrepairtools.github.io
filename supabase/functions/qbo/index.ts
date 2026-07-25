@@ -105,6 +105,7 @@ async function checkState(state: string | null) {
 
 // Exchange/refresh both hit the same bearer endpoint with HTTP Basic auth.
 async function tokenRequest(form: URLSearchParams) {
+  // 30s cap so a hung token call can never outlive the 90s refresh-claim lease.
   const r = await fetch(TOKEN_URL, {
     method: "POST",
     headers: {
@@ -113,41 +114,115 @@ async function tokenRequest(form: URLSearchParams) {
       Accept: "application/json",
     },
     body: form.toString(),
+    signal: AbortSignal.timeout(30_000),
   });
   const d = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, d };
 }
 
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
+// System-tier alert to the owners when a refresh definitively dies — so a broken
+// connection surfaces in minutes, not days. Deduped to once per 20h via meta.
+async function alertRefreshDead(detail: string, meta: Record<string, unknown> | null) {
+  try {
+    const m = (meta || {}) as Record<string, unknown>;
+    const last = new Date(String(m.last_refresh_alert_at || 0)).getTime() || 0;
+    if (Date.now() - last < 20 * 3600 * 1000) return;
+    // record the error for the Settings status card regardless of alert delivery
+    await admin.from("integration_tokens").update({
+      meta: { ...m, last_refresh_error: detail.slice(0, 300) },
+    }).eq("provider", PROVIDER);
+    const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
+    if (!NOTIFY_SECRET) return;
+    const { data: owners } = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
+    const ids = (owners || []).map((o) => o.id as number);
+    if (!ids.length) return;
+    const r = await fetch(SB_URL + "/functions/v1/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + SERVICE, apikey: SERVICE },
+      body: JSON.stringify({
+        action: "send", secret: NOTIFY_SECRET, kind: "system",
+        title: "QuickBooks Online disconnected",
+        body: "Token refresh failed (" + detail.slice(0, 140) + "). Reconnect in Settings → Integrations → QuickBooks Online.",
+        link: "settings.html#integ", staff_ids: ids,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    // dedupe stamp only AFTER a delivered alert — a failed send must retry next time
+    if (r.ok) {
+      await admin.from("integration_tokens").update({
+        meta: { ...m, last_refresh_alert_at: new Date().toISOString(), last_refresh_error: detail.slice(0, 300) },
+      }).eq("provider", PROVIDER);
+    }
+  } catch (_) { /* alerting must never break the request */ }
+}
+
 // Returns a fresh { access_token, realm_id } or null when not connected / refresh dead.
 // Refreshes when within 3 minutes of expiry — and CRITICALLY persists the ROTATED
 // refresh token Intuit returns (skip that and the connection dies within 100 days).
+//
+// SINGLE-FLIGHT: Intuit rotates refresh tokens, so two concurrent refreshes
+// spending the same stored token can leave a consumed token in the DB (the race
+// that killed QB Time on 2026-07-23 — expenses.html alone fires several qbo calls
+// at once). Only the claim_token_refresh winner (docs/sql/token-refresh-lock.sql)
+// may call the token endpoint; losers keep using the current access token or
+// briefly wait for the winner's rotation to land.
 async function getToken(): Promise<{ access_token: string; realm_id: string } | null> {
-  const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
-  if (!tok || !tok.access_token || !tok.realm_id) return null;
-  const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
-  if (Date.now() < exp - 3 * 60 * 1000) return { access_token: tok.access_token, realm_id: String(tok.realm_id) };
-  if (!tok.refresh_token) return null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
+    if (!tok || !tok.access_token || !tok.realm_id) return null;
+    const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
+    if (Date.now() < exp - 3 * 60 * 1000) return { access_token: tok.access_token, realm_id: String(tok.realm_id) };
+    if (!tok.refresh_token) return null;
 
-  const { ok, d } = await tokenRequest(new URLSearchParams({
-    grant_type: "refresh_token", refresh_token: tok.refresh_token,
-  }));
-  if (!ok || !d.access_token) return null;
-  const expires_at = new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString();
-  // Rotation — Intuit invalidates the old refresh token; if the NEW one is lost
-  // the connection silently dies within 100 days. Persist with one retry and
-  // scream to the logs if both writes fail.
-  const rotated = {
-    access_token: d.access_token,
-    refresh_token: d.refresh_token || tok.refresh_token,
-    expires_at,
-    updated_at: new Date().toISOString(),
-  };
-  let w = await admin.from("integration_tokens").update(rotated).eq("provider", PROVIDER);
-  if (w.error) {
-    w = await admin.from("integration_tokens").update(rotated).eq("provider", PROVIDER);
-    if (w.error) console.error("qbo: FAILED to persist rotated refresh token — connection will die:", w.error.message);
+    // If the claim RPC itself errors (e.g. dropped by a migration), refresh WITHOUT
+    // the claim — the old racy behavior beats never refreshing until the token dies.
+    const { data: won, error: claimErr } = await admin.rpc("claim_token_refresh", { p_provider: PROVIDER, p_seen_rt: tok.refresh_token });
+    if (!won && !claimErr) {
+      // Another instance holds the refresh (or already rotated the token).
+      if (Date.now() < exp) return { access_token: tok.access_token, realm_id: String(tok.realm_id) };
+      await sleep(1200); continue;                    // hard-expired: wait for the winner, re-read
+    }
+
+    let ok: boolean, status: number, d: Record<string, unknown>;
+    try {
+      ({ ok, status, d } = await tokenRequest(new URLSearchParams({
+        grant_type: "refresh_token", refresh_token: tok.refresh_token,
+      })));
+    } catch (_) {
+      // Network-level failure talking to Intuit — release the claim and limp.
+      await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
+      if (Date.now() < exp) return { access_token: tok.access_token, realm_id: String(tok.realm_id) };
+      return null;
+    }
+    if (!ok || !d.access_token) {
+      await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
+      // 5xx/network-ish = transient, stay quiet; 4xx = the token is really dead.
+      if (status >= 400 && status < 500) await alertRefreshDead(JSON.stringify(d).slice(0, 200) || ("http_" + status), tok.meta);
+      if (Date.now() < exp) return { access_token: tok.access_token, realm_id: String(tok.realm_id) };
+      return null;
+    }
+    const expires_at = new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString();
+    // Persist the rotated pair — losing it kills the connection, so retry hard.
+    const rotated = {
+      access_token: d.access_token,
+      refresh_token: d.refresh_token || tok.refresh_token,
+      expires_at,
+      meta: { ...((tok.meta || {}) as Record<string, unknown>), last_refresh_error: null },
+      refresh_lock_at: null,
+      updated_at: new Date().toISOString(),
+    };
+    for (let w = 0; w < 3; w++) {
+      const res = await admin.from("integration_tokens").update(rotated).eq("provider", PROVIDER);
+      if (!res.error) return { access_token: d.access_token, realm_id: String(tok.realm_id) };
+      await sleep(500);
+    }
+    console.error("qbo: FAILED to persist rotated refresh token — connection dies on next refresh");
+    await alertRefreshDead("rotated token could not be saved to the database", tok.meta);
+    return { access_token: d.access_token, realm_id: String(tok.realm_id) };
   }
-  return { access_token: d.access_token, realm_id: String(tok.realm_id) };
+  return null;
 }
 
 // ---- QBO API helpers --------------------------------------------------------

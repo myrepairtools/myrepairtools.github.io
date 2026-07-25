@@ -246,6 +246,22 @@ feeds the dropdown). Deposits deliberately stay in QBO's bank
 feed (recorded there as Transfers to Cash on Hand — the modal shows the total to
 match). Schema: docs/sql/cash-journal-schema.sql + cash-journal-qbo.sql.
 
+**Intuit token refresh is SINGLE-FLIGHT (qbtime-sync + qbo):** TSheets refresh
+tokens are single-use and Intuit rotates QBO's — two concurrent refreshes spending
+the same stored token corrupt the connection (that's what killed QB Time
+2026-07-23: the timeoff-sync-15min + qbtime-timesheets-hourly crons fired in the
+same second inside the refresh window, and the old code never checked its persist
+write). Both functions now refresh only after winning the atomic
+`claim_token_refresh(provider, seen_refresh_token)` RPC
+(docs/sql/token-refresh-lock.sql — claim succeeds only if the stored refresh token
+still equals the one read and no live claim exists, 90s stale takeover); losers
+keep using the current access token (the early-refresh window guarantees it's
+valid) or briefly wait+re-read when hard-expired. The rotated pair persists with
+retries, and a **definitive refresh failure fires a system-tier alert to owners**
+(20h dedupe via `integration_tokens.meta.last_refresh_alert_at`) so a dead
+connection surfaces in minutes, not days. Any new rotating-token integration must
+reuse this claim pattern — never refresh unguarded.
+
 **Personal-device sessions:** pin-gate's 5-min idle auto-sign-out is SKIPPED in
 standalone display mode (Added-to-Home-Screen apps) — an installed app is a personal
 device whose lock screen is the security boundary, and iOS firing the expired idle

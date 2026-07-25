@@ -45,35 +45,117 @@ async function callerStaff(req: Request): Promise<Record<string, unknown> | null
   return s || null;
 }
 
-// Returns a valid access token, refreshing (and persisting) if it's near expiry.
-async function getValidToken(): Promise<string> {
-  const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
-  if (!tok || !tok.access_token) throw new Error("not_connected");
-  const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
-  const soon = Date.now() > exp - 2 * 24 * 3600 * 1000; // refresh within 2 days of expiry
-  if (!soon) return tok.access_token;
-  if (!tok.refresh_token) throw new Error("no_refresh_token");
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
-  const form = new URLSearchParams({
-    grant_type: "refresh_token", client_id: CLIENT_ID, client_secret: CLIENT_SECRET, refresh_token: tok.refresh_token,
-  });
-  const r = await fetch(GRANT, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.access_token) {
-    // Surface Intuit's real reason (invalid_grant = reconnect needed, etc.) instead of "[object Object]".
-    const why = typeof d?.error === "string" ? d.error
-      : (d?.error_description || (d && Object.keys(d).length ? JSON.stringify(d) : "") || ("http_" + r.status));
-    throw new Error("refresh_failed: " + why);
+// System-tier alert to the owners when a refresh definitively dies — so a broken
+// connection surfaces in minutes, not days. Deduped to once per 20h via meta.
+async function alertRefreshDead(detail: string, meta: Record<string, unknown> | null) {
+  try {
+    const m = (meta || {}) as Record<string, unknown>;
+    const last = new Date(String(m.last_refresh_alert_at || 0)).getTime() || 0;
+    if (Date.now() - last < 20 * 3600 * 1000) return;
+    // record the error for the Settings status card regardless of alert delivery
+    await admin.from("integration_tokens").update({
+      meta: { ...m, last_refresh_error: detail.slice(0, 300) },
+    }).eq("provider", PROVIDER);
+    const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
+    if (!NOTIFY_SECRET) return;
+    const { data: owners } = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
+    const ids = (owners || []).map((o) => o.id as number);
+    if (!ids.length) return;
+    const r = await fetch(SB_URL + "/functions/v1/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + SERVICE, apikey: SERVICE },
+      body: JSON.stringify({
+        action: "send", secret: NOTIFY_SECRET, kind: "system",
+        title: "QuickBooks Time disconnected",
+        body: "Token refresh failed (" + detail.slice(0, 140) + "). Reconnect in Settings → Integrations → QuickBooks Time.",
+        link: "settings.html#integ", staff_ids: ids,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    // dedupe stamp only AFTER a delivered alert — a failed send must retry next time
+    if (r.ok) {
+      await admin.from("integration_tokens").update({
+        meta: { ...m, last_refresh_alert_at: new Date().toISOString(), last_refresh_error: detail.slice(0, 300) },
+      }).eq("provider", PROVIDER);
+    }
+  } catch (_) { /* alerting must never break the request */ }
+}
+
+// Returns a valid access token, refreshing (and persisting) when it's near expiry.
+//
+// SINGLE-FLIGHT: TSheets refresh tokens are single-use — two concurrent refreshes
+// spending the same stored token leave a consumed token in the DB and the
+// connection dies with "That refresh_token is invalid, stop trying" (what took
+// QB Time down 2026-07-23 00:00, when the timeoff-sync-15min and
+// qbtime-timesheets-hourly crons fired in the same second inside the refresh
+// window). Only the claim_token_refresh winner (docs/sql/token-refresh-lock.sql)
+// may call the grant endpoint; losers keep using the current access token, which
+// the 2-day proactive window guarantees is still valid.
+async function getValidToken(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
+    if (!tok || !tok.access_token) throw new Error("not_connected");
+    const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
+    if (Date.now() < exp - 2 * 24 * 3600 * 1000) return tok.access_token; // plenty of life left
+    if (!tok.refresh_token) throw new Error("no_refresh_token");
+
+    // If the claim RPC itself errors (e.g. dropped by a migration), refresh WITHOUT
+    // the claim — the old racy behavior beats never refreshing until the token dies.
+    const { data: won, error: claimErr } = await admin.rpc("claim_token_refresh", { p_provider: PROVIDER, p_seen_rt: tok.refresh_token });
+    if (!won && !claimErr) {
+      // Another instance holds the refresh (or already rotated the token).
+      if (Date.now() < exp) return tok.access_token;  // still valid — let the winner rotate
+      await sleep(1200); continue;                    // hard-expired: wait for the winner, re-read
+    }
+
+    let d: Record<string, unknown>;
+    try {
+      const form = new URLSearchParams({
+        grant_type: "refresh_token", client_id: CLIENT_ID, client_secret: CLIENT_SECRET, refresh_token: tok.refresh_token,
+      });
+      // 30s cap so a hung grant can never outlive the 90s claim lease (a takeover
+      // while the winner is still mid-flight would reintroduce the double-spend).
+      const r = await fetch(GRANT, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString(), signal: AbortSignal.timeout(30_000) });
+      d = await r.json().catch(() => ({})) as Record<string, unknown>;
+      if (!r.ok || !d.access_token) {
+        // Surface TSheets' real reason (invalid = reconnect needed, etc.).
+        const why = typeof d?.error === "string" ? d.error
+          : (String(d?.error_description || "") || (d && Object.keys(d).length ? JSON.stringify(d) : "") || ("http_" + r.status));
+        await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
+        // 5xx = TSheets having a moment, stay quiet; <500 = the token is really dead.
+        if (r.status < 500) await alertRefreshDead(String(why), tok.meta);
+        if (Date.now() < exp) return tok.access_token; // limp on the current token while it lasts
+        throw new Error("refresh_failed: " + why);
+      }
+    } catch (e) {
+      if (String((e as Error).message).startsWith("refresh_failed")) throw e;
+      // Network blip talking to TSheets — release the claim so another attempt can run.
+      await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
+      if (Date.now() < exp) return tok.access_token;
+      throw new Error("refresh_failed: " + String((e as Error).message));
+    }
+
+    // Persist the rotated pair — losing it kills the connection, so retry hard.
+    const rotated = {
+      access_token: d.access_token as string,
+      refresh_token: (d.refresh_token as string) || tok.refresh_token,
+      expires_at: new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString(),
+      meta: { ...((tok.meta || {}) as Record<string, unknown>), scope: d.scope, token_type: d.token_type, client_url: d.client_url, last_refresh_error: null },
+      refresh_lock_at: null,
+      updated_at: new Date().toISOString(),
+    };
+    for (let w = 0; w < 3; w++) {
+      const res = await admin.from("integration_tokens").update(rotated).eq("provider", PROVIDER);
+      if (!res.error) return d.access_token as string;
+      await sleep(500);
+    }
+    console.error("qbtime: FAILED to persist rotated refresh token — connection dies on next refresh");
+    await alertRefreshDead("rotated token could not be saved to the database", tok.meta);
+    return d.access_token as string; // this request can still proceed
   }
-  const expires_at = new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString();
-  await admin.from("integration_tokens").update({
-    access_token: d.access_token,
-    refresh_token: d.refresh_token || tok.refresh_token,
-    expires_at,
-    meta: { scope: d.scope, token_type: d.token_type, client_url: d.client_url },
-    updated_at: new Date().toISOString(),
-  }).eq("provider", PROVIDER);
-  return d.access_token;
+  throw new Error("refresh_busy");
 }
 
 async function qbtGet(path: string, token: string, params?: Record<string, string | number>) {
