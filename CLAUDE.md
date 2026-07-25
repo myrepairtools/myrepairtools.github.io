@@ -571,8 +571,12 @@ across all accepting hosts), requiring at least one contact method — it calls 
 so confirmations + host/team notifications fire exactly like a self-serve booking.
 Confirmations: SMS from the store's own
 RingCentral line via `messaging`, email via Resend→**Gmail SMTP fallback** (only Gmail is
-configured today, so email works through that). A `interviews-remind-hourly` pg_cron
-(`?action=remind`, NOTIFY_SECRET) texts/emails each candidate once ~24h out. **Notifying the
+configured today, so email works through that). **Reminder matrix** — the
+`interviews-remind-hourly` pg_cron (now `*/15`; `?action=remind`, NOTIFY_SECRET) runs four
+independent passes, each with its own booking flag so nothing double-fires: candidate
+text/email at ~24h (window 20–26h before start — same-day bookings skip it, their
+confirmation just went out) and again ~1h out (window 40–75min, with store address);
+the HOST gets personal alerts (kind `interview`) at the same 24h and 1h marks. **Notifying the
 team:** the HOST gets a personal alert (alerts fanout, kind `interview` — a Notification, push
 on/text opt-in, in profile.html's prefs matrix) on book/cancel/reschedule, AND the routed rules
 `interviews.booked` / `interviews.canceled` fire for the team (Settings › Notifications).

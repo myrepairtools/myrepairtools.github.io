@@ -82,6 +82,9 @@ function prettyWhen(at: Date): string {
     hour: "numeric", minute: "2-digit", hour12: true,
   }).format(at);
 }
+function prettyTime(at: Date): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true }).format(at);
+}
 
 const token = () => crypto.randomUUID().replace(/-/g, "").slice(0, 22);
 const e164 = (v: string) => {
@@ -487,33 +490,80 @@ Deno.serve(async (req) => {
 
     // ---- reminders (cron): text tomorrow's candidates once ----
     if (action === "remind") {
+      // Reminder matrix (cron interviews-remind, */15):
+      //   candidate: confirmation at booking (elsewhere) + 24h + 1h, both with details
+      //   host:      new-booking alert (elsewhere) + 24h + 1h personal alerts
+      // Windows are wide enough that a */15 cadence can never skip one; each send
+      // has its own flag so nothing double-fires and channels stay independent.
       if (!NOTIFY_SECRET || (body.secret || url.searchParams.get("secret")) !== NOTIFY_SECRET) {
         return json({ ok: false, error: "forbidden" }, 403);
       }
       const now = Date.now();
+      const H = 3600000;
+      // one pull covers every window; a booking made <20h out gets no 24h reminder
+      // (its confirmation just went out) and <40min out gets no 1h reminder.
       const { data } = await admin.from("interview_bookings").select("*")
-        .eq("status", "booked").eq("reminded_24h", false)
+        .eq("status", "booked")
         .gte("starts_at", new Date(now).toISOString())
-        .lte("starts_at", new Date(now + 26 * 3600000).toISOString());
-      let sent = 0;
+        .lte("starts_at", new Date(now + 26 * H).toISOString())
+        .or("reminded_24h.eq.false,reminded_1h.eq.false,host_reminded_24h.eq.false,host_reminded_1h.eq.false");
+      const counts = { cand_24h: 0, cand_1h: 0, host_24h: 0, host_1h: 0 };
       for (const b of (data || []) as any[]) {
+        const startMs = new Date(b.starts_at).getTime();
+        const in24hWindow = startMs - now >= 20 * H && startMs - now <= 26 * H;
+        const in1hWindow = startMs - now >= 40 * 60000 && startMs - now <= 75 * 60000;
+        if (!in24hWindow && !in1hWindow) continue;
         const { data: host } = await admin.from("staff").select("display_name").eq("id", b.staff_id).maybeSingle();
+        const hostName = (host as any)?.display_name || "us";
         const when = prettyWhen(new Date(b.starts_at));
+        const time = prettyTime(new Date(b.starts_at));
         const link = SITE + "/interview.html?t=" + b.token;
-        if (b.candidate_phone) {
-          await sendSms(b.candidate_phone,
-            "Reminder: your CPR interview is " + when + (b.store ? " at " + b.store : "")
-            + " with " + ((host as any)?.display_name || "us") + ". Can't make it? " + link, b.store);
+
+        if (in24hWindow && !b.reminded_24h) {
+          if (b.candidate_phone) {
+            await sendSms(b.candidate_phone,
+              "Reminder: your CPR interview is " + when + (b.store ? " at " + b.store : "")
+              + " with " + hostName + ". Can't make it? " + link, b.store);
+          }
+          if (b.candidate_email) {
+            await sendEmail(b.candidate_email, "Reminder: your CPR interview " + when,
+              candidateText(b, hostName, await storeAddress(b.store), link,
+                "A quick reminder about your interview tomorrow."));
+          }
+          await admin.from("interview_bookings").update({ reminded_24h: true }).eq("id", b.id);
+          counts.cand_24h++;
         }
-        if (b.candidate_email) {
-          await sendEmail(b.candidate_email, "Reminder: your CPR interview " + when,
-            candidateText(b, (host as any)?.display_name || "", await storeAddress(b.store), link,
-              "A quick reminder about your interview tomorrow."));
+        if (in1hWindow && !b.reminded_1h) {
+          const addr = await storeAddress(b.store);
+          if (b.candidate_phone) {
+            await sendSms(b.candidate_phone,
+              "See you soon — your CPR interview is at " + time + " today"
+              + (b.store ? " at " + b.store + (addr ? " (" + addr + ")" : "") : "")
+              + " with " + hostName + ". Details: " + link, b.store);
+          }
+          if (b.candidate_email) {
+            await sendEmail(b.candidate_email, "Your CPR interview is in about an hour",
+              candidateText(b, hostName, addr, link, "Your interview is coming up in about an hour — see you soon!"));
+          }
+          await admin.from("interview_bookings").update({ reminded_1h: true }).eq("id", b.id);
+          counts.cand_1h++;
         }
-        await admin.from("interview_bookings").update({ reminded_24h: true }).eq("id", b.id);
-        sent++;
+        if (in24hWindow && !b.host_reminded_24h) {
+          await notifyHost(Number(b.staff_id), "Interview tomorrow: " + b.candidate_name,
+            when + (b.store ? " at " + b.store : "")
+            + (b.position ? " · " + b.position : "")
+            + (b.candidate_phone ? "\n" + b.candidate_phone : ""));
+          await admin.from("interview_bookings").update({ host_reminded_24h: true }).eq("id", b.id);
+          counts.host_24h++;
+        }
+        if (in1hWindow && !b.host_reminded_1h) {
+          await notifyHost(Number(b.staff_id), "Interview in ~1 hour: " + b.candidate_name,
+            time + (b.store ? " at " + b.store : "") + (b.position ? " · " + b.position : ""));
+          await admin.from("interview_bookings").update({ host_reminded_1h: true }).eq("id", b.id);
+          counts.host_1h++;
+        }
       }
-      return json({ ok: true, reminded: sent });
+      return json({ ok: true, ...counts });
     }
 
     return json({ ok: false, error: "unknown_action" }, 400);

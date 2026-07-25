@@ -99,3 +99,10 @@ drop policy if exists ivb_u on public.interview_bookings;
 create policy ivb_u on public.interview_bookings for update to authenticated
   using (is_admin() or staff_id = (select id from public.staff where auth_uid = auth.uid()))
   with check (is_admin() or staff_id = (select id from public.staff where auth_uid = auth.uid()));
+
+-- 2026-07-25: full reminder matrix (candidate 24h existed; add candidate 1h and
+-- host 24h/1h — each send has its own flag so channels never double-fire).
+alter table public.interview_bookings
+  add column if not exists reminded_1h boolean not null default false,
+  add column if not exists host_reminded_24h boolean not null default false,
+  add column if not exists host_reminded_1h boolean not null default false;
