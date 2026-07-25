@@ -63,6 +63,16 @@ brand CSS custom properties defined in `styles.css`, so it matches:
 </div>
 ```
 
+## Icons — Lucide SVGs, never emoji (owner call 2026-07-25)
+
+UI chrome (page titles, section headings, buttons, tabs, tiles, nav rows) uses
+**inline Lucide SVG icons** — stroke `currentColor`, width 2, sized 16–22px —
+never emoji. The site's shared glyph source is nav.js's `NAV_SVG` map, exposed
+as `window.CPRNavIcon(name, size)`; in React surfaces inline the same Lucide
+markup (or `lucide-react`) so glyphs match. No explainer/subtitle lines under
+page titles unless explicitly asked. Emoji remain fine inside *content* (posts,
+messages, article bodies) — this rule is about UI chrome.
+
 ## Where the truth lives
 
 - **Tokens, fonts, and every component class**: `_ds/<folder>/styles.css` (read it

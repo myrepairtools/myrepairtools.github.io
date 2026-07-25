@@ -571,6 +571,10 @@
     var s = size || 17;
     return '<svg viewBox="0 0 24 24" width="'+s+'" height="'+s+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:0 auto">'+NAV_SVG[name]+'</svg>';
   }
+  // Shared glyph source for page chrome too (h1s, section titles) — pages call
+  // window.CPRNavIcon('calendar-days', 22) instead of pasting emoji. Owner call
+  // 2026-07-25: new UI uses Lucide icons, not emoji.
+  window.CPRNavIcon = navIcon;
 
   var MARK = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg>';
 
