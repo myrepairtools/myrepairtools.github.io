@@ -800,7 +800,7 @@ async function initAuth(){
 
 /* ===== data ===== */
 async function loadStores(){
-  var r=await sb.from('stores').select('store,rq_name,address,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order');
+  var r=await sb.from('stores').select('store,rq_name,address,phone,email,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order');
   STORES=r.error?[]:(r.data||[]);
 }
 var STAFF_ERR=false;
@@ -2326,11 +2326,11 @@ function openStore(store){
   var s=STORES.filter(function(x){return x.store===store;})[0];if(!s)return;
   var nz=function(v,d){return v==null?d:v;};
   MOPEN={type:'store',isNew:false,draft:{store:s.store,rq_name:s.rq_name||'',display_order:s.display_order==null?0:s.display_order,active:!!s.active,color:s.color||'#4FB0E3',
-    address:s.address||'',
+    address:s.address||'',phone:s.phone||'',email:s.email||'',
     min_staff:nz(s.min_staff,2),min_mgr:nz(s.min_mgr,1),we_min_staff:nz(s.we_min_staff,2),we_min_mgr:nz(s.we_min_mgr,1)}};
   renderModal();
 }
-function openAddStore(){MOPEN={type:'store',isNew:true,draft:{store:'',rq_name:'',address:'',display_order:(STORES.length?Math.max.apply(null,STORES.map(function(s){return s.display_order||0;}))+1:1),active:true,color:'#4FB0E3',min_staff:2,min_mgr:1,we_min_staff:2,we_min_mgr:1}};renderModal();}
+function openAddStore(){MOPEN={type:'store',isNew:true,draft:{store:'',rq_name:'',address:'',phone:'',email:'',display_order:(STORES.length?Math.max.apply(null,STORES.map(function(s){return s.display_order||0;}))+1:1),active:true,color:'#4FB0E3',min_staff:2,min_mgr:1,we_min_staff:2,we_min_mgr:1}};renderModal();}
 function storeModalHtml(){
   var d=MOPEN.draft;
   return '<div class="modal-back" data-close></div><div class="modal sm"><div class="modal-hd"><div class="t">'+(MOPEN.isNew?'New store':'Edit '+esc(d.store))+'</div><button class="modal-x" data-close>×</button></div>'
@@ -2339,7 +2339,9 @@ function storeModalHtml(){
      +(MOPEN.isNew?'':'<div class="note">The display key is joined on by staff &amp; cash data — renaming it requires a coordinated migration, so it’s fixed here.</div>')
      +'<div class="f"><label>RepairQ name</label><input data-k="rq_name" value="'+esc(d.rq_name)+'" placeholder="CPR Beaverton OR"></div>'
      +'<div class="f" style="margin-top:12px"><label>Street address</label><input data-k="address" value="'+esc(d.address||'')+'" placeholder="1122 Willamette St, Eugene, OR 97401"></div>'
-     +'<div class="note" style="margin:-2px 0 0">Shown to candidates in interview confirmations (text + email), so they know where to show up.</div>'
+     +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Phone</label><input data-k="phone" value="'+esc(d.phone||'')+'" placeholder="(541) 914-1230" inputmode="tel"></div>'
+       +'<div class="f"><label>Email</label><input data-k="email" value="'+esc(d.email||'')+'" placeholder="eugene@…" inputmode="email"></div></div>'
+     +'<div class="note" style="margin:-2px 0 0">Address, phone, and email are shown to candidates on the booking page and in interview confirmations (text + email), so they know where to show up and how to reach the store.</div>'
      +'<div class="grid2" style="margin-top:12px"><div class="f"><label>Display order</label><input type="number" data-k="display_order" value="'+(d.display_order)+'"></div>'
        +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Inactive</option></select></div></div>'
      +'<div class="f" style="margin-top:12px"><label>Schedule color</label><div style="display:flex;align-items:center;gap:10px"><input type="color" data-k="color" value="'+esc(d.color||'#4FB0E3')+'" style="width:48px;height:38px;padding:2px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;background:#fff"><span class="note" style="margin:0">Used for this store on the schedule grid &amp; legend.</span></div></div>'
@@ -2360,7 +2362,8 @@ async function saveStore(){
   if(!String(d.store).trim()){toast('Display name is required',true);return;}
   var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
   var r;
-  var staff={min_staff:d.min_staff,min_mgr:d.min_mgr,we_min_staff:d.we_min_staff,we_min_mgr:d.we_min_mgr,address:(d.address||'').trim()||null};
+  var staff={min_staff:d.min_staff,min_mgr:d.min_mgr,we_min_staff:d.we_min_staff,we_min_mgr:d.we_min_mgr,
+    address:(d.address||'').trim()||null,phone:(d.phone||'').trim()||null,email:(d.email||'').trim()||null};
   if(MOPEN.isNew) r=await sb.from('stores').insert(Object.assign({store:String(d.store).trim(),rq_name:d.rq_name||null,display_order:d.display_order,active:d.active,color:d.color||null},staff));
   else r=await sb.from('stores').update(Object.assign({rq_name:d.rq_name||null,display_order:d.display_order,active:d.active,color:d.color||null},staff)).eq('store',d.store);
   if(r.error){toast(r.error.message||'Save failed (owner-only?)',true);if(btn)btn.disabled=false;return;}

@@ -101,7 +101,7 @@ these when adding UI so a new tool looks native.
   replaceState, and owner-gates integ/roles). settings.html's own tab strip is hidden
   (kept in the DOM so bindings stay harmless); a dynamic per-section header renders in its
   place. The nav Settings pane is the only section switcher — don't add page-level ones.
-  The Locations tab manages the `stores` table (RQ name, color, active); the canonical
+  The Locations tab manages the `stores` table (RQ name, color, active, address/phone/email); the canonical
   cross-tool store list still lives in `assets/locations.js`.
   **Admin-page access pattern:** an admin page that manages a front-end tool (Cash Admin,
   Schedule Admin, Task Admin) is reached from an **`.adminbtn` button in the header of the
@@ -639,8 +639,17 @@ the HOST gets personal alerts (kind `interview`) at the same 24h and 1h marks. *
 team:** the HOST gets a personal alert (alerts fanout, kind `interview` — a Notification, push
 on/text opt-in, in profile.html's prefs matrix) on book/cancel/reschedule, AND the routed rules
 `interviews.booked` / `interviews.canceled` fire for the team (Settings › Notifications).
-`stores.address` (edited in Settings → Locations) is what puts the street address in the
-candidate's confirmation — **blank until someone fills it in; never guess a store address.**
+**Store contact info** (`stores.address/phone/email`, edited in Settings → Locations;
+docs/sql/2026-07-26-stores-contact.sql) feeds the whole candidate surface: the public
+page shows the CPR logo (assets/images/CPRLogo_NoAssurant_White.svg) and a per-day
+location box (which store the interview is at + address + tel/mailto links — a
+mixed-store day tags each time with its store instead), confirmations (text + email)
+carry the address + store phone via `smsWhere`/`storeInfo`, the `slots` response
+includes a `stores` contact map, and the confirmation/booking view offers
+**Add to Calendar** (client-built .ics download + Google Calendar template link).
+The three stores' address + phone were filled from their public listings (verified
+against `gbp_locations.phone`); email is **blank until the owner fills it in — never
+guess store contact info.**
 
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all

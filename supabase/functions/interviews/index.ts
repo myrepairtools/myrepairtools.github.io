@@ -257,18 +257,32 @@ async function notifyTeam(eventKey: string, subject: string, text: string) {
     });
   } catch { /* best effort */ }
 }
-async function storeAddress(store: string | null): Promise<string> {
-  if (!store) return "";
+type StoreInfo = { address: string; phone: string; email: string };
+async function storeInfo(store: string | null): Promise<StoreInfo> {
+  const none = { address: "", phone: "", email: "" };
+  if (!store) return none;
   try {
-    const { data } = await admin.from("stores").select("store, address").eq("store", store).maybeSingle();
-    return (data as any)?.address || "";
-  } catch { return ""; }
+    const { data } = await admin.from("stores").select("store, address, phone, email").eq("store", store).maybeSingle();
+    return {
+      address: (data as any)?.address || "",
+      phone: (data as any)?.phone || "",
+      email: (data as any)?.email || "",
+    };
+  } catch { return none; }
 }
-function candidateText(b: any, hostName: string, addr: string, link: string, lead: string): string {
+// the "(495 W 7th Ave …, (541) 914-1230)" tail for confirmation texts
+function smsWhere(store: string | null, si: StoreInfo): string {
+  if (!store) return "";
+  const bits = [si.address, si.phone].filter(Boolean).join(" · ");
+  return " at " + store + (bits ? " (" + bits + ")" : "");
+}
+function candidateText(b: any, hostName: string, si: StoreInfo, link: string, lead: string): string {
   return lead + "\n\n"
     + "When: " + prettyWhen(new Date(b.starts_at)) + "\n"
     + "Who: " + hostName + "\n"
-    + (b.store ? "Where: " + b.store + (addr ? "\n" + addr : "") + "\n" : "")
+    + (b.store ? "Where: " + b.store + (si.address ? "\n" + si.address : "") + "\n" : "")
+    + (si.phone ? "Store phone: " + si.phone + "\n" : "")
+    + (si.email ? "Store email: " + si.email + "\n" : "")
     + "\nNeed to change it? " + link
     + "\n\n— CPR Cell Phone Repair";
 }
@@ -314,7 +328,17 @@ Deno.serve(async (req) => {
       const host = url.searchParams.get("host");
       const store = url.searchParams.get("store");
       const slots = await openSlots(host ? Number(host) : null, store || null);
-      return json({ slots, tz: TZ });
+      // contact info for every store in the list — the public page shows the
+      // candidate which location they're interviewing at
+      const names = [...new Set(slots.map((s) => s.store).filter(Boolean))] as string[];
+      const stores: Record<string, StoreInfo> = {};
+      if (names.length) {
+        const { data } = await admin.from("stores").select("store, address, phone, email").in("store", names);
+        for (const r of (data || []) as any[]) {
+          stores[r.store] = { address: r.address || "", phone: r.phone || "", email: r.email || "" };
+        }
+      }
+      return json({ slots, stores, tz: TZ });
     }
 
     if (action === "book") {
@@ -344,13 +368,13 @@ Deno.serve(async (req) => {
       const b = ins.data as any;
 
       const hostName = slot.name;
-      const addr = await storeAddress(slot.store);
+      const si = await storeInfo(slot.store);
       const link = SITE + "/interview.html?t=" + b.token;
       const when = prettyWhen(new Date(b.starts_at));
-      const text = candidateText(b, hostName, addr, link,
+      const text = candidateText(b, hostName, si, link,
         "You're booked, " + name.split(/\s+/)[0] + " — here are your interview details.");
       const smsOk = phone ? await sendSms(phone,
-        "CPR interview confirmed: " + when + (slot.store ? " at " + slot.store : "") + " with " + hostName
+        "CPR interview confirmed: " + when + smsWhere(slot.store, si) + " with " + hostName
         + ". Change or cancel: " + link, slot.store) : false;
       const mailOk = email ? await sendEmail(email, "Your CPR interview — " + when, text) : false;
       await admin.from("interview_bookings")
@@ -367,7 +391,8 @@ Deno.serve(async (req) => {
         + "\n\nOpen: " + SITE + "/interviews.html");
 
       return json({ ok: true, token: b.token, starts_at: b.starts_at, ends_at: b.ends_at,
-        host: hostName, store: slot.store, address: addr, confirm: { sms: smsOk, email: mailOk } });
+        host: hostName, store: slot.store, address: si.address, phone: si.phone, email: si.email,
+        confirm: { sms: smsOk, email: mailOk } });
     }
 
     // Staff-made booking (the Bookings page's "+ New booking"): a manager books a
@@ -414,14 +439,14 @@ Deno.serve(async (req) => {
       if (ins.error) return json({ ok: false, error: ins.error.message }, 500);
       const b = ins.data as any;
       const hostName = (host as any).display_name;
-      const addr = await storeAddress(b.store);
+      const si = await storeInfo(b.store);
       const link = SITE + "/interview.html?t=" + b.token;
       const when = prettyWhen(startsAt);
       const smsOk = phone ? await sendSms(phone,
-        "Your CPR interview is set: " + when + (b.store ? " at " + b.store : "") + " with " + hostName
+        "Your CPR interview is set: " + when + smsWhere(b.store, si) + " with " + hostName
         + ". Details, or need to change it: " + link, b.store) : false;
       const mailOk = email ? await sendEmail(email, "Your CPR interview — " + when,
-        candidateText(b, hostName, addr, link, "Hi " + name.split(/\s+/)[0] + " — your interview is scheduled.")) : false;
+        candidateText(b, hostName, si, link, "Hi " + name.split(/\s+/)[0] + " — your interview is scheduled.")) : false;
       await admin.from("interview_bookings").update({ confirm_sms: smsOk, confirm_email: mailOk }).eq("id", b.id);
       if (Number((me as any).id) !== staffId) {
         await notifyHost(staffId, "Interview booked — " + when,
@@ -442,11 +467,13 @@ Deno.serve(async (req) => {
       if (!data) return json({ ok: false, error: "not_found" }, 404);
       const b = data as any;
       const { data: host } = await admin.from("staff").select("display_name").eq("id", b.staff_id).maybeSingle();
+      const si = await storeInfo(b.store);
       return json({
         ok: true, booking: {
           token: b.token, starts_at: b.starts_at, ends_at: b.ends_at, status: b.status,
           candidate_name: b.candidate_name, store: b.store, position: b.position,
-          host: (host as any)?.display_name || "", address: await storeAddress(b.store),
+          host: (host as any)?.display_name || "",
+          address: si.address, phone: si.phone, email: si.email,
         },
       });
     }
@@ -486,11 +513,12 @@ Deno.serve(async (req) => {
       }).eq("id", b.id);
       const link = SITE + "/interview.html?t=" + b.token;
       const when = prettyWhen(new Date(slot.starts_at));
+      const si = await storeInfo(slot.store);
       if (b.candidate_phone) await sendSms(b.candidate_phone,
-        "CPR interview moved to " + when + (slot.store ? " at " + slot.store : "") + ". Details: " + link, slot.store);
+        "CPR interview moved to " + when + smsWhere(slot.store, si) + ". Details: " + link, slot.store);
       if (b.candidate_email) await sendEmail(b.candidate_email, "Your CPR interview moved — " + when,
         candidateText({ ...b, starts_at: slot.starts_at, store: slot.store }, slot.name,
-          await storeAddress(slot.store), link, "Your interview has been moved."));
+          si, link, "Your interview has been moved."));
       await notifyHost(Number(b.staff_id), "Interview moved — " + when,
         b.candidate_name + " rescheduled" + (slot.store ? " · " + slot.store : "") + ".");
       await notifyTeam("interviews.booked", "Interview rescheduled — " + b.candidate_name + " · " + when,
@@ -530,30 +558,31 @@ Deno.serve(async (req) => {
         const link = SITE + "/interview.html?t=" + b.token;
 
         if (in24hWindow && !b.reminded_24h) {
+          const si = await storeInfo(b.store);
           if (b.candidate_phone) {
             await sendSms(b.candidate_phone,
-              "Reminder: your CPR interview is " + when + (b.store ? " at " + b.store : "")
+              "Reminder: your CPR interview is " + when + smsWhere(b.store, si)
               + " with " + hostName + ". Can't make it? " + link, b.store);
           }
           if (b.candidate_email) {
             await sendEmail(b.candidate_email, "Reminder: your CPR interview " + when,
-              candidateText(b, hostName, await storeAddress(b.store), link,
+              candidateText(b, hostName, si, link,
                 "A quick reminder about your interview tomorrow."));
           }
           await admin.from("interview_bookings").update({ reminded_24h: true }).eq("id", b.id);
           counts.cand_24h++;
         }
         if (in1hWindow && !b.reminded_1h) {
-          const addr = await storeAddress(b.store);
+          const si = await storeInfo(b.store);
           if (b.candidate_phone) {
             await sendSms(b.candidate_phone,
               "See you soon — your CPR interview is at " + time + " today"
-              + (b.store ? " at " + b.store + (addr ? " (" + addr + ")" : "") : "")
+              + smsWhere(b.store, si)
               + " with " + hostName + ". Details: " + link, b.store);
           }
           if (b.candidate_email) {
             await sendEmail(b.candidate_email, "Your CPR interview is in about an hour",
-              candidateText(b, hostName, addr, link, "Your interview is coming up in about an hour — see you soon!"));
+              candidateText(b, hostName, si, link, "Your interview is coming up in about an hour — see you soon!"));
           }
           await admin.from("interview_bookings").update({ reminded_1h: true }).eq("id", b.id);
           counts.cand_1h++;
