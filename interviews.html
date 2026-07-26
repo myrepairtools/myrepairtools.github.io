@@ -173,7 +173,6 @@ font-family:'Nunito Sans';font-weight:700;font-size:.85rem;background:#fff;color
 .dorow .dl span{font-size:.74rem;font-weight:700;color:var(--dark-grey)}
 .dorow .x44{width:44px;height:44px;flex:none;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--grey);font-size:1.1rem;cursor:pointer}
 .dorow .x44:hover{color:var(--red)}
-.footnote{font-size:.74rem;font-weight:700;color:var(--dark-grey);margin-top:10px}
 
 .linkbox{display:flex;gap:9px;align-items:center;background:var(--light-grey);border-radius:11px;padding:11px 14px;
 font-size:.85rem;word-break:break-all;font-weight:700}
@@ -205,7 +204,6 @@ font-size:.82rem;font-weight:700;overflow:hidden}
 .mback{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:center;justify-content:center;z-index:1200;padding:16px}
 .modal{background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .modal h3{font-family:'Nunito';font-weight:900;font-size:1.12rem;margin-bottom:4px}
-.modal .msub{color:var(--dark-grey);font-weight:700;font-size:.82rem;margin-bottom:14px}
 .modal .fldl{font-family:'Nunito';font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:11px 0 5px}
 .modal input,.modal select,.modal textarea{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:10px;
 font-family:'Nunito Sans';font-weight:700;font-size:.92rem;background:#fff;color:var(--dark)}
@@ -250,7 +248,6 @@ font-family:'Nunito';font-weight:800;font-size:.84rem;color:var(--dark);cursor:p
 .lblrow .fldl{flex:1}
 .anyt{height:32px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
 font-family:'Nunito';font-weight:800;font-size:.72rem;color:var(--dark-grey);cursor:pointer;flex:none}
-.fhint{font-size:.74rem;font-weight:700;color:var(--dark-grey);margin-top:6px}
 
 /* add-availability sheet parts (4b) */
 .storestrip{background:#F7FBFE;border:1px solid #D6ECF8;border-radius:11px;padding:9px 11px;display:flex;align-items:center;gap:9px;margin-top:4px}
@@ -543,8 +540,7 @@ function renderDayPane(list){
       +crow+acts+'</div>';
   }).join(''):'<div class="empty">Nothing booked this day.</div>';
   $('#dayPane').innerHTML=
-    '<div class="dv"><div class="card" style="margin-top:14px"><div class="ct">'+title+'</div>'
-    +'<div class="ch">Tap a booking to act on it — or use + New Booking for this day.</div>'
+    '<div class="dv"><div class="card" style="margin-top:14px"><div class="ct" style="margin-bottom:10px">'+title+'</div>'
     +'<table><thead><tr><th>Time</th><th>Candidate</th><th>Host</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
     +'<tbody>'+rows+'</tbody></table></div></div>'
     +'<div class="mv"><div class="card" style="margin-top:14px;padding:16px 16px 6px"><div class="ct">'+title+'</div>'
@@ -585,7 +581,6 @@ function openNewBooking(){
       +'<div class="fldl">Full name</div><input id="nbName" autocomplete="off">'
       +'<div class="fldl">Mobile</div><input id="nbPhone" inputmode="tel">'
       +'<div class="fldl">Email (optional)</div><input id="nbEmail" inputmode="email">'
-      +'<div class="fhint">Mobile or email — that’s how the confirmation goes out.</div>'
       +'<div class="fldl">Position (optional)</div><input id="nbRole">'
       +'<div class="merr" id="nbErr"></div>'
     +'</div>'
@@ -730,8 +725,7 @@ function openAddHost(){
   var candidates=STAFF.filter(function(s){return !cfgFor(s.id);});
   if(!candidates.length){toast('Everyone is already a host');return;}
   var back=document.createElement('div');back.className='mback';
-  back.innerHTML='<div class="modal"><h3>Add a Host</h3>'
-    +'<div class="msub">Pick who can take bookings — you’ll set their weekly availability next.</div>'
+  back.innerHTML='<div class="modal"><h3 style="margin-bottom:12px">Add a Host</h3>'
     +candidates.map(function(s){
       var st=s.home_store?((window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s.home_store):s.home_store):'';
       return '<button class="ahrow" data-ah="'+s.id+'"><span>'+esc(s.display_name)+'</span>'+(st?'<span class="ahst">'+esc(st)+'</span>':'')+'</button>';
@@ -895,8 +889,8 @@ function renderHostEditor(){
   $('#view').innerHTML=
     '<button class="btn sm" id="backHosts" style="min-height:38px;margin-bottom:12px;white-space:nowrap">‹ All Hosts</button>'
     +hostCardM(cfg,false)
-    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:2px"><div class="ct" style="margin:0">Weekly Windows</div><span style="flex:1"></span><button class="btn pri sm" id="addWinBtn" style="min-height:38px">+ Add</button></div>'
-      +'<div class="ch">The only thing that decides when '+esc(firstName(who))+' can be booked. Store-local times.</div>'+wk+offLine+'</div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="ct" style="margin:0">Weekly Windows</div><span style="flex:1"></span><button class="btn pri sm" id="addWinBtn" style="min-height:38px">+ Add</button></div>'
+      +wk+offLine+'</div>'
     +'<div class="card"><div class="ct" style="margin-bottom:10px">Slot Rules</div>'
       +'<div class="cfg">'
         +'<label>Length (min)<input type="number" id="cSlot" min="10" max="180" step="5" value="'+(cfg.slot_minutes||30)+'"></label>'
@@ -913,7 +907,6 @@ function renderHostEditor(){
         +'<div style="margin-top:11px"><button class="btn pri" id="addBlk" style="min-height:38px;width:100%">Block 1 Day</button></div>'
       +'</div>'
       +'<div style="margin-top:6px">'+doRows.map(function(r){return r.html;}).join('')+'</div>'
-      +(ptos.length?'<div class="footnote">Approved PTO rows are managed in Time Off — cancel the request there to reopen those days.</div>':'')
     +'</div>';
   $('#backHosts').onclick=function(){HED=null;render();};
   // ---- days-off form ----
@@ -1078,13 +1071,11 @@ function renderLinks(){
       +'<div class="acts">'+acts+'</div></div>';
   }).join('');
   $('#view').innerHTML=
-    '<div class="dv"><div class="card"><div class="ct">Shared link — anyone available</div>'
-    +'<div class="ch">Shows open times across every accepting host. Use this on job postings.</div>'
+    '<div class="dv"><div class="card"><div class="ct" style="margin-bottom:10px">Shared Link — Anyone Available</div>'
     +'<div class="linkbox"><span style="flex:1">'+esc(any)+'</span></div>'
     +'<div style="margin-top:12px"><button class="btn pri" data-cp="'+esc(any)+'">🔗 Copy Shared Link</button> '
     +'<button class="btn" data-qr="'+esc(any)+'" data-qn="Shared Booking Link">QR</button></div></div>'
-    +'<div class="card"><div class="ct">Per-host links</div>'
-    +'<div class="ch">A candidate on this link only sees that person\'s open times.</div>'
+    +'<div class="card"><div class="ct" style="margin-bottom:8px">Per-Host Links</div>'
     +'<table><thead><tr><th>Host</th><th>Link</th><th></th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="3"><div class="empty">No hosts yet — add one under Hosts.</div></td></tr>')+'</tbody></table></div></div>'
     +'<div class="mv"><div class="card lcard"><div class="ct" style="margin-bottom:10px">Shared Link</div>'
