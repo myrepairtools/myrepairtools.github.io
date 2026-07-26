@@ -598,12 +598,14 @@ every accepting host. **`interviews.html`** (nav label **"Bookings"**, Employees
 the management surface, three tabs: **Calendar** (month-grid overview of every host's
 bookings — chips per day, day pane with Done/No-show/Cancel actions; the month label opens
 the pickers.js month popover — remember `CPRPickers.month()` OPENS immediately, so call it
-from the label's onclick, never at render); **Hosts** (who can get a booking — a mobile-first
-name-per-row list: tap the name to open that host's inline editor for weekly windows, slot
-rules, and days-off blackouts (admins edit anyone by RLS), ✕ removes, and "+ Add Host"
-(top-right) opens a picker modal that creates the `interview_settings` row and drops
-straight into the new host's availability editor. No status/pause surface — hosts are
-simply on the list or not);
+from the label's onclick, never at render); **Hosts** (who can get a booking — one card per
+host with each availability day on its own line; tap the name to open that host's inline
+editor for weekly windows, slot rules, and days-off blackouts (admins edit anyone by RLS),
+✕ removes, and "+ Add Host" (top-right) opens a picker modal that creates the
+`interview_settings` row and drops straight into the new host's availability editor.
+Windows are added via the "+ Add Availability" modal — set the time/store once, check
+every weekday it applies to, one row inserted per checked day. No status/pause surface —
+hosts are simply on the list or not);
 **Booking Links** (shared + per-host copy buttons). The **"+ New Booking" modal** books for
 a specific host (pick an open slot OR any custom date/time) or "first available" (slot list
 across all accepting hosts), requiring at least one contact method — it calls `staff_book`,

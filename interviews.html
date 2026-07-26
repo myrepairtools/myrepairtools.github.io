@@ -72,14 +72,24 @@ letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 .chip .hst{opacity:.7}
 .more{font-size:.64rem;font-weight:800;color:var(--grey)}
 
-/* hosts list */
-.hrow{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--light-grey)}
-.hrow:last-of-type{border-bottom:none}
+/* hosts list — one card per host, availability day per line */
+.hcard{padding:14px 18px 12px}
+.hchead{display:flex;align-items:center;gap:10px}
 .hname{flex:1;min-width:0;text-align:left;border:none;background:none;font-family:'Nunito';font-weight:800;
-font-size:.92rem;color:var(--dark);cursor:pointer;padding:11px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+font-size:.95rem;color:var(--dark);cursor:pointer;padding:6px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hup{font-size:.7rem;color:var(--grey);font-weight:800;white-space:nowrap}
-.hx{border:none;background:none;color:var(--grey);font-size:1rem;line-height:1;cursor:pointer;padding:10px 8px}
+.hx{border:none;background:none;color:var(--grey);font-size:1rem;line-height:1;cursor:pointer;padding:8px}
 .hx:hover{color:var(--red)}
+.hday{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--light-grey);font-size:.84rem;font-weight:700}
+.hday .hdw{font-family:'Nunito';font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);width:34px}
+.hday .hwin{color:var(--dark)}
+.hday .hsep{color:var(--grey)}
+/* add-availability day checkboxes */
+.awdays{display:flex;gap:6px;flex-wrap:wrap}
+.awday{display:flex;flex-direction:column;align-items:center;gap:4px;border:1.5px solid var(--border);border-radius:10px;
+padding:8px 0;width:calc((100% - 36px)/7);min-width:37px;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.7rem;color:var(--dark-grey)}
+.awday:has(input:checked){border-color:var(--blue);background:#F7FBFE;color:var(--dark)}
+.awday input{accent-color:var(--blue)}
 /* add-host picker rows */
 .ahrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;
 border:1.5px solid var(--border);background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;
@@ -451,19 +461,29 @@ function openAddHost(){
   };});
 }
 function renderHosts(){
-  var hostRows=SETTINGS.map(function(cfg){
+  var hostCards=SETTINGS.map(function(cfg){
     var s=staffById(cfg.staff_id); if(!s)return '';
     var upN=BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(cfg.staff_id)&&b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
-    return '<div class="hrow">'
-      +'<button class="hname" data-edit="'+cfg.staff_id+'" title="Availability &amp; rules">'+esc(s.display_name)+'</button>'
-      +(upN?'<span class="hup">'+upN+' upcoming</span>':'')
-      +'<button class="hx" data-unhost="'+cfg.staff_id+'" title="Remove host" aria-label="Remove host">✕</button>'
+    var wins=WINS.filter(function(w){return Number(w.staff_id)===Number(cfg.staff_id)&&w.active!==false;});
+    var dayLines='';
+    for(var d=0;d<7;d++){
+      var dw=wins.filter(function(w){return Number(w.weekday)===d;});
+      if(!dw.length)continue;
+      dayLines+='<div class="hday"><span class="hdw">'+DAYS[d].slice(0,3)+'</span>'
+        +dw.map(function(w){return '<span class="hwin">'+hhmm(w.start_min)+' – '+hhmm(w.end_min)+'</span>';}).join('<span class="hsep">·</span>')
+        +'</div>';
+    }
+    return '<div class="card hcard">'
+      +'<div class="hchead">'
+        +'<button class="hname" data-edit="'+cfg.staff_id+'" title="Availability &amp; rules">'+esc(s.display_name)+'</button>'
+        +(upN?'<span class="hup">'+upN+' upcoming</span>':'')
+        +'<button class="hx" data-unhost="'+cfg.staff_id+'" title="Remove host" aria-label="Remove host">✕</button>'
+      +'</div>'
+      +(dayLines||'<div class="hday" style="color:var(--grey)">No availability yet — tap the name to set it</div>')
       +'</div>';
   }).join('');
-  $('#view').innerHTML='<div class="card">'
-    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div class="ct" style="margin:0">Who Can Get a Booking</div><span style="flex:1"></span><button class="btn pri sm" id="addHostBtn">+ Add Host</button></div>'
-    +(hostRows||'<div class="empty">No hosts yet — add one.</div>')
-    +'</div>';
+  $('#view').innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="ct" style="margin:0">Who Can Get a Booking</div><span style="flex:1"></span><button class="btn pri sm" id="addHostBtn">+ Add Host</button></div>'
+    +(hostCards||'<div class="card"><div class="empty">No hosts yet — add one.</div></div>');
   $('#addHostBtn').onclick=openAddHost;
   $all('[data-edit]').forEach(function(b){b.onclick=function(){HED=+b.getAttribute('data-edit');render();};});
   $all('[data-unhost]').forEach(function(b){b.onclick=async function(){
@@ -493,13 +513,13 @@ function renderHostEditor(){
             +'<span class="st">'+esc(w.store||'any store')+'</span>'
             +'<button class="x" data-del="'+w.id+'" title="Remove">×</button></span>';
         }).join(''):'<span style="color:var(--grey);font-weight:700;font-size:.82rem">Not available</span>')
-      +'<span class="addwin"><button class="btn sm" data-add="'+d+'">+ Add</button></span></div></div>';
+      +'</div></div>';
   }
   $('#view').innerHTML='<div class="card" style="display:flex;align-items:center;gap:12px">'
       +'<button class="btn sm" id="backHosts">‹ Hosts</button>'
       +'<div><div class="ct" style="margin:0">'+esc(who)+(mine?' (you)':'')+'</div>'
       +'<div class="ch" style="margin:0">Availability &amp; rules — changes apply to new bookings immediately.</div></div></div>'
-    +'<div class="card"><div class="ct">Weekly windows</div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:2px"><div class="ct" style="margin:0">Weekly windows</div><span style="flex:1"></span><button class="btn pri sm" id="addWinBtn">+ Add Availability</button></div>'
       +'<div class="ch">The only thing that decides when '+esc(who.split(' ')[0])+' can be booked. Times are store-local.</div>'+wk+'</div>'
     +'<div class="card"><div class="ct">Slot rules</div>'
       +'<div class="cfg">'
@@ -527,7 +547,7 @@ function renderHostEditor(){
     if(r.error){toast(r.error.message,true);return;}
     var i=SETTINGS.indexOf(cfg); SETTINGS[i]=r.data; toast('Rules saved');
   };
-  $all('[data-add]').forEach(function(b){b.onclick=function(){addWindow(+b.getAttribute('data-add'),b.parentElement);};});
+  $('#addWinBtn').onclick=function(){openAddWindow();};
   $all('[data-del]').forEach(function(b){b.onclick=async function(){
     var id=+b.getAttribute('data-del');
     var r=await sb.from('interview_availability').delete().eq('id',id);
@@ -547,19 +567,40 @@ function renderHostEditor(){
     BLACKOUTS=BLACKOUTS.filter(function(x){return x.id!==id;}); render();
   };});
 }
-function addWindow(day,host){
-  var st=staffById(HED), store=(st&&st.home_store)||(STORES[0]&&STORES[0].store)||'';
-  host.innerHTML='<span class="addwin">'
-    +'<input type="time" id="nwS" value="14:00"> <span style="font-weight:700">to</span> <input type="time" id="nwE" value="16:00">'
-    +'<select id="nwStore">'+STORES.map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===store?' selected':'')+'>'+esc(s.store)+'</option>';}).join('')+'</select>'
-    +'<button class="btn sm pri" id="nwSave">Add</button><button class="btn sm" id="nwX">Cancel</button></span>';
-  $('#nwX').onclick=render;
-  $('#nwSave').onclick=async function(){
-    var s=toMin($('#nwS').value), e=toMin($('#nwE').value);
-    if(!(e>s)){toast('End must be after start',true);return;}
-    var r=await sb.from('interview_availability').insert({staff_id:HED,store:$('#nwStore').value,weekday:day,start_min:s,end_min:e}).select().single();
-    if(r.error){toast(r.error.message,true);return;}
-    WINS.push(r.data); toast(DAYS[day]+' '+hhmm(s)+'–'+hhmm(e)+' added'); render();
+function openAddWindow(){
+  var st=staffById(HED), defStore=(st&&st.home_store)||(STORES[0]&&STORES[0].store)||'';
+  var back=document.createElement('div');back.className='mback';
+  back.innerHTML='<div class="modal"><h3>Add Availability</h3>'
+    +'<div class="msub">Set the window once, then check every day it applies to.</div>'
+    +'<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:110px"><div class="fldl">From</div><input type="time" id="awS" value="14:00" style="width:100%"></div>'
+      +'<div style="flex:1;min-width:110px"><div class="fldl">To</div><input type="time" id="awE" value="16:00" style="width:100%"></div>'
+    +'</div>'
+    +'<div class="fldl">Store</div><select id="awStore">'
+      +STORES.map(function(x){return '<option value="'+esc(x.store)+'"'+(x.store===defStore?' selected':'')+'>'+esc(x.store)+'</option>';}).join('')
+    +'</select>'
+    +'<div class="fldl">Days</div>'
+    +'<div class="awdays">'+DAYS.map(function(d,i){
+        return '<label class="awday"><input type="checkbox" data-awd="'+i+'"><span>'+d.slice(0,3)+'</span></label>';
+      }).join('')+'</div>'
+    +'<div class="ft"><button class="btn" data-x>Cancel</button><button class="btn pri" id="awGo">Add Windows</button></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(e){if(e.target===back)back.remove();});
+  back.querySelector('[data-x]').onclick=function(){back.remove();};
+  back.querySelector('#awGo').onclick=async function(){
+    var sMin=toMin(back.querySelector('#awS').value), eMin=toMin(back.querySelector('#awE').value);
+    if(!(eMin>sMin)){toast('End must be after start',true);return;}
+    var days=$all('[data-awd]',back).filter(function(c){return c.checked;}).map(function(c){return +c.getAttribute('data-awd');});
+    if(!days.length){toast('Check at least one day',true);return;}
+    var store=back.querySelector('#awStore').value;
+    var go=back.querySelector('#awGo'); go.disabled=true; go.textContent='Adding…';
+    var rows=days.map(function(d){return {staff_id:HED,store:store,weekday:d,start_min:sMin,end_min:eMin};});
+    var r=await sb.from('interview_availability').insert(rows).select();
+    if(r.error){toast(r.error.message,true);go.disabled=false;go.textContent='Add Windows';return;}
+    (Array.isArray(r.data)?r.data:[r.data]).forEach(function(w){WINS.push(w);});
+    back.remove();
+    toast(days.length+(days.length===1?' window':' windows')+' added');
+    render();
   };
 }
 
