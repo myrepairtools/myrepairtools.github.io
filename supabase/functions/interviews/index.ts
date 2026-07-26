@@ -15,8 +15,8 @@
 // Staff (Supabase JWT):
 //   POST {action:'my_bookings'}       -> upcoming for the signed-in host
 //
-// Slots are COMPUTED, never generated: availability − bookings − blackouts.
-// Nothing to backfill, nothing to drift.
+// Slots are COMPUTED, never generated: availability − bookings − blackouts
+// − approved time off. Nothing to backfill, nothing to drift.
 //
 // Times: everything is stored UTC; windows are store-local (America/Los_Angeles)
 // minutes-from-midnight, so DST is handled by converting per calendar date.
@@ -121,11 +121,13 @@ async function openSlots(hostId: number | null, store: string | null): Promise<S
   const today = localDateStr(now);
   const lastDay = addDays(today, Math.min(horizon, 60));
 
-  // existing bookings + blackouts across the window
-  const [{ data: booked }, { data: blackouts }] = await Promise.all([
+  // existing bookings + blackouts + approved time off across the window
+  const [{ data: booked }, { data: blackouts }, { data: pto }] = await Promise.all([
     admin.from("interview_bookings").select("staff_id, starts_at, ends_at")
       .eq("status", "booked").gte("starts_at", now.toISOString()),
     admin.from("interview_blackouts").select("*").gte("block_date", today).lte("block_date", lastDay),
+    admin.from("time_off_requests").select("staff_id, start_date, end_date, partial_days")
+      .eq("status", "approved").gte("end_date", today).lte("start_date", lastDay),
   ]);
   const busy = (booked || []).map((b: any) => ({
     staff_id: Number(b.staff_id), s: new Date(b.starts_at).getTime(), e: new Date(b.ends_at).getTime(),
@@ -146,6 +148,14 @@ async function openSlots(hostId: number | null, store: string | null): Promise<S
       if (Number(a.weekday) !== wd) continue;
       const dayKey = Number(a.staff_id) + "|" + day;
       if ((perDay.get(dayKey) || 0) >= (cfg.max_per_day ?? 4)) continue;
+
+      // approved time off blocks the whole day — except ½-partial days, where
+      // the person is at work part of the day (site convention: partial ≠ off)
+      const onPto = (pto || []).some((p: any) =>
+        Number(p.staff_id) === Number(a.staff_id) &&
+        p.start_date <= day && p.end_date >= day &&
+        !(p.partial_days && p.partial_days[day]));
+      if (onPto) continue;
 
       // blackouts for this host (or everyone) on this date
       const blocks = (blackouts || []).filter((b: any) =>

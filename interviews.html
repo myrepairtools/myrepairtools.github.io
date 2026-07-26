@@ -49,6 +49,11 @@ letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 .pill.booked{background:#E9F5FC;color:#2E7CA6}.pill.completed{background:#E7F6EE;color:var(--green)}
 .pill.canceled{background:#F3F2F2;color:#8A8A93}.pill.no_show{background:#FDECEC;color:var(--red)}
 .pill.paused{background:#FCF3E3;color:var(--amber)}.pill.hosting{background:#E7F6EE;color:var(--green)}
+.uppill{display:inline-block;font-family:'Nunito';font-weight:800;font-size:.64rem;text-transform:uppercase;
+letter-spacing:.3px;padding:3px 9px;border-radius:999px;background:#E9F5FC;color:#2E7CA6;white-space:nowrap}
+
+/* desktop vs ≤480 mobile variants — .dv renders ≥481, .mv renders ≤480 */
+.mv{display:none}
 
 /* month calendar overview */
 .calbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
@@ -56,12 +61,12 @@ letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 .cal-wd{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border);background:#FAFAFB}
 .cal-wd span{padding:8px 4px;text-align:center;font-family:'Nunito';font-weight:800;font-size:.64rem;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.4px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr)}
-.cal .d{min-height:96px;border-right:1px solid var(--light-grey);border-bottom:1px solid var(--light-grey);
+.cal .d{min-width:0;min-height:96px;border-right:1px solid var(--light-grey);border-bottom:1px solid var(--light-grey);
   padding:6px;cursor:pointer;background:#fff;transition:background .1s;text-align:left;border-top:none;border-left:none;font:inherit;color:inherit}
 .cal .d:nth-child(7n){border-right:none}
 .cal .d:hover{background:#F7FBFE}
 .cal .d.oth{background:#FBFBFC;color:var(--grey)}
-.cal .d.sel{box-shadow:inset 0 0 0 2px var(--blue)}
+.cal .d.sel{box-shadow:inset 0 0 0 2px var(--blue);background:#EAF6FD}
 .cal .dn{font-family:'Nunito';font-weight:800;font-size:.78rem;margin-bottom:4px;display:flex;align-items:center;gap:5px}
 .cal .dn .today{background:var(--red);color:#fff;border-radius:6px;padding:1px 6px}
 .chip{display:block;width:100%;text-align:left;font-family:'Nunito Sans';font-weight:700;font-size:.68rem;
@@ -71,8 +76,30 @@ letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 .chip.bad{background:#FDECEC;color:#9E2A2E;border-left-color:var(--red);text-decoration:line-through}
 .chip .hst{opacity:.7}
 .more{font-size:.64rem;font-weight:800;color:var(--grey)}
+/* ≤480: chips become status dots + a legend strip */
+.dots{display:none;gap:3px;margin-top:4px;align-items:center}
+.dots i{width:6px;height:6px;border-radius:50%;display:block}
+.dots i.b{background:var(--blue)}.dots i.g{background:var(--green)}.dots i.r{background:var(--red)}
+.dots .dmore{font-family:'Nunito';font-weight:800;font-size:.56rem;color:var(--grey)}
+.callegend{display:none;gap:14px;align-items:center;padding:9px 12px;border-top:1px solid var(--border);background:#FAFAFB;
+font-family:'Nunito';font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)}
+.callegend i{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:1px}
 
-/* hosts list — one card per host, availability day per line */
+/* day pane — mobile per-booking blocks */
+.dbk{border-top:1px solid var(--light-grey);padding:13px 0 12px}
+.dbk .r1{display:flex;align-items:center;gap:8px}
+.dbk .tm{font-family:'Nunito';font-weight:900;font-size:.95rem;flex:1}
+.dbk .nm{font-family:'Nunito';font-weight:800;font-size:.95rem;margin-top:3px}
+.dbk .meta{font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-top:2px}
+.dbk .crow{display:flex;gap:8px;margin-top:10px}
+.dbk .crow a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:44px;border:1.5px solid var(--border);
+border-radius:10px;font-family:'Nunito';font-weight:800;font-size:.82rem;color:var(--dark);text-decoration:none;padding:0 10px}
+.dbk .crow a.ph{flex:1;min-width:0}
+.dbk .crow a.em{min-width:52px;flex:none}
+.dbk .arow{display:flex;gap:8px;margin-top:10px}
+.dbk .arow .btn{flex:1;min-height:44px;font-size:.82rem;padding:8px 6px}
+
+/* hosts list — desktop cards (unchanged) */
 .hcard{padding:14px 18px 12px}
 .hchead{display:flex;align-items:center;gap:10px}
 .hname{flex:1;min-width:0;text-align:left;border:none;background:none;font-family:'Nunito';font-weight:800;
@@ -80,16 +107,32 @@ font-size:.95rem;color:var(--dark);cursor:pointer;padding:6px 0;overflow:hidden;
 .hup{font-size:.7rem;color:var(--grey);font-weight:800;white-space:nowrap}
 .hx{border:none;background:none;color:var(--grey);font-size:1rem;line-height:1;cursor:pointer;padding:8px}
 .hx:hover{color:var(--red)}
-.hday{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--light-grey);font-size:.84rem;font-weight:700}
-.hday .hdw{font-family:'Nunito';font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);width:34px}
+.hday{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--light-grey);font-size:.84rem;font-weight:700;flex-wrap:wrap}
+.hday .hdw{font-family:'Nunito';font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);width:34px;flex:none}
 .hday .hwin{color:var(--dark)}
 .hday .hsep{color:var(--grey)}
-/* add-availability day checkboxes */
-.awdays{display:flex;gap:6px;flex-wrap:wrap}
-.awday{display:flex;flex-direction:column;align-items:center;gap:4px;border:1.5px solid var(--border);border-radius:10px;
-padding:8px 0;width:calc((100% - 36px)/7);min-width:37px;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.7rem;color:var(--dark-grey)}
-.awday:has(input:checked){border-color:var(--blue);background:#F7FBFE;color:var(--dark)}
-.awday input{accent-color:var(--blue)}
+
+/* hosts — mobile cards (3b) */
+.hm{border-top:3px solid var(--blue);padding:14px 14px 12px}
+.hm.noav{border-top-color:var(--grey)}
+.hmh{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.hav{width:38px;height:38px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;
+font-family:'Nunito';font-weight:900;font-size:.82rem;flex:none}
+.hav.off{background:var(--grey)}
+.hmn{flex:1;min-width:0}
+.hmn .nm{font-family:'Nunito';font-weight:800;font-size:.98rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmn .sb{font-size:.75rem;font-weight:700;color:var(--dark-grey);margin-top:1px}
+.nextstrip{background:#F7FBFE;border:1px solid #D6ECF8;border-radius:11px;padding:9px 11px;display:flex;align-items:center;gap:9px;margin-bottom:8px;min-width:0}
+.nextstrip .nl{font-family:'Nunito';font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;color:#2E7CA6;flex:none}
+.nextstrip .nv{font-size:.82rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.wchip{display:inline-flex;align-items:center;background:#F7FBFE;border:1.5px solid #D6ECF8;border-radius:8px;
+padding:5px 9px;font-family:'Nunito';font-weight:800;font-size:.75rem;color:var(--dark)}
+.hm .hfoot{display:flex;gap:8px;margin-top:11px}
+.hm .hfoot .btn{min-height:44px}
+.hm .hfoot .edav{flex:1}
+.setav{width:100%;min-height:44px;border:1.5px solid var(--blue);color:#2E7CA6;background:#fff;border-radius:10px;
+font-family:'Nunito';font-weight:800;font-size:.85rem;cursor:pointer;margin-top:2px}
+
 /* add-host picker rows */
 .ahrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;
 border:1.5px solid var(--border);background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;
@@ -101,31 +144,64 @@ font-family:'Nunito';font-weight:800;font-size:.9rem;color:var(--dark);cursor:po
 .wk{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start;margin-bottom:10px}
 .wk .dn{font-family:'Nunito';font-weight:800;font-size:.85rem;padding-top:9px}
 .wins{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.win{display:inline-flex;align-items:center;gap:8px;background:#F7FBFE;border:1.5px solid #D6ECF8;
-border-radius:10px;padding:7px 10px;font-weight:700;font-size:.82rem}
+.win{display:inline-flex;align-items:center;gap:4px;background:#F7FBFE;border:1.5px solid #D6ECF8;
+border-radius:10px;padding:0 0 0 11px;min-height:44px;font-weight:700;font-size:.82rem}
 .win b{font-family:'Nunito';font-weight:800}
-.win .x{border:none;background:none;color:var(--grey);cursor:pointer;font-size:1rem;line-height:1;padding:0 2px}
-.win .st{font-size:.7rem;color:var(--grey);font-weight:700}
-.addwin{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-.addwin select,.addwin input{height:34px;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;
-font-family:'Nunito Sans';font-weight:700;font-size:.8rem;background:#fff;color:var(--dark)}
+.win .st{font-size:.7rem;color:var(--grey);font-weight:700;margin-left:5px}
+.win .x{border:none;background:none;color:var(--grey);cursor:pointer;font-size:1.05rem;line-height:1;
+width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:none}
+.win .x:hover{color:var(--red)}
+.notav{font-size:.76rem;font-weight:700;color:var(--dark-grey);margin-top:8px}
 .cfg{display:flex;gap:16px;flex-wrap:wrap}
-.cfg label{display:flex;flex-direction:column;gap:5px;font-family:'Nunito';font-weight:800;font-size:.7rem;
+.cfg label{display:flex;flex-direction:column;gap:5px;font-family:'Nunito';font-weight:800;font-size:.68rem;
 text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)}
-.cfg input{width:120px;height:36px;padding:5px 10px;border:1.5px solid var(--border);border-radius:9px;
+.cfg input{width:120px;height:38px;padding:5px 10px;border:1.5px solid var(--border);border-radius:9px;
 font-family:'Nunito Sans';font-weight:700;font-size:.88rem;background:#fff;color:var(--dark)}
+/* days off — segmented single/range + read-only PTO rows */
+.seg{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px;max-width:340px}
+.seg button{flex:1;height:38px;border:none;background:#fff;font-family:'Nunito';font-weight:800;font-size:.78rem;color:var(--dark-grey);cursor:pointer}
+.seg button.on{background:var(--blue);color:#fff}
+.doform input{height:38px;padding:5px 10px;border:1.5px solid var(--border);border-radius:9px;
+font-family:'Nunito Sans';font-weight:700;font-size:.85rem;background:#fff;color:var(--dark);width:100%}
+.doform .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.doform .row2>div{min-width:0}
+.doform .fl{font-family:'Nunito';font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:9px 0 4px}
+.dorow{padding:11px 0;border-bottom:1px solid var(--light-grey);display:flex;align-items:center;gap:10px}
+.dorow .dl{flex:1;min-width:0}
+.dorow .dl b{font-family:'Nunito';font-weight:800;font-size:.85rem;display:block}
+.dorow .dl span{font-size:.74rem;font-weight:700;color:var(--dark-grey)}
+.dorow .x44{width:44px;height:44px;flex:none;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--grey);font-size:1.1rem;cursor:pointer}
+.dorow .x44:hover{color:var(--red)}
+.footnote{font-size:.74rem;font-weight:700;color:var(--dark-grey);margin-top:10px}
+
 .linkbox{display:flex;gap:9px;align-items:center;background:var(--light-grey);border-radius:11px;padding:11px 14px;
 font-size:.85rem;word-break:break-all;font-weight:700}
-.sw{display:flex;align-items:center;gap:10px}
-.toggle{width:42px;height:24px;border-radius:20px;border:none;background:var(--grey);position:relative;cursor:pointer;flex:none;transition:.15s}
-.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
-.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
 .empty{color:var(--grey);font-weight:700;font-size:.85rem;padding:22px;text-align:center}
 .gate{background:#FFF1F1;border:1px solid #F6C9CA;border-radius:12px;padding:22px;text-align:center;color:var(--red);font-weight:800}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
 
-/* modal */
-.mback{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:center;justify-content:center;z-index:800;padding:16px}
+/* booking links — mobile (5a) */
+.lcard{border-top:3px solid var(--red)}
+.urlbox{background:var(--light-grey);border-radius:10px;min-height:44px;display:flex;align-items:center;padding:0 12px;
+font-size:.82rem;font-weight:700;overflow:hidden}
+.urlbox span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lact{display:flex;gap:8px;margin-top:10px}
+.lact .btn{min-height:38px;padding:7px 12px}
+.lact .cp{flex:1}
+.lhrow{display:flex;flex-direction:column;gap:8px;padding:12px 0 10px;border-top:1px solid var(--light-grey)}
+.lhrow .top{display:flex;align-items:center;gap:9px;min-width:0}
+.lhrow .hav{width:34px;height:34px;font-size:.76rem}
+.lhrow .nm{font-family:'Nunito';font-weight:800;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lhrow .lu{font-size:.74rem;font-weight:700;color:var(--dark-grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lhrow .acts{display:flex;gap:8px}
+.lhrow .acts .btn{min-height:38px;flex:1;padding:7px 8px}
+.lhrow .acts .op{flex:none;text-decoration:none}
+.resume{border-color:var(--blue)!important;color:#2E7CA6!important}
+.qrwrap{text-align:center;padding:10px 0}
+.qrwrap img{width:220px;height:220px;image-rendering:pixelated}
+
+/* modal / bottom sheet */
+.mback{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:center;justify-content:center;z-index:1200;padding:16px}
 .modal{background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
 .modal h3{font-family:'Nunito';font-weight:900;font-size:1.12rem;margin-bottom:4px}
 .modal .msub{color:var(--dark-grey);font-weight:700;font-size:.82rem;margin-bottom:14px}
@@ -134,15 +210,83 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);bo
 font-family:'Nunito Sans';font-weight:700;font-size:.92rem;background:#fff;color:var(--dark)}
 .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .modal .row2>div{min-width:0}
-.modal input[type=time]{-webkit-appearance:none;appearance:none;min-width:0;height:46px}
+.modal input[type=time]{-webkit-appearance:none;appearance:none;min-width:0;height:48px}
 .modal input[type=time]::-webkit-date-and-time-value{text-align:center}
 .modal .ft{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
 .merr{color:var(--red);font-weight:800;font-size:.8rem;margin-top:9px;min-height:1em}
+/* sheet skeleton — modals with .sh use header/body/footer; ≤480 they pin to the bottom */
+.mback.sh .modal{padding:0;display:flex;flex-direction:column}
+.shh{padding:12px 18px 6px;flex:none}
+.grab{width:44px;height:4px;border-radius:4px;background:var(--border);margin:0 auto 9px;display:none}
+.shb{padding:2px 18px 14px;overflow:auto;flex:1;min-height:0}
+.shf{border-top:1px solid var(--border);padding:12px 18px;flex:none}
+.shf .shsum{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1.1em}
+.shf .shbtns{display:flex;gap:10px}
+.shf .btn{min-height:46px}
+.shf .go{flex:1}
+
+/* new-booking sheet parts (6a) */
+.hchips{display:flex;gap:7px;flex-wrap:wrap}
+.hchip{border:1.5px solid var(--border);background:#fff;border-radius:999px;padding:9px 14px;
+font-family:'Nunito';font-weight:800;font-size:.8rem;color:var(--dark);cursor:pointer}
+.hchip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.daystrip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.dtile{flex:none;width:52px;min-height:56px;border:1.5px solid var(--border);border-radius:10px;background:#fff;
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;font-family:'Nunito'}
+.dtile .wd{font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey)}
+.dtile .dd{font-weight:900;font-size:1rem;color:var(--dark)}
+.dtile .oc{font-weight:800;font-size:.56rem;color:var(--dark-grey)}
+.dtile.on{background:var(--blue);border-color:var(--blue)}
+.dtile.on .wd,.dtile.on .dd,.dtile.on .oc{color:#fff}
+.dtile.full{background:#FBFBFC;cursor:default}
+.dtile.full .wd,.dtile.full .dd,.dtile.full .oc{color:var(--grey)}
+.slotgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.slotgrid button{min-height:44px;border:1.5px solid var(--border);border-radius:10px;background:#fff;
+font-family:'Nunito';font-weight:800;font-size:.84rem;color:var(--dark);cursor:pointer;padding:4px 6px}
+.slotgrid button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.slotgrid button .sh2{display:block;font-size:.62rem;font-weight:800;opacity:.75}
+.lblrow{display:flex;align-items:center}
+.lblrow .fldl{flex:1}
+.anyt{height:32px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito';font-weight:800;font-size:.72rem;color:var(--dark-grey);cursor:pointer;flex:none}
+.fhint{font-size:.74rem;font-weight:700;color:var(--dark-grey);margin-top:6px}
+
+/* add-availability sheet parts (4b) */
+.storestrip{background:#F7FBFE;border:1px solid #D6ECF8;border-radius:11px;padding:9px 11px;display:flex;align-items:center;gap:9px;margin-top:4px}
+.storestrip .nl{font-family:'Nunito';font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.4px;color:#2E7CA6;flex:none}
+.storestrip .nv{font-size:.82rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qf{display:flex;gap:8px;margin-top:8px}
+.qf button{flex:1;min-height:44px;border:1.5px solid var(--border);border-radius:10px;background:#fff;
+font-family:'Nunito';font-weight:800;font-size:.74rem;color:var(--dark);cursor:pointer;padding:4px 4px}
+.qf button.bl{border-color:var(--blue);background:#F7FBFE;color:#2E7CA6}
+.awdays{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.awday{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1.5px solid var(--border);border-radius:10px;
+padding:6px 0;min-height:52px;cursor:pointer;font-family:'Nunito';font-weight:800;font-size:.7rem;color:var(--dark-grey)}
+.awday:has(input:checked){border-color:var(--blue);background:#F7FBFE;color:var(--dark)}
+.awday input{accent-color:var(--blue);width:auto}
+
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
-padding:12px 18px;border-radius:12px;font-family:'Nunito';font-weight:800;font-size:.85rem;opacity:0;pointer-events:none;transition:.18s;z-index:900}
+padding:12px 18px;border-radius:12px;font-family:'Nunito';font-weight:800;font-size:.85rem;opacity:0;pointer-events:none;transition:.18s;z-index:1300}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .hide{display:none!important}
 @media(max-width:720px){main{padding:18px 12px 80px}.cal .d{min-height:74px;padding:4px}.chip{font-size:.6rem;padding:2px 4px}.wk{grid-template-columns:1fr}.wk .dn{padding-top:0}}
+@media(max-width:480px){
+  .dv{display:none!important}
+  .mv{display:block}
+  .cal .d{min-height:56px;padding:5px 4px;overflow:hidden}
+  .cal .chip,.cal .more{display:none}
+  .dots{display:flex}
+  .callegend{display:flex}
+  .cfg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cfg input{width:100%}
+  #saveCfg{width:100%}
+  /* sheets pin to the bottom, clear the 52px top bar, sit over the tab bar */
+  .mback.sh{align-items:stretch;justify-content:stretch;padding:0}
+  .mback.sh .modal{position:fixed;left:0;right:0;bottom:0;top:52px;max-width:none;width:auto;max-height:none;
+    border-radius:16px 16px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.28)}
+  .grab{display:block}
+  .shf{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body>
@@ -167,6 +311,7 @@ padding:12px 18px;border-radius:12px;font-family:'Nunito';font-weight:800;font-s
 
 <script src="assets/locations.js"></script>
 <script src="assets/pickers.js"></script>
+<script src="assets/qrcode.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js" data-section="employees"></script>
 <script type="module">
@@ -178,6 +323,9 @@ import { createClient } from "/assets/supabase-js.js";
    editable centrally by managers) · booking links. Slots are
    computed live by the `interviews` edge function; "+ New
    Booking" books a candidate directly via staff_book.
+   ≤480px renders the design-handoff mobile pass (status-dot
+   month grid, host cards, bottom sheets); desktop keeps the
+   table/chip layouts.
    ============================================================ */
 var $=function(s,c){return (c||document).querySelector(s);};
 var $all=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
@@ -188,7 +336,9 @@ var sb=createClient(SB_URL,ANON);
 var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 var TZ='America/Los_Angeles';
 var ME=null, TAB='calendar', MON=new Date(), SELDAY=null;
-var STAFF=[], STORES=[], SETTINGS=[], WINS=[], BOOKINGS=[], BLACKOUTS=[], HED=null;
+var STAFF=[], STORES=[], SETTINGS=[], WINS=[], BOOKINGS=[], BLACKOUTS=[], PTO=[], HED=null;
+var MAIL_SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>';
+var PHONE_SVG='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 
 function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2600);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -197,10 +347,44 @@ function toMin(v){var p=String(v||'').split(':');return (+p[0])*60+(+p[1]||0);}
 function dkey(iso){return new Date(iso).toLocaleDateString('en-CA',{timeZone:TZ});}
 function fmtT(iso){return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:TZ});}
 function fmtWhen(iso){return new Date(iso).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:TZ});}
+function fmtD(dateStr){return new Date(dateStr+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+function addD(dateStr,n){var d=new Date(dateStr+'T12:00');d.setDate(d.getDate()+n);return d.toLocaleDateString('en-CA');}
+function spanDays(a,b){return Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5)+1;}
 function staffById(id){return STAFF.filter(function(s){return Number(s.id)===Number(id);})[0]||null;}
 function hostName(id){var s=staffById(id);return s?s.display_name:'?';}
+function firstName(n){return String(n||'').split(/\s+/)[0];}
 function initials(n){return String(n||'').split(/\s+/).map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();}
 function cfgFor(id){return SETTINGS.filter(function(s){return Number(s.staff_id)===Number(id);})[0]||null;}
+function storeLbl(name){return name?((window.CPRLocations&&CPRLocations.display)?CPRLocations.display(name):name):'';}
+function nextBookingFor(id){
+  var now=Date.now();
+  return BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(id)&&b.status==='booked'&&new Date(b.starts_at).getTime()>=now;})[0]||null;
+}
+function copyTxt(t){navigator.clipboard.writeText(t).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});}
+function shareLink(url){
+  if(navigator.share){navigator.share({url:url}).catch(function(){});}
+  else copyTxt(url);
+}
+function openQr(link,title){
+  var back=document.createElement('div');back.className='mback';
+  var img='';
+  try{var qr=window.qrcode(0,'M');qr.addData(link);qr.make();img=qr.createImgTag(5,8);}catch(e){img='<div class="empty">Could not render QR</div>';}
+  back.innerHTML='<div class="modal"><h3>'+esc(title||'Booking Link')+'</h3>'
+    +'<div class="qrwrap">'+img+'</div>'
+    +'<div style="font-size:.78rem;font-weight:700;color:var(--dark-grey);text-align:center;word-break:break-all">'+esc(link)+'</div>'
+    +'<div class="ft"><button class="btn" data-x>Close</button><button class="btn pri" data-cp>🔗 Copy Link</button></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(e){if(e.target===back)back.remove();});
+  back.querySelector('[data-x]').onclick=function(){back.remove();};
+  back.querySelector('[data-cp]').onclick=function(){copyTxt(link);};
+}
+async function setHostActive(id,on){
+  var r=await sb.from('interview_settings').update({active:on,updated_at:new Date().toISOString()}).eq('staff_id',id).select();
+  if(r.error){toast(r.error.message,true);return;}
+  var c=cfgFor(id); if(c)c.active=on;
+  toast(on?(firstName(hostName(id))+' is taking bookings again'):(firstName(hostName(id))+' paused — no new bookings'));
+  render();
+}
 
 async function ensureSession(){
   try{
@@ -250,16 +434,18 @@ async function callFn(body){
 
 async function load(){
   var from=new Date();from.setMonth(from.getMonth()-2);
-  var [st,so,cfg,wins,books,blk]=await Promise.all([
+  var today=new Date().toLocaleDateString('en-CA');
+  var [st,so,cfg,wins,books,blk,pto]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,active').eq('active',true).order('display_name'),
     sb.from('stores').select('store,active,display_order,color').order('display_order'),
     sb.from('interview_settings').select('*'),
     sb.from('interview_availability').select('*').order('weekday').order('start_min'),
     sb.from('interview_bookings').select('*').gte('starts_at',from.toISOString()).order('starts_at'),
-    sb.from('interview_blackouts').select('*').gte('block_date',new Date(Date.now()-864e5).toISOString().slice(0,10)).order('block_date')
+    sb.from('interview_blackouts').select('*').gte('block_date',new Date(Date.now()-864e5).toISOString().slice(0,10)).order('block_date'),
+    sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,partial_days').eq('status','approved').gte('end_date',today).order('start_date')
   ]);
   STAFF=st.data||[]; STORES=(so.data||[]).filter(function(x){return x.active!==false;});
-  SETTINGS=cfg.data||[]; WINS=wins.data||[]; BOOKINGS=books.data||[]; BLACKOUTS=blk.data||[];
+  SETTINGS=cfg.data||[]; WINS=wins.data||[]; BOOKINGS=books.data||[]; BLACKOUTS=blk.data||[]; PTO=pto.data||[];
 }
 
 function render(){
@@ -286,8 +472,14 @@ function renderCal(){
       return '<span class="chip'+cls+'">'+esc(fmtT(b.starts_at))+' '+esc(String(b.candidate_name).split(/\s+/)[0])
         +' <span class="hst">· '+esc(initials(hostName(b.staff_id)))+'</span></span>';
     }).join('')+(list.length>3?'<span class="more">+'+(list.length-3)+' more</span>':'');
+    var dots='';
+    if(list.length){
+      dots='<span class="dots">'+list.slice(0,3).map(function(b){
+        return '<i class="'+(b.status==='completed'?'g':(b.status==='no_show'?'r':'b'))+'"></i>';
+      }).join('')+(list.length>3?'<span class="dmore">+'+(list.length-3)+'</span>':'')+'</span>';
+    }
     cells+='<button class="d'+(inMon?'':' oth')+(k===SELDAY?' sel':'')+'" data-day="'+k+'">'
-      +'<span class="dn">'+(k===todayK?'<span class="today">'+d.getDate()+'</span>':d.getDate())+'</span>'+chips+'</button>';
+      +'<span class="dn">'+(k===todayK?'<span class="today">'+d.getDate()+'</span>':d.getDate())+'</span>'+chips+dots+'</button>';
   }
   var upN=BOOKINGS.filter(function(b){return b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
   $('#view').innerHTML=
@@ -299,7 +491,10 @@ function renderCal(){
       +'<span class="sub" style="margin:0">'+upN+' upcoming</span>'
     +'</div>'
     +'<div class="calwrap"><div class="cal-wd"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>'
-    +'<div class="cal">'+cells+'</div></div>'
+    +'<div class="cal">'+cells+'</div>'
+    +'<div class="callegend"><span><i style="background:var(--blue)"></i>Booked</span>'
+      +'<span><i style="background:var(--green)"></i>Done</span>'
+      +'<span><i style="background:var(--red)"></i>No-show</span></div></div>'
     +'<div id="dayPane"></div>';
   $('#cPrev').onclick=function(){MON=new Date(y,m-1,1);render();};
   $('#cNext').onclick=function(){MON=new Date(y,m+1,1);render();};
@@ -310,6 +505,7 @@ function renderCal(){
 }
 function renderDayPane(list){
   var d=new Date(SELDAY+'T12:00');
+  var title=d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   var rows=list.length?list.map(function(b){
     return '<tr><td style="white-space:nowrap"><b>'+esc(fmtT(b.starts_at))+'</b></td>'
       +'<td><span style="font-family:Nunito;font-weight:800">'+esc(b.candidate_name)+'</span>'
@@ -324,11 +520,34 @@ function renderDayPane(list){
           +'<button class="btn sm" data-cxl="'+b.id+'" style="color:var(--red)">Cancel</button>':'')
       +'</td></tr>';
   }).join(''):'<tr><td colspan="7"><div class="empty">Nothing booked this day.</div></td></tr>';
-  $('#dayPane').innerHTML='<div class="card" style="margin-top:14px"><div class="ct">'
-    +d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+'</div>'
+  var mrows=list.length?list.map(function(b){
+    var crow='';
+    if(b.candidate_phone&&b.candidate_email){
+      crow='<div class="crow"><a class="ph" href="tel:'+esc(b.candidate_phone)+'">'+PHONE_SVG+esc(b.candidate_phone)+'</a>'
+        +'<a class="em" href="mailto:'+esc(b.candidate_email)+'" aria-label="Email '+esc(b.candidate_name)+'">'+MAIL_SVG+'</a></div>';
+    }else if(b.candidate_phone){
+      crow='<div class="crow"><a class="ph" href="tel:'+esc(b.candidate_phone)+'">'+PHONE_SVG+esc(b.candidate_phone)+'</a></div>';
+    }else if(b.candidate_email){
+      crow='<div class="crow"><a class="ph" href="mailto:'+esc(b.candidate_email)+'">'+MAIL_SVG+esc(b.candidate_email)+'</a></div>';
+    }
+    var acts=b.status==='booked'
+      ?'<div class="arow"><button class="btn pri" data-done="'+b.id+'">Done</button>'
+        +'<button class="btn" data-noshow="'+b.id+'">No-show</button>'
+        +'<button class="btn" data-cxl="'+b.id+'" style="color:var(--red)">Cancel</button></div>':'';
+    return '<div class="dbk">'
+      +'<div class="r1"><span class="tm">'+esc(fmtT(b.starts_at))+'</span><span class="pill '+esc(b.status)+'">'+esc(b.status.replace('_',' '))+'</span></div>'
+      +'<div class="nm">'+esc(b.candidate_name)+'</div>'
+      +'<div class="meta">'+(b.position?esc(b.position)+' · ':'')+'with '+esc(hostName(b.staff_id))+'</div>'
+      +(b.store?'<div class="meta">'+esc(b.store)+'</div>':'')
+      +crow+acts+'</div>';
+  }).join(''):'<div class="empty">Nothing booked this day.</div>';
+  $('#dayPane').innerHTML=
+    '<div class="dv"><div class="card" style="margin-top:14px"><div class="ct">'+title+'</div>'
     +'<div class="ch">Tap a booking to act on it — or use + New Booking for this day.</div>'
     +'<table><thead><tr><th>Time</th><th>Candidate</th><th>Host</th><th>Contact</th><th>Where</th><th>Status</th><th></th></tr></thead>'
-    +'<tbody>'+rows+'</tbody></table></div>';
+    +'<tbody>'+rows+'</tbody></table></div></div>'
+    +'<div class="mv"><div class="card" style="margin-top:14px;padding:16px 16px 6px"><div class="ct">'+title+'</div>'
+    +'<div class="ch" style="margin-bottom:4px">'+list.length+' booked</div>'+mrows+'</div></div>';
   bindStatus();
 }
 function bindStatus(){
@@ -344,53 +563,126 @@ function bindStatus(){
     if(confirm('Cancel this booking? The slot opens back up.'))set(+b.getAttribute('data-cxl'),'canceled');};});
 }
 
-/* ================= New booking (individual or first-available) ================= */
+/* ================= New booking (6a sheet — host chips, day strip, slot grid) ================= */
 function openNewBooking(){
   var hosts=SETTINGS.filter(function(s){return s.active!==false&&staffById(s.staff_id);});
   if(!hosts.length){toast('Add a host first (Hosts tab)',true);return;}
-  var back=document.createElement('div');back.className='mback';
-  var d0=SELDAY||new Date().toLocaleDateString('en-CA');
+  // first names, falling back to full name on a collision
+  var fn={}; hosts.forEach(function(h){var f=firstName(hostName(h.staff_id));fn[f]=(fn[f]||0)+1;});
+  function chipLbl(id){var f=firstName(hostName(id));return fn[f]>1?hostName(id):f;}
+  var back=document.createElement('div');back.className='mback sh';
   back.innerHTML='<div class="modal">'
-    +'<h3>New Booking</h3><div class="msub">Book a candidate directly — they get the same text/email confirmation, and the host is notified.</div>'
-    +'<div class="fldl">Host</div><select id="nbHost">'
-      +'<option value="">Anyone — first available</option>'
-      +hosts.map(function(h){return '<option value="'+h.staff_id+'">'+esc(hostName(h.staff_id))+'</option>';}).join('')
-    +'</select>'
-    +'<div id="nbSlotWrap"></div>'
-    +'<div class="fldl">Candidate name</div><input id="nbName" autocomplete="off">'
-    +'<div class="row2"><div><div class="fldl">Mobile</div><input id="nbPhone" inputmode="tel"></div>'
-    +'<div><div class="fldl">Email</div><input id="nbEmail" inputmode="email"></div></div>'
-    +'<div class="fldl">Position (optional)</div><input id="nbRole">'
-    +'<div class="merr" id="nbErr"></div>'
-    +'<div class="ft"><button class="btn" data-x>Cancel</button><button class="btn pri" id="nbGo">Book It</button></div>'
+    +'<div class="shh"><div class="grab"></div><h3>New Booking</h3></div>'
+    +'<div class="shb">'
+      +'<div class="fldl" style="margin-top:4px">Host</div>'
+      +'<div class="hchips"><button class="hchip on" data-h="">Anyone Free</button>'
+        +hosts.map(function(h){return '<button class="hchip" data-h="'+h.staff_id+'">'+esc(chipLbl(h.staff_id))+'</button>';}).join('')
+      +'</div>'
+      +'<div class="fldl">Day</div><div class="daystrip" id="nbDays"><span class="empty" style="padding:10px">Loading…</span></div>'
+      +'<div class="lblrow"><div class="fldl">Time</div><button class="anyt hide" id="nbAny">Any time…</button></div>'
+      +'<div id="nbTimes"></div>'
+      +'<div class="fldl">Full name</div><input id="nbName" autocomplete="off">'
+      +'<div class="fldl">Mobile</div><input id="nbPhone" inputmode="tel">'
+      +'<div class="fldl">Email (optional)</div><input id="nbEmail" inputmode="email">'
+      +'<div class="fhint">Mobile or email — that’s how the confirmation goes out.</div>'
+      +'<div class="fldl">Position (optional)</div><input id="nbRole">'
+      +'<div class="merr" id="nbErr"></div>'
+    +'</div>'
+    +'<div class="shf"><div class="shsum" id="nbSum"></div>'
+      +'<div class="shbtns"><button class="btn" data-x>Cancel</button><button class="btn pri go" id="nbGo" disabled>Book</button></div></div>'
     +'</div>';
   document.body.appendChild(back);
   back.addEventListener('click',function(e){if(e.target===back)back.remove();});
   back.querySelector('[data-x]').onclick=function(){back.remove();};
-  var mode='slots', OPEN=[];
-  function slotWrap(){
-    var hostId=back.querySelector('#nbHost').value;
-    var w=back.querySelector('#nbSlotWrap');
-    if(mode==='custom'&&hostId){
-      w.innerHTML='<div class="fldl">Date &amp; time (any time — your call)</div>'
-        +'<div class="row2"><input type="date" id="nbDate" value="'+d0+'"><input type="time" id="nbTime" value="10:00"></div>'
-        +'<div style="margin-top:7px"><button class="btn sm" id="nbUseSlots">← Pick from open slots instead</button></div>';
-      w.querySelector('#nbUseSlots').onclick=function(){mode='slots';slotWrap();};
-      return;
-    }
-    w.innerHTML='<div class="fldl">Open times</div><div class="empty" style="padding:12px">Loading…</div>';
+
+  var hostId='', mode='slots', OPEN=[], byDay={}, dayList=[], daySel=null, slotI=null;
+  var d0=SELDAY||new Date().toLocaleDateString('en-CA');
+
+  function fetchSlots(){
+    $('#nbDays',back).innerHTML='<span class="empty" style="padding:10px">Loading…</span>';
+    $('#nbTimes',back).innerHTML='';
+    var reqHost=hostId;
     fetch(FN+'?action=slots'+(hostId?'&host='+hostId:'')).then(function(r){return r.json();}).then(function(r){
-      OPEN=r.slots||[];
-      var opts=OPEN.slice(0,120).map(function(s,i){
-        return '<option value="'+i+'">'+esc(fmtWhen(s.starts_at))+(hostId?'':' — '+esc(s.name))+'</option>';}).join('');
-      w.innerHTML='<div class="fldl">Open times</div>'
-        +(OPEN.length?'<select id="nbSlot">'+opts+'</select>':'<div class="empty" style="padding:10px">No open slots'+(hostId?'':' for any host')+'.</div>')
-        +(hostId?'<div style="margin-top:7px"><button class="btn sm" id="nbCustom">Pick any date &amp; time instead</button></div>':'');
-      var c=w.querySelector('#nbCustom'); if(c)c.onclick=function(){mode='custom';slotWrap();};
+      if(reqHost!==hostId||mode!=='slots')return;   // stale response / switched to custom
+      OPEN=r.slots||[]; byDay={}; dayList=[];
+      OPEN.forEach(function(s){var k=dkey(s.starts_at);(byDay[k]=byDay[k]||[]).push(s);});
+      if(OPEN.length){
+        var first=dkey(OPEN[0].starts_at), last=dkey(OPEN[OPEN.length-1].starts_at);
+        for(var k=first;k<=last&&dayList.length<30;k=addD(k,1))dayList.push(k);
+      }
+      daySel=(byDay[daySel]&&daySel)||(byDay[d0]?d0:(OPEN.length?dkey(OPEN[0].starts_at):null));
+      slotI=daySel&&byDay[daySel]?0:null;
+      draw();
     });
   }
-  back.querySelector('#nbHost').onchange=function(){mode='slots';slotWrap();};
-  slotWrap();
+  function draw(){
+    var daysEl=$('#nbDays',back), timesEl=$('#nbTimes',back);
+    if(mode==='custom'){
+      daysEl.innerHTML=''; daysEl.classList.add('hide');
+      timesEl.innerHTML='<div class="row2"><input type="date" id="nbDate" value="'+d0+'"><input type="time" id="nbTime" value="10:00"></div>'
+        +'<div style="margin-top:7px"><button class="btn sm" id="nbUseSlots">‹ Pick From Open Slots Instead</button></div>';
+      timesEl.querySelector('#nbUseSlots').onclick=function(){mode='slots';fetchSlots();};
+      timesEl.querySelector('#nbDate').onchange=sum; timesEl.querySelector('#nbTime').onchange=sum;
+      sum(); return;
+    }
+    daysEl.classList.remove('hide');
+    if(!dayList.length){
+      daysEl.innerHTML='<span class="empty" style="padding:10px">No open slots'+(hostId?'':' for any host')+'.</span>';
+      timesEl.innerHTML=''; sum(); return;
+    }
+    daysEl.innerHTML=dayList.map(function(k){
+      var n=(byDay[k]||[]).length;
+      var dd=new Date(k+'T12:00');
+      return '<button class="dtile'+(k===daySel?' on':'')+(n?'':' full')+'" data-dt="'+k+'"'+(n?'':' disabled')+'>'
+        +'<span class="wd">'+dd.toLocaleDateString('en-US',{weekday:'short'})+'</span>'
+        +'<span class="dd">'+dd.getDate()+'</span>'
+        +'<span class="oc">'+(n?n+' open':'full')+'</span></button>';
+    }).join('');
+    $all('[data-dt]',back).forEach(function(b){b.onclick=function(){daySel=b.getAttribute('data-dt');slotI=0;draw();};});
+    var slots=byDay[daySel]||[];
+    timesEl.innerHTML='<div class="slotgrid">'+slots.map(function(s,i){
+      return '<button class="'+(i===slotI?'on':'')+'" data-sl="'+i+'">'+esc(fmtT(s.starts_at))
+        +(hostId?'':'<span class="sh2">'+esc(firstName(s.name))+'</span>')+'</button>';
+    }).join('')+'</div>';
+    $all('[data-sl]',back).forEach(function(b){b.onclick=function(){slotI=+b.getAttribute('data-sl');draw();};});
+    sum();
+  }
+  function picked(){
+    if(mode==='custom'){
+      var dt=back.querySelector('#nbDate'), tm=back.querySelector('#nbTime');
+      if(!dt||!tm||!dt.value||!tm.value)return null;
+      var st=staffById(hostId);
+      return {custom:true,date:dt.value,time:tm.value,staff_id:+hostId,store:(st&&st.home_store)||''};
+    }
+    if(daySel==null||slotI==null)return null;
+    var s=(byDay[daySel]||[])[slotI];
+    return s?{custom:false,slot:s}:null;
+  }
+  function sum(){
+    var p=picked(), el=$('#nbSum',back), go=$('#nbGo',back);
+    if(!p){el.textContent='';go.disabled=true;go.textContent='Book';return;}
+    var when,t,who,st;
+    if(p.custom){
+      t=hhmm(toMin(p.time));
+      when=new Date(p.date+'T12:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      who=hostName(p.staff_id); st=p.store;
+    }else{
+      t=fmtT(p.slot.starts_at);
+      when=new Date(p.slot.starts_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:TZ});
+      who=p.slot.name; st=p.slot.store;
+    }
+    el.textContent=when+' · '+t+' · '+firstName(who)+(st?' · '+storeLbl(st):'');
+    go.disabled=false; go.textContent='Book '+t;
+  }
+  $all('.hchip',back).forEach(function(c){c.onclick=function(){
+    hostId=c.getAttribute('data-h');
+    $all('.hchip',back).forEach(function(x){x.classList.toggle('on',x===c);});
+    $('#nbAny',back).classList.toggle('hide',!hostId);
+    mode='slots'; daySel=null; slotI=null; fetchSlots();
+  };});
+  $('#nbAny',back).onclick=function(){if(!hostId)return;mode='custom';draw();};
+  fetchSlots();
+
   back.querySelector('#nbGo').onclick=async function(){
     var err=back.querySelector('#nbErr');
     var name=back.querySelector('#nbName').value.trim();
@@ -398,28 +690,23 @@ function openNewBooking(){
     var email=back.querySelector('#nbEmail').value.trim();
     if(!name){err.textContent='Candidate name is required.';return;}
     if(!phone&&!email){err.textContent='Add a mobile or email so they get the confirmation.';return;}
-    var go=this; go.disabled=true; go.textContent='Booking…';
+    var p=picked();
+    if(!p){err.textContent=mode==='custom'?'Pick a date and time.':'Pick a time.';return;}
+    var go=this; go.disabled=true; var lbl=go.textContent; go.textContent='Booking…';
     var d;
-    var hostId=back.querySelector('#nbHost').value;
-    if(mode==='custom'&&hostId){
-      var dt=back.querySelector('#nbDate').value, tm=back.querySelector('#nbTime').value;
-      if(!dt||!tm){err.textContent='Pick a date and time.';go.disabled=false;go.textContent='Book It';return;}
+    if(p.custom){
       // interpret as store-local (Pacific) wall time
-      var iso=new Date(dt+'T'+tm+':00'+pacOffset(dt)).toISOString();
-      var st=staffById(hostId);
-      d=await callFn({action:'staff_book',staff_id:+hostId,starts_at:iso,candidate_name:name,
+      var iso=new Date(p.date+'T'+p.time+':00'+pacOffset(p.date)).toISOString();
+      d=await callFn({action:'staff_book',staff_id:p.staff_id,starts_at:iso,candidate_name:name,
         candidate_phone:phone,candidate_email:email,position:back.querySelector('#nbRole').value.trim(),
-        store:(st&&st.home_store)||''});
+        store:p.store});
     }else{
-      var sel=back.querySelector('#nbSlot');
-      if(!sel){err.textContent='No slot picked.';go.disabled=false;go.textContent='Book It';return;}
-      var slot=OPEN[+sel.value];
-      d=await callFn({action:'staff_book',staff_id:slot.staff_id,starts_at:slot.starts_at,
+      d=await callFn({action:'staff_book',staff_id:p.slot.staff_id,starts_at:p.slot.starts_at,
         candidate_name:name,candidate_phone:phone,candidate_email:email,
-        position:back.querySelector('#nbRole').value.trim(),store:slot.store||''});
+        position:back.querySelector('#nbRole').value.trim(),store:p.slot.store||''});
     }
     if(!d.ok){
-      go.disabled=false;go.textContent='Book It';
+      go.disabled=false;go.textContent=lbl;
       err.textContent=d.error==='overlap'?'That host already has a booking then — pick another time.':(d.error||'Could not book.');
       return;
     }
@@ -443,7 +730,7 @@ function openAddHost(){
   if(!candidates.length){toast('Everyone is already a host');return;}
   var back=document.createElement('div');back.className='mback';
   back.innerHTML='<div class="modal"><h3>Add a Host</h3>'
-    +'<div class="msub">Pick who can take bookings — you\u2019ll set their weekly availability next.</div>'
+    +'<div class="msub">Pick who can take bookings — you’ll set their weekly availability next.</div>'
     +candidates.map(function(s){
       var st=s.home_store?((window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s.home_store):s.home_store):'';
       return '<button class="ahrow" data-ah="'+s.id+'"><span>'+esc(s.display_name)+'</span>'+(st?'<span class="ahst">'+esc(st)+'</span>':'')+'</button>';
@@ -459,11 +746,57 @@ function openAddHost(){
     if(r.error){toast(r.error.message,true);b.disabled=false;return;}
     SETTINGS.push(Array.isArray(r.data)?r.data[0]:r.data);
     back.remove();
-    toast(hostName(id)+' can take bookings \u2014 set their windows');
+    toast(hostName(id)+' can take bookings — set their windows');
     HED=id; render();
   };});
 }
+// host card sub-line: "<store> · <slot> min slots · max <n>/day"
+function hostSub(cfg,wins){
+  var s=staffById(cfg.staff_id);
+  var store=(wins&&wins.length&&wins[0].store)||(s&&s.home_store)||'';
+  var parts=[];
+  if(store)parts.push(storeLbl(store));
+  parts.push((cfg.slot_minutes||30)+' min slots');
+  parts.push('max '+(cfg.max_per_day||4)+'/day');
+  return parts.join(' · ');
+}
+function fmtNext(iso){
+  return new Date(iso).toLocaleString('en-US',{weekday:'short',hour:'numeric',minute:'2-digit',timeZone:TZ}).replace(',','');
+}
+// 3b mobile host card; withFoot=false renders the editor's header variant
+function hostCardM(cfg,withFoot){
+  var s=staffById(cfg.staff_id); if(!s)return '';
+  var id=Number(cfg.staff_id), paused=cfg.active===false;
+  var wins=WINS.filter(function(w){return Number(w.staff_id)===id&&w.active!==false;});
+  var noav=!wins.length;
+  var upN=BOOKINGS.filter(function(b){return Number(b.staff_id)===id&&b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
+  var nb=nextBookingFor(id);
+  var dayLines='';
+  for(var d=0;d<7;d++){
+    var dw=wins.filter(function(w){return Number(w.weekday)===d;});
+    if(!dw.length)continue;
+    dayLines+='<div class="hday"><span class="hdw">'+DAYS[d].slice(0,3)+'</span>'
+      +dw.map(function(w){return '<span class="wchip">'+hhmm(w.start_min)+' – '+hhmm(w.end_min)+'</span>';}).join('')
+      +'</div>';
+  }
+  var foot='';
+  if(withFoot){
+    foot=noav
+      ?'<button class="setav" data-edit="'+id+'">Set Weekly Hours</button>'
+      :'<div class="hfoot"><button class="btn edav" data-edit="'+id+'">Edit Availability</button>'
+        +'<button class="btn" data-pause="'+id+'">'+(paused?'Resume':'Pause')+'</button></div>';
+  }
+  return '<div class="card hm'+(noav?' noav':'')+'">'
+    +'<div class="hmh"><span class="hav'+(paused?' off':'')+'">'+esc(initials(s.display_name))+'</span>'
+      +'<div class="hmn"><div class="nm">'+esc(s.display_name)+'</div><div class="sb">'+esc(hostSub(cfg,wins))+'</div></div>'
+      +(paused?'<span class="pill paused">Paused</span>':(upN?'<span class="uppill">'+upN+' up</span>':''))
+    +'</div>'
+    +(nb?'<div class="nextstrip"><span class="nl">Next</span><span class="nv">'+esc(fmtNext(nb.starts_at))+' · '+esc(nb.candidate_name)+'</span></div>':'')
+    +(withFoot?dayLines:'')
+    +foot+'</div>';
+}
 function renderHosts(){
+  // desktop cards (unchanged layout)
   var hostCards=SETTINGS.map(function(cfg){
     var s=staffById(cfg.staff_id); if(!s)return '';
     var upN=BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(cfg.staff_id)&&b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
@@ -478,17 +811,24 @@ function renderHosts(){
     }
     return '<div class="card hcard">'
       +'<div class="hchead">'
-        +'<button class="hname" data-edit="'+cfg.staff_id+'" title="Availability &amp; rules">'+esc(s.display_name)+'</button>'
+        +'<button class="hname" data-edit="'+cfg.staff_id+'" title="Availability &amp; rules">'+esc(s.display_name)+(cfg.active===false?' <span class="pill paused">Paused</span>':'')+'</button>'
         +(upN?'<span class="hup">'+upN+' upcoming</span>':'')
         +'<button class="hx" data-unhost="'+cfg.staff_id+'" title="Remove host" aria-label="Remove host">✕</button>'
       +'</div>'
       +(dayLines||'<div class="hday" style="color:var(--grey)">No availability yet — tap the name to set it</div>')
       +'</div>';
   }).join('');
+  var mobCards=SETTINGS.map(function(cfg){return hostCardM(cfg,true);}).join('');
   $('#view').innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div class="ct" style="margin:0">Who Can Get a Booking</div><span style="flex:1"></span><button class="btn pri sm" id="addHostBtn">+ Add Host</button></div>'
-    +(hostCards||'<div class="card"><div class="empty">No hosts yet — add one.</div></div>');
+    +'<div class="dv">'+(hostCards||'<div class="card"><div class="empty">No hosts yet — add one.</div></div>')+'</div>'
+    +'<div class="mv">'+(mobCards||'<div class="card"><div class="empty">No hosts yet — add one.</div></div>')+'</div>';
   $('#addHostBtn').onclick=openAddHost;
   $all('[data-edit]').forEach(function(b){b.onclick=function(){HED=+b.getAttribute('data-edit');render();};});
+  $all('[data-pause]').forEach(function(b){b.onclick=function(){
+    var id=+b.getAttribute('data-pause');
+    var c=cfgFor(id);
+    setHostActive(id,c&&c.active===false);
+  };});
   $all('[data-unhost]').forEach(function(b){b.onclick=async function(){
     var id=+b.getAttribute('data-unhost');
     if(!confirm('Remove '+hostName(id)+' as a host? Their windows are deleted; existing bookings stay.'))return;
@@ -501,53 +841,137 @@ function renderHosts(){
   };});
 }
 
-/* ================= per-host availability editor ================= */
+/* ================= per-host availability editor (4a) ================= */
+// merge consecutive same-reason blackout dates into display ranges
+function coalesceBlks(blks){
+  var out=[];
+  blks.slice().sort(function(a,b){return a.block_date<b.block_date?-1:1;}).forEach(function(b){
+    var last=out[out.length-1];
+    if(last&&addD(last.end,1)===b.block_date&&(last.reason||'')===(b.reason||'')){last.end=b.block_date;last.ids.push(b.id);}
+    else out.push({start:b.block_date,end:b.block_date,reason:b.reason||'',ids:[b.id]});
+  });
+  return out;
+}
 function renderHostEditor(){
   var cfg=cfgFor(HED); if(!cfg){HED=null;render();return;}
   var who=hostName(HED), mine=Number(HED)===Number(ME.id);
   var wins=WINS.filter(function(w){return Number(w.staff_id)===Number(HED);});
   var blks=BLACKOUTS.filter(function(b){return Number(b.staff_id)===Number(HED);});
-  var wk='';
+  var today=new Date().toLocaleDateString('en-CA');
+  var ptos=PTO.filter(function(p){return Number(p.staff_id)===Number(HED)&&p.end_date>=today;});
+  var wk='', offDays=[];
   for(var d=0;d<7;d++){
     var dayWins=wins.filter(function(w){return Number(w.weekday)===d;});
+    if(!dayWins.length){offDays.push(DAYS[d].slice(0,3));continue;}
     wk+='<div class="wk"><div class="dn">'+DAYS[d]+'</div><div class="wins">'
-      +(dayWins.length?dayWins.map(function(w){
+      +dayWins.map(function(w){
           return '<span class="win"><b>'+hhmm(w.start_min)+' – '+hhmm(w.end_min)+'</b>'
-            +'<span class="st">'+esc(w.store||'any store')+'</span>'
-            +'<button class="x" data-del="'+w.id+'" title="Remove">×</button></span>';
-        }).join(''):'<span style="color:var(--grey);font-weight:700;font-size:.82rem">Not available</span>')
+            +'<span class="st">'+esc(storeLbl(w.store)||'any store')+'</span>'
+            +'<button class="x" data-del="'+w.id+'" title="Remove" aria-label="Remove window">×</button></span>';
+        }).join('')
       +'</div></div>';
   }
-  $('#view').innerHTML='<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px">'
-      +'<button class="btn sm" id="backHosts" style="flex:none;white-space:nowrap">‹ Hosts</button>'
-      +'<div class="ct" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(who)+(mine?' (you)':'')+'</div></div>'
-    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:2px"><div class="ct" style="margin:0">Weekly windows</div><span style="flex:1"></span><button class="btn pri sm" id="addWinBtn">+ Add Availability</button></div>'
-      +'<div class="ch">The only thing that decides when '+esc(who.split(' ')[0])+' can be booked. Times are store-local.</div>'+wk+'</div>'
-    +'<div class="card"><div class="ct">Slot rules</div>'
+  if(!wk)wk='<div class="empty" style="padding:14px">No availability yet — add a window.</div>';
+  var offLine=(offDays.length&&offDays.length<7)?'<div class="notav">Not available '+offDays.join(' · ')+'</div>':'';
+  // days-off list: manual ranges (deletable) + approved PTO (read-only), chronological
+  var doRows=[];
+  coalesceBlks(blks).forEach(function(rg){
+    var n=spanDays(rg.start,rg.end);
+    doRows.push({sort:rg.start,html:'<div class="dorow"><div class="dl"><b>'
+      +(rg.start===rg.end?fmtD(rg.start):fmtD(rg.start)+' – '+fmtD(rg.end))+'</b>'
+      +'<span>'+esc(rg.reason||'Blocked')+' · '+n+(n===1?' day':' days')+'</span></div>'
+      +'<button class="x44" data-delblk="'+rg.ids.join(',')+'" aria-label="Unblock">✕</button></div>'});
+  });
+  ptos.forEach(function(p){
+    var n=spanDays(p.start_date,p.end_date);
+    doRows.push({sort:p.start_date,html:'<div class="dorow"><div class="dl"><b>'
+      +(p.start_date===p.end_date?fmtD(p.start_date):fmtD(p.start_date)+' – '+fmtD(p.end_date))+'</b>'
+      +'<span>'+esc(p.type||'Time off')+' · '+n+(n===1?' day':' days')+'</span></div>'
+      +'<span class="uppill">Approved PTO</span></div>'});
+  });
+  doRows.sort(function(a,b){return a.sort<b.sort?-1:1;});
+  $('#view').innerHTML=
+    '<button class="btn sm" id="backHosts" style="min-height:38px;margin-bottom:12px;white-space:nowrap">‹ All Hosts</button>'
+    +hostCardM(cfg,false)
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:2px"><div class="ct" style="margin:0">Weekly Windows</div><span style="flex:1"></span><button class="btn pri sm" id="addWinBtn" style="min-height:38px">+ Add</button></div>'
+      +'<div class="ch">The only thing that decides when '+esc(firstName(who))+' can be booked. Store-local times.</div>'+wk+offLine+'</div>'
+    +'<div class="card"><div class="ct" style="margin-bottom:10px">Slot Rules</div>'
       +'<div class="cfg">'
         +'<label>Length (min)<input type="number" id="cSlot" min="10" max="180" step="5" value="'+(cfg.slot_minutes||30)+'"></label>'
         +'<label>Gap after<input type="number" id="cBuf" min="0" max="120" step="5" value="'+(cfg.buffer_minutes!=null?cfg.buffer_minutes:15)+'"></label>'
         +'<label>Min notice (hrs)<input type="number" id="cLead" min="0" max="168" value="'+(cfg.lead_hours!=null?cfg.lead_hours:12)+'"></label>'
         +'<label>Book out (days)<input type="number" id="cHor" min="1" max="60" value="'+(cfg.horizon_days||21)+'"></label>'
         +'<label>Max per day<input type="number" id="cMax" min="1" max="12" value="'+(cfg.max_per_day||4)+'"></label>'
-      +'</div><div style="margin-top:14px"><button class="btn pri" id="saveCfg">Save Rules</button></div></div>'
-    +'<div class="card"><div class="ct">Days off</div><div class="ch">Block a date — vacation, training. Weekly windows stay saved.</div>'
-      +'<div class="wins" style="margin-bottom:12px">'
-      +(blks.length?blks.map(function(b){
-          return '<span class="win"><b>'+esc(new Date(b.block_date+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}))+'</b>'
-            +(b.reason?'<span class="st">'+esc(b.reason)+'</span>':'')
-            +'<button class="x" data-delblk="'+b.id+'">×</button></span>';
-        }).join(''):'<span style="color:var(--grey);font-weight:700;font-size:.82rem">None</span>')
-      +'</div><div class="addwin"><input type="date" id="blkDate"><input id="blkWhy" placeholder="Reason (optional)" style="min-width:170px">'
-      +'<button class="btn sm" id="addBlk">Block This Day</button></div></div>';
+      +'</div><div style="margin-top:14px" class="savew"><button class="btn pri" id="saveCfg" style="min-height:38px">Save Rules</button></div></div>'
+    +'<div class="card"><div class="ct" style="margin-bottom:10px">Days Off</div>'
+      +'<div class="doform">'
+        +'<div class="seg"><button class="on" data-seg="single">Single day</button><button data-seg="range">Date range</button></div>'
+        +'<div id="doDates"></div>'
+        +'<div class="fl">Reason (optional)</div><input id="blkWhy" placeholder="Vacation, training…">'
+        +'<div style="margin-top:11px"><button class="btn pri" id="addBlk" style="min-height:38px;width:100%">Block 1 Day</button></div>'
+      +'</div>'
+      +'<div style="margin-top:6px">'+doRows.map(function(r){return r.html;}).join('')+'</div>'
+      +(ptos.length?'<div class="footnote">Approved PTO rows are managed in Time Off — cancel the request there to reopen those days.</div>':'')
+    +'</div>';
   $('#backHosts').onclick=function(){HED=null;render();};
+  // ---- days-off form ----
+  var segMode='single';
+  function drawDoDates(){
+    var el=$('#doDates');
+    if(segMode==='single'){
+      el.innerHTML='<div class="fl">Day</div><input type="date" id="blkD1">';
+    }else{
+      el.innerHTML='<div class="row2"><div><div class="fl">First day</div><input type="date" id="blkD1"></div>'
+        +'<div><div class="fl">Last day</div><input type="date" id="blkD2"></div></div>';
+    }
+    $all('#doDates input').forEach(function(i){i.onchange=updBlkBtn;});
+    updBlkBtn();
+  }
+  function blkSpan(){
+    var d1=$('#blkD1')&&$('#blkD1').value, d2=(segMode==='range'&&$('#blkD2'))?$('#blkD2').value:d1;
+    if(!d1)return null;
+    if(!d2||d2<d1)d2=d1;
+    var n=spanDays(d1,d2);
+    if(n>60)return null; // sanity cap
+    return {start:d1,end:d2,n:n};
+  }
+  function updBlkBtn(){
+    var sp=blkSpan(), b=$('#addBlk');
+    b.textContent='Block '+(sp?sp.n:1)+(sp&&sp.n!==1?' Days':' Day');
+  }
+  $all('[data-seg]').forEach(function(b){b.onclick=function(){
+    segMode=b.getAttribute('data-seg');
+    $all('[data-seg]').forEach(function(x){x.classList.toggle('on',x===b);});
+    drawDoDates();
+  };});
+  drawDoDates();
+  $('#addBlk').onclick=async function(){
+    var sp=blkSpan();
+    if(!sp){toast('Pick a date (ranges up to 60 days)',true);return;}
+    var why=$('#blkWhy').value.trim()||null;
+    var have={}; blks.forEach(function(b){have[b.block_date]=1;});
+    var rows=[];
+    for(var k=sp.start;k<=sp.end;k=addD(k,1))if(!have[k])rows.push({staff_id:HED,block_date:k,reason:why});
+    if(!rows.length){toast('Those days are already blocked');return;}
+    var r=await sb.from('interview_blackouts').insert(rows).select();
+    if(r.error){toast(r.error.message,true);return;}
+    (Array.isArray(r.data)?r.data:[r.data]).forEach(function(b){BLACKOUTS.push(b);});
+    toast(rows.length===1?'Day blocked':rows.length+' days blocked'); render();
+  };
+  $all('[data-delblk]').forEach(function(b){b.onclick=async function(){
+    var ids=b.getAttribute('data-delblk').split(',').map(Number);
+    var r=await sb.from('interview_blackouts').delete().in('id',ids);
+    if(r.error){toast(r.error.message,true);return;}
+    BLACKOUTS=BLACKOUTS.filter(function(x){return ids.indexOf(x.id)===-1;}); render();
+  };});
+  // ---- rules + windows ----
   $('#saveCfg').onclick=async function(){
     var row={staff_id:HED,slot_minutes:+$('#cSlot').value||30,buffer_minutes:+$('#cBuf').value||0,
       lead_hours:+$('#cLead').value||0,horizon_days:+$('#cHor').value||21,max_per_day:+$('#cMax').value||4,
       active:cfg.active!==false,updated_at:new Date().toISOString()};
     var r=await sb.from('interview_settings').upsert(row,{onConflict:'staff_id'}).select().single();
     if(r.error){toast(r.error.message,true);return;}
-    var i=SETTINGS.indexOf(cfg); SETTINGS[i]=r.data; toast('Rules saved');
+    var i=SETTINGS.indexOf(cfg); SETTINGS[i]=Array.isArray(r.data)?r.data[0]:r.data; toast('Rules saved');
   };
   $('#addWinBtn').onclick=function(){openAddWindow();};
   $all('[data-del]').forEach(function(b){b.onclick=async function(){
@@ -556,28 +980,24 @@ function renderHostEditor(){
     if(r.error){toast(r.error.message,true);return;}
     WINS=WINS.filter(function(w){return w.id!==id;}); toast('Window removed'); render();
   };});
-  $('#addBlk').onclick=async function(){
-    var d=$('#blkDate').value; if(!d){toast('Pick a date',true);return;}
-    var r=await sb.from('interview_blackouts').insert({staff_id:HED,block_date:d,reason:$('#blkWhy').value.trim()||null}).select().single();
-    if(r.error){toast(r.error.message,true);return;}
-    BLACKOUTS.push(r.data); toast('Day blocked'); render();
-  };
-  $all('[data-delblk]').forEach(function(b){b.onclick=async function(){
-    var id=+b.getAttribute('data-delblk');
-    var r=await sb.from('interview_blackouts').delete().eq('id',id);
-    if(r.error){toast(r.error.message,true);return;}
-    BLACKOUTS=BLACKOUTS.filter(function(x){return x.id!==id;}); render();
-  };});
 }
+/* ---- Add Availability (4b sheet) ---- */
+// store open hours for the defaults/quick-fills — 10:00–19:00 is the shop standard
+var OPEN_MIN=600, CLOSE_MIN=1140;
 function openAddWindow(){
   var st=staffById(HED), defStore=(st&&st.home_store)||(STORES[0]&&STORES[0].store)||'';
-  var back=document.createElement('div');back.className='mback';
-  back.innerHTML='<div class="modal"><h3>Add Availability</h3>'
-    +'<div class="msub">Set the window once, then check every day it applies to.</div>'
-    +'<div class="row2">'
-      +'<div><div class="fldl">From</div><input type="time" id="awS" value="14:00"></div>'
-      +'<div><div class="fldl">To</div><input type="time" id="awE" value="16:00"></div>'
+  var back=document.createElement('div');back.className='mback sh';
+  back.innerHTML='<div class="modal">'
+    +'<div class="shh"><div class="grab"></div><h3>Add Availability</h3></div>'
+    +'<div class="shb">'
+    +'<div class="storestrip"><span class="nl">Store</span><span class="nv" id="awStrip"></span></div>'
+    +'<div class="row2" style="margin-top:9px">'
+      +'<div><div class="fldl" style="margin-top:0">From</div><input type="time" id="awS" value="10:00"></div>'
+      +'<div><div class="fldl" style="margin-top:0">To</div><input type="time" id="awE" value="19:00"></div>'
     +'</div>'
+    +'<div class="qf"><button class="bl" data-qf="'+OPEN_MIN+','+CLOSE_MIN+'">All Open Hours</button>'
+      +'<button data-qf="'+OPEN_MIN+',840">Mornings</button>'
+      +'<button data-qf="840,'+CLOSE_MIN+'">Afternoons</button></div>'
     +'<div class="fldl">Store</div><select id="awStore">'
       +STORES.map(function(x){return '<option value="'+esc(x.store)+'"'+(x.store===defStore?' selected':'')+'>'+esc(x.store)+'</option>';}).join('')
     +'</select>'
@@ -585,10 +1005,30 @@ function openAddWindow(){
     +'<div class="awdays">'+DAYS.map(function(d,i){
         return '<label class="awday"><input type="checkbox" data-awd="'+i+'"><span>'+d.slice(0,3)+'</span></label>';
       }).join('')+'</div>'
-    +'<div class="ft"><button class="btn" data-x>Cancel</button><button class="btn pri" id="awGo">Add Windows</button></div></div>';
+    +'</div>'
+    +'<div class="shf"><div class="shbtns"><button class="btn" data-x>Cancel</button><button class="btn pri go" id="awGo" disabled>Add Windows</button></div></div>'
+    +'</div>';
   document.body.appendChild(back);
   back.addEventListener('click',function(e){if(e.target===back)back.remove();});
   back.querySelector('[data-x]').onclick=function(){back.remove();};
+  function m2t(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+  function strip(){
+    var s=back.querySelector('#awStore').value;
+    back.querySelector('#awStrip').textContent='CPR '+storeLbl(s)+' · open '+hhmm(OPEN_MIN)+' – '+hhmm(CLOSE_MIN);
+  }
+  back.querySelector('#awStore').onchange=strip; strip();
+  $all('[data-qf]',back).forEach(function(b){b.onclick=function(){
+    var p=b.getAttribute('data-qf').split(',');
+    back.querySelector('#awS').value=m2t(+p[0]);
+    back.querySelector('#awE').value=m2t(+p[1]);
+  };});
+  function updGo(){
+    var n=$all('[data-awd]',back).filter(function(c){return c.checked;}).length;
+    var go=back.querySelector('#awGo');
+    go.disabled=!n;
+    go.textContent=n?('Add '+n+(n===1?' Window':' Windows')):'Add Windows';
+  }
+  $all('[data-awd]',back).forEach(function(c){c.onchange=updGo;});
   back.querySelector('#awGo').onclick=async function(){
     var sMin=toMin(back.querySelector('#awS').value), eMin=toMin(back.querySelector('#awE').value);
     if(!(eMin>sMin)){toast('End must be after start',true);return;}
@@ -598,7 +1038,7 @@ function openAddWindow(){
     var go=back.querySelector('#awGo'); go.disabled=true; go.textContent='Adding…';
     var rows=days.map(function(d){return {staff_id:HED,store:store,weekday:d,start_min:sMin,end_min:eMin};});
     var r=await sb.from('interview_availability').insert(rows).select();
-    if(r.error){toast(r.error.message,true);go.disabled=false;go.textContent='Add Windows';return;}
+    if(r.error){toast(r.error.message,true);go.disabled=false;updGo();return;}
     (Array.isArray(r.data)?r.data:[r.data]).forEach(function(w){WINS.push(w);});
     back.remove();
     toast(days.length+(days.length===1?' window':' windows')+' added');
@@ -609,24 +1049,53 @@ function openAddWindow(){
 /* ================= Booking links ================= */
 function renderLinks(){
   var any=location.origin+'/interview.html';
-  var rows=SETTINGS.filter(function(c){return staffById(c.staff_id);}).map(function(c){
+  var hostRows=SETTINGS.filter(function(c){return staffById(c.staff_id);});
+  // desktop — table (unchanged)
+  var rows=hostRows.map(function(c){
     var link=any+'?h='+c.staff_id;
     return '<tr><td><span style="font-family:Nunito;font-weight:800">'+esc(hostName(c.staff_id))+'</span>'
       +(c.active===false?' <span class="pill paused">Paused</span>':'')+'</td>'
       +'<td style="font-size:.76rem;color:var(--dark-grey);font-weight:700;word-break:break-all">'+esc(link)+'</td>'
       +'<td style="text-align:right;white-space:nowrap"><button class="btn sm" data-cp="'+esc(link)+'">🔗 Copy</button> '
+      +'<button class="btn sm" data-qr="'+esc(link)+'" data-qn="'+esc(hostName(c.staff_id))+'">QR</button> '
       +'<a class="btn sm" style="text-decoration:none" href="'+esc(link)+'" target="_blank">Preview</a></td></tr>';
   }).join('');
-  $('#view').innerHTML='<div class="card"><div class="ct">Shared link — anyone available</div>'
+  // mobile — 5a rows
+  var mrows=hostRows.map(function(c){
+    var link=any+'?h='+c.staff_id, nm=hostName(c.staff_id), paused=c.active===false;
+    var st=staffById(c.staff_id);
+    var acts=paused
+      ?'<button class="btn resume" data-resume="'+c.staff_id+'">Resume Host</button>'
+        +'<a class="btn op" href="'+esc(link)+'" target="_blank">Open</a>'
+      :'<button class="btn" data-cp="'+esc(link)+'">🔗 Copy</button>'
+        +'<button class="btn" data-sh="'+esc(link)+'">Share</button>'
+        +'<a class="btn op" href="'+esc(link)+'" target="_blank">Open</a>';
+    return '<div class="lhrow"><div class="top"><span class="hav'+(paused?' off':'')+'">'+esc(initials(nm))+'</span>'
+      +'<div style="flex:1;min-width:0"><div class="nm">'+esc(nm)+(paused?' <span class="pill paused">Paused</span>':'')+'</div>'
+      +'<div class="lu">interview.html?h='+c.staff_id+(st&&st.home_store?' · '+esc(storeLbl(st.home_store)):'')+'</div></div></div>'
+      +'<div class="acts">'+acts+'</div></div>';
+  }).join('');
+  $('#view').innerHTML=
+    '<div class="dv"><div class="card"><div class="ct">Shared link — anyone available</div>'
     +'<div class="ch">Shows open times across every accepting host. Use this on job postings.</div>'
     +'<div class="linkbox"><span style="flex:1">'+esc(any)+'</span></div>'
-    +'<div style="margin-top:12px"><button class="btn pri" data-cp="'+esc(any)+'">🔗 Copy Shared Link</button></div></div>'
+    +'<div style="margin-top:12px"><button class="btn pri" data-cp="'+esc(any)+'">🔗 Copy Shared Link</button> '
+    +'<button class="btn" data-qr="'+esc(any)+'" data-qn="Shared Booking Link">QR</button></div></div>'
     +'<div class="card"><div class="ct">Per-host links</div>'
     +'<div class="ch">A candidate on this link only sees that person\'s open times.</div>'
     +'<table><thead><tr><th>Host</th><th>Link</th><th></th></tr></thead><tbody>'
-    +(rows||'<tr><td colspan="3"><div class="empty">No hosts yet — add one under Hosts.</div></td></tr>')+'</tbody></table></div>';
-  $all('[data-cp]').forEach(function(b){b.onclick=function(){
-    navigator.clipboard.writeText(b.getAttribute('data-cp')).then(function(){toast('Link copied');},function(){toast('Copy failed',true);});};});
+    +(rows||'<tr><td colspan="3"><div class="empty">No hosts yet — add one under Hosts.</div></td></tr>')+'</tbody></table></div></div>'
+    +'<div class="mv"><div class="card lcard"><div class="ct" style="margin-bottom:10px">Shared Link</div>'
+    +'<div class="urlbox"><span>'+esc(any)+'</span></div>'
+    +'<div class="lact"><button class="btn pri cp" data-cp="'+esc(any)+'">🔗 Copy Link</button>'
+    +'<button class="btn" data-sh="'+esc(any)+'">Share</button>'
+    +'<button class="btn" data-qr="'+esc(any)+'" data-qn="Shared Booking Link">QR</button></div></div>'
+    +'<div class="card"><div class="ct">Per-Host Links</div>'
+    +(mrows||'<div class="empty">No hosts yet — add one under Hosts.</div>')+'</div></div>';
+  $all('[data-cp]').forEach(function(b){b.onclick=function(){copyTxt(b.getAttribute('data-cp'));};});
+  $all('[data-sh]').forEach(function(b){b.onclick=function(){shareLink(b.getAttribute('data-sh'));};});
+  $all('[data-qr]').forEach(function(b){b.onclick=function(){openQr(b.getAttribute('data-qr'),b.getAttribute('data-qn'));};});
+  $all('[data-resume]').forEach(function(b){b.onclick=function(){setHostActive(+b.getAttribute('data-resume'),true);};});
 }
 </script>
 </body>

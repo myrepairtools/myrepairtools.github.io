@@ -585,7 +585,9 @@ horizon_days 21, max_per_day, blurb), `interview_availability` (staff_id, store,
 start_min/end_min — store-local minutes), `interview_blackouts` (a date off; staff_id null =
 everyone), `interview_bookings` (random `token` = the candidate's capability URL, status
 booked|canceled|completed|no_show). **Slots are COMPUTED, never generated** — the
-`interviews` edge function derives availability − bookings − blackouts on every request, so
+`interviews` edge function derives availability − bookings − blackouts − **approved
+`time_off_requests`** (a ½-partial PTO day does NOT block — site convention: partial ≠ off)
+on every request, so
 there's no cron and nothing to backfill; `book` re-derives the slot server-side and refuses a
 posted time that isn't currently open (double-book returns `slot_taken`); `staff_book`
 (admin/manager/owner JWT) books on a host's behalf with ANY free-form time — only an
@@ -600,16 +602,32 @@ bookings — chips per day, day pane with Done/No-show/Cancel actions; the month
 the pickers.js month popover — remember `CPRPickers.month()` OPENS immediately, so call it
 from the label's onclick, never at render); **Hosts** (who can get a booking — one card per
 host with each availability day on its own line; tap the name to open that host's inline
-editor for weekly windows, slot rules, and days-off blackouts (admins edit anyone by RLS),
+editor for weekly windows, slot rules, and days off (admins edit anyone by RLS),
 ✕ removes, and "+ Add Host" (top-right) opens a picker modal that creates the
 `interview_settings` row and drops straight into the new host's availability editor.
-Windows are added via the "+ Add Availability" modal — set the time/store once, check
-every weekday it applies to, one row inserted per checked day. No status/pause surface —
-hosts are simply on the list or not);
-**Booking Links** (shared + per-host copy buttons). The **"+ New Booking" modal** books for
-a specific host (pick an open slot OR any custom date/time) or "first available" (slot list
-across all accepting hosts), requiring at least one contact method — it calls `staff_book`,
-so confirmations + host/team notifications fire exactly like a self-serve booking.
+Windows are added via the "+ Add Availability" modal — set the time/store once (defaults =
+open hours 10–19 with All/Mornings/Afternoons quick fills), check every weekday it applies
+to, one row inserted per checked day. **Days off** blocks a single day OR a date range
+(segmented control; a range inserts one `interview_blackouts` row per date — consecutive
+same-reason rows re-coalesce for display, ✕ unblocks the whole range), and the host's
+**approved PTO renders read-only** ("Approved PTO" pill, managed in Time Off) since the
+slot math already subtracts it);
+**Booking Links** (shared + per-host: Copy, `navigator.share`, and a QR dialog via
+assets/qrcode.js). The **"+ New Booking" surface** books for
+a specific host (pick an open slot OR any custom date/time via "Any time…") or "Anyone
+free" (slots across all accepting hosts), requiring at least one contact method — it calls
+`staff_book`, so confirmations + host/team notifications fire exactly like a self-serve
+booking.
+**Mobile pass (design handoff, ≤480px; desktop keeps the table/chip layouts):** the month
+grid swaps text chips for status dots (blue booked / green done / red no-show, max 3 then
++N) with a legend strip, the day pane becomes per-booking blocks with tel:/mailto: links
+and 44px actions, Hosts becomes 3b cards (initials avatar, `store · slot rules` sub-line,
+"Next" strip from the earliest upcoming booking, windows per line, Edit Availability +
+**Pause/Resume** — writes `interview_settings.active`; a paused host's links row offers
+Resume instead of Copy/Share), and Add Availability + New Booking render as **bottom
+sheets** (top:52px under the top bar; `.mback` is z-index 1200, above the 1001 bottom tab
+bar). New Booking uses host chips, a horizontal day strip with open counts (full days
+greyed), and a 2-up slot grid; the footer CTA names the time ("Book 10:00 AM").
 Confirmations: SMS from the store's own
 RingCentral line via `messaging`, email via Resend→**Gmail SMTP fallback** (only Gmail is
 configured today, so email works through that). **Reminder matrix** — the
