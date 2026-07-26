@@ -22,7 +22,7 @@ const CLIENT_ID = Deno.env.get("QBT_CLIENT_ID") || "";
 const CLIENT_SECRET = Deno.env.get("QBT_CLIENT_SECRET") || "";
 
 const REDIRECT_URI = "https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbtime-oauth";
-const RETURN_URL = "https://myrepairtools.github.io/settings.html";
+const RETURN_URL = "https://myrepairtools.com/settings.html";
 const AUTHORIZE = "https://rest.tsheets.com/api/v1/authorize";
 const GRANT = "https://rest.tsheets.com/api/v1/grant";
 const PROVIDER = "qbtime";

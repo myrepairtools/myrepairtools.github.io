@@ -45,7 +45,7 @@ const json = (b, s = 200)=>new Response(JSON.stringify(b), {
     }
   });
 // ---- Knowledge Base retrieval (permission-aware: employees never see manager-only articles) ----
-const KB_URL = "https://myrepairtools.github.io/knowledge.html";
+const KB_URL = "https://myrepairtools.com/knowledge.html";
 function isMgrRole(role) {
   return ["manager", "admin", "owner"].includes(String(role || ""));
 }

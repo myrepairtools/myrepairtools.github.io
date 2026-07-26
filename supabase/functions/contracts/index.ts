@@ -27,7 +27,7 @@ const NOTIFY_FROM = Deno.env.get("NOTIFY_FROM") || "onboarding@resend.dev";
 const GMAIL_USER = Deno.env.get("GMAIL_USER") || "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") || "";
 const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
-const SITE = "https://myrepairtools.github.io";
+const SITE = "https://myrepairtools.com";
 const SQ_API = "https://connect.squareup.com/v2/";
 const SQ_VERSION = "2025-01-23";
 

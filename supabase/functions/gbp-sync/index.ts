@@ -49,7 +49,7 @@ const G_REFRESH = Deno.env.get("GBP_REFRESH_TOKEN") || "";
 const ANTHROPIC = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
 const TZ = "America/Los_Angeles";
-const SITE = "https://myrepairtools.github.io/";
+const SITE = "https://myrepairtools.com/";
 
 const PERF = "https://businessprofileperformance.googleapis.com/v1/";
 const INFO = "https://mybusinessbusinessinformation.googleapis.com/v1/";
