@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Daily Digest — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;
+--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:680px;margin:0 auto;padding:16px 16px calc(28px + var(--cpr-bb-h,0px))}
+a{color:var(--blue)}a:hover{color:var(--red)}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
+.meta{margin-left:auto;font-size:.72rem;font-weight:800;color:var(--grey);white-space:nowrap}
+.dateline{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px}
+.stale{display:inline-flex;align-items:center;gap:6px;background:#FBF3E4;border:1px solid #EBDDBD;color:var(--amber);
+border-radius:99px;padding:3px 10px;font-size:.72rem;font-weight:800;margin-left:6px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:nowrap}
+.tabs{display:flex;background:#fff;border:1.5px solid var(--border);border-radius:9px;overflow:hidden}
+.tab{border:none;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark-grey);
+padding:8px 15px;cursor:pointer}
+.tab.on{background:var(--dark);color:#fff}
+.storesel{width:196px;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.92rem;color:var(--dark);cursor:pointer}
+.storesel:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.toolbar .storesel{margin-left:auto}
+@media(max-width:480px){
+  .tab{padding:8px 11px;font-size:.82rem}
+  .toolbar .storesel{width:auto;flex:1;min-width:104px;max-width:196px}
+}
+.sect{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.02rem;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.sect .cnt{margin-left:auto;background:#EAF6FD;color:#1E7AA8;font-family:'Nunito',sans-serif;font-weight:900;
+font-size:.72rem;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.subnote{font-size:.72rem;font-weight:700;color:var(--grey);margin:-4px 0 8px}
+.cards{display:grid;grid-template-columns:1fr;gap:10px}
+.scard{background:#fff;border:1px solid var(--border);border-top:3px solid var(--blue);border-radius:14px;
+padding:13px 14px;box-shadow:var(--shadow)}
+.schead{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:0;
+font-family:inherit;color:inherit;text-align:left;cursor:pointer}
+.schead b{font-family:'Nunito',sans-serif;font-weight:900;font-size:.98rem}
+.rankchip{background:rgba(220,40,46,.09);color:var(--red);font-family:'Nunito',sans-serif;
+font-weight:900;font-size:.76rem;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.glance{margin-left:auto;display:flex;align-items:baseline;gap:7px}
+.glance .gt{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
+.glance .gg{color:var(--green);font-weight:800;font-size:.76rem}
+.chev{flex:none;width:16px;height:16px;color:var(--grey);transition:transform .15s}
+.scard:not(.closed) .glance{display:none}
+.scard:not(.closed) .chev{margin-left:auto;transform:rotate(180deg)}
+.scard.closed .sc-body{display:none}
+.hero{display:flex;gap:18px;margin-top:9px;align-items:baseline}
+.hero .hv{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.7rem;line-height:1}
+.hero .hv.sm{font-size:1.25rem}
+.hero .hl{font-size:.62rem;font-weight:800;color:var(--grey);letter-spacing:.05em;margin-top:3px;text-transform:uppercase}
+.hero .gpp{color:var(--green);font-size:.85rem}
+.hero .last{margin-left:auto;text-align:right}
+.accy{margin-top:11px;background:#F7F8FA;border-radius:10px;padding:8px 11px}
+.accy .row{display:flex;align-items:baseline;font-size:.76rem;font-weight:800;gap:8px}
+.accy .row .lead{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.accy .row .goal{margin-left:auto;white-space:nowrap;flex:none}
+.accy .track{margin-top:6px;height:7px;background:#E7E9EF;border-radius:99px;position:relative}
+.accy .fill{height:7px;border-radius:99px;background:var(--blue)}
+.accy .tick{position:absolute;right:0;top:-2.5px;width:2.5px;height:12px;background:var(--dark);border-radius:2px}
+.chips{display:flex;gap:6px;margin-top:9px;font-size:.68rem;font-weight:800;color:var(--dark-grey);flex-wrap:wrap}
+.chips span{background:#F7F8FA;border-radius:99px;padding:4px 9px;white-space:nowrap}
+.chips span.mtd{background:#EAF6FD;color:#1E7AA8}
+.minis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.mini{background:#F7F8FA;border-radius:9px;padding:7px 10px;min-width:0}
+.mini .ml{font-size:.6rem;font-weight:800;color:var(--grey);letter-spacing:.05em;text-transform:uppercase}
+.mini .mv{font-family:'Nunito',sans-serif;font-weight:900;font-size:.88rem;margin-top:2px;white-space:nowrap}
+.mini .mv .gpp{color:var(--green);font-size:.72rem}
+.sc-c{display:none}
+.lrow{display:flex;align-items:baseline;font-size:.78rem;font-weight:700;padding:7px 0;border-bottom:1px solid #F3F4F8}
+.lrow:last-child{border-bottom:none;padding-bottom:2px}
+.lrow .ll{color:var(--dark-grey)}
+.lrow .lv{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;white-space:nowrap}
+.lrow .lx{font-size:.72rem;font-weight:800;margin-left:4px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 13px;box-shadow:var(--shadow)}
+.rows{display:flex;flex-direction:column;gap:6px}
+.r{display:grid;grid-template-columns:minmax(0,1fr) 70px 64px 76px;gap:8px;align-items:center;
+background:#F7F8FA;border-radius:9px;padding:8px 10px;font-size:.8rem;font-weight:700;min-width:0}
+.r .main{min-width:0}
+.r .main .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r .main .s{font-size:.68rem;color:var(--grey);font-weight:800;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r .amt{font-family:'Nunito',sans-serif;font-weight:900;white-space:nowrap;text-align:right}
+.r .gp{color:var(--green);font-weight:800;font-size:.74rem;white-space:nowrap;text-align:right}
+.r .tkt{color:var(--grey);font-weight:800;font-size:.72rem;white-space:nowrap;text-align:right}
+.r .loc{font-size:.7rem;font-weight:800;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quiet{padding:14px 4px;font-size:.8rem;font-weight:700;color:var(--grey)}
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbr{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
+.lbr .top{display:flex;gap:9px;align-items:center;font-size:.86rem;font-weight:700}
+.lbr .pos{font-family:'Nunito',sans-serif;font-weight:900;color:var(--dark-grey);min-width:16px}
+.lbr:first-child .pos{color:var(--red)}
+.lbr .who{flex:1;font-family:'Nunito',sans-serif;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbr .amt{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem}
+.lbr .chips{margin-top:7px}
+.gate{background:#fff;border:1px solid var(--border);border-radius:16px;padding:44px 24px;text-align:center;
+box-shadow:var(--shadow);margin-top:18px}
+.gate svg{width:34px;height:34px;color:var(--grey);margin-bottom:10px}
+.gate .gt{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.gate .gs{font-size:.82rem;font-weight:700;color:var(--dark-grey);margin-top:6px;line-height:1.55}
+.duo{display:grid;grid-template-columns:1fr;gap:10px}
+.selmini{height:32px;padding:4px 9px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark);cursor:pointer;margin-left:auto}
+.selmini:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+@media(max-width:480px){
+  .r{grid-template-columns:minmax(0,1fr) 54px 52px 56px;gap:6px;padding:8px 8px}
+  .r .amt{font-size:.74rem}
+  .r .gp{font-size:.68rem}
+  .r .tkt{font-size:.66rem}
+  .r .loc{font-size:.64rem}
+}
+.demo{display:inline-flex;background:#EAF6FD;color:#1E7AA8;border-radius:99px;padding:3px 10px;
+font-size:.72rem;font-weight:800;margin-left:6px}
+@media(min-width:1000px){
+  main{max-width:1080px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .duo{grid-template-columns:1fr 1fr}
+  .duo>div{display:flex;flex-direction:column}
+  .duo>div .card{flex:1}
+  .lb{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sc-a{display:none}
+  .sc-c{display:block}
+  .schead{padding-bottom:8px;border-bottom:1px solid #EFF1F5;cursor:default}
+  .glance,.chev{display:none}
+  .scard.closed .sc-body{display:block}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <h1>Daily Digest</h1>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="dateline" id="dateline">Loading…</div>
+  <div class="toolbar" id="toolbar" style="display:none">
+    <div class="tabs" role="tablist">
+      <button class="tab" data-tab="today">Today</button>
+      <button class="tab" data-tab="month">Month</button>
+      <button class="tab" data-tab="team">Team</button>
+    </div>
+    <select class="storesel" id="storeSel" aria-label="Store"></select>
+  </div>
+  <div id="view"></div>
+</main>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+/* Daily Digest — the owner's morning scorecard (RepairQ Looker dashboard 2273)
+   rendered from digest_raw (read-only; the daily-digest-sync pg_cron fills it
+   every 4h). RLS is manager/owner (is_admin()) — non-managers get zero rows and
+   the Managers Only state. Derived metrics (GP %, attach rate, accy %) are
+   computed here from raw fields; Looker's own table calcs come back null. */
+var $=function(s,c){return (c||document).querySelector(s);};
+var $$=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+var SB_REF='xuvsehrevxackuhmbmry';
+var SB_URL='https://'+SB_REF+'.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var LOC=window.CPRLocations;
+var TZ='America/Los_Angeles';
+var ACCY_GOAL=0.10;            // store goal: accessories as a share of revenue (make data later)
+var DEMO=/[?&]demo=1/.test(location.search);
+
+/* ---------- state ---------- */
+var TABS=['today','month','team'];
+var TAB=null, STORE=localStorage.getItem('cprDigestStore')||'', SORT=localStorage.getItem('cprDigestSort')||'sales';
+var BY={}, SNAP_DATE=null, CAPTURED=null, LOADED=false;
+
+/* ---------- utils ---------- */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function N(v){ if(v==null||v==='')return null; if(typeof v==='number')return isFinite(v)?v:null;
+  var n=parseFloat(String(v).replace(/[$,%\s]/g,'')); return isFinite(n)?n:null; }
+function G(row,key){ if(!row)return null; if(key in row)return row[key];
+  var o=row,p=key.split('.'); for(var i=0;i<p.length;i++){ if(o&&typeof o==='object'&&p[i] in o)o=o[p[i]]; else return null; } return o; }
+function GN(row,key){ return N(G(row,key)); }
+function pick(row,res,type){ var keys=Object.keys(row||{});
+  for(var i=0;i<res.length;i++)for(var j=0;j<keys.length;j++){
+    if(res[i].test(keys[j])){ var v=row[keys[j]];
+      if(type==='num'){ v=N(v); if(v!=null)return v; }
+      else if(type==='str'){ if(typeof v==='string'&&v.trim())return v; }
+      else if(v!=null&&v!=='')return v; } }
+  return null; }
+function div(a,b){ return (a==null||!b)?null:a/b; }
+function money(v,cents){ if(v==null)return '—';
+  var neg=v<0, a=Math.abs(v);
+  var s='$'+a.toLocaleString('en-US',{minimumFractionDigits:cents?2:0,maximumFractionDigits:cents?2:0});
+  return neg?'−'+s:s; }
+function pct(v,dp){ return v==null?'—':(v*100).toFixed(dp==null?1:dp)+'%'; }
+function todayPT(){ return new Date().toLocaleDateString('en-CA',{timeZone:TZ}); }
+function dateLabel(iso){ var p=String(iso).split('-').map(Number);
+  return new Date(p[0],p[1]-1,p[2]).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}); }
+function shortDate(iso){ var p=String(iso).split('-').map(Number);
+  return new Date(p[0],p[1]-1,p[2]).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+function timePT(iso){ return iso?new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:TZ}):''; }
+function storeOf(row){
+  var c=G(row,'location.short_name')||G(row,'location.name')||G(row,'store.name');
+  if(!c){ var keys=Object.keys(row||{}); for(var i=0;i<keys.length;i++){
+    if(/location|store/i.test(keys[i])&&typeof row[keys[i]]==='string'&&row[keys[i]].trim()){c=row[keys[i]];break;} } }
+  return c?LOC.normalize(c):''; }
+function nameKey(s){ return String(s||'').trim().toLowerCase(); }
+function shortLoc(s){ return LOC.display(s).replace('Northeast','NE'); }
+function storeOrd(s){ var f=LOC.find(s); return f?f.order:99; }
+var ICO={
+  lock:'<path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>',
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'};
+function icon(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICO[n]+'</svg>'; }
+
+/* ---------- derived metrics ---------- */
+function digestMetrics(r){
+  var total=GN(r,'ticket_item.all_net_sale_total'), gp=GN(r,'ticket_item.all_net_sale_after_cogs_total'),
+      accy=GN(r,'ticket_item.all_net_accessory_sales_total'), accyGp=GN(r,'ticket_item.all_net_accessory_sales_after_cogs_total'),
+      tix=GN(r,'ticket.count_all'), accyN=GN(r,'ticket_item.all_sale_accessory_count');
+  return { store:storeOf(r), rank:GN(r,'ranked_net_sales_mtd.rank'),
+    total:total, gp:gp, gpPct:div(gp,total), accy:accy, accyPct:div(accy,total), accyGpPct:div(accyGp,accy),
+    tix:tix, attach:div(accyN,tix), accyPerTkt:div(accy,tix) };
+}
+
+/* ---------- rendering ---------- */
+/* ---------- store cards (collapsible; 2a on phone, 2c ledger on desktop) ---------- */
+var OPEN=null;
+function openSet(){ if(OPEN)return OPEN;
+  try{ OPEN=JSON.parse(localStorage.getItem('cprDigestOpen')||'null'); }catch(e){ OPEN=null; }
+  if(!OPEN||typeof OPEN!=='object'||Array.isArray(OPEN)){ OPEN={}; OPEN[LOC.names()[0]]=true; }
+  return OPEN; }
+function saveOpen(){ try{ localStorage.setItem('cprDigestOpen',JSON.stringify(OPEN)); }catch(e){} }
+function storeCard(m,isOpen){
+  var accyPct=m.accyPct, atGoal=accyPct!=null&&accyPct>=ACCY_GOAL;
+  var fill=accyPct==null?0:Math.min(100,accyPct/ACCY_GOAL*100);
+  var goalColor=atGoal?'var(--green)':'var(--amber)';
+  /* 2a — phone: hero numbers, accessory goal bar, boxed coaching stats */
+  var a='<div class="hero">'
+      +'<div><div class="hv">'+money(m.total,true)+'</div><div class="hl">Total Sales</div></div>'
+      +'<div class="last"><div class="hv sm">'+(m.tix==null?'—':Math.round(m.tix))+'</div><div class="hl">Tickets</div></div>'
+    +'</div>'
+    +'<div class="accy">'
+      +'<div class="row"><span class="lead">Accessories '+money(m.accy,true)+(m.accyGpPct!=null?' · GP '+pct(m.accyGpPct,0):'')+'</span>'
+      +'<span class="goal" style="color:'+goalColor+'">'+pct(accyPct)+' · goal '+pct(ACCY_GOAL,0)+'</span></div>'
+      +'<div class="track"><div class="fill" style="width:'+fill+'%'+(atGoal?';background:var(--green)':'')+'"></div><div class="tick"></div></div>'
+    +'</div>'
+    +'<div class="minis">'
+      +'<div class="mini"><div class="ml">GP</div><div class="mv">'+money(m.gp)+' <span class="gpp">'+pct(m.gpPct)+'</span></div></div>'
+      +'<div class="mini"><div class="ml">Attach</div><div class="mv">'+pct(m.attach,0)+'</div></div>'
+      +'<div class="mini"><div class="ml">Accy/Tkt</div><div class="mv">'+money(m.accyPerTkt,true)+'</div></div>'
+    +'</div>';
+  /* 2c — desktop: dense ledger rows */
+  var c='<div class="lrow"><span class="ll">Total Sales</span><span class="lv">'+money(m.total,true)+'</span></div>'
+    +'<div class="lrow"><span class="ll">Gross Profit</span><span class="lv">'+money(m.gp,true)+'<span class="lx" style="color:var(--green)">'+pct(m.gpPct)+'</span></span></div>'
+    +'<div class="lrow"><span class="ll">Accessories</span><span class="lv">'+money(m.accy,true)+'<span class="lx" style="color:'+goalColor+'">'+pct(accyPct)+' / '+pct(ACCY_GOAL,0)+(m.accyGpPct!=null?' · GP '+pct(m.accyGpPct,0):'')+'</span></span></div>'
+    +'<div class="lrow"><span class="ll">Tickets</span><span class="lv">'+(m.tix==null?'—':Math.round(m.tix))
+      +'<span class="lx" style="color:var(--grey)">· Attach '+pct(m.attach,0)+' · '+money(m.accyPerTkt,true)+'/tkt</span></span></div>';
+  return '<div class="scard'+(isOpen?'':' closed')+'" data-store="'+esc(m.store)+'">'
+    +'<button type="button" class="schead">'
+    +(m.rank!=null?'<span class="rankchip">#'+esc(Math.round(m.rank))+'</span>':'')
+    +'<b>'+esc(LOC.display(m.store)||m.store||'Store')+'</b>'
+    +'<span class="glance"><span class="gt">'+money(m.total,true)+'</span><span class="gg">'+pct(m.gpPct)+'</span></span>'
+    +'<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+    +'</button>'
+    +'<div class="sc-body"><div class="sc-a">'+a+'</div><div class="sc-c">'+c+'</div></div>'
+  +'</div>';
+}
+function emptyCard(store,msg){
+  return '<div class="scard"><div class="schead" style="cursor:default"><b>'+esc(LOC.display(store))+'</b></div><div class="quiet">'+esc(msg)+'</div></div>';
+}
+function visibleStores(){ return STORE?[STORE]:LOC.names(); }
+
+function cardsHtml(tileKey,label,allOpen){
+  var rows=BY[tileKey]||[], byStore={};
+  rows.forEach(function(r){ var m=digestMetrics(r); if(m.store)byStore[m.store]=m; });
+  var open=openSet(), h='<div class="cards">';
+  visibleStores().forEach(function(s){
+    h+=byStore[s]?storeCard(byStore[s],allOpen||STORE?true:!!open[s])
+      :emptyCard(s,label==='today'?'Nothing yet today.':'No numbers yet this month.');
+  });
+  return h+'</div>';
+}
+function bindCards(){
+  $$('.scard[data-store] .schead').forEach(function(b){
+    b.addEventListener('click',function(){
+      var card=b.closest('.scard'), s=card.getAttribute('data-store');
+      var open=openSet(), closed=card.classList.toggle('closed');
+      if(closed)delete open[s]; else open[s]=true;
+      saveOpen();
+    });
+  });
+}
+
+function devicesHtml(){
+  var raw=(BY.device_sales_today||[]).filter(function(r){ var s=storeOf(r); return !STORE||!s||s===STORE; });
+  var units=0,total=0;
+  var list=raw.map(function(r){
+    /* real capture keys pinned 2026-07-26 (see docs/daily-digest-design-handoff.md):
+       qty=ticket_item.all_sale_count, price=ticket_item.all_net_sale_total */
+    var qty=pick(r,[/^ticket_item\.all_sale_count$/i,/units.*sold|sold.*units|quantity/i,/\.count(_all)?$/i],'num'); if(qty==null)qty=1;
+    return { store:storeOf(r),
+      name:G(r,'device.name')||G(r,'catalog_item.name')||pick(r,[/^(?!location)(?!user)(?!sold_by).*\bname$/i,/device/i],'str')||'Device',
+      qty:qty,
+      price:pick(r,[/^ticket_item\.all_net_sale_total$/i,/sale_price/i,/price/i],'num'),
+      gp:pick(r,[/after_cogs/i,/gross_profit/i,/(^|[._])gp([._]|$)/i],'num'),
+      tkt:pick(r,[/ticket.*(no|num|id)/i,/^ticket\./i],null) };
+  });
+  list.sort(function(a,b){ return storeOrd(a.store)-storeOrd(b.store)||String(a.name).localeCompare(String(b.name)); });
+  var items=list.map(function(d){
+    units+=d.qty; total+=(d.price||0)*d.qty;
+    return '<div class="r"><div class="main"><div class="t">'+esc(d.name)+'</div>'
+      +(d.tkt!=null?'<div class="s">#'+esc(d.tkt)+'</div>':'')+'</div>'
+      +'<span class="loc">'+esc(d.store?shortLoc(d.store):'')+'</span>'
+      +'<span class="amt">'+(d.price!=null?money(d.price,true):'')+'</span>'
+      +'<span class="gp">'+(d.gp!=null?'GP '+money(d.gp):'')+'</span></div>';
+  });
+  return '<div class="sect">Devices Sold Today'
+    +(items.length?'<span class="cnt">'+units+' unit'+(units===1?'':'s')+' · '+money(total)+'</span>':'')+'</div>'
+    +'<div class="card">'+(items.length?'<div class="rows">'+items.join('')+'</div>'
+      :'<div class="quiet">No devices sold yet — fills in through the day.</div>')+'</div>';
+}
+
+function claimsHtml(){
+  var keys=['claims_completed_eugene','claims_completed_salem','claims_completed_clackamas'];
+  var fallback={claims_completed_eugene:'CPR Eugene',claims_completed_salem:'CPR Salem Northeast',claims_completed_clackamas:'CPR Clackamas OR'};
+  var rows=[];
+  keys.forEach(function(k){ (BY[k]||[]).forEach(function(r){ rows.push({r:r,store:storeOf(r)||fallback[k]}); }); });
+  rows=rows.filter(function(x){ return !STORE||x.store===STORE; });
+  var list=rows.map(function(x){
+    var r=x.r;
+    /* real capture keys pinned 2026-07-26: device_catalog_item.name is the model
+       (device.description carries the COLOR — never the name), the program name
+       is the most useful subtitle, and the bare /total/ regex was landing on
+       all_net_cogs_total — pin the repair-sale total. */
+    return { store:x.store,
+      dev:G(r,'device_catalog_item.name')||G(r,'ticket_device.claim_model')||pick(r,[/device.*name/i,/claim_model/i,/^(?!.*description)device/i],'str')||'Claim',
+      desc:G(r,'service_program.name')||pick(r,[/claim.*description/i,/^claim\.description$/i,/description/i],'str'),
+      tkt:pick(r,[/ticket.*(no|num|id)/i,/rq.*ticket/i,/^ticket\./i],null),
+      gp:pick(r,[/after_cogs/i,/gross_profit/i,/(^|[._])gp(?![._]?percent)([._]|$)/i],'num'),
+      total:pick(r,[/^ticket_item\.all_net_repair_sale_total$/i,/payment_amount/i,/(^|[._])(?!.*cogs)total([._]|$)/i],'num') };
+  });
+  list.sort(function(a,b){ return storeOrd(a.store)-storeOrd(b.store)||String(a.tkt||'').localeCompare(String(b.tkt||'')); });
+  var gpSum=0,gpAny=false;
+  var items=list.map(function(c){
+    if(c.gp!=null){gpSum+=c.gp;gpAny=true;}
+    return '<div class="r"><div class="main"><div class="t">'+esc(c.dev)+'</div>'
+      +(c.desc?'<div class="s">'+esc(c.desc)+'</div>':'')+'</div>'
+      +'<span class="loc">'+esc(c.store?shortLoc(c.store):'')+'</span>'
+      +'<span class="tkt">'+(c.tkt!=null?'#'+esc(c.tkt):'')+'</span>'
+      +(c.gp!=null?'<span class="gp">GP '+money(c.gp)+'</span>':'<span class="amt">'+(c.total!=null?money(c.total,true):'')+'</span>')+'</div>';
+  });
+  var payout=(BY.claim_payout_weekly||[]).map(function(r){
+    var s=storeOf(r), amt=GN(r,'transaction.payment_amount_total');
+    return s&&amt!=null?'<span>'+esc(LOC.display(s))+' '+money(amt)+'</span>':'';
+  }).join('');
+  return '<div class="sect">Claims Fulfilled Today'
+    +(items.length?'<span class="cnt">'+items.length+' claim'+(items.length===1?'':'s')+(gpAny?' · '+money(gpSum)+' GP':'')+'</span>':'')+'</div>'
+    +'<div class="card">'+(items.length?'<div class="rows">'+items.join('')+'</div>'
+      :'<div class="quiet">No claims fulfilled yet today.</div>')
+    +(payout?'<div class="chips" style="margin-top:10px"><span style="background:none;padding-left:0;color:var(--grey)">Paid Last 7 Days</span>'+payout+'</div>':'')
+    +'</div>';
+}
+
+function teamHtml(){
+  var sales=(BY.employee_breakdown||[]).map(function(r){
+    var total=GN(r,'ticket_item.all_net_sale_total'), gp=GN(r,'ticket_item.all_sale_cogs_total')!=null
+      ? (total!=null?total-GN(r,'ticket_item.all_sale_cogs_total'):GN(r,'ticket_item.all_net_sale_after_cogs_total'))
+      : GN(r,'ticket_item.all_net_sale_after_cogs_total');
+    var tix=GN(r,'ticket.count_all'), accyN=GN(r,'ticket_item.all_sale_accessory_count'),
+        accy=GN(r,'ticket_item.all_net_accessory_sales_total');
+    return { name:G(r,'sold_by.full_name')||pick(r,[/full_name/i],'str')||'—',
+      total:total||0, gp:gp, gpPct:div(gp,total), tix:tix, attach:div(accyN,tix), accyPerTkt:div(accy,tix) };
+  });
+  var byName={};
+  sales.forEach(function(p){ byName[nameKey(p.name)]=p; });
+  function fold(tile,label){
+    (BY[tile]||[]).forEach(function(r){
+      var n=G(r,'user.full_name')||pick(r,[/full_name/i],'str'); if(!n)return;
+      var k=nameKey(n), c=GN(r,'ticket_item.all_sale_count')||0;
+      if(!byName[k])byName[k]={name:n,total:0,gp:null,gpPct:null,tix:null,attach:null,accyPerTkt:null};
+      byName[k][label]=(byName[k][label]||0)+c;
+    });
+  }
+  fold('device_cleanings','clean'); fold('express_repairs','express'); fold('akko_plan_sales','akko');
+  var ppl=Object.keys(byName).map(function(k){return byName[k];});
+  var sorters={sales:function(p){return p.total||0;},gp:function(p){return p.gp||0;},
+    attach:function(p){return p.attach||0;},accytkt:function(p){return p.accyPerTkt||0;}};
+  var f=sorters[SORT]||sorters.sales;
+  ppl.sort(function(a,b){return f(b)-f(a);});
+  var rows=ppl.map(function(p,i){
+    var ch='';
+    if(p.gpPct!=null)ch+='<span>GP '+pct(p.gpPct,0)+'</span>';
+    if(p.attach!=null)ch+='<span>Attach '+pct(p.attach,0)+'</span>';
+    if(p.accyPerTkt!=null)ch+='<span>'+money(p.accyPerTkt,true)+'/tkt</span>';
+    if(p.clean)ch+='<span class="mtd">Cleanings '+p.clean+'</span>';
+    if(p.express)ch+='<span class="mtd">Express '+p.express+'</span>';
+    if(p.akko)ch+='<span class="mtd">AKKO '+p.akko+'</span>';
+    return '<div class="lbr"><div class="top"><span class="pos">'+(i+1)+'</span>'
+      +'<span class="who">'+esc(p.name)+'</span><span class="amt">'+money(p.total,true)+'</span></div>'
+      +(ch?'<div class="chips">'+ch+'</div>':'')+'</div>';
+  });
+  return '<div class="sect">Team Leaderboard'
+    +'<select class="selmini" id="sortSel" aria-label="Sort">'
+      +'<option value="sales"'+(SORT==='sales'?' selected':'')+'>Sort: Sales</option>'
+      +'<option value="gp"'+(SORT==='gp'?' selected':'')+'>Sort: Gross Profit</option>'
+      +'<option value="attach"'+(SORT==='attach'?' selected':'')+'>Sort: Attach Rate</option>'
+      +'<option value="accytkt"'+(SORT==='accytkt'?' selected':'')+'>Sort: Accy / Ticket</option>'
+    +'</select></div>'
+    +(rows.length?'<div class="lb">'+rows.join('')+'</div>'
+      :'<div class="card"><div class="quiet">No employee sales captured yet today.</div></div>');
+}
+
+function paint(){
+  if(!LOADED)return;
+  var v=$('#view'), storeSelWrap=$('#storeSel');
+  storeSelWrap.style.display=(TAB==='team')?'none':'';
+  if(TAB==='today'){
+    v.innerHTML='<div class="sect" style="margin-top:10px">Store Scorecards</div>'
+      +cardsHtml('daily_digest','today')
+      +'<div class="duo"><div>'+devicesHtml()+'</div><div>'+claimsHtml()+'</div></div>';
+    bindCards();
+  } else if(TAB==='month'){
+    v.innerHTML='<div class="sect" style="margin-top:10px">Month-To-Date Scorecards</div>'
+      +'<div class="subnote">Rank is franchise-wide net sales, month-to-date.</div>'
+      +cardsHtml('monthly_digest','month',true);
+    bindCards();
+  } else {
+    v.innerHTML=teamHtml();
+    var ss=$('#sortSel');
+    if(ss)ss.addEventListener('change',function(){ SORT=ss.value; localStorage.setItem('cprDigestSort',SORT); paint(); });
+  }
+  $$('.tab').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-tab')===TAB); });
+}
+
+function setTab(t,fromHash){
+  if(TABS.indexOf(t)<0)t='today';
+  TAB=t; localStorage.setItem('cprDigestTab',t);
+  if(!fromHash)history.replaceState(null,'','#'+t);
+  paint();
+}
+
+function gate(ic,title,body){
+  $('#toolbar').style.display='none';
+  $('#view').innerHTML='<div class="gate">'+icon(ic)+'<div class="gt">'+esc(title)+'</div><div class="gs">'+body+'</div></div>';
+}
+
+function headerMeta(){
+  var today=todayPT();
+  $('#dateline').innerHTML=esc(dateLabel(SNAP_DATE||today))
+    +(SNAP_DATE&&SNAP_DATE!==today?'<span class="stale">Last capture '+esc(shortDate(SNAP_DATE))+' — nothing today yet</span>':'')
+    +(DEMO?'<span class="demo">Demo Data</span>':'');
+  $('#meta').textContent=CAPTURED?('Updated '+timePT(CAPTURED)):'';
+}
+
+/* ---------- boot ---------- */
+function wireChrome(){
+  var sel=$('#storeSel');
+  sel.innerHTML='<option value="">All Stores</option>'+LOC.names().map(function(n){
+    return '<option value="'+esc(n)+'"'+(n===STORE?' selected':'')+'>CPR '+esc(LOC.display(n))+'</option>'; }).join('');
+  sel.addEventListener('change',function(){ STORE=sel.value; localStorage.setItem('cprDigestStore',STORE); paint(); });
+  $$('.tab').forEach(function(b){ b.addEventListener('click',function(){ setTab(b.getAttribute('data-tab')); }); });
+  window.addEventListener('hashchange',function(){ var h=location.hash.replace('#','');
+    if(TABS.indexOf(h)>-1&&h!==TAB)setTab(h,true); });
+}
+function initialTab(){
+  var h=location.hash.replace('#','');
+  return TABS.indexOf(h)>-1?h:(TABS.indexOf(localStorage.getItem('cprDigestTab'))>-1?localStorage.getItem('cprDigestTab'):'today');
+}
+function ready(rows){
+  BY={}; CAPTURED=null;
+  var dates={};
+  rows.forEach(function(r){ dates[r.capture_date]=1; });
+  SNAP_DATE=Object.keys(dates).sort().pop()||null;
+  rows.forEach(function(r){
+    if(r.capture_date!==SNAP_DATE)return;
+    BY[r.tile_key]=Array.isArray(r.rows)?r.rows:[];
+    if(!CAPTURED||r.captured_at>CAPTURED)CAPTURED=r.captured_at;
+  });
+  LOADED=true;
+  headerMeta();
+  $('#toolbar').style.display='';
+  setTab(initialTab(),true);
+}
+function roleRank(){ var R={none:0,employee:1,team_member:1,manager:2,admin:2,owner:3}; return R[window.CPRNavRole]||0; }
+
+async function boot(){
+  if(DEMO){ ready(demoRows()); return; }
+  var sb=null;
+  try{
+    var mod=await import('/assets/supabase-js.js');
+    sb=mod.createClient(SB_URL,ANON);
+  }catch(e){ gate('inbox','Couldn\u2019t Load','Refresh to retry.'); return; }
+  var sess=(await sb.auth.getSession()).data.session;
+  if(!sess){
+    try{
+      var raw=localStorage.getItem('sb-'+SB_REF+'-auth-token');
+      if(raw){ var o=JSON.parse(raw);
+        var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+        var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+        if(at&&rt){ await sb.auth.setSession({access_token:at,refresh_token:rt}); sess=(await sb.auth.getSession()).data.session; } }
+    }catch(e){}
+  }
+  if(!sess){ gate('user','Sign In First','Sign in with your PIN from any page, then reload.'); return; }
+  var since=new Date(Date.now()-8*864e5).toLocaleDateString('en-CA',{timeZone:TZ});
+  var q=await sb.from('digest_raw').select('capture_date,tile_key,rows,row_count,captured_at')
+    .gte('capture_date',since).order('capture_date',{ascending:false}).limit(60);
+  if(q.error){ gate('inbox','Couldn\u2019t Load The Digest','Refresh to retry.'); return; }
+  if(!q.data||!q.data.length){
+    var check=function(){
+      if(roleRank()>=2)gate('inbox','No Capture Yet','The sync runs every four hours \u2014 the first snapshot of the day lands early morning.');
+      else gate('lock','Managers Only','The Daily Digest is the management scorecard. Ask an owner if you think you should have access.');
+    };
+    check();
+    window.addEventListener('cprnav:auth',check);
+    return;
+  }
+  ready(q.data);
+}
+
+/* ---------- demo data (layout preview: ?demo=1) ---------- */
+function demoRows(){
+  function ds(store,rank,total,gp,accy,accyGp,tix,accyN,rep,ret){
+    return {'location.short_name':store,'ranked_net_sales_mtd.rank':rank,
+      'ticket_item.all_net_sale_total':total,'ticket_item.all_net_sale_after_cogs_total':gp,
+      'ticket_item.all_net_accessory_sales_total':accy,'ticket_item.all_net_accessory_sales_after_cogs_total':accyGp,
+      'ticket.count_all':tix,'ticket_item.all_sale_accessory_count':accyN,
+      'ticket_item.all_net_repair_sale_total':rep,'ticket_item.all_net_retail_sale_total':ret};
+  }
+  function emp(n,total,cogs,tix,accyN,accy){
+    return {'sold_by.full_name':n,'ticket_item.all_net_sale_total':total,'ticket_item.all_sale_cogs_total':cogs,
+      'ticket.count_all':tix,'ticket_item.all_sale_accessory_count':accyN,'ticket_item.all_net_accessory_sales_total':accy};
+  }
+  function cnt(n,sku,c){ return {'user.full_name':n,'catalog_item.sku':sku,'ticket_item.all_sale_count':c}; }
+  var today=todayPT(), now=new Date().toISOString();
+  var tiles={
+    daily_digest:[ds('CPR Eugene',8,4118.42,2512.11,401.87,352.20,31,13,2900.10,816.45),
+      ds('CPR Salem Northeast',12,3442.68,2173.28,239.92,215.18,27,10,2610.33,592.43),
+      ds('CPR Clackamas OR',21,2907.15,1685.90,318.44,281.03,22,9,2010.88,577.83)],
+    monthly_digest:[ds('CPR Eugene',8,61233.90,37142.55,6480.12,5710.66,428,177,44120.30,10633.48),
+      ds('CPR Salem Northeast',12,52318.44,32105.77,4381.09,3922.11,371,141,39805.12,8132.23),
+      ds('CPR Clackamas OR',21,44102.60,26011.35,4922.71,4310.42,315,128,30122.85,9057.04)],
+    employee_breakdown:[emp('Jordan Meyer',1204.10,467.22,11,5,123.40),emp('Riley Kim',988.75,411.90,9,3,66.80),
+      emp('Casey Tran',744.20,301.15,8,2,44.10),emp('Sam Ortega',505.63,228.41,6,3,58.90)],
+    claim_payout_weekly:[{'location.short_name':'CPR Eugene','transaction.payment_amount_total':1120.44},
+      {'location.short_name':'CPR Salem Northeast','transaction.payment_amount_total':842.10},
+      {'location.short_name':'CPR Clackamas OR','transaction.payment_amount_total':448.02}],
+    device_cleanings:[cnt('Jordan Meyer','CLEAN-DEV',6),cnt('Riley Kim','CLEAN-DEV',3),cnt('Casey Tran','CLEAN-DEV',5)],
+    express_repairs:[cnt('Jordan Meyer','EXPRESS',4),cnt('Riley Kim','EXPRESS',5),cnt('Sam Ortega','EXPRESS',2)],
+    akko_plan_sales:[cnt('Jordan Meyer','AKKO-M',2),cnt('Casey Tran','AKKO-M',1)],
+    device_sales_today:[
+      {'ticket.ticket_number':48212,'location.short_name':'CPR Eugene','device.name':'iPhone 13 128GB Midnight','ticket_item.units_sold':1,'ticket_item.sale_price':399.00,'ticket_item.gross_profit':151.00},
+      {'ticket.ticket_number':48219,'location.short_name':'CPR Salem Northeast','device.name':'Galaxy S22 128GB','ticket_item.units_sold':1,'ticket_item.sale_price':349.00,'ticket_item.gross_profit':121.00},
+      {'ticket.ticket_number':48224,'location.short_name':'CPR Clackamas OR','device.name':'iPhone 12 64GB Blue','ticket_item.units_sold':1,'ticket_item.sale_price':279.00,'ticket_item.gross_profit':98.00}],
+    claims_completed_eugene:[
+      {'location.short_name':'CPR Eugene','ticket.ticket_number':48210,'claim.status':'Repaired','device.name':'iPhone 14 Pro','claim.description':'Screen replacement','ticket_item.total':289.00,'ticket_item.gross_profit':214.00},
+      {'location.short_name':'CPR Eugene','ticket.ticket_number':48216,'claim.status':'Repaired','device.name':'iPad 9th Gen','claim.description':'Digitizer','ticket_item.total':189.00,'ticket_item.gross_profit':121.00}],
+    claims_completed_salem:[
+      {'location.short_name':'CPR Salem Northeast','ticket.ticket_number':48219,'claim.status':'Repaired','device.name':'Pixel 8','claim.description':'Back glass','ticket_item.total':219.00,'ticket_item.gross_profit':187.00}],
+    claims_completed_clackamas:[
+      {'location.short_name':'CPR Clackamas OR','ticket.ticket_number':48221,'claim.status':'Repaired','device.name':'Galaxy S23 Ultra','claim.description':'Screen + frame','ticket_item.total':329.00,'ticket_item.gross_profit':346.00}]
+  };
+  return Object.keys(tiles).map(function(k){
+    return {capture_date:today,tile_key:k,rows:tiles[k],row_count:tiles[k].length,captured_at:now};
+  });
+}
+
+window.__digestDemo=function(){ ready(demoRows()); };   // layout preview hook (?demo=1 uses it too)
+wireChrome();
+boot();
+</script>
+</body>
+</html>

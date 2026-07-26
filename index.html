@@ -226,6 +226,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/leaderboard-summary.js"></script>
 <script src="assets/gbp-summary.js"></script>
 <script src="assets/cash-summary.js"></script>
+<script src="assets/digest-summary.js"></script>
 <script src="assets/celebrations-summary.js"></script>
 <script src="assets/comms.js"></script>
 <script>
@@ -358,6 +359,14 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       can:function(){ return rank()>=RANK.manager; },
       render:function(){ return '<div data-gr-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
       mount:function(bd){ loadGbpReviews(bd); } },
+
+    { id:'digest', title:'Today’s Numbers', icon:'📊', accent:'red', defaultSize:'narrow',
+      desc:'Rank, sales and GP per store from the Daily Digest — managers only.',
+      link:{href:'daily-digest.html',x:'Open Digest →'},
+      can:function(){ return rank()>=RANK.manager; },
+      render:function(){ return ''
+        +'<div data-dg-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
+      mount:function(bd){ loadDigest(bd); } },
 
     { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
       desc:'Verified drawer & safe counts from the latest closed cash audit.',
@@ -649,6 +658,29 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     }, function(){});
   }
 
+  function loadDigest(bd){
+    if(!window.CPRDigest || !window.CPRDigest.forToday) return;
+    var body=bd.querySelector('[data-dg-body]'); if(!body) return;
+    function m0(v){ return v==null?'—':'$'+Math.round(v).toLocaleString('en-US'); }
+    window.CPRDigest.forToday().then(function(d){
+      if(!body) return;
+      if(!d){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">Sign in to see today’s numbers.</div></div>'; return; }
+      if(!d.stores.length){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">No capture yet today.</div><div class="es">The digest syncs every four hours.</div></div>'; return; }
+      var rows=d.stores.map(function(s){
+        var short=(window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s.store):s.store;
+        return '<div class="hoursline" style="display:flex;align-items:center;gap:8px">'
+          +(s.rank!=null?'<span style="background:rgba(220,40,46,.09);color:var(--red);font-family:\'Nunito\',sans-serif;font-weight:900;font-size:.68rem;padding:2px 8px;border-radius:99px;flex:none">#'+Math.round(s.rank)+'</span>':'')
+          +'<span class="hl" style="flex:1"><b>'+esc(short)+'</b></span>'
+          +'<span class="hv">'+m0(s.total)+'</span>'
+          +'<span style="color:var(--green);font-weight:800;font-size:.74rem;min-width:36px;text-align:right">'+(s.gpPct!=null?Math.round(s.gpPct*100)+'%':'—')+'</span></div>';
+      }).join('');
+      var when=d.stale?('last capture '+String(d.date))
+        :(d.capturedAt?('as of '+new Date(d.capturedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})):'');
+      body.innerHTML='<div style="display:flex;flex-direction:column;gap:7px">'+rows+'</div>'
+        +'<div style="margin-top:9px;font-size:.66rem;font-weight:800;color:var(--grey)">Rank · Total Sales · GP %'+(when?' · '+when:'')+'</div>';
+      scheduleMasonry();
+    });
+  }
   function loadCashStatus(bd){
     if(!window.CPRCashStatus || !window.CPRCashStatus.forStores) return;
     var body=bd.querySelector('[data-cash-body]'); if(!body) return;

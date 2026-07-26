@@ -268,6 +268,32 @@ retries, and a **definitive refresh failure fires a system-tier alert to owners*
 connection surfaces in minutes, not days. Any new rotating-token integration must
 reuse this claim pattern — never refresh unguarded.
 
+**Daily Digest (owner's morning scorecard):** `digest_raw` (one row per
+`(capture_date, tile_key)`; `rows` jsonb = that Looker tile's records; RLS
+`is_admin()`, writes service-role only — the `daily-digest-sync` pg_cron calls
+`repairq-query`'s `sync_digest` every 4h; history accumulates from 2026-07-21).
+Surface: `daily-digest.html` (Reports nav, minRole admin, Lucide `sunrise`) —
+tabs Today / Month / Team (hash `#today/#month/#team` + `cprDigestTab`),
+`.storesel` All Stores default. Store scorecards are **collapsible**: collapsed
+= name · rank chip · total · GP% glance line (`cprDigestOpen`, first store open
+by default; a single-store filter forces open); expanded = phone card (sales +
+tickets hero, accessory bar vs the **10% accy-of-revenue goal** — `ACCY_GOAL`
+const, make data when goals move into MRT — and boxed GP / Attach / Accy-per-
+Tkt), while ≥1000px always shows a dense label→value ledger instead. Derived
+metrics (GP %, attach, accy %, accy/tkt) are **computed client-side** from raw
+fields (Looker table calcs arrive null; formulas verified in
+docs/daily-digest-design-handoff.md). Today tab also lists Devices Sold Today
+and Claims Fulfilled Today (location as its own column, rows sorted by store
+order; claims flagged "pays out Thursday — traffic signal" + 7-day payout
+chips from `claim_payout_weekly`); Team tab merges today's per-rep sales with
+MTD cleanings / express / AKKO counts, sort persisted (`cprDigestSort`).
+Unknown tile row keys are matched defensively (`pick()` regexes) since some
+tiles captured 0 rows at build time. Empty states: signed-out, Managers Only
+(role < admin), No Capture Yet, per-section "nothing yet today". `?demo=1`
+renders built-in sample data for layout preview. Dashboard **Today's Numbers**
+widget (`assets/digest-summary.js`, `window.CPRDigest.forToday()`) shows
+Rank · Total · GP% per store, manager-gated via `can()`.
+
 **Personal-device sessions:** pin-gate's 5-min idle auto-sign-out is SKIPPED in
 standalone display mode (Added-to-Home-Screen apps) — an installed app is a personal
 device whose lock screen is the security boundary, and iOS firing the expired idle
