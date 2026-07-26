@@ -225,6 +225,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/holiday-summary.js"></script>
 <script src="assets/leaderboard-summary.js"></script>
 <script src="assets/gbp-summary.js"></script>
+<script src="assets/cash-summary.js"></script>
 <script src="assets/celebrations-summary.js"></script>
 <script src="assets/comms.js"></script>
 <script>
@@ -359,14 +360,11 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       mount:function(bd){ loadGbpReviews(bd); } },
 
     { id:'cashstatus', title:'Store Cash Status', icon:'💰', accent:'green', defaultSize:'narrow',
-      desc:'Till & safe balances — managers only.', tag:{t:'preview',x:'Preview'},
+      desc:'Verified drawer & safe counts from the latest closed cash audit.',
+      link:{href:'cash-admin.html',x:'Open →'},
       can:function(){ return rank()>=RANK.manager || hasPerm('cash.admin'); },
-      render:function(){ return ''
-        +'<div class="tills">'
-        +'<div class="till"><div class="tl">Till #1</div><div class="tv">$1,240</div><div class="ts ok">Balanced</div></div>'
-        +'<div class="till"><div class="tl">Till #2</div><div class="tv">$980</div><div class="ts ok">Balanced</div></div>'
-        +'<div class="till"><div class="tl">Safe</div><div class="tv">$5,400</div><div class="ts bad">Count due</div></div>'
-        +'</div>'; } }
+      render:function(){ return '<div data-cash-body><div class="empty" style="padding:14px 4px"><div class="et">Loading…</div></div></div>'; },
+      mount:function(bd){ loadCashStatus(bd); } }
   ];
   function byId(id){ for(var i=0;i<REG.length;i++){ if(REG[i].id===id) return REG[i]; } return null; }
   function canShow(def){ return def && (!def.can || def.can()); }
@@ -651,6 +649,43 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     }, function(){});
   }
 
+  function loadCashStatus(bd){
+    if(!window.CPRCashStatus || !window.CPRCashStatus.forStores) return;
+    var body=bd.querySelector('[data-cash-body]'); if(!body) return;
+    window.CPRCashStatus.forStores().then(function(d){
+      if(!body) return;
+      if(!d){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">Couldn’t load cash status.</div><div class="es">Refresh the page, or open Cash Admin.</div></div>'; return; }
+      if(!d.stores.length){ body.innerHTML='<div class="empty" style="padding:14px 4px"><div class="et">No closed cash audits yet.</div><div class="es">Counts appear here once an audit is closed in Cash Admin.</div></div>'; return; }
+      var cur=d.defaultStore;
+      function fmt$(n){ return '$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0}); }
+      function draw(){
+        var st=d.byStore[cur]; if(!st) return;
+        var sel='';
+        if(d.stores.length>1){
+          sel='<select data-cash-store style="font-family:\'Nunito Sans\',sans-serif;font-weight:700;font-size:.78rem;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;background:#fff;color:var(--dark);margin-bottom:9px">'
+            +d.stores.map(function(s){ var short=(window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s):s;
+              return '<option value="'+esc(s)+'"'+(s===cur?' selected':'')+'>CPR '+esc(short)+'</option>'; }).join('')+'</select>';
+        }
+        var tiles=st.locations.map(function(l){
+          var badge=l.overShort===0?'<div class="ts ok">Balanced</div>'
+            :'<div class="ts bad">'+(l.overShort>0?'+':'−')+fmt$(Math.abs(l.overShort)).slice(1)+' '+(l.overShort>0?'over':'short')+'</div>';
+          return '<div class="till"><div class="tl">'+esc(l.location)+'</div><div class="tv">'+fmt$(l.counted)+'</div>'+badge+'</div>';
+        }).join('');
+        tiles+='<div class="till" style="background:#E7F6EE"><div class="tl">Total Counted</div><div class="tv">'+fmt$(st.total)+'</div>'
+          +(st.overShort===0?'<div class="ts ok">Audit balanced</div>':'<div class="ts bad">'+(st.overShort>0?'+':'−')+fmt$(Math.abs(st.overShort)).slice(1)+' '+(st.overShort>0?'over':'short')+'</div>')+'</div>';
+        var when=st.closedAt?new Date(st.closedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+        var stale=st.daysAgo!=null&&st.daysAgo>40;
+        var foot='<div style="margin-top:9px;font-size:.7rem;font-weight:700;color:'+(stale?'var(--amber,#C98A00)':'var(--grey)')+'">'
+          +esc(st.period)+' audit · closed '+esc(when)+(st.daysAgo!=null?' ('+st.daysAgo+'d ago)':'')
+          +(st.inProgress?' · <b>new count in progress</b>':'')+(stale&&!st.inProgress?' · next count due':'')+'</div>';
+        body.innerHTML=sel+'<div class="tills">'+tiles+'</div>'+foot;
+        var dd=body.querySelector('[data-cash-store]');
+        if(dd)dd.onchange=function(){ cur=dd.value; draw(); };
+        scheduleMasonry();
+      }
+      draw();
+    });
+  }
   function loadGbpReviews(bd){
     if(!window.CPRGbp || !window.CPRGbp.snapshot) return;
     var body=bd.querySelector('[data-gr-body]'); if(!body) return;

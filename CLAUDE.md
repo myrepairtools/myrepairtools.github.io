@@ -153,6 +153,12 @@ these when adding UI so a new tool looks native.
   checklist for the signed-in user (`{ tasks, open, done, overdue }`) plus
   `markDone(id, done)`; mirrors `checklist.html`'s row semantics (assigned-or-eligible,
   'each' = own completion row). Used by the dashboard's My Tasks widget.
+- **`cash-summary.js`** — one call (`window.CPRCashStatus.forStores()`) returning the
+  newest CLOSED cash audit per visible store (`{ stores, byStore, defaultStore }` —
+  per-drawer/safe counted amounts + over/short from `cash_audit_locations`, days since
+  close, and an in-progress flag when a newer audit is open). RLS `is_admin(store)`
+  scopes it to the manager's stores. Powers the Store Cash Status widget (manager+,
+  store dropdown when several stores are visible, links to cash-admin.html).
 
 ## Auth & roles
 
