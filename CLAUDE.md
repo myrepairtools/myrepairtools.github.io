@@ -290,7 +290,11 @@ MTD cleanings / express / AKKO counts, sort persisted (`cprDigestSort`).
 Unknown tile row keys are matched defensively (`pick()` regexes) since some
 tiles captured 0 rows at build time. Empty states: signed-out, Managers Only
 (role < admin), No Capture Yet, per-section "nothing yet today". `?demo=1`
-renders built-in sample data for layout preview. Dashboard **Today's Numbers**
+renders built-in sample data for layout preview. The dateline is a **day
+navigator** (‹ › + CPRPickers.day calendar, bounded first-capture→today):
+picking a past day re-reads that day's final snapshot across every tab, cached
+per date and fetched on demand, with an amber "Viewing history" chip.
+Dashboard **Today's Numbers**
 widget (`assets/digest-summary.js`, `window.CPRDigest.forToday()`) shows
 Rank · Total · GP% per store, manager-gated via `can()`.
 
@@ -1111,7 +1115,9 @@ When changing a tool's data layer, check which generation it uses first — they
   drops down a calendar popover instead of arrow-stepping: week picker = month calendar,
   pick any week row, page months, "Jump to this week"; month picker = year pager + month
   grid. **Use `assets/pickers.js`** (`window.CPRPickers.week(anchor,{get,set,maxWeek})` /
-  `.month(anchor,{get,set})`) — `maxWeek` greys future weeks on backward-looking reports.
+  `.month(anchor,{get,set})` / `.day(anchor,{get,set,min,max})` — a single-day month
+calendar, e.g. the Daily Digest's history navigator) — `maxWeek`/`min`/`max` grey
+out-of-range periods on backward-looking reports.
   Wired everywhere with date nav: schedule-admin (This Week + Monthly), my-schedule (week
   labels, Month view, time-off wizard — those predate the lib and keep local copies),
   time-entries, report-overtime, task-admin (Library calendar + Reporting). New pages with

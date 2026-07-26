@@ -18,7 +18,10 @@ a{color:var(--blue)}a:hover{color:var(--red)}
 .head{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
 .meta{margin-left:auto;font-size:.72rem;font-weight:800;color:var(--grey);white-space:nowrap}
-.dateline{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px}
+.dateline{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dateline .dnav{width:26px;height:26px;border:1px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark);line-height:1;padding:0}
+.dateline .dnav:disabled{opacity:.35;cursor:default}
+.dateline .dlbl{border:none;background:none;font:inherit;font-weight:800;color:var(--dark);cursor:pointer;padding:0}
 .stale{display:inline-flex;align-items:center;gap:6px;background:#FBF3E4;border:1px solid #EBDDBD;color:var(--amber);
 border-radius:99px;padding:3px 10px;font-size:.72rem;font-weight:800;margin-left:6px}
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:nowrap}
@@ -152,6 +155,7 @@ font-size:.72rem;font-weight:800;margin-left:6px}
 </main>
 
 <script src="assets/locations.js"></script>
+<script src="assets/pickers.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script type="module">
@@ -174,6 +178,9 @@ var DEMO=/[?&]demo=1/.test(location.search);
 var TABS=['today','month','team'];
 var TAB=null, STORE=localStorage.getItem('cprDigestStore')||'', SORT=localStorage.getItem('cprDigestSort')||'sales';
 var BY={}, SNAP_DATE=null, CAPTURED=null, LOADED=false;
+/* date navigation: captures accumulate per day since the epoch; picking a past
+   day re-reads that day's snapshot (cached per date, fetched on demand) */
+var DATA_EPOCH='2026-07-21', SBC=null, ROWS_BY_DATE={}, NEWEST_DATE=null;
 
 /* ---------- utils ---------- */
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -448,11 +455,58 @@ function gate(ic,title,body){
 }
 
 function headerMeta(){
-  var today=todayPT();
-  $('#dateline').innerHTML=esc(dateLabel(SNAP_DATE||today))
-    +(SNAP_DATE&&SNAP_DATE!==today?'<span class="stale">Last capture '+esc(shortDate(SNAP_DATE))+' — nothing today yet</span>':'')
-    +(DEMO?'<span class="demo">Demo Data</span>':'');
+  var today=todayPT(), d=SNAP_DATE||today;
+  var nav=DEMO?'':'<button class="dnav" id="dPrev"'+(d<=DATA_EPOCH?' disabled':'')+'>‹</button>';
+  var nav2=DEMO?'':'<button class="dnav" id="dNext"'+(d>=today?' disabled':'')+'>›</button>';
+  var chip='';
+  if(!DEMO&&SNAP_DATE){
+    if(NEWEST_DATE&&SNAP_DATE<NEWEST_DATE)chip='<span class="stale">Viewing history</span>';
+    else if(SNAP_DATE!==today)chip='<span class="stale">Last capture '+esc(shortDate(SNAP_DATE))+' — nothing today yet</span>';
+  }
+  $('#dateline').innerHTML=nav
+    +(DEMO?esc(dateLabel(d)):'<button class="dlbl" id="dLbl" title="Pick a day">'+esc(dateLabel(d))+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button>')
+    +nav2+chip+(DEMO?'<span class="demo">Demo Data</span>':'');
   $('#meta').textContent=CAPTURED?('Updated '+timePT(CAPTURED)):'';
+  if(DEMO)return;
+  function stepTo(n){
+    var p=d.split('-').map(Number), x=new Date(p[0],p[1]-1,p[2]+n);
+    showDate(x.toLocaleDateString('en-CA'));
+  }
+  var pb=$('#dPrev'),nb=$('#dNext'),lb=$('#dLbl');
+  if(pb)pb.onclick=function(){ if(d>DATA_EPOCH)stepTo(-1); };
+  if(nb)nb.onclick=function(){ if(d<today)stepTo(1); };
+  if(lb&&window.CPRPickers&&CPRPickers.day)lb.onclick=function(ev){
+    ev.stopPropagation();
+    var p=d.split('-').map(Number), tp=today.split('-').map(Number), ep=DATA_EPOCH.split('-').map(Number);
+    CPRPickers.day(lb,{
+      get:function(){ return new Date(p[0],p[1]-1,p[2]); },
+      set:function(x){ showDate(x.toLocaleDateString('en-CA')); },
+      min:new Date(ep[0],ep[1]-1,ep[2]), max:new Date(tp[0],tp[1]-1,tp[2])
+    });
+  };
+}
+
+/* switch the whole digest to a day's snapshot (cache first, fetch on miss) */
+async function showDate(d){
+  var today=todayPT(); if(d>today)d=today; if(d<DATA_EPOCH)d=DATA_EPOCH;
+  var rows=ROWS_BY_DATE[d];
+  if(!rows&&SBC){
+    $('#dateline').innerHTML='Loading '+esc(shortDate(d))+'…';
+    var q=await SBC.from('digest_raw').select('capture_date,tile_key,rows,row_count,captured_at').eq('capture_date',d);
+    rows=ROWS_BY_DATE[d]=(q.data||[]);
+  }
+  rows=rows||[];
+  BY={}; CAPTURED=null; SNAP_DATE=d;
+  rows.forEach(function(r){
+    BY[r.tile_key]=Array.isArray(r.rows)?r.rows:[];
+    if(!CAPTURED||r.captured_at>CAPTURED)CAPTURED=r.captured_at;
+  });
+  headerMeta();
+  if(!rows.length){
+    $('#view').innerHTML='<div class="gate">'+icon('inbox')+'<div class="gt">No Capture For '+esc(shortDate(d))+'</div><div class="gs">The sync wasn’t running that day — pick another date.</div></div>';
+    return;
+  }
+  paint();
 }
 
 /* ---------- boot ---------- */
@@ -470,12 +524,10 @@ function initialTab(){
   return TABS.indexOf(h)>-1?h:(TABS.indexOf(localStorage.getItem('cprDigestTab'))>-1?localStorage.getItem('cprDigestTab'):'today');
 }
 function ready(rows){
-  BY={}; CAPTURED=null;
-  var dates={};
-  rows.forEach(function(r){ dates[r.capture_date]=1; });
-  SNAP_DATE=Object.keys(dates).sort().pop()||null;
-  rows.forEach(function(r){
-    if(r.capture_date!==SNAP_DATE)return;
+  rows.forEach(function(r){ (ROWS_BY_DATE[r.capture_date]=ROWS_BY_DATE[r.capture_date]||[]).push(r); });
+  NEWEST_DATE=Object.keys(ROWS_BY_DATE).sort().pop()||null;
+  BY={}; CAPTURED=null; SNAP_DATE=NEWEST_DATE;
+  (NEWEST_DATE?ROWS_BY_DATE[NEWEST_DATE]:[]).forEach(function(r){
     BY[r.tile_key]=Array.isArray(r.rows)?r.rows:[];
     if(!CAPTURED||r.captured_at>CAPTURED)CAPTURED=r.captured_at;
   });
@@ -492,6 +544,7 @@ async function boot(){
   try{
     var mod=await import('/assets/supabase-js.js');
     sb=mod.createClient(SB_URL,ANON);
+    SBC=sb;   // day navigation fetches older snapshots on demand
   }catch(e){ gate('inbox','Couldn\u2019t Load','Refresh to retry.'); return; }
   var sess=(await sb.auth.getSession()).data.session;
   if(!sess){
