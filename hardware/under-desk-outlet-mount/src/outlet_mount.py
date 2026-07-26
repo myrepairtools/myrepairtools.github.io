@@ -38,15 +38,25 @@ from cadquery import exporters
 
 # ---------------------------------------------------------------------------
 # 1. THE OUTLET -- measure your actual unit and change these first.
-#    Defaults are the listing dimensions, converted from inches.
+#    Faceplate + depth are still listing figures; the body is measured.
 # ---------------------------------------------------------------------------
 IN = 25.4
 
-FLANGE_L = 8.28 * IN   # 210.31  faceplate length
-FLANGE_H = 2.40 * IN   #  60.96  faceplate height
-CUT_L    = 7.30 * IN   # 185.42  cut-out length the outlet needs
-CUT_H    = 2.13 * IN   #  54.10  cut-out height the outlet needs
-BODY_D   = 2.00 * IN   #  50.80  how far the body sticks out behind the faceplate
+FLANGE_L = 8.28 * IN   # 210.31  faceplate length      -- FROM THE LISTING
+FLANGE_H = 2.40 * IN   #  60.96  faceplate height      -- FROM THE LISTING
+BODY_D   = 2.00 * IN   #  50.80  depth behind the faceplate -- FROM THE LISTING
+
+# Measured off the actual unit: the body that passes through the cut-out.
+# The listing's "cut size" of 7.30 x 2.13 in is a deliberately generous
+# recommendation for cutting wood; sizing to the real body instead nearly
+# doubles how much faceplate lands on the printed face.
+#
+# The length was reported as 7-1/6", which isn't a reading any rule gives.
+# 7-1/16 (179.39), 7-1/8 (180.98) and 7-1/6 (182.03) are all plausible, so
+# take the LARGEST: too big only costs slop the faceplate hides, too small
+# will not go in.  The end bearing can afford it -- 13.7 mm either side.
+BODY_L = 7.1667 * IN   # 182.03
+BODY_H = 1.9375 * IN   #  49.21  1-15/16"
 
 # ---------------------------------------------------------------------------
 # 2. FIT
@@ -94,18 +104,18 @@ TIE_Y = [40.0, 54.0]
 # ---------------------------------------------------------------------------
 # Derived
 # ---------------------------------------------------------------------------
-cw = CUT_L + 2 * CLR                     # printed cut-out width
-ch = CUT_H + 2 * CLR                     # printed cut-out height
+cw = BODY_L + 2 * CLR                     # printed cut-out width
+ch = BODY_H + 2 * CLR                     # printed cut-out height
 W  = FLANGE_L + 2 * REVEAL_END           # part width
 H  = FLANGE_H + REVEAL_TOP + REVEAL_BOT  # part height
 D  = FACE_T + BODY_D + BACK_GAP          # part depth
 
-Zc0 = REVEAL_BOT + (FLANGE_H - CUT_H) / 2.0 - CLR   # cut-out bottom
+Zc0 = REVEAL_BOT + (FLANGE_H - BODY_H) / 2.0 - CLR   # cut-out bottom
 Xc  = cw / 2.0                                      # cut-out half width
 
 # How much printed face the faceplate actually lands on:
-BEAR_END = (FLANGE_L - CUT_L) / 2.0 - CLR   # at the two ends
-BEAR_TB  = (FLANGE_H - CUT_H) / 2.0 - CLR   # along top and bottom
+BEAR_END = (FLANGE_L - BODY_L) / 2.0 - CLR   # at the two ends
+BEAR_TB  = (FLANGE_H - BODY_H) / 2.0 - CLR   # along top and bottom
 
 HEADROOM = (H - TOP_T) - (Zc0 + ch)         # clear space above the body
 RAIL_H   = Zc0 - WALL                       # how far the rails stand proud
@@ -151,7 +161,7 @@ def mount():
     # Rails for the outlet body to rest on, so its weight is not hanging off
     # the two faceplate screws alone.
     if RAIL_H > 0.6:
-        for rx in (-CUT_L / 4.0, CUT_L / 4.0):
+        for rx in (-BODY_L / 4.0, BODY_L / 4.0):
             r = r.union(
                 cq.Workplane("XY")
                 .box(RAIL_W, D - FACE_T - 4, RAIL_H, centered=(True, False, False))

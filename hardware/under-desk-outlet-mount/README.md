@@ -35,22 +35,31 @@ outlet ends up **facing forward**, toward whoever is sitting at the bench.
 
 ## Dimensions this was built to
 
-Read off the product listing image, **not** off a physical unit — see
-[Check your outlet first](#check-your-outlet-first).
+| | source | inches | mm |
+| --- | --- | --- | --- |
+| Faceplate | listing | 8.28 × 2.40 | 210.31 × 60.96 |
+| Body through the cut-out | **measured** | 7-1/6 × 1-15/16 | 182.03 × 49.21 |
+| Body depth behind the faceplate | listing | 2.00 | 50.80 |
 
-| | inches | mm |
-| --- | --- | --- |
-| Faceplate | 8.28 × 2.40 | 210.31 × 60.96 |
-| Cut-out it needs | 7.30 × 2.13 | 185.42 × 54.10 |
-| Body depth behind the faceplate | 2.00 | 50.80 |
+The cut-out is sized to the **measured body**, not to the listing's "cut size"
+of 7.30 × 2.13 in. That figure is a deliberately generous recommendation for
+cutting wood, and using it would have thrown away nearly half the face the
+faceplate lands on.
+
+The reported length of 7-1/6" isn't a reading any rule gives — 7-1/16 (179.39),
+7-1/8 (180.98) and 7-1/6 (182.03) are all plausible, so the model takes the
+largest. Too big only costs slop the faceplate covers; too small won't go in.
+Worst case the body is really 7-1/16", which leaves 1.7 mm of hidden play at
+each end and *more* bearing, not less.
 
 Which produces:
 
 | | |
 | --- | --- |
 | Printed part | 222.3 W × 67.8 D × 73.0 H mm |
-| Printed cut-out | 186.2 × 54.9 mm (0.4 mm clearance per side) |
-| Faceplate lands on | 12.05 mm of face at each end, 3.03 mm top and bottom |
+| Printed cut-out | 182.8 × 50.0 mm (0.4 mm clearance per side) |
+| Faceplate lands on | 13.74 mm of face at each end, 5.47 mm top and bottom |
+| Headroom above the body | 5.47 mm |
 | Hangs below the bench | **73 mm** |
 | Bed footprint | 222.3 × 73.0 mm, 65.8 mm tall |
 
@@ -82,29 +91,33 @@ Two things to check before drilling:
 
 ## Check your outlet first
 
-Listing dimensions get rounded and mismeasured, and 3.03 mm of top/bottom
-bearing is not much to lose. Before printing the full part:
+The body is measured, but the **faceplate is still a listing figure** — and the
+faceplate is what sets the whole part's outer size and how much face it lands
+on. Verify before committing to a 7–10 hour print:
 
-1. **Print `fit-test-coupon.stl`** (~25 min). Push one end of the faceplate into
-   its cut-out corner. The faceplate should sit flat on the printed face with no
-   rock, and the body should pass through without forcing.
+1. **Print `fit-test-coupon.stl`** (~25 min). Push one end of the outlet into
+   its cut-out corner. The body should pass through without forcing, and the
+   faceplate should sit flat on the printed face with no rock.
 2. If it doesn't fit, put calipers on the outlet and update the top block of
    `src/outlet_mount.py`:
 
    | Measure | Constant |
    | --- | --- |
    | Faceplate length and height | `FLANGE_L`, `FLANGE_H` |
-   | Body cross-section (or the cut-out size in the instructions) | `CUT_L`, `CUT_H` |
+   | Body cross-section | `BODY_L`, `BODY_H` |
    | How far the body sticks out behind the faceplate | `BODY_D` |
    | Too tight / too sloppy overall | `CLR` (0.4 mm per side) |
 
 3. Re-run `python3 src/outlet_mount.py` and reprint the coupon.
 
+The coupon can't check overall **length** — that's why the model rounds the
+ambiguous 7-1/6" up rather than down.
+
 **Where does your cord exit?** The listing photo doesn't show this clearly, so
 the design leaves the whole back open plus a notch in the back of each side
-wall. If your unit's cord leaves the **top** of the body, there's only 3 mm of
-headroom — raise `REVEAL_TOP` (each mm added is 1 mm more hanging below the
-bench) and re-run.
+wall. If your unit's cord leaves the **top** of the body, there's 5.5 mm of
+headroom — probably enough, but raise `REVEAL_TOP` if not (each mm added is
+1 mm more hanging below the bench).
 
 ## Printing
 
