@@ -900,9 +900,13 @@ milestones (goal hits → the person, kind 'goal'; day-of birthdays/anniversarie
 **modal that pre-fills what changed since the last broadcast**: schedule_overrides +
 staff_schedule rows with `updated_at` (trigger-maintained,
 docs/sql/schedule-notify-changes.sql) newer than the manager's own last
-'Schedule updated' alert row, grouped week → person → weekdays; the manager edits
-the message, Send fans out alerts + the routed rule. Keep the alert title's
-'Schedule updated' prefix — it's the last-broadcast marker), KB
+'Schedule updated' alert row, grouped week → person → weekdays. Each changed week is
+a **checkbox** (with its affected stores tagged); the message rebuilds from the
+selection until the manager hand-edits it, and the send is **scoped to the affected
+stores' people** (home store or authorized there; "Send to every store anyway"
+override; live To:-line with recipient count). Send fans out alerts (staff_ids)
++ the routed rule. Keep the alert title's 'Schedule updated' prefix — it's the
+last-broadcast marker), KB
 required-reading publish (kind 'kb', everyone), and the **end-of-shift task
 nudge** — `tasks?action=nudge` (pg_cron `tasks-nudge-halfhourly`, */30): anyone
 whose shift ends within 45 min with open tasks due today (assigned to them, or
