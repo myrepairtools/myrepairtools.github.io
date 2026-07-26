@@ -647,9 +647,11 @@ mixed-store day tags each time with its store instead), confirmations (text + em
 carry the address + store phone via `smsWhere`/`storeInfo`, the `slots` response
 includes a `stores` contact map, and the confirmation/booking view offers
 **Add to Calendar** (client-built .ics download + Google Calendar template link).
-The three stores' address + phone were filled from their public listings (verified
-against `gbp_locations.phone`); email is **blank until the owner fills it in — never
-guess store contact info.**
+The three stores' address + phone came from **our own Google Business Profile**
+(gbp-sync's secret-gated `?action=location_contact` reads each mapped listing's
+storefrontAddress + primaryPhone — Google is the verification source, `stores` is the
+runtime authority the owner can edit); email is **blank until the owner fills it in —
+never guess store contact info, and don't source it from third-party directories.**
 
 **Customer messaging (RingCentral SMS):** texting customers runs through our own
 RingCentral pipe (no Zapier). The **`messaging` edge function** is the proxy — all

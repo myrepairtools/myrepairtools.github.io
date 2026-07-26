@@ -857,6 +857,28 @@ Deno.serve(async (req) => {
 
     if (action === "discover") return json(await discover());
 
+    // ---- location contact info straight from Google (the address/phone
+    // authority): each mapped MAIN listing's storefrontAddress + phone.
+    // Used to verify/fill stores.address/phone — Google is the source,
+    // stores (Settings → Locations) stays the runtime authority.
+    if (action === "location_contact") {
+      const locs = await mappedLocations();
+      if (!locs.length) return json({ ok: false, error: "no_locations_mapped" });
+      const out: Record<string, any> = {};
+      for (const l of locs) {
+        const d = await gGet(`${INFO}${l.google_location_id}?readMask=title,storefrontAddress,phoneNumbers`);
+        const a = (d.storefrontAddress || {}) as Record<string, any>;
+        out[l.store] = {
+          title: d.title || "",
+          address: [...(a.addressLines || []),
+            [a.locality, a.administrativeArea].filter(Boolean).join(", ") + (a.postalCode ? " " + a.postalCode : "")]
+            .filter(Boolean).join(", "),
+          phone: (d.phoneNumbers || {}).primaryPhone || "",
+        };
+      }
+      return json({ ok: true, stores: out });
+    }
+
     if (action === "pull") {
       const days = Math.min(90, Math.max(3, Number(url.searchParams.get("days")) || 10));
       const locs = await scopedLocations(url);
