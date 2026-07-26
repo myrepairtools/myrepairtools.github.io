@@ -375,7 +375,7 @@
   @media(max-width:859px){ .cpr-flyout{ display:none !important; } }
 
   /* menu pane */
-  .cpr-pane{ position:fixed; top:var(--cpr-top-h); left:var(--cpr-rail-w); bottom:0; width:var(--cpr-pane-w);
+  .cpr-pane{ position:fixed; top:var(--cpr-top-h); left:var(--cpr-rail-w); bottom:var(--cpr-bb-h,0px); width:var(--cpr-pane-w);
     background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; transition:transform .2s ease; }
   .cpr-pane a{ text-decoration:none; }
   .cpr-grp{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:14px 18px 6px; }
