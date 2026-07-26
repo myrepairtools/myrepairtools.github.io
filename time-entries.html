@@ -15,9 +15,7 @@ body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--lig
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spacing:-.4px;margin:0}
 .sub{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.85rem;color:var(--grey);margin-top:4px}
 .rephd{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:6px}
-.wknav{display:flex;align-items:center;gap:6px;margin-left:auto}
-.wknav button{width:34px;height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-size:1rem;color:var(--dark-grey)}
-.wknav .lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;min-width:150px;text-align:center}
+.wknav{display:flex;align-items:center;gap:10px;margin-left:auto}
 .tiles{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 14px}
 .tile{flex:1;min-width:130px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 15px}
 .tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem}
@@ -170,7 +168,7 @@ async function render(){
     + stores.map(s=>'<button data-f="'+esc(s)+'" class="'+(FILTER===s?'on':'')+'">'+esc(shortStore(s))+'</button>').join('')+'</div>';
 
   let body='<div class="rephd"><div><h1>Time Entries</h1><div class="sub">Clocked hours per day from QuickBooks Time · click anyone to see their history</div></div>'
-    +'<div class="wknav"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-family:inherit;padding:0 14px">'+fmtWk(sun)+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1"'+(isThisWeek?' disabled style="opacity:.4;cursor:default"':'')+'>›</button></div></div>'
+    +'<div class="wknav">'+(isThisWeek?'':'<button class="cpr-navjump" data-wk="0">This Week</button>')+'<div class="cpr-navbox"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="cursor:pointer">'+fmtWk(sun)+'</button><button data-wk="1"'+(isThisWeek?' disabled':'')+'>›</button></div></div></div>'
     +'<div class="tiles">'
     +'<div class="tile"><div class="n">'+totHrs+'</div><div class="l">Total hours</div></div>'
     +'<div class="tile"><div class="n" style="color:var(--green)">'+live+'</div><div class="l">On the clock</div></div>'
@@ -205,7 +203,9 @@ function wire(){
   if(wp&&window.CPRPickers)wp.onclick=(ev)=>{ev.stopPropagation();
     CPRPickers.week(wp,{get:()=>WK,maxWeek:new Date(),set:d=>{WK=d;render();}});};
   $('#repBody').querySelectorAll('[data-wk]').forEach(b=>b.onclick=()=>{ if(b.disabled)return;
-    WK=new Date(WK.getFullYear(),WK.getMonth(),WK.getDate()+7*Number(b.getAttribute('data-wk'))); render(); });
+    const n=Number(b.getAttribute('data-wk'));
+    if(n===0){ const t=new Date(); t.setDate(t.getDate()-t.getDay()); t.setHours(0,0,0,0); WK=t; }
+    else WK=new Date(WK.getFullYear(),WK.getMonth(),WK.getDate()+7*n); render(); });
   $('#repBody').querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ FILTER=b.getAttribute('data-f');
     try{localStorage.setItem('cprTimeEntriesStore',FILTER);}catch(e){} render(); });
   $('#repBody').querySelectorAll('.emprow').forEach(tr=>tr.onclick=()=>{

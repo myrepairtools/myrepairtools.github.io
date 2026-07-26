@@ -16,11 +16,8 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
 .hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
 .syncline{font-weight:700;font-size:.74rem;color:var(--grey);margin:0 0 12px}
 /* joined month control — one control, no gaps */
-.monav{display:flex;align-items:stretch;margin-left:auto;border:1.5px solid var(--border);border-radius:9px;background:#fff;overflow:hidden}
-.monav button{height:34px;border:none;background:#fff;cursor:pointer;color:var(--dark-grey);padding:0}
-.monav .arr{width:32px;font-size:1rem}
-.monav .arr[disabled]{opacity:.35;cursor:default}
-.monav .lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;min-width:126px;padding:0 10px;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+.monav{display:flex;align-items:center;gap:10px;margin-left:auto}
+.monav .lbl{cursor:pointer}
 .monav .lbl.hist{color:var(--amber)}
 .storesel{height:36px;min-width:170px;max-width:196px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.92rem;color:var(--dark);padding:0 10px}
 .storesel:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
@@ -96,7 +93,6 @@ td.rk a:hover{color:var(--blue)}
 @media (max-width:900px){ .cmpwrap{flex-direction:column} .rail{width:100%} }
 @media (max-width:640px){
   .wrap{padding:16px 12px 50px}
-  .monav .lbl{min-width:100px}
   .tabs{display:flex;width:100%}
   .tabs button{flex:1;padding:9px 4px}
   .hd{gap:8px}
@@ -272,9 +268,9 @@ function render(){
   let h='<div class="hd"><h1>📈 Google Traffic</h1>'
     +'<select class="storesel" data-sel><option value="All"'+(SEL==='All'?' selected':'')+'>All Stores</option>'
     +LOCS.map(l=>'<option value="'+esc(l.store)+'"'+(SEL===l.store?' selected':'')+'>CPR '+esc(shortStore(l.store))+'</option>').join('')+'</select>'
-    +'<div class="monav"><button class="arr" data-mo="-1">‹</button>'
-    +'<button class="lbl'+(isNow?'':' hist')+'" data-mopick title="Pick a month">'+ymLabel(mk)+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button>'
-    +'<button class="arr" data-mo="1"'+(isNow?' disabled':'')+'>›</button></div></div>';
+    +'<div class="monav"><div class="cpr-navbox"><button data-mo="-1">‹</button>'
+    +'<button class="lbl'+(isNow?'':' hist')+'" data-mopick title="Pick a month">'+ymLabel(mk)+'</button>'
+    +'<button data-mo="1"'+(isNow?' disabled':'')+'>›</button></div>'+(isNow?'':'<button class="cpr-navjump" data-mo="0">This Month</button>')+'</div></div>';
   h+='<div class="syncline">'+(THROUGH?'Data through '+esc(new Date(THROUGH+'T12:00:00').toLocaleString('en-US',{month:'short',day:'numeric'})):'First sync pending')
     +(sync?' · synced '+esc(new Date(sync).toLocaleString('en-US',{hour:'numeric',minute:'2-digit'})):'')+'</div>';
   h+='<div class="tabs">'
@@ -474,7 +470,8 @@ function wire(){
   if(sel)sel.onchange=()=>{ SEL=sel.value; try{localStorage.setItem('cprGbpStore',SEL);}catch(e){} render(); };
   const nowFirst=new Date(new Date().getFullYear(),new Date().getMonth(),1);
   document.querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{ if(b.disabled)return;
-    const d=new Date(MON.getFullYear(),MON.getMonth()+Number(b.getAttribute('data-mo')),1);
+    const n=Number(b.getAttribute('data-mo'));
+    const d=n===0?new Date(nowFirst):new Date(MON.getFullYear(),MON.getMonth()+n,1);
     if(d>nowFirst)return; MON=d; try{localStorage.setItem('cprGbpMonth',ymKey(MON));}catch(e){} loadMonth(); });
   const mp=$('#body').querySelector('[data-mopick]');
   if(mp&&window.CPRPickers)mp.onclick=ev=>{ev.stopPropagation();

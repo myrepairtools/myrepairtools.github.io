@@ -25,11 +25,9 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
 .tab.on{background:#fff;color:var(--dark);font-weight:900}
 .status{margin-left:auto;font-size:.74rem;color:var(--grey);font-weight:700}
 /* month navigator: ‹ [Month YYYY ▾] › — label drops the CPRPickers month grid */
-.mnav{display:inline-flex;align-items:center;gap:5px}
-.mnav .marr{width:34px;height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-weight:800;font-size:15px;color:var(--dark-grey);line-height:1}
-.mnav .marr:disabled{opacity:.35;cursor:default}
-.mnav .mlbl{height:34px;border:1px solid var(--border);background:#fff;border-radius:9px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark);padding:0 14px;white-space:nowrap}
-.mnav .mlbl.past{border-color:#F3DBB4;background:#FFF8EE;color:#8a5a00}
+.mnav{display:inline-flex;align-items:center;gap:10px}
+.mnav .lbl{cursor:pointer}
+.mnav .lbl.past{background:#FFF8EE;color:#8a5a00}
 .btn{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:9px 15px;border-radius:9px;border:1.5px solid var(--border);background:#fff;color:var(--dark-grey);cursor:pointer}
 .btn:hover{border-color:var(--blue);color:var(--blue)}
 .btn:disabled,.btn:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--border);color:var(--dark-grey)}
@@ -163,7 +161,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 
       <button class="tab" data-t="board">Scoreboard</button>
       <button class="tab" data-t="how">How it works</button>
     </div>
-    <span class="mnav"><button class="marr" id="mPrev" title="Previous month">‹</button><button class="mlbl" id="monthPick"></button><button class="marr" id="mNext" title="Next month">›</button></span>
+    <span class="mnav"><span class="cpr-navbox"><button id="mPrev" title="Previous month">‹</button><button class="lbl" id="monthPick"></button><button id="mNext" title="Next month">›</button></span><button class="cpr-navjump" id="mNow" style="display:none">This Month</button></span>
     <span class="status" id="status"></span>
   </div>
 
@@ -277,9 +275,10 @@ function setMonth(d){
 function renderMonthNav(){
   const mi=monthInfo();
   const lbl=$('#monthPick');if(!lbl)return;
-  lbl.textContent=mi.label+' ▾';lbl.classList.toggle('past',!mi.cur);
+  lbl.textContent=mi.label;lbl.classList.toggle('past',!mi.cur);
   lbl.title=mi.cur?'Pick a month to see past commissions & goals':'Viewing a past month';
   $('#mNext').disabled=mi.cur;
+  const now=$('#mNow');if(now)now.style.display=mi.cur?'none':'';
 }
 
 /* work-day pace: an employee's scheduled work days elapsed vs total in the viewed
@@ -969,6 +968,7 @@ async function boot(){
   // month navigator: browse past months' commissions & goals (‹ › or pick from the calendar)
   $('#mPrev').onclick=()=>setMonth(new Date(VIEWM.getFullYear(),VIEWM.getMonth()-1,1));
   $('#mNext').onclick=()=>setMonth(new Date(VIEWM.getFullYear(),VIEWM.getMonth()+1,1));
+  if($('#mNow'))$('#mNow').onclick=()=>setMonth(new Date(new Date().getFullYear(),new Date().getMonth(),1));
   $('#monthPick').onclick=()=>window.CPRPickers&&CPRPickers.month($('#monthPick'),{get:()=>VIEWM,set:d=>setMonth(d)});
   await loadTarget();
   loadBoard().then(()=>renderHeader()); // fill in the header rank once the board is ready

@@ -43,9 +43,6 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 .seg button{padding:7px 13px;border:none;border-radius:5px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;background:transparent;color:var(--grey)}
 .seg.dk button.on{background:var(--dark);color:#fff}
 .seg button.on{background:var(--blue);color:#fff}
-.navbox{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden}
-.navbox button{padding:8px 12px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800;line-height:1}
-.navbox .lbl{padding:0 14px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;line-height:36px}
 .btn{font-family:'Nunito',sans-serif;font-weight:800;border-radius:9px;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--dark);padding:7px 13px;font-size:.8rem}
 /* boards */
 .boards{display:flex;flex-direction:column;gap:16px;min-width:740px}
@@ -679,7 +676,8 @@ function renderThisWeek(){
   var end=new Date(WK);end.setDate(end.getDate()+6);
   var wlabel=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate()+', '+end.getFullYear();
   var head='<th class="emp">Employee</th>'+DAYS.map(function(d,wd){var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var hol=holidayOn(di);return '<th'+(hol?' title="'+esc(hol.name)+'"':'')+'>'+d+'<div class="dt">'+dt.getDate()+'</div>'+(hol?'<div style="font-size:.56rem;font-weight:800;color:#8a5a00;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:82px">🎉 '+esc(hol.name)+'</div>':'')+'</th>';}).join('')+HRS_TH;
-  var html='<div class="toolbar"><div class="navbox"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="cursor:pointer;background:#fff">'+wlabel+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1">›</button></div><button class="btn" data-wk="0">This week</button>'
+  var isCurWk=WK.getTime()===weekStart(new Date()).getTime();
+  var html='<div class="toolbar"><div class="cpr-navbox"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="cursor:pointer">'+wlabel+'</button><button data-wk="1">›</button></div>'+(isCurWk?'':'<button class="cpr-navjump" data-wk="0">This Week</button>')
     +(SCHEDIT?'<span class="cap" style="color:var(--red);border-color:'+hexA('#DC282E',0.4)+';background:'+hexA('#DC282E',0.06)+'">✎ Editing this week — click a day to change it</span>':'')+'<span style="flex:1"></span></div>'
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
   html+=filterStores().map(function(s){
@@ -727,7 +725,8 @@ function renderThisWeek(){
 function renderMonthly(){
   var Y=MM.getFullYear(),M=MM.getMonth();
   var first=new Date(Y,M,1).getDay(),dim=new Date(Y,M+1,0).getDate();
-  var html='<div class="toolbar"><div class="navbox"><button data-mm="-1">‹</button><button class="lbl" data-mpick title="Pick a month" style="border:none;background:#fff;cursor:pointer;font-family:inherit">'+MONL[M]+' '+Y+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-mm="1">›</button></div><span style="flex:1"></span>'
+  var isCurMo=(M===new Date().getMonth()&&Y===new Date().getFullYear());
+  var html='<div class="toolbar"><div class="cpr-navbox"><button data-mm="-1">‹</button><button class="lbl" data-mpick title="Pick a month" style="cursor:pointer">'+MONL[M]+' '+Y+'</button><button data-mm="1">›</button></div>'+(isCurMo?'':'<button class="cpr-navjump" data-mm="0">This Month</button>')+'<span style="flex:1"></span>'
     +'<div class="legend"><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--blue)"></span>Vacation</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--purple)"></span>Personal</span><span class="lg"><span style="width:10px;height:10px;border-radius:3px;background:var(--red)"></span>Sick</span><span class="lg" style="color:var(--grey)"><span style="width:10px;height:10px;border-radius:3px;border:1.5px dashed var(--grey)"></span>Pending</span></div></div>';
   /* events by day */
   var evByDay={};
@@ -749,7 +748,7 @@ function renderMonthly(){
   html+='<div class="cal"><div class="cal-hd">'+DAYS.map(function(d){return '<div>'+d+'</div>';}).join('')+'</div><div class="cal-grid">'+cells+'</div></div>'
     +'<div class="note">The standing weekly schedule repeats underneath; this calendar surfaces the <b>exceptions</b> on real dates — approved vacations, personal &amp; sick days, with per-store coverage pills (red when a store drops below 2 people or has no manager). Pending requests show dashed until approved under Time Off.</div>';
   $('#view').innerHTML=html;
-  $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){MM=new Date(MM.getFullYear(),MM.getMonth()+Number(b.getAttribute('data-mm')),1);render();};});
+  $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){var n=Number(b.getAttribute('data-mm'));MM=n===0?new Date(new Date().getFullYear(),new Date().getMonth(),1):new Date(MM.getFullYear(),MM.getMonth()+n,1);render();};});
   var mp=$('#view').querySelector('[data-mpick]');
   if(mp&&window.CPRPickers)mp.onclick=function(ev){ev.stopPropagation();CPRPickers.month(mp,{get:function(){return MM;},set:function(d){MM=d;render();}});};
 }

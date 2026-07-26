@@ -66,8 +66,6 @@ a.clink{color:var(--blue);font-weight:700;text-decoration:none;border-bottom:1.5
 .cal{padding:18px}
 .calhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
 .calhd .m{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
-.calnav{display:inline-flex;gap:6px;align-items:center}
-.calnav button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:.9rem;color:var(--dark-grey)}
 .leg{display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;font-weight:700;color:var(--dark-grey)}
 .leg span{display:inline-flex;align-items:center;gap:5px}
 .leg i{width:9px;height:9px;border-radius:2px;display:inline-block}
@@ -357,12 +355,13 @@ function renderCalendar(defs){
     cells+='<div class="calc'+(dISO===TODAY?' today':'')+'"><div class="d">'+day+'</div>'+shown.map(c=>'<div class="chip" style="background:'+c.color+'" title="'+esc(c.label)+'">'+esc(c.label)+'</div>').join('')+(extra>0?'<div style="font-size:.6rem;font-weight:800;color:var(--grey)">+'+extra+' more</div>':'')+'</div>';
   }
   $('#secBody').innerHTML='<div class="card cal">'+
-    '<div class="calhd"><div style="display:flex;align-items:center;gap:10px"><span class="calnav"><button id="calPrev">‹</button><button id="calNext">›</button></span><button class="m" id="calPick" title="Pick a month" style="border:none;background:transparent;cursor:pointer;font-family:inherit;padding:0">'+MONL[m]+' '+y+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button></div>'+
+    '<div class="calhd"><div style="display:flex;align-items:center;gap:10px"><div class="cpr-navbox"><button id="calPrev">‹</button><button class="lbl" id="calPick" title="Pick a month" style="cursor:pointer">'+MONL[m]+' '+y+'</button><button id="calNext">›</button></div>'+((m===new Date().getMonth()&&y===new Date().getFullYear())?'':'<button class="cpr-navjump" id="calNow">This Month</button>')+'</div>'+
     '<div class="leg"><span><i style="background:var(--blue)"></i>Daily</span><span><i style="background:var(--green)"></i>Weekly</span><span><i style="background:var(--purple)"></i>Monthly</span><span><i style="background:var(--amber)"></i>Flexible</span><span><i style="background:var(--grey)"></i>One-off</span></div></div>'+
     '<div class="calgrid">'+DOW.map(d=>'<div class="caldh">'+d+'</div>').join('')+cells+'</div>'+
     '<div style="font-size:.74rem;color:var(--grey);margin-top:12px">This is where monthly planning lives — payroll dates, the inventory count — so employees don’t have to look months ahead on their daily checklist.</div></div>';
   $('#calPrev').onclick=()=>{CALM=new Date(CALM.getFullYear(),CALM.getMonth()-1,1);render();};
   $('#calNext').onclick=()=>{CALM=new Date(CALM.getFullYear(),CALM.getMonth()+1,1);render();};
+  if($('#calNow'))$('#calNow').onclick=()=>{CALM=new Date(new Date().getFullYear(),new Date().getMonth(),1);render();};
   const cp=$('#calPick');
   if(cp&&window.CPRPickers)cp.onclick=ev=>{ev.stopPropagation();CPRPickers.month(cp,{get:()=>CALM,set:d=>{CALM=d;render();}});};
 }
@@ -406,7 +405,7 @@ function renderReporting(){
   const pcols='minmax(0,1fr) 90px 90px 70px 130px';
   const qcols='minmax(0,1fr) 170px 130px 100px 240px';
   let html=
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span class="calnav"><button id="repPrev">‹</button><button id="repNext">›</button></span><button id="repPick" title="Pick a month" style="border:none;background:transparent;cursor:pointer;font-family:Nunito,sans-serif;font-weight:900;font-size:1.02rem;padding:0">'+MONL[REPM.getMonth()]+' '+REPM.getFullYear()+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div class="cpr-navbox"><button id="repPrev">‹</button><button class="lbl" id="repPick" title="Pick a month" style="cursor:pointer">'+MONL[REPM.getMonth()]+' '+REPM.getFullYear()+'</button><button id="repNext">›</button></div>'+((REPM.getMonth()===new Date().getMonth()&&REPM.getFullYear()===new Date().getFullYear())?'':'<button class="cpr-navjump" id="repNow">This Month</button>')+'</div>'+
     '<div class="kpis">'+
     '<div class="stat dk"><div class="l">Completion · '+MON[REPM.getMonth()]+'</div><div class="v">'+completion+'</div><div class="s">of closed-out tasks got done</div></div>'+
     '<div class="stat gn"><div class="l">On-time rate</div><div class="v">'+onRate+'</div><div class="s">of completed tasks</div></div>'+
@@ -446,6 +445,7 @@ function renderReporting(){
   $('#secBody').innerHTML=html;
   $('#repPrev').onclick=async()=>{REPM=new Date(REPM.getFullYear(),REPM.getMonth()-1,1);await loadReport();render();};
   $('#repNext').onclick=async()=>{REPM=new Date(REPM.getFullYear(),REPM.getMonth()+1,1);await loadReport();render();};
+  if($('#repNow'))$('#repNow').onclick=async()=>{REPM=new Date(new Date().getFullYear(),new Date().getMonth(),1);await loadReport();render();};
   const rp=$('#repPick');
   if(rp&&window.CPRPickers)rp.onclick=ev=>{ev.stopPropagation();CPRPickers.month(rp,{get:()=>REPM,set:async d=>{REPM=d;await loadReport();render();}});};
   document.querySelectorAll('[data-reopen]').forEach(b=>{b.onclick=()=>openReopen(+b.dataset.reopen);});

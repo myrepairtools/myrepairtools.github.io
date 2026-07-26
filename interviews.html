@@ -52,9 +52,6 @@ letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 
 /* month calendar overview */
 .calbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-.calbar .navbox{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.calbar .navbox button{font-family:'Nunito';font-weight:800;border:none;background:#fff;padding:8px 12px;cursor:pointer;font-size:.9rem;color:var(--dark)}
-.calbar .navbox .lbl{font-size:.88rem;padding:8px 12px;border-left:1px solid var(--border);border-right:1px solid var(--border)}
 .calwrap{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .cal-wd{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border);background:#FAFAFB}
 .cal-wd span{padding:8px 4px;text-align:center;font-family:'Nunito';font-weight:800;font-size:.64rem;color:var(--dark-grey);text-transform:uppercase;letter-spacing:.4px}
@@ -271,9 +268,9 @@ function renderCal(){
   var upN=BOOKINGS.filter(function(b){return b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
   $('#view').innerHTML=
     '<div class="calbar">'
-      +'<div class="navbox"><button id="cPrev">‹</button><button class="lbl" id="cLbl" title="Pick a month" style="cursor:pointer;font-family:Nunito;font-weight:800">'
+      +'<div class="cpr-navbox"><button id="cPrev">‹</button><button class="lbl" id="cLbl" title="Pick a month" style="cursor:pointer">'
         +MON.toLocaleDateString('en-US',{month:'long',year:'numeric'})+'</button><button id="cNext">›</button></div>'
-      +'<button class="btn sm" id="cToday">Today</button>'
+      +((m===new Date().getMonth()&&y===new Date().getFullYear())?'':'<button class="cpr-navjump" id="cToday">Today</button>')
       +'<span style="flex:1"></span>'
       +'<span class="sub" style="margin:0">'+upN+' upcoming</span>'
     +'</div>'
@@ -282,7 +279,7 @@ function renderCal(){
     +'<div id="dayPane"></div>';
   $('#cPrev').onclick=function(){MON=new Date(y,m-1,1);render();};
   $('#cNext').onclick=function(){MON=new Date(y,m+1,1);render();};
-  $('#cToday').onclick=function(){MON=new Date();SELDAY=todayK;render();};
+  if($('#cToday'))$('#cToday').onclick=function(){MON=new Date();SELDAY=todayK;render();};
   if(window.CPRPickers&&CPRPickers.month)$('#cLbl').onclick=function(ev){ev.stopPropagation();CPRPickers.month($('#cLbl'),{get:function(){return new Date(MON);},set:function(d){MON=new Date(d.getFullYear(),d.getMonth(),1);render();}});};
   $all('[data-day]').forEach(function(b){b.onclick=function(){SELDAY=b.getAttribute('data-day');render();};});
   if(SELDAY)renderDayPane(byDay[SELDAY]||[]);

@@ -50,10 +50,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spaci
 .tabs button.on .badge{background:#fff;color:var(--amber)}
 .tabs .badge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.56rem;color:#fff;background:var(--amber);border-radius:999px;padding:0 5px;min-width:15px;text-align:center}
 /* week nav */
-.wknav{display:inline-flex;align-items:stretch;background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden}
-.wknav button{display:flex;align-items:center;justify-content:center;padding:0 14px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;font-size:15px;font-weight:800;line-height:1}
-.wknav .lbl{display:flex;align-items:center;justify-content:center;margin:0;padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;text-transform:none;letter-spacing:normal;color:var(--dark);border-left:1px solid #EEF0F4;border-right:1px solid #EEF0F4;white-space:nowrap}
-.wknav-wrap{display:flex;justify-content:center;margin-bottom:12px}
+.wknav-wrap{display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:12px}
 /* day cards */
 .dcard{display:flex;align-items:center;gap:13px;width:100%;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;padding:12px 14px;margin-bottom:9px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
 .dcard.today{border-color:var(--red)}
@@ -232,6 +229,7 @@ body.mfull main{max-width:none}   /* month view fills the viewport instead of th
 </div>
 <div id="toast" class="toast"></div>
 
+<script src="assets/pickers.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script src="assets/pto-summary.js"></script>
@@ -463,8 +461,9 @@ function renderWknav(){
   if(TAB==='timeoff'){$('#wknav').innerHTML='';return;}
   var end=new Date(WK);end.setDate(end.getDate()+6);
   var label=MON[WK.getMonth()]+' '+WK.getDate()+' – '+(end.getMonth()!==WK.getMonth()?MON[end.getMonth()]+' ':'')+end.getDate()+', '+end.getFullYear();
-  $('#wknav').innerHTML='<div class="wknav-wrap"><div class="wknav"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="border:none;background:transparent;cursor:pointer;font-family:inherit">'+label+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1">›</button></div></div>';
-  $('#wknav').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+  var curWk=new Date();curWk.setDate(curWk.getDate()-curWk.getDay());curWk.setHours(0,0,0,0);
+  $('#wknav').innerHTML='<div class="wknav-wrap"><div class="cpr-navbox"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="cursor:pointer">'+label+'</button><button data-wk="1">›</button></div>'+(WK.getTime()===curWk.getTime()?'':'<button class="cpr-navjump" data-wk="0">This Week</button>')+'</div>';
+  $('#wknav').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){var n=Number(b.getAttribute('data-wk'));if(n===0){WK=new Date();WK.setDate(WK.getDate()-WK.getDay());WK.setHours(0,0,0,0);}else{WK=new Date(WK);WK.setDate(WK.getDate()+7*n);}render();};});
   var wp=$('#wknav').querySelector('[data-wkpick]');if(wp)wp.onclick=function(ev){ev.stopPropagation();openWeekPicker(wp);};
 }
 function isWeb(){return window.innerWidth>=980;}
@@ -557,7 +556,8 @@ function renderMonth(web){
     cells+='<div class="mcell'+(isT?' today':'')+'"><div class="mtop"><span class="mn">'+d+'</span>'+(holName?'<span class="mhol" title="'+esc(holName)+'">🎉 '+esc(holName)+'</span>':'')+'</div>'+inner+'</div>';
   }
   var pad=(7-((first+dim)%7))%7;for(var p=0;p<pad;p++)cells+='<div class="mcell out"></div>';
-  var nav='<div class="wknav" style="margin:0"><button data-mm="-1">‹</button><button class="lbl" data-mpick title="Pick a month" style="min-width:132px;cursor:pointer;background:#fff">'+MONL[M]+' '+Y+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-mm="1">›</button></div>';
+  var isCurMo=(M===new Date().getMonth()&&Y===new Date().getFullYear());
+  var nav='<div class="cpr-navbox"><button data-mm="-1">‹</button><button class="lbl" data-mpick title="Pick a month" style="cursor:pointer">'+MONL[M]+' '+Y+'</button><button data-mm="1">›</button></div>'+(isCurMo?'':'<button class="cpr-navjump" data-mm="0">This Month</button>');
   var layer='<div class="mlayer"><button data-ml="mine" class="'+(MLAYER==='mine'?'on':'')+'">My schedule</button><button data-ml="team" class="'+(MLAYER==='team'?'on':'')+'">Team</button></div>';
   var dow='<div class="mcal-dow">'+DAYS.map(function(x){return '<div>'+x+'</div>';}).join('')+'</div>';
   var hint=MLAYER==='team'?'Who’s off across all stores · 🎉 marks store holidays':'Your shifts this month · time off &amp; holidays included';
@@ -567,7 +567,7 @@ function renderMonth(web){
     : '<div class="mtoolbar">'+layer+'<span style="flex:1"></span>'+nav+'</div>';
   $('#view').innerHTML=head+'<div class="mcal">'+dow+'<div class="mcal-grid">'+cells+'</div></div>'
     +(web?'':'<div class="empty" style="margin-top:10px;text-align:center">'+hint+'</div>');
-  $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){MMON=new Date(MMON.getFullYear(),MMON.getMonth()+Number(b.getAttribute('data-mm')),1);render();};});
+  $('#view').querySelectorAll('[data-mm]').forEach(function(b){b.onclick=function(){var n=Number(b.getAttribute('data-mm'));MMON=n===0?new Date(new Date().getFullYear(),new Date().getMonth(),1):new Date(MMON.getFullYear(),MMON.getMonth()+n,1);render();};});
   $('#view').querySelectorAll('[data-ml]').forEach(function(b){b.onclick=function(){MLAYER=b.getAttribute('data-ml');lsSet('cprMyTimeLayer',MLAYER);render();};});
   var mp=$('#view').querySelector('[data-mpick]');if(mp)mp.onclick=function(ev){ev.stopPropagation();openMonthPicker(mp);};
   if($('#mBack'))$('#mBack').onclick=function(){setTab('me');render();};
@@ -765,10 +765,10 @@ function renderWeb(){
   }).join('');
   /* sidebar */
   var side=timeoffPanelHtml(true);
-  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(ME.home_store))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button><div class="wknav" style="margin:0;width:auto"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="width:158px;border:none;background:transparent;cursor:pointer;font-family:inherit">'+wlabel+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button><button data-wk="1">›</button></div></div></div>'
+  $('#view').innerHTML='<div class="webtop"><div><h1 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px;margin:0">My Time</h1><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.84rem;color:#9aa0b0;margin-top:4px">'+esc(ME.name)+' · '+esc(shortStore(ME.home_store))+'</div></div><div style="display:flex;align-items:center;gap:10px"><button class="btn" id="toMonth" style="padding:9px 14px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);font-size:.78rem">📅 Month view</button>'+(function(){var c=new Date();c.setDate(c.getDate()-c.getDay());c.setHours(0,0,0,0);return WK.getTime()===c.getTime()?'':'<button class="cpr-navjump" data-wk="0">This Week</button>';})()+'<div class="cpr-navbox"><button data-wk="-1">‹</button><button class="lbl" data-wkpick title="Pick a week" style="cursor:pointer">'+wlabel+'</button><button data-wk="1">›</button></div></div></div>'
     +'<div class="wkstrip"><div class="wkstrip-hd"><span class="h">My week</span><span class="s">Your shifts across all locations</span><span class="wk-worked" id="wkWorked"></span></div><div class="wkgrid">'+strip+'</div></div>'
     +'<div class="twocol"><div style="min-width:0;display:flex;flex-direction:column;gap:18px"><div class="wsect">Who\'s on with me</div>'+boards+'</div><aside class="side">'+side+'</aside></div>';
-  $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){WK=new Date(WK);WK.setDate(WK.getDate()+7*Number(b.getAttribute('data-wk')));render();};});
+  $('#view').querySelectorAll('[data-wk]').forEach(function(b){b.onclick=function(){var n=Number(b.getAttribute('data-wk'));if(n===0){WK=new Date();WK.setDate(WK.getDate()-WK.getDay());WK.setHours(0,0,0,0);}else{WK=new Date(WK);WK.setDate(WK.getDate()+7*n);}render();};});
   var wpk=$('#view').querySelector('[data-wkpick]');if(wpk)wpk.onclick=function(ev){ev.stopPropagation();openWeekPicker(wpk);};
   if($('#toMonth'))$('#toMonth').onclick=function(){setTab('month');if(!MMON)MMON=new Date((new Date()).getFullYear(),(new Date()).getMonth(),1);render();};
   wireTimeoffPanel();
