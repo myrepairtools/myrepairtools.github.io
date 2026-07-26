@@ -1112,7 +1112,11 @@ When changing a tool's data layer, check which generation it uses first — they
   disallows all crawlers.
 - **Week/date navigation → use the calendar date-picker pattern.** For any page with a
   week or month navigator, the label between the `‹ ›` arrows is a clickable button that
-  drops down a calendar popover instead of arrow-stepping: week picker = month calendar,
+  drops down a calendar popover instead of arrow-stepping. **The navigator's LOOK is the
+  Bookings `.navbox`** (owner pick 2026-07-26): one joined white box, radius 10, arrows
+  and the `label ▾` as segments split by 1px borders, plus a separate "Today" pill that
+  only shows when off today (interviews.html + daily-digest.html are the reference;
+  restyle older navigators to it when touching their pages). Popover behavior: week picker = month calendar,
   pick any week row, page months, "Jump to this week"; month picker = year pager + month
   grid. **Use `assets/pickers.js`** (`window.CPRPickers.week(anchor,{get,set,maxWeek})` /
   `.month(anchor,{get,set})` / `.day(anchor,{get,set,min,max})` — a single-day month

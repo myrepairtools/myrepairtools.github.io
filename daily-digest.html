@@ -18,10 +18,14 @@ a{color:var(--blue)}a:hover{color:var(--red)}
 .head{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
 .meta{margin-left:auto;font-size:.72rem;font-weight:800;color:var(--grey);white-space:nowrap}
-.dateline{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.dateline .dnav{width:26px;height:26px;border:1px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark);line-height:1;padding:0}
-.dateline .dnav:disabled{opacity:.35;cursor:default}
-.dateline .dlbl{border:none;background:none;font:inherit;font-weight:800;color:var(--dark);cursor:pointer;padding:0}
+.dateline{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* the site's canonical date navigator (Bookings style): one joined box —
+   ‹ | label ▾ | › — plus a separate Today pill */
+.dateline .navbox{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.dateline .navbox button{font-family:'Nunito',sans-serif;font-weight:800;border:none;background:#fff;padding:8px 12px;cursor:pointer;font-size:.9rem;color:var(--dark);line-height:1}
+.dateline .navbox button:disabled{color:var(--grey);cursor:default}
+.dateline .navbox .lbl{font-size:.85rem;padding:8px 12px;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+.dateline .todaybtn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:1px solid var(--border);background:#fff;color:var(--dark);border-radius:10px;padding:8px 14px;cursor:pointer}
 .stale{display:inline-flex;align-items:center;gap:6px;background:#FBF3E4;border:1px solid #EBDDBD;color:var(--amber);
 border-radius:99px;padding:3px 10px;font-size:.72rem;font-weight:800;margin-left:6px}
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:nowrap}
@@ -456,25 +460,30 @@ function gate(ic,title,body){
 
 function headerMeta(){
   var today=todayPT(), d=SNAP_DATE||today;
-  var nav=DEMO?'':'<button class="dnav" id="dPrev"'+(d<=DATA_EPOCH?' disabled':'')+'>‹</button>';
-  var nav2=DEMO?'':'<button class="dnav" id="dNext"'+(d>=today?' disabled':'')+'>›</button>';
   var chip='';
   if(!DEMO&&SNAP_DATE){
     if(NEWEST_DATE&&SNAP_DATE<NEWEST_DATE)chip='<span class="stale">Viewing history</span>';
     else if(SNAP_DATE!==today)chip='<span class="stale">Last capture '+esc(shortDate(SNAP_DATE))+' — nothing today yet</span>';
   }
-  $('#dateline').innerHTML=nav
-    +(DEMO?esc(dateLabel(d)):'<button class="dlbl" id="dLbl" title="Pick a day">'+esc(dateLabel(d))+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button>')
-    +nav2+chip+(DEMO?'<span class="demo">Demo Data</span>':'');
+  $('#dateline').innerHTML=(DEMO
+    ?esc(dateLabel(d))
+    :'<div class="navbox">'
+      +'<button id="dPrev"'+(d<=DATA_EPOCH?' disabled':'')+'>‹</button>'
+      +'<button class="lbl" id="dLbl" title="Pick a day">'+esc(dateLabel(d))+' <span style="font-size:.6rem;color:var(--grey)">▾</span></button>'
+      +'<button id="dNext"'+(d>=today?' disabled':'')+'>›</button>'
+      +'</div>'
+      +(d!==today?'<button class="todaybtn" id="dToday">Today</button>':''))
+    +chip+(DEMO?'<span class="demo">Demo Data</span>':'');
   $('#meta').textContent=CAPTURED?('Updated '+timePT(CAPTURED)):'';
   if(DEMO)return;
   function stepTo(n){
     var p=d.split('-').map(Number), x=new Date(p[0],p[1]-1,p[2]+n);
     showDate(x.toLocaleDateString('en-CA'));
   }
-  var pb=$('#dPrev'),nb=$('#dNext'),lb=$('#dLbl');
+  var pb=$('#dPrev'),nb=$('#dNext'),lb=$('#dLbl'),tb=$('#dToday');
   if(pb)pb.onclick=function(){ if(d>DATA_EPOCH)stepTo(-1); };
   if(nb)nb.onclick=function(){ if(d<today)stepTo(1); };
+  if(tb)tb.onclick=function(){ showDate(today); };
   if(lb&&window.CPRPickers&&CPRPickers.day)lb.onclick=function(ev){
     ev.stopPropagation();
     var p=d.split('-').map(Number), tp=today.split('-').map(Number), ep=DATA_EPOCH.split('-').map(Number);
