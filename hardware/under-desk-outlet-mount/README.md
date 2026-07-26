@@ -54,8 +54,31 @@ Which produces:
 | Hangs below the bench | **73 mm** |
 | Bed footprint | 222.3 × 73.0 mm, 65.8 mm tall |
 
-73 mm is a real amount of hanging hardware. Put it somewhere it won't meet
-knees — off to one side, or back from the front edge.
+## Placement
+
+Mounted at the far left end of the 4' bench, hard against the front edge, out of
+the way of anyone working. The 73 mm of hang is not a knee problem there.
+
+**Flush or set back?** Two choices, both fine:
+
+- **Flush** — the printed face lines up with the bench's front edge. Easiest to
+  reach; charging bricks stick out past the edge where they can get knocked.
+- **Set back ~45 mm** — a typical GaN charging brick is 30–45 mm deep, so
+  setting the mount back by that much leaves the bricks roughly level with the
+  bench edge instead of hanging past it, and the cables drop *behind* the front
+  face where nothing catches them. Costs you reaching 45 mm under to plug in.
+
+Set-back is the better default for chargers that stay plugged in.
+
+Two things to check before drilling:
+
+- **Don't put screws too close to the bench edge.** Mounted flush, the front
+  screw row lands 13 mm back from the edge — too close if the top is
+  particleboard or MDF, which will blow out. Either set the mount back, or use
+  only the rear screw row plus the two rear corners.
+- **Look for a frame rail or apron** under that corner of the bench. If the
+  top plate can't sit flat against the underside there, shift inboard until it
+  can.
 
 ## Check your outlet first
 
@@ -90,12 +113,24 @@ on the bed, and there is nothing in the part that needs support.
 
 | Setting | Value |
 | --- | --- |
-| Material | **PETG or ASA.** PLA works but softens around 55–60 °C. |
+| Material | **PLA+** |
+| Nozzle / bed | 210–220 °C / 55–60 °C (generic PLA profile is fine) |
 | Layer height | 0.2 mm |
 | Walls | 4 |
 | Infill | 15 % gyroid |
 | Supports | None |
 | Brim | Not needed — the front face gives a large flat first layer |
+
+PLA+ is the right call for this part. It is *stiffer* than PETG, so the bracket
+is actually more rigid, and it prints far more predictably — which matters for a
+222 mm part on a new machine. PLA's weaknesses don't bite here: it softens near
+55–60 °C and creeps under sustained load, but this sits indoors under a bench
+carrying well under a pound across six screws. Nothing about it gets warm — the
+outlet's own listed housing sheds its heat, and the chargers hang in free air.
+
+Keep it out of a hot car or direct sun before it's installed, and snug the
+screws rather than torquing them — PLA is more brittle than PETG and will crack
+around a countersink if you lean on the driver.
 
 Rough estimate: **~170–190 g and 7–10 hours** on a P2S. That is an estimate from
 the model volume, not a slicer result — load the STL in Bambu Studio for the
