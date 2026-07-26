@@ -465,7 +465,7 @@
     .cpr-tb-role{ padding:2px; }
     .cpr-tb-brand .cpr-tb-wm{ display:none; }
     .cpr-tb-brand .cpr-tb-ico{ display:flex; }
-    .cpr-tb-brand{ width:auto; justify-content:center; padding:0 4px; }
+    .cpr-tb-brand{ width:auto; justify-content:center; padding:0 10px 0 16px; }  /* left gap matches the avatar's 16px from the right edge */
   }
 
   /* push page content clear of shell */
