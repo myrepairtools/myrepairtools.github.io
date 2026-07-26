@@ -72,9 +72,20 @@ letter-spacing:.3px;padding:3px 9px;border-radius:999px}
 .chip .hst{opacity:.7}
 .more{font-size:.64rem;font-weight:800;color:var(--grey)}
 
-/* host cards */
-.hostrow td .nm{font-family:'Nunito';font-weight:800}
-.winsum{font-size:.76rem;color:var(--dark-grey);font-weight:700;line-height:1.5}
+/* hosts list */
+.hrow{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--light-grey)}
+.hrow:last-of-type{border-bottom:none}
+.hname{flex:1;min-width:0;text-align:left;border:none;background:none;font-family:'Nunito';font-weight:800;
+font-size:.92rem;color:var(--dark);cursor:pointer;padding:11px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hup{font-size:.7rem;color:var(--grey);font-weight:800;white-space:nowrap}
+.hx{border:none;background:none;color:var(--grey);font-size:1rem;line-height:1;cursor:pointer;padding:10px 8px}
+.hx:hover{color:var(--red)}
+/* add-host picker rows */
+.ahrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;
+border:1.5px solid var(--border);background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;
+font-family:'Nunito';font-weight:800;font-size:.9rem;color:var(--dark);cursor:pointer}
+.ahrow:hover{border-color:var(--blue);background:#F7FBFE}
+.ahrow .ahst{font-family:'Nunito Sans';font-weight:700;font-size:.72rem;color:var(--grey)}
 
 /* availability editor (per host) */
 .wk{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start;margin-bottom:10px}
@@ -414,48 +425,47 @@ function pacOffset(dateStr){
 }
 
 /* ================= Hosts roster ================= */
+function openAddHost(){
+  var candidates=STAFF.filter(function(s){return !cfgFor(s.id);});
+  if(!candidates.length){toast('Everyone is already a host');return;}
+  var back=document.createElement('div');back.className='mback';
+  back.innerHTML='<div class="modal"><h3>Add a Host</h3>'
+    +'<div class="msub">Pick who can take bookings — you\u2019ll set their weekly availability next.</div>'
+    +candidates.map(function(s){
+      var st=s.home_store?((window.CPRLocations&&CPRLocations.display)?CPRLocations.display(s.home_store):s.home_store):'';
+      return '<button class="ahrow" data-ah="'+s.id+'"><span>'+esc(s.display_name)+'</span>'+(st?'<span class="ahst">'+esc(st)+'</span>':'')+'</button>';
+    }).join('')
+    +'<div class="ft"><button class="btn" data-x>Cancel</button></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(e){if(e.target===back)back.remove();});
+  back.querySelector('[data-x]').onclick=function(){back.remove();};
+  $all('.ahrow',back).forEach(function(b){b.onclick=async function(){
+    var id=+b.getAttribute('data-ah');
+    b.disabled=true;
+    var r=await sb.from('interview_settings').upsert({staff_id:id,active:true,updated_at:new Date().toISOString()},{onConflict:'staff_id'}).select().single();
+    if(r.error){toast(r.error.message,true);b.disabled=false;return;}
+    SETTINGS.push(Array.isArray(r.data)?r.data[0]:r.data);
+    back.remove();
+    toast(hostName(id)+' can take bookings \u2014 set their windows');
+    HED=id; render();
+  };});
+}
 function renderHosts(){
   var hostRows=SETTINGS.map(function(cfg){
     var s=staffById(cfg.staff_id); if(!s)return '';
-    var wins=WINS.filter(function(w){return Number(w.staff_id)===Number(cfg.staff_id)&&w.active!==false;});
-    var sum=wins.length?wins.map(function(w){return DAYS[w.weekday].slice(0,3)+' '+hhmm(w.start_min)+'–'+hhmm(w.end_min);}).join(' · '):'No windows yet';
     var upN=BOOKINGS.filter(function(b){return Number(b.staff_id)===Number(cfg.staff_id)&&b.status==='booked'&&new Date(b.starts_at)>=new Date();}).length;
-    return '<tr class="hostrow"><td><span class="nm">'+esc(s.display_name)+'</span>'
-      +'<div style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(s.role==='owner'?'Owner':'Manager')+' · '+esc(s.home_store||'')+'</div></td>'
-      +'<td><div class="winsum">'+esc(sum)+'</div></td>'
-      +'<td style="text-align:center;font-family:Nunito;font-weight:900">'+upN+'</td>'
-      +'<td><span class="pill '+(cfg.active!==false?'hosting">Accepting':'paused">Paused')+'</span></td>'
-      +'<td style="text-align:right;white-space:nowrap">'
-        +'<button class="btn sm" data-edit="'+cfg.staff_id+'">Availability</button> '
-        +'<button class="btn sm" data-pause="'+cfg.staff_id+'">'+(cfg.active!==false?'Pause':'Resume')+'</button> '
-        +'<button class="btn sm" data-unhost="'+cfg.staff_id+'" style="color:var(--red)">Remove</button>'
-      +'</td></tr>';
+    return '<div class="hrow">'
+      +'<button class="hname" data-edit="'+cfg.staff_id+'" title="Availability &amp; rules">'+esc(s.display_name)+'</button>'
+      +(upN?'<span class="hup">'+upN+' upcoming</span>':'')
+      +'<button class="hx" data-unhost="'+cfg.staff_id+'" title="Remove host" aria-label="Remove host">✕</button>'
+      +'</div>';
   }).join('');
-  var candidates=STAFF.filter(function(s){return !cfgFor(s.id);});
-  $('#view').innerHTML='<div class="card"><div class="ct">Who can get a booking</div>'
-    +'<div class="ch">Each host has their own windows and their own link. Add someone, then set their availability.</div>'
-    +'<table><thead><tr><th>Host</th><th>Weekly windows</th><th style="text-align:center">Upcoming</th><th>Status</th><th></th></tr></thead>'
-    +'<tbody>'+(hostRows||'<tr><td colspan="5"><div class="empty">No hosts yet.</div></td></tr>')+'</tbody></table>'
-    +'<div style="margin-top:14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
-      +'<select id="addHostSel" style="height:38px;padding:6px 10px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans;font-weight:700;background:#fff">'
-        +'<option value="">Add a host…</option>'
-        +candidates.map(function(s){return '<option value="'+s.id+'">'+esc(s.display_name)+' — '+esc(s.home_store||'')+'</option>';}).join('')
-      +'</select>'
-      +'<button class="btn pri sm" id="addHostGo">+ Add</button>'
-    +'</div></div>';
-  $('#addHostGo').onclick=async function(){
-    var id=+$('#addHostSel').value; if(!id){toast('Pick a person first',true);return;}
-    var r=await sb.from('interview_settings').upsert({staff_id:id,active:true,updated_at:new Date().toISOString()},{onConflict:'staff_id'}).select().single();
-    if(r.error){toast(r.error.message,true);return;}
-    SETTINGS.push(r.data); toast(hostName(id)+' can take bookings — set their windows'); HED=id; render();
-  };
+  $('#view').innerHTML='<div class="card">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><div class="ct" style="margin:0">Who Can Get a Booking</div><span style="flex:1"></span><button class="btn pri sm" id="addHostBtn">+ Add Host</button></div>'
+    +(hostRows||'<div class="empty">No hosts yet — add one.</div>')
+    +'</div>';
+  $('#addHostBtn').onclick=openAddHost;
   $all('[data-edit]').forEach(function(b){b.onclick=function(){HED=+b.getAttribute('data-edit');render();};});
-  $all('[data-pause]').forEach(function(b){b.onclick=async function(){
-    var id=+b.getAttribute('data-pause'), cfg=cfgFor(id), next=!(cfg.active!==false);
-    var r=await sb.from('interview_settings').update({active:next,updated_at:new Date().toISOString()}).eq('staff_id',id);
-    if(r.error){toast(r.error.message,true);return;}
-    cfg.active=next; toast(hostName(id)+(next?' is accepting again':' paused')); render();
-  };});
   $all('[data-unhost]').forEach(function(b){b.onclick=async function(){
     var id=+b.getAttribute('data-unhost');
     if(!confirm('Remove '+hostName(id)+' as a host? Their windows are deleted; existing bookings stay.'))return;
