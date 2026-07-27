@@ -328,14 +328,19 @@ Deno.serve(async (req) => {
       const host = url.searchParams.get("host");
       const store = url.searchParams.get("store");
       const slots = await openSlots(host ? Number(host) : null, store || null);
-      // contact info for every store in the list — the public page shows the
-      // candidate which location they're interviewing at
-      const names = [...new Set(slots.map((s) => s.store).filter(Boolean))] as string[];
-      const stores: Record<string, StoreInfo> = {};
-      if (names.length) {
-        const { data } = await admin.from("stores").select("store, address, phone, email").in("store", names);
+      // contact info for EVERY active store (not just those with open slots) —
+      // the public page's choose-a-location step lists them all, marking the
+      // ones with no openings; `order` = Settings display order
+      const stores: Record<string, StoreInfo & { order: number }> = {};
+      {
+        const { data } = await admin.from("stores")
+          .select("store, address, phone, email, display_order, active").order("display_order");
         for (const r of (data || []) as any[]) {
-          stores[r.store] = { address: r.address || "", phone: r.phone || "", email: r.email || "" };
+          if (r.active === false) continue;
+          stores[r.store] = {
+            address: r.address || "", phone: r.phone || "", email: r.email || "",
+            order: Number(r.display_order) || 0,
+          };
         }
       }
       return json({ slots, stores, tz: TZ });

@@ -67,11 +67,36 @@ select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue);bo
 .det .row{display:flex;gap:10px;padding:6px 0;font-size:.92rem}
 .det .row b{font-family:'Nunito';font-weight:800;min-width:64px;flex:none}
 .det a{color:#2E7CA6;font-weight:700;text-decoration:none}
-/* which location this day's interview is at */
-.loc{background:#F7FBFE;border:1px solid #D6ECF8;border-radius:11px;padding:11px 13px;margin-bottom:11px;font-size:.85rem;font-weight:700}
-.loc b{font-family:'Nunito';font-weight:900;display:block;margin-bottom:1px}
-.loc a{color:#2E7CA6;text-decoration:none;font-weight:700}
-.loc .l2{color:var(--dark-grey)}
+/* numbered step titles (7a — location is step 1) */
+.stept{display:flex;align-items:center;gap:9px;font-family:'Nunito';font-weight:900;font-size:.95rem;margin-bottom:11px}
+.stept .stepn{width:22px;height:22px;border-radius:50%;background:var(--dark);color:#fff;display:inline-flex;
+  align-items:center;justify-content:center;font-size:.7rem;flex:none}
+.stept .sttag{margin-left:auto;font-size:.78rem;font-weight:800;color:#2E7CA6}
+/* store option cards */
+.stcard{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:#fff;
+  border:1.5px solid var(--border);border-radius:13px;padding:14px;margin-bottom:9px;cursor:pointer;font-family:'Nunito Sans'}
+.stcard.sel{background:#F7FBFE;border:2px solid var(--blue);padding:13.5px}
+.stcard .radio{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);background:#fff;flex:none;margin-top:2px}
+.stcard.sel .radio{border:6px solid var(--blue)}
+.stcard .stb{flex:1;min-width:0}
+.stcard .stb b{font-family:'Nunito';font-weight:900;font-size:.95rem;display:block;color:var(--dark)}
+.stcard .staddr{display:block;font-size:.84rem;font-weight:700;color:var(--dark-grey);margin-top:2px}
+.stcard .stnext{display:block;font-size:.8rem;font-weight:800;color:var(--dark-grey);margin-top:5px}
+.stcard.sel .stnext.nx{color:#2E7CA6}
+.stcard .stnext.none{font-weight:700}
+/* standing store card (7b — pinned links) */
+.stpin{border-left:4px solid var(--red);padding:16px 18px}
+.stpin .pinrow{display:flex;gap:12px;align-items:flex-start}
+.stpin .pinicon{width:34px;height:34px;border-radius:9px;background:#F7FBFE;border:1px solid #D6ECF8;color:#2E7CA6;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.stpin .pinlbl{display:block;font-family:'Nunito';font-weight:800;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--dark-grey)}
+.stpin .pinname{font-family:'Nunito';font-weight:900;font-size:1.02rem;margin:1px 0 2px}
+.stpin .pinaddr{font-size:.85rem;font-weight:700;color:var(--dark-grey);line-height:1.45}
+.stpin .pinacts{display:flex;gap:8px;margin-top:12px}
+.stpin .pinacts .pa{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:40px;
+  border:1.5px solid var(--border);border-radius:10px;background:#fff;font-family:'Nunito';font-weight:800;
+  font-size:.8rem;color:var(--dark);text-decoration:none;cursor:pointer;padding:6px 4px}
 .calbtns{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
 .calbtns .btn{margin:0;font-size:.88rem;padding:13px 8px;text-align:center;text-decoration:none}
 .muted{color:var(--grey);font-weight:700;font-size:.82rem;text-align:center;padding:22px}
@@ -109,17 +134,33 @@ function fmtTime(iso){return new Date(iso).toLocaleTimeString('en-US',
   {hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'});}
 function fmtFull(iso){return fmtDay(iso)+' at '+fmtTime(iso);}
 function shortStore(s){return String(s||'').replace(/^CPR\s+/i,'');}
-// contact block for a store — name, address, phone, email (whatever is on file)
-function locBox(store){
-  if(!store)return '';
+var PIN_SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
+// every active store, Settings display order
+function storeList(){
+  return Object.keys(STOREINFO).sort(function(a,b){
+    return (STOREINFO[a].order||0)-(STOREINFO[b].order||0);});
+}
+// stores that can actually produce a time (have open slots)
+function bookableStores(){
+  var m={};SLOTS.forEach(function(s){if(s.store)m[s.store]=1;});
+  return storeList().filter(function(st){return m[st];}).concat(
+    Object.keys(m).filter(function(st){return !STOREINFO[st];}));
+}
+function nextOpenLine(store){
+  var s=SLOTS.filter(function(x){return x.store===store;})[0];
+  if(!s)return null;
+  return new Date(s.starts_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'America/Los_Angeles'})
+    +' · '+fmtTime(s.starts_at);
+}
+// "1090 Lancaster Dr NE" / "Salem, OR 97301"
+function addrLines(addr){
+  var p=String(addr||'').split(', ');
+  if(p.length<3)return [addr||'',''];
+  return [p.slice(0,-2).join(', '),p.slice(-2).join(', ')];
+}
+function mapsHref(store){
   var si=STOREINFO[store]||{};
-  return '<div class="loc"><b>'+esc(store)+'</b>'
-    +(si.address?'<span class="l2">'+esc(si.address)+'</span>':'')
-    +((si.phone||si.email)?'<div>'
-      +(si.phone?'<a href="tel:'+esc(si.phone.replace(/[^+\d]/g,''))+'">'+esc(si.phone)+'</a>':'')
-      +(si.phone&&si.email?' · ':'')
-      +(si.email?'<a href="mailto:'+esc(si.email)+'">'+esc(si.email)+'</a>':'')
-    +'</div>':'')+'</div>';
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(store+(si.address?', '+si.address:''));
 }
 /* ---------- add to calendar ---------- */
 function icsStamp(iso){return new Date(iso).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');}
@@ -201,22 +242,102 @@ async function startPicker(reschToken){
   SLOTS=r.slots||[]; STOREINFO=r.stores||{}; PICK=null;
   renderPicker();
 }
-/* Month calendar first — pick a DAY, then that day's times appear. Far less
-   scrolling than one long list, and it reads like every other booking page
-   people have used. */
-var MON=null, DAY=null;
+/* Location first (7a/7b), then a month calendar — pick a DAY, then that day's
+   times appear. Shared links start on "Choose a location"; per-host or
+   single-store links pin the store as a standing card instead. */
+var MON=null, DAY=null, STORESEL=null;
 function localKey(iso){   // 'YYYY-MM-DD' of a slot in store time
   return new Date(iso).toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
 }
+var CHOOSING=false;   // pinned link, "Change" tapped — show the store list once
+function isStepFlow(){return !HOST&&storeList().length>1;}
 function renderPicker(){
-  if(!SLOTS.length){
+  if(!SLOTS.length&&!storeList().length){
     $('#view').innerHTML='<h1>Book an interview</h1>'
       +'<div class="card"><div class="muted">No times are open right now.<br>'
       +'Please check back soon, or contact the store directly.</div></div>';
     return;
   }
+  var options=HOST?bookableStores():storeList();
+  if(!options.length)options=bookableStores();
+  var multi=options.length>1;
+  var stepFlow=!HOST&&multi;                       // 7a — location is step 1
+  var pinned=!stepFlow;                            // 7b — the link (or a lone store) pins it
+  if(STORESEL&&options.indexOf(STORESEL)===-1){STORESEL=null;}
+  if(pinned&&!STORESEL&&!CHOOSING)STORESEL=bookableStores()[0]||options[0]||null;
+  if(!SLOTS.length&&pinned&&!STORESEL){
+    $('#view').innerHTML='<h1>Book an interview</h1>'
+      +'<div class="card"><div class="muted">No times are open right now.<br>'
+      +'Please check back soon, or contact the store directly.</div></div>';
+    return;
+  }
+  var h1='<h1>'+(RESCH?'Pick a new time':'Book an interview')+'</h1>';
+  var subhead=stepFlow?'<div class="sub">Pick the store you’re applying to, then a time.</div>':'';
+
+  // step-1 store option cards (7a; also the pinned link's Change list)
+  function storeCards(){
+    return options.map(function(st){
+      var si=STOREINFO[st]||{};
+      var nx=nextOpenLine(st);
+      return '<button class="stcard'+(st===STORESEL?' sel':'')+'" data-st="'+esc(st)+'">'
+        +'<span class="radio"></span><span class="stb"><b>'+esc(st)+'</b>'
+        +(si.address?'<span class="staddr">'+esc(si.address)+'</span>':'')
+        +(nx?'<span class="stnext nx">Next opening '+esc(nx)+'</span>'
+            :'<span class="stnext none">No openings in the next 3 weeks</span>')
+        +'</span></button>';
+    }).join('');
+  }
+  var step1=(stepFlow||CHOOSING)
+    ?'<div class="card"><div class="stept"><span class="stepn">1</span>Choose a Location</div>'+storeCards()+'</div>':'';
+
+  function bindStoreCards(){
+    Array.prototype.forEach.call(document.querySelectorAll('[data-st]'),function(b){
+      b.onclick=function(){STORESEL=b.getAttribute('data-st');CHOOSING=false;DAY=null;MON=null;PICK=null;renderPicker();};
+    });
+  }
+
+  // nothing below step 1 until a store is chosen
+  if(!STORESEL){
+    $('#view').innerHTML=h1+subhead+step1;
+    bindStoreCards(); return;
+  }
+
+  // standing store card (7b)
+  var pinCard='';
+  if(pinned&&!CHOOSING){
+    var si=STOREINFO[STORESEL]||{}, al=addrLines(si.address);
+    pinCard='<div class="card stpin"><div class="pinrow">'
+      +'<span class="pinicon">'+PIN_SVG+'</span>'
+      +'<div style="flex:1;min-width:0"><span class="pinlbl">Your interview is at</span>'
+      +'<div class="pinname">'+esc(STORESEL)+'</div>'
+      +(si.address?'<div class="pinaddr">'+esc(al[0])+(al[1]?'<br>'+esc(al[1]):'')+'</div>':'')
+      +'</div></div>'
+      +'<div class="pinacts">'
+        +'<a class="pa" target="_blank" rel="noopener" href="'+esc(mapsHref(STORESEL))+'">Directions</a>'
+        +(si.phone?'<a class="pa" href="tel:'+esc(si.phone.replace(/[^+\d]/g,''))+'">'+esc(si.phone)+'</a>':'')
+        +(multi?'<button class="pa" id="stChange">Change</button>':'')
+      +'</div></div>';
+  }
+  function bindChange(){
+    var c=$('#stChange');
+    if(c)c.onclick=function(){CHOOSING=true;STORESEL=null;DAY=null;MON=null;PICK=null;renderPicker();};
+  }
+  var step2Head=stepFlow
+    ?'<div class="stept"><span class="stepn">2</span>Pick a Time<span class="sttag">'+esc(shortStore(STORESEL))+'</span></div>':'';
+
+  var F=SLOTS.filter(function(s){return s.store===STORESEL;});
+  // a chosen store with nothing open — keep the choice visible, say so plainly
+  if(!F.length){
+    $('#view').innerHTML=h1+subhead+step1+pinCard
+      +'<div class="card">'+step2Head
+      +'<div class="muted">No openings at '+esc(STORESEL)+' in the next 3 weeks.<br>'
+      +(multi?'Pick another location, or check back soon.':'Please check back soon, or contact the store directly.')
+      +'</div></div>';
+    bindStoreCards(); bindChange(); return;
+  }
+
   var byDay={};
-  SLOTS.forEach(function(s){var k=localKey(s.starts_at);(byDay[k]=byDay[k]||[]).push(s);});
+  F.forEach(function(s){var k=localKey(s.starts_at);(byDay[k]=byDay[k]||[]).push(s);});
   var keys=Object.keys(byDay).sort();
   if(!DAY||!byDay[DAY])DAY=keys[0];
   if(!MON)MON=new Date(DAY+'T12:00');
@@ -236,14 +357,10 @@ function renderPicker(){
       +(open?'<span class="dot"></span>':'')+'</button>';
   }
   var list=byDay[DAY]||[];
-  var multiHost=Object.keys(SLOTS.reduce(function(a,s){a[s.staff_id]=1;return a;},{})).length>1;
-  // which location(s) this day's times are at — one store gets the full contact
-  // box; a mixed day tags each time with its store instead
-  var dayStores=Object.keys(list.reduce(function(a,s){if(s.store)a[s.store]=1;return a;},{}));
-  var multiStore=dayStores.length>1;
+  var multiHost=Object.keys(F.reduce(function(a,s){a[s.staff_id]=1;return a;},{})).length>1;
 
-  $('#view').innerHTML='<h1>'+(RESCH?'Pick a new time':'Book an interview')+'</h1>'
-    +'<div class="card">'
+  $('#view').innerHTML=h1+subhead+step1+pinCard
+    +'<div class="card">'+step2Head
       +'<div class="calhd">'
         +'<button class="nav" id="pv"'+(canPrev?'':' disabled')+'>‹</button>'
         +'<span>'+MON.toLocaleDateString('en-US',{month:'long',year:'numeric'})+'</span>'
@@ -254,13 +371,9 @@ function renderPicker(){
     +'</div>'
     +'<div class="card"><div class="dayhd">'+esc(fmtDay(list[0].starts_at))
       +'<span class="cnt">'+list.length+' time'+(list.length===1?'':'s')+' open</span></div>'
-      +(multiStore?'':locBox(dayStores[0]))
       +'<div class="slots">'+list.map(function(s){
-        var tag=[];
-        if(multiHost)tag.push(String(s.name).split(/\s+/)[0]);
-        if(multiStore&&s.store)tag.push(shortStore(s.store));
         return '<button class="slot" data-i="'+SLOTS.indexOf(s)+'">'+esc(fmtTime(s.starts_at))
-          +(tag.length?'<span class="who">'+esc(tag.join(' · '))+'</span>':'')+'</button>';
+          +(multiHost?'<span class="who">'+esc(String(s.name).split(/\s+/)[0])+'</span>':'')+'</button>';
       }).join('')+'</div></div>'
     +'<div id="form"></div>';
 
@@ -277,16 +390,18 @@ function renderPicker(){
       RESCH?doReschedule():renderForm();
     };
   });
+  bindStoreCards(); bindChange();
 }
 function renderForm(){
+  var stepFlow=isStepFlow();
   $('#form').innerHTML='<div class="card">'
-    +(PICK.store?locBox(PICK.store):'')
-    +'<div class="lbl">Your details</div>'
+    +(stepFlow?'<div class="stept"><span class="stepn">3</span>Your Details</div>':'<div class="lbl">Your details</div>')
     +'<div class="field"><input id="fName" placeholder="Full name" autocomplete="name"></div>'
     +'<div class="field"><input id="fPhone" placeholder="Mobile number" inputmode="tel" autocomplete="tel"></div>'
     +'<div class="field"><input id="fEmail" placeholder="Email (optional)" inputmode="email" autocomplete="email"></div>'
     +'<div class="field"><input id="fRole" placeholder="Position you’re applying for (optional)"></div>'
-    +'<button class="btn" id="go">Book '+esc(fmtTime(PICK.starts_at))+' on '+esc(fmtDay(PICK.starts_at))+'</button>'
+    +'<button class="btn" id="go">Book '+esc(fmtTime(PICK.starts_at))
+      +(stepFlow&&PICK.store?' at '+esc(shortStore(PICK.store)):' on '+esc(fmtDay(PICK.starts_at)))+'</button>'
     +'<div class="err" id="err"></div></div>';
   $('#form').scrollIntoView({behavior:'smooth',block:'nearest'});
   $('#go').onclick=submit;

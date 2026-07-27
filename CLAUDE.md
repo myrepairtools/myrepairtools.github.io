@@ -593,10 +593,17 @@ posted time that isn't currently open (double-book returns `slot_taken`); `staff
 (admin/manager/owner JWT) books on a host's behalf with ANY free-form time — only an
 overlap with that host's existing bookings refuses (lead/slot rules don't apply to staff).
 Surfaces:
-**`interview.html`** — public, no gates/nav (the token is the credential): month calendar →
-pick a day → that day's times → name/phone/email → booked; `?t=<token>` shows the candidate
-their booking with reschedule/cancel; `?h=<staff_id>` is one host's link, bare URL shows
-every accepting host. **`interviews.html`** (nav label **"Bookings"**, Employees, manager+) —
+**`interview.html`** — public, no gates/nav (the token is the credential). **Location comes
+first (design 7a/7b):** the shared link opens on a numbered "1 Choose a Location" step —
+one radio card per ACTIVE store (the `slots` response's `stores` map now carries every
+active store + display order, not just slot stores) showing address and "Next opening …"
+or "No openings in the next 3 weeks" (still tappable → an empty step-2 state) — then
+"2 Pick a Time" (month calendar → day's times, store tag in the header, CTA "Book 10:30 AM
+at Salem NE") and "3 Your Details". A `?h=` link (or a single bookable store) collapses to
+the **standing store card** instead: red-left-border card with map-pin, "Your interview
+is at", 2-line address, Directions (Google Maps) / tel: / Change (only when >1 store is
+bookable). `?t=<token>` shows the candidate their booking with reschedule/cancel + Add to
+Calendar. **`interviews.html`** (nav label **"Bookings"**, Employees, manager+) —
 the management surface, three tabs: **Calendar** (month-grid overview of every host's
 bookings — chips per day, day pane with Done/No-show/Cancel actions; the month label opens
 the pickers.js month popover — remember `CPRPickers.month()` OPENS immediately, so call it
