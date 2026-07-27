@@ -28,9 +28,11 @@ outlet ends up **facing forward**, toward whoever is sitting at the bench.
 | File | What it is |
 | --- | --- |
 | `stl/fit-test-coupon.stl` | **Print this first.** A 72 mm slice of one end. ~25 min. |
-| `stl/outlet-mount.stl` | The real part. Already rotated into print orientation. |
+| `stl/outlet-mount.stl` | The under-bench mount. Already rotated into print orientation. |
+| `stl/fixture-cut-template.stl` | Marking template for cutting the outlet into a store fixture. |
 | `step/*.step` | Same parts as STEP, for editing in real CAD. |
 | `src/outlet_mount.py` | The parametric source. Every dimension is a named constant. |
+| `src/fixture_template.py` | The template, built from the same outlet dimensions. |
 | `svg/outlet-mount.svg` | Line drawing. |
 
 ## Dimensions this was built to
@@ -164,6 +166,47 @@ real number.
 4. Drill 3 mm pilots, drive #8 flat-head wood screws.
 5. Route the cord out the back or through a side notch; the two pairs of slots
    in the bottom plate take zip ties.
+
+## Fixture cut template
+
+`stl/fixture-cut-template.stl` — for cutting the outlet into a store fixture
+rather than mounting it under a bench. **223.5 × 90.7 × 3 mm**, prints flat in
+about 1.5–2 hours. Use a brim; a thin plate this long will curl at the corners
+otherwise, and a warped template is a useless template.
+
+| | |
+| --- | --- |
+| Opening | 183.5 × 50.7 mm (7.226 × 1.997 in) |
+| Corner radius | R3.17, for a **1/4"** bit |
+| Faceplate then covers | 13.4 mm at the ends, 5.1 mm top and bottom |
+
+**How to use it**
+
+1. Mark your centreline and your height line on the fixture.
+2. Line up the engraved centrelines — they run from a V-notch on each edge in to
+   the opening — and clamp or tape it down.
+3. Trace the inside of the opening. The engraved rectangle around it shows where
+   the faceplate will land, so you can confirm coverage and check for
+   obstructions before cutting anything.
+4. Drill a **1/4"** hole in each corner, tangent to both traced arcs. The
+   corners are already radiused to that bit, so the traced line *is* the
+   finished hole.
+5. Jigsaw the four straight runs between the corner holes.
+
+**Why 1/4" and not 3/8".** A rounded hole corner has to clear the outlet body's
+own corner, and a large radius cuts across it diagonally. With the opening
+0.75 mm oversize, a 3/8" corner (R4.76) only clears a body corner of R3 or
+larger — which nobody has measured. R3.17 clears anything down to R1. If a
+corner still binds, file it: there's 13.4 mm of faceplate covering the ends.
+
+**This is a marking template, not a router template** — no guide-bushing offset,
+and 3 mm is far too thin to guide a bit. Trace it, don't rout against it.
+
+**Already cut one?** The opening follows the same rounded-up 7-1/6" reading as
+the mount, so it may be looser than it needs to be. If your first cut came out
+tighter and the outlet dropped in fine, measure that hole, drop `CUT_CLR` or
+`BODY_L` in `src/outlet_mount.py`, and re-run — the template rebuilds from the
+same constants.
 
 ## Safety
 
