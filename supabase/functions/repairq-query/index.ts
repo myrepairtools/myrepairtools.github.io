@@ -558,6 +558,8 @@ async function actionLookerLook(p: any) {
   if (!id) return json({ ok: false, error: "look_id required" }, 400);
   const look = await lookerGet(`/api/internal/looks/${id}`, p._sess);
   if (!look.ok || !look.data?.query) return json({ ok: false, error: `look fetch HTTP ${look.status}`, body: String(look.data).slice(0, 300) }, 502);
+  // debug: return the look's saved query (fields/filters) without running it
+  if (p.include_query) return json({ ok: true, look_id: id, title: look.data.title || null, query: look.data.query });
   const store = p.location != null ? String(p.location) : null;
   const pq = plainFromQuery(look.data.query, "look" + id, store, "look", "/embed/looks", p.force_location);
   const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }, true, p._sess);
@@ -661,7 +663,17 @@ async function actionLookerSyncStock(p: any) {
       const look = await lookerGet(`/api/internal/looks/${lookId}`, sess as any);
       if (!look.ok || !look.data?.query) throw new Error(`look fetch HTTP ${look.status}`);
       const pq = plainFromQuery(look.data.query, "syncStock", store, "look", "/embed/looks", true);
-      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] }, true, sess as any);
+      // The look's saved filter is count_in_stock >= 1, so a SKU that sells to
+      // zero drops out of the pull entirely — taking its on-order qty with it
+      // (an open PO for an out-of-stock part was invisible and the report
+      // re-suggested the order). Second query: same look, filtered to
+      // on-order >= 1 with the in-stock floor removed, so zero-stock SKUs with
+      // an open PO stay on the report.
+      const q2 = { ...look.data.query, filters: { ...(look.data.query.filters || {}) } };
+      delete q2.filters["inventory_item.count_in_stock"];
+      q2.filters["ordered_items.ordered_qty"] = ">=1";
+      const pq2 = plainFromQuery(q2, "syncStockOO", store, "look", "/embed/looks", true);
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq, pq2] }, true, sess as any);
       const rows: any[] = [];
       for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
 
@@ -671,7 +683,13 @@ async function actionLookerSyncStock(p: any) {
       const keep = new Map((existing || []).map((r: any) => [r.sku, { max_baseline: r.max_baseline, note: r.note }]));
 
       const now = new Date().toISOString();
-      const upserts = rows.filter((r) => r["catalog_item.sku"]).map((r) => {
+      const seen = new Set<string>();
+      const upserts = rows.filter((r) => {
+        const sku = r["catalog_item.sku"];
+        if (!sku || seen.has(String(sku))) return false;   // both queries can return the same SKU
+        seen.add(String(sku));
+        return true;
+      }).map((r) => {
         const sku = String(r["catalog_item.sku"]);
         const k = keep.get(sku) || {};
         return {
@@ -691,6 +709,11 @@ async function actionLookerSyncStock(p: any) {
         const { error } = await admin.from("stock").upsert(chunk, { onConflict: "store,sku" });
         if (error) throw new Error(error.message);
         wrote += chunk.length;
+      }
+      // prune rows the pull no longer returns (sold to zero, nothing on order) —
+      // every surviving row was just stamped with this run's `now`
+      if (wrote > 0) {
+        await admin.from("stock").delete().eq("store", appStore).lt("updated_at", now);
       }
       out.push({ store: appStore, pulled: rows.length, upserted: wrote });
     } catch (e) {
