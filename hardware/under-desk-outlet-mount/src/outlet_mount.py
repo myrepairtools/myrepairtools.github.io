@@ -91,8 +91,14 @@ NOTCH_H = 16.0
 SCREW_D       = 4.4    # shank clearance hole
 HEAD_D        = 8.6    # flat head major diameter
 HEAD_ANG      = 90.0   # countersink included angle
-SCREW_INSET_Y = 13.0   # in from the front and back edges of the top plate
+SCREW_INSET_Y = 16.0   # in from the front and back edges of the top plate
 SCREW_X       = [-88.0, 0.0, 88.0]
+
+# Access holes straight through the BOTTOM plate, coaxial with each top-plate
+# screw.  Without these the box is closed and there is no way to reach the
+# screws to drive them.  Big enough to drop a #8 flat head through (8.6 mm head)
+# and then pass a 1/4" magnetic bit holder (~12 mm) up behind it.
+ACCESS_D = 16.0
 
 # ---------------------------------------------------------------------------
 # 5. CABLE-TIE SLOTS in the bottom plate
@@ -125,6 +131,18 @@ assert BEAR_TB > 1.5, f"faceplate top/bottom lands on only {BEAR_TB:.2f} mm of f
 assert Zc0 > WALL, "cut-out runs into the bottom plate"
 assert HEADROOM >= 0, "cut-out runs into the top plate"
 assert W < 250 and D < 250, "part will not fit a 256 mm bed"
+
+# The bottom access holes have to clear everything else on the bottom plate.
+assert ACCESS_D > HEAD_D + 2, "access holes too small to drop a screw head through"
+assert SCREW_INSET_Y - ACCESS_D / 2 > FACE_T + 1.5, \
+    "front access holes break into the back of the front face"
+assert D - SCREW_INSET_Y + ACCESS_D / 2 < D - 1.5, "rear access holes run off the back"
+for _sx in SCREW_X:
+    assert abs(abs(_sx) - BODY_L / 4.0) > (ACCESS_D + RAIL_W) / 2, \
+        f"access hole at x={_sx} collides with a support rail"
+    for _tx in TIE_X:
+        assert abs(_sx - _tx) > (ACCESS_D + TIE_W) / 2, \
+            f"access hole at x={_sx} collides with a cable-tie slot"
 
 
 def mount():
@@ -190,6 +208,12 @@ def mount():
                 cq.Solid.makeCone(HEAD_D / 2.0, SCREW_D / 2.0, head_drop)
                 .located(cq.Location(cq.Vector(x, y, H - TOP_T)))
             )
+            # Driver access straight through the bottom plate below it.
+            r = r.cut(
+                cq.Workplane("XY")
+                .cylinder(WALL + 2, ACCESS_D / 2.0, centered=(True, True, False))
+                .translate((x, y, -1))
+            )
 
     # Cable-tie slots in the bottom plate.
     for x in TIE_X:
@@ -227,6 +251,8 @@ if __name__ == "__main__":
     print(f"cut-out   {cw:.1f} x {ch:.1f} mm")
     print(f"bearing   {BEAR_END:.2f} mm at the ends, {BEAR_TB:.2f} mm top/bottom")
     print(f"headroom  {HEADROOM:.2f} mm above the body, {RAIL_H:.2f} mm rails below")
+    print(f"access    {ACCESS_D:.0f} mm holes in the bottom plate under each screw")
+    print(f"driver reach needed: {H - TOP_T:.0f} mm from the bottom face")
     print(f"hangs     {H:.1f} mm below the bench")
 
     for name, part in (("outlet-mount", mount()), ("fit-test-coupon", coupon())):

@@ -62,6 +62,7 @@ Which produces:
 | Printed cut-out | 182.8 × 50.0 mm (0.4 mm clearance per side) |
 | Faceplate lands on | 13.74 mm of face at each end, 5.47 mm top and bottom |
 | Headroom above the body | 5.47 mm |
+| Driver access holes | 6 × 16 mm through the bottom plate, under each screw |
 | Hangs below the bench | **73 mm** |
 | Bed footprint | 222.3 × 73.0 mm, 65.8 mm tall |
 
@@ -163,9 +164,24 @@ real number.
    The top plate is 6 mm; a 5/8" (16 mm) #8 flat head leaves ~10 mm going into
    the bench. Measure the top and pick a length that cannot punch through the
    work surface.
-4. Drill 3 mm pilots, drive #8 flat-head wood screws.
+4. Drill 3 mm pilots, drive #8 flat-head wood screws **through the 16 mm access
+   holes in the bottom plate** — drop the screw down the hole onto the
+   countersink, then run it up with the driver. See the note below.
 5. Route the cord out the back or through a side notch; the two pairs of slots
    in the bottom plate take zip ties.
+
+### You need a long bit
+
+The box is closed on the bottom, so each top-plate screw has a **16 mm access
+hole punched straight through the bottom plate below it**. That's big enough to
+drop a #8 flat head through (8.6 mm) and then pass a 1/4" magnetic bit holder
+(~12 mm) up behind it.
+
+But the screw head sits **67 mm above the bottom face**, so a stubby 2" bit will
+not reach. Use a **6" driver bit or a magnetic bit extension** — an $8 part, and
+without it you cannot mount this. Mount the empty shell to the bench *first*,
+then fit the outlet from the front; with the outlet in place the access holes
+are still open but there is much less room to work.
 
 ## Fixture cut template
 
