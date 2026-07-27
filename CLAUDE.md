@@ -595,17 +595,20 @@ posted time that isn't currently open (double-book returns `slot_taken`); `staff
 (admin/manager/owner JWT) books on a host's behalf with ANY free-form time — only an
 overlap with that host's existing bookings refuses (lead/slot rules don't apply to staff).
 Surfaces:
-**`interview.html`** — public, no gates/nav (the token is the credential). **Location comes
-first (design 7a/7b):** the shared link opens on a numbered "1 Choose a Location" step —
-one radio card per ACTIVE store (the `slots` response's `stores` map now carries every
-active store + display order, not just slot stores) showing address and "Next opening …"
-or "No openings in the next 3 weeks" (still tappable → an empty step-2 state) — then
-"2 Pick a Time" (month calendar → day's times, store tag in the header, CTA "Book 10:30 AM
-at Salem NE") and "3 Your Details". A `?h=` link (or a single bookable store) collapses to
-the **standing store card** instead: red-left-border card with map-pin, "Your interview
-is at", 2-line address, Directions (Google Maps) / tel: / Change (only when >1 store is
-bookable). `?t=<token>` shows the candidate their booking with reschedule/cancel + Add to
-Calendar. **`interviews.html`** (nav label **"Bookings"**, Employees, manager+) —
+**`interview.html`** — public, no gates/nav (the token is the credential). **Stepped
+widget (design 8a — the canvas's newest frame trumps the README):** a red 3-segment
+progress bar (Location / Time / Details) with ONE step on screen at a time. Step 1
+"Choose a location" = one radio card per ACTIVE store (the `slots` response's `stores`
+map carries every active store + display order, not just slot stores) with address and
+"Next opening …" / "No openings in the next 3 weeks"; picking advances. Step 2 = compact
+location bar (name/address + Change + tel/Directions links) over the month calendar and
+a 2-up slot grid (host first name under each time) — **tapping a time advances**, no CTA.
+Step 3 = location bar with a summary row (calendar glyph + "Wednesday, July 29 at 10:30
+AM"), then Full name / Mobile / Email — **all three required**, per-field inline errors
+after first submit (position field dropped) — CTA "Book 10:30 AM". A `?h=` link (or a
+single bookable store) skips step 1 and hides Change. Confirmation + the `?t=` view share
+the 8a done card: green check, When/Where/Who/You box, dark "Add to Calendar" (.ics),
+Google Calendar + Directions row, Reschedule + Cancel. **`interviews.html`** (nav label **"Bookings"**, Employees, manager+) —
 the management surface, three tabs: **Calendar** (month-grid overview of every host's
 bookings — chips per day, day pane with Done/No-show/Cancel actions; the month label opens
 the pickers.js month popover — remember `CPRPickers.month()` OPENS immediately, so call it
