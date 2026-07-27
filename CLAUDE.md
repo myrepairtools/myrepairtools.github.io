@@ -271,7 +271,9 @@ reuse this claim pattern — never refresh unguarded.
 **Daily Digest (owner's morning scorecard):** `digest_raw` (one row per
 `(capture_date, tile_key)`; `rows` jsonb = that Looker tile's records; RLS
 `is_admin()`, writes service-role only — the `daily-digest-sync` pg_cron calls
-`repairq-query`'s `sync_digest` every 4h; history accumulates from 2026-07-21).
+`repairq-query`'s `sync_digest` hourly at :30 through business + close-out hours
+(`30 0-4,15-23 * * *` UTC ≈ 8:30a–9:30p PDT; the 01:30 UTC run is the ~6:30p
+close-out capture the owner asked for); history accumulates from 2026-07-21).
 Surface: `daily-digest.html` (Reports nav, minRole admin, Lucide `sunrise`) —
 tabs Today / Month / Team (hash `#today/#month/#team` + `cprDigestTab`),
 `.storesel` All Stores default. Store scorecards are **collapsible**: collapsed
