@@ -1001,6 +1001,126 @@ async function actionSyncIngest(p: any) {
 // RepairQ's — never add alongside (which would double-count). Only touches days
 // the Look covers (today), leaving historical days intact. Idempotent.
 // Authenticates as Eugene (799) for the canonical Eugene-folder Look (5774).
+// Daily inventory-count generator. For the consumption day (default: yesterday
+// LA), build ONE inventory_counts entry per store consolidating:
+//   • consumed SKUs that day (consumption_log)
+//   • SKUs on POs RECONCILED that day (RepairQ purchase_order view, closed on
+//     the reconcile date) — the special-order catch
+// Assigned to whoever's on shift the NEXT day (when it's counted), resolved
+// from staff_schedule like the checklist. Idempotent per (store, day); only
+// refreshes an entry that's still pending.
+function laYMD(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+function addYMD(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days, 12)).toISOString().slice(0, 10);
+}
+function dowOfYMD(ymd: string): number {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
+}
+async function actionGenInventoryCounts(p: any) {
+  const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
+    : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
+  const day = String(p?.date || addYMD(laYMD(new Date()), -1));   // consumption day
+  const assignedDate = addYMD(day, 1);                             // counted the next day
+  const dow = dowOfYMD(assignedDate);
+  const sess = await syncSession(p);
+  if ((sess as any)?.error) return json({ ok: false, ...(sess as any) }, 502);
+
+  // --- resolve who's on shift at each store on the assigned date ---
+  const [{ data: staff }, { data: sched }, { data: shifts }, { data: tos }] = await Promise.all([
+    admin.from("staff").select("id, display_name, home_store, active").eq("active", true),
+    admin.from("staff_schedule").select("staff_id, store, shifts"),
+    admin.from("shifts").select("id, name"),
+    admin.from("time_off_requests").select("staff_id, status, start_date, end_date, partial_days")
+      .eq("status", "approved").lte("start_date", assignedDate).gte("end_date", assignedDate),
+  ]);
+  const staffById = new Map((staff || []).map((s: any) => [Number(s.id), s]));
+  const offDay = new Set((tos || []).filter((r: any) => !(r.partial_days && r.partial_days[assignedDate])).map((r: any) => Number(r.staff_id)));
+  // first person working (any non-off shift) at a store on the assigned date
+  function assigneeFor(appStore: string): { id: number; name: string } | null {
+    const workers: number[] = [];
+    for (const row of (sched || []) as any[]) {
+      const v = (row.shifts || {})[String(dow)];
+      if (v == null || v === "off") continue;
+      const rec = typeof v === "string" ? { label: v } : v;
+      if (rec.label === "Off") continue;
+      const st = rec.store || row.store;
+      if (appStoreName(st) !== appStore) continue;
+      const id = Number(row.staff_id);
+      if (offDay.has(id) || !staffById.has(id)) continue;
+      workers.push(id);
+    }
+    workers.sort((a, b) => a - b);
+    const id = workers[0];
+    return id ? { id, name: (staffById.get(id) as any).display_name } : null;
+  }
+
+  const out: any[] = [];
+  for (const store of stores) {
+    const appStore = appStoreName(store);
+    try {
+      const consolidated = new Map<string, { sku: string; name: string; sources: Set<string> }>();
+
+      // consumed that day (consumption_log — synced daily)
+      const { data: cons } = await admin.from("consumption_log")
+        .select("sku, name, units").eq("store", appStore).eq("biz_date", day);
+      for (const r of (cons || []) as any[]) {
+        if (!(Number(r.units) > 0)) continue;
+        const sku = String(r.sku); if (!sku) continue;
+        const e = consolidated.get(sku) || { sku, name: r.name || sku, sources: new Set<string>() };
+        e.sources.add("consumed"); if (!e.name && r.name) e.name = r.name;
+        consolidated.set(sku, e);
+      }
+
+      // reconciled-PO items that day (RepairQ purchase_order view, closed on the day)
+      const dSlash = day.replace(/-/g, "/");
+      const pq = {
+        model: "repairq_cpr", view: "purchase_order",
+        fields: ["catalog_item.sku", "catalog_item.name"], pivots: [], fill_fields: [],
+        filters: { "purchase_order.status": "reconciled", "location.short_name": store, "purchase_order.closed_date": dSlash },
+        filter_expression: "", sorts: [], limit: "5000", column_limit: "50", total: false, row_total: "",
+        subtotals: [], dynamic_fields: "", query_timezone: "", element_id: "poc", client_id: "poc",
+        generate_links: false, path_prefix: "/embed/explore", server_table_calcs: false, source: "explore",
+      };
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: true, generate_links: false, streaming: false }, plain_queries: [pq] }, true, sess as any);
+      for (const r of run.results) if (Array.isArray(r.rows)) {
+        for (const row of flattenLookerRows(r.rows)) {
+          const sku = String(row["catalog_item.sku"] || ""); if (!sku) continue;
+          const e = consolidated.get(sku) || { sku, name: row["catalog_item.name"] || sku, sources: new Set<string>() };
+          e.sources.add("received"); if (!e.name) e.name = row["catalog_item.name"] || sku;
+          consolidated.set(sku, e);
+        }
+      }
+
+      const skus = [...consolidated.values()].map((e) => ({ sku: e.sku, name: e.name, sources: [...e.sources] }))
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      const who = assigneeFor(appStore);
+
+      // idempotent: skip if a non-pending (sent/completed) entry already exists;
+      // refresh a still-pending entry with the latest consolidation
+      const { data: existing } = await admin.from("inventory_counts")
+        .select("id, status").eq("store", appStore).eq("consumption_date", day).maybeSingle();
+      if (existing && existing.status !== "pending") { out.push({ store: appStore, skipped: existing.status, skus: skus.length }); continue; }
+
+      const rowU = {
+        store: appStore, consumption_date: day, assigned_date: assignedDate,
+        assigned_staff_id: who?.id ?? null, assigned_name: who?.name ?? null,
+        status: "pending", skus, sku_count: skus.length,
+      };
+      const up = await admin.from("inventory_counts").upsert(rowU, { onConflict: "store,consumption_date" }).select("id").single();
+      if (up.error) throw new Error(up.error.message);
+      out.push({ store: appStore, id: up.data.id, skus: skus.length, assignee: who?.name || null,
+        consumed: (cons || []).length, received: skus.filter((s) => s.sources.includes("received")).length });
+    } catch (e) {
+      out.push({ store: appStore, error: String((e as Error).message || e) });
+    }
+  }
+  return json({ ok: out.every((o) => !o.error), day, assigned_date: assignedDate, stores: out });
+}
+
 // Monthly performance backfill for the Inventory Review report: per store per
 // month, RepairQ consumption (Look 5774 with the date filter overridden to the
 // month) + cpr.parts buys (ms_orders) → part_perf_monthly. RepairQ holds the
@@ -1574,6 +1694,75 @@ Deno.serve(async (req) => {
   // /ajax/inventoryCounts/assignCounts for the store's location with a
   // manager/assignee/due date. The tech then counts in RepairQ's Counts UI.
   // Browser-gated by a signed-in admin/owner, like inventory_status.
+  // send_count — the Inventory Counts page's one-call "Send to RepairQ": given an
+  // entry id, resolve its assignee + SKUs and assign the whole count in RepairQ,
+  // then stamp the entry 'sent'. Keeps the browser contract to {action, id}.
+  if (payload?.action === "send_count") {
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u, error: uerr } = await admin.auth.getUser(tok);
+    if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
+    const { data: me } = await admin.from("staff").select("id, display_name, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    if (!me) return json({ ok: false, error: "staff record required" }, 403);
+
+    const { data: entry } = await admin.from("inventory_counts").select("*").eq("id", Number(payload.id)).maybeSingle();
+    if (!entry) return json({ ok: false, error: "count not found" }, 404);
+    const locName = String((entry as any).store || "");
+    const LOC_IDS: Record<string, string> = { "cpr eugene": "799", "cpr salem northeast": "973", "cpr clackamas": "917", "cpr clackamas or": "917" };
+    let locId = await resolveLoc(locName);
+    if (!locId || !/^\d+$/.test(locId)) locId = LOC_IDS[locName.toLowerCase()] || null;
+    if (!locId) return json({ ok: false, error: "unknown location: " + locName }, 400);
+
+    const skus: string[] = [...new Set(((entry as any).skus || []).map((x: any) => String(x.sku || "").trim()).filter(Boolean))] as string[];
+    if (!skus.length) return json({ ok: false, error: "no skus on this count" }, 400);
+
+    // assignee: the entry's assigned person, matched to a RepairQ user by name;
+    // fall back to the signed-in user if unassigned. manager = same (self-managed).
+    const norm = (s: string) => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+    const slim = (arr: any) => (Array.isArray(arr) ? arr : []).filter((p: any) => p && p.is_active !== 0)
+      .map((p: any) => ({ id: Number(p.id), name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.username || String(p.id) }));
+    const mgrR = await rqRequest({ method: "POST", path: "/ajax/inventoryItem/getManagers", form: { locationId: locId } });
+    const asgR = await rqRequest({ method: "POST", path: "/ajax/inventoryItem/getAssignees", form: { locationId: locId } });
+    const managers = slim(mgrR.json?.managers || mgrR.json?.data);
+    const assignees = slim(asgR.json?.assignees || asgR.json?.data);
+    const wantName = (entry as any).assigned_name || (me as any).display_name;
+    const findBy = (list: any[], nm: string) => list.find((p) => norm(p.name) === norm(nm));
+    let asg = findBy(assignees, wantName) || findBy(assignees, (me as any).display_name);
+    if (!asg) return json({ ok: false, error: `no RepairQ assignee matched "${wantName}" at ${locName}` }, 422);
+    const mgr = findBy(managers, wantName) || asg;
+
+    // resolve SKUs → catalog ids (Looker), scoped to the store's short name
+    const rqShort = locName.toLowerCase() === "cpr clackamas" ? "CPR Clackamas OR" : locName;
+    const skuMap = new Map<string, any>();
+    for (let i = 0; i < skus.length; i += 40) {
+      const batch = skus.slice(i, i + 40);
+      const pq = {
+        model: "repairq_cpr", view: "inventory_item", fields: ["catalog_item.id", "catalog_item.sku"], pivots: [], fill_fields: [],
+        filters: { "catalog_item.sku": batch.join(","), "location.short_name": rqShort }, filter_expression: "", sorts: [],
+        limit: "5000", column_limit: "50", total: false, row_total: "", subtotals: [], dynamic_fields: "", query_timezone: "",
+        element_id: "sc", client_id: "sc", generate_links: false, path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+      };
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: true, generate_links: false, streaming: false }, plain_queries: [pq] });
+      for (const r of run.results) if (Array.isArray(r.rows)) for (const row of flattenLookerRows(r.rows)) {
+        const s = String(row["catalog_item.sku"]); if (s && !skuMap.has(s)) skuMap.set(s, row["catalog_item.id"]);
+      }
+    }
+    const matched = skus.filter((s) => skuMap.has(s));
+    if (!matched.length) return json({ ok: false, error: "no skus resolved to catalog items" }, 422);
+    const dueDate = String((entry as any).assigned_date || "") ? new Date((entry as any).assigned_date + "T19:00:00-07:00").toISOString() : new Date(Date.now() + 864e5).toISOString();
+    const r = await rqRequest({
+      method: "POST", path: "/ajax/inventoryCounts/assignCounts",
+      form: { catalogItemIds: JSON.stringify(matched.map((s) => Number(skuMap.get(s)))), locationId: locId,
+        managerId: String(mgr.id), assigneeId: String(asg.id), dueDate, conflicts: "skip", assignAll: "0" },
+    });
+    const ok = !!(r.json && r.json.success === true);
+    if (ok) {
+      await admin.from("inventory_counts").update({
+        status: "sent", sent_at: new Date().toISOString(), sent_by: (me as any).display_name, rq_assigned: matched.length,
+      }).eq("id", (entry as any).id);
+    }
+    return json({ ok, assigned: ok ? matched.length : 0, assignee: asg.name, unmatched: skus.filter((s) => !skuMap.has(s)) }, ok ? 200 : 502);
+  }
+
   if (payload?.action === "count_people" || payload?.action === "assign_counts") {
     // Any active staff may assign a count (they self-assign from the browser) —
     // this only creates a RepairQ count assignment, it never moves stock.
@@ -2036,6 +2225,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
     if (payload?.action === "sync_consumption") return await actionLookerSyncConsumption(payload);
     if (payload?.action === "perf_backfill") return await actionPerfBackfill(payload);
+    if (payload?.action === "gen_inventory_counts") return await actionGenInventoryCounts(payload);
     if (payload?.action === "sync_ingest") return await actionSyncIngest(payload);
     if (payload?.action === "sync_devices") return await actionSyncDevices(payload);
     if (payload?.action === "sync_claims") {
