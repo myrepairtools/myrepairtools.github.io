@@ -44,7 +44,12 @@ IN = 25.4
 
 FLANGE_L = 8.28 * IN   # 210.31  faceplate length      -- FROM THE LISTING
 FLANGE_H = 2.40 * IN   #  60.96  faceplate height      -- FROM THE LISTING
-BODY_D   = 2.00 * IN   #  50.80  depth behind the faceplate -- FROM THE LISTING
+# Depth of the body BEHIND the faceplate.  The listing's "2 inch" is the unit's
+# TOTAL depth including the faceplate, not the depth behind it -- measuring the
+# built bracket gave 3/4" of shell sticking out past the body, which puts the
+# real figure at 67.8 - 5 - 19.05 = 43.75 mm.  (43.75 + a ~7 mm faceplate =
+# 50.8 mm = exactly the 2" on the listing, which confirms it.)
+BODY_D   = 43.75       #  1.722 in  -- MEASURED, not from the listing
 
 # Measured off the actual unit: the body that passes through the cut-out.
 # The listing's "cut size" of 7.30 x 2.13 in is a deliberately generous

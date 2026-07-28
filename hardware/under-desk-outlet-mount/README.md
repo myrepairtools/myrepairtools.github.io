@@ -28,8 +28,8 @@ outlet ends up **facing forward**, toward whoever is sitting at the bench.
 | File | What it is |
 | --- | --- |
 | `stl/fit-test-coupon.stl` | **Print this first.** A 72 mm slice of one end. ~25 min. |
-| `stl/outlet-mount.stl` | The under-bench mount, 67.8 mm deep. Already rotated into print orientation. |
-| `stl/outlet-mount-short.stl` | **58 mm deep version** — clears the TBK 801's steel frame rail. See below. |
+| `stl/outlet-mount-short.stl` | **Use this one.** 48.75 mm deep — clears the TBK 801 frame rail. See below. |
+| `stl/outlet-mount.stl` | Generic full-depth version, 60.75 mm. For benches with no rail in the way. |
 | `stl/fixture-cut-template.stl` | Marking template for cutting the outlet into a store fixture. |
 | `step/*.step` | Same parts as STEP, for editing in real CAD. |
 | `src/outlet_mount.py` | The parametric source. Every dimension is a named constant. |
@@ -42,7 +42,7 @@ outlet ends up **facing forward**, toward whoever is sitting at the bench.
 | --- | --- | --- | --- |
 | Faceplate | listing | 8.28 × 2.40 | 210.31 × 60.96 |
 | Body through the cut-out | **measured** | 7-1/6 × 1-15/16 | 182.03 × 49.21 |
-| Body depth behind the faceplate | listing | 2.00 | 50.80 |
+| Body depth behind the faceplate | **measured** | 1.722 | 43.75 |
 
 The cut-out is sized to the **measured body**, not to the listing's "cut size"
 of 7.30 × 2.13 in. That figure is a deliberately generous recommendation for
@@ -59,13 +59,13 @@ Which produces:
 
 | | |
 | --- | --- |
-| Printed part | 222.3 W × 67.8 D × 73.0 H mm |
+| Printed part | 222.3 W × 48.75 D × 73.0 H mm (short) / 60.75 D (full) |
 | Printed cut-out | 182.8 × 50.0 mm (0.4 mm clearance per side) |
 | Faceplate lands on | 13.74 mm of face at each end, 5.47 mm top and bottom |
 | Headroom above the body | 5.47 mm |
 | Driver access holes | 6 × 16 mm through the bottom plate, under each screw |
 | Hangs below the bench | **73 mm** |
-| Bed footprint | 222.3 × 73.0 mm, 65.8 mm tall |
+| Bed footprint | 222.3 × 73.0 mm, 48.75 mm tall |
 
 ## Placement
 
@@ -95,39 +95,55 @@ Two things to check before drilling:
 
 ## The short variant — clearing the bench's frame rail
 
-On the TBK 801 the full-depth mount runs into the steel rail under the top.
-Measured on the bench:
+**Use `outlet-mount-short.stl` on the TBK 801 benches.** It is **48.75 mm
+deep**, which puts its back face flush with the back of the outlet body — as
+short as the part can be without the shell stopping before the outlet does.
+
+The full-depth mount runs into the steel rail under the bench top:
 
 | | from the front edge |
 | --- | --- |
 | Frame rail, front face | 2-3/8" = 60.32 mm |
-| Frame rail, depth | 1-5/8" = 41.27 mm (so it occupies 60.3 → 101.6 mm) |
-| Mount at 67.8 mm deep, front flush | reaches 67.8 mm |
-| **Interference** | **7.5 mm** |
+| Frame rail, depth | 1-5/8" = 41.27 mm (occupies 60.3 → 101.6 mm) |
+| **Short variant reaches** | **48.75 mm** |
+| **Clearance** | **11.57 mm** |
 
-`outlet-mount-short.stl` is **58.0 mm deep** — a 9.8 mm trim that leaves
-**2.3 mm of clearance** to the rail. Everything else is identical: same
-faceplate opening, same bearing, same 73 mm height, same six screws.
+That margin is the point. The benches were assembled by hand with no
+pre-drilled holes, so the rail does not sit in the same place on every desk —
+a variant that just barely clears one bench will foul the next one. Trimming
+only to the end of the support rails removes 4 mm and still buries the mount
+in the rail; the 58 mm intermediate version cleared by 2.3 mm, which is inside
+the assembly variation. Flush with the outlet is the right stopping point.
 
-Stopping at the end of the support rails (63.8 mm) is *not* enough — it only
-removes 4 mm and still buries the mount 3.5 mm into the rail.
+Everything else is unchanged: same faceplate opening, same 13.7/5.5 mm
+bearing, same 73 mm height, same six screws. Both screw rows (Y=16 and
+Y=32.8) sit well forward of the rail, and 39.8 mm of the outlet body still
+rides on the support rails.
 
-**Shortening also fixes the cord fouling.** The metal strain relief on the
-outlet's cord was hitting the back of the shell; the 9.8 mm that came off is
-exactly the material it was hitting. Behind the body there is now 2.2 mm and
-then open air, so the cord exits straight out with nothing to catch on. The
-cord-relief notches in both side walls are unchanged and still symmetric, so
-the part works mounted at either end of a bench with no left/right version.
+**This also fixes the cord fouling.** The metal strain relief on the cord was
+hitting the back of the shell — the material that came off is exactly what it
+was hitting. The cord-relief notches in both side walls are unchanged and
+still symmetric, so one part works mounted at either end of a bench; there is
+no left/right version to keep straight.
+
+### Where BODY_D came from
+
+Measuring the built bracket gave **3/4" of shell sticking out past the back of
+the outlet body**, so the real depth behind the faceplate is
+67.8 − 5 − 19.05 = **43.75 mm** — not the 50.8 mm the listing implied. The
+listing's "2 inch" is the unit's *total* depth including the faceplate:
+43.75 + a ~7 mm faceplate = 50.8 mm = exactly 2". `BODY_D` is now that
+measured figure.
 
 To regenerate at a different depth:
 
 ```sh
-MRT_BACK_GAP=2.2 MRT_SUFFIX=-short python3 src/outlet_mount.py
+MRT_BACK_GAP=0 MRT_SUFFIX=-short python3 src/outlet_mount.py
 ```
 
-`BACK_GAP` is the clear space behind the body; depth = 5 + 50.8 + `BACK_GAP`.
-The asserts will stop you if a value leaves no room for the outlet, or pushes
-the screw access holes or cable-tie slots off the plate.
+`BACK_GAP` is the clear space behind the body; depth = 5 + `BODY_D` +
+`BACK_GAP`. The asserts will stop you if a value leaves no room for the
+outlet, or pushes the screw access holes or cable-tie slots off the plate.
 
 The fit-test coupon is only the front 20 mm, so it is identical for both
 variants — there is one coupon file.
