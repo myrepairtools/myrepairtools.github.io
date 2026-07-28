@@ -1001,6 +1001,113 @@ async function actionSyncIngest(p: any) {
 // RepairQ's — never add alongside (which would double-count). Only touches days
 // the Look covers (today), leaving historical days intact. Idempotent.
 // Authenticates as Eugene (799) for the canonical Eugene-folder Look (5774).
+// Monthly performance backfill for the Inventory Review report: per store per
+// month, RepairQ consumption (Look 5774 with the date filter overridden to the
+// month) + cpr.parts buys (ms_orders) → part_perf_monthly. RepairQ holds the
+// full history, so this warms up run-rate + streaks without waiting months.
+async function actionPerfBackfill(p: any) {
+  const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
+    : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
+  const nMonths = Math.min(12, Math.max(1, Number(p?.months) || 5));
+  const lookId = String(p?.look_id || "5774");
+  const sess = await syncSession(p);
+  if ((sess as any)?.error) return json({ ok: false, ...(sess as any) }, 502);
+
+  // month list, newest first: ['2026-07', '2026-06', ...] (LA calendar)
+  const laNow = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit" }).format(new Date());
+  let [yy, mm] = laNow.split("-").map(Number);
+  const months: string[] = [];
+  for (let i = 0; i < nMonths; i++) {
+    months.push(`${yy}-${String(mm).padStart(2, "0")}`);
+    mm--; if (mm < 1) { mm = 12; yy--; }
+  }
+  const monthRange = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+    return `${y}/${String(m).padStart(2, "0")}/01 to ${ny}/${String(nm).padStart(2, "0")}/01`;
+  };
+
+  // our cost per sku (for buy_spend), from the live cpr.parts cache
+  const { data: prods } = await admin.from("ms_products").select("sku, price");
+  const costBy = new Map((prods || []).map((r: any) => [String(r.sku), Number(r.price) || 0]));
+
+  const look = await lookerGet(`/api/internal/looks/${lookId}`, sess as any);
+  if (!look.ok || !look.data?.query) return json({ ok: false, error: `look fetch HTTP ${look.status}` }, 502);
+  const baseFilters = { ...(look.data.query.filters || {}) };
+
+  const out: any[] = [];
+  for (const store of stores) {
+    const appStore = appStoreName(store);
+    try {
+      // --- buys: all this store's orders across the window, bucketed by LA month ---
+      const buyByMonth = new Map<string, Map<string, { units: number; orders: Set<string>; spend: number }>>();
+      const { data: orders } = await admin.from("ms_orders")
+        .select("entity_id, items, ordered_at, status").eq("store", appStore);
+      for (const o of (orders || []) as any[]) {
+        if (["Canceled", "Closed"].includes(String(o.status || ""))) continue;
+        const ym = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit" }).format(new Date(o.ordered_at));
+        if (!months.includes(ym)) continue;
+        const bm = buyByMonth.get(ym) || buyByMonth.set(ym, new Map()).get(ym)!;
+        for (const it of (Array.isArray(o.items) ? o.items : [])) {
+          const sku = String(it.sku || ""); if (!sku) continue;
+          const qty = Number(it.qty) || 0;
+          const rec = bm.get(sku) || { units: 0, orders: new Set<string>(), spend: 0 };
+          rec.units += qty; rec.orders.add(String(o.entity_id)); rec.spend += qty * (costBy.get(sku) || 0);
+          bm.set(sku, rec);
+        }
+      }
+
+      let wrote = 0;
+      for (const ym of months) {
+        // --- consumption: Look 5774 with the date filter set to this month ---
+        const filters = { ...baseFilters, "location.short_name": store, "inventory_item.status_updated_date": monthRange(ym) };
+        const pq = {
+          model: look.data.query.model, view: look.data.query.view,
+          fields: ["catalog_item.sku", "catalog_item.name", "inventory_item.count"], pivots: [], fill_fields: [],
+          filters, filter_expression: "", sorts: ["inventory_item.count desc"], limit: "5000", column_limit: "50",
+          total: false, row_total: "", subtotals: [], dynamic_fields: "", query_timezone: "", element_id: "perf",
+          client_id: "perf", generate_links: false, path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+        };
+        const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: true, generate_links: false, streaming: false }, plain_queries: [pq] }, true, sess as any);
+        const used = new Map<string, { name: string; units: number }>();
+        for (const r of run.results) if (Array.isArray(r.rows)) {
+          for (const row of flattenLookerRows(r.rows)) {
+            const sku = String(row["catalog_item.sku"] || ""); if (!sku) continue;
+            const cur = used.get(sku) || { name: row["catalog_item.name"] || sku, units: 0 };
+            cur.units += Number(row["inventory_item.count"] || 0);
+            used.set(sku, cur);
+          }
+        }
+        const bm = buyByMonth.get(ym) || new Map();
+        // union of skus that were used OR bought that month
+        const skus = new Set<string>([...used.keys(), ...bm.keys()]);
+        const rows = [...skus].map((sku) => {
+          const u = used.get(sku); const b = bm.get(sku);
+          return {
+            store: appStore, month: ym, sku,
+            name: u?.name || null,
+            used_units: u?.units || 0,
+            buy_units: b?.units || 0,
+            buy_orders: b ? b.orders.size : 0,
+            buy_spend: b ? Number(b.spend.toFixed(2)) : null,
+            updated_at: new Date().toISOString(),
+          };
+        });
+        for (let i = 0; i < rows.length; i += 500) {
+          const chunk = rows.slice(i, i + 500);
+          const { error } = await admin.from("part_perf_monthly").upsert(chunk, { onConflict: "store,month,sku" });
+          if (error) throw new Error(error.message);
+          wrote += chunk.length;
+        }
+      }
+      out.push({ store: appStore, months: months.length, rows: wrote });
+    } catch (e) {
+      out.push({ store: appStore, error: String((e as Error).message || e) });
+    }
+  }
+  return json({ ok: out.every((o) => !o.error), backfilled: months, stores: out });
+}
+
 async function actionLookerSyncConsumption(p: any) {
   const stores = Array.isArray(p?.stores) && p.stores.length ? p.stores
     : ["CPR Eugene", "CPR Salem Northeast", "CPR Clackamas OR"];
@@ -1928,6 +2035,7 @@ Deno.serve(async (req) => {
     if (payload?.action === "looker_merge") return await actionLookerMerge(payload);
     if (payload?.action === "sync_stock") return await actionLookerSyncStock(payload);
     if (payload?.action === "sync_consumption") return await actionLookerSyncConsumption(payload);
+    if (payload?.action === "perf_backfill") return await actionPerfBackfill(payload);
     if (payload?.action === "sync_ingest") return await actionSyncIngest(payload);
     if (payload?.action === "sync_devices") return await actionSyncDevices(payload);
     if (payload?.action === "sync_claims") {
