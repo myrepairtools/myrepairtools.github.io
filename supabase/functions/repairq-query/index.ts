@@ -1461,6 +1461,102 @@ Deno.serve(async (req) => {
   // retry); a serial flips via its own edit form. Re-runnable — every write
   // rechecks live counts first, so only what's actually in the "from" status
   // moves, and an interrupted run is safe to re-upload.
+  // ---- Count assignments (consumption report "Send to RepairQ") ----
+  // Turns the day's consumed SKUs into a RepairQ inventory-count assignment:
+  // resolve SKUs → catalog ids (Looker), then POST RepairQ's own
+  // /ajax/inventoryCounts/assignCounts for the store's location with a
+  // manager/assignee/due date. The tech then counts in RepairQ's Counts UI.
+  // Browser-gated by a signed-in admin/owner, like inventory_status.
+  if (payload?.action === "count_people" || payload?.action === "assign_counts") {
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u, error: uerr } = await admin.auth.getUser(tok);
+    if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
+    const { data: st } = await admin.from("staff")
+      .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    const role = st?.role || "";
+    if (role !== "admin" && role !== "owner") return json({ ok: false, error: "admin access required" }, 403);
+
+    const locName = String(payload.location || "").trim();
+    if (!locName) return json({ ok: false, error: "location required" }, 400);
+    // app store name → RQ location id (store_lines.rq_location_id first, then the known map)
+    const LOC_IDS: Record<string, string> = {
+      "cpr eugene": "799", "cpr salem northeast": "973",
+      "cpr clackamas": "917", "cpr clackamas or": "917",
+    };
+    let locId = await resolveLoc(locName);
+    if (!locId || !/^\d+$/.test(locId)) locId = LOC_IDS[locName.toLowerCase()] || null;
+    if (!locId) return json({ ok: false, error: "unknown location: " + locName }, 400);
+
+    if (payload.action === "count_people") {
+      // RepairQ's getManagers/getAssignees return FULL user rows incl. password
+      // hashes + salts — strip to id/name only; the browser never sees the rest.
+      const slim = (arr: any): Array<{ id: number; name: string }> =>
+        (Array.isArray(arr) ? arr : []).filter((p) => p && p.is_active !== 0)
+          .map((p) => ({ id: Number(p.id), name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.username || String(p.id) }));
+      const mgr = await rqRequest({ method: "POST", path: "/ajax/inventoryItem/getManagers", form: { locationId: locId } });
+      const asg = await rqRequest({ method: "POST", path: "/ajax/inventoryItem/getAssignees", form: { locationId: locId } });
+      return json({
+        ok: true, location_id: locId,
+        managers: slim(mgr.json?.managers || mgr.json?.data),
+        assignees: slim(asg.json?.assignees || asg.json?.data),
+      });
+    }
+
+    // assign_counts
+    const skus: string[] = Array.isArray(payload.skus) ? [...new Set(payload.skus.map((s: any) => String(s).trim()).filter(Boolean))] : [];
+    if (!skus.length) return json({ ok: false, error: "skus required" }, 400);
+    if (skus.length > 300) return json({ ok: false, error: "too many skus (max 300)" }, 400);
+    const managerId = String(payload.manager_id || "");
+    const assigneeId = String(payload.assignee_id || "");
+    if (!managerId || !assigneeId) return json({ ok: false, error: "manager_id and assignee_id required" }, 400);
+    const dueDate = String(payload.due_date || new Date(Date.now() + 864e5).toISOString());
+    const conflicts = ["reassign", "skip", "both"].includes(String(payload.conflicts)) ? String(payload.conflicts) : "skip";
+
+    // SKU → catalog id via Looker, scoped to the store's short_name
+    const rqShort = locName.toLowerCase() === "cpr clackamas" ? "CPR Clackamas OR" : locName;
+    const skuMap = new Map<string, { cid: any; name: string }>();
+    for (let i = 0; i < skus.length; i += 40) {
+      const batch = skus.slice(i, i + 40);
+      const pq = {
+        model: "repairq_cpr", view: "inventory_item",
+        fields: ["catalog_item.id", "catalog_item.sku", "catalog_item.name"], pivots: [], fill_fields: [],
+        filters: { "catalog_item.sku": batch.join(","), "location.short_name": rqShort },
+        filter_expression: "", sorts: [], limit: "5000", column_limit: "50", total: false,
+        row_total: "", subtotals: [], dynamic_fields: "", query_timezone: "", element_id: "mrtcount",
+        client_id: "mrtcount", generate_links: false, path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+      };
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: true, generate_links: false, streaming: false }, plain_queries: [pq] });
+      for (const r of run.results) if (Array.isArray(r.rows)) {
+        for (const row of flattenLookerRows(r.rows)) {
+          const s = String(row["catalog_item.sku"]);
+          if (s && !skuMap.has(s)) skuMap.set(s, { cid: row["catalog_item.id"], name: row["catalog_item.name"] });
+        }
+      }
+    }
+    const matched = skus.filter((s) => skuMap.has(s));
+    const unmatched = skus.filter((s) => !skuMap.has(s));
+    if (!matched.length) return json({ ok: false, error: "no skus resolved to catalog items", unmatched }, 422);
+
+    // RepairQ json_decodes catalogItemIds, so it's a JSON-stringified array
+    // (matches the page's `catalog_item_ids = JSON.stringify([...])`).
+    const catIds = matched.map((s) => Number(skuMap.get(s)!.cid));
+    const r = await rqRequest({
+      method: "POST", path: "/ajax/inventoryCounts/assignCounts",
+      form: {
+        catalogItemIds: JSON.stringify(catIds),
+        locationId: locId, managerId, assigneeId,
+        dueDate, conflicts, assignAll: "0",
+      },
+    });
+    const ok = !!(r.json && (r.json.success === true));
+    return json({
+      ok, status: r.status, response: r.json ?? String(r.body || "").slice(0, 300),
+      assigned: ok ? matched.length : 0,
+      matched: matched.map((s) => ({ sku: s, catalog_id: skuMap.get(s)!.cid, name: skuMap.get(s)!.name })),
+      unmatched,
+    }, ok ? 200 : 502);
+  }
+
   if (payload?.action === "inventory_status") {
     const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: u, error: uerr } = await admin.auth.getUser(tok);
