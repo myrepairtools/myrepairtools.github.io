@@ -28,7 +28,8 @@ outlet ends up **facing forward**, toward whoever is sitting at the bench.
 | File | What it is |
 | --- | --- |
 | `stl/fit-test-coupon.stl` | **Print this first.** A 72 mm slice of one end. ~25 min. |
-| `stl/outlet-mount.stl` | The under-bench mount. Already rotated into print orientation. |
+| `stl/outlet-mount.stl` | The under-bench mount, 67.8 mm deep. Already rotated into print orientation. |
+| `stl/outlet-mount-short.stl` | **58 mm deep version** — clears the TBK 801's steel frame rail. See below. |
 | `stl/fixture-cut-template.stl` | Marking template for cutting the outlet into a store fixture. |
 | `step/*.step` | Same parts as STEP, for editing in real CAD. |
 | `src/outlet_mount.py` | The parametric source. Every dimension is a named constant. |
@@ -91,6 +92,45 @@ Two things to check before drilling:
 - **Look for a frame rail or apron** under that corner of the bench. If the
   top plate can't sit flat against the underside there, shift inboard until it
   can.
+
+## The short variant — clearing the bench's frame rail
+
+On the TBK 801 the full-depth mount runs into the steel rail under the top.
+Measured on the bench:
+
+| | from the front edge |
+| --- | --- |
+| Frame rail, front face | 2-3/8" = 60.32 mm |
+| Frame rail, depth | 1-5/8" = 41.27 mm (so it occupies 60.3 → 101.6 mm) |
+| Mount at 67.8 mm deep, front flush | reaches 67.8 mm |
+| **Interference** | **7.5 mm** |
+
+`outlet-mount-short.stl` is **58.0 mm deep** — a 9.8 mm trim that leaves
+**2.3 mm of clearance** to the rail. Everything else is identical: same
+faceplate opening, same bearing, same 73 mm height, same six screws.
+
+Stopping at the end of the support rails (63.8 mm) is *not* enough — it only
+removes 4 mm and still buries the mount 3.5 mm into the rail.
+
+**Shortening also fixes the cord fouling.** The metal strain relief on the
+outlet's cord was hitting the back of the shell; the 9.8 mm that came off is
+exactly the material it was hitting. Behind the body there is now 2.2 mm and
+then open air, so the cord exits straight out with nothing to catch on. The
+cord-relief notches in both side walls are unchanged and still symmetric, so
+the part works mounted at either end of a bench with no left/right version.
+
+To regenerate at a different depth:
+
+```sh
+MRT_BACK_GAP=2.2 MRT_SUFFIX=-short python3 src/outlet_mount.py
+```
+
+`BACK_GAP` is the clear space behind the body; depth = 5 + 50.8 + `BACK_GAP`.
+The asserts will stop you if a value leaves no room for the outlet, or pushes
+the screw access holes or cable-tie slots off the plate.
+
+The fit-test coupon is only the front 20 mm, so it is identical for both
+variants — there is one coupon file.
 
 ## Check your outlet first
 

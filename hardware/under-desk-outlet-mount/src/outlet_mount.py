@@ -75,7 +75,12 @@ REVEAL_END = 6.00
 FACE_T   = 5.0    # front face thickness - the faceplate bears on this
 WALL     = 4.0    # bottom and side shell thickness
 TOP_T    = 6.0    # top plate thickness (carries the whole assembly)
-BACK_GAP = 12.0   # clear space behind the outlet body for its cable
+# Clear space behind the outlet body.  On the TBK 801 the bench's steel frame
+# rail starts 2-3/8" (60.3 mm) back from the front edge and the bracket ran into
+# it, so the short variant trims this right down -- see the README.  Set with
+# MRT_BACK_GAP when generating a variant.
+BACK_GAP = float(os.environ.get("MRT_BACK_GAP", 12.0))
+SUFFIX   = os.environ.get("MRT_SUFFIX", "")
 RIB_D    = 15.0   # depth of the screw-landing ribs behind the front face
 RAIL_W   = 14.0   # width of the two rails the outlet body rests on
 CORNER_R = 3.0    # outer corner radius
@@ -105,7 +110,6 @@ ACCESS_D = 16.0
 # ---------------------------------------------------------------------------
 TIE_W, TIE_L = 4.0, 12.0
 TIE_X = [-60.0, 60.0]
-TIE_Y = [40.0, 54.0]
 
 # ---------------------------------------------------------------------------
 # Derived
@@ -126,6 +130,9 @@ BEAR_TB  = (FLANGE_H - BODY_H) / 2.0 - CLR   # along top and bottom
 HEADROOM = (H - TOP_T) - (Zc0 + ch)         # clear space above the body
 RAIL_H   = Zc0 - WALL                       # how far the rails stand proud
 
+# Cable-tie slots ride at the back of the bottom plate, so they follow D.
+TIE_Y = [D - 26.0, D - 12.0]
+
 assert BEAR_END > 3.0, f"faceplate ends land on only {BEAR_END:.2f} mm of face"
 assert BEAR_TB > 1.5, f"faceplate top/bottom lands on only {BEAR_TB:.2f} mm of face"
 assert Zc0 > WALL, "cut-out runs into the bottom plate"
@@ -137,6 +144,9 @@ assert ACCESS_D > HEAD_D + 2, "access holes too small to drop a screw head throu
 assert SCREW_INSET_Y - ACCESS_D / 2 > FACE_T + 1.5, \
     "front access holes break into the back of the front face"
 assert D - SCREW_INSET_Y + ACCESS_D / 2 < D - 1.5, "rear access holes run off the back"
+assert D >= FACE_T + BODY_D, f"depth {D:.1f} mm is shorter than face + body ({FACE_T+BODY_D:.1f} mm)"
+for _ty in TIE_Y:
+    assert 1.5 < _ty - TIE_L / 2 and _ty + TIE_L / 2 < D - 1.5, "cable-tie slot runs off the plate"
 for _sx in SCREW_X:
     assert abs(abs(_sx) - BODY_L / 4.0) > (ACCESS_D + RAIL_W) / 2, \
         f"access hole at x={_sx} collides with a support rail"
@@ -255,7 +265,8 @@ if __name__ == "__main__":
     print(f"driver reach needed: {H - TOP_T:.0f} mm from the bottom face")
     print(f"hangs     {H:.1f} mm below the bench")
 
-    for name, part in (("outlet-mount", mount()), ("fit-test-coupon", coupon())):
+    for base, part in (("outlet-mount", mount()), ("fit-test-coupon", coupon())):
+        name = base + SUFFIX
         exporters.export(
             print_ready(part), os.path.join(root, "stl", f"{name}.stl"),
             tolerance=0.01, angularTolerance=0.1,
