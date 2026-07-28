@@ -551,6 +551,18 @@ price + MS stock). Cross-store transfer chips were built then removed at the
 owner's request (2026-07-22) — don't resurrect without asking. **QBO booking from MS orders is deliberately NOT
 built** — the owner will drive that step-by-step; never auto-post to QBO from
 MS data without explicit direction (docs/mobilesentrix-pipeline.md).
+**📋 Send to RepairQ** (consumption report header, any signed-in staff) assigns
+the day's **consumed + ordered** SKUs as a RepairQ inventory count, **to whoever
+clicks it** (self-managed, due ~7pm store-local). `repairq-query`'s
+`count_people` (getManagers/getAssignees, **stripped to id+name** — RepairQ's raw
+rows leak password hashes) + `assign_counts` (resolve SKUs → catalog ids via
+Looker, then POST RepairQ's own `/ajax/inventoryCounts/assignCounts` —
+`catalogItemIds` is a JSON-stringified array; the browser matches the signed-in
+`display_name` to a RepairQ assignee). Print Count Sheet uses the same
+consumed+ordered scope. **Blind spot still open:** a special-order part that
+arrived and left without ever being on a ticket is never *consumed*, so it never
+reaches this list — catching those needs a separate "recently received at store"
+pull from RepairQ (not yet built).
 
 **Inventory Editor (bulk RepairQ status change from a file):** `inventory-editor.html`
 (Operations → **Tools** nav, admin/owner — `minRole:'admin'`) does what a one-off RMA

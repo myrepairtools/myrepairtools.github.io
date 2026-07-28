@@ -1468,13 +1468,14 @@ Deno.serve(async (req) => {
   // manager/assignee/due date. The tech then counts in RepairQ's Counts UI.
   // Browser-gated by a signed-in admin/owner, like inventory_status.
   if (payload?.action === "count_people" || payload?.action === "assign_counts") {
+    // Any active staff may assign a count (they self-assign from the browser) —
+    // this only creates a RepairQ count assignment, it never moves stock.
     const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: u, error: uerr } = await admin.auth.getUser(tok);
     if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
     const { data: st } = await admin.from("staff")
       .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
-    const role = st?.role || "";
-    if (role !== "admin" && role !== "owner") return json({ ok: false, error: "admin access required" }, 403);
+    if (!st) return json({ ok: false, error: "staff record required" }, 403);
 
     const locName = String(payload.location || "").trim();
     if (!locName) return json({ ok: false, error: "location required" }, 400);
