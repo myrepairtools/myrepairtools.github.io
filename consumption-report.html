@@ -408,7 +408,6 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
       </div>
     </div>
     <button class="btn blue sm" id="batExport" style="display:none">⬇ Export batteries for MobileSentrix</button>
-    <button class="btn alt sm" id="sendRqBtn" title="Assign this day's consumed + ordered items as a RepairQ inventory count — to you">📋 Send to RepairQ</button>
     <button class="btn alt sm" id="printCountBtn" title="Print a count sheet of the items used this day — for the daily physical inventory count">🖨 Print count sheet</button>
   </div>
 
@@ -1468,8 +1467,7 @@ function render(){
    blank "Counted" column to write the physical count in. This is the daily
    inventory step — count what you consume so a yearly count isn't needed. */
 function printCountSheet(){
-  // consumed + ordered — matches what "Send to RepairQ" assigns
-  var rows=buildRows().filter(function(r){return r.used>0||(r.orderSku&&(ORDERED[r.orderSku]||0)>0);})
+  var rows=buildRows().filter(function(r){return r.used>0;})
     .sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
   var store=(window.CPRLocations&&CPRLocations.display)?('CPR '+CPRLocations.display(STATE.store)):(STATE.store||'CPR');
   var day=($('#day')&&$('#day').value)||todayISO();
@@ -1501,75 +1499,6 @@ function printCountSheet(){
   if(!w){alert('Allow pop-ups to print the count sheet.');return;}
   w.document.write(html);w.document.close();
   w.focus();setTimeout(function(){w.print();},250);
-}
-/* "📋 Send to RepairQ" — assign this day's consumed + ordered items as a
-   RepairQ inventory count, to the signed-in employee (self-managed, due EOD).
-   Resolve SKUs → catalog ids + POST assignCounts server-side in repairq-query;
-   the RepairQ session never touches the browser. */
-function toast(m,err){
-  var t=document.getElementById('crToast');
-  if(!t){t=document.createElement('div');t.id='crToast';
-    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2D2D3B;color:#fff;'+
-      'padding:12px 18px;border-radius:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:.85rem;'+
-      'max-width:88vw;text-align:center;z-index:9999;opacity:0;transition:.18s;box-shadow:0 6px 24px rgba(0,0,0,.2)';
-    document.body.appendChild(t);}
-  t.textContent=m; t.style.background=err?'#DC282E':'#2D2D3B'; t.style.opacity='1';
-  clearTimeout(t._h); t._h=setTimeout(function(){t.style.opacity='0';},4200);
-}
-function normName(s){return String(s||'').toLowerCase().replace(/[^a-z]/g,'');}
-async function sendToRepairQ(){
-  var btn=$('#sendRqBtn'); if(!btn||btn.disabled)return;
-  // this day's SKUs: consumed (used>0) + ordered (ORDERED[orderSku]>0)
-  var rows=buildRows(), skuSet={};
-  rows.forEach(function(r){
-    if(r.type==='group'){ (r.usedSkus||[]).forEach(function(s){skuSet[s]=1;}); }
-    else if(r.used>0){ skuSet[r.sku]=1; }
-    if(r.orderSku && (ORDERED[r.orderSku]||0)>0) skuSet[r.orderSku]=1;
-  });
-  var skus=Object.keys(skuSet).filter(Boolean);
-  if(!skus.length){toast('Nothing consumed or ordered this day to count');return;}
-  var me=(STATE.me&&STATE.me.display_name)||'';
-  if(!me){toast('Sign in first',true);return;}
-  if(!confirm('Assign '+skus.length+' item'+(skus.length===1?'':'s')+' to '+me+' as a RepairQ count?\n\nConsumed + ordered items for '+
-    ((window.CPRLocations&&CPRLocations.display)?('CPR '+CPRLocations.display(STATE.store)):STATE.store)+' on '+(($('#day')&&$('#day').value)||todayISO())+'.'))return;
-  var orig=btn.textContent; btn.disabled=true; btn.textContent='📋 Sending…';
-  try{
-    var sess=await ensureSession();
-    var tok=(sess&&sess.access_token)||ANON;
-    var post=function(body){return fetch(SUPABASE_URL+'/functions/v1/repairq-query',{method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
-      body:JSON.stringify(body)}).then(function(r){return r.json();});};
-    // who can be assigned at this store
-    var ppl=await post({action:'count_people',location:STATE.store});
-    if(!ppl||!ppl.ok){throw new Error((ppl&&ppl.error)||'could not load RepairQ staff');}
-    var mn=normName(me);
-    var findBy=function(list){return (list||[]).filter(function(p){return normName(p.name)===mn;})[0]||null;};
-    var asg=findBy(ppl.assignees), mgr=findBy(ppl.managers);
-    if(!asg){throw new Error('“'+me+'” isn’t a RepairQ user at this store — ask an admin to add you as an assignee');}
-    var managerId=(mgr&&mgr.id)||asg.id;   // self-managed if you're not a manager
-    // due end of the selected day (store-local ~7pm close)
-    var day=($('#day')&&$('#day').value)||todayISO();
-    var due=new Date(day+'T19:00:00'+pacOffsetFor(day)).toISOString();
-    var res=await post({action:'assign_counts',location:STATE.store,skus:skus,
-      manager_id:String(asg&&mgr?mgr.id:managerId),assignee_id:String(asg.id),
-      due_date:due,conflicts:'skip'});
-    if(!res||!res.ok){throw new Error((res&&(res.error||(res.response&&res.response.message)))||'assign failed');}
-    var n=res.assigned||0, miss=(res.unmatched||[]).length;
-    btn.textContent='✓ Sent '+n;
-    toast('✓ '+n+' item'+(n===1?'':'s')+' sent to RepairQ for '+me+(miss?(' · '+miss+' SKU'+(miss===1?'':'s')+' not in RepairQ'):'')+
-      '. Open RepairQ → Inventory Counts to count.');
-    setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2000);
-  }catch(e){
-    btn.textContent='⚠ Failed'; toast((e&&e.message)||'Send failed',true);
-    setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2600);
-  }
-}
-// Pacific offset suffix for a calendar date ('-07:00' PDT / '-08:00' PST)
-function pacOffsetFor(dateStr){
-  var probe=new Date(dateStr+'T12:00:00Z');
-  var s=new Intl.DateTimeFormat('en-US',{timeZone:'America/Los_Angeles',timeZoneName:'shortOffset'}).format(probe);
-  var m=s.match(/GMT([+-]\d+)/); var h=m?parseInt(m[1],10):-8;
-  return (h<0?'-':'+')+String(Math.abs(h)).padStart(2,'0')+':00';
 }
 function todayISO(){return new Date().toISOString().slice(0,10);}
 function isoDaysAgo(n){var d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
@@ -2131,7 +2060,6 @@ window.addEventListener('hashchange',function(){
 async function init(){
   // export dropdown (with / without batteries)
   $('#exportBtn').addEventListener('click',function(e){e.stopPropagation();$('#exportMenu').classList.toggle('hide');});
-  var srb=$('#sendRqBtn'); if(srb)srb.addEventListener('click',sendToRepairQ);
   var pcb=$('#printCountBtn'); if(pcb)pcb.addEventListener('click',printCountSheet);
   $('#exportMenu').querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){$('#exportMenu').classList.add('hide');exportOrder(b.getAttribute('data-bat')==='1');});});
   document.addEventListener('click',function(e){if(!e.target.closest('#exportWrap')){var m=$('#exportMenu');if(m)m.classList.add('hide');}});
