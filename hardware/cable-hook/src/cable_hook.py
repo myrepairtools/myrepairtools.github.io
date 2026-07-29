@@ -67,17 +67,24 @@ FILLET_R = 1.5    # throat corners only, so cables do not chafe
 #         |  bar  |
 #     +---+       +---+
 #     |   |       |   |      <- jaws, gripping the 12.75 mm faces
-#     +---+       |   +---+
-#      short      |   |   |
-#                 |   |   |  <- cradle: open at the TOP
-#                 |   +---+
+#     +---+       |   |
+#      short      |   | 8 |
+#                 |   +---+  <- return lip: the mouth is NARROWER than the
+#                 |       |     cradle, so a full one cannot spill
+#                 |       |
 #                 +-------+
 #
 # Upper hook opens DOWN over the bar, lower hook opens UP for the cables.
 # That is the S -- and both halves are now working WITH gravity instead of
 # against it.  The bar's top face carries the load; the jaws only stop it
-# rattling and sliding.  Cables drop into the cradle from above and cannot
-# fall out, because the only way out is back up.
+# rattling and sliding.
+#
+# The cradle is NOT an open bucket.  A first cut of this shape left it open
+# at the top, which is fine until it is full: pile the cables high enough and
+# they roll straight over the outer wall.  The outer wall now runs up past the
+# cables and returns inward over them, leaving the same 8 mm mouth the screw
+# version uses -- push a cable past it and the only way back out is to lift it
+# out deliberately.
 RAIL_T   = 12.75   # measured cross-bar thickness -- the jaws grip this
 RAIL_H   = 40.0    # measured cross-bar height
 RAIL_FIT = 0.35    # total interference -> the jaws pinch the bar
@@ -89,7 +96,10 @@ FRONT_L  = 34.0    # front jaw, down the near face -- runs on into the cradle
 LEAD_CH  = 1.2     # lead-in at the jaw tips so it pushes on
 
 CRADLE_FLOOR = WALL    # under the cables
-CRADLE_LIP   = 13.0    # outer wall height -> how deep the cables sit
+CRADLE_DEPTH = 17.0    # floor to the underside of the return lip
+LIP_RET      = 6.0     # how far the lip reaches back over the cradle
+LIP_T        = 3.0     # lip thickness
+LIP_FUNNEL   = 1.6     # flare on the lip tip, so cables feed in
 
 # ---------------------------------------------------------------------------
 # Derived
@@ -103,9 +113,13 @@ U_F1    = U_F0 + JAW_T           # outer face of the front jaw = cradle back
 U_T1    = U_F1 + CAV_U           # inner face of the cradle's outer wall
 U_O1    = U_T1 + WALL            # outside of the whole part
 
-Y_BOT   = -FRONT_L                       # bottom of the part
-Y_FLOOR = Y_BOT + CRADLE_FLOOR           # the cables rest here
-Y_LIP   = Y_FLOOR + CRADLE_LIP           # top of the cradle's outer wall
+Y_BOT     = -FRONT_L                     # bottom of the part
+Y_FLOOR   = Y_BOT + CRADLE_FLOOR         # the cables rest here
+Y_LIP_BOT = Y_FLOOR + CRADLE_DEPTH       # underside of the return lip
+Y_LIP_TOP = Y_LIP_BOT + LIP_T            # top of the outer wall
+
+U_MOUTH = U_T1 - LIP_RET                 # inner tip of the return lip
+MOUTH   = U_MOUTH - U_F1                 # what a cable has to get past
 
 # Cantilever strain when a jaw spreads onto the bar (3*c*d / L^2).
 JAW_STRAIN = 3 * (JAW_T / 2) * (RAIL_FIT / 2) / BACK_L ** 2
@@ -120,9 +134,12 @@ assert 0.15 < RAIL_FIT < 1.0, "interference outside the printable range"
 assert JAW_STRAIN < 0.015, f"jaws strained {JAW_STRAIN*100:.2f} % -- they crack"
 assert BACK_L < RAIL_H - 4, "back jaw runs past the bottom of the bar"
 assert FRONT_L < RAIL_H, "front jaw runs past the bottom of the bar"
-assert FRONT_L > BACK_L + CRADLE_LIP, "no room for the cradle below the jaws"
-assert CRADLE_LIP < CAV_V, "cradle has no mouth -- cables cannot go in"
-assert CRADLE_LIP > 8.0, "cradle too shallow to hold a bundle"
+assert FRONT_L > BACK_L, "no offset between the two hooks -- it is not an S"
+assert MOUTH < CAV_U - 2, "no return lip -- a full cradle spills over the wall"
+assert MOUTH > 6.0, "mouth too tight to push a cable through"
+assert CRADLE_DEPTH > 12.0, "cradle too shallow to hold a bundle"
+assert LIP_FUNNEL < LIP_T - 1.0, "flare eats the whole lip"
+assert Y_LIP_TOP < -1.0, "outer wall runs up past the crown"
 assert LEAD_CH < JAW_T - 1.0, "lead-in eats the whole jaw tip"
 
 
@@ -202,8 +219,10 @@ def hook_clip():
         (U_F1,   CROWN_T),              # across the top of the crown
         (U_F1,   Y_FLOOR),              # down the spine = back of the cradle
         (U_T1,   Y_FLOOR),              # across the cradle floor
-        (U_T1,   Y_LIP),                # up the inside of the outer wall
-        (U_O1,   Y_LIP),                # over its top
+        (U_T1,   Y_LIP_BOT),            # up the inside of the outer wall
+        (U_MOUTH, Y_LIP_BOT),           # in along the underside of the lip
+        (U_MOUTH + LIP_FUNNEL, Y_LIP_TOP),   # flared tip -- funnels cables in
+        (U_O1,   Y_LIP_TOP),            # across the top of the lip
         (U_O1,   Y_BOT),                # down the outside
         (U_F0 + LEAD_CH, Y_BOT),        # across the bottom
         (U_F0,   Y_BOT + LEAD_CH),      # lead-in at the front jaw tip
@@ -215,7 +234,7 @@ def hook_clip():
     ]
     r = cq.Workplane("XY").polyline(pts).close().extrude(DEPTH)
 
-    return _soften(r, [(U_F1, Y_FLOOR), (U_T1, Y_FLOOR), (U_O1, Y_LIP)])
+    return _soften(r, [(U_F1, Y_FLOOR), (U_T1, Y_FLOOR), (U_T1, Y_LIP_BOT)])
 
 
 if __name__ == "__main__":
@@ -236,8 +255,9 @@ if __name__ == "__main__":
           f"({RAIL_FIT} mm interference, {JAW_STRAIN*100:.2f} % strain)")
     print(f"  crown   {CROWN_T} mm over the bar -- this is what carries it")
     print(f"  reach   {BACK_L} mm back jaw, {FRONT_L} mm front jaw")
-    print(f"  cradle  {CAV_U} mm wide, cables sit {CRADLE_LIP} mm down, "
-          f"open at the top")
+    print(f"  cradle  {CAV_U} x {CRADLE_DEPTH} mm")
+    print(f"  lip     returns {LIP_RET} mm -> {MOUTH:.1f} mm mouth "
+          f"({CAV_U - MOUTH:.1f} mm of overhang holding the cables in)")
     print(f"  size    {U_O1:.1f} x {CROWN_T + FRONT_L:.1f} x {DEPTH} mm")
 
     for name, part in (("cable-hook-screw", hook()),

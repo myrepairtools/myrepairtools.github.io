@@ -5,7 +5,7 @@ Open hooks: no cutting and re-fitting zip ties. Cables go in, cables come out.
 | File | Mount | Size | Each (4 walls / 20 % infill) |
 | --- | --- | --- | --- |
 | `stl/cable-hook-screw.stl` | 1 × #8 screw into the bench underside | 36 × 23 × 20 mm | ~4.8 g |
-| `stl/cable-hook-clip.stl` | hangs over a 12.75 × 40 mm cross bar | 35.4 × 38 × 20 mm | ~5.5 g |
+| `stl/cable-hook-clip.stl` | hangs over a 12.75 × 40 mm cross bar | 35.4 × 38 × 20 mm | ~6.1 g |
 
 ![S bracket section](svg/s-bracket-section.png)
 
@@ -26,18 +26,30 @@ It now goes **over the top of the bar**, like an S-hook on a rail.
 | Jaws | 12.40 mm gap on a 12.75 mm bar — 0.35 mm interference, 0.31 % strain |
 | Back jaw | 16 mm down the far face |
 | Front jaw | 34 mm down the near face, running straight on into the cradle |
-| Cradle | 14 mm wide, cables sit 13 mm down, **open at the top** |
+| Cradle | 14 × 17 mm |
+| Return lip | reaches 6 mm back over the cradle → an **8 mm mouth**, flared tip |
 
 Upper hook opens **down**, lower hook opens **up**. That is the S — and both
 halves now work with gravity instead of against it:
 
 - The bar's top face holds the bracket up. The jaws only stop it rattling and
-  sliding along the bar.
-- Cables drop into the cradle from above and cannot fall out, because the only
-  way out is back up. Lift them out whenever you want.
+  sliding along the bar. Friction is not doing the work.
+- The lip holds the cables in. The pile is not doing the work.
 
-It is one closed profile from the crown to the cradle floor — no join anywhere
-for a load to pull open.
+It is one closed profile from the crown to the lip — no join anywhere for a
+load to pull open.
+
+### The cradle is not an open bucket
+
+The first cut of this shape left the cradle open at the top, which is fine
+right up until it is full: pile the cables high enough and they roll straight
+over the outer wall. The outer wall now runs up **past** the cables and returns
+inward over them.
+
+Mouth 8 mm into a 14 mm cradle — the same proportions as the screw hook, which
+is the shape that already works. Push a cable past the lip and the only way
+back out is to lift it out on purpose. An assert fails the build if the mouth
+ever stops being narrower than the cradle.
 
 ### Fitting
 
