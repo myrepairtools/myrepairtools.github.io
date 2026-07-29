@@ -1,85 +1,77 @@
 # Back Panel System — TBK 801, middle rail to desktop
 
-Three parts. Fit both tracks, then slide the panels in from the side.
+Four parts. Fit both tracks, lift each panel in, then drop a mullion into each
+seam.
 
 | File | What | Per bay |
 | --- | --- | --- |
 | `stl/panel-track-top.stl` | snaps into the middle rail's T-slot, groove down | 5 |
 | `stl/panel-track-bottom.stl` | VHB to the desktop, groove up | 5 |
-| `stl/back-panel.stl` | 219.8 × 247 × 3 mm, shiplap edges | 5 |
+| `stl/back-panel.stl` | 211 × 247 × 3 mm | 5 |
+| `stl/panel-mullion.stl` | closes each seam, 15 × 6.8 × 226 mm | 4 |
 
 | | |
 | --- | --- |
 | Opening | 272 mm tall, bay ~1067 mm (42") |
 | Track segments | 213.4 mm, butted end to end |
-| Groove | 3.8 mm for a 3.0 mm panel — 0.4 mm per side so it **slides** |
-| Top track | 10 × 29 mm, 3 snap stems, drops 21 mm |
+| Groove | 3.8 mm for a 3.0 mm panel |
+| Top track | 10 × 36 mm, 3 snap stems, drops 21 mm |
 | Bottom track | 16 × 9 mm, flat base for VHB |
-| Panel engagement | 8 mm top, 6 mm bottom |
-| **Per bay** | **~1,353 g PLA, ~55 h** |
+| **Per bay** | **~1,454 g PLA, ~59 h** |
 
-## The seam
+## Lift-in, not slide-in
 
-The vertical edges are **shiplapped**: the back is rabbeted away on the left
-edge and the front on the right, so each panel nests into the one before it as
-it slides in. Every panel is identical — no left/right/middle variants.
+Panels go in **one at a time, in place**:
 
-| | |
-| --- | --- |
-| Overlap | 8 mm |
-| Lap thickness | 1.4 mm each, **2.8 mm nested** |
-| Slide clearance | 0.2 mm across the joint, 0.3 mm at the shoulder |
+1. Tilt a panel and push its top edge up into the deep top groove.
+2. Swing it upright — the bottom clears the bottom track by 7 mm.
+3. Drop it. 8 mm still engaged at the top, 6 mm at the bottom.
 
-The nested seam is *thinner* than the panel, so it never binds in the 3.8 mm
-groove. Five lapped panels span **1067.0 mm** — exactly the bay.
+**This needs no side clearance at all.** Sliding panels in from the end would
+need ~220 mm beside the bench; sliding a pre-assembled sheet in would need the
+full 1067 mm, which is why that idea doesn't survive contact with a real room.
 
-**Why not a snapping tongue.** At 3 mm the tongue works out to ~1.4 mm and the
-groove lips to ~0.8 mm — two perimeters of brittle PLA on a part that has to
-flex. The tracks already capture the panels top and bottom, so the joint only
-has to close the seam and keep the faces aligned, which a lap does without any
-thin flexing features. If you go to a 4 mm panel a barbed tongue becomes
-practical and I can swap it in.
+It also means **nothing has to clip together** — each panel installs and comes
+back out on its own, without dismantling the rest of the wall.
 
-## The vertical budget
+The cost is 7 mm of top-groove depth: 15 mm total, 8 mm resting plus 7 mm of
+lift. That takes the top track from 29 mm to 36 mm.
 
-```
-272 = 21 drop + 247 panel + 3 base + 1 clearance
-```
+## Mullions
 
-**The 21 mm drop exists only to get the panel under the 256 mm bed limit.** A
-cut sheet would need about 4 mm of it, and would be one piece per bay instead of
-five with four vertical seams. If you ever switch materials, drop `TOP_DROP` to
-4 and the top track shrinks from 29 mm to 12 mm.
+A mullion drops into each seam after the panels are placed. Both panel edges
+slot 6 mm into it, so the seam closes and the two faces are forced flush — which
+matters, because 3 mm PLA panels this size will have some warp in them.
 
-## Why the bottom is adhesive and the top is not
+It is deliberately **not** captured by the tracks: it rests on the bottom track
+and the panels hold it fore and aft. That keeps it 6.8 mm thick (a 3.8 mm groove
+plus two walls), which would never fit the 3.8 mm track groove. It stands about
+1.9 mm proud of the panels on each face.
 
-The top of the opening is the middle rail, so that track snaps into the 8.49 mm
-T-slot — three stems per segment, same leaf-spring geometry already proven on
-the cable clip (5.4 N to push in, 0.78 % strain).
-
-The bottom of the opening is the **desktop**, not a rail, so there's nothing to
-snap into. Flat base, VHB tape. Keep the surface clean with IPA before sticking
-it — the panel's weight works on that bond every time someone bumps it.
+Five panels plus four 3 mm webs span **1067.0 mm** — exactly the bay.
 
 ## Printing
 
-**Top track** — print as exported. Stems up, groove down; the groove ceiling is
-only a 3.8 mm bridge and the leaves end up flexing along the layers rather than
-across them.
+**Top track** — as exported. Stems up, groove down; the groove ceiling is only a
+3.8 mm bridge and the leaf springs flex along the layers, not across them.
 
-**Bottom track** — print as exported, groove open upward, nothing to bridge.
+**Bottom track** — as exported, groove open upward.
 
-**Panels** — flat on the bed. **Brim is not optional.** A 213 × 247 × 3 mm plate
-is close to the worst case for corner lift. PLA is the right pick here; PETG
-would warp more.
+**Mullion** — as exported, lying down with one groove up and one down. The
+downward groove is a 3.8 mm bridge. Stood the other way each groove ceiling
+would be a 6 mm cantilever and would droop.
 
-0.2 mm layers, 4 walls, 15 % infill on the tracks.
+**Panels** — flat on the bed. **Brim is not optional**; a 211 × 247 × 3 mm plate
+is close to the worst case for corner lift. PLA is the right pick here.
+
+0.2 mm layers, 4 walls, 15 % infill on the tracks and mullions.
 
 ## Fitting
 
 1. Snap the five top track segments into the rail, butted end to end.
-2. Stick the five bottom segments down, lined up under the top ones.
-3. Slide panels in from the open side, one after another.
+2. Clean the desktop with IPA, stick the five bottom segments down, lined up.
+3. Lift each panel in — tilt, swing, drop.
+4. Drop a mullion into each of the four seams.
 
 ## Rebuilding
 
@@ -88,6 +80,6 @@ pip install cadquery
 python3 src/back_panel.py
 ```
 
-`PANEL_T` sets the groove. `BAY_W` and `N_PANELS` set the segment length — the
-last segment of a bay usually needs trimming, or set `N_PANELS` so it divides
-evenly.
+`PANEL_T` sets every groove. `BAY_W` and `N_PANELS` set panel width and segment
+length. `TOP_GROOVE_D` must stay at least 8 + `BOT_GROOVE_D` + 1 or the panel
+can't be lifted clear — there's an assert on it.

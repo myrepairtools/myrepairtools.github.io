@@ -51,23 +51,29 @@ PANEL_T = 3.0
 BED     = 256.0
 EDGE_CH = 0.6        # chamfer so it feeds into the grooves
 
-# Shiplap on the vertical edges: the back is rabbeted away on one side and the
-# front on the other, so each panel nests into the one before it as it slides
-# in.  Every panel is identical -- no left/right/middle variants to keep track
-# of.  A snapping tongue was the other option and is not practical at 3 mm: the
-# tongue would be ~1.4 mm and the groove lips ~0.8 mm, which is two perimeters
-# of brittle PLA.  The tracks already capture the panels top and bottom, so the
-# lap only has to close the seam and keep the faces aligned.
-LAP_W = 8.0          # overlap width
-LAP_D = 1.6          # rabbet depth -> 1.4 mm of lap, 2.8 mm nested
-LAP_C = 0.3          # slide clearance at the shoulder
+# ---------------------------------------------------------------------------
+# Mullion -- the vertical strip that closes each seam
+# ---------------------------------------------------------------------------
+# Panels go in by LIFT-IN, not by sliding: raise one into the deep top groove,
+# swing the bottom in, drop it.  That needs no side clearance at all, where
+# sliding an assembled sheet in would have needed the full 1067 mm bay width
+# beside the bench.
+#
+# Because each panel drops in on its own, nothing has to clip together.  The
+# mullion goes in afterwards, dropping between two placed panels: both edges
+# slot into it, so the seam closes and the faces are forced flush even if a
+# panel has a little warp in it.  It is not captured by the tracks -- it rests
+# on the bottom track and the panels hold it fore and aft.
+MUL_GROOVE_D = 6.0   # how far each panel edge sits into the mullion
+MUL_WEB      = 3.0   # between the two groove bottoms -> the panel-to-panel gap
+MUL_WALL     = 1.5
 
 # ---------------------------------------------------------------------------
 # Grooves
 # ---------------------------------------------------------------------------
 GROOVE_W     = PANEL_T + 0.8    # 0.4 per side -- it has to SLIDE, not press
 TOP_DROP     = 21.0             # groove ceiling below the rail face
-TOP_GROOVE_D = 8.0
+TOP_GROOVE_D = 15.0   # 8 resting + 7 to lift clear of the bottom track
 BOT_BASE     = 3.0              # under the bottom groove, for the VHB
 BOT_GROOVE_D = 6.0
 
@@ -97,16 +103,18 @@ N_STEMS   = 3
 # Derived
 # ---------------------------------------------------------------------------
 PANEL_H = OPENING_H - TOP_DROP - BOT_BASE - 1.0
-PANEL_W = (BAY_W + (N_PANELS - 1) * LAP_W) / N_PANELS
+PANEL_W = (BAY_W - (N_PANELS - 1) * MUL_WEB) / N_PANELS
 TOP_H   = TOP_DROP + TOP_GROOVE_D
 BOT_H   = BOT_BASE + BOT_GROOVE_D
+MUL_H   = OPENING_H - TOP_H - BOT_H - 1.0   # sits between the two tracks
 
 assert PANEL_H < BED - 6, f"panel {PANEL_H:.1f} mm tall -- will not fit the bed"
 assert PANEL_W < BED - 6, f"panel {PANEL_W:.1f} mm wide -- will not fit the bed"
 assert SEG_L < BED - 6, f"track segment {SEG_L:.1f} mm -- will not fit the bed"
 assert GROOVE_W > PANEL_T, "groove is not wider than the panel"
-assert LAP_D < PANEL_T - 1.0, "rabbet leaves too little lap to print"
-assert 2 * (PANEL_T - LAP_D) < GROOVE_W, "lapped seam will not fit the groove"
+assert TOP_GROOVE_D >= 8.0 + BOT_GROOVE_D + 1.0, \
+    "top groove too shallow to lift the panel clear of the bottom track"
+assert MUL_WEB >= 2.0, "mullion web too thin to print"
 assert STEM_W < SLOT_W, "stem will not enter the slot"
 assert TOP_W > GROOVE_W + 5, "top track too narrow around the groove"
 assert PANEL_H + TOP_GROOVE_D + BOT_GROOVE_D > OPENING_H - TOP_DROP - BOT_BASE, \
@@ -174,24 +182,32 @@ def track_bottom():
 
 
 def panel():
-    """One panel.  Rabbeted on the BACK at the left edge and on the FRONT at
-    the right, so a row of identical panels shiplaps together."""
+    """A plain rectangle -- the mullions do the joining."""
     p = cq.Workplane("XY").box(PANEL_W, PANEL_T, PANEL_H,
                                centered=(True, True, False))
-    hw, ht = PANEL_W / 2.0, PANEL_T / 2.0
-    # left edge, back face away
-    p = p.cut(
-        cq.Workplane("XY")
-        .box(LAP_W + LAP_C, LAP_D, PANEL_H + 2, centered=(False, False, False))
-        .translate((-hw - LAP_C, ht - LAP_D, -1))
-    )
-    # right edge, front face away
-    p = p.cut(
-        cq.Workplane("XY")
-        .box(LAP_W + LAP_C, LAP_D, PANEL_H + 2, centered=(False, False, False))
-        .translate((hw - LAP_W, -ht, -1))
-    )
+    try:
+        p = p.edges("|Y").chamfer(EDGE_CH)
+    except Exception:
+        pass
     return p
+
+
+def mullion():
+    """Vertical strip between two panels.  Printed lying down with the grooves
+    facing up and down: the upward one is open and the downward one is only a
+    GROOVE_W bridge.  Turned the other way each groove ceiling would be a 6 mm
+    cantilever and would droop."""
+    w = 2 * MUL_GROOVE_D + MUL_WEB
+    t = GROOVE_W + 2 * MUL_WALL
+    r = cq.Workplane("XY").box(MUL_H, t, w, centered=(False, True, False))
+    for z0 in (0.0, w - MUL_GROOVE_D):
+        r = r.cut(
+            cq.Workplane("XY")
+            .box(MUL_H + 2, GROOVE_W, MUL_GROOVE_D + 0.001,
+                 centered=(False, True, False))
+            .translate((-1, 0, z0))
+        )
+    return r
 
 
 if __name__ == "__main__":
@@ -204,8 +220,11 @@ if __name__ == "__main__":
     print(f"panel      {PANEL_W:.1f} x {PANEL_H:.1f} x {PANEL_T} mm  "
           f"({N_PANELS} per bay)")
     print(f"groove     {GROOVE_W:.1f} mm for a {PANEL_T} mm panel")
-    print(f"shiplap    {LAP_W:.0f} mm overlap, {PANEL_T-LAP_D:.1f} mm lap, "
-          f"{2*(PANEL_T-LAP_D):.1f} mm nested")
+    print(f"mullion    {2*MUL_GROOVE_D+MUL_WEB:.0f} mm wide x "
+          f"{GROOVE_W+2*MUL_WALL:.1f} mm thick x {MUL_H:.0f} mm tall  "
+          f"({N_PANELS-1} per bay)")
+    print(f"lift-in    top groove {TOP_GROOVE_D:.0f} mm: 8 resting + "
+          f"{TOP_GROOVE_D-8:.0f} to clear the bottom track")
     print(f"top track  {SEG_L:.1f} mm segment, {TOP_W} x {TOP_H} mm, "
           f"{N_STEMS} stems, drops {TOP_DROP:.0f} mm")
     print(f"bot track  {SEG_L:.1f} mm segment, {BOT_W} x {BOT_H} mm, VHB")
@@ -215,6 +234,7 @@ if __name__ == "__main__":
         "panel-track-top": track_top(),
         "panel-track-bottom": track_bottom(),
         "back-panel": panel(),
+        "panel-mullion": mullion(),
     }
     for name, part in parts.items():
         exporters.export(part, os.path.join(root, "stl", f"{name}.stl"),
