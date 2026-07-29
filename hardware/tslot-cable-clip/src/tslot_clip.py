@@ -3,17 +3,17 @@ Snap-in cable clip for the TBK 801 bench's aluminium T-slot.
 
 Pushes into the slot anywhere along its length -- no access to an open end, no
 disassembly. Two leaf springs run lengthwise inside the slot and spring out
-behind the lip; the head sits flat on the outside face and carries two
-cable-tie tunnels.
+behind the lip; the head sits flat on the outside face and carries ONE
+cable-tie tunnel through its middle.
 
-    installed, looking along the slot:
+    installed, section across the middle of the clip:
 
          ziptie over the cable
                ___
               (___)         <- cables, running along the head
-        ========|=|================   <- head, 2.8 mm outer skin
+        ========|=|================   <- head, 3.0 mm outer skin
         |       |_|               |
-        |    tie tunnel           |   <- 6 x 2.2 mm, open at BOTH ends
+        |    tie tunnel           |   <- 7 x 2.4 mm, open at BOTH ends
         ===========================
                 | |
         --------|=|--------  extrusion face
@@ -22,6 +22,16 @@ cable-tie tunnels.
 The tie threads through the tunnel, comes out both sides, wraps up over the
 head and the cable, and cinches.  Its loop runs ACROSS the clip, square to the
 cable -- which is the only way it holds a cable that runs along the head.
+
+One tie down the centre line, not two at the ends.  That puts the tunnel
+directly under the stem, which is fine for two reasons worth writing down:
+
+  - The leaves are cantilevers anchored at the FAR end of the stem (the
+    flexure gaps open at -Y), so the anchor sits at y = +8.5..+13 -- well
+    clear of a tunnel at y = +/-3.5.  Nothing that holds the spring is cut.
+  - In print terms the stem's first layer over the tunnel is a 7 mm bridge
+    supported on both sides, not a cantilever.  That prints clean, and it is
+    inside the slot where a little roughness does not matter.
 
 Two things were wrong with the first version, both found on the bench:
 
@@ -78,16 +88,17 @@ BUMP_L  = 10.0     # length along the slot, at the free end of the leaf
 # ---------------------------------------------------------------------------
 # The head
 # ---------------------------------------------------------------------------
-HEAD_L = 46.0      # along the slot -- long enough to put the tie tunnels
-HEAD_W = 24.0      # across            outboard of the stem
-HEAD_T = 5.0
+HEAD_L = 36.0      # along the slot
+HEAD_W = 24.0      # across
+HEAD_T = 5.4
 HEAD_R = 3.0       # corner radius
 
-# Cable-tie tunnels: relieved out of the head's INNER face, running the full
-# width so the tie goes straight through and out the far side.
-TUN_ROOF = 2.8     # skin left between the tunnel and the outside face
-TUN_W    = 6.0     # along the slot -- the tie's width lies here
-TUN_Y    = 17.5    # centre of each tunnel, from the middle of the head
+# ONE cable-tie tunnel, on the centre line: relieved out of the head's INNER
+# face and running the full width, so the tie goes straight through and out the
+# far side.  Roof and opening are both a touch heavier than the two-tunnel
+# version was -- a single tie is carrying the whole cable now.
+TUN_ROOF = 3.0     # skin left between the tunnel and the outside face
+TUN_W    = 7.0     # along the slot -- the tie's width lies here
 
 # ---------------------------------------------------------------------------
 # Checks
@@ -97,6 +108,8 @@ SPREAD  = STEM_W + 2 * BUMP
 DEFLECT = (STEM_W / 2 + BUMP) - SLOT_W / 2      # travel asked of each leaf
 STRAIN  = 3 * (LEAF_T / 2) * DEFLECT / LEAF_FREE ** 2
 TUN_H   = HEAD_T - TUN_ROOF
+# Where the flexure gaps stop, i.e. where the leaves are actually anchored.
+ANCHOR_Y = -STEM_L / 2.0 - 0.5 + LEAF_FREE
 
 assert STEM_W < SLOT_W, "stem will not enter the slot"
 assert STEM_D < SLOT_D - 1.5, "stem bottoms out in the cavity"
@@ -114,10 +127,14 @@ assert STRAIN < 0.010, f"leaf strained {STRAIN*100:.2f} % -- it will crack"
 
 assert TUN_H > 1.8, "tunnel too shallow for a zip tie"
 assert TUN_W > 5.2, "tunnel too narrow for a zip tie"
-assert TUN_ROOF >= 2.4, "not enough skin over the tunnel"
-assert TUN_Y - TUN_W / 2 > STEM_L / 2 + 1.0, \
-    "tunnel runs under the stem -- the stem would have to bridge over it"
-assert TUN_Y + TUN_W / 2 < HEAD_L / 2 - 2.0, "tunnel breaks out of the head end"
+assert TUN_ROOF >= 2.8, "not enough skin over the tunnel for a single tie"
+
+# The tunnel deliberately runs under the stem.  Two things must stay true:
+assert TUN_W <= 8.0, \
+    "the stem has to bridge the tunnel -- keep the span printable"
+assert TUN_W / 2 < ANCHOR_Y - 1.0, \
+    "tunnel undercuts where the leaves are anchored -- it would kill the spring"
+assert TUN_W / 2 < HEAD_L / 2 - 6.0, "not enough head left either side of the tunnel"
 
 
 def clip():
@@ -130,14 +147,14 @@ def clip():
         .edges("|Z").fillet(HEAD_R)
     )
 
-    # Cable-tie tunnels, open at both ends across the width.  Once the clip is
-    # on the extrusion, the aluminium face closes the far side of each one.
-    for ty in (-TUN_Y, TUN_Y):
-        r = r.cut(
-            cq.Workplane("XY")
-            .box(HEAD_W + 2, TUN_W, TUN_H + 1, centered=(True, True, False))
-            .translate((0, ty, TUN_ROOF))
-        )
+    # The cable-tie tunnel, on the centre line, open at both ends across the
+    # width.  Once the clip is on the extrusion, the aluminium face closes the
+    # far side of it.
+    r = r.cut(
+        cq.Workplane("XY")
+        .box(HEAD_W + 2, TUN_W, TUN_H + 1, centered=(True, True, False))
+        .translate((0, 0, TUN_ROOF))
+    )
 
     # Stem rising off the head, into the slot.
     r = r.union(
@@ -194,8 +211,10 @@ if __name__ == "__main__":
     print(f"push-in   {DEFLECT:.2f} mm of travel into a {LEAF_GAP} mm gap "
           f"({DEFLECT/LEAF_GAP*100:.0f} % of it used), {STRAIN*100:.2f} % strain")
     print(f"head      {HEAD_W} x {HEAD_L} x {HEAD_T} mm")
-    print(f"tunnels   2 x {TUN_W} x {TUN_H} mm at y=+/-{TUN_Y}, "
+    print(f"tunnel    1 x {TUN_W} x {TUN_H:.1f} mm on the centre line, "
           f"{TUN_ROOF} mm skin, open both ends")
+    print(f"          stem bridges it over {TUN_W} mm; leaves anchored from "
+          f"y={ANCHOR_Y:.1f} mm, clear of it")
 
     part = clip()
     exporters.export(part, os.path.join(root, "stl", "tslot-cable-clip.stl"),

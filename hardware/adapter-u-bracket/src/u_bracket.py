@@ -37,7 +37,7 @@ from cadquery import exporters
 # ---------------------------------------------------------------------------
 # The adapters.  Width across the bracket; thickness is the same for both.
 # ---------------------------------------------------------------------------
-WIDTHS  = [52.00, 56.00]
+WIDTHS  = [52.00, 56.00, 66.00]
 BRICK_H = 33.25    # thickness of the adapter
 
 # Clearance.  The widths above are the adapter's own measurements, so the

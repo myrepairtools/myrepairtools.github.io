@@ -8,13 +8,32 @@ along the slot: no access to an open end, no disassembly.
 | | |
 | --- | --- |
 | Slot it fits | 8.49 mm opening, 10 mm deep, cavity behind |
-| Head | 24 × 46 × 5 mm |
+| Head | 24 × 36 × 5.4 mm |
 | Stem | 8.0 × 26 mm, 7 mm into the slot |
 | Catch spread | 9.8 mm — 0.66 mm behind the lip per side |
-| Tie tunnels | 2 × (6 × 2.2 mm) at ±17.5 mm, **open at both ends** |
+| Tie tunnel | **one, 7 × 2.4 mm, on the centre line, open at both ends** |
 | Push-in | 0.66 mm of leaf travel into a 1.40 mm gap, 0.32 % strain |
 
-**Print ONE first and test the fit** before running a batch. ~4 g, ~15 min.
+**Print ONE first and test the fit** before running a batch. ~3.5 g, ~12 min.
+
+## One tie, through the middle
+
+A single tunnel on the centre line instead of two out at the ends. Roof and
+opening are both a touch heavier than the two-tunnel version — 3.0 mm skin over
+a 7 × 2.4 mm opening — since one tie is now carrying the whole cable. The head
+shrank from 46 mm to 36 mm, because the only reason it was that long was to put
+tunnels outboard of the stem.
+
+That does put the tunnel **directly under the stem**, which is deliberate and
+sound for two reasons:
+
+- **Nothing that holds the spring is cut.** The leaves are cantilevers anchored
+  at the *far* end of the stem — the flexure gaps open at −Y, so the anchor sits
+  at y = +8.5…+13 mm, well clear of a tunnel at ±3.5. There's an assert on it.
+- **The stem bridges the tunnel, it doesn't cantilever over it.** In print terms
+  the stem's first layer above the tunnel is a 7 mm bridge supported on both
+  sides. That comes out clean, and it's inside the slot where a little roughness
+  doesn't matter anyway.
 
 ## v2 — two things were wrong, both found on the bench
 
@@ -30,9 +49,6 @@ both ends across the width. The aluminium is the far *wall* of the tunnel
 instead of a plug in it. Cables run along the head, the tie goes through the
 tunnel, round both edges, over the cable, and cinches — so the tie's loop is
 square to the cable, which is the only way it holds one running lengthwise.
-
-The tunnels sit at ±17.5 mm, **outboard of the stem**, so the stem never has to
-bridge over a void. The head grew from 30 mm to 46 mm long to make room.
 
 ### 2. It needed a hammer
 
@@ -94,7 +110,7 @@ more defensible than it was; it's a one-time insertion, not a repeated flex.
 ## Fitting
 
 Push it into the slot until the head sits flat. Route cables along the head, run
-a zip tie through a tunnel and over the cable.
+one zip tie through the centre tunnel and over the cable.
 
 ## Rebuilding
 
