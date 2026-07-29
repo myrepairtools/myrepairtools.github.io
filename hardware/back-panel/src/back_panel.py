@@ -51,6 +51,17 @@ PANEL_T = 3.0
 BED     = 256.0
 EDGE_CH = 0.6        # chamfer so it feeds into the grooves
 
+# Shiplap on the vertical edges: the back is rabbeted away on one side and the
+# front on the other, so each panel nests into the one before it as it slides
+# in.  Every panel is identical -- no left/right/middle variants to keep track
+# of.  A snapping tongue was the other option and is not practical at 3 mm: the
+# tongue would be ~1.4 mm and the groove lips ~0.8 mm, which is two perimeters
+# of brittle PLA.  The tracks already capture the panels top and bottom, so the
+# lap only has to close the seam and keep the faces aligned.
+LAP_W = 8.0          # overlap width
+LAP_D = 1.6          # rabbet depth -> 1.4 mm of lap, 2.8 mm nested
+LAP_C = 0.3          # slide clearance at the shoulder
+
 # ---------------------------------------------------------------------------
 # Grooves
 # ---------------------------------------------------------------------------
@@ -86,7 +97,7 @@ N_STEMS   = 3
 # Derived
 # ---------------------------------------------------------------------------
 PANEL_H = OPENING_H - TOP_DROP - BOT_BASE - 1.0
-PANEL_W = SEG_L - 0.6
+PANEL_W = (BAY_W + (N_PANELS - 1) * LAP_W) / N_PANELS
 TOP_H   = TOP_DROP + TOP_GROOVE_D
 BOT_H   = BOT_BASE + BOT_GROOVE_D
 
@@ -94,6 +105,8 @@ assert PANEL_H < BED - 6, f"panel {PANEL_H:.1f} mm tall -- will not fit the bed"
 assert PANEL_W < BED - 6, f"panel {PANEL_W:.1f} mm wide -- will not fit the bed"
 assert SEG_L < BED - 6, f"track segment {SEG_L:.1f} mm -- will not fit the bed"
 assert GROOVE_W > PANEL_T, "groove is not wider than the panel"
+assert LAP_D < PANEL_T - 1.0, "rabbet leaves too little lap to print"
+assert 2 * (PANEL_T - LAP_D) < GROOVE_W, "lapped seam will not fit the groove"
 assert STEM_W < SLOT_W, "stem will not enter the slot"
 assert TOP_W > GROOVE_W + 5, "top track too narrow around the groove"
 assert PANEL_H + TOP_GROOVE_D + BOT_GROOVE_D > OPENING_H - TOP_DROP - BOT_BASE, \
@@ -161,12 +174,23 @@ def track_bottom():
 
 
 def panel():
+    """One panel.  Rabbeted on the BACK at the left edge and on the FRONT at
+    the right, so a row of identical panels shiplaps together."""
     p = cq.Workplane("XY").box(PANEL_W, PANEL_T, PANEL_H,
                                centered=(True, True, False))
-    try:
-        p = p.edges("|Y").chamfer(EDGE_CH)
-    except Exception as exc:
-        print(f"  (panel chamfer skipped: {exc})")
+    hw, ht = PANEL_W / 2.0, PANEL_T / 2.0
+    # left edge, back face away
+    p = p.cut(
+        cq.Workplane("XY")
+        .box(LAP_W + LAP_C, LAP_D, PANEL_H + 2, centered=(False, False, False))
+        .translate((-hw - LAP_C, ht - LAP_D, -1))
+    )
+    # right edge, front face away
+    p = p.cut(
+        cq.Workplane("XY")
+        .box(LAP_W + LAP_C, LAP_D, PANEL_H + 2, centered=(False, False, False))
+        .translate((hw - LAP_W, -ht, -1))
+    )
     return p
 
 
@@ -180,6 +204,8 @@ if __name__ == "__main__":
     print(f"panel      {PANEL_W:.1f} x {PANEL_H:.1f} x {PANEL_T} mm  "
           f"({N_PANELS} per bay)")
     print(f"groove     {GROOVE_W:.1f} mm for a {PANEL_T} mm panel")
+    print(f"shiplap    {LAP_W:.0f} mm overlap, {PANEL_T-LAP_D:.1f} mm lap, "
+          f"{2*(PANEL_T-LAP_D):.1f} mm nested")
     print(f"top track  {SEG_L:.1f} mm segment, {TOP_W} x {TOP_H} mm, "
           f"{N_STEMS} stems, drops {TOP_DROP:.0f} mm")
     print(f"bot track  {SEG_L:.1f} mm segment, {BOT_W} x {BOT_H} mm, VHB")

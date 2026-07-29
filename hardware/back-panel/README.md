@@ -6,7 +6,7 @@ Three parts. Fit both tracks, then slide the panels in from the side.
 | --- | --- | --- |
 | `stl/panel-track-top.stl` | snaps into the middle rail's T-slot, groove down | 5 |
 | `stl/panel-track-bottom.stl` | VHB to the desktop, groove up | 5 |
-| `stl/back-panel.stl` | 212.8 × 247 × 3 mm | 5 |
+| `stl/back-panel.stl` | 219.8 × 247 × 3 mm, shiplap edges | 5 |
 
 | | |
 | --- | --- |
@@ -17,6 +17,28 @@ Three parts. Fit both tracks, then slide the panels in from the side.
 | Bottom track | 16 × 9 mm, flat base for VHB |
 | Panel engagement | 8 mm top, 6 mm bottom |
 | **Per bay** | **~1,353 g PLA, ~55 h** |
+
+## The seam
+
+The vertical edges are **shiplapped**: the back is rabbeted away on the left
+edge and the front on the right, so each panel nests into the one before it as
+it slides in. Every panel is identical — no left/right/middle variants.
+
+| | |
+| --- | --- |
+| Overlap | 8 mm |
+| Lap thickness | 1.4 mm each, **2.8 mm nested** |
+| Slide clearance | 0.2 mm across the joint, 0.3 mm at the shoulder |
+
+The nested seam is *thinner* than the panel, so it never binds in the 3.8 mm
+groove. Five lapped panels span **1067.0 mm** — exactly the bay.
+
+**Why not a snapping tongue.** At 3 mm the tongue works out to ~1.4 mm and the
+groove lips to ~0.8 mm — two perimeters of brittle PLA on a part that has to
+flex. The tracks already capture the panels top and bottom, so the joint only
+has to close the seam and keep the faces aligned, which a lap does without any
+thin flexing features. If you go to a 4 mm panel a barbed tongue becomes
+practical and I can swap it in.
 
 ## The vertical budget
 
