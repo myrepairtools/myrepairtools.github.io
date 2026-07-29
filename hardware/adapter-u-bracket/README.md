@@ -12,9 +12,9 @@ its two flanges.
 | Adapter it fits | 52.00 × 33.25 mm |
 | Bracket overall | 95.00 W × 38.75 H × 25 mm deep |
 | Screw spacing | 79.00 mm, 2 per bracket |
-| Cable-tie slots | 2 × (4 × 8 mm), 14 mm apart, 10 mm web |
-| Hangs below the bench | 38.75 mm |
-| Each bracket | ~16 g, ~30 min |
+| Cable-tie loop | hangs 8 mm below, 6 × 5 mm opening, 18 mm tunnel |
+| Hangs below the bench | 46.75 mm |
+| Each bracket | ~17 g, ~30 min |
 
 ## Clearance — read this before printing
 
@@ -25,19 +25,25 @@ accept a 52.00 mm adapter.
 If 52 × 33.25 was already the opening you wanted rather than the brick itself,
 set `CLR_W` and `CLR_H` to 0 in `src/u_bracket.py` and re-run.
 
-## Cable-tie slots
+## Cable-tie loop
 
-Two slots through the bottom of the U with a 10 mm web between them. The tie
-drops through one slot, crosses the web, comes back up the other, and cinches
-around a cable running underneath.
+A closed loop hangs **8 mm below the floor** of the U, with a 6 × 5 mm opening
+and an 18 mm tunnel running across the bracket.
 
-**The crossing is recessed 2 mm into the inside face**, so the tie lies below
-the adapter's seating surface. Without that, the tie would sit proud on the
-floor of the U and the adapter would rock on it — the opening only has 0.5 mm
-of clearance to give. That leaves 3 mm of bottom wall under the channel.
+It hangs below rather than passing through the floor because slots in the
+floor would have to be threaded blind — from underneath, with the adapter
+already in the U and the bracket already screwed to the bench. The loop is
+reachable with everything installed.
 
-Walls went from 4 mm to 5 mm and the band from 20 mm to 25 mm to carry the
-slots without weakening the bottom.
+It also keeps the floor of the U completely flat. A tie crossing the inside
+would sit proud of the seating surface and rock the adapter, and the opening
+only carries 0.5 mm of clearance to absorb that.
+
+The tunnel runs **across** the bracket so a tie threaded through it wraps
+naturally around a cable running lengthwise underneath.
+
+Walls are 5 mm and the band 25 mm — the floor is what the loop hangs off, so
+it carries the cable tension.
 
 ## Material: PETG
 

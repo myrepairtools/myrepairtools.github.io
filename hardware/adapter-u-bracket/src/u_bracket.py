@@ -54,16 +54,20 @@ SCREW_D = 4.4      # #8 pan-head clearance.  No countersink needed: the head
                    # sits under the flange, clear of the adapter.
 
 # ---------------------------------------------------------------------------
-# Cable-tie slots through the bottom of the U
+# Cable-tie anchor: a closed loop hanging BELOW the bottom of the U
 # ---------------------------------------------------------------------------
-# A pair of slots with a web between them.  The tie drops through one slot,
-# crosses the web, comes back up the other and cinches round the cable running
-# underneath.  The crossing is RECESSED into the inside face so the tie sits
-# below the adapter's seating surface instead of propping it up.
-TIE_W      = 4.0   # slot width, across the bracket
-TIE_L      = 8.0   # slot length, along the adapter
-TIE_GAP    = 14.0  # slot centre to slot centre -> 10 mm web
-TIE_RECESS = 2.0   # depth of the crossing channel in the inside face
+# Slots through the floor would have to be threaded blind, from underneath,
+# with the adapter already in the U and the bracket already screwed to the
+# bench.  A loop that hangs below is reachable with the whole thing installed,
+# and it keeps the floor of the U flat so nothing props the adapter up.
+#
+# The tunnel runs ACROSS the bracket (along X) so a tie threaded through it
+# wraps naturally around a cable running lengthwise underneath.
+TIE_LOOP_X = 18.0  # tunnel length, across the bracket
+TIE_LOOP_Y = 6.0   # opening along the adapter
+TIE_LOOP_Z = 5.0   # opening depth below the floor
+TIE_LEG    = 3.0   # loop side thickness
+TIE_BAR    = 3.0   # loop bottom bar thickness
 
 # ---------------------------------------------------------------------------
 # Derived
@@ -77,9 +81,10 @@ SCREW_X = OPEN_W / 2 + WALL + FLANGE_L / 2
 
 assert FLANGE_T <= H, "flange thicker than the bracket is tall"
 assert SCREW_D + 4 < FLANGE_L, "flange too narrow for the screw hole"
-assert TIE_RECESS < WALL - 1.5, "tie channel leaves too little bottom under it"
-assert TIE_L + 4 < BAND_W, "tie slots too long for the band width"
-assert TIE_GAP + TIE_W < OPEN_W, "tie slots wider than the inside of the U"
+TIE_DROP = TIE_LOOP_Z + TIE_BAR                  # how far the loop hangs down
+assert TIE_LOOP_Y + 2 * TIE_LEG < BAND_W, "tie loop wider than the band"
+assert TIE_LOOP_X < OPEN_W, "tie loop wider than the inside of the U"
+assert TIE_LOOP_Z >= 4.0, "tie loop opening too shallow to thread"
 
 
 def bracket():
@@ -128,19 +133,21 @@ def bracket():
             .translate((sx, BAND_W / 2.0, H - FLANGE_T - 1))
         )
 
-    # Cable-tie slots plus the recessed crossing channel.
-    r = r.cut(
+    # Cable-tie loop hanging below the floor, with its tunnel running along X.
+    cy = BAND_W / 2.0
+    loop = (
         cq.Workplane("XY")
-        .box(TIE_GAP + TIE_W, TIE_L, TIE_RECESS + 1,
+        .box(TIE_LOOP_X, TIE_LOOP_Y + 2 * TIE_LEG, TIE_DROP,
              centered=(True, True, False))
-        .translate((0, BAND_W / 2.0, WALL - TIE_RECESS))
-    )
-    for tx in (-TIE_GAP / 2.0, TIE_GAP / 2.0):
-        r = r.cut(
+        .translate((0, cy, -TIE_DROP))
+        .cut(
             cq.Workplane("XY")
-            .box(TIE_W, TIE_L, WALL + 2, centered=(True, True, False))
-            .translate((tx, BAND_W / 2.0, -1))
+            .box(TIE_LOOP_X + 2, TIE_LOOP_Y, TIE_LOOP_Z,
+                 centered=(True, True, False))
+            .translate((0, cy, -TIE_LOOP_Z))
         )
+    )
+    r = r.union(loop)
 
     made = [e for e in r.val().Edges()
             if e.geomType() == "CIRCLE" and abs(e.radius() - SCREW_D / 2) < 0.01]
@@ -150,8 +157,10 @@ def bracket():
 
 
 def print_ready(part):
-    """Lay the cross-section on the bed: +Y becomes +Z."""
-    return part.rotate((0, 0, 0), (1, 0, 0), 90).translate((0, H, 0))
+    """Lay the cross-section on the bed: +Y becomes +Z, then drop onto Z=0."""
+    p = part.rotate((0, 0, 0), (1, 0, 0), 90)
+    bb = p.val().BoundingBox()
+    return p.translate((0, -bb.ymin, -bb.zmin))
 
 
 if __name__ == "__main__":
@@ -165,9 +174,9 @@ if __name__ == "__main__":
     print(f"bracket   {W:.2f} W x {H:.2f} H x {BAND_W:.1f} deep mm")
     print(f"screws    2 per bracket at x = +/-{SCREW_X:.2f} mm "
           f"({2*SCREW_X:.2f} mm apart)")
-    print(f"ties      2 slots {TIE_W:.0f} x {TIE_L:.0f} mm, {TIE_GAP:.0f} mm apart, "
-          f"crossing recessed {TIE_RECESS:.0f} mm")
-    print(f"hangs     {H:.2f} mm below the bench")
+    print(f"tie loop  {TIE_LOOP_X:.0f} mm tunnel, opening "
+          f"{TIE_LOOP_Y:.0f} x {TIE_LOOP_Z:.0f} mm, hangs {TIE_DROP:.0f} mm below")
+    print(f"hangs     {H + TIE_DROP:.2f} mm below the bench")
 
     part = bracket()
     exporters.export(print_ready(part), os.path.join(root, "stl", "u-bracket.stl"),
