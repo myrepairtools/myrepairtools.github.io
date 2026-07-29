@@ -8,7 +8,7 @@ Two mounts, same hook:
 | File | Mount | Size | Each |
 | --- | --- | --- | --- |
 | `stl/cable-hook-screw.stl` | 2 × #8 screws into the bench underside | 36 × 23 × 20 mm | ~4.8 g |
-| `stl/cable-hook-clip.stl` | springs onto a 12.75 mm cross bar | 17 × 46 × 20 mm | ~5.5 g |
+| `stl/cable-hook-clip.stl` | springs onto a 12.75 mm cross bar | 20 × 46 × 20 mm | ~6.5 g |
 
 | | |
 | --- | --- |
@@ -16,6 +16,18 @@ Two mounts, same hook:
 | Mouth | 8 mm, narrower than the throat so nothing falls out |
 | Screw version drops | 23 mm below the bench |
 | Clip jaws | 12.20 mm gap on a 12.75 mm bar — 0.55 mm interference |
+
+## The clip is an S, not a C
+
+The jaws and the hook are **stacked, not nested**. A first version sized the
+whole body to the jaw span (17.2 mm) and made the hook squeeze inside it, which
+left a **1.6 mm retaining lip instead of 3 mm** — cables would have slid back
+out of the mouth. The hook now keeps its full 20 mm width and steps proud of
+the jaws, which is what gives the part its S profile.
+
+With that fixed: lip 3 mm wide × 11 mm tall, and a cable resting in the bottom
+of the throat sits **4 mm below the top of the lip**. An assert now fails the
+build if the lip ever gets squeezed again.
 
 ## Print one clip and test the grip
 

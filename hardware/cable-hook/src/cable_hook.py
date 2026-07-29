@@ -134,33 +134,47 @@ def _soften(r, corners, rad=FILLET_R):
 
 
 def hook_clip():
-    """Same hook, but with jaws that spring onto the bench cross bar."""
+    """Same hook, but with jaws that spring onto the bench cross bar.
+
+    The jaws and the hook are stacked, NOT nested: an earlier version sized the
+    whole body to the jaw span (17.2 mm) and the hook had to squeeze inside it,
+    which left a 1.6 mm lip instead of 3 mm -- cables slid straight back out.
+    The hook keeps its full 20 mm width and simply steps proud of the jaws,
+    which is what gives the part its S profile.
+    """
     gap = RAIL_T - RAIL_FIT
-    span = 2 * JAW_T + gap
-    top = -(JAW_BASE + JAW_L)
+    jaw_span = 2 * JAW_T + gap
+    jaw_top = -(JAW_BASE + JAW_L)
 
     pts = [
-        (0.0, top), (JAW_T, top),
-        (JAW_T, -JAW_BASE), (JAW_T + gap, -JAW_BASE),
-        (JAW_T + gap, top), (span, top),
-        (span, BODY_V), (0.0, BODY_V),
+        (0.0, jaw_top),                 # back jaw, outer top
+        (JAW_T, jaw_top),
+        (JAW_T, -JAW_BASE),             # down the inside of the back jaw
+        (JAW_T + gap, -JAW_BASE),       # across, under the bar
+        (JAW_T + gap, jaw_top),         # up the inside of the front jaw
+        (jaw_span, jaw_top),
+        (jaw_span, 0.0),                # down the front of the jaw block
+        (BODY_U, 0.0),                  # step out to the hook's full width
+        (BODY_U, BODY_V),
+        (0.0, BODY_V),
     ]
     r = cq.Workplane("XY").polyline(pts).close().extrude(DEPTH)
 
-    # Throat and mouth, centred under the jaws.
-    off = (span - BODY_U) / 2.0
     r = r.cut(
         cq.Workplane("XY")
         .box(CAV_U, CAV_V, DEPTH + 2, centered=(False, False, False))
-        .translate((off + WALL, FOOT_V, -1))
+        .translate((WALL, FOOT_V, -1))
     )
     r = r.cut(
         cq.Workplane("XY")
-        .box(span, GAP, DEPTH + 2, centered=(False, False, False))
-        .translate((off + WALL + CAV_U, FOOT_V, -1))
+        .box(WALL + 1, GAP, DEPTH + 2, centered=(False, False, False))
+        .translate((WALL + CAV_U, FOOT_V, -1))
     )
-    return _soften(r, [(off + WALL, FOOT_V), (off + WALL, FOOT_V + CAV_V),
-                       (off + WALL + CAV_U, FOOT_V + CAV_V)])
+
+    assert BODY_U - (WALL + CAV_U) >= WALL - 0.01, "retaining lip got squeezed"
+
+    return _soften(r, [(WALL, FOOT_V), (WALL, FOOT_V + CAV_V),
+                       (WALL + CAV_U, FOOT_V + CAV_V)])
 
 
 if __name__ == "__main__":
