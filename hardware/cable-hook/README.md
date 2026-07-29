@@ -1,62 +1,69 @@
 # Cable Hooks — TBK 801 bench
 
-Open hooks: push cables in through the mouth, they drop into the throat and
-gravity holds them. Lift them out any time — no cutting and re-fitting ties.
+Open hooks: no cutting and re-fitting zip ties. Cables go in, cables come out.
 
-Two mounts, same hook:
-
-| File | Mount | Size | Each |
+| File | Mount | Size | Each (4 walls / 20 % infill) |
 | --- | --- | --- | --- |
-| `stl/cable-hook-screw.stl` | 2 × #8 screws into the bench underside | 36 × 23 × 20 mm | ~4.8 g |
-| `stl/cable-hook-clip.stl` | springs onto a 12.75 mm cross bar | 20 × 46 × 20 mm | ~6.5 g |
+| `stl/cable-hook-screw.stl` | 1 × #8 screw into the bench underside | 36 × 23 × 20 mm | ~4.8 g |
+| `stl/cable-hook-clip.stl` | hangs over a 12.75 × 40 mm cross bar | 35.4 × 38 × 20 mm | ~5.5 g |
+
+![S bracket section](svg/s-bracket-section.png)
+
+## The S bracket — third attempt, and the first one that works
+
+The first two versions both **clamped the bar from underneath**. That was the
+mistake, and no amount of tuning the retaining lip was ever going to fix it:
+with the jaws opening upward, the only thing holding a loaded hook on the bar
+was friction. Hang enough cable on it and it walks straight off the bottom.
+That is exactly what *"either the cables will fall or it won't hook to the
+track"* was pointing at.
+
+It now goes **over the top of the bar**, like an S-hook on a rail.
 
 | | |
 | --- | --- |
-| Throat | 14 × 16 mm — a handful of charge cables |
-| Mouth | 8 mm, narrower than the throat so nothing falls out |
-| Screw version drops | 23 mm below the bench |
-| Clip jaws | 12.20 mm gap on a 12.75 mm bar — 0.55 mm interference |
+| Crown | 4 mm of material sitting on the bar's top face — **this** carries the load |
+| Jaws | 12.40 mm gap on a 12.75 mm bar — 0.35 mm interference, 0.31 % strain |
+| Back jaw | 16 mm down the far face |
+| Front jaw | 34 mm down the near face, running straight on into the cradle |
+| Cradle | 14 mm wide, cables sit 13 mm down, **open at the top** |
 
-## The clip is an S, not a C
+Upper hook opens **down**, lower hook opens **up**. That is the S — and both
+halves now work with gravity instead of against it:
 
-The jaws and the hook are **stacked, not nested**. A first version sized the
-whole body to the jaw span (17.2 mm) and made the hook squeeze inside it, which
-left a **1.6 mm retaining lip instead of 3 mm** — cables would have slid back
-out of the mouth. The hook now keeps its full 20 mm width and steps proud of
-the jaws, which is what gives the part its S profile.
+- The bar's top face holds the bracket up. The jaws only stop it rattling and
+  sliding along the bar.
+- Cables drop into the cradle from above and cannot fall out, because the only
+  way out is back up. Lift them out whenever you want.
 
-With that fixed: lip 3 mm wide × 11 mm tall, and a cable resting in the bottom
-of the throat sits **4 mm below the top of the lip**. An assert now fails the
-build if the lip ever gets squeezed again.
+It is one closed profile from the crown to the cradle floor — no join anywhere
+for a load to pull open.
 
-## Print one clip and test the grip
+### Fitting
 
-The jaw gap is the only guessed number here. 0.55 mm of interference works out
-to **11 N to spread onto the bar at 0.26 % strain** — light, and nowhere near
-PETG's ~4–5 % yield, so there is plenty of room to tighten it.
+Push it up onto the bar from below until the crown seats on top; the jaw tips
+are chamfered so they spread onto it. Or slide it on from the end of the bar.
+Slides along to reposition either way.
 
-If it slides off too easily, raise `RAIL_FIT`. If it will not go on, lower it.
-One line, 10-minute reprint.
+If it rattles, raise `RAIL_FIT`. If it will not go on, lower it. One line,
+10-minute reprint.
+
+## The screw version
+
+Side-opening throat, 14 × 16 mm, with an 8 mm mouth — narrower than the
+throat, so cables push in and stay. One #8 screw through the middle of the
+foot. Drops 23 mm below the bench.
 
 ## Printing
 
 Both are a single constant cross-section, so they print **on their side with
 every face a vertical wall — no supports**. That also puts the layers running
-*along* the hook and the jaws rather than across the point where they would
-break.
+*along* the jaws rather than across the point where they would break.
 
-**Use a brim.** The first layer is only ~270 mm² on a 20 mm-tall part.
+**Use a brim.** The first layer is small for a 20 mm-tall part.
 
-PETG. The clip jaws are a spring, and the screw version sits under a bench that
-gets warm; neither is a job for PLA.
-
-## Fitting
-
-**Screw version** — hold it to the underside, mark two holes, 3 mm pilots,
-#8 pan heads. Check screw length against the bench top before driving.
-
-**Clip version** — push it up onto the bottom edge of a cross bar until the
-jaws seat. Slides along to reposition.
+PETG. The clip's jaws are a spring and the screw version sits under a bench
+that gets warm; neither is a job for PLA.
 
 ## Rebuilding
 
