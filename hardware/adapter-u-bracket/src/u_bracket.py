@@ -44,14 +44,26 @@ CLR_H = 0.50       # total, at the top
 # ---------------------------------------------------------------------------
 # The bracket
 # ---------------------------------------------------------------------------
-WALL     = 4.0     # bottom and leg thickness
-BAND_W   = 20.0    # how wide the strap is along the adapter
+WALL     = 5.0     # bottom and leg thickness
+BAND_W   = 25.0    # how wide the strap is along the adapter
 FLANGE_L = 16.0    # how far each mounting flange sticks out
 FLANGE_T = 4.0     # flange thickness
 FILLET_R = 2.0     # inside corners
 
 SCREW_D = 4.4      # #8 pan-head clearance.  No countersink needed: the head
                    # sits under the flange, clear of the adapter.
+
+# ---------------------------------------------------------------------------
+# Cable-tie slots through the bottom of the U
+# ---------------------------------------------------------------------------
+# A pair of slots with a web between them.  The tie drops through one slot,
+# crosses the web, comes back up the other and cinches round the cable running
+# underneath.  The crossing is RECESSED into the inside face so the tie sits
+# below the adapter's seating surface instead of propping it up.
+TIE_W      = 4.0   # slot width, across the bracket
+TIE_L      = 8.0   # slot length, along the adapter
+TIE_GAP    = 14.0  # slot centre to slot centre -> 10 mm web
+TIE_RECESS = 2.0   # depth of the crossing channel in the inside face
 
 # ---------------------------------------------------------------------------
 # Derived
@@ -65,6 +77,9 @@ SCREW_X = OPEN_W / 2 + WALL + FLANGE_L / 2
 
 assert FLANGE_T <= H, "flange thicker than the bracket is tall"
 assert SCREW_D + 4 < FLANGE_L, "flange too narrow for the screw hole"
+assert TIE_RECESS < WALL - 1.5, "tie channel leaves too little bottom under it"
+assert TIE_L + 4 < BAND_W, "tie slots too long for the band width"
+assert TIE_GAP + TIE_W < OPEN_W, "tie slots wider than the inside of the U"
 
 
 def bracket():
@@ -113,6 +128,20 @@ def bracket():
             .translate((sx, BAND_W / 2.0, H - FLANGE_T - 1))
         )
 
+    # Cable-tie slots plus the recessed crossing channel.
+    r = r.cut(
+        cq.Workplane("XY")
+        .box(TIE_GAP + TIE_W, TIE_L, TIE_RECESS + 1,
+             centered=(True, True, False))
+        .translate((0, BAND_W / 2.0, WALL - TIE_RECESS))
+    )
+    for tx in (-TIE_GAP / 2.0, TIE_GAP / 2.0):
+        r = r.cut(
+            cq.Workplane("XY")
+            .box(TIE_W, TIE_L, WALL + 2, centered=(True, True, False))
+            .translate((tx, BAND_W / 2.0, -1))
+        )
+
     made = [e for e in r.val().Edges()
             if e.geomType() == "CIRCLE" and abs(e.radius() - SCREW_D / 2) < 0.01]
     assert len(made) == 4, f"expected 4 screw-hole edges, got {len(made)}"
@@ -136,6 +165,8 @@ if __name__ == "__main__":
     print(f"bracket   {W:.2f} W x {H:.2f} H x {BAND_W:.1f} deep mm")
     print(f"screws    2 per bracket at x = +/-{SCREW_X:.2f} mm "
           f"({2*SCREW_X:.2f} mm apart)")
+    print(f"ties      2 slots {TIE_W:.0f} x {TIE_L:.0f} mm, {TIE_GAP:.0f} mm apart, "
+          f"crossing recessed {TIE_RECESS:.0f} mm")
     print(f"hangs     {H:.2f} mm below the bench")
 
     part = bracket()

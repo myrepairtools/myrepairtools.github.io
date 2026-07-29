@@ -10,10 +10,11 @@ its two flanges.
 | --- | --- |
 | Opening | 53.00 W × 33.75 H mm |
 | Adapter it fits | 52.00 × 33.25 mm |
-| Bracket overall | 93.00 W × 37.75 H × 20 mm deep |
-| Screw spacing | 77.00 mm, 2 per bracket |
-| Hangs below the bench | 37.75 mm |
-| Each bracket | ~11 g, ~25 min |
+| Bracket overall | 95.00 W × 38.75 H × 25 mm deep |
+| Screw spacing | 79.00 mm, 2 per bracket |
+| Cable-tie slots | 2 × (4 × 8 mm), 14 mm apart, 10 mm web |
+| Hangs below the bench | 38.75 mm |
+| Each bracket | ~16 g, ~30 min |
 
 ## Clearance — read this before printing
 
@@ -23,6 +24,20 @@ accept a 52.00 mm adapter.
 
 If 52 × 33.25 was already the opening you wanted rather than the brick itself,
 set `CLR_W` and `CLR_H` to 0 in `src/u_bracket.py` and re-run.
+
+## Cable-tie slots
+
+Two slots through the bottom of the U with a 10 mm web between them. The tie
+drops through one slot, crosses the web, comes back up the other, and cinches
+around a cable running underneath.
+
+**The crossing is recessed 2 mm into the inside face**, so the tie lies below
+the adapter's seating surface. Without that, the tie would sit proud on the
+floor of the U and the adapter would rock on it — the opening only has 0.5 mm
+of clearance to give. That leaves 3 mm of bottom wall under the channel.
+
+Walls went from 4 mm to 5 mm and the band from 20 mm to 25 mm to carry the
+slots without weakening the bottom.
 
 ## Material: PETG
 
