@@ -1,28 +1,44 @@
 # Adapter U-Bracket
 
-Two of these hold a Dell 90 W power adapter under a bench. The adapter sits in
-the U, the bench underside closes the top, and each bracket screws up through
-its two flanges.
+Two of these hold a power adapter under a bench. The adapter sits in the U, the
+bench underside closes the top, and each bracket screws up through its two
+flanges.
 
-**Print one file twice.**
+**Print whichever width you need, twice.**
+
+| File | Adapter | Opening | Bracket | Screw spacing |
+| --- | --- | --- | --- | --- |
+| `stl/u-bracket-52mm.stl` | 52.00 × 33.25 | 53.00 × 33.75 | 95.00 W × 38.75 H | 79.00 mm |
+| `stl/u-bracket-56mm.stl` | 56.00 × 33.25 | 57.00 × 33.75 | 99.00 W × 38.75 H | 83.00 mm |
+
+![56 mm bracket](svg/u-bracket-56mm.png)
+
+Everything else is shared between the two:
 
 | | |
 | --- | --- |
-| Opening | 53.00 W × 33.75 H mm |
-| Adapter it fits | 52.00 × 33.25 mm |
-| Bracket overall | 95.00 W × 38.75 H × 25 mm deep |
-| Screw spacing | 79.00 mm, 2 per bracket |
+| Band (depth along the adapter) | 25 mm |
+| Wall / floor | 5 mm |
+| Flanges | 16 × 4 mm, 1 screw each |
 | Cable-tie loop | hangs 8 mm below, 6 × 5 mm opening, 18 mm tunnel |
 | Hangs below the bench | 46.75 mm |
 | Each bracket | ~17 g, ~30 min |
 
+The **56 mm** version only changes the width — same 33.25 mm thickness, since
+that wasn't called out as different. If the wider brick is also a different
+thickness, `BRICK_H` is one line.
+
+Adding another size is one number: put it in `WIDTHS` at the top of
+`src/u_bracket.py` and re-run. Every width comes out of a single run, so the
+52 mm file cannot drift while you're editing for a new one.
+
 ## Clearance — read this before printing
 
-The opening is **0.5 mm per side wider** than the 52 × 33.25 you gave me,
-because those are the adapter's own measurements. A 52.00 mm opening will not
-accept a 52.00 mm adapter.
+Each opening is **0.5 mm per side wider** than the size given, because those
+are the adapter's own measurements. A 52.00 mm opening will not accept a
+52.00 mm adapter.
 
-If 52 × 33.25 was already the opening you wanted rather than the brick itself,
+If a number was already the opening you wanted rather than the brick itself,
 set `CLR_W` and `CLR_H` to 0 in `src/u_bracket.py` and re-run.
 
 ## Cable-tie loop
@@ -63,7 +79,7 @@ vertical wall. **No supports.** 0.2 mm layers, 4 walls, 20 % infill.
 ## Fitting
 
 1. Position the two brackets along the adapter — roughly 1/4 and 3/4 of its
-   128 mm length, clear of both cable exits.
+   length, clear of both cable exits.
 2. Hold them to the bench underside, mark the four holes, drill 3 mm pilots.
 3. **Check screw length against the bench top thickness** before driving. #8
    pan head, long enough to bite but not to punch through the work surface.
