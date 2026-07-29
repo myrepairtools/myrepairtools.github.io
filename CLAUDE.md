@@ -547,7 +547,17 @@ serves live cpr.parts price/availability (our account's cost) through a 30-min
 `ms_products` cache (authenticated read): order rows show cost + a red
 "MS out of stock" pill, and a **part-group's order SKU auto-picks the cheapest
 IN-STOCK member** (★ default = tiebreak/fallback; member rows show per-SKU
-price + MS stock). Cross-store transfer chips were built then removed at the
+price + MS stock). The **`sync_catalog` action** refreshes `ms_catalog` — the
+Part Groups member-search source (`consumption-report.html` searches it on
+sku/name) — from the live cpr.parts product catalog: newest-first
+(`order=entity_id desc`), upserting **sku + name only** so the curated
+make/model/quality on already-known SKUs (from the original 2026-06-18 bulk
+import) is preserved while new parts get added. Incremental by default (stops
+after 2 pages with no new SKUs); `full:true` + `page`/`pages` does a chunked
+full pass (each page ~4.6s, so a full 33k+ pass is driven in chunks, never one
+call — the worker resource limit kills a continuous multi-minute run). Cron
+`ms-catalog-sync-weekly` (Mon 2:40a PT, NOTIFY_SECRET). Before this, ms_catalog
+was a frozen June import and new SKUs never autocompleted. Cross-store transfer chips were built then removed at the
 owner's request (2026-07-22) — don't resurrect without asking. **QBO booking from MS orders is deliberately NOT
 built** — the owner will drive that step-by-step; never auto-post to QBO from
 MS data without explicit direction (docs/mobilesentrix-pipeline.md).

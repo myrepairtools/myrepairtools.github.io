@@ -209,5 +209,63 @@ Deno.serve(async (req) => {
     return json({ products: skus.map((s) => have.get(s)).filter(Boolean) });
   }
 
+  // Refresh ms_catalog (the Part Groups search source) from the live cpr.parts
+  // catalog so new SKUs show up. Pages the Magento products endpoint using any
+  // connected store's token (the catalog is account-wide). Upserts sku + name +
+  // updated_at ONLY — so the richer make/model/quality on already-known SKUs
+  // (from the original bulk import) is preserved, while new parts get added.
+  // Resumable: does pages until a time budget, returns next_page.
+  //   POST { action:'sync_catalog', secret }        (NOTIFY_SECRET — cron)
+  //   POST { action:'sync_catalog', page?, pages? }  (admin/owner JWT — manual)
+  if (action === "sync_catalog") {
+    const bySecret = !!NOTIFY_SECRET && body.secret === NOTIFY_SECRET;
+    if (!bySecret) {
+      const staff = await getStaff(req);
+      if (!staff || !["admin", "owner"].includes(String(staff.role))) return json({ error: "forbidden" }, 403);
+    }
+    if (!MS_KEY || !MS_SECRET) return json({ error: "not_configured" }, 503);
+    const { data: toks } = await admin.from("integration_tokens")
+      .select("access_token, meta").like("provider", "ms:%").limit(1);
+    const t = toks?.[0];
+    if (!t) return json({ error: "no_stores_connected" }, 503);
+    const tokSecret = t.meta?.access_token_secret || "";
+
+    // Incremental by default: page newest-first (entity_id desc) and STOP once we
+    // reach the known June catalog — every SKU on a page already exists. `full:true`
+    // does a complete pass (chunk it with `page`/`pages`). The base 33k is already
+    // loaded; ongoing refresh only needs the handful of new SKUs at the top.
+    const full = body.full === true;
+    const started = Date.now();
+    const budgetMs = 45_000;                          // stay well under the worker limit
+    let page = Math.max(1, Number(body.page) || 1);
+    const maxPages = Number(body.pages) || (full ? 100000 : 60);
+    let upserted = 0, added = 0, pagesDone = 0, dryPages = 0;
+    let done = false;
+    while (pagesDone < maxPages && Date.now() - started < budgetMs) {
+      const r = await fetch(`${MS_BASE}/api/rest/products?limit=100&page=${page}&order=entity_id&dir=desc`, {
+        headers: { Authorization: oauthHeader(t.access_token, tokSecret), Accept: "application/json" },
+      });
+      const txt = await r.text();
+      if (r.status === 401) return json({ ok: false, error: "auth", detail: txt.slice(0, 200) }, 502);
+      if (!r.ok) return json({ ok: false, error: `http_${r.status}`, page, upserted }, 502);
+      let obj: Record<string, any> = {};
+      try { obj = JSON.parse(txt) || {}; } catch { return json({ ok: false, error: "bad_json", page }, 502); }
+      const products = Object.values(obj);
+      if (!products.length) { done = true; break; }
+      const rows = products.map((p: any) => ({ sku: String(p.sku || "").trim(), name: p.name || null, updated_at: new Date().toISOString() }))
+        .filter((x) => x.sku);
+      // how many of this page's SKUs are NEW to us?
+      const { data: known } = await admin.from("ms_catalog").select("sku").in("sku", rows.map((x) => x.sku));
+      const knownSet = new Set((known || []).map((k: any) => k.sku));
+      const newOnPage = rows.filter((x) => !knownSet.has(x.sku)).length;
+      const w = await admin.from("ms_catalog").upsert(rows, { onConflict: "sku" });
+      if (w.error) return json({ ok: false, error: "db", detail: w.error.message, page, upserted }, 500);
+      upserted += rows.length; added += newOnPage; pagesDone++; page++;
+      if (products.length < 100) { done = true; break; }
+      if (!full) { dryPages = newOnPage === 0 ? dryPages + 1 : 0; if (dryPages >= 2) { done = true; break; } }  // reached the known catalog
+    }
+    return json({ ok: true, done, upserted, added, pages_done: pagesDone, next_page: done ? null : page });
+  }
+
   return json({ error: "unknown_action" }, 400);
 });
