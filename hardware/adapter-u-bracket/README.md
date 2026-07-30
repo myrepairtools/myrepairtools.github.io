@@ -6,13 +6,18 @@ flanges.
 
 **Print whichever width you need, twice.**
 
+Files are named **width × depth** — the adapter's own cross-section, not the
+opening. Depth is no longer the same on every size, and a file called just
+`76mm` sitting next to `66mm` is exactly how the wrong one gets printed.
+
 | File | Adapter | Opening | Bracket | Screw spacing |
 | --- | --- | --- | --- | --- |
-| `stl/u-bracket-52mm.stl` | 52.00 × 33.25 | 53.00 × 33.75 | 95.00 W × 38.75 H | 79.00 mm |
-| `stl/u-bracket-56mm.stl` | 56.00 × 33.25 | 57.00 × 33.75 | 99.00 W × 38.75 H | 83.00 mm |
-| `stl/u-bracket-66mm.stl` | 66.00 × 33.25 | 67.00 × 33.75 | 109.00 W × 38.75 H | 93.00 mm |
+| `stl/u-bracket-52x33.stl` | 52.00 × 33.25 | 53.00 × 33.75 | 95.00 W × 38.75 H | 79.00 mm |
+| `stl/u-bracket-56x33.stl` | 56.00 × 33.25 | 57.00 × 33.75 | 99.00 W × 38.75 H | 83.00 mm |
+| `stl/u-bracket-66x33.stl` | 66.00 × 33.25 | 67.00 × 33.75 | 109.00 W × 38.75 H | 93.00 mm |
+| `stl/u-bracket-76x25.stl` | 76.20 × 25.40 | 77.20 × 25.90 | 119.20 W × 30.90 H | 103.20 mm |
 
-![66 mm bracket](svg/u-bracket-66mm.png)
+![76 × 25 bracket](svg/u-bracket-76x25.png)
 
 Everything else is shared between the two:
 
@@ -25,17 +30,21 @@ Everything else is shared between the two:
 | Hangs below the bench | 46.75 mm |
 | Each bracket | ~17 g, ~30 min |
 
-The 56 mm and 66 mm versions only change the width — same 33.25 mm thickness,
-since that wasn't called out as different. If a wider brick is also a different
-thickness, `BRICK_H` is one line.
+**On the 76.2 × 25.4 (3" × 1"):** I read "deep" as the adapter's other
+cross-section dimension — how deep it sits in the U — matching how the earlier
+sizes were given as width × thickness. So that one's U is 25.9 mm deep instead
+of 33.75, and the bracket only hangs 38.90 mm below the bench. If you actually
+meant the **band** (how far the strap wraps along the adapter, currently 25.0 mm
+on every size), say so — that's `BAND_W`, one line, and the U goes back to
+33.25.
 
-At 66 mm the floor spans 67 mm unsupported between the legs. Still fine: 5 mm
-thick × 25 mm wide, it deflects about 0.04 mm under a half-pound adapter, so
-there's no need to thicken anything.
+At 76.2 mm the floor spans 77.2 mm unsupported between the legs. Still fine:
+5 mm thick × 25 mm wide, it deflects about 0.06 mm under a half-pound adapter,
+so there's no need to thicken anything.
 
-Adding another size is one number: put it in `WIDTHS` at the top of
-`src/u_bracket.py` and re-run. Every width comes out of a single run, so the
-52 mm file cannot drift while you're editing for a new one.
+Adding another size is one line: put `(width, depth)` in `SIZES` at the top of
+`src/u_bracket.py` and re-run. Every size comes out of a single run, so the
+files you've already printed cannot drift while you're editing for a new one.
 
 ## Clearance — read this before printing
 

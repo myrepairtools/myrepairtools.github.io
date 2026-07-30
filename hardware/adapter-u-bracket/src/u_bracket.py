@@ -21,9 +21,9 @@ Cross-section, as installed:
 Prints flat: the cross-section lies on the bed, so every face is a vertical
 wall. No supports.
 
-WIDTHS is the list of adapter widths to build -- one STL per entry.  Only the
-width changes between them; everything else (height, wall, flanges, tie loop)
-is shared, so a new size is one number.
+SIZES is the list of adapter cross-sections to build -- one STL per entry, as
+(width across the bracket, depth into the U).  Everything else (wall, band,
+flanges, tie loop) is shared, so a new size is one line.
 
 Run:  python3 u_bracket.py
 """
@@ -35,13 +35,18 @@ import cadquery as cq
 from cadquery import exporters
 
 # ---------------------------------------------------------------------------
-# The adapters.  Width across the bracket; thickness is the same for both.
+# The adapters.  (width across the bracket, depth into the U) -- both are the
+# adapter's OWN cross-section, not the opening.
 # ---------------------------------------------------------------------------
-WIDTHS  = [52.00, 56.00, 66.00]
-BRICK_H = 33.25    # thickness of the adapter
+SIZES = [
+    (52.00, 33.25),
+    (56.00, 33.25),
+    (66.00, 33.25),
+    (76.20, 25.40),   # 3" x 1"
+]
 
-# Clearance.  The widths above are the adapter's own measurements, so the
-# opening has to be bigger or it will not go in.  If a width is already the
+# Clearance.  The sizes above are the adapter's own measurements, so the
+# opening has to be bigger or it will not go in.  If a size is already the
 # opening you want, set these to 0 and re-run.
 CLR_W = 0.50       # per side
 CLR_H = 0.50       # total, at the top
@@ -81,7 +86,7 @@ assert TIE_LOOP_Y + 2 * TIE_LEG < BAND_W, "tie loop wider than the band"
 assert TIE_LOOP_Z >= 4.0, "tie loop opening too shallow to thread"
 
 
-def spec(brick_w, brick_h=BRICK_H):
+def spec(brick_w, brick_h):
     """Everything derived from one adapter size."""
     d = SimpleNamespace(brick_w=brick_w, brick_h=brick_h)
     d.open_w = brick_w + 2 * CLR_W
@@ -89,9 +94,13 @@ def spec(brick_w, brick_h=BRICK_H):
     d.w = d.open_w + 2 * WALL + 2 * FLANGE_L     # overall width
     d.h = WALL + d.open_h                        # overall height
     d.screw_x = d.open_w / 2 + WALL + FLANGE_L / 2
-    d.tag = f"{brick_w:g}mm"
+    # Both numbers in the name.  Depth is no longer the same on every size, and
+    # a file called just "76mm" sitting next to "66mm" is exactly how the wrong
+    # one gets printed.
+    d.tag = f"{round(brick_w)}x{round(brick_h)}"
 
     assert FLANGE_T <= d.h, "flange thicker than the bracket is tall"
+    assert FLANGE_T + WALL < d.h, "no leg left between the floor and the flange"
     assert TIE_LOOP_X < d.open_w, "tie loop wider than the inside of the U"
     assert d.w < 250, f"bracket {d.w:.0f} mm wide -- will not fit the bed"
     return d
@@ -189,8 +198,8 @@ if __name__ == "__main__":
     print(f"tie loop  {TIE_LOOP_X:.0f} mm tunnel, opening "
           f"{TIE_LOOP_Y:.0f} x {TIE_LOOP_Z:.0f} mm, hangs {TIE_DROP:.0f} mm below")
 
-    for bw in WIDTHS:
-        d = spec(bw)
+    for bw, bh in SIZES:
+        d = spec(bw, bh)
         part = bracket(d)
         name = f"u-bracket-{d.tag}"
         exporters.export(print_ready(part),
