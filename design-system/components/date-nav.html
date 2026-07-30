@@ -1,0 +1,166 @@
+<!-- @dsCard group="Components" name="Date Navigator" subtitle="cpr-navbox + navjump, week / month / day pickers" width="1100" height="700" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPR · Date Navigator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Brand book 2.1 — logo colors */
+  --red:#DC282E;            /* Red Logo · Pantone 186C */
+  --dark-grey:#4E4E50;      /* Dark Grey · Pantone Black 7C */
+  /* Brand book 2.1 — color theme */
+  --light-red:#F15F5E;
+  --blue:#4FB0E3;           /* Light Blue */
+  --dark:#2D2D3B;           /* Blue Dark — primary text */
+  --grey:#B9BDCB;
+  --light-grey:#F3F2F2;
+  --white:#fff;
+  /* Web extensions (not in the book — needed for UI states) */
+  --border:#E0E2EA;
+  --green:#2E9E5B;
+  --amber:#C98A00;
+  --ring:0 0 0 3px rgba(79,176,227,.15);
+  --shadow:0 1px 3px rgba(45,45,59,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark);
+  -webkit-font-smoothing:antialiased}
+.pg{max-width:1080px;margin:0 auto;padding:28px 28px 64px}
+.ph{margin-bottom:22px}
+.unit{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--red);margin-bottom:4px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.2px}
+.lede{color:var(--dark-grey);font-size:.86rem;font-weight:600;margin-top:5px;max-width:62ch;line-height:1.5}
+section{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px;
+  box-shadow:var(--shadow)}
+h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
+.sh{color:var(--dark-grey);font-size:.79rem;font-weight:700;margin:2px 0 14px;line-height:1.45}
+h3{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--dark-grey);margin:18px 0 9px}
+h2+h3,.sh+h3,h2+.row,h2+.stack,h2+.tiles{margin-top:13px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78em;background:var(--light-grey);
+  border-radius:5px;padding:1px 5px;color:var(--dark)}
+.note{font-size:.76rem;font-weight:700;color:var(--dark-grey);background:#F6F7F9;border-left:3px solid var(--blue);
+  border-radius:0 8px 8px 0;padding:9px 12px;margin-top:14px;line-height:1.5}
+.note.warn{border-left-color:var(--amber);background:#FDF6E3;color:#7A5B10}
+.note b{color:var(--dark)}
+.note.warn b{color:#5E460C}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.stack{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+
+.cpr-navbox{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border);
+  border-radius:10px;overflow:hidden}
+.cpr-navbox>button{font-family:'Nunito',sans-serif;font-weight:800;border:none;background:#fff;padding:8px 12px;
+  cursor:pointer;font-size:.9rem;color:var(--dark);line-height:1.15}
+.cpr-navbox>button:disabled{color:var(--grey);cursor:default}
+.cpr-navbox>.lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;padding:8px 14px;
+  border-left:1px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;background:#fff;
+  border-top:none;border-bottom:none;cursor:pointer}
+.cpr-navjump{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:1px solid var(--border);
+  background:#fff;color:var(--dark);border-radius:10px;padding:8px 14px;cursor:pointer;line-height:1.15}
+.cpr-navjump:hover{border-color:var(--blue);color:var(--blue)}
+.pop{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 32px rgba(45,45,59,.14);
+  padding:12px;width:266px}
+.pophd{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.pophd .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:.86rem;flex:1;text-align:center}
+.pophd button{border:none;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;
+  color:var(--dark-grey);cursor:pointer;padding:2px 7px}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:3px}
+.dow span{text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;
+  color:var(--grey)}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.days button{border:none;background:none;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;
+  color:var(--dark);padding:6px 0;border-radius:7px;cursor:pointer}
+.days button:hover{background:var(--light-grey)}
+.days button.oth{color:var(--grey)}
+.days button.sel{background:var(--blue);color:#fff}
+.days button.wk{background:#EAF5FB}
+.days button:disabled{color:#DCDEE6;cursor:default;background:none}
+.jump{width:100%;margin-top:9px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:none;
+  background:var(--light-grey);color:var(--dark);border-radius:8px;padding:7px;cursor:pointer}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.mgrid button{border:none;background:var(--light-grey);font-family:'Nunito',sans-serif;font-weight:800;
+  font-size:.76rem;color:var(--dark);padding:9px 0;border-radius:8px;cursor:pointer}
+.mgrid button.sel{background:var(--blue);color:#fff}
+.mgrid button:disabled{color:var(--grey);background:#F8F8F9;cursor:default}
+.pops{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+</style>
+</head>
+<body>
+<div class="pg">
+  <div class="ph">
+    <div class="unit">Components</div>
+    <h1>Date Navigator</h1>
+    <p class="lede">The house period control. One joined white box: back arrow, clickable label, forward arrow — no caret. The label opens a calendar popover; arrow-stepping alone is never enough.</p>
+  </div>
+
+  <section>
+    <h2>The Navigator</h2>
+    <p class="sh">One joined box, segments split by 1px borders. The “Today / This Week / This Month” jump pill renders <b>only</b> when you are looking at a non-current period — it is the way back, not decoration.</p>
+    <h3>Current period — no jump pill</h3>
+    <div class="row"><div class="cpr-navbox"><button>‹</button><button class="lbl">July 2026</button><button>›</button></div></div>
+    <h3>Past period — jump pill appears</h3>
+    <div class="row"><div class="cpr-navbox"><button>‹</button><button class="lbl">Mar 2026</button><button>›</button></div>
+      <button class="cpr-navjump">This Month</button></div>
+    <h3>Week variant, forward limit reached</h3>
+    <div class="row"><div class="cpr-navbox"><button>‹</button><button class="lbl">Jul 27 – Aug 2</button><button disabled>›</button></div>
+      <button class="cpr-navjump">This Week</button></div>
+    <div class="note"><b>Do not restyle locally.</b> <code>.cpr-navbox</code> and <code>.cpr-navjump</code> are injected by <code>assets/pickers.js</code>. Load the script and use the classes.</div>
+  </section>
+
+  <section>
+    <h2>Popovers</h2>
+    <p class="sh">Opened by clicking the label. Week mode highlights the whole row; day mode selects one date; month mode pages by year. Out-of-range periods grey out rather than disappearing.</p>
+    <div class="pops">
+      <div>
+        <h3 style="margin-top:0">Week</h3>
+        <div class="pop">
+          <div class="pophd"><button>‹</button><span class="t">July 2026</span><button>›</button></div>
+          <div class="dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+          <div class="days">
+            <button class="oth">28</button><button class="oth">29</button><button class="oth">30</button><button>1</button><button>2</button><button>3</button><button>4</button>
+            <button>5</button><button>6</button><button>7</button><button>8</button><button>9</button><button>10</button><button>11</button>
+            <button>12</button><button>13</button><button>14</button><button>15</button><button>16</button><button>17</button><button>18</button>
+            <button>19</button><button>20</button><button>21</button><button>22</button><button>23</button><button>24</button><button>25</button>
+            <button class="wk">26</button><button class="wk">27</button><button class="wk">28</button><button class="wk">29</button><button class="wk">30</button><button class="wk">31</button><button class="wk oth">1</button>
+          </div>
+          <button class="jump">Jump to this week</button>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-top:0">Day</h3>
+        <div class="pop">
+          <div class="pophd"><button>‹</button><span class="t">July 2026</span><button>›</button></div>
+          <div class="dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+          <div class="days">
+            <button class="oth" disabled>28</button><button class="oth" disabled>29</button><button class="oth" disabled>30</button><button>1</button><button>2</button><button>3</button><button>4</button>
+            <button>5</button><button>6</button><button>7</button><button>8</button><button>9</button><button>10</button><button>11</button>
+            <button>12</button><button>13</button><button>14</button><button>15</button><button>16</button><button>17</button><button>18</button>
+            <button>19</button><button>20</button><button>21</button><button>22</button><button>23</button><button>24</button><button>25</button>
+            <button>26</button><button>27</button><button>28</button><button>29</button><button class="sel">30</button><button disabled>31</button><button class="oth" disabled>1</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-top:0">Month</h3>
+        <div class="pop" style="width:222px">
+          <div class="pophd"><button>‹</button><span class="t">2026</span><button>›</button></div>
+          <div class="mgrid">
+            <button>Jan</button><button>Feb</button><button>Mar</button>
+            <button>Apr</button><button>May</button><button>Jun</button>
+            <button class="sel">Jul</button><button disabled>Aug</button><button disabled>Sep</button>
+            <button disabled>Oct</button><button disabled>Nov</button><button disabled>Dec</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note warn"><b>Gotcha.</b> <code>CPRPickers.month()</code> opens immediately when called — wire it to the label’s <code>onclick</code>, never at render time.</div>
+  </section>
+</div>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!-- @dsCard group="Patterns" name="Mobile Shell" subtitle="Bottom tab bar, cards over tables, sheets, safe areas" width="1100" height="780" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPR · Mobile Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Brand book 2.1 — logo colors */
+  --red:#DC282E;            /* Red Logo · Pantone 186C */
+  --dark-grey:#4E4E50;      /* Dark Grey · Pantone Black 7C */
+  /* Brand book 2.1 — color theme */
+  --light-red:#F15F5E;
+  --blue:#4FB0E3;           /* Light Blue */
+  --dark:#2D2D3B;           /* Blue Dark — primary text */
+  --grey:#B9BDCB;
+  --light-grey:#F3F2F2;
+  --white:#fff;
+  /* Web extensions (not in the book — needed for UI states) */
+  --border:#E0E2EA;
+  --green:#2E9E5B;
+  --amber:#C98A00;
+  --ring:0 0 0 3px rgba(79,176,227,.15);
+  --shadow:0 1px 3px rgba(45,45,59,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark);
+  -webkit-font-smoothing:antialiased}
+.pg{max-width:1080px;margin:0 auto;padding:28px 28px 64px}
+.ph{margin-bottom:22px}
+.unit{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--red);margin-bottom:4px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.2px}
+.lede{color:var(--dark-grey);font-size:.86rem;font-weight:600;margin-top:5px;max-width:62ch;line-height:1.5}
+section{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px;
+  box-shadow:var(--shadow)}
+h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem}
+.sh{color:var(--dark-grey);font-size:.79rem;font-weight:700;margin:2px 0 14px;line-height:1.45}
+h3{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--dark-grey);margin:18px 0 9px}
+h2+h3,.sh+h3,h2+.row,h2+.stack,h2+.tiles{margin-top:13px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78em;background:var(--light-grey);
+  border-radius:5px;padding:1px 5px;color:var(--dark)}
+.note{font-size:.76rem;font-weight:700;color:var(--dark-grey);background:#F6F7F9;border-left:3px solid var(--blue);
+  border-radius:0 8px 8px 0;padding:9px 12px;margin-top:14px;line-height:1.5}
+.note.warn{border-left-color:var(--amber);background:#FDF6E3;color:#7A5B10}
+.note b{color:var(--dark)}
+.note.warn b{color:#5E460C}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.stack{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+
+.ph2{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.dev{width:290px;flex:none;border:1px solid var(--border);border-radius:22px;overflow:hidden;background:#fff;
+  box-shadow:0 8px 28px rgba(45,45,59,.1)}
+.notch{height:22px;background:#fff;display:flex;align-items:center;justify-content:center}
+.notch span{width:78px;height:5px;border-radius:999px;background:#E4E6EE}
+.dtop{height:44px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;padding:0 12px}
+.dtop .bg{font-family:'Nunito',sans-serif;font-weight:900;font-size:.78rem}
+.dtop .sp{flex:1}
+.dtop .ib{width:26px;height:26px;display:flex;align-items:center;justify-content:center;position:relative}
+.dtop .ib svg{width:16px;height:16px;fill:none;stroke:var(--dark-grey);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dtop .bdg{position:absolute;top:-1px;right:-2px;min-width:13px;height:13px;border-radius:999px;background:var(--red);
+  color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.5rem;display:flex;align-items:center;justify-content:center}
+.dtop .av{width:25px;height:25px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:.58rem}
+.dbody{height:326px;overflow:hidden;background:var(--light-grey);padding:13px 12px}
+.dbody h4{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:11px}
+.mc{background:#fff;border:1px solid var(--border);border-radius:12px;padding:11px 12px;margin-bottom:8px;
+  box-shadow:var(--shadow)}
+.mc .r1{display:flex;align-items:center;gap:8px}
+.mc .nm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem}
+.mc .pill{margin-left:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;
+  letter-spacing:.4px;border-radius:999px;padding:3px 8px;background:#E9F5FC;color:#2E7CA6}
+.mc .pill.g{background:#E7F6EE;color:var(--green)}
+.mc .kv{display:flex;gap:14px;margin-top:7px}
+.mc .kv div{flex:1}
+.mc .k{font-family:'Nunito',sans-serif;font-weight:800;font-size:.53rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey)}
+.mc .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:.86rem;margin-top:1px}
+.mc .act{display:flex;gap:7px;margin-top:9px}
+.mc .act a{flex:1;text-align:center;min-height:38px;display:flex;align-items:center;justify-content:center;
+  border:1.5px solid var(--border);border-radius:9px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;
+  color:var(--dark);text-decoration:none}
+.bb{height:54px;border-top:1px solid var(--border);background:#fff;display:flex;align-items:center}
+.bb div{flex:1;text-align:center}
+.bb svg{width:19px;height:19px;fill:none;stroke:var(--grey);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.bb .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.53rem;color:var(--grey);margin-top:2px}
+.bb .on svg{stroke:var(--red)}.bb .on .l{color:var(--red)}
+.safe{height:16px;background:#fff}
+.fab{position:absolute;right:12px;bottom:78px;width:42px;height:42px;border-radius:50%;background:var(--dark);
+  display:flex;align-items:center;justify-content:center;box-shadow:0 5px 16px rgba(45,45,59,.3)}
+.fab svg{width:19px;height:19px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rel{position:relative}
+.rules{flex:1;min-width:280px}
+.rl{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;font-size:.78rem;
+  font-weight:700;color:var(--dark-grey);line-height:1.5}
+.rl b{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.65rem;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--dark);margin-bottom:3px}
+.bp{display:flex;gap:9px;flex-wrap:wrap}
+.bpc{border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:150px}
+.bpc .w{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;font-weight:700;color:var(--blue)}
+.bpc .d{font-size:.73rem;font-weight:700;color:var(--dark-grey);margin-top:3px;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="pg">
+  <div class="ph">
+    <div class="unit">Patterns</div>
+    <h1>Mobile Shell</h1>
+    <p class="lede">Below 860px the site behaves like a native app. Below 480px tables become cards and modals become bottom sheets. Installed to the home screen, it must respect iOS safe areas.</p>
+  </div>
+
+  <section>
+    <h2>App Shell</h2>
+    <div class="ph2">
+      <div class="dev rel">
+        <div class="notch"><span></span></div>
+        <div class="dtop"><span class="bg">Bookings</span><span class="sp"></span>
+          <span class="ib"><svg viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span class="bdg">3</span></span>
+          <span class="av">BB</span></div>
+        <div class="dbody">
+          <h4>Wednesday, Jul 30</h4>
+          <div class="mc">
+            <div class="r1"><span class="nm">Jordan Blake</span><span class="pill">Booked</span></div>
+            <div class="kv"><div><div class="k">Time</div><div class="v">10:30 AM</div></div>
+              <div><div class="k">Host</div><div class="v">Britt</div></div></div>
+            <div class="act"><a href="#">Call</a><a href="#">Email</a><a href="#">Manage</a></div>
+          </div>
+          <div class="mc">
+            <div class="r1"><span class="nm">Sam Ortiz</span><span class="pill g">Completed</span></div>
+            <div class="kv"><div><div class="k">Time</div><div class="v">9:00 AM</div></div>
+              <div><div class="k">Host</div><div class="v">Alex</div></div></div>
+          </div>
+        </div>
+        <div class="fab"><svg viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></svg></div>
+        <div class="bb">
+          <div class="on"><svg viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div class="l">Home</div></div>
+          <div><svg viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg><div class="l">Tasks</div></div>
+          <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l3.5 2"/></svg><div class="l">My Time</div></div>
+          <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg><div class="l">Commission</div></div>
+          <div><svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg><div class="l">More</div></div>
+        </div>
+        <div class="safe"></div>
+      </div>
+
+      <div class="rules">
+        <div class="rl"><b>Bottom tab bar</b>Home · Tasks · My Time · Commission · More. Fixed, safe-area padded, with a pinned <code>view-transition-name</code>. “More” opens the slide-in menu and replaces the hamburger.</div>
+        <div class="rl"><b>Fixed footers</b><code>--cpr-bb-h</code> is 0 on desktop and the bar height on mobile. Any page with its own fixed footer must sit at <code>bottom: var(--cpr-bb-h, 0px)</code>.</div>
+        <div class="rl"><b>Safe areas</b>Standalone installs get <code>html.mrt-standalone</code> and <code>--cpr-top-h</code> grows by <code>env(safe-area-inset-top)</code> so the iOS status bar never crowds the top bar.</div>
+        <div class="rl"><b>Tap targets</b>44px minimum on every mobile action. Phone numbers and emails are <code>tel:</code> / <code>mailto:</code> links, not plain text.</div>
+        <div class="rl"><b>Square button</b>Hides on mobile; it lives as a row under More instead.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Breakpoints</h2>
+    <div class="bp">
+      <div class="bpc"><div class="w">≥ 1000px</div><div class="d">Dense ledger layouts. Label→value rows instead of stacked cards.</div></div>
+      <div class="bpc"><div class="w">&lt; 860px</div><div class="d">App mode: bottom tab bar replaces the hamburger; assistant chat becomes a full-screen sheet.</div></div>
+      <div class="bpc"><div class="w">&lt; 720px</div><div class="d">Calendars compress; chips shrink; grids collapse to one or two columns.</div></div>
+      <div class="bpc"><div class="w">&lt; 480px</div><div class="d">Tables reflow to cards; modals become bottom sheets; status pills become the action trigger.</div></div>
+    </div>
+    <div class="note"><b>Card-over-table.</b> Below 480px a data table does not scroll horizontally — it becomes one card per row, with the two or three fields that matter and 44px actions. Hide the rest.</div>
+  </section>
+</div>
+</body>
+</html>
