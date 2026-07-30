@@ -2029,7 +2029,12 @@ Deno.serve(async (req) => {
         { key: "express_repairs", q: { element_id: "11205", result_maker_id: "30880", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "EXPRESS-0001", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
         { key: "device_cleanings", q: { element_id: "11206", result_maker_id: "30882", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "DEVICECLEAN", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
         { key: "akko_plan_sales", q: { element_id: "11207", result_maker_id: "30881", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "AKKOPLAN,AKKOPLAN5,AKKOPLAN8,AKKOPLAN11", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
-        { key: "device_sales_today", q: { element_id: "12352", result_maker_id: "31223", sorts: [], filters: [{}, {}] } },
+        // Merged result (2 source queries) — the saved query 31223 was baked
+        // Eugene-only, so Salem/Clackamas device sales never surfaced. Pass an
+        // explicit all-stores location filter to BOTH source queries (the merge
+        // requires filters.length === source-query count); the "today" date
+        // filter persists from the saved query.
+        { key: "device_sales_today", q: { element_id: "12352", result_maker_id: "31223", sorts: [], filters: [{ "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }, { "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }] } },
       ];
       // capture_date = "today" in America/Los_Angeles (the stores' timezone)
       const laDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
