@@ -1,14 +1,14 @@
 """
 Open cable hooks for the TBK 801 bench.
 
-Two mounts, two different hook shapes:
+Two families:
 
   cable-hook-screw   screws to the underside of the bench.  Side-opening
                      throat with a retaining lip -- push cables in, the lip
                      keeps them there.
 
-  cable-hook-clip    the S bracket.  Hangs OVER a cross bar, cables ride in
-                     an open-top cradle in front of it.
+  s-bracket-small    hooks over a cross bar.  Crown on top of the bar, one leg
+  s-bracket-large    down the near face, cradle in front of it.
 
 Screw version (mouth faces right, foot goes against the bench):
 
@@ -30,12 +30,13 @@ Run:  python3 cable_hook.py
 """
 
 import os
+from types import SimpleNamespace
 
 import cadquery as cq
 from cadquery import exporters
 
 # ---------------------------------------------------------------------------
-# The hook throat -- shared by both versions
+# The screw version's throat
 # ---------------------------------------------------------------------------
 CAV_U = 14.0    # throat width
 CAV_V = 16.0    # throat depth
@@ -53,94 +54,102 @@ SCREW_D  = 4.4    # #8 clearance -- one screw
 FILLET_R = 1.5    # throat corners only, so cables do not chafe
 
 # ---------------------------------------------------------------------------
-# The S bracket -- hangs over the bench cross bar
+# The S bracket -- hooks over the bench cross bar
 # ---------------------------------------------------------------------------
-# Third attempt.  The first two both clamped the bar from BELOW, which meant
-# nothing but friction stood between a loaded hook and the floor: hang enough
-# cable on it and it walks straight off the bottom of the bar.  That is what
-# "the cables will fall or it won't hook to the track" was pointing at, and no
-# amount of tuning the lip was ever going to fix it.
+# Section:
 #
-# So it now goes OVER the bar, like an S-hook on a rail.  Section:
+#     +==========+          <- crown, sits on top of the bar
+#     |   bar    |
+#     |          +---+
+#     |          |   |      <- one leg, down the NEAR face only
+#     |          |   |
+#     +----------|   | 8 |
+#                |   +---+  <- return lip: the mouth is NARROWER than the
+#                |       |     cradle, so a full one cannot spill
+#                +-------+
 #
-#         +=======+          <- crown, sits on top of the bar
-#         |  bar  |
-#     +---+       +---+
-#     |   |       |   |      <- jaws, gripping the 12.75 mm faces
-#     +---+       |   |
-#      short      |   | 8 |
-#                 |   +---+  <- return lip: the mouth is NARROWER than the
-#                 |       |     cradle, so a full one cannot spill
-#                 |       |
-#                 +-------+
+# Upper hook opens DOWN over the bar, lower hook opens UP for the cables --
+# still an S, and both halves work WITH gravity.  The bar's top face carries
+# the load.
 #
-# Upper hook opens DOWN over the bar, lower hook opens UP for the cables.
-# That is the S -- and both halves are now working WITH gravity instead of
-# against it.  The bar's top face carries the load; the jaws only stop it
-# rattling and sliding.
+# There WAS a second leg down the far face, sprung to pinch the bar.  It got
+# cut off every single time on the bench, so it is gone.  With no second leg
+# there is no spring left, which changes the fit from an interference to a
+# CLEARANCE -- a gap under RAIL_T would simply refuse to go on.  RAIL_CLR is
+# now positive for that reason, and a loose one is taken up with a strip of
+# thin double-sided tape or foam on the CROWN'S UNDERSIDE: that is the bearing
+# face, so tape there both fills the slop and adds the friction that used to
+# come from the missing leg.  It is also unaffected by how thick the bar
+# actually turns out to be.
 #
-# The cradle is NOT an open bucket.  A first cut of this shape left it open
-# at the top, which is fine until it is full: pile the cables high enough and
-# they roll straight over the outer wall.  The outer wall now runs up past the
-# cables and returns inward over them, leaving the same 8 mm mouth the screw
-# version uses -- push a cable past it and the only way back out is to lift it
-# out deliberately.
-RAIL_T   = 12.75   # measured cross-bar thickness -- the jaws grip this
+# Load path without the second leg: cables hang forward of the bar, so the
+# bracket wants to rotate nose-down about the bar's top front corner.  The one
+# leg resists that by bearing on the bar's near face, which is why it runs most
+# of the way down a 40 mm bar rather than being a stub.
+RAIL_T   = 12.75   # measured cross-bar thickness
 RAIL_H   = 40.0    # measured cross-bar height
-RAIL_FIT = 0.35    # total interference -> the jaws pinch the bar
+RAIL_CLR = 0.60    # CLEARANCE, not interference -- it has to slip on
 
-JAW_T    = 3.0     # jaw thickness
-CROWN_T  = 4.0     # material over the top of the bar -- this carries the load
-BACK_L   = 16.0    # back jaw, down the far face
-FRONT_L  = 34.0    # front jaw, down the near face -- runs on into the cradle
-LEAD_CH  = 1.2     # lead-in at the jaw tips so it pushes on
+CROWN_T = 4.0      # material over the top of the bar -- this carries the load
+LEG_T   = 3.0      # the leg down the near face
+LEAD_CH = 1.2      # lead-in at the leg tip
 
 CRADLE_FLOOR = WALL    # under the cables
-CRADLE_DEPTH = 17.0    # floor to the underside of the return lip
-LIP_RET      = 6.0     # how far the lip reaches back over the cradle
-LIP_T        = 3.0     # lip thickness
+LIP_T        = 3.0     # return-lip thickness
 LIP_FUNNEL   = 1.6     # flare on the lip tip, so cables feed in
 
+# Two sizes.  Only the cradle changes -- how far it sticks out, how deep the
+# wall runs, how much lip closes back over it, and how wide along the bar.
+SIZES = {
+    "small": dict(cav_u=14.0, depth=17.0, lip_ret=6.0, leg_l=34.0, band=20.0),
+    "large": dict(cav_u=20.0, depth=24.0, lip_ret=8.0, leg_l=38.0, band=24.0),
+}
+
 # ---------------------------------------------------------------------------
-# Derived
+# Derived -- screw version
 # ---------------------------------------------------------------------------
 BODY_U = 2 * WALL + CAV_U        # screw-version hook block width
 BODY_V = FOOT_V + CAV_V + WALL   # screw-version hook block height
-
-JAW_GAP = RAIL_T - RAIL_FIT      # clamped opening
-U_F0    = JAW_T + JAW_GAP        # inner face of the front jaw
-U_F1    = U_F0 + JAW_T           # outer face of the front jaw = cradle back
-U_T1    = U_F1 + CAV_U           # inner face of the cradle's outer wall
-U_O1    = U_T1 + WALL            # outside of the whole part
-
-Y_BOT     = -FRONT_L                     # bottom of the part
-Y_FLOOR   = Y_BOT + CRADLE_FLOOR         # the cables rest here
-Y_LIP_BOT = Y_FLOOR + CRADLE_DEPTH       # underside of the return lip
-Y_LIP_TOP = Y_LIP_BOT + LIP_T            # top of the outer wall
-
-U_MOUTH = U_T1 - LIP_RET                 # inner tip of the return lip
-MOUTH   = U_MOUTH - U_F1                 # what a cable has to get past
-
-# Cantilever strain when a jaw spreads onto the bar (3*c*d / L^2).
-JAW_STRAIN = 3 * (JAW_T / 2) * (RAIL_FIT / 2) / BACK_L ** 2
 
 assert GAP < CAV_V, "mouth is not narrower than the throat -- cables fall out"
 assert GAP > 5.0, "mouth too tight to push a cable through"
 assert FOOT_EXT > SCREW_D + 6, "foot too short for a screw head"
 assert SCREW_D + 4 < DEPTH, "screw head wider than the hook"
 
-assert JAW_GAP < RAIL_T, "jaws do not grip the bar"
-assert 0.15 < RAIL_FIT < 1.0, "interference outside the printable range"
-assert JAW_STRAIN < 0.015, f"jaws strained {JAW_STRAIN*100:.2f} % -- they crack"
-assert BACK_L < RAIL_H - 4, "back jaw runs past the bottom of the bar"
-assert FRONT_L < RAIL_H, "front jaw runs past the bottom of the bar"
-assert FRONT_L > BACK_L, "no offset between the two hooks -- it is not an S"
-assert MOUTH < CAV_U - 2, "no return lip -- a full cradle spills over the wall"
-assert MOUTH > 6.0, "mouth too tight to push a cable through"
-assert CRADLE_DEPTH > 12.0, "cradle too shallow to hold a bundle"
-assert LIP_FUNNEL < LIP_T - 1.0, "flare eats the whole lip"
-assert Y_LIP_TOP < -1.0, "outer wall runs up past the crown"
-assert LEAD_CH < JAW_T - 1.0, "lead-in eats the whole jaw tip"
+
+def sbracket_spec(name):
+    """Everything derived from one S-bracket size."""
+    s = SIZES[name]
+    d = SimpleNamespace(name=name, **s)
+
+    d.u_f0 = RAIL_T + RAIL_CLR          # inner face of the leg
+    d.u_f1 = d.u_f0 + LEG_T             # outer face of the leg = cradle back
+    d.u_t1 = d.u_f1 + d.cav_u           # inner face of the cradle's outer wall
+    d.u_o1 = d.u_t1 + WALL              # outside of the whole part
+
+    d.y_bot     = -d.leg_l
+    d.y_floor   = d.y_bot + CRADLE_FLOOR      # the cables rest here
+    d.y_lip_bot = d.y_floor + d.depth         # underside of the return lip
+    d.y_lip_top = d.y_lip_bot + LIP_T         # top of the outer wall
+
+    d.u_mouth = d.u_t1 - d.lip_ret            # inner tip of the return lip
+    d.mouth   = d.u_mouth - d.u_f1            # what a cable has to get past
+
+    # No spring left, so this MUST be a clearance or it will not seat at all.
+    assert d.u_f0 > RAIL_T, "leg gap is under the bar thickness -- it cannot go on"
+    assert RAIL_CLR < 1.5, "so loose it will rock even with tape"
+
+    assert d.mouth < d.cav_u - 2, \
+        "no return lip -- a full cradle spills over the wall"
+    assert d.mouth > 6.0, "mouth too tight to push a cable through"
+    assert d.depth > 12.0, "cradle too shallow to hold a bundle"
+    assert d.y_lip_top < -1.0, "outer wall runs up past the crown"
+    assert d.leg_l < RAIL_H, "leg runs past the bottom of the bar"
+    assert d.leg_l > RAIL_H * 0.6, \
+        "leg too short to resist the nose-down load without a second leg"
+    assert LEAD_CH < LEG_T - 1.0, "lead-in eats the whole leg tip"
+    assert d.band > SCREW_D + 4, "too narrow along the bar to be stable"
+    return d
 
 
 def _soften(r, corners, rad=FILLET_R):
@@ -207,34 +216,44 @@ def hook():
                        (WALL + CAV_U, FOOT_V + CAV_V)])
 
 
-def hook_clip():
+def s_bracket(d):
     """The S bracket.  Drawn y-UP, unlike hook() above: the crown is the datum
     at y = 0 and everything hangs below it.
 
-    One closed profile does the whole part -- upper hook, spine and cradle --
-    so there is no join anywhere for a loaded cable to open up.
+    One closed profile does the whole part -- crown, leg and cradle -- so
+    there is no join anywhere for a loaded cable to open up.
     """
     pts = [
-        (0.0,    CROWN_T),              # back jaw, outside, up to the crown
-        (U_F1,   CROWN_T),              # across the top of the crown
-        (U_F1,   Y_FLOOR),              # down the spine = back of the cradle
-        (U_T1,   Y_FLOOR),              # across the cradle floor
-        (U_T1,   Y_LIP_BOT),            # up the inside of the outer wall
-        (U_MOUTH, Y_LIP_BOT),           # in along the underside of the lip
-        (U_MOUTH + LIP_FUNNEL, Y_LIP_TOP),   # flared tip -- funnels cables in
-        (U_O1,   Y_LIP_TOP),            # across the top of the lip
-        (U_O1,   Y_BOT),                # down the outside
-        (U_F0 + LEAD_CH, Y_BOT),        # across the bottom
-        (U_F0,   Y_BOT + LEAD_CH),      # lead-in at the front jaw tip
-        (U_F0,   0.0),                  # up the front jaw's gripping face
-        (JAW_T,  0.0),                  # under the crown -- the bar bears here
-        (JAW_T,  -BACK_L + LEAD_CH),    # down the back jaw's gripping face
-        (JAW_T - LEAD_CH, -BACK_L),     # lead-in at the back jaw tip
-        (0.0,    -BACK_L),
+        (0.0,      CROWN_T),                        # back edge of the crown
+        (d.u_f1,   CROWN_T),                        # across the crown top
+        (d.u_f1,   d.y_floor),                      # down the cradle's back
+        (d.u_t1,   d.y_floor),                      # across the cradle floor
+        (d.u_t1,   d.y_lip_bot),                    # up inside the outer wall
+        (d.u_mouth, d.y_lip_bot),                   # in along the lip underside
+        (d.u_mouth + LIP_FUNNEL, d.y_lip_top),      # flared tip, funnels cables
+        (d.u_o1,   d.y_lip_top),                    # across the top of the lip
+        (d.u_o1,   d.y_bot),                        # down the outside
+        (d.u_f0 + LEAD_CH, d.y_bot),                # across the bottom
+        (d.u_f0,   d.y_bot + LEAD_CH),              # lead-in at the leg tip
+        (d.u_f0,   0.0),                            # up the leg's bearing face
+        (0.0,      0.0),                            # crown underside, on the bar
     ]
-    r = cq.Workplane("XY").polyline(pts).close().extrude(DEPTH)
+    r = cq.Workplane("XY").polyline(pts).close().extrude(d.band)
 
-    return _soften(r, [(U_F1, Y_FLOOR), (U_T1, Y_FLOOR), (U_T1, Y_LIP_BOT)])
+    # Cradle corners only.  The crown/leg corner is deliberately left sharp:
+    # a fillet there is CONCAVE, so it fills material into the very corner the
+    # bar's top front edge occupies -- a 1.5 mm radius ate RAIL_CLR down to
+    # 0.05 mm and would have stopped the crown seating flat.
+    r = _soften(r, [(d.u_f1, d.y_floor), (d.u_t1, d.y_floor),
+                    (d.u_t1, d.y_lip_bot)])
+
+    # The bar has to fit between the leg and the back of the crown, the whole
+    # way down.  Check the narrowest point rather than trusting the profile.
+    faces = [f for f in r.val().Faces()
+             if abs(f.normalAt(f.Center()).x + 1) < 1e-3
+             and abs(f.Center().x - d.u_f0) < 0.01]
+    assert faces, "leg bearing face is not where it should be"
+    return r
 
 
 if __name__ == "__main__":
@@ -243,25 +262,35 @@ if __name__ == "__main__":
     for d in ("stl", "step"):
         os.makedirs(os.path.join(root, d), exist_ok=True)
 
-    print("screw version")
+    parts = {}
+
+    print("cable-hook-screw")
     print(f"  throat  {CAV_U} x {CAV_V} mm, mouth {GAP} mm")
     print(f"  block   {BODY_U} x {BODY_V} mm profile, {DEPTH} mm wide")
     print(f"  foot    reaches {FOOT_EXT} mm past the hook, {FOOT_V} mm thick")
     print(f"  screw   1 x #8, centred")
-    print(f"  drops   {BODY_V} mm below the bench")
+    parts["cable-hook-screw"] = hook()
 
-    print("S bracket")
-    print(f"  jaws    {JAW_GAP:.2f} mm on a {RAIL_T} mm bar "
-          f"({RAIL_FIT} mm interference, {JAW_STRAIN*100:.2f} % strain)")
-    print(f"  crown   {CROWN_T} mm over the bar -- this is what carries it")
-    print(f"  reach   {BACK_L} mm back jaw, {FRONT_L} mm front jaw")
-    print(f"  cradle  {CAV_U} x {CRADLE_DEPTH} mm")
-    print(f"  lip     returns {LIP_RET} mm -> {MOUTH:.1f} mm mouth "
-          f"({CAV_U - MOUTH:.1f} mm of overhang holding the cables in)")
-    print(f"  size    {U_O1:.1f} x {CROWN_T + FRONT_L:.1f} x {DEPTH} mm")
+    print()
+    print(f"S bracket -- crown {CROWN_T} mm on the bar, leg gap "
+          f"{RAIL_T + RAIL_CLR:.2f} mm on a {RAIL_T} mm bar "
+          f"(+{RAIL_CLR} clearance, no spring)")
 
-    for name, part in (("cable-hook-screw", hook()),
-                       ("cable-hook-clip", hook_clip())):
+    for name in SIZES:
+        d = sbracket_spec(name)
+        parts[f"s-bracket-{name}"] = s_bracket(d)
+        print()
+        print(f"s-bracket-{name}")
+        print(f"  cradle  {d.cav_u} wide x {d.depth} deep mm, "
+              f"{d.band} mm along the bar")
+        print(f"  lip     returns {d.lip_ret} mm -> {d.mouth:.1f} mm mouth "
+              f"({d.cav_u - d.mouth:.1f} mm of overhang holding cables in)")
+        print(f"  leg     {d.leg_l} mm down the near face "
+              f"({d.leg_l/RAIL_H*100:.0f} % of the bar)")
+        print(f"  size    {d.u_o1:.2f} x {CROWN_T + d.leg_l:.2f} x {d.band} mm")
+
+    print()
+    for name, part in parts.items():
         exporters.export(part, os.path.join(root, "stl", f"{name}.stl"),
                          tolerance=0.01, angularTolerance=0.1)
         exporters.export(part, os.path.join(root, "step", f"{name}.step"))
