@@ -93,6 +93,16 @@ details.how pre{background:#2D2D3B;color:#DDE1EC;border-radius:10px;padding:12px
 #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;border-radius:999px;padding:11px 20px;opacity:0;pointer-events:none;transition:.25s;z-index:60;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .dz{outline:3px dashed var(--blue);outline-offset:-3px}
+/* send-to-store modal */
+.modal{position:fixed;inset:0;background:rgba(45,45,59,.55);backdrop-filter:blur(3px);z-index:70;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal[hidden]{display:none}
+.mbox{background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(45,45,59,.35);width:min(420px,100%);padding:22px;max-height:calc(100dvh - 40px);overflow:auto}
+.mbox h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin-bottom:6px}
+.mhint{font-size:.86rem;font-weight:600;color:var(--dark-grey);line-height:1.5;margin-bottom:8px}
+.mbox .fldlab{margin-top:14px}
+.mbox .cta{margin-top:16px}
+.mbox .cta+.cta{margin-top:9px}
+.bigcode{font-family:'Nunito',sans-serif;font-weight:900;font-size:2.6rem;letter-spacing:.35em;text-align:center;background:var(--light-grey);border-radius:14px;padding:18px 10px 18px 20px;margin:14px 0;color:var(--dark)}
 </style>
 </head>
 <body>
@@ -191,7 +201,7 @@ details.how pre{background:#2D2D3B;color:#DDE1EC;border-radius:10px;padding:12px
         <div class="meta" id="printMeta"></div>
         <button class="cta" id="btnPrintDl">⬇ Download Print File (300 DPI PNG)</button>
         <button class="cta dark" id="btnMockDl">⬇ Download Mockup Image</button>
-        <button class="cta ghost" id="btnOrder">🛒 Add to Order — <span id="orderPrice">$34.99</span></button>
+        <button class="cta ghost" id="btnOrder">🏪 Send to My Store — <span id="orderPrice">$34.99</span></button>
         <div class="btnrow" style="margin-top:12px">
           <button class="sbtn danger" id="btnReset">Start Over</button>
         </div>
@@ -225,6 +235,30 @@ details.how pre{background:#2D2D3B;color:#DDE1EC;border-radius:10px;padding:12px
 <div class="dock">
   <button class="dl" id="dockPrint">⬇ Print File</button>
   <button class="mk" id="dockMock">⬇ Mockup</button>
+</div>
+
+<div class="modal" id="sendModal" hidden>
+  <div class="mbox">
+    <div id="sendForm">
+      <h3>🏪 Send to Your Store</h3>
+      <p class="mhint">We print it in-store on our UV printer. Show your pickup code at the counter — most designs are ready same day.</p>
+      <div class="fldlab">Store</div>
+      <select class="sel" id="sStore"></select>
+      <div class="fldlab">Your Name</div>
+      <input type="text" class="txt" id="sName" maxlength="60" autocomplete="name" placeholder="First and last name">
+      <div class="fldlab">Phone <span class="val">optional — so we can text you</span></div>
+      <input type="tel" class="txt" id="sPhone" maxlength="20" autocomplete="tel" placeholder="(555) 555-5555">
+      <button class="cta" id="sSubmit">Send My Design</button>
+      <button class="cta ghost" id="sCancel">Cancel</button>
+    </div>
+    <div id="sendDone" hidden>
+      <h3>🎉 Design Sent!</h3>
+      <p class="mhint">Your pickup code — screenshot this and show it at the counter:</p>
+      <div class="bigcode" id="sCode"></div>
+      <p class="mhint" id="sWhere"></p>
+      <button class="cta dark" id="sClose">Done</button>
+    </div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -1042,9 +1076,11 @@ function download(canvas, name){
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }, 'image/png');
 }
-function exportPrint(){
+/* Build the 300 DPI print canvas (or null + toast if assets aren't ready).
+   Used by both the download button and Send to My Store. */
+function makePrintCanvas(){
   if (model.assets){
-    if (!assetsReady()){ toast('Still loading the case images — try again in a second'); return; }
+    if (!assetsReady()){ toast('Still loading the case images — try again in a second'); return null; }
     const a = model.assets;
     const W = Math.round(model.mm.w * PXMM), H = Math.round(model.mm.h * PXMM);
     const oc = document.createElement('canvas');
@@ -1055,9 +1091,7 @@ function exportPrint(){
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'destination-in';
     c.drawImage(model._mask, a.print.x, a.print.y, a.print.w, a.print.h, 0, 0, W, H);
-    download(oc, `case-${model.id}-print-300dpi.png`);
-    toast(`Print file saved — ${W} × ${H} px, clipped to the manufacturer mask`);
-    return;
+    return oc;
   }
   const W = Math.round((model.mm.w + BLEED * 2) * PXMM);
   const H = Math.round((model.mm.h + BLEED * 2) * PXMM);
@@ -1068,10 +1102,17 @@ function exportPrint(){
   drawDesign(c, BLEED);
   c.save(); c.globalCompositeOperation = 'destination-out';
   cameraPunchPath(c); c.fill(); c.restore();
-  download(oc, `case-${model.id}-print-300dpi.png`);
-  toast(`Print file saved — ${W} × ${H} px @ 300 DPI`);
+  return oc;
 }
-function exportMockup(){
+function exportPrint(){
+  const oc = makePrintCanvas();
+  if (!oc) return;
+  download(oc, `case-${model.id}-print-300dpi.png`);
+  toast(`Print file saved — ${oc.width} × ${oc.height} px @ 300 DPI`);
+}
+/* Build the pretty share/mockup canvas; async because drawn models rasterize
+   their SVG overlay. cb(canvas|null). */
+function makeMockupCanvas(cb){
   const scale = 1100 / stageW();                 // ~1100px wide share image
   const oc = document.createElement('canvas');
   oc.width = Math.round(stageW() * scale); oc.height = Math.round(stageH() * scale);
@@ -1080,10 +1121,9 @@ function exportMockup(){
   g.addColorStop(0, '#FAFAFC'); g.addColorStop(1, '#EDEEF3');
   c.fillStyle = g; c.fillRect(0, 0, oc.width, oc.height);
   if (model.assets){
-    if (!assetsReady()){ toast('Still loading the case images — try again in a second'); return; }
+    if (!assetsReady()){ cb(null); return; }
     renderAssetScene(c, oc.width, oc.height, { photo:true });
-    download(oc, `case-${model.id}-mockup.png`);
-    toast('Mockup image saved');
+    cb(oc);
     return;
   }
   c.save(); c.scale(scale, scale); c.translate(PAD, PAD);
@@ -1099,18 +1139,102 @@ function exportMockup(){
   im.onload = () => {
     c.drawImage(im, 0, 0, oc.width, oc.height);
     URL.revokeObjectURL(url);
+    cb(oc);
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); cb(null); };
+  im.src = url;
+}
+function exportMockup(){
+  makeMockupCanvas(oc => {
+    if (!oc){ toast('Mockup export failed'); return; }
     download(oc, `case-${model.id}-mockup.png`);
     toast('Mockup image saved');
-  };
-  im.onerror = () => { URL.revokeObjectURL(url); toast('Mockup export failed'); };
-  im.src = url;
+  });
 }
 $('btnPrintDl').addEventListener('click', exportPrint);
 $('dockPrint').addEventListener('click', exportPrint);
 $('btnMockDl').addEventListener('click', exportMockup);
 $('dockMock').addEventListener('click', exportMockup);
-$('btnOrder').addEventListener('click', () =>
-  toast('Mockup only — ordering & checkout come with the real build 🙂'));
+
+/* ---------------- send to store ---------------- */
+/* Customer side goes through the case-designs edge function (service role) —
+   this public page holds no Supabase session. Same pattern as contract-sign. */
+const FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/case-designs';
+const STORES = [                       // canonical CPRLocations names
+  { v:'Eugene',          l:'CPR Eugene' },
+  { v:'Salem Northeast', l:'CPR Salem Northeast' },
+  { v:'Clackamas',       l:'CPR Clackamas' },
+];
+STORES.forEach(s => {
+  const o = document.createElement('option'); o.value = s.v; o.textContent = s.l;
+  $('sStore').appendChild(o);
+});
+try{ const st = localStorage.getItem('mrtCaseStore'); if (st) $('sStore').value = st; }catch(_){}
+
+function canvasB64(canvas){
+  return new Promise((res, rej) => {
+    canvas.toBlob(blob => {
+      if (!blob) return rej(new Error('toBlob'));
+      const rd = new FileReader();
+      rd.onload = () => res(String(rd.result).split(',')[1]);
+      rd.onerror = rej;
+      rd.readAsDataURL(blob);
+    }, 'image/png');
+  });
+}
+function designJson(){
+  // photo pixels stay out of the DB — the print file is the artwork of record
+  return {
+    model: model.id, bg,
+    layers: layers.map(l => { const o = { ...l }; delete o.img; delete o.src; return o; }),
+  };
+}
+$('btnOrder').addEventListener('click', () => {
+  if (!layers.length && bg.t === 'solid' && bg.a === '#FFFFFF'){
+    toast('Design something first — add a photo, text or a color ✨');
+    return;
+  }
+  $('sendForm').hidden = false; $('sendDone').hidden = true;
+  $('sendModal').hidden = false;
+  $('sName').focus();
+});
+$('sCancel').addEventListener('click', () => { $('sendModal').hidden = true; });
+$('sClose').addEventListener('click', () => { $('sendModal').hidden = true; });
+$('sendModal').addEventListener('click', e => { if (e.target === $('sendModal')) $('sendModal').hidden = true; });
+$('sSubmit').addEventListener('click', async () => {
+  const store = $('sStore').value, name = $('sName').value.trim();
+  if (!name){ toast('Add your name so we know whose case this is'); $('sName').focus(); return; }
+  const pc = makePrintCanvas();
+  if (!pc) return;
+  const btn = $('sSubmit');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const reset = () => { btn.disabled = false; btn.textContent = 'Send My Design'; };
+  makeMockupCanvas(async mc => {
+    try{
+      const print_b64 = await canvasB64(pc);
+      const mockup_b64 = mc ? await canvasB64(mc) : '';
+      const r = await fetch(FN + '?action=create', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          store, model_id: model.id, model_name: model.name, price: model.price,
+          customer_name: name, customer_phone: $('sPhone').value.trim(),
+          design: designJson(), print_b64, mockup_b64,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.error || 'send failed');
+      try{ localStorage.setItem('mrtCaseStore', store); }catch(_){}
+      $('sCode').textContent = j.code;
+      const sl = STORES.find(s => s.v === store);
+      $('sWhere').textContent = `We'll print it at ${sl ? sl.l : store}. Questions? Just mention the code.`;
+      $('sendForm').hidden = true; $('sendDone').hidden = false;
+      reset();
+    }catch(e){
+      reset();
+      toast('Couldn’t send — check your connection and try again');
+    }
+  });
+});
 $('btnReset').addEventListener('click', () => {
   if (!confirm('Start over? This clears your whole design.')) return;
   layers = []; selId = null; bg = { ...BGS[0] };

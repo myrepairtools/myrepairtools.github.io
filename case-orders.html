@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Case Orders</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#D97706;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#FAFAFC;font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+.wrap{max-width:1040px;margin:0 auto;padding:22px 16px 60px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem;display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.sub{font-size:.85rem;font-weight:600;color:var(--dark-grey);margin-bottom:16px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.tabs{display:flex;background:#E7E8EE;border-radius:11px;padding:3px}
+.tabs button{border:none;background:transparent;border-radius:8px;padding:8px 14px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey);cursor:pointer;white-space:nowrap}
+.tabs button.on{background:#fff;color:var(--dark);box-shadow:0 1px 3px rgba(45,45,59,.12)}
+.tabs .n{font-weight:900;color:var(--red);margin-left:4px}
+select.storesel{width:196px;height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.92rem;color:var(--dark)}
+select.storesel:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.rbtn{border:1.5px solid var(--border);background:#fff;border-radius:8px;height:36px;padding:0 13px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark-grey);cursor:pointer}
+.rbtn:hover{border-color:var(--blue);color:var(--dark)}
+.spacer{flex:1}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:14px 16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.thumb{width:64px;height:110px;border-radius:9px;background:var(--light-grey);object-fit:contain;flex:none}
+.meta{flex:1;min-width:210px}
+.code{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;letter-spacing:.18em}
+.meta .m{font-weight:700;font-size:.9rem;margin-top:2px}
+.meta .c{font-size:.83rem;font-weight:600;color:var(--dark-grey);margin-top:2px}
+.meta .t{font-size:.74rem;font-weight:700;color:var(--grey);margin-top:4px}
+.pill{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;border-radius:999px;padding:3px 10px;margin-right:7px}
+.pill.new{background:#E8F4FC;color:#1C6E9E}
+.pill.printing{background:#FDF1DF;color:var(--amber)}
+.pill.ready{background:#E7F5EC;color:var(--green)}
+.pill.picked_up{background:var(--light-grey);color:var(--dark-grey)}
+.pill.canceled{background:#FBE9EA;color:var(--red)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.abtn{border:none;border-radius:9px;padding:10px 14px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;background:var(--light-grey);color:var(--dark)}
+.abtn.go{background:var(--red);color:#fff}
+.abtn.ok{background:var(--green);color:#fff}
+.abtn.dl{background:var(--dark);color:#fff}
+.abtn.x{background:#fff;border:1.5px solid var(--border);color:var(--dark-grey)}
+.abtn.x:hover{border-color:var(--red);color:var(--red)}
+.empty{text-align:center;color:var(--grey);font-weight:700;padding:60px 10px}
+.note{background:#FDF1DF;border:1px solid #F5D9A8;border-radius:12px;padding:13px 16px;font-size:.86rem;font-weight:600;color:#7C4A03;margin-bottom:16px;display:none}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);background:var(--dark);color:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;border-radius:999px;padding:11px 20px;opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🖨 Case Orders</h1>
+  <div class="sub">Customer case designs from Case Studio — pull the print file at the Omni, work the status through pickup.</div>
+  <div class="note" id="authNote">Sign in from the menu to load the queue.</div>
+  <div class="bar">
+    <div class="tabs" id="tabs"></div>
+    <select class="storesel" id="storeSel"></select>
+    <div class="spacer"></div>
+    <button class="rbtn" id="refresh">↻ Refresh</button>
+  </div>
+  <div id="list"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+var BUCKET='case-prints';
+
+var ROWS=[],TAB='open',STORE='All';
+var TABS=[
+  {id:'open', label:'Open',   match:function(r){return r.status==='new'||r.status==='printing';}},
+  {id:'ready',label:'Ready',  match:function(r){return r.status==='ready';}},
+  {id:'done', label:'Done',   match:function(r){return r.status==='picked_up'||r.status==='canceled';}},
+  {id:'all',  label:'All',    match:function(){return true;}},
+];
+
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(function(){t.className='toast';},2800);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* Adopt the shared front-door session so RLS reads/writes run as staff. */
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+
+/* ---- view state: hash > localStorage > default (site convention) ---- */
+(function(){
+  var h=(location.hash||'').replace('#','');
+  var ok=TABS.some(function(t){return t.id===h;});
+  if(ok)TAB=h;
+  else{try{var s=localStorage.getItem('cprCaseOrdTab');if(TABS.some(function(t){return t.id===s;}))TAB=s;}catch(e){}}
+  try{STORE=localStorage.getItem('cprCaseOrdStore')||'All';}catch(e){}
+})();
+window.addEventListener('hashchange',function(){
+  var h=(location.hash||'').replace('#','');
+  if(TABS.some(function(t){return t.id===h;})&&h!==TAB){TAB=h;draw();}
+});
+function setTab(id){
+  TAB=id;
+  try{localStorage.setItem('cprCaseOrdTab',id);}catch(e){}
+  history.replaceState(null,'','#'+id);
+  draw();
+}
+
+function ago(iso){
+  var m=Math.round((Date.now()-new Date(iso).getTime())/60000);
+  if(m<60)return m+'m ago';
+  var h=Math.round(m/60); if(h<24)return h+'h ago';
+  return Math.round(h/24)+'d ago';
+}
+
+var THUMBS={};
+function thumbFor(r,img){
+  if(!r.mockup_path)return;
+  if(THUMBS[r.id]){img.src=THUMBS[r.id];return;}
+  sb.storage.from(BUCKET).createSignedUrl(r.mockup_path,3600).then(function(res){
+    var u=res.data&&res.data.signedUrl;
+    if(u){THUMBS[r.id]=u;img.src=u;}
+  });
+}
+
+async function load(){
+  var s=await ensureSession();
+  $('#authNote').style.display=s?'none':'block';
+  if(!s){ROWS=[];draw();return;}
+  var q=await sb.from('case_designs').select('*').order('created_at',{ascending:false}).limit(400);
+  if(q.error){toast('Couldn’t load the queue',true);return;}
+  ROWS=q.data||[];
+  draw();
+}
+
+function counts(){
+  var vis=ROWS.filter(function(r){return STORE==='All'||r.store===STORE;});
+  var out={};
+  TABS.forEach(function(t){out[t.id]=vis.filter(t.match).length;});
+  return out;
+}
+function drawTabs(){
+  var c=counts(),box=$('#tabs');box.innerHTML='';
+  TABS.forEach(function(t){
+    var b=document.createElement('button');
+    b.className=t.id===TAB?'on':'';
+    b.innerHTML=esc(t.label)+(t.id!=='all'&&c[t.id]?'<span class="n">'+c[t.id]+'</span>':'');
+    b.addEventListener('click',function(){setTab(t.id);});
+    box.appendChild(b);
+  });
+}
+function drawStores(){
+  var sel=$('#storeSel');sel.innerHTML='';
+  var names=(window.CPRLocations&&CPRLocations.names&&CPRLocations.names())||['Eugene','Salem Northeast','Clackamas'];
+  ['All'].concat(names).forEach(function(n){
+    var o=document.createElement('option');o.value=n;
+    o.textContent=n==='All'?'All Locations':'CPR '+((window.CPRLocations&&CPRLocations.display&&CPRLocations.display(n))||n);
+    sel.appendChild(o);
+  });
+  sel.value=STORE;
+}
+$('#storeSel').addEventListener('change',function(e){
+  STORE=e.target.value;
+  try{localStorage.setItem('cprCaseOrdStore',STORE);}catch(e2){}
+  draw();
+});
+
+async function setStatus(r,status,label){
+  if(status==='canceled'&&!confirm('Cancel this order ('+r.code+')?'))return;
+  var by=(window.CPRNavName||'staff');
+  var u=await sb.from('case_designs').update({status:status,updated_at:new Date().toISOString(),updated_by:by}).eq('id',r.id);
+  if(u.error){toast('Update failed — signed in?',true);return;}
+  r.status=status;
+  toast(label+' — '+r.code);
+  draw();
+}
+async function printFile(r){
+  var res=await sb.storage.from(BUCKET).createSignedUrl(r.print_path,3600);
+  var u=res.data&&res.data.signedUrl;
+  if(!u){toast('Couldn’t fetch the print file',true);return;}
+  var a=document.createElement('a');a.href=u;a.download='case-'+r.code+'-print.png';a.target='_blank';
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+function draw(){
+  drawTabs();
+  var tab=TABS.filter(function(t){return t.id===TAB;})[0]||TABS[0];
+  var vis=ROWS.filter(function(r){return (STORE==='All'||r.store===STORE)&&tab.match(r);});
+  var box=$('#list');box.innerHTML='';
+  if(!vis.length){
+    box.innerHTML='<div class="empty">'+(ROWS.length?'Nothing in this view':'No case orders yet — designs land here when customers hit “Send to My Store”')+'</div>';
+    return;
+  }
+  vis.forEach(function(r){
+    var card=document.createElement('div');card.className='card';
+    var img=document.createElement('img');img.className='thumb';img.alt='';
+    thumbFor(r,img);
+    var meta=document.createElement('div');meta.className='meta';
+    meta.innerHTML='<span class="pill '+esc(r.status)+'">'+esc(r.status.replace('_',' '))+'</span>'
+      +'<span class="code">'+esc(r.code)+'</span>'
+      +'<div class="m">'+esc(r.model_name||r.model_id)+(r.price?' · $'+Number(r.price).toFixed(2):'')+'</div>'
+      +'<div class="c">'+esc(r.customer_name||'—')+(r.customer_phone?' · '+esc(r.customer_phone):'')+'</div>'
+      +'<div class="t">'+esc((window.CPRLocations&&CPRLocations.display&&('CPR '+CPRLocations.display(r.store)))||r.store)+' · '+ago(r.created_at)+'</div>';
+    var acts=document.createElement('div');acts.className='acts';
+    function btn(cls,txt,fn){var b=document.createElement('button');b.className='abtn '+cls;b.textContent=txt;b.addEventListener('click',fn);acts.appendChild(b);}
+    btn('dl','⬇ Print File',function(){printFile(r);});
+    if(r.status==='new')btn('go','🖨 Start Printing',function(){setStatus(r,'printing','Printing');});
+    if(r.status==='printing')btn('ok','✅ Ready for Pickup',function(){setStatus(r,'ready','Ready');});
+    if(r.status==='ready')btn('ok','👍 Picked Up',function(){setStatus(r,'picked_up','Done');});
+    if(r.status==='new'||r.status==='printing')btn('x','✕ Cancel',function(){setStatus(r,'canceled','Canceled');});
+    card.appendChild(img);card.appendChild(meta);card.appendChild(acts);
+    box.appendChild(card);
+  });
+}
+
+$('#refresh').addEventListener('click',load);
+setInterval(load,120000);
+drawStores();
+history.replaceState(null,'','#'+TAB);
+load();
+</script>
+</body>
+</html>

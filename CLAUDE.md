@@ -364,6 +364,31 @@ the customer side (view / sign — creates the Square quick-pay link with a redi
 paystatus — flips to paid by checking the Square order / send — emails the link via
 Resend/Gmail like notify). Store→Square location resolved by name like square-tips.
 
+**Case Studio (custom-printed cases):** the customer-facing case designer + in-store
+print queue for the xTool Omni UV printers (one per store; cases from China with a
+pop-out camera plate so the back prints flat). `case-designer.html` is a PUBLIC page
+(no gates/nav, direct link only — deliberately unlisted like contract-sign): all
+design math runs in real case millimeters, scaled once for screen and once for the
+300 DPI print export. Two model kinds in its `MODELS` config: `assets` models (the
+production path — a manufacturer showroom photo + alpha print-mask pair from the same
+doc, e.g. `assets/cases/ip16pro-clear-*`; art is clipped by the mask via
+destination-in, layered over the photo, then the photo multiplies back over the print
+area for the under-clear-case look) and drawn fallback models (generated SVG overlay,
+config-driven camera shapes). New real models = two exports + one config entry; masks
+can also be traced from a 600 DPI flatbed scan of the physical case. Customers add
+photos/text/emoji, drag/pinch/rotate, pick backgrounds, flip Mockup ↔ Print File view,
+download files, or **Send to My Store**: the page renders the print PNG + mockup and
+POSTs them to the **`case-designs` edge function** (service role, verify_jwt OFF,
+capability pattern like contracts — the public page holds no session), which uploads
+to the private `case-prints` bucket and mints a 6-char pickup code into
+`case_designs` (store, model, design jsonb with photo pixels stripped, print/mockup
+paths, status new→printing→ready→picked_up|canceled; staff-only RLS). Staff work the
+queue in `case-orders.html` (Operations nav): status tabs + storesel, signed-URL
+thumbnails and print-file downloads, one-tap status flow; direct RLS via the shared
+PIN session. Schema: docs/sql/case-designs-schema.sql. Payment stays at the counter
+(RepairQ/Square) for now; Shopify is the intended someday-channel for online orders —
+the studio stays ours and hands off, per the product-lens directive.
+
 **LCD Buyback (screen harvest):** every pulled display from an iPhone / Galaxy S /
 Galaxy Note / Galaxy Z / Pixel screen repair gets graded good/bad; **only GOOD pulls are
 physical inventory** — labeled, boxed, expected by audits, valued. Bad pulls are

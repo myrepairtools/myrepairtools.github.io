@@ -74,6 +74,7 @@
   // Operations — store-floor / daily ops.
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'banknote', acc:'cash.view' },
+    { label:'Case Orders',         url:'case-orders.html',         icon:'printer' },
     { label:'Contracts',            url:'contracts.html',           icon:'pen-line' },
     { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'monitor-smartphone' },
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'wrench', acc:'damage.view' }
