@@ -43,6 +43,7 @@ SIZES = [
     (56.00, 33.25),
     (66.00, 33.25),
     (76.20, 25.40),   # 3" x 1"
+    (66.00, 22.80),
 ]
 
 # Clearance.  The sizes above are the adapter's own measurements, so the

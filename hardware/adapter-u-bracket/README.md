@@ -16,6 +16,10 @@ opening. Depth is no longer the same on every size, and a file called just
 | `stl/u-bracket-56x33.stl` | 56.00 × 33.25 | 57.00 × 33.75 | 99.00 W × 38.75 H | 83.00 mm |
 | `stl/u-bracket-66x33.stl` | 66.00 × 33.25 | 67.00 × 33.75 | 109.00 W × 38.75 H | 93.00 mm |
 | `stl/u-bracket-76x25.stl` | 76.20 × 25.40 | 77.20 × 25.90 | 119.20 W × 30.90 H | 103.20 mm |
+| `stl/u-bracket-66x23.stl` | 66.00 × 22.80 | 67.00 × 23.30 | 109.00 W × 28.30 H | 93.00 mm |
+
+**Two 66 mm files** — `66x33` and `66x23` are the same width and different
+depths. Check the second number before you print.
 
 ![76 × 25 bracket](svg/u-bracket-76x25.png)
 
