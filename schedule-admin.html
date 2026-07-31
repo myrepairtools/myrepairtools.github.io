@@ -443,8 +443,17 @@ async function detectScheduleChanges(){
     var w=weeks[wk]=weeks[wk]||{};
     var e=empById(o.staff_id);var nm=e?e.display_name.split(' ')[0]:('#'+o.staff_id);
     (w[nm]=w[nm]||[]).push(d.toLocaleDateString('en-US',{weekday:'short'}));
-    var st=o.store||(e&&e.home_store);
-    if(st){(weekStores[wk]=weekStores[wk]||[]).push(st);}
+    // Affected stores for this day = BOTH the destination store (o.store) AND the
+    // origin store the person was scheduled at that weekday before the change. A
+    // move (Eugene→Salem) leaves Eugene short, and an off-day leaves the origin
+    // store short — both need notifying, not just the destination.
+    var bucket=(weekStores[wk]=weekStores[wk]||[]);
+    var mine=[];
+    if(o.store)mine.push(o.store);                          // destination (null on an off-day)
+    var rec=SCHED[o.staff_id]&&SCHED[o.staff_id].arr[d.getDay()];
+    if(rec&&typeof rec==='object'&&rec.store)mine.push(rec.store);   // origin (recurring store that weekday)
+    if(!mine.length&&e&&e.home_store)mine.push(e.home_store);        // neither named a store → home store
+    mine.forEach(function(st){if(bucket.indexOf(st)<0)bucket.push(st);});
   });
   var items=[];   // selectable units: one per changed week, plus one for recurring edits
   Object.keys(weeks).sort().forEach(function(wk){

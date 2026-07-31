@@ -1027,7 +1027,11 @@ docs/sql/schedule-notify-changes.sql) newer than the manager's own last
 a **checkbox** (with its affected stores tagged); the message rebuilds from the
 selection until the manager hand-edits it, and the send is **scoped to the affected
 stores' people** (home store or authorized there; "Send to every store anyway"
-override; live To:-line with recipient count). Send fans out alerts (staff_ids)
+override; live To:-line with recipient count). **A day's affected stores are BOTH
+the destination (the override's `store`) AND the origin** — the store the person was
+recurringly scheduled at that weekday (`SCHED[staff].arr[getDay]`), so a move
+(Eugene→Salem) or an off-day flags the origin store that's now short, not just the
+destination. Send fans out alerts (staff_ids)
 + the routed rule. Keep the alert title's 'Schedule updated' prefix — it's the
 last-broadcast marker), KB
 required-reading publish (kind 'kb', everyone), and the **end-of-shift task
