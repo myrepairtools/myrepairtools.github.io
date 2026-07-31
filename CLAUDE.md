@@ -354,6 +354,25 @@ cache in localStorage (`cprExpQbo`, 1h) for instant paint. Note: elements hidden
 CSS class rule need `style.display='block'` to show — `display=''` falls back to the
 stylesheet's `display:none`. Schema: docs/sql/expenses-schema.sql (+ `qbo_config`).
 
+**Brand Assets (print collateral library):** `brand_assets` (title, category
+poster|flyer|sale_sheet|business_card|logo|other, file_path, file_name/ext/mime,
+file_size, thumb_path, width/height, tags[], note, active, uploaded_by/_name; RLS
+read + insert + update all `authenticated`, hard DELETE `is_owner()` only — removal
+is a soft-delete `active=false` so an accidental delete never destroys a file).
+Files live in the **public `brand-assets` Storage bucket** (`files/<uuid>.<ext>` +
+generated preview `thumbs/<uuid>.jpg`); bucket write policies are authenticated-only,
+read is public. Surface: `brand-assets.html` (Operations nav, all staff, icon
+`images`) — a "grab & print in-store" library: category tabs (hash + `cprBrandCat`
+persistence), search, thumbnail grid (each card: Print = open the file in a new tab,
+Download via Storage's `?download=` param — the cross-origin `download` attr is
+ignored, Edit). **Any signed-in staff can upload/manage** (owner's call — brand
+consistency is a social norm, not an RLS gate). Upload generates a preview thumbnail
+client-side: images via canvas downscale, **PDFs via the vendored pdf.js** (page 1 →
+canvas → JPEG), white-filled so transparent logos read on the card; if thumbing fails
+the card falls back to a type badge. Editable SOURCE files (.ai/.psd, live Canva
+designs) deliberately stay in Google Drive / Canva — this bucket is the print-ready
+distribution copy, not a design archive. Schema: docs/sql/brand-assets-schema.sql.
+
 **Monthly goals:** `commission_goals` (staff_id, month, accy_goal, device_goal,
 device_attach_goal %, case_goal, sp_goal, power_goal, service_goals jsonb, note) —
 per-employee monthly targets set during 1:1s **in the commission dashboard's Goals tab**
