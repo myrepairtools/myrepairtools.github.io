@@ -297,6 +297,37 @@ const SAFE = 3;                           // keep-text-inside margin, mm
       overlay (inline SVG). Camera shapes are mm from the case's top-left:
       kind 'plate' = one removable plate/ring assembly (the punch is the
       plate), kind 'lenses' = individual lens rings (the punch is each circle). */
+// Pro family: manufacturer mask (real die) + Gemini titanium set. The plate
+// overlay covers the AI photos' ring-style camera with the real pop-out plate.
+const IPPRO_ASSETS = {
+  photo:'assets/cases/ip16pro-clear-photo.jpg',
+  mask:'assets/cases/ip16pro-clear-mask.png',
+  px:{ w:1500, h:1500 },
+  print:{ x:448, y:108, w:604, h:1268 },
+  cutoutPx:{ x:460, y:112, w:582, h:352, r:80 }, plate:true,
+  colors:[
+    { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-gem-silver.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-gem-black.jpg',   px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-gem-natural.jpg', px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-gem-desert.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+  ],
+};
+// iPhone 17: same composition as the 16 set (verified within ~3px), so it
+// shares the 16's traced mask + geometry with its own color photos.
+const IP17_ASSETS = {
+  photo:'assets/cases/ip17-gem-white.jpg',
+  mask:'assets/cases/ip16-gem-mask.png',
+  px:{ w:1024, h:1024 },
+  print:{ x:300, y:70, w:425, h:887 },
+  cutoutPx:{ x:296, y:66, w:150, h:256, r:75 },
+  colors:[
+    { id:'white',    label:'White',     sw:'#F2F2EE', photo:'assets/cases/ip17-gem-white.jpg',    px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'black',    label:'Black',     sw:'#43454B', photo:'assets/cases/ip17-gem-black.jpg',    px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'lavender', label:'Lavender',  sw:'#D9CBE8', photo:'assets/cases/ip17-gem-lavender.jpg', px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'mistblue', label:'Mist Blue', sw:'#9DB4DC', photo:'assets/cases/ip17-gem-mistblue.jpg', px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'sage',     label:'Sage',      sw:'#ADBB99', photo:'assets/cases/ip17-gem-sage.jpg',     px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+  ],
+};
 const IP16_ASSETS = {
   photo:'assets/cases/ip16-gem-white.jpg',
   mask:'assets/cases/ip16-gem-mask.png',
@@ -312,35 +343,24 @@ const IP16_ASSETS = {
   ],
 };
 const MODELS = [
+  // The Pro family (15 Pro/Max, 16 Pro/Max) shares ONE photo set — same
+  // titanium palette, and at studio scale the body-size difference is
+  // invisible. Each model's real mm dims size the print file.
+  { id:'iphone-17-clear', name:'iPhone 17 · Real Case Photo', price:34.99,
+    mm:{ w:74.9, h:153.3, corner:14 },
+    assets: IP17_ASSETS },
   { id:'iphone-16-pro-clear', name:'iPhone 16 Pro · Real Case Photo', price:34.99,
     mm:{ w:74.8, h:157.0, corner:14 },
-    assets:{ photo:'assets/cases/ip16pro-clear-photo.jpg',
-             mask:'assets/cases/ip16pro-clear-mask.png',
-             px:{ w:1500, h:1500 },
-             print:{ x:448, y:108, w:604, h:1268 },
-             cutoutPx:{ x:460, y:112, w:582, h:352, r:80 }, plate:true,
-             // phone colors: one registered photo per colorway (sw = picker dot).
-             // The Gemini set lives in its own pixel space, so each entry
-             // carries its own px + print bbox (measured 2026-08-01); the
-             // PRINT geometry still comes from the manufacturer mask above —
-             // Gemini drew a ring-style camera, the real case's plate window
-             // clips the art honestly regardless.
-             colors:[
-               { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-gem-silver.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-               { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-gem-black.jpg',   px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-               { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-gem-natural.jpg', px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-               { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-gem-desert.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-             ] } },
-  { id:'iphone-16-pro-max', name:'iPhone 16 Pro Max', price:34.99,
+    assets: IPPRO_ASSETS },
+  { id:'iphone-16-pro-max-clear', name:'iPhone 16 Pro Max · Real Case Photo', price:34.99,
     mm:{ w:80.8, h:166.2, corner:15 },
-    camera:{ kind:'plate', x:8, y:8, w:41, h:41, r:12,
-      lenses:[{cx:20,cy:19.5,r:8},{cx:20,cy:37.5,r:8},{cx:36.5,cy:28.5,r:8}],
-      flash:{cx:39,cy:15.5,r:2.4}, dot:{cx:39,cy:41.5,r:2} } },
-  { id:'iphone-16-pro', name:'iPhone 16 Pro', price:34.99,
-    mm:{ w:74.8, h:152.9, corner:14 },
-    camera:{ kind:'plate', x:7.5, y:7.5, w:38.5, h:38.5, r:11,
-      lenses:[{cx:18.7,cy:18.3,r:7.4},{cx:18.7,cy:35.2,r:7.4},{cx:34.3,cy:26.7,r:7.4}],
-      flash:{cx:36.5,cy:14.5,r:2.3}, dot:{cx:36.5,cy:39,r:1.9} } },
+    assets: IPPRO_ASSETS },
+  { id:'iphone-15-pro-clear', name:'iPhone 15 Pro · Real Case Photo', price:34.99,
+    mm:{ w:73.8, h:149.9, corner:14 },
+    assets: IPPRO_ASSETS },
+  { id:'iphone-15-pro-max-clear', name:'iPhone 15 Pro Max · Real Case Photo', price:34.99,
+    mm:{ w:79.9, h:163.2, corner:15 },
+    assets: IPPRO_ASSETS },
   // iPhone 16 / 16 Plus share one Gemini photo set + traced mask (preview-
   // grade die — swap in the manufacturer mask or a scan trace when the
   // physical cases arrive). The Plus just stretches it to its real mm.
