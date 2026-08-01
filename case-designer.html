@@ -67,6 +67,10 @@ select.sel{width:100%;height:40px;padding:0 10px;border:1.5px solid var(--border
 .sw{width:34px;height:34px;border-radius:10px;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--border);cursor:pointer;flex:none}
 .sw.on{box-shadow:0 0 0 2.5px var(--blue)}
 .sw.custom{display:flex;align-items:center;justify-content:center;font-size:1rem;background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative;overflow:hidden}
+.sw.clear{background:repeating-conic-gradient(#E2E4EA 0% 25%, #fff 0% 50%) 0 0/10px 10px}
+.colors{display:none;gap:9px;justify-content:center;align-items:center;margin-bottom:10px}
+.cdot{width:26px;height:26px;border-radius:999px;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--border);cursor:pointer;padding:0;flex:none}
+.cdot.on{box-shadow:0 0 0 2.5px var(--blue)}
 .sw.custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .sbtn{border:1.5px solid var(--border);background:#fff;border-radius:9px;padding:8px 13px;font-weight:800;font-size:.78rem;color:var(--dark-grey);cursor:pointer}
@@ -125,6 +129,7 @@ details.how pre{background:#2D2D3B;color:#DDE1EC;border-radius:10px;padding:12px
         <select class="modelsel" id="modelSel" aria-label="Phone model"></select>
         <div class="pricechip" id="priceChip">$34.99</div>
       </div>
+      <div class="colors" id="colorRow"></div>
       <div class="viewtog">
         <button id="vMock" class="on">📱 On the Phone</button>
         <button id="vPrint">🖨 Print File</button>
@@ -299,7 +304,14 @@ const MODELS = [
              mask:'assets/cases/ip16pro-clear-mask.png',
              px:{ w:1500, h:1500 },
              print:{ x:448, y:108, w:604, h:1268 },
-             cutoutPx:{ x:460, y:112, w:582, h:352, r:80 } } },
+             cutoutPx:{ x:460, y:112, w:582, h:352, r:80 },
+             // phone colors: one registered photo per colorway (sw = picker dot)
+             colors:[
+               { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-clear-photo.jpg' },
+               { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-clear-photo-black.jpg' },
+               { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-clear-photo-natural.jpg' },
+               { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-clear-photo-desert.jpg' },
+             ] } },
   { id:'iphone-16-pro-max', name:'iPhone 16 Pro Max', price:34.99,
     mm:{ w:80.8, h:166.2, corner:15 },
     camera:{ kind:'plate', x:8, y:8, w:41, h:41, r:12,
@@ -336,7 +348,16 @@ const FONTS = [
   { label:'Comic Sans (fun)', css:"'Comic Sans MS', 'Comic Sans', cursive" },
 ];
 const TEXT_COLORS = ['#FFFFFF','#2D2D3B','#DC282E','#4FB0E3','#F5C518','#2E9E5B','#FF8AC2','#8B5CF6'];
+/* generic phone body colors for the drawn fallback models (asset models
+   carry real per-color photos instead) */
+const DRAWN_BODY = [
+  { id:'silver', label:'Silver', sw:'#E8E8E6', body:'#DEDFE2' },
+  { id:'black',  label:'Black',  sw:'#3E3F44', body:'#43444A' },
+  { id:'blue',   label:'Blue',   sw:'#9FB8D6', body:'#A9C0DA' },
+  { id:'gold',   label:'Gold',   sw:'#D8BC96', body:'#DCC5A4' },
+];
 const BGS = [
+  { t:'clear' },
   { t:'solid', a:'#FFFFFF' }, { t:'solid', a:'#2D2D3B' }, { t:'solid', a:'#DC282E' },
   { t:'solid', a:'#4FB0E3' }, { t:'solid', a:'#F5C518' }, { t:'solid', a:'#2E9E5B' },
   { t:'solid', a:'#FFD9E8' }, { t:'solid', a:'#111318' },
@@ -350,7 +371,8 @@ const LS_KEY = 'mrtCaseStudio1';
 /* ---------------- state ---------------- */
 let model = MODELS[0];
 let view = 'mockup';                       // 'mockup' | 'print'
-let bg = { ...BGS[0] };
+let phoneColor = 'silver';                 // picker id; falls back to a model's first color
+let bg = { ...BGS[1] };                    // default White (Clear is index 0)
 let layers = [];                           // {id,type:'image'|'text'|'emoji',x,y,wMm|size,rot,...}
 let selId = null;
 let nextId = 1;
@@ -440,7 +462,26 @@ function drawLayer(c, l){
   }
   c.restore();
 }
-function paintBg(c, x, y, w, h){
+/* phone-color helpers: asset models carry real per-color photos; drawn
+   models tint a generic body fill */
+function colorEntries(){
+  return model.assets ? (model.assets.colors || null) : DRAWN_BODY;
+}
+function activeColor(){
+  const cs = colorEntries();
+  if (!cs || !cs.length) return null;
+  return cs.find(c => c.id === phoneColor) || cs[0];
+}
+function paintBg(c, x, y, w, h, forPrint){
+  if (bg.t === 'clear'){
+    // clear case: the phone shows through. Asset models get that from the
+    // photo; drawn models fake a body fill — preview only, never the print.
+    if (!model.assets && !forPrint){
+      c.fillStyle = (activeColor() || {}).body || '#DEDFE2';
+      c.fillRect(x, y, w, h);
+    }
+    return;
+  }
   if (bg.t === 'grad'){
     const g = c.createLinearGradient(x, y, x + w, y + h);
     g.addColorStop(0, bg.a); g.addColorStop(1, bg.b);
@@ -452,11 +493,11 @@ function paintBg(c, x, y, w, h){
    origin at the CASE top-left. bleed>0 extends the clip for print output.
    Asset models skip the vector clip — the manufacturer's alpha mask does the
    clipping afterwards — and just overfill the edges. */
-function drawDesign(c, bleed){
+function drawDesign(c, bleed, forPrint){
   const { w, h, corner } = model.mm;
   c.save();
   if (model.assets){
-    paintBg(c, -3, -3, w + 6, h + 6);
+    paintBg(c, -3, -3, w + 6, h + 6, forPrint);
   } else {
     if (bleed > 0){
       rrectPath(c, -bleed, -bleed, w + bleed * 2, h + bleed * 2, corner + bleed);
@@ -464,7 +505,7 @@ function drawDesign(c, bleed){
       rrectPath(c, 0, 0, w, h, corner);
     }
     c.clip();
-    paintBg(c, -bleed, -bleed, w + bleed * 2, h + bleed * 2);
+    paintBg(c, -bleed, -bleed, w + bleed * 2, h + bleed * 2, forPrint);
   }
   for (const l of layers) drawLayer(c, l);
   c.restore();
@@ -473,7 +514,7 @@ function drawHint(c){
   if (layers.length) return;
   c.save();
   if (!model.assets){ rrectPath(c, 0, 0, model.mm.w, model.mm.h, model.mm.corner); c.clip(); }
-  c.fillStyle = (bg.t === 'solid' && bg.a === '#FFFFFF') ? '#C9CCD6' : 'rgba(255,255,255,.65)';
+  c.fillStyle = (bg.t === 'clear' || (bg.t === 'solid' && bg.a === '#FFFFFF')) ? 'rgba(90,95,110,.55)' : 'rgba(255,255,255,.65)';
   c.font = `800 5px 'Nunito', sans-serif`;
   c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText('Add a photo, text', model.mm.w / 2, model.mm.h * 0.52);
@@ -489,13 +530,41 @@ function assetView(){
   const m = PAD * ppm;
   return { x:a.print.x - m, y:a.print.y - m, w:a.print.w + 2 * m, h:a.print.h + 2 * m, ppm };
 }
-function assetsReady(){ return !!(model._photo && model._mask); }
+function curAssetPhoto(){
+  if (!model.assets) return null;
+  const e = activeColor();
+  const url = (e && e.photo) || model.assets.photo;
+  return (model._photos || {})[url] || null;
+}
+function assetsReady(){ return !!(model._mask && curAssetPhoto()); }
+function loadAssets(){
+  const m = model;
+  if (!m.assets) return;
+  m._photos = m._photos || {}; m._loadingUrls = m._loadingUrls || {};
+  if (!m._mask && !m._maskLoading){
+    m._maskLoading = true;
+    const mk = new Image();
+    mk.onload = () => { m._mask = mk; if (model === m){ sizeCanvas(); buildOverlay(); draw(); } };
+    mk.onerror = () => { m._maskLoading = false; toast('Couldn’t load the case mockup images'); };
+    mk.src = m.assets.mask;
+  }
+  const e = (m.assets.colors && (m.assets.colors.find(c => c.id === phoneColor) || m.assets.colors[0])) || null;
+  const url = (e && e.photo) || m.assets.photo;
+  if (!m._photos[url] && !m._loadingUrls[url]){
+    m._loadingUrls[url] = true;
+    const ph = new Image();
+    ph.onload = () => { m._photos[url] = ph; if (model === m) draw(); };
+    ph.onerror = () => { delete m._loadingUrls[url]; toast('Couldn’t load that phone color'); };
+    ph.src = url;
+  }
+}
 /* Draw the composited scene at outW×outH: photo → masked art → the photo's
    own shading multiplied back over the print area (that's the "under a clear
    case" look). opts: {photo, hint} */
 function renderAssetScene(c, outW, outH, opts){
   const v = assetView();
   const s = outW / stageW();                              // out px per mm
+  const photo = curAssetPhoto();
   const od = document.createElement('canvas');
   od.width = outW; od.height = outH;
   const o = od.getContext('2d');
@@ -506,14 +575,16 @@ function renderAssetScene(c, outW, outH, opts){
   o.globalCompositeOperation = 'destination-in';
   o.drawImage(model._mask, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
   if (opts.photo){
-    c.drawImage(model._photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    c.drawImage(photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
     c.drawImage(od, 0, 0);
+    // multiply the case's own shading back — masked to the ART's alpha, so a
+    // Clear background leaves the untouched photo showing straight through
     const pd = document.createElement('canvas');
     pd.width = outW; pd.height = outH;
     const p = pd.getContext('2d');
-    p.drawImage(model._photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    p.drawImage(photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
     p.globalCompositeOperation = 'destination-in';
-    p.drawImage(model._mask, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    p.drawImage(od, 0, 0);
     c.globalCompositeOperation = 'multiply';
     c.drawImage(pd, 0, 0);
     c.globalCompositeOperation = 'source-over';
@@ -566,7 +637,7 @@ function draw(){
   ctx.save();
   ctx.scale(pxPerMM, pxPerMM);
   ctx.translate(PAD, PAD);
-  drawDesign(ctx, isPrint ? BLEED : 0);
+  drawDesign(ctx, isPrint ? BLEED : 0, isPrint);
   if (isPrint){
     // punch the camera opening so the checkerboard shows the physical hole
     ctx.save(); ctx.globalCompositeOperation = 'destination-out';
@@ -998,8 +1069,10 @@ $('lyBack').addEventListener('click', () => { if (selId != null) reorder(selId, 
 /* backgrounds */
 BGS.forEach((b, i) => {
   const el = document.createElement('span');
-  el.className = 'sw';
-  el.style.background = b.t === 'grad' ? `linear-gradient(135deg, ${b.a}, ${b.b})` : b.a;
+  el.className = 'sw' + (b.t === 'clear' ? ' clear' : '');
+  if (b.t === 'grad') el.style.background = `linear-gradient(135deg, ${b.a}, ${b.b})`;
+  else if (b.t === 'solid') el.style.background = b.a;
+  el.title = b.t === 'clear' ? 'Clear — show off your phone' : '';
   el.dataset.i = i;
   el.addEventListener('click', () => { bg = { ...b }; syncBgSw(i); draw(); saveSoon(); });
   $('bgSwatches').appendChild(el);
@@ -1032,26 +1105,32 @@ function setModel(id){
       `<b>${model.name}</b> · real manufacturer mockup + print mask<br>` +
       `Print file: <b>${Math.round(model.mm.w * PXMM)} × ${Math.round(model.mm.h * PXMM)} px</b> ` +
       `@ 300 DPI · clipped to the exact mask shape (pop-out camera plate prints as a hole)`;
-    if (!assetsReady() && !model._loading){
-      model._loading = true;
-      const m = model, ph = new Image(), mk = new Image();
-      let n = 0;
-      const done = () => {
-        if (++n < 2) return;
-        m._photo = ph; m._mask = mk;
-        if (model === m){ sizeCanvas(); buildOverlay(); draw(); }
-      };
-      ph.onload = done; mk.onload = done;
-      ph.onerror = mk.onerror = () => { m._loading = false; toast('Couldn’t load the case mockup images'); };
-      ph.src = m.assets.photo; mk.src = m.assets.mask;
-    }
+    loadAssets();
   } else {
     $('printMeta').innerHTML =
       `<b>${model.name}</b> · case back <b>${model.mm.w} × ${model.mm.h} mm</b><br>` +
       `Print file: <b>${Math.round((model.mm.w + BLEED * 2) * PXMM)} × ${Math.round((model.mm.h + BLEED * 2) * PXMM)} px</b> ` +
       `@ 300 DPI incl. ${BLEED} mm bleed · camera opening punched out (ring installs after printing)`;
   }
-  sizeCanvas(); buildOverlay(); draw(); saveSoon();
+  sizeCanvas(); buildOverlay(); buildColorRow(); draw(); saveSoon();
+}
+function buildColorRow(){
+  const row = $('colorRow'), cs = colorEntries();
+  row.innerHTML = '';
+  if (!cs || cs.length < 2){ row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  const act = activeColor();
+  cs.forEach(ent => {
+    const d = document.createElement('button');
+    d.className = 'cdot' + (act && ent.id === act.id ? ' on' : '');
+    d.style.background = ent.sw;
+    d.title = ent.label; d.setAttribute('aria-label', ent.label);
+    d.addEventListener('click', () => {
+      phoneColor = ent.id;
+      loadAssets(); buildColorRow(); draw(); saveSoon();
+    });
+    row.appendChild(d);
+  });
 }
 $('vMock').addEventListener('click', () => setView('mockup'));
 $('vPrint').addEventListener('click', () => setView('print'));
@@ -1087,7 +1166,7 @@ function makePrintCanvas(){
     oc.width = W; oc.height = H;
     const c = oc.getContext('2d');
     c.scale(PXMM, PXMM);
-    drawDesign(c, 0);
+    drawDesign(c, 0, true);
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'destination-in';
     c.drawImage(model._mask, a.print.x, a.print.y, a.print.w, a.print.h, 0, 0, W, H);
@@ -1099,7 +1178,7 @@ function makePrintCanvas(){
   oc.width = W; oc.height = H;
   const c = oc.getContext('2d');
   c.scale(PXMM, PXMM); c.translate(BLEED, BLEED);
-  drawDesign(c, BLEED);
+  drawDesign(c, BLEED, true);
   c.save(); c.globalCompositeOperation = 'destination-out';
   cameraPunchPath(c); c.fill(); c.restore();
   return oc;
@@ -1184,13 +1263,14 @@ function canvasB64(canvas){
 }
 function designJson(){
   // photo pixels stay out of the DB — the print file is the artwork of record
+  const pc = activeColor();
   return {
-    model: model.id, bg,
+    model: model.id, bg, phone_color: pc ? pc.id : null,
     layers: layers.map(l => { const o = { ...l }; delete o.img; delete o.src; return o; }),
   };
 }
 $('btnOrder').addEventListener('click', () => {
-  if (!layers.length && bg.t === 'solid' && bg.a === '#FFFFFF'){
+  if (!layers.length && (bg.t === 'clear' || (bg.t === 'solid' && bg.a === '#FFFFFF'))){
     toast('Design something first — add a photo, text or a color ✨');
     return;
   }
@@ -1237,9 +1317,9 @@ $('sSubmit').addEventListener('click', async () => {
 });
 $('btnReset').addEventListener('click', () => {
   if (!confirm('Start over? This clears your whole design.')) return;
-  layers = []; selId = null; bg = { ...BGS[0] };
+  layers = []; selId = null; bg = { ...BGS[1] };
   try{ localStorage.removeItem(LS_KEY); }catch(_){}
-  syncPanel(); syncChips(); syncBgSw(0); draw();
+  syncPanel(); syncChips(); syncBgSw(1); draw();
 });
 
 /* ---------------- autosave (device-local; Supabase comes with the real build) ---------------- */
@@ -1248,7 +1328,7 @@ function saveSoon(){ clearTimeout(saveT); saveT = setTimeout(saveNow, 500); }
 function saveNow(){
   try{
     const data = {
-      model:model.id, bg,
+      model:model.id, bg, phoneColor,
       layers:layers.map(l => {
         const o = { ...l }; delete o.img; return o;
       })
@@ -1262,6 +1342,7 @@ function restore(){
   if (!data) return false;
   if (data.model && MODELS.some(m => m.id === data.model)) model = MODELS.find(m => m.id === data.model);
   if (data.bg) bg = data.bg;
+  if (data.phoneColor) phoneColor = data.phoneColor;
   const arr = Array.isArray(data.layers) ? data.layers : [];
   for (const o of arr){
     o.id = nextId++;
