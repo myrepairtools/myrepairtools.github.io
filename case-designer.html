@@ -663,14 +663,6 @@ function svgRrect(x, y, w, h, r, attrs){
 function buildMockupOverlay(){
   const { w, h, corner } = model.mm;
   const W = stageW(), H = stageH();
-  if (model.assets){
-    // the real photo carries the whole "phone in a clear case" look — no SVG needed
-    ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    ov.innerHTML = '';
-    return;
-  }
-  const cam = model.camera;
-  const rim = 2.4;                         // visible case side wall, mm
   let d = `<defs>
     <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#4a4a55"/><stop offset="1" stop-color="#191920"/>
@@ -691,6 +683,37 @@ function buildMockupOverlay(){
       <feDropShadow dx="0" dy="2.2" stdDeviation="3.4" flood-color="#2D2D3B" flood-opacity="0.28"/>
     </filter>
   </defs>`;
+  if (model.assets){
+    // The photo carries the "phone in a clear case" look; we draw the CASE'S
+    // pop-out camera plate over the unprintable window so the preview shows
+    // the finished product (and hides any hardware mismatch in AI photos).
+    const a = model.assets, cut = a.cutoutPx;
+    ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    if (!cut){ ov.innerHTML = ''; return; }
+    const ppm = a.print.w / w;
+    const cx = PAD + (cut.x - a.print.x) / ppm, cy = PAD + (cut.y - a.print.y) / ppm;
+    const cw = cut.w / ppm, ch = cut.h / ppm, cr = cut.r / ppm;
+    const lr = ch * 0.20;                                  // lens radius
+    const l1x = cx + ch * 0.26, l1y = cy + ch * 0.26;
+    const l2x = cx + ch * 0.26, l2y = cy + ch * 0.74;
+    const l3x = cx + ch * 0.62, l3y = cy + ch * 0.50;
+    let p = d;                                             // keep the <defs>
+    p += svgRrect(cx - 0.9, cy - 0.9, cw + 1.8, ch + 1.8, cr + 0.9, `fill="url(#ring)"`);
+    p += svgRrect(cx, cy, cw, ch, cr, `fill="url(#plate)"`);
+    for (const [lx, ly] of [[l1x, l1y], [l2x, l2y], [l3x, l3y]]){
+      p += `<circle cx="${lx}" cy="${ly}" r="${lr}" fill="#23232b"/>
+        <circle cx="${lx}" cy="${ly}" r="${lr * 0.72}" fill="url(#glass)"/>
+        <circle cx="${lx}" cy="${ly}" r="${lr * 0.3}" fill="#0a1220"/>
+        <circle cx="${lx - lr * 0.32}" cy="${ly - lr * 0.36}" r="${lr * 0.14}" fill="#9fc4e8" fill-opacity="0.9"/>`;
+    }
+    p += `<circle cx="${cx + cw - ch * 0.24}" cy="${cy + ch * 0.26}" r="${ch * 0.065}" fill="#F3E9C9"/>
+      <circle cx="${cx + cw - ch * 0.24}" cy="${cy + ch * 0.26}" r="${ch * 0.036}" fill="#E8D08A"/>
+      <circle cx="${cx + cw - ch * 0.24}" cy="${cy + ch * 0.74}" r="${ch * 0.05}" fill="#1a1a22"/>`;
+    ov.innerHTML = p;
+    return;
+  }
+  const cam = model.camera;
+  const rim = 2.4;                         // visible case side wall, mm
 
   // If the model carries a real mockup export, use it — this is the production path.
   if (model.overlay){
@@ -1210,13 +1233,12 @@ function makeMockupCanvas(cb){
   if (model.assets){
     if (!assetsReady()){ cb(null); return; }
     renderAssetScene(c, oc.width, oc.height, { photo:true });
-    cb(oc);
-    return;
+  } else {
+    c.save(); c.scale(scale, scale); c.translate(PAD, PAD);
+    drawDesign(c, 0);
+    c.restore();
   }
-  c.save(); c.scale(scale, scale); c.translate(PAD, PAD);
-  drawDesign(c, 0);
-  c.restore();
-  // rasterize the SVG overlay on top
+  // rasterize the SVG overlay on top (case chrome / camera plate)
   const wasPrint = view === 'print';
   if (wasPrint) buildMockupOverlay();
   const svgTxt = new XMLSerializer().serializeToString(ov);
