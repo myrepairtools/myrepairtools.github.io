@@ -306,10 +306,10 @@ const IPPRO_ASSETS = {
   print:{ x:448, y:108, w:604, h:1268 },
   cutoutPx:{ x:460, y:112, w:582, h:352, r:80 }, plate:true,
   colors:[
-    { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-gem-silver.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-    { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-gem-black.jpg',   px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-    { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-gem-natural.jpg', px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
-    { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-gem-desert.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-gem-silver.jpg', plate:'assets/cases/ip16pro-plate-silver.png',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-gem-black.jpg', plate:'assets/cases/ip16pro-plate-black.png',   px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-gem-natural.jpg', plate:'assets/cases/ip16pro-plate-natural.png', px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+    { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-gem-desert.jpg', plate:'assets/cases/ip16pro-plate-desert.png',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
   ],
 };
 // iPhone 17: same composition as the 16 set (verified within ~3px), so it
@@ -596,8 +596,10 @@ function loadAssets(){
     mk.src = m.assets.mask;
   }
   const e = (m.assets.colors && (m.assets.colors.find(c => c.id === phoneColor) || m.assets.colors[0])) || null;
-  const url = (e && e.photo) || m.assets.photo;
-  if (!m._photos[url] && !m._loadingUrls[url]){
+  const urls = [(e && e.photo) || m.assets.photo];
+  if (e && e.plate) urls.push(e.plate);      // photoreal camera plate crop
+  for (const url of urls){
+    if (m._photos[url] || m._loadingUrls[url]) continue;
     m._loadingUrls[url] = true;
     const ph = new Image();
     ph.onload = () => { m._photos[url] = ph; if (model === m) draw(); };
@@ -637,6 +639,20 @@ function renderAssetScene(c, outW, outH, opts){
     c.globalCompositeOperation = 'multiply';
     c.drawImage(pd, 0, 0);
     c.globalCompositeOperation = 'source-over';
+    // the case's pop-out plate, photographed — cropped from the manufacturer
+    // photo and tinted per phone color; covers the unprintable window
+    const a2 = model.assets;
+    if (a2.plate && a2.cutoutPx && e && e.plate){
+      const pimg = (model._photos || {})[e.plate];
+      if (pimg){
+        const mppm = a2.print.w / model.mm.w;
+        const cut = a2.cutoutPx;
+        c.drawImage(pimg,
+          (PAD + (cut.x - a2.print.x) / mppm) * s,
+          (PAD + (cut.y - a2.print.y) / mppm) * s,
+          (cut.w / mppm) * s, (cut.h / mppm) * s);
+      }
+    }
   } else {
     c.drawImage(od, 0, 0);
   }
@@ -725,34 +741,10 @@ function buildMockupOverlay(){
     </filter>
   </defs>`;
   if (model.assets){
-    // The photo carries the "phone in a clear case" look; we draw the CASE'S
-    // pop-out camera plate over the unprintable window so the preview shows
-    // the finished product (and hides any hardware mismatch in AI photos).
-    const a = model.assets, cut = a.cutoutPx;
+    // asset models render everything (photo, art, photoreal plate crop) on
+    // the canvas in renderAssetScene — no SVG overlay needed
     ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    // draw the plate only where the photo's hardware doesn't match the die
-    // (a.plate) — masks traced FROM the photo need nothing on top
-    if (!cut || !a.plate){ ov.innerHTML = ''; return; }
-    const ppm = a.print.w / w;
-    const cx = PAD + (cut.x - a.print.x) / ppm, cy = PAD + (cut.y - a.print.y) / ppm;
-    const cw = cut.w / ppm, ch = cut.h / ppm, cr = cut.r / ppm;
-    const lr = ch * 0.20;                                  // lens radius
-    const l1x = cx + ch * 0.26, l1y = cy + ch * 0.26;
-    const l2x = cx + ch * 0.26, l2y = cy + ch * 0.74;
-    const l3x = cx + ch * 0.62, l3y = cy + ch * 0.50;
-    let p = d;                                             // keep the <defs>
-    p += svgRrect(cx - 0.9, cy - 0.9, cw + 1.8, ch + 1.8, cr + 0.9, `fill="url(#ring)"`);
-    p += svgRrect(cx, cy, cw, ch, cr, `fill="url(#plate)"`);
-    for (const [lx, ly] of [[l1x, l1y], [l2x, l2y], [l3x, l3y]]){
-      p += `<circle cx="${lx}" cy="${ly}" r="${lr}" fill="#23232b"/>
-        <circle cx="${lx}" cy="${ly}" r="${lr * 0.72}" fill="url(#glass)"/>
-        <circle cx="${lx}" cy="${ly}" r="${lr * 0.3}" fill="#0a1220"/>
-        <circle cx="${lx - lr * 0.32}" cy="${ly - lr * 0.36}" r="${lr * 0.14}" fill="#9fc4e8" fill-opacity="0.9"/>`;
-    }
-    p += `<circle cx="${cx + cw - ch * 0.24}" cy="${cy + ch * 0.26}" r="${ch * 0.065}" fill="#F3E9C9"/>
-      <circle cx="${cx + cw - ch * 0.24}" cy="${cy + ch * 0.26}" r="${ch * 0.036}" fill="#E8D08A"/>
-      <circle cx="${cx + cw - ch * 0.24}" cy="${cy + ch * 0.74}" r="${ch * 0.05}" fill="#1a1a22"/>`;
-    ov.innerHTML = p;
+    ov.innerHTML = '';
     return;
   }
   const cam = model.camera;
