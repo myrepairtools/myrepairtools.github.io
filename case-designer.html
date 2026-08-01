@@ -297,6 +297,20 @@ const SAFE = 3;                           // keep-text-inside margin, mm
       overlay (inline SVG). Camera shapes are mm from the case's top-left:
       kind 'plate' = one removable plate/ring assembly (the punch is the
       plate), kind 'lenses' = individual lens rings (the punch is each circle). */
+const IP16_ASSETS = {
+  photo:'assets/cases/ip16-gem-white.jpg',
+  mask:'assets/cases/ip16-gem-mask.png',
+  px:{ w:1024, h:1024 },
+  print:{ x:300, y:70, w:425, h:887 },
+  cutoutPx:{ x:296, y:66, w:150, h:256, r:75 },
+  colors:[
+    { id:'white',       label:'White',       sw:'#F0F0E8', photo:'assets/cases/ip16-gem-white.jpg',       px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'black',       label:'Black',       sw:'#42444A', photo:'assets/cases/ip16-gem-black.jpg',       px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'ultramarine', label:'Ultramarine', sw:'#7381DC', photo:'assets/cases/ip16-gem-ultramarine.jpg', px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'teal',        label:'Teal',        sw:'#A3C6BF', photo:'assets/cases/ip16-gem-teal.jpg',        px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+    { id:'pink',        label:'Pink',        sw:'#EBB6D8', photo:'assets/cases/ip16-gem-pink.jpg',        px:{w:1024,h:1024}, print:{x:300,y:70,w:425,h:887} },
+  ],
+};
 const MODELS = [
   { id:'iphone-16-pro-clear', name:'iPhone 16 Pro · Real Case Photo', price:34.99,
     mm:{ w:74.8, h:157.0, corner:14 },
@@ -304,7 +318,7 @@ const MODELS = [
              mask:'assets/cases/ip16pro-clear-mask.png',
              px:{ w:1500, h:1500 },
              print:{ x:448, y:108, w:604, h:1268 },
-             cutoutPx:{ x:460, y:112, w:582, h:352, r:80 },
+             cutoutPx:{ x:460, y:112, w:582, h:352, r:80 }, plate:true,
              // phone colors: one registered photo per colorway (sw = picker dot).
              // The Gemini set lives in its own pixel space, so each entry
              // carries its own px + print bbox (measured 2026-08-01); the
@@ -327,11 +341,15 @@ const MODELS = [
     camera:{ kind:'plate', x:7.5, y:7.5, w:38.5, h:38.5, r:11,
       lenses:[{cx:18.7,cy:18.3,r:7.4},{cx:18.7,cy:35.2,r:7.4},{cx:34.3,cy:26.7,r:7.4}],
       flash:{cx:36.5,cy:14.5,r:2.3}, dot:{cx:36.5,cy:39,r:1.9} } },
-  { id:'iphone-16', name:'iPhone 16', price:29.99,
+  // iPhone 16 / 16 Plus share one Gemini photo set + traced mask (preview-
+  // grade die — swap in the manufacturer mask or a scan trace when the
+  // physical cases arrive). The Plus just stretches it to its real mm.
+  { id:'iphone-16-clear', name:'iPhone 16 · Real Case Photo', price:29.99,
     mm:{ w:74.9, h:150.9, corner:14 },
-    camera:{ kind:'plate', x:9, y:9, w:15.5, h:34, r:7.75,
-      lenses:[{cx:16.75,cy:17.5,r:5.6},{cx:16.75,cy:34.5,r:5.6}],
-      flash:{cx:31,cy:14,r:2.4} } },
+    assets: IP16_ASSETS },
+  { id:'iphone-16-plus-clear', name:'iPhone 16 Plus · Real Case Photo', price:32.99,
+    mm:{ w:81.1, h:164.2, corner:15 },
+    assets: IP16_ASSETS },
   { id:'iphone-15', name:'iPhone 15', price:29.99,
     mm:{ w:74.9, h:150.9, corner:14 },
     camera:{ kind:'plate', x:8, y:8, w:31, h:31, r:10,
@@ -689,7 +707,9 @@ function buildMockupOverlay(){
     // the finished product (and hides any hardware mismatch in AI photos).
     const a = model.assets, cut = a.cutoutPx;
     ov.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    if (!cut){ ov.innerHTML = ''; return; }
+    // draw the plate only where the photo's hardware doesn't match the die
+    // (a.plate) — masks traced FROM the photo need nothing on top
+    if (!cut || !a.plate){ ov.innerHTML = ''; return; }
     const ppm = a.print.w / w;
     const cx = PAD + (cut.x - a.print.x) / ppm, cy = PAD + (cut.y - a.print.y) / ppm;
     const cw = cut.w / ppm, ch = cut.h / ppm, cr = cut.r / ppm;
