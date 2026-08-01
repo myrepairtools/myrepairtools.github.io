@@ -699,6 +699,11 @@ the HOST gets personal alerts (kind `interview`) at the same 24h and 1h marks. *
 team:** the HOST gets a personal alert (alerts fanout, kind `interview` — a Notification, push
 on/text opt-in, in profile.html's prefs matrix) on book/cancel/reschedule, AND the routed rules
 `interviews.booked` / `interviews.canceled` fire for the team (Settings › Notifications).
+**Booking notifications are host-only by owner preference (2026-08-01):** those two routed
+rules are deliberately **unrouted from every channel** (their links to the Communications Feed
+were removed) so bookings no longer post to the all-staff feed — only the host's personal
+`interview` alert fires. The rules stay enabled/available; don't re-route them to a team-wide
+channel (e.g. Communications Feed) without the owner asking.
 **Store contact info** (`stores.address/phone/email`, edited in Settings → Locations;
 docs/sql/2026-07-26-stores-contact.sql) feeds the whole candidate surface: the public
 page shows the CPR logo (assets/images/CPRLogo_NoAssurant_White.svg) and a per-day
