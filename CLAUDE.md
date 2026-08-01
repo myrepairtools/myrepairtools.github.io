@@ -1023,7 +1023,12 @@ Web Push (VAPID_* secrets; npm:web-push; dead endpoints pruned) to every device
 in `push_subscriptions`, and SMS via the messaging function's secret-guarded
 `system_send` action, which sends from the OFFICIAL company line
 (`ALERTS_FROM_NUMBER` secret — the 1-855; toll-free numbers must be TF-verified
-for SMS — falls back to RINGCENTRAL_FROM_NUMBER). Push arrives via sw.js
+for SMS — falls back to RINGCENTRAL_FROM_NUMBER). **Texts send SEQUENTIALLY (one
+at a time, retried once)** — push fans out concurrently, but firing every SMS at
+once overran the runtime's outbound-connection cap and silently dropped the tail
+of a full-staff broadcast (never reaching messaging, so never logging); the
+response also carries `sms_skipped_no_phone` since a recipient with no
+`staff_profiles.phone` can't be texted. Push arrives via sw.js
 (`push` → showNotification, `notificationclick` → deep link). Wired sources:
 milestones (goal hits → the person, kind 'goal'; day-of birthdays/anniversaries
 → the person), Schedule Admin's Notify button (kind 'schedule', everyone — opens a

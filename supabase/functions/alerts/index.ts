@@ -91,11 +91,19 @@ async function doSend(body: Record<string, unknown>) {
     (subsBy[s.staff_id] = subsBy[s.staff_id] || []).push(s);
   });
 
-  let pushed = 0, pruned = 0, smsSent = 0;
+  let pushed = 0, pruned = 0, smsSent = 0, smsSkippedNoPhone = 0;
   const errors: string[] = [];
   const payload = JSON.stringify({ title, body: text || "", link: link || "alerts.html", icon: icon || "" });
 
-  const jobs: Promise<void>[] = [];
+  // Push (distinct endpoints) fans out concurrently. SMS does NOT: every text
+  // goes through the one messaging function / one RingCentral line, and firing
+  // the whole group at once overran the runtime's outbound-connection cap — the
+  // tail of the burst was dropped before it reached messaging (so it never even
+  // logged), which is why a full-staff schedule broadcast silently skipped
+  // Jose & Dylan. Texts are now sent SEQUENTIALLY with a retry so everyone in
+  // the group actually gets one.
+  const pushJobs: Promise<void>[] = [];
+  const smsList: number[] = [];
   for (const id of ids) {
     const p = (prefs[id] || {})[kind] || {};
     // Two tiers. Notifications (task/kb/goal/comms…): push default ON, SMS opt-in.
@@ -107,7 +115,7 @@ async function doSend(body: Record<string, unknown>) {
 
     if (wantPush && VAPID_PUB) {
       for (const sub of (subsBy[id] || [])) {
-        jobs.push((async () => {
+        pushJobs.push((async () => {
           try {
             await webpush.sendNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -124,22 +132,34 @@ async function doSend(body: Record<string, unknown>) {
         })());
       }
     }
-    if (wantSms && phones[id] && SECRET) {
-      jobs.push((async () => {
-        try {
-          const sms = `CPR: ${title}${text ? " — " + text : ""}${link ? " myrepairtools.com/" + link : ""}`;
-          const r = await fetch(MESSAGING_URL, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "system_send", secret: SECRET, to: phones[id], body: sms }),
-          });
-          if (r.ok) smsSent++; else errors.push(`sms ${r.status}`);
-        } catch (e) { errors.push(`sms ${(e as Error)?.message}`); }
-      })());
+    if (wantSms && SECRET) {
+      if (phones[id]) smsList.push(id);
+      else smsSkippedNoPhone++;   // urgent alert but no number on file — surfaced below
     }
   }
-  await Promise.allSettled(jobs);
 
-  return json({ ok: true, recipients: ids.length, pushed, pruned, sms_sent: smsSent, ...(errors.length ? { errors: errors.slice(0, 10) } : {}) });
+  // texts one at a time, each retried once on a transient failure (network drop
+  // or a RingCentral rate-limit), so no recipient is silently skipped
+  const smsBody = `CPR: ${title}${text ? " — " + text : ""}${link ? " myrepairtools.com/" + link : ""}`;
+  for (const id of smsList) {
+    let ok = false, lastErr = "";
+    for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+      try {
+        const r = await fetch(MESSAGING_URL, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "system_send", secret: SECRET, to: phones[id], body: smsBody }),
+        });
+        if (r.ok) { ok = true; smsSent++; break; }
+        lastErr = `sms ${r.status} id${id}`;
+        // 409 (opted out) / 400 (bad number) won't fix on retry — stop early
+        if (r.status === 409 || r.status === 400) break;
+      } catch (e) { lastErr = `sms ${(e as Error)?.message} id${id}`; }
+    }
+    if (!ok && lastErr) errors.push(lastErr);
+  }
+  await Promise.allSettled(pushJobs);
+
+  return json({ ok: true, recipients: ids.length, pushed, pruned, sms_sent: smsSent, sms_skipped_no_phone: smsSkippedNoPhone, ...(errors.length ? { errors: errors.slice(0, 10) } : {}) });
 }
 
 Deno.serve(async (req) => {
