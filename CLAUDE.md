@@ -296,6 +296,13 @@ renders built-in sample data for layout preview. The dateline is a **day
 navigator** (‹ › + CPRPickers.day calendar, bounded first-capture→today):
 picking a past day re-reads that day's final snapshot across every tab, cached
 per date and fetched on demand, with an amber "Viewing history" chip.
+A **Force Update** button sits in the dateline (managers only, today only — the
+tiles are "today"-relative so forcing while viewing history would overwrite
+today, not the past day): it calls `repairq-query`'s **`digest_refresh`** action
+(the same `runDigestSync()` the cron runs, but gated by the manager's own
+Supabase JWT instead of the proxy secret — the browser never holds the secret;
+20-second server-side debounce against double-clicks), then re-pulls and
+repaints. Don't call `sync_digest` (secret-gated, crons) from the browser.
 Dashboard **Today's Numbers**
 widget (`assets/digest-summary.js`, `window.CPRDigest.forToday()`) shows
 Rank · Total · GP% per store, manager-gated via `can()`.

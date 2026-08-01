@@ -25,6 +25,18 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
 .dateline{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .stale{display:inline-flex;align-items:center;gap:6px;background:#FBF3E4;border:1px solid #EBDDBD;color:var(--amber);
 border-radius:99px;padding:3px 10px;font-size:.72rem;font-weight:800;margin-left:6px}
+.forcebtn{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--border);color:var(--dark-grey);
+border-radius:8px;padding:5px 11px;font-family:Nunito;font-weight:800;font-size:.76rem;cursor:pointer;transition:.15s}
+.forcebtn:hover{border-color:var(--grey);color:var(--dark)}
+.forcebtn:disabled{opacity:.6;cursor:default}
+.forcebtn svg{width:14px;height:14px}
+.forcebtn.spin svg{animation:fspin .8s linear infinite}
+@keyframes fspin{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;
+font-weight:800;font-size:.88rem;padding:11px 18px;border-radius:11px;opacity:0;pointer-events:none;transition:.25s;z-index:3000;
+box-shadow:0 10px 30px rgba(45,45,59,.3)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--red)}
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:nowrap}
 .tabs{display:flex;background:#fff;border:1.5px solid var(--border);border-radius:9px;overflow:hidden}
 .tab{border:none;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark-grey);
@@ -144,6 +156,7 @@ font-size:.72rem;font-weight:800;margin-left:6px}
     <div class="meta" id="meta"></div>
   </div>
   <div class="dateline" id="dateline">Loading…</div>
+  <div id="toast"></div>
   <div class="toolbar" id="toolbar" style="display:none">
     <div class="tabs" role="tablist">
       <button class="tab" data-tab="today">Today</button>
@@ -169,6 +182,8 @@ var $=function(s,c){return (c||document).querySelector(s);};
 var $$=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
 var SB_REF='xuvsehrevxackuhmbmry';
 var SB_URL='https://'+SB_REF+'.supabase.co';
+var REPAIRQ_FN=SB_URL+'/functions/v1/repairq-query';   // manager force-update
+var FORCING=false;
 var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 var LOC=window.CPRLocations;
 var TZ='America/Los_Angeles';
@@ -220,7 +235,8 @@ function storeOrd(s){ var f=LOC.find(s); return f?f.order:99; }
 var ICO={
   lock:'<path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>',
   inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
-  user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'};
+  user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'};
 function icon(n){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICO[n]+'</svg>'; }
 
 /* ---------- derived metrics ---------- */
@@ -470,9 +486,14 @@ function headerMeta(){
       +'<button id="dNext"'+(d>=today?' disabled':'')+'>›</button>'
       +'</div>'
       +(d!==today?'<button class="cpr-navjump" id="dToday">Today</button>':''))
-    +chip+(DEMO?'<span class="demo">Demo Data</span>':'');
+    +chip+(DEMO?'<span class="demo">Demo Data</span>':'')
+    // managers can force a fresh pull from RepairQ, but only for today (the tiles
+    // are "today"-relative — forcing while viewing history would overwrite today,
+    // not the past day, so it's hidden off-today)
+    +((!DEMO&&roleRank()>=2&&d===today)?'<button class="forcebtn" id="dForce" title="Pull the latest numbers from RepairQ now">'+icon('refresh')+'Force update</button>':'');
   $('#meta').textContent=CAPTURED?('Updated '+timePT(CAPTURED)):'';
   if(DEMO)return;
+  var fb=$('#dForce'); if(fb)fb.onclick=function(){ forceUpdate(fb); };
   function stepTo(n){
     var p=d.split('-').map(Number), x=new Date(p[0],p[1]-1,p[2]+n);
     showDate(x.toLocaleDateString('en-CA'));
@@ -490,6 +511,33 @@ function headerMeta(){
       min:new Date(ep[0],ep[1]-1,ep[2]), max:new Date(tp[0],tp[1]-1,tp[2])
     });
   };
+}
+
+function toast(m,err){ var t=$('#toast'); if(!t)return; t.textContent=m; t.classList.toggle('err',!!err);
+  t.classList.add('show'); clearTimeout(toast._h); toast._h=setTimeout(function(){t.classList.remove('show');},3600); }
+
+/* Manager force-update: kick a fresh RepairQ pull server-side (repairq-query's
+   digest_refresh, gated by the manager's own JWT), then reload today and repaint. */
+async function forceUpdate(btn){
+  if(FORCING||!SBC)return; FORCING=true;
+  btn.disabled=true; btn.classList.add('spin');
+  try{
+    var tok=((await SBC.auth.getSession()).data.session||{}).access_token;
+    if(!tok){ toast('Sign in first',true); return; }
+    var r=await fetch(REPAIRQ_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
+      body:JSON.stringify({action:'digest_refresh'})});
+    var dd={}; try{ dd=await r.json(); }catch(e){}
+    if(!r.ok||!dd.ok){ toast(dd&&dd.error?dd.error:'Update failed — try again',true); return; }
+    // re-pull the recent window so today's fresh rows (and NEWEST_DATE) update
+    var since=new Date(Date.now()-8*864e5).toLocaleDateString('en-CA',{timeZone:TZ});
+    var q=await SBC.from('digest_raw').select('capture_date,tile_key,rows,row_count,captured_at')
+      .gte('capture_date',since).order('capture_date',{ascending:false}).limit(60);
+    if(q.data){ ROWS_BY_DATE={}; q.data.forEach(function(row){ (ROWS_BY_DATE[row.capture_date]=ROWS_BY_DATE[row.capture_date]||[]).push(row); });
+      NEWEST_DATE=Object.keys(ROWS_BY_DATE).sort().pop()||NEWEST_DATE; }
+    await showDate(todayPT());
+    toast(dd.debounced?'Already up to date':'Updated with the latest numbers');
+  }catch(e){ toast('Update failed — try again',true); }
+  finally{ FORCING=false; }   // headerMeta() re-renders the button fresh (not disabled)
 }
 
 /* switch the whole digest to a day's snapshot (cache first, fetch on miss) */

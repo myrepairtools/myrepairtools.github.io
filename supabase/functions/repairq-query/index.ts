@@ -1653,6 +1653,59 @@ async function flipUnit(itemId: string | number, fromStatus: number, toStatus: n
   return { ok: false, error: `post ${w.status}, status still ${vf["InventoryItemForm[status_id]"] ?? "?"}` };
 }
 
+/* Shared daily-digest sync: pulls dashboard 2273's tiles into digest_raw for
+   "today" (America/Los_Angeles). Called by the secret-gated `sync_digest`
+   action (crons) AND the manager-JWT-gated `digest_refresh` action (the Daily
+   Digest page's Force Update button) — one tile set, two entry points. The 11
+   tiles carry relative date filters ("today"/"1 months"/"7 days") that auto-roll
+   each run; each runs individually so results map 1:1 to a tile_key. */
+async function runDigestSync(): Promise<{ ok: boolean; capture_date: string; tiles_ok: number; tiles_total: number; detail: any[] }> {
+  const DASH = "2273";
+  const TILES: Array<{ key: string; q: any }> = [
+    { key: "daily_digest", q: { element_id: "9862", result_maker_id: "26851", sorts: ["ticket_item.all_sale_after_discount_total desc"], filters: [{ "catalog_item.sku": "-NULL", "ticket_item.is_child": "", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.is_closed": "Yes", "ticket.status": "closed", "ticket.claim_status": "", "ticket.status_updated_date": "today" }] } },
+    { key: "monthly_digest", q: { element_id: "9863", result_maker_id: "26850", sorts: ["ticket_item.all_sale_after_discount_total desc"], filters: [{ "catalog_item.sku": "-NULL", "ticket_item.is_child": "", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.is_closed": "Yes", "ticket.status": "closed", "ticket.claim_status": "", "ticket.status_updated_date": "1 months" }] } },
+    { key: "employee_breakdown", q: { element_id: "9864", result_maker_id: "26953", sorts: ["sold_by.full_name desc"], filters: [{ "catalog_item.sku": "-%zaggwarr%", "ticket_item.is_accessory_sale": "", "ticket_item.is_child": "No", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.status": "closed", "ticket.status_updated_date": "today", "sold_by.full_name": "-API Assurant,-Jeffrey Klotz,-Brandon Billings" }] } },
+    { key: "claims_completed_eugene", q: { element_id: "9865", result_maker_id: "28093", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Eugene", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
+    { key: "claims_completed_salem", q: { element_id: "10434", result_maker_id: "28094", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Salem Northeast", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
+    { key: "claims_completed_clackamas", q: { element_id: "12145", result_maker_id: "30884", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Clackamas OR", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
+    { key: "claim_payout_weekly", q: { element_id: "11173", result_maker_id: "30883", query_timezone: "America/Chicago", sorts: ["transaction.payment_amount_total desc 0"], filters: [{ "payment_method.name": "", "ticket.warranty_provider": "-EMPTY", "ticket.warranty_device_serial": "", "ticket.created_date": "", "ticket.claim_number": "", "transaction.deposit_posted_date": "7 days", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }] } },
+    { key: "express_repairs", q: { element_id: "11205", result_maker_id: "30880", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "EXPRESS-0001", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
+    { key: "device_cleanings", q: { element_id: "11206", result_maker_id: "30882", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "DEVICECLEAN", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
+    { key: "akko_plan_sales", q: { element_id: "11207", result_maker_id: "30881", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "AKKOPLAN,AKKOPLAN5,AKKOPLAN8,AKKOPLAN11", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
+    // Merged result (2 source queries) — the saved query 31223 was baked
+    // Eugene-only, so Salem/Clackamas device sales never surfaced. Pass an
+    // explicit all-stores location filter to BOTH source queries (the merge
+    // requires filters.length === source-query count); the "today" date
+    // filter persists from the saved query.
+    { key: "device_sales_today", q: { element_id: "12352", result_maker_id: "31223", sorts: [], filters: [{ "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }, { "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }] } },
+  ];
+  // capture_date = "today" in America/Los_Angeles (the stores' timezone)
+  const laDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const out: any[] = [];
+  for (const t of TILES) {
+    try {
+      const body = {
+        plain_queries: [],
+        saved_queries: [{ ...t.q, generate_links: false, path_prefix: "/explore", server_table_calcs: false, source: "dashboard" }],
+        context: { id: DASH, type: "dashboard", session_id: "mrt" + t.q.element_id },
+        options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
+      };
+      const run = await lookerRun(body);
+      const rows: any[] = [];
+      for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+      await admin.from("digest_raw").upsert({
+        capture_date: laDate, tile_key: t.key, element_id: t.q.element_id,
+        rows, row_count: rows.length, captured_at: new Date().toISOString(),
+      }, { onConflict: "capture_date,tile_key" });
+      out.push({ tile: t.key, rows: rows.length });
+    } catch (e) {
+      out.push({ tile: t.key, error: String((e as Error).message || e) });
+    }
+  }
+  const okCount = out.filter((o) => o.error == null).length;
+  return { ok: okCount > 0, capture_date: laDate, tiles_ok: okCount, tiles_total: TILES.length, detail: out };
+}
+
 /* ---------------- entry ---------------- */
 
 Deno.serve(async (req) => {
@@ -1987,6 +2040,29 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: "mode must be 'resolve' or 'apply'" }, 400);
   }
 
+  if (payload?.action === "digest_refresh") {
+    // Manager-triggered force refresh from the Daily Digest page's Force Update
+    // button. Same work as the cron's sync_digest, but gated by a manager JWT
+    // instead of the proxy secret so the browser never holds the secret.
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u, error: uerr } = await admin.auth.getUser(tok);
+    if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
+    const { data: st } = await admin.from("staff")
+      .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    const role = st?.role || "";
+    if (role !== "admin" && role !== "owner") return json({ ok: false, error: "manager access required" }, 403);
+    // debounce rapid re-clicks: if a capture landed in the last 20s, skip the
+    // Looker round-trip and report the existing freshness.
+    const laDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const { data: recent } = await admin.from("digest_raw")
+      .select("captured_at").eq("capture_date", laDate)
+      .order("captured_at", { ascending: false }).limit(1).maybeSingle();
+    if (recent?.captured_at && (Date.now() - new Date(recent.captured_at).getTime()) < 20000) {
+      return json({ ok: true, capture_date: laDate, debounced: true, captured_at: recent.captured_at });
+    }
+    return json(await runDigestSync());
+  }
+
   // admin gate — server-side callers only
   if (!PROXY_SECRET || req.headers.get("x-cpr-rq-secret") !== PROXY_SECRET) {
     return json({ ok: false, error: "unauthorized" }, 401);
@@ -2013,54 +2089,8 @@ Deno.serve(async (req) => {
       return json({ ok: r.status >= 200 && r.status < 300, status: r.status, location: (r as any).location || null, data: r.json ?? null, body: r.json ? undefined : r.body });
     }
     if (payload?.action === "sync_digest") {
-      // Capture the owner's daily digest (Looker dashboard 2273) into digest_raw.
-      // The 11 tiles (baked from the browser's querymanager batch) carry relative
-      // date filters ("today"/"1 months"/"7 days") that auto-roll each run. Runs
-      // each tile individually so results map 1:1 to a tile_key. Cron: daily.
-      const DASH = "2273";
-      const TILES: Array<{ key: string; q: any }> = [
-        { key: "daily_digest", q: { element_id: "9862", result_maker_id: "26851", sorts: ["ticket_item.all_sale_after_discount_total desc"], filters: [{ "catalog_item.sku": "-NULL", "ticket_item.is_child": "", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.is_closed": "Yes", "ticket.status": "closed", "ticket.claim_status": "", "ticket.status_updated_date": "today" }] } },
-        { key: "monthly_digest", q: { element_id: "9863", result_maker_id: "26850", sorts: ["ticket_item.all_sale_after_discount_total desc"], filters: [{ "catalog_item.sku": "-NULL", "ticket_item.is_child": "", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.is_closed": "Yes", "ticket.status": "closed", "ticket.claim_status": "", "ticket.status_updated_date": "1 months" }] } },
-        { key: "employee_breakdown", q: { element_id: "9864", result_maker_id: "26953", sorts: ["sold_by.full_name desc"], filters: [{ "catalog_item.sku": "-%zaggwarr%", "ticket_item.is_accessory_sale": "", "ticket_item.is_child": "No", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket.status": "closed", "ticket.status_updated_date": "today", "sold_by.full_name": "-API Assurant,-Jeffrey Klotz,-Brandon Billings" }] } },
-        { key: "claims_completed_eugene", q: { element_id: "9865", result_maker_id: "28093", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Eugene", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
-        { key: "claims_completed_salem", q: { element_id: "10434", result_maker_id: "28094", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Salem Northeast", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
-        { key: "claims_completed_clackamas", q: { element_id: "12145", result_maker_id: "30884", sorts: ["location.short_name"], filters: [{ "location.short_name": "CPR Clackamas OR", "ticket.warranty_provider": "", "ticket.status": "\"in_repair\",\"pending_approval\",\"pending_notification\",\"ready_for_pickup\",\"in_diagnosis\",\"on_hold\",\"waiting_for_payment\",invoiced,approved", "service_program.name": "-Apple IRP,-Samsung ISP", "ticket.claim_status": "fulfilled", "ticket.claim_number": "", "ticket.updated_date": "", "ticket_device.claim_mfr": "", "ticket.repair_completed_date": "today", "ticket.status_updated_date": "today" }] } },
-        { key: "claim_payout_weekly", q: { element_id: "11173", result_maker_id: "30883", query_timezone: "America/Chicago", sorts: ["transaction.payment_amount_total desc 0"], filters: [{ "payment_method.name": "", "ticket.warranty_provider": "-EMPTY", "ticket.warranty_device_serial": "", "ticket.created_date": "", "ticket.claim_number": "", "transaction.deposit_posted_date": "7 days", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }] } },
-        { key: "express_repairs", q: { element_id: "11205", result_maker_id: "30880", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "EXPRESS-0001", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
-        { key: "device_cleanings", q: { element_id: "11206", result_maker_id: "30882", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "DEVICECLEAN", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
-        { key: "akko_plan_sales", q: { element_id: "11207", result_maker_id: "30881", sorts: ["ticket_item.all_sale_count desc"], filters: [{ "catalog_item.sku": "AKKOPLAN,AKKOPLAN5,AKKOPLAN8,AKKOPLAN11", "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR", "ticket_item.accounted_on_date": "1 months" }] } },
-        // Merged result (2 source queries) — the saved query 31223 was baked
-        // Eugene-only, so Salem/Clackamas device sales never surfaced. Pass an
-        // explicit all-stores location filter to BOTH source queries (the merge
-        // requires filters.length === source-query count); the "today" date
-        // filter persists from the saved query.
-        { key: "device_sales_today", q: { element_id: "12352", result_maker_id: "31223", sorts: [], filters: [{ "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }, { "location.short_name": "CPR Eugene,CPR Salem Northeast,CPR Clackamas OR" }] } },
-      ];
-      // capture_date = "today" in America/Los_Angeles (the stores' timezone)
-      const laDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      const out: any[] = [];
-      for (const t of TILES) {
-        try {
-          const body = {
-            plain_queries: [],
-            saved_queries: [{ ...t.q, generate_links: false, path_prefix: "/explore", server_table_calcs: false, source: "dashboard" }],
-            context: { id: DASH, type: "dashboard", session_id: "mrt" + t.q.element_id },
-            options: { force_run: false, streaming: false, eager_poll: false, enable_phases: false },
-          };
-          const run = await lookerRun(body);
-          const rows: any[] = [];
-          for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
-          await admin.from("digest_raw").upsert({
-            capture_date: laDate, tile_key: t.key, element_id: t.q.element_id,
-            rows, row_count: rows.length, captured_at: new Date().toISOString(),
-          }, { onConflict: "capture_date,tile_key" });
-          out.push({ tile: t.key, rows: rows.length });
-        } catch (e) {
-          out.push({ tile: t.key, error: String((e as Error).message || e) });
-        }
-      }
-      const okCount = out.filter((o) => o.error == null).length;
-      return json({ ok: okCount > 0, capture_date: laDate, tiles_ok: okCount, tiles_total: TILES.length, detail: out });
+      // Secret-gated entry (crons). Manager force-update uses `digest_refresh`.
+      return json(await runDigestSync());
     }
     if (payload?.action === "looker_batch") {
       // Replay a dashboard's saved-query tiles (captured from the browser's
