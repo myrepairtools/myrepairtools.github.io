@@ -305,12 +305,17 @@ const MODELS = [
              px:{ w:1500, h:1500 },
              print:{ x:448, y:108, w:604, h:1268 },
              cutoutPx:{ x:460, y:112, w:582, h:352, r:80 },
-             // phone colors: one registered photo per colorway (sw = picker dot)
+             // phone colors: one registered photo per colorway (sw = picker dot).
+             // The Gemini set lives in its own pixel space, so each entry
+             // carries its own px + print bbox (measured 2026-08-01); the
+             // PRINT geometry still comes from the manufacturer mask above —
+             // Gemini drew a ring-style camera, the real case's plate window
+             // clips the art honestly regardless.
              colors:[
-               { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-clear-photo.jpg' },
-               { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-clear-photo-black.jpg' },
-               { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-clear-photo-natural.jpg' },
-               { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-clear-photo-desert.jpg' },
+               { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-gem-silver.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+               { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-gem-black.jpg',   px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+               { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-gem-natural.jpg', px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
+               { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-gem-desert.jpg',  px:{w:1024,h:1048}, print:{x:302,y:91,w:421,h:875} },
              ] } },
   { id:'iphone-16-pro-max', name:'iPhone 16 Pro Max', price:34.99,
     mm:{ w:80.8, h:166.2, corner:15 },
@@ -525,11 +530,12 @@ function drawHint(c){
 /* ---------------- real-asset rendering (photo + alpha mask) ---------------- */
 /* The crop of the source doc we show on the stage: the print bbox plus PAD mm
    of margin, so the on-screen geometry matches the drawn models exactly. */
-function assetView(){
-  const a = model.assets, ppm = a.print.w / model.mm.w;   // doc px per mm
+function viewRect(pr){
+  const ppm = pr.w / model.mm.w;                          // source px per mm
   const m = PAD * ppm;
-  return { x:a.print.x - m, y:a.print.y - m, w:a.print.w + 2 * m, h:a.print.h + 2 * m, ppm };
+  return { x:pr.x - m, y:pr.y - m, w:pr.w + 2 * m, h:pr.h + 2 * m, ppm };
 }
+function assetView(){ return viewRect(model.assets.print); }
 function curAssetPhoto(){
   if (!model.assets) return null;
   const e = activeColor();
@@ -562,7 +568,9 @@ function loadAssets(){
    own shading multiplied back over the print area (that's the "under a clear
    case" look). opts: {photo, hint} */
 function renderAssetScene(c, outW, outH, opts){
-  const v = assetView();
+  const v = assetView();                                  // mask doc space
+  const e = activeColor();
+  const pv = (e && e.print) ? viewRect(e.print) : v;      // photo's own space
   const s = outW / stageW();                              // out px per mm
   const photo = curAssetPhoto();
   const od = document.createElement('canvas');
@@ -575,14 +583,14 @@ function renderAssetScene(c, outW, outH, opts){
   o.globalCompositeOperation = 'destination-in';
   o.drawImage(model._mask, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
   if (opts.photo){
-    c.drawImage(photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    c.drawImage(photo, pv.x, pv.y, pv.w, pv.h, 0, 0, outW, outH);
     c.drawImage(od, 0, 0);
     // multiply the case's own shading back — masked to the ART's alpha, so a
     // Clear background leaves the untouched photo showing straight through
     const pd = document.createElement('canvas');
     pd.width = outW; pd.height = outH;
     const p = pd.getContext('2d');
-    p.drawImage(photo, v.x, v.y, v.w, v.h, 0, 0, outW, outH);
+    p.drawImage(photo, pv.x, pv.y, pv.w, pv.h, 0, 0, outW, outH);
     p.globalCompositeOperation = 'destination-in';
     p.drawImage(od, 0, 0);
     c.globalCompositeOperation = 'multiply';
