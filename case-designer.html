@@ -299,25 +299,12 @@ const SAFE = 3;                           // keep-text-inside margin, mm
       plate), kind 'lenses' = individual lens rings (the punch is each circle). */
 // Pro family: the Gemini titanium set IS the look — mask traced from the
 // photos themselves (case back minus the ring camera), so the renders show
-// as uploaded. Print geometry upgrades to the official Canva masks when
-// they land; acrylic mm dims are already spec-exact.
-// iPhone 16 Pro: the OFFICIAL production mask (Canva doc at true 300 DPI —
-// 826x1776px = 69.93x150.36mm exactly). Alpha is the die; the baked-in text
-// label is opaque so destination-in never sees it. Camera window = the real
-// plate opening; the preview shows the photo through it honestly.
-const IP16PRO_OFFICIAL = {
-  photo:'assets/cases/ip16pro-gem-silver.jpg',
-  mask:'assets/cases/ip16pro-mask-official.png',
-  px:{ w:826, h:1776 },
-  print:{ x:0, y:0, w:826, h:1776 },
-  cutoutPx:{ x:18, y:29, w:497, h:517, r:120 },
-  colors:[
-    { id:'silver',  label:'White Titanium',   sw:'#E8E8E6', photo:'assets/cases/ip16pro-gem-silver.jpg',  px:{w:1024,h:1048}, print:{x:302,y:89,w:421,h:878} },
-    { id:'black',   label:'Black Titanium',   sw:'#3E3F44', photo:'assets/cases/ip16pro-gem-black.jpg',   px:{w:1024,h:1048}, print:{x:302,y:89,w:421,h:878} },
-    { id:'natural', label:'Natural Titanium', sw:'#C9BFAE', photo:'assets/cases/ip16pro-gem-natural.jpg', px:{w:1024,h:1048}, print:{x:302,y:89,w:421,h:878} },
-    { id:'desert',  label:'Desert Titanium',  sw:'#D8BC96', photo:'assets/cases/ip16pro-gem-desert.jpg',  px:{w:1024,h:1048}, print:{x:302,y:89,w:421,h:878} },
-  ],
-};
+// as uploaded. The OFFICIAL Canva dies never touch the preview: the AI
+// photos draw the camera ring a few mm from where each die's real window
+// sits, and overlaying one on the other looks broken (owner-confirmed).
+// Instead a die attaches to its model as `printMask` and clips ONLY the
+// 300 DPI print export — preview stays pretty, print stays production-true.
+// Acrylic mm dims are already spec-exact.
 const IPPRO_ASSETS = {
   photo:'assets/cases/ip16pro-gem-silver.jpg',
   mask:'assets/cases/ip16pro-gem-mask.png',
@@ -373,13 +360,19 @@ const MODELS = [
     assets: IP17_ASSETS },
   { id:'iphone-16-pro-clear', name:'iPhone 16 Pro · Real Case Photo', price:34.99,
     mm:{ w:69.93, h:150.36, corner:3.75 },
-    assets: IP16PRO_OFFICIAL },
+    assets: IPPRO_ASSETS,
+    // official production die (Canva doc at true 300 DPI: 826x1776px =
+    // 69.93x150.36mm exactly) — clips the print export only, never the preview
+    printMask:{ url:'assets/cases/ip16pro-mask-official.png',
+                px:{ w:826, h:1776 }, print:{ x:0, y:0, w:826, h:1776 } } },
   { id:'iphone-16-pro-max-clear', name:'iPhone 16 Pro Max · Real Case Photo', price:34.99,
     mm:{ w:77.04, h:162.76, corner:3.75 },
     assets: IPPRO_ASSETS },
   { id:'iphone-15-pro-clear', name:'iPhone 15 Pro · Real Case Photo', price:34.99,
     mm:{ w:69.77, h:146.26, corner:3.5 },
-    assets: IPPRO_ASSETS },
+    assets: IPPRO_ASSETS,
+    printMask:{ url:'assets/cases/ip15pro-mask-official.png',
+                px:{ w:824, h:1727 }, print:{ x:0, y:0, w:824, h:1727 } } },
   { id:'iphone-15-pro-max-clear', name:'iPhone 15 Pro Max · Real Case Photo', price:34.99,
     mm:{ w:75.80, h:160.05, corner:3.5 },
     assets: IPPRO_ASSETS },
@@ -613,6 +606,13 @@ function loadAssets(){
     mk.onload = () => { m._mask = mk; if (model === m){ sizeCanvas(); buildOverlay(); draw(); } };
     mk.onerror = () => { m._maskLoading = false; toast('Couldn’t load the case mockup images'); };
     mk.src = m.assets.mask;
+  }
+  if (m.printMask && !m._printMask && !m._printMaskLoading){
+    m._printMaskLoading = true;             // official die: print export only
+    const pk = new Image();
+    pk.onload = () => { m._printMask = pk; };
+    pk.onerror = () => { m._printMaskLoading = false; };
+    pk.src = m.printMask.url;
   }
   const e = (m.assets.colors && (m.assets.colors.find(c => c.id === phoneColor) || m.assets.colors[0])) || null;
   const urls = [(e && e.photo) || m.assets.photo];
@@ -1245,6 +1245,10 @@ function download(canvas, name){
 function makePrintCanvas(){
   if (model.assets){
     if (!assetsReady()){ toast('Still loading the case images — try again in a second'); return null; }
+    if (model.printMask && !model._printMask){
+      loadAssets();
+      toast('Still loading the print die — try again in a second'); return null;
+    }
     const a = model.assets;
     const W = Math.round(model.mm.w * PXMM), H = Math.round(model.mm.h * PXMM);
     const oc = document.createElement('canvas');
@@ -1254,7 +1258,14 @@ function makePrintCanvas(){
     drawDesign(c, 0, true);
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.globalCompositeOperation = 'destination-in';
-    c.drawImage(model._mask, a.print.x, a.print.y, a.print.w, a.print.h, 0, 0, W, H);
+    if (model.printMask){
+      // the official production die cuts the file that goes to the printer;
+      // the traced preview mask stays on screen (see the Pro-family note)
+      const pm = model.printMask.print;
+      c.drawImage(model._printMask, pm.x, pm.y, pm.w, pm.h, 0, 0, W, H);
+    } else {
+      c.drawImage(model._mask, a.print.x, a.print.y, a.print.w, a.print.h, 0, 0, W, H);
+    }
     return oc;
   }
   const W = Math.round((model.mm.w + BLEED * 2) * PXMM);

@@ -375,7 +375,13 @@ doc, e.g. `assets/cases/ip16pro-clear-*`; art is clipped by the mask via
 destination-in, layered over the photo, then the photo multiplies back over the print
 area for the under-clear-case look) and drawn fallback models (generated SVG overlay,
 config-driven camera shapes). New real models = two exports + one config entry; masks
-can also be traced from a 600 DPI flatbed scan of the physical case. Customers add
+can also be traced from a 600 DPI flatbed scan of the physical case. **Official
+production dies** (the owner's Canva masks, exported at true 300 DPI so px = the spec
+chart's mm exactly) attach per model as `printMask` and clip ONLY the print export —
+never the on-screen preview, because the AI showroom photos draw the camera ring a few
+mm from the die's real window and overlaying them looks broken (owner-confirmed; do
+not try to align them). The preview keeps the mask traced from the photo itself.
+Wired so far: 16 Pro (`ip16pro-mask-official.png`), 15 Pro (`ip15pro-mask-official.png`). Customers add
 photos/text/emoji, drag/pinch/rotate, pick backgrounds, flip Mockup ↔ Print File view,
 download files, or **Send to My Store**: the page renders the print PNG + mockup and
 POSTs them to the **`case-designs` edge function** (service role, verify_jwt OFF,
