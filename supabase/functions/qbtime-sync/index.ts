@@ -98,7 +98,19 @@ async function getValidToken(): Promise<string> {
     const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
     if (!tok || !tok.access_token) throw new Error("not_connected");
     const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
-    if (Date.now() < exp - 2 * 24 * 3600 * 1000) return tok.access_token; // plenty of life left
+    // Refresh PROACTIVELY on token AGE, not just near access-token expiry. TSheets
+    // refresh tokens expire well before the ~10-day access token — a refresh token
+    // minted at reconnect was already rejected ("invalid, stop trying") by ~day 8
+    // while the access token still worked, so waiting until 2 days before access
+    // expiry to refresh uses an already-dead refresh token (the recurring QB Time
+    // disconnect). Rotate every ~2 days instead (single-flight below prevents a
+    // double-spend), which keeps the refresh token fresh AND leaves days of
+    // access-token runway to retry if a refresh momentarily fails.
+    const issued = tok.updated_at ? new Date(tok.updated_at).getTime() : 0;
+    const life = (exp && issued && exp > issued) ? exp - issued : 10 * 24 * 3600 * 1000;
+    const refreshAfter = Math.min(2 * 24 * 3600 * 1000, Math.floor(life * 0.25)); // ~2 days
+    const freshEnough = issued > 0 && (Date.now() - issued) < refreshAfter;
+    if (freshEnough && Date.now() < exp - 2 * 24 * 3600 * 1000) return tok.access_token; // fresh + not near expiry
     if (!tok.refresh_token) throw new Error("no_refresh_token");
 
     // If the claim RPC itself errors (e.g. dropped by a migration), refresh WITHOUT
