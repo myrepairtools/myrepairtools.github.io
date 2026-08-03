@@ -6,8 +6,9 @@
 //   refresh  -> force a token refresh (keep-alive); returns the new expiry
 //   users    -> pull all QB Time users, upsert qbtime_users, auto-match to staff by name/username
 //
-// The access token is short-lived (~10d); getValidToken() trades the refresh token for a new
-// access+refresh pair when it's within 2 days of expiry, so the connection never goes stale.
+// The access token lasts ~10d, but TSheets refresh tokens expire SOONER — so getValidToken()
+// rotates by token AGE (every ~2 days), not just near access-token expiry, or the refresh token
+// is already dead by the time we reach for it (the recurring disconnect). Single-flight guarded.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
