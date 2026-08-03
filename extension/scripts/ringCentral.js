@@ -474,24 +474,44 @@
     // Parse a customer-profile page's #tickets table into ticket rows.
     // Columns: 0 ID · 1 Location · 2 Items/Devices · 3 Status · 4 Assignee
     //          5 Sales · 6 Receipts · 7 Updated · 8 Est.
+    function parseTicketRow(tr, kind) {
+        var no = tr.getAttribute('data-id');
+        if (!/^\d+$/.test(no)) return null;
+        var tds = tr.querySelectorAll('td');
+        function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
+        var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
+        // Read the row's real link (lead/quote URLs differ from ticket URLs) —
+        // the ID cell's anchor is the row's primary link; fall back to /ticket/<no>.
+        var linkA = (tds[0] && tds[0].querySelector('a[href]')) ||
+            tr.querySelector('a[href*="/ticket/"],a[href*="/lead/"],a[href*="/quote/"],a[href*="/opportunity/"]');
+        return {
+            no: no,
+            href: (linkA && linkA.getAttribute('href')) || ('/ticket/' + no),
+            location: cell(1),
+            device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cell(2),
+            status: cell(3),
+            date: cell(7),
+            isLead: kind === 'lead',
+        };
+    }
+
+    // Parse BOTH grids on a customer/contact profile: the #tickets table (real
+    // repairs) AND the separate Leads/Quotes grid (RepairQ's "#quotes" tab). A
+    // customer who only requested an estimate has a lead but no ticket, and would
+    // otherwise show "No RepairQ tickets found for this number".
     function parseProfileTickets(html) {
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        var scope = doc.getElementById('tickets') || doc;
-        var out = [];
-        scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
-            var no = tr.getAttribute('data-id');
-            if (!/^\d+$/.test(no)) return;
-            var tds = tr.querySelectorAll('td');
-            function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
-            var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
-            out.push({
-                no: no, href: '/ticket/' + no,
-                location: cell(1),
-                device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cell(2),
-                status: cell(3),
-                date: cell(7),
+        var out = [], seen = {};
+        function collect(scope, kind) {
+            if (!scope) return;
+            scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
+                var t = parseTicketRow(tr, kind);
+                if (t && !seen[t.no]) { seen[t.no] = 1; out.push(t); }
             });
-        });
+        }
+        collect(doc.getElementById('tickets'), 'ticket');
+        collect(doc.getElementById('quotes') || doc.getElementById('leads'), 'lead');
+        if (!out.length) collect(doc, 'ticket');   // no scoped grids → scan the whole doc once
         return out;
     }
 
@@ -554,7 +574,7 @@
             if (!tix.length) { box.innerHTML = '<div class="mrt-rc-tixhd">No RepairQ tickets found for this number</div>'; return; }
             var leads = [], open = [], closed = [];
             tix.forEach(function (t) {
-                if (LEAD_RE.test(t.status)) leads.push(t);
+                if (t.isLead || LEAD_RE.test(t.status)) leads.push(t);   // grid-tagged leads (e.g. status "New") count too
                 else if (CLOSED_RE.test(t.status)) closed.push(t);
                 else open.push(t);
             });
