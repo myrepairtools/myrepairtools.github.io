@@ -266,6 +266,9 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'<div class="kpis" data-comm-kpis>'
         +'<div class="kpi"><div class="kl">Commission</div><div class="kv" data-k="commission">—</div></div>'
         +'<div class="kpi"><div class="kl">Tips</div><div class="kv" data-k="tips">—</div></div>'
+        // shown only when a competition bonus was actually won, so the three
+        // numbers always add up to Total
+        +'<div class="kpi" data-comm-bonus style="display:none"><div class="kl">Bonus</div><div class="kv" data-k="bonus">—</div></div>'
         +'<div class="kpi tot"><div class="kl">Total</div><div class="kv" data-k="total">—</div></div>'
         +'</div>'
         +'<div class="goal" data-comm-goal style="display:none">'
@@ -537,6 +540,9 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
       if(s.excluded){ showEmpty('Owners don’t earn commission.'); return; }
       var set=function(key,v){ var el=bd.querySelector('[data-k="'+key+'"]'); if(el) el.textContent=v; };
       set('commission', money0(s.commission)); set('tips', money0(s.tips)); set('total', money0(s.total));
+      var bw=bd.querySelector('[data-comm-bonus]');
+      // hidden inline, so '' restores the stylesheet's own .kpi display
+      if(bw){ if(Number(s.bonus)>0){ bw.style.display=''; set('bonus', money0(s.bonus)); } else bw.style.display='none'; }
       if(s.goal && s.goal>0){ var cur=Number(s.goalCurrent)||0, pct=Math.min(100,Math.round((cur/s.goal)*100));
         var g=bd.querySelector('[data-comm-goal]'); if(g){ g.style.display='block';
           g.querySelector('[data-g="label"]').textContent=s.goalLabel||'Goal';

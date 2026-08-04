@@ -149,7 +149,8 @@ function monthStart(){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getM
 const STATE={me:null,stores:[],store:lsGet('cc_store','all'),tab:lsGet('cc_tab','summary'),
   start:lsGet('cc_start',monthStart()),end:lsGet('cc_end',isoToday()),
   rates:{},rateLabels:{},rules:{},staffById:{},rosterById:{},
-  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',tipsPeriodPinned:false,loaded:false};
+  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',tipsPeriodPinned:false,
+  comps:[],bonus:{},loaded:false};
 
 /* deep links: #summary/#commissions/#tips beat the remembered tab */
 const HASH_TABS=['summary','commissions','tips'];
@@ -242,9 +243,13 @@ async function runReport(){
   (data||[]).forEach(r=>{
     // RepairQ emits all-zero rows (a login at another store, terminated stragglers).
     // They carry no pay and must not create report rows or store membership.
-    const sv0=r.services||{};
+    const sv0=r.services||{},ct0=r.categories||{};
     const live=['tickets','accy_units','accy_net','accy_gp','device_units','device_returns','device_net','device_gp','device_attach','service_net'].some(k=>Number(r[k]))
-      ||Object.keys(sv0).some(k=>Number(sv0[k]));
+      ||Object.keys(sv0).some(k=>Number(sv0[k]))
+      // categories counts as liveness too: the category feed can land its own row
+      // (only biz_date/store/employee/categories), and without this it was dropped —
+      // silently under-counting the category cards and any category competition.
+      ||Object.keys(ct0).some(k=>Number(ct0[k]));
     if(!live)return;
     const key=r.staff_id!=null?('sid:'+r.staff_id):('nm:'+r.employee);
     let e=byEmp[key];
@@ -282,6 +287,7 @@ async function runReport(){
   // hand on the Tips tab pins it; that stays put until it's cleared there.
   if(!STATE.tipsPeriodPinned)STATE.tipsPeriod=start.slice(0,7);
   await loadTips();
+  await loadBonuses();
   STATE.loaded=true;
   $('#status').textContent=STATE.report.length+' employees · '+start+' → '+end;
   render();
@@ -314,15 +320,17 @@ function renderPills(){
 }
 function renderSummary(){
   const all=STATE.store==='all',rows=inScope();const onlyStore=all?null:STATE.store;
-  let grandC=0,grandT=0,grandG=0;
-  const body=rows.map(r=>{const c=calc(r);const tip=tipFor(r.name,onlyStore);const tot=c.total+tip;
-    grandC+=c.total;grandT+=tip;grandG+=tot;
+  let grandC=0,grandT=0,grandB=0,grandG=0;
+  const body=rows.map(r=>{const c=calc(r);const tip=tipFor(r.name,onlyStore);const bon=bonusFor(r.staff_id);
+    const tot=c.total+tip+bon;
+    grandC+=c.total;grandT+=tip;grandB+=bon;grandG+=tot;
     const multi=r.stores.length>1;
     const split=multi?E.splitCharge(r.byStore,c,r.rates).map(p=>shortStore(p.store)+' '+money(p.amt)).join(' · '):'';
     return '<tr><td class="nm">'+esc(r.name)+(r.inRoster?'':' <span class="flag">⚠ not in roster</span>')+'</td>'
       +'<td class="r split">'+esc(split)+'</td>'
       +'<td class="r">'+copyable(c.total)+'</td>'
       +'<td class="r" style="color:'+(tip>0?'var(--green)':'var(--grey)')+'">'+(tip>0?copyable(tip):'—')+'</td>'
+      +'<td class="r" style="color:'+(bon>0?'var(--green)':'var(--grey)')+'">'+(bon>0?copyable(bon):'—')+'</td>'
       +'<td class="r gt">'+copyable(tot)+'</td></tr>';}).join('');
   const unrostered=rows.filter(r=>!r.inRoster).map(r=>r.name);
   $('#view-summary').innerHTML=
@@ -334,6 +342,8 @@ function renderSummary(){
           +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grandC)+'</div></div>'
         +'<div style="text-align:right"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)">Tips</div>'
           +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grandT)+'</div></div>'
+        +(grandB>0?'<div style="text-align:right"><div style="font-family:Nunito;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey)">Bonus</div>'
+          +'<div style="font-family:Nunito;font-weight:900;font-size:1.7rem;color:var(--green);line-height:1">'+money(grandB)+'</div></div>':'')
       +'</div>'
       +'<button class="btn alt sm" id="payroll">⬇ Payroll summary</button>'
       +(function(){const am=archMonth();
@@ -348,9 +358,22 @@ function renderSummary(){
       if(tM&&tM!==sM)msg='Tips below are '+esc(tM)+"'s pool, but this range starts in "+esc(sM)+'. Change it on the Tips tab.';
       else if(sM!==eM)msg='This range spans '+esc(sM)+' → '+esc(eM)+', but tips are a whole month at a time — the column shows all of '+esc(tM||sM)+'.';
       return msg?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:12px">'+msg+'</div>':'';})()
-    +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead>'
-    +'<tbody>'+(body||'<tr><td colspan="5" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
-    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+copyable(grandC)+'</td><td class="r">'+copyable(grandT)+'</td><td class="r">'+copyable(grandG)+'</td></tr></tfoot></table>'
+    +(function(){
+      // Say which competitions pay in this run and who won, so a Bonus figure is
+      // never an unexplained number on a payroll sheet.
+      if(!STATE.comps.length)return '';
+      const line=c=>{
+        const who=c.winners.length?c.winners.map(w=>{
+          const r=STATE.report.filter(x=>x.staff_id===w.staff_id)[0];
+          return esc((r&&r.name)||('staff #'+w.staff_id))+' ('+metricText(c,w.value)+') '+money(w.amt);
+        }).join(' · '):'no one met the '+c.min_tickets+'-ticket minimum — no bonus awarded';
+        return '<div style="margin-top:3px">🏆 <b>'+esc(c.name)+'</b> · '+esc(c.start_date)+' → '+esc(c.end_date)
+          +' · '+who+(c.frozen?'':' — <b>provisional until archived</b>')+'</div>';};
+      return '<div style="background:#EAF7EF;border:1px solid #BFE3CC;border-radius:9px;padding:9px 13px;font-size:.78rem;color:#1f7d45;font-weight:700;margin-bottom:12px">'
+        +STATE.comps.map(line).join('')+'</div>';})()
+    +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Bonus</th><th class="r">Total</th></tr></thead>'
+    +'<tbody>'+(body||'<tr><td colspan="6" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
+    +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+copyable(grandC)+'</td><td class="r">'+copyable(grandT)+'</td><td class="r">'+copyable(grandB)+'</td><td class="r">'+copyable(grandG)+'</td></tr></tfoot></table>'
     +(unrostered.length?'<div class="warn">'+unrostered.length+' with sales aren’t active team members (terminated or one-off): '+esc(unrostered.join(', '))+'. Their commission still totals here; add them in Settings → Team Members if they should be on the roster.</div>':'')
     +'</div></div>';
   const pb=$('#payroll');if(pb)pb.onclick=()=>downloadPayroll(rows);
@@ -390,11 +413,18 @@ async function openArchive(){
   const ex=await sb.from('commission_snapshots').select('staff_id').eq('month',am.monISO);
   const exN=((ex&&ex.data)||[]).length;
   const tipsMismatch=STATE.tipsPeriod&&STATE.tipsPeriod!==am.monISO.slice(0,7);
-  const items=rows.map(r=>({r,c:calc(r),tip:tipFor(r.name,null)})).sort((a,b)=>b.c.total-a.c.total);
+  const items=rows.map(r=>({r,c:calc(r),tip:tipFor(r.name,null),bonus:bonusFor(r.staff_id),
+    comps:(STATE.bonus[r.staff_id]&&STATE.bonus[r.staff_id].detail)||[]})).sort((a,b)=>b.c.total-a.c.total);
+  // A winner with no payroll row in this run (left mid-competition) would be paid
+  // silently into nothing — surface them instead of dropping them.
+  const orphanWins=[];
+  STATE.comps.forEach(c=>c.winners.forEach(w=>{
+    if(!rows.some(r=>r.staff_id===w.staff_id))orphanWins.push({c,w});}));
   const list=items.map(x=>'<div style="display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border)">'
     +'<span style="flex:1;min-width:0;font-family:Nunito;font-weight:800;font-size:.88rem">'+esc(x.r.name)+'</span>'
     +'<span style="font-size:.72rem;color:var(--grey);font-weight:700">'+esc(shortStore(x.r.store||''))+'</span>'
     +(x.tip>0?'<span style="font-size:.74rem;color:var(--dark-grey);font-weight:700;white-space:nowrap">+'+money(x.tip)+' tips</span>':'')
+    +(x.bonus>0?'<span style="font-size:.74rem;color:var(--green);font-weight:800;white-space:nowrap">+'+money(x.bonus)+' bonus</span>':'')
     +'<span style="width:86px;text-align:right;flex:none;font-family:Nunito;font-weight:900">'+money(x.c.total)+'</span></div>').join('');
   const back=document.createElement('div');back.className='avpick-back';back.id='archback';
   back.innerHTML='<div class="avpick" style="max-width:470px;max-height:90vh;overflow:auto">'
@@ -402,6 +432,15 @@ async function openArchive(){
     +'<div class="avpick-sub">Freezes exactly what this payroll run computed — commission, tiers, tips, and the rules &amp; goals used — for every employee, all locations. My Commission then shows these as-paid numbers for '+esc(am.mon)+', so what employees see always matches what you paid.</div>'
     +(exN?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">'+esc(am.label)+' is already archived — saving again overwrites it with the numbers below.</div>':'')
     +(tipsMismatch?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">Heads up: the tips period is set to '+esc(STATE.tipsPeriod)+', not '+esc(am.monISO.slice(0,7))+' — tips below come from that period.</div>':'')
+    +(STATE.comps.length?'<div style="background:#EAF7EF;border:1px solid #BFE3CC;border-radius:9px;padding:9px 13px;font-size:.78rem;color:#1f7d45;font-weight:700;margin-bottom:10px">'
+      +'🏆 Concluding in '+esc(am.mon)+' — archiving locks these results:'
+      +STATE.comps.map(c=>'<div style="margin-top:3px">'+esc(c.name)+' · '
+        +(c.winners.length?c.winners.map(w=>{const rr=STATE.report.filter(x=>x.staff_id===w.staff_id)[0];
+            return esc((rr&&rr.name)||('staff #'+w.staff_id))+' '+money(w.amt);}).join(' · ')
+          :'no one met the '+c.min_tickets+'-ticket minimum')+'</div>').join('')+'</div>':'')
+    +(orphanWins.length?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">'
+      +'Won a bonus but has no payroll row in this run — pay separately: '
+      +esc(orphanWins.map(o=>'staff #'+o.w.staff_id+' ('+o.c.name+', '+money(o.w.amt)+')').join(', '))+'</div>':'')
     +list
     +(skipped.length?'<div style="margin-top:10px;font-size:.76rem;color:var(--grey)">Not archived (no linked team member): '+esc(skipped.join(', '))+'</div>':'')
     +'<div class="avpick-ft" style="justify-content:space-between;align-items:center"><span style="font-size:.74rem;color:var(--grey);font-weight:700">'+rows.length+' employee'+(rows.length===1?'':'s')+' · all locations</span>'
@@ -411,9 +450,15 @@ async function openArchive(){
   back.addEventListener('click',e=>{if(e.target===back)back.remove();});
   back.querySelectorAll('[data-ax]').forEach(b=>b.onclick=()=>back.remove());
   back.querySelector('[data-asave]').onclick=async()=>{
+    // Freeze the competitions FIRST, from the same standings this run displayed,
+    // so the snapshot and the frozen result can never disagree.
+    const cerr=await freezeCompetitions(am.monISO.slice(0,7));
+    if(cerr){toast(cerr.message||'Could not lock competition results',true);return;}
     const payload=items.map(x=>({staff_id:x.r.staff_id,month:am.monISO,totals:x.r.totals,breakdown:x.c,
       cfg:{goal:x.r.goal,earns:x.r.earns,rules:x.r.rules,rates:x.r.rates},
-      tips:Math.round(x.tip*100)/100,total:x.c.total,
+      tips:Math.round(x.tip*100)/100,
+      bonus:Math.round(x.bonus*100)/100,bonus_detail:x.comps.length?x.comps:null,
+      total:x.c.total,
       finalized_by:(STATE.me&&STATE.me.id)||null,finalized_at:new Date().toISOString()}));
     const r=await sb.from('commission_snapshots').upsert(payload,{onConflict:'staff_id,month'});
     if(r.error){toast(r.error.message,true);return;}
@@ -592,21 +637,104 @@ async function saveTips(store){
   if(error)toast(error.message,true);else toast('Tips saved');
 }
 
+/* ---- competition bonuses ----
+   A competition is paid by the payroll run whose range CONTAINS its end_date —
+   you pay a contest when it concludes, so one spanning Jul 20 → Aug 10 lands in
+   August. Standings come from the competition_standings RPC (security definer)
+   rather than ranking here, because commission_sales RLS is per-store and a
+   browser-side ranking shows different winners to different people.
+   A FROZEN result (competition_results, written at archive) always wins over
+   live standings, so an already-paid contest can never silently re-rank. */
+async function loadBonuses(){
+  STATE.comps=[];STATE.bonus={};
+  const {data,error}=await sb.from('competitions').select('*')
+    .eq('active',true).gte('end_date',STATE.start).lte('end_date',STATE.end).order('end_date');
+  if(error||!data||!data.length)return;
+  for(const c of data){
+    const fr=await sb.from('competition_results').select('*').eq('competition_id',c.id);
+    const frozen=(fr&&fr.data)||[];
+    if(frozen.length){
+      c.frozen=true;
+      c.winners=frozen.filter(x=>x.place===1)
+        .map(x=>({staff_id:x.staff_id,amt:Number(x.bonus_amount)||0,value:Number(x.metric_value)}));
+    }else{
+      const st=await sb.rpc('competition_standings',{p_competition_id:c.id});
+      c.standings=(st&&st.data)||[];
+      c.winners=c.standings.filter(x=>x.place===1)
+        .map(x=>({staff_id:x.staff_id,amt:Number(c.bonus_amount)||0,value:Number(x.metric_value)}));
+    }
+    // Ties all place 1 and each take the full bonus — rare, and the owner can
+    // edit the frozen row if they'd rather split it.
+    c.winners.forEach(w=>{
+      const b=STATE.bonus[w.staff_id]||(STATE.bonus[w.staff_id]={amt:0,detail:[]});
+      b.amt+=w.amt;
+      b.detail.push({competition_id:c.id,name:c.name,metric:c.metric,metric_key:c.metric_key,
+        value:w.value,amount:w.amt,frozen:!!c.frozen});
+    });
+    STATE.comps.push(c);
+  }
+}
+function bonusFor(staff_id){
+  if(staff_id==null)return 0;
+  const b=STATE.bonus[staff_id];return b?b.amt:0;
+}
+/* Freeze every competition paying in this run — from the same standings the run
+   displayed — then stamp which month paid it. Frozen results are what payroll and
+   My Commission read from then on, so a later commission_sales edit can no longer
+   re-rank a contest that has already been paid. Returns an error or null. */
+async function freezeCompetitions(monthKey){
+  for(const c of STATE.comps){
+    if(!c.frozen){
+      const rows=(c.standings||[]).map(s=>({competition_id:c.id,staff_id:s.staff_id,
+        place:s.place,metric_value:s.metric_value,
+        bonus_amount:s.place===1?(Number(c.bonus_amount)||0):0,
+        finalized_by:(STATE.me&&STATE.me.id)||null}));
+      if(rows.length){
+        const r=await sb.from('competition_results').upsert(rows,{onConflict:'competition_id,staff_id'});
+        if(r.error)return r.error;
+      }
+      c.frozen=true;
+    }
+    // paid_month is the ledger that stops a second run paying the same award
+    // after a range change or a re-run.
+    const p=await sb.from('competition_results').update({paid_month:monthKey})
+      .eq('competition_id',c.id).eq('place',1);
+    if(p.error)return p.error;
+  }
+  return null;
+}
+/* how a metric reads in a sentence — shared by the summary note and the archive modal */
+const METRIC_LABEL={attach_rate:'attach rate',category_units:'units',service_units:'service units',
+  device_units:'devices',accy_net:'accessory $',device_net:'device $',service_net:'service $',retail_net:'retail $'};
+function metricText(c,v){
+  if(v==null||isNaN(v))return '—';
+  if(c.metric==='attach_rate')return pct(v);
+  if(c.metric.endsWith('_net'))return money(v);
+  return String(Math.round(v*100)/100)+' '+(c.metric_key?c.metric_key.toLowerCase():METRIC_LABEL[c.metric]||'');
+}
+
 /* ---- payroll print ---- */
 function downloadPayroll(rows){
   const all=STATE.store==='all',onlyStore=all?null:STATE.store;
-  const byHome={};let grandC=0,grandT=0,grandG=0;
-  rows.forEach(r=>{const c=calc(r);const tip=tipFor(r.name,onlyStore);grandC+=c.total;grandT+=tip;grandG+=c.total+tip;
-    (byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,lead:!(r.earns&&(r.earns.accessory||r.earns.device)),c,tip});});
+  const byHome={};let grandC=0,grandT=0,grandB=0,grandG=0;
+  rows.forEach(r=>{const c=calc(r);const tip=tipFor(r.name,onlyStore);const bon=bonusFor(r.staff_id);
+    grandC+=c.total;grandT+=tip;grandB+=bon;grandG+=c.total+tip+bon;
+    (byHome[r.store||'—']=byHome[r.store||'—']||[]).push({emp:r.name,lead:!(r.earns&&(r.earns.accessory||r.earns.device)),c,tip,bon});});
   const w=window.open('','_blank');if(!w){toast('Allow pop-ups to download',true);return;}
   let body='';
-  Object.keys(byHome).sort().forEach(home=>{let subC=0,subT=0;
-    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead><tbody>';
-    byHome[home].slice().sort((a,b)=>a.emp<b.emp?-1:1).forEach(x=>{subC+=x.c.total;subT+=x.tip;
-      body+='<tr><td>'+esc(x.emp)+(x.lead?' (lead)':'')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r">'+money(x.c.total)+'</td><td class="r">'+(x.tip>0?money(x.tip):'—')+'</td><td class="r"><b>'+money(x.c.total+x.tip)+'</b></td></tr>';});
-    body+='<tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r">'+money(subC)+'</td><td class="r">'+money(subT)+'</td><td class="r">'+money(subC+subT)+'</td></tr></tbody></table>';});
+  Object.keys(byHome).sort().forEach(home=>{let subC=0,subT=0,subB=0;
+    body+='<h2>'+esc(home)+'</h2><table><thead><tr><th>Employee</th><th class="r">Accessory</th><th class="r">Device</th><th class="r">Services</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Bonus</th><th class="r">Total</th></tr></thead><tbody>';
+    byHome[home].slice().sort((a,b)=>a.emp<b.emp?-1:1).forEach(x=>{subC+=x.c.total;subT+=x.tip;subB+=x.bon;
+      body+='<tr><td>'+esc(x.emp)+(x.lead?' (lead)':'')+'</td><td class="r">'+money(x.c.accyComm)+'</td><td class="r">'+money(x.c.devComm)+'</td><td class="r">'+money(x.c.repairComm)+'</td><td class="r">'+money(x.c.total)+'</td><td class="r">'+(x.tip>0?money(x.tip):'—')+'</td><td class="r">'+(x.bon>0?money(x.bon):'—')+'</td><td class="r"><b>'+money(x.c.total+x.tip+x.bon)+'</b></td></tr>';});
+    body+='<tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r">'+money(subC)+'</td><td class="r">'+money(subT)+'</td><td class="r">'+money(subB)+'</td><td class="r">'+money(subC+subT+subB)+'</td></tr></tbody></table>';});
+  // Footnote so a printed payroll sheet explains its own Bonus column.
+  const compNote=STATE.comps.length?'<div style="font-size:11px;color:#555;margin-top:8px"><b>Competitions paid in this run:</b>'
+    +STATE.comps.map(c=>'<div>'+esc(c.name)+' · '+esc(c.start_date)+' → '+esc(c.end_date)+' · '
+      +(c.winners.length?c.winners.map(x=>{const rr=rows.filter(y=>y.staff_id===x.staff_id)[0];
+          return esc((rr&&rr.name)||('staff #'+x.staff_id))+' '+money(x.amt);}).join(', ')
+        :'no winner — ticket minimum not met')+'</div>').join('')+'</div>':'';
   const css='<style>body{font-family:Arial,sans-serif;color:#1a1a1a;margin:32px}h1{font-size:20px;margin:0 0 2px;color:#DC282E}h2{font-size:15px;margin:22px 0 6px;border-bottom:2px solid #DC282E;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:12px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f2f2}td.r,th.r{text-align:right}tr.sub td{font-weight:bold;background:#faf7f7}.grand{font-size:14px;font-weight:bold;margin-top:10px}@media print{body{margin:12mm}}</style>';
-  w.document.write('<html><head><title>Payroll summary '+esc(STATE.start)+' to '+esc(STATE.end)+'</title>'+css+'</head><body><h1>Commission payroll summary</h1><div style="color:#555;font-size:12px;margin-bottom:6px">'+esc(STATE.start)+' → '+esc(STATE.end)+' · tips '+esc(STATE.tipsPeriod)+'</div>'+body+'<div class="grand">Grand total: '+money(grandG)+' &nbsp;<span style="font-weight:normal;color:#555">('+money(grandC)+' commission + '+money(grandT)+' tips)</span></div></body></html>');
+  w.document.write('<html><head><title>Payroll summary '+esc(STATE.start)+' to '+esc(STATE.end)+'</title>'+css+'</head><body><h1>Commission payroll summary</h1><div style="color:#555;font-size:12px;margin-bottom:6px">'+esc(STATE.start)+' → '+esc(STATE.end)+' · tips '+esc(STATE.tipsPeriod)+'</div>'+body+'<div class="grand">Grand total: '+money(grandG)+' &nbsp;<span style="font-weight:normal;color:#555">('+money(grandC)+' commission + '+money(grandT)+' tips'+(grandB>0?' + '+money(grandB)+' bonus':'')+')</span></div>'+compNote+'</body></html>');
   w.document.close();setTimeout(()=>{try{w.focus();w.print();}catch(e){}},500);
 }
 

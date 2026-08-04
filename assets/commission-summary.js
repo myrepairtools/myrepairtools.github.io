@@ -79,9 +79,17 @@
               client.from('commission_role_overrides').select('*'),
               client.from('commission_sales').select('*').eq('staff_id', me.id).gte('biz_date', mi.start).lte('biz_date', mi.end),
               client.from('commission_tips').select('*').eq('period', mi.period),
-              client.from('commission_goals').select('accy_goal').eq('staff_id', me.id).eq('month', mi.period+'-01')
+              client.from('commission_goals').select('accy_goal').eq('staff_id', me.id).eq('month', mi.period+'-01'),
+              // Competition bonuses I've WON this month. Deliberately only frozen
+              // results (a competition_results row exists once it's finalized) —
+              // a contest still running isn't decided, and the widget must not
+              // promise an employee money that could still go to someone else.
+              client.from('competition_results').select('bonus_amount,competition_id,competitions!inner(end_date,active)')
+                .eq('staff_id', me.id).eq('place', 1)
+                .gte('competitions.end_date', mi.start).lte('competitions.end_date', mi.end)
+                .eq('competitions.active', true)
             ]).then(function(res){
-              var rt=res[0], rl=res[1], rs=res[2], rr=res[3], pm=res[4], rp=res[5], ro=res[6], sales=res[7], tp=res[8], mg=res[9];
+              var rt=res[0], rl=res[1], rs=res[2], rr=res[3], pm=res[4], rp=res[5], ro=res[6], sales=res[7], tp=res[8], mg=res[9], cw=res[10];
 
               var rates={}, rateLabels={}; (rt.data||[]).forEach(function(r){
                 rates[r.sku]=(r.tiers&&r.tiers.goal)?{goal:Number(r.tiers.goal)||0,lo:Number(r.tiers.lo)||0,hi:Number(r.tiers.hi)||0}:(Number(r.amount)||0); rateLabels[r.sku]=r.label||r.sku; });
@@ -112,11 +120,14 @@
               var tips={}; (tp.data||[]).forEach(function(x){ tips[x.store]={hours:x.hours||{},pool:Number(x.pool)||0}; });
               var tip=tipFor(me.display_name, tips);
 
+              var bonus=0; ((cw&&cw.data)||[]).forEach(function(x){ bonus+=Number(x.bonus_amount)||0; });
+
               return {
                 name: me.display_name,
                 commission: c.total,
                 tips: tip,
-                total: c.total + tip,
+                bonus: bonus,
+                total: c.total + tip + bonus,
                 goal: goal,
                 goalCurrent: totals.NetAccySales,
                 goalLabel: 'Accessory goal'

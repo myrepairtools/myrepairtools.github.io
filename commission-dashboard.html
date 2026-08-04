@@ -348,9 +348,11 @@ async function loadTarget(){
   let snap=null;
   if(!mi.cur){const sr=await sb.from('commission_snapshots').select('*').eq('staff_id',t.id).eq('month',mi.monISO).maybeSingle();snap=(sr&&sr.data)||null;
     if(snap&&!(snap.totals&&snap.breakdown&&snap.cfg))snap=null;}
-  let totals,cfg,c,tip;
+  let totals,cfg,c,tip,bonus=0;
   if(snap){
     totals=snap.totals;cfg=snap.cfg;c=snap.breakdown;tip=Number(snap.tips)||0;
+    // as-paid competition bonus, frozen at archive alongside tips
+    bonus=Number(snap.bonus)||0;
   }else{
     const sales=await sb.from('commission_sales').select('*').eq('staff_id',t.id).gte('biz_date',mi.start).lte('biz_date',mi.end);
     totals=blankTotals();(sales.data||[]).forEach(r=>addInto(totals,r));
@@ -413,7 +415,7 @@ function renderOverview(){
 
   const kpi=(cls,l,v,s)=>'<div class="kpi '+cls+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>';
   const kpis='<div class="kpis">'
-    +kpi('k-total',mi.cur?'Earned this month':'Earned in '+esc(mi.mon),money(c.total),'commission · '+(mi.cur?'MTD':'final')+(tip>0?' · +'+money(tip)+' tips':''))
+    +kpi('k-total',mi.cur?'Earned this month':'Earned in '+esc(mi.mon),money(c.total),'commission · '+(mi.cur?'MTD':'final')+(tip>0?' · +'+money(tip)+' tips':'')+(bonus>0?' · +'+money(bonus)+' bonus':''))
     +(mi.cur
       ?kpi('k-dark','On pace for',money0(proj),'projected month-end')
       :kpi('k-dark','Month before',money0(STATE.calc.prevTotal),'for comparison'))
@@ -764,9 +766,12 @@ async function computeMonthAll(){
   const byStaff={};(sales.data||[]).forEach(r=>{
     if(r.staff_id==null)return;
     // skip RepairQ's all-zero rows — they'd put $0 phantoms on the scoreboard
-    const sv0=r.services||{};
+    const sv0=r.services||{},ct0=r.categories||{};
     const live=['tickets','accy_units','accy_net','accy_gp','device_units','device_returns','device_net','device_gp','device_attach','service_net'].some(k=>Number(r[k]))
-      ||Object.keys(sv0).some(k=>Number(sv0[k]));
+      ||Object.keys(sv0).some(k=>Number(sv0[k]))
+      // categories counts as liveness too — a category-only row was being dropped,
+      // under-counting the units-by-category table below.
+      ||Object.keys(ct0).some(k=>Number(ct0[k]));
     if(!live)return;
     (byStaff[r.staff_id]=byStaff[r.staff_id]||blankTotals());addInto(byStaff[r.staff_id],r);});
   const list=[];
@@ -790,9 +795,44 @@ async function loadBoard(){
     accySales:x.tot.NetAccySales||0,deviceRev:x.tot.DeviceRev||0,deviceUnits:x.tot.DeviceUnits||0,
     svcCount:x.c.svcUnits,svcNet:x.tot.ServiceNet||0,retail:(x.tot.NetAccySales||0)+(x.tot.DeviceRev||0),ranked:!!(x.cfg.earns.accessory||x.cfg.earns.device)}));
   techs.sort((a,b)=>b.c.total-a.c.total);
-  STATE.board={techs,mi};return STATE.board;
+  // Competitions overlapping the viewed month. Standings come from the
+  // competition_standings RPC (security definer) rather than ranking `techs`
+  // here: commission_sales RLS is per-store, so a browser-side ranking shows a
+  // single-store tech a "company-wide" board containing only their own store.
+  // Overlap, not containment: a competition is not a month. One running
+  // Jul 15 → Aug 14 shows in both months, each time over its OWN full range.
+  const mEnd=iso(new Date(mi.monISO.slice(0,4),Number(mi.monISO.slice(5,7)),0));
+  const comps=[];
+  const cr=await sb.from('competitions').select('*').eq('active',true)
+    .lte('start_date',mEnd).gte('end_date',mi.start).order('end_date');
+  for(const c of ((cr&&cr.data)||[])){
+    const st=await sb.rpc('competition_standings',{p_competition_id:c.id});
+    c.standings=(st&&st.data)||[];
+    comps.push(c);
+  }
+  STATE.board={techs,mi,comps};return STATE.board;
 }
 
+/* competition metric formatting — kept identical to the calculator's so the
+   board and the payroll sheet never phrase the same contest differently */
+const COMP_NOUN={category_units:'units',service_units:'service units',device_units:'devices'};
+function compValue(c,v){
+  v=Number(v);if(isNaN(v))return '—';
+  if(c.metric==='attach_rate')return pct(v);
+  if(c.metric.slice(-4)==='_net')return money0(v);
+  return (Math.round(v*100)/100)+' '+(c.metric_key||COMP_NOUN[c.metric]||'');
+}
+function compRule(c){
+  const floor=c.min_tickets>0?' — '+c.min_tickets+'+ tickets':'';
+  if(c.metric==='attach_rate')return 'Highest attach rate wins'+floor;
+  if(c.metric==='category_units')return 'Most '+(c.metric_key||'units')+' sold wins'+floor;
+  if(c.metric==='service_units')return 'Most services sold wins'+floor;
+  if(c.metric==='device_units')return 'Most devices sold wins'+floor;
+  if(c.metric==='accy_net')return 'Most accessory $ wins'+floor;
+  if(c.metric==='device_net')return 'Most device $ wins'+floor;
+  if(c.metric==='service_net')return 'Most service $ wins'+floor;
+  return 'Most retail $ wins'+floor;
+}
 function renderBoard(){
   if(!STATE.board){$('#view-board').innerHTML='<div class="card"><div class="card-bd muted">Loading the leaderboard…</div></div>';
     loadBoard().then(()=>{if(STATE.tab==='board')renderBoard();});return;}
@@ -817,14 +857,48 @@ function renderBoard(){
       +'<div style="background:rgba(79,176,227,.18);border:1px solid rgba(79,176,227,.4);border-radius:999px;padding:6px 14px;font-size:.82rem;font-weight:800;font-family:Nunito">'+heroChip+'</div>'
       +(meRow?'<div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 14px;font-size:.82rem;font-weight:800;font-family:Nunito">'+pct(meRow.attach)+' attach rate</div>':'')+'</div></div>';
 
-  // ---- top performer bonus ----
-  const elig=ranked.filter(t=>t.tickets>=20).sort((a,b)=>b.attach-a.attach), winner=elig[0];
-  const bonus=winner?('<div class="card acc-red"><div class="card-hd"><span class="card-t">Top performer bonus · '+esc(mi.label)+'</span></div><div class="card-bd">'
-    +'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
-    +'<div style="text-align:center;flex:none;padding-right:20px;border-right:1px solid var(--border)"><div style="font-family:Nunito;font-weight:900;font-size:2.2rem;color:var(--red);line-height:1">$50</div><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800;margin-top:2px">Monthly bonus</div></div>'
-    +'<div style="flex:1;min-width:240px"><div style="font-family:Nunito;font-weight:900;font-size:1.05rem">Highest attach rate wins — 20+ tickets</div>'
-    +'<div style="font-size:.82rem;color:var(--dark-grey);margin-top:3px;line-height:1.45">A rate, not a volume — <b>any tech at a slow or busy store can win it.</b> '+(mi.cur?'Current leader':'Top attach')+': <b style="color:var(--dark)">'+esc(winner.name.split(' ')[0])+'</b> at '+pct(winner.attach)+'.'+(meRow&&meRow.tickets>=20?' You’re at '+pct(meRow.attach)+'.':'')+'</div></div></div>'
-    +'<div style="margin-top:12px;font-size:.74rem;color:var(--grey);border-top:1px solid var(--border);padding-top:10px">A one-time bonus for this month — the owner can roll it forward or end it anytime in settings.</div></div></div>'):'';
+  // ---- competitions ----
+  // Every row here comes from the competition_standings RPC, so ALL viewers see
+  // the same board. (The per-store leaderboards below stay viewer-scoped by
+  // design — that mixed sourcing is deliberate, not an oversight.)
+  const bonus=(STATE.board.comps||[]).map(c=>{
+    const rows=c.standings||[], elig=rows.filter(r=>r.eligible);
+    const winners=elig.filter(r=>r.place===1);
+    const meRowC=rows.filter(r=>r.staff_id===meId)[0];
+    const today=iso(new Date());
+    const state=today<c.start_date?'Upcoming':(today>c.end_date?'Final':'Live');
+    const daysLeft=Math.ceil((new Date(c.end_date)-new Date(today))/86400000);
+    const pill=state==='Live'?'Live · '+(daysLeft>0?daysLeft+' day'+(daysLeft===1?'':'s')+' left':'ends today')
+      :(state==='Final'?'🏁 Final':'Upcoming');
+    const podium=elig.slice(0,3).map(r=>'<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">'
+      +'<span style="width:30px;flex:none;font-family:Nunito;font-weight:900;color:'+(r.place===1?'var(--red)':'var(--grey)')+'">'
+      +(winners.length>1&&r.place===1?'T1':'#'+r.place)+'</span>'
+      +'<span style="flex:1;min-width:0;font-weight:800;font-size:.88rem">'+esc(r.display_name)+'</span>'
+      +'<span style="font-family:Nunito;font-weight:900">'+compValue(c,r.metric_value)+'</span></div>').join('');
+    let mine='';
+    if(meRowC&&!meRowC.eligible)
+      mine='<div style="margin-top:8px;font-size:.8rem;color:var(--amber);font-weight:700">You need '
+        +Math.max(0,c.min_tickets-Number(meRowC.tickets))+' more ticket(s) to qualify.</div>';
+    else if(meRowC)
+      mine='<div style="margin-top:8px;font-size:.8rem;color:var(--dark-grey);font-weight:700">You’re #'
+        +meRowC.place+' at '+compValue(c,meRowC.metric_value)+'.</div>';
+    const outcome=!elig.length
+      ? '<div style="margin-top:8px;font-size:.82rem;color:var(--grey);font-weight:700">No one reached the '+c.min_tickets+'-ticket minimum — no bonus awarded.</div>'
+      : (state==='Final'?'<div style="margin-top:8px;font-size:.82rem;font-weight:800;color:var(--green)">🏁 '
+          +esc(winners.map(w=>w.display_name).join(' & '))+' won.</div>':'');
+    return '<div class="card acc-red"><div class="card-hd"><span class="card-t">'+esc(c.name)+'</span>'
+      +'<span style="font-size:.72rem;font-weight:800;color:var(--grey)">'+esc(pill)+'</span></div><div class="card-bd">'
+      +'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">'
+      +'<div style="text-align:center;flex:none;padding-right:20px;border-right:1px solid var(--border)">'
+        +'<div style="font-family:Nunito;font-weight:900;font-size:2.2rem;color:var(--red);line-height:1">'+money0(Number(c.bonus_amount)||0)+'</div>'
+        +'<div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);font-weight:800;margin-top:2px">Bonus</div></div>'
+      +'<div style="flex:1;min-width:240px"><div style="font-family:Nunito;font-weight:900;font-size:1.05rem">'+esc(compRule(c))+'</div>'
+        +'<div style="font-size:.8rem;color:var(--grey);font-weight:700;margin-top:2px">'+esc(c.start_date)+' → '+esc(c.end_date)+'</div>'
+        +(c.note?'<div style="font-size:.82rem;color:var(--dark-grey);margin-top:3px;line-height:1.45">'+esc(c.note)+'</div>':'')
+      +'</div></div>'
+      +(podium?'<div style="margin-top:12px">'+podium+'</div>':'')+mine+outcome
+      +'</div></div>';
+  }).join('');
 
   // ---- store leaderboards (metric selector: accessory / device / service) ----
   const byStore={};techs.forEach(t=>{(byStore[t.store]=byStore[t.store]||[]).push(t);});
