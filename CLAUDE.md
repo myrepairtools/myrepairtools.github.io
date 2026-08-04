@@ -563,7 +563,14 @@ admin-only RLS; docs/sql/ms-orders-schema.sql). **Consumption report** wiring
 (all SECURITY DEFINER RPCs — no order dollars exposed to staff):
 `ms_ordered_for_day(store, day)` (per-SKU qty ordered that Pacific day) merges
 into the ORDERED state so real cpr.parts purchases auto-check the Ordered column
-(raise-only over manual/export marks; page kicks a background sync on load);
+(raise-only over manual/export marks; page kicks a background sync on load).
+**Date-RANGE mode** (a "Day | Range" toggle by the date picker, `cprConsMode`):
+when a store misses days, pick a from→to window — consumption_log is summed per
+SKU across it (`usedMap()` already aggregates, so buildRows/export/count-sheet
+dedupe to ONE row per SKU, fixing the day-by-day double-add to the MS cart),
+`ms_ordered_for_range(store, from, to)` (docs/sql/ms-ordered-for-range.sql) sums
+real orders across the window, and manual export-skip marks land on the range's
+END day. Single-day stays the default;
 `ms_pending_for_store(store)` (qty_ordered − shipped − canceled − refunded per
 item, 30-day window) counts ordered-but-unshipped units as incoming in the
 suggest math (`max − instock − onorder − pending`, amber `+N` chip on On Order) —

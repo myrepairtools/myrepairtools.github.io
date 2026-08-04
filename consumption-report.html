@@ -15,6 +15,10 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
 .hide{display:none}
 .bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.datemode{display:inline-flex;border:1.5px solid var(--border,#E0E2EA);border-radius:8px;overflow:hidden}
+.datemode button{border:none;background:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:6px 12px;cursor:pointer;color:var(--dark-grey,#4E4E50)}
+.datemode button+button{border-left:1.5px solid var(--border,#E0E2EA)}
+.datemode button.on{background:var(--dark,#2D2D3B);color:#fff}
 .utilbar{margin-bottom:10px}
 .store-pills{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap}
 .tabs{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px}
@@ -391,7 +395,16 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
   <div class="fhpanel hide" id="feedHealth"></div>
   <div class="fhpanel hide" id="samCoverage"></div>
   <div class="bar">
+    <span class="datemode" id="dateMode">
+      <button type="button" data-dm="day" class="on">Day</button>
+      <button type="button" data-dm="range">Range</button>
+    </span>
     <input type="date" id="day" style="width:auto">
+    <span id="rangeInputs" class="hide" style="display:inline-flex;align-items:center;gap:6px">
+      <input type="date" id="dayFrom" style="width:auto">
+      <span style="color:var(--grey);font-weight:800">→</span>
+      <input type="date" id="dayTo" style="width:auto">
+    </span>
     <div class="tabs" id="viewTabs">
       <button class="tab active" data-v="daily">Daily order</button>
       <button class="tab" data-v="battery">Battery order</button>
@@ -582,6 +595,22 @@ var RQ_TICKET_URL='https://cpr.repairq.io/ticket/';
 var IDLE_MS=24*60*60*1000;
 var STORES=['CPR Eugene','CPR Salem Northeast','CPR Clackamas'];
 var STATE={store:null,me:null,stores:[]};
+/* Date mode: 'day' (single biz_date) or 'range' (from→to). Range mode sums
+   consumption across the window so a SKU used on several days shows ONCE — the
+   MS export then adds it once instead of per-day (the "missed a few days" case). */
+var RANGE_ON=(function(){try{return localStorage.getItem('cprConsMode')==='range';}catch(e){return false;}})();
+function isoOf(v){return v||new Date().toISOString().slice(0,10);}
+function curRange(){
+  if(RANGE_ON){
+    var to=isoOf($('#dayTo')&&$('#dayTo').value||($('#day')&&$('#day').value));
+    var from=isoOf($('#dayFrom')&&$('#dayFrom').value||to);
+    if(from>to){var t=from;from=to;to=t;}
+    return {from:from,to:to};
+  }
+  var d=isoOf($('#day')&&$('#day').value);
+  return {from:d,to:d};
+}
+function rangeLabel(){var r=curRange();return r.from===r.to?r.from:(r.from+' → '+r.to);}
 var ORDER=null; /* frozen row order; reset on store/date change to re-sort */
 var ORDERED={};  /* orderSku → qty already ordered TODAY. Each MS export orders
                     only the remaining need (suggest − ordered) and adds what it
@@ -878,22 +907,24 @@ async function fetchAllStock(store){
   return all;
 }
 async function loadAll(){
-  var store=STATE.store, day=$('#day').value||new Date().toISOString().slice(0,10);
+  var store=STATE.store, rg=curRange(), day=rg.to;
   var res=await Promise.all([
     fetchAllStock(store),
     sb.from('max_overrides').select('sku,value').eq('store',store),
     sb.from('consignment_only').select('sku').eq('store',store),
     sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
-    sb.from('consumption_log').select('sku,units,name').eq('store',store).eq('biz_date',day),
-    sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).eq('biz_date',day),
+    sb.from('consumption_log').select('sku,units,name').eq('store',store).gte('biz_date',rg.from).lte('biz_date',rg.to),
+    sb.from('repairs_no_parts').select('ticket,device,tech,note').eq('store',store).gte('biz_date',rg.from).lte('biz_date',rg.to),
     loadGroups(),
     sb.from('flag_types').select('key,label,color,icon,active,sort').eq('active',true).order('sort').order('id'),
     sb.from('sku_flags').select('sku,flag_key').eq('store',store),
     sb.from('group_max_overrides').select('group_id,value').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
     loadSamsungRows(),
-    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',day),
-    sb.rpc('ms_ordered_for_day',{p_store:store,p_day:day}),
+    /* manual "already ordered" marks live on the range's END day (the "as of" day) */
+    sb.from('consumption_export_skips').select('sku,ordered_qty').eq('store',store).eq('day',rg.to),
+    /* real cpr.parts orders across the whole window count as already-ordered */
+    sb.rpc('ms_ordered_for_range',{p_store:store,p_from:rg.from,p_to:rg.to}),
     sb.rpc('ms_pending_for_store',{p_store:store})
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
@@ -1427,13 +1458,13 @@ function applyOrdered(osku,qty){
   persistOrdered(osku,qty);
 }
 async function persistOrdered(osku,qty){
-  var store=STATE.store, day=$('#day').value||todayISO();
+  var store=STATE.store, day=curRange().to;   /* ordered-marks land on the range's end day */
   if(qty<=0){ await sb.from('consumption_export_skips').delete().eq('store',store).eq('day',day).eq('sku',osku); }
   else { await sb.from('consumption_export_skips').upsert({store:store,day:day,sku:osku,ordered_qty:qty,marked_by:(window.CPRNavName||null)},{onConflict:'store,day,sku'}); }
 }
 /* after an export: bump each exported SKU's ordered qty by what we just ordered */
 async function markExported(rows){
-  var store=STATE.store, day=$('#day').value||todayISO();
+  var store=STATE.store, day=curRange().to;   /* ordered-marks land on the range's end day */
   rows.forEach(function(p){ ORDERED[p[0]]=(ORDERED[p[0]]||0)+p[1]; });
   render(); if(BATROWS&&BATROWS.length)renderBatteries();
   await Promise.all(rows.map(function(p){
@@ -1470,7 +1501,7 @@ function printCountSheet(){
   var rows=buildRows().filter(function(r){return r.used>0;})
     .sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
   var store=(window.CPRLocations&&CPRLocations.display)?('CPR '+CPRLocations.display(STATE.store)):(STATE.store||'CPR');
-  var day=($('#day')&&$('#day').value)||todayISO();
+  var day=rangeLabel();   /* single day or "from → to" */
   var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   var body=rows.map(function(r){
     return '<tr><td class="nm">'+esc(r.name)+'</td><td class="sku">'+esc(r.sku)+'</td>'+
@@ -2069,6 +2100,27 @@ async function init(){
   $('#bat7').addEventListener('click',function(){$('#batSince').value=isoDaysAgo(7);loadBatteries();});
   $('#batExport').addEventListener('click',exportBatteries);
   $('#day').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
+  $('#dayFrom').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
+  $('#dayTo').addEventListener('change',function(){ORDER=null;touchIdle();loadAll();});
+  /* Day / Range toggle */
+  function applyDateMode(){
+    var day=$('#day'), rin=$('#rangeInputs');
+    Array.prototype.forEach.call($('#dateMode').querySelectorAll('button'),function(b){b.classList.toggle('on',b.getAttribute('data-dm')===(RANGE_ON?'range':'day'));});
+    if(RANGE_ON){
+      day.classList.add('hide'); rin.classList.remove('hide');
+      if(!$('#dayTo').value)$('#dayTo').value=day.value||todayISO();
+      if(!$('#dayFrom').value){ var t=new Date($('#dayTo').value+'T12:00:00Z'); t.setUTCDate(t.getUTCDate()-6); $('#dayFrom').value=t.toISOString().slice(0,10); }   // default: a 7-day window ending at "to"
+    } else { day.classList.remove('hide'); rin.classList.add('hide'); }
+  }
+  Array.prototype.forEach.call($('#dateMode').querySelectorAll('button'),function(b){
+    b.addEventListener('click',function(){
+      var want=b.getAttribute('data-dm')==='range';
+      if(want===RANGE_ON)return;
+      RANGE_ON=want; try{localStorage.setItem('cprConsMode',want?'range':'day');}catch(e){}
+      applyDateMode(); ORDER=null; touchIdle(); loadAll();
+    });
+  });
+  applyDateMode();
   var rqR=$('#rqRefresh'); if(rqR)rqR.addEventListener('click',rqRefresh);
   $('#addGrp').addEventListener('click',async function(){
     var ng={id:'g'+(Date.now()),name:'New group',max:1,members:[],manufacturer:null,model:null,part_type:null};
