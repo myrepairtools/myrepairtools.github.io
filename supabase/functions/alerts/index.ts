@@ -61,6 +61,10 @@ async function doSend(body: Record<string, unknown>) {
   const text = body.body ? String(body.body).trim().slice(0, 500) : null;
   const link = body.link ? String(body.link).slice(0, 300) : null;
   const icon = body.icon ? String(body.icon).slice(0, 8) : null;
+  // Caller opt-out of web-push for THIS send (still writes the feed + sends SMS).
+  // The Schedule Admin "Notify Employees" broadcast uses it — the owner wants
+  // that to be a text only, not push + text.
+  const pushOff = body.push === false;
 
   // recipients
   let ids: number[] = [];
@@ -110,7 +114,7 @@ async function doSend(body: Record<string, unknown>) {
     // ALERTS (urgent — schedule/system): must reach people NOW, so push AND SMS
     // are auto-enrolled for everyone (prefs can't turn them off).
     const urgent = kind === "schedule" || kind === "system";
-    const wantPush = (kind === "comms" || urgent) ? true : p.push !== false;
+    const wantPush = pushOff ? false : ((kind === "comms" || urgent) ? true : p.push !== false);
     const wantSms = urgent ? true : p.sms === true;
 
     if (wantPush && VAPID_PUB) {

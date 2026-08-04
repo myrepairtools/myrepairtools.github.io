@@ -1048,9 +1048,11 @@ override; live To:-line with recipient count). **A day's affected stores are BOT
 the destination (the override's `store`) AND the origin** — the store the person was
 recurringly scheduled at that weekday (`SCHED[staff].arr[getDay]`), so a move
 (Eugene→Salem) or an off-day flags the origin store that's now short, not just the
-destination. Send fans out alerts (staff_ids)
-+ the routed rule. Keep the alert title's 'Schedule updated' prefix — it's the
-last-broadcast marker), KB
+destination. Send fans out alerts (staff_ids, **`push:false`** — the owner wants
+this broadcast to be a **text only, not push + text**; the alerts fanout still
+forces SMS for the urgent `schedule` kind and always writes the feed row, it just
+skips web-push when the caller passes `push:false`) + the routed rule. Keep the
+alert title's 'Schedule updated' prefix — it's the last-broadcast marker), KB
 required-reading publish (kind 'kb', everyone), and the **end-of-shift task
 nudge** — `tasks?action=nudge` (pg_cron `tasks-nudge-halfhourly`, */30): anyone
 whose shift ends within 45 min with open tasks due today (assigned to them, or
