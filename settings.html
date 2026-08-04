@@ -269,6 +269,7 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <button class="tab" data-tab="notif" id="tabNotif">Notifications <span class="ct" id="ctNotif">0</span></button>
     <button class="tab" data-tab="pages" id="tabPages">Page Settings</button>
     <button class="tab" data-tab="commission" id="tabCommission">Commission</button>
+    <button class="tab hide" data-tab="competitions" id="tabCompetitions">Competitions</button>
     <button class="tab hide" data-tab="integ" id="tabInteg">Integrations</button>
     <button class="tab hide" data-tab="roles" id="tabRoles">Roles &amp; Permissions <span class="ct" id="ctRoles">0</span></button>
   </div>
@@ -408,6 +409,11 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <div id="cruleCard"></div>
     <div class="bar"><button class="btn alt sm" id="resetRules">Clear this scope</button><span class="spacer"></span><button class="btn" id="saveRules">Save</button></div>
 
+  </section>
+
+  <!-- COMPETITIONS TAB -->
+  <section id="view-competitions" class="hide">
+    <div id="compPane"></div>
   </section>
 
   <!-- INTEGRATIONS TAB (owner only) -->
@@ -688,7 +694,7 @@ function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
 /* deep links from the nav Settings pane (settings.html#integ etc.) beat the remembered tab */
-var HASH_TABS=['staff','loc','notif','pages','commission','integ','roles'];
+var HASH_TABS=['staff','loc','notif','pages','commission','competitions','integ','roles'];
 function tabFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
 var _ht=tabFromHash(); if(_ht){TAB=_ht;lsSet('cprSetTab',TAB);}
 window.addEventListener('hashchange',function(){var t=tabFromHash();if(t&&t!==TAB){TAB=t;lsSet('cprSetTab',TAB);renderAll();}});
@@ -889,7 +895,7 @@ async function toggleScope(){
   toast(APPSCOPE?'Now separated by store':'Everyone sees all stores');
 }
 async function load(){
-  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission(),loadAppSettings()]);
+  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission(),loadCompetitions(),loadAppSettings()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
   await loadRegs();
   renderAll();
@@ -898,7 +904,7 @@ async function load(){
 /* ===== render ===== */
 function activeStores(){return STORES.filter(function(s){return s.active;});}
 function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
-function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderCommission();renderRoles();renderModal();}
+function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderCommission();renderCompetitions();renderRoles();renderModal();}
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
   /* section header — the strip is hidden, the nav Settings pane switches sections */
@@ -907,6 +913,7 @@ function renderTabs(){
     notif:['🔔 Notifications','Automated alerts and where they go'],
     pages:['📄 Page Settings','Per-tool configuration'],
     commission:['📈 Commission','Rates, tiers and payout rules'],
+    competitions:['🏆 Competitions','Sales contests and the bonuses they pay'],
     integ:['🔌 Integrations','QuickBooks, RingCentral, Square and friends'],
     roles:['🛡️ Roles & Permissions','Who can see and do what']}[TAB]||['Settings',''];
   $('#setTitle').textContent=TT[0];
@@ -918,13 +925,15 @@ function renderTabs(){
   $('#ctRoles').textContent=RBROLES.length;
   $('#tabRoles').classList.toggle('hide',!owner);
   $('#tabInteg').classList.toggle('hide',!owner);
-  if(!owner&&(TAB==='roles'||TAB==='integ'))TAB='staff';   /* owner-only tabs */
+  $('#tabCompetitions').classList.toggle('hide',!owner);
+  if(!owner&&(TAB==='roles'||TAB==='integ'||TAB==='competitions'))TAB='staff';   /* owner-only tabs */
   $('#ctNotif').textContent=NRULES.filter(function(e){return e.enabled;}).length;
   $('#tabStaff').classList.toggle('active',TAB==='staff');
   $('#tabLoc').classList.toggle('active',TAB==='loc');
   $('#tabNotif').classList.toggle('active',TAB==='notif');
   $('#tabPages').classList.toggle('active',TAB==='pages');
   $('#tabCommission').classList.toggle('active',TAB==='commission');
+  $('#tabCompetitions').classList.toggle('active',TAB==='competitions');
   $('#tabInteg').classList.toggle('active',TAB==='integ');
   $('#tabRoles').classList.toggle('active',TAB==='roles');
   $('#view-staff').classList.toggle('hide',TAB!=='staff');
@@ -932,6 +941,7 @@ function renderTabs(){
   $('#view-notif').classList.toggle('hide',TAB!=='notif');
   $('#view-pages').classList.toggle('hide',TAB!=='pages');
   $('#view-commission').classList.toggle('hide',TAB!=='commission');
+  $('#view-competitions').classList.toggle('hide',TAB!=='competitions');
   $('#view-integ').classList.toggle('hide',TAB!=='integ');
   $('#view-roles').classList.toggle('hide',TAB!=='roles');
   if(TAB==='integ'){renderInteg();qbtRenderStatus();rcRenderStatus();qboRenderStatus();msRenderStatus();}
@@ -1832,6 +1842,185 @@ async function resetRules(){
     if(r2.error)toast(r2.error.message,true);else{toast('Cleared '+shortStore(CRSEL)+' rules');renderCommission();}
   }
 }
+
+/* ===================== Competitions (owner-only) =====================
+   Sales contests that actually pay out. Standings always come from the
+   competition_standings RPC — never ranked here — because commission_sales RLS
+   is per-store, so browser-side ranking would show a different "company-wide"
+   winner to different people. Once a competition's results are frozen (written
+   by the payroll archive) the rules become read-only: editing them afterwards
+   would rewrite a contest that has already been paid. */
+var COMPS=[], COMPSEL=null, COMPFROZEN={}, COMPSTAND={}, COMPBUSY={};
+var COMP_METRICS=[
+  {k:'attach_rate',    l:'Attach rate — accessories ÷ tickets'},
+  {k:'category_units', l:'Category units — cases, screen protectors…', key:'cat'},
+  {k:'service_units',  l:'Service units', key:'svc'},
+  {k:'device_units',   l:'Devices sold (net of returns)'},
+  {k:'accy_net',       l:'Accessory $'},
+  {k:'device_net',     l:'Device $'},
+  {k:'service_net',    l:'Service $'},
+  {k:'retail_net',     l:'Total retail $ — accessory + device'}
+];
+var COMP_CATS=['Case','Screen Protector','Power','Misc','Other'];
+function compMeta(k){return COMP_METRICS.filter(function(m){return m.k===k;})[0]||COMP_METRICS[0];}
+function compFmt(c,v){
+  v=Number(v); if(isNaN(v))return '—';
+  if(c.metric==='attach_rate')return (Math.round(v*1000)/10)+'%';
+  if(c.metric.slice(-4)==='_net')return '$'+Math.round(v).toLocaleString('en-US');
+  return (Math.round(v*100)/100)+' '+(c.metric_key||'');
+}
+function compState(c){
+  var t=new Date().toISOString().slice(0,10);
+  if(COMPFROZEN[c.id])return 'Final';
+  if(t<c.start_date)return 'Upcoming';
+  if(t>c.end_date)return 'Ended';
+  return 'Live';
+}
+async function loadCompetitions(){
+  var r=await sb.from('competitions').select('*').order('end_date',{ascending:false});
+  COMPS=r.error?[]:(r.data||[]);
+  COMPFROZEN={};
+  var fr=await sb.from('competition_results').select('competition_id,place,paid_month');
+  ((fr&&fr.data)||[]).forEach(function(x){
+    var e=COMPFROZEN[x.competition_id]||(COMPFROZEN[x.competition_id]={n:0,paid:null});
+    e.n++; if(x.place===1&&x.paid_month)e.paid=x.paid_month;
+  });
+}
+function renderCompetitions(){
+  var pane=$('#compPane'); if(!pane)return;
+  if(!(AUTH&&AUTH.role==='owner')){pane.innerHTML='<div class="empty" style="padding:20px">Competitions are owner-only.</div>';return;}
+  if(COMPSEL==null||!COMPS.some(function(x){return x.id===COMPSEL;}))COMPSEL=COMPS.length?COMPS[0].id:null;
+  var c=COMPS.filter(function(x){return x.id===COMPSEL;})[0]||null;
+
+  var rail=COMPS.map(function(x){
+    var st=compState(x);
+    var col=st==='Live'?'var(--green)':(st==='Final'?'var(--blue)':(st==='Ended'?'var(--amber)':'var(--grey)'));
+    return '<button class="pg2tool'+(x.id===COMPSEL?' on':'')+'" data-cpsel="'+x.id+'" style="display:flex;justify-content:space-between;gap:8px">'
+      +'<span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(x.name||'(untitled)')+'</span>'
+      +'<span style="flex:none;font-size:.62rem;font-weight:800;color:'+col+'">'+st+'</span></button>';
+  }).join('');
+
+  var editor;
+  if(c){
+    var frozen=!!COMPFROZEN[c.id], paid=frozen?COMPFROZEN[c.id].paid:null, meta=compMeta(c.metric);
+    var dis=frozen?' disabled':'';
+    var keyOpts='';
+    if(meta.key==='cat')keyOpts=COMP_CATS.map(function(k){return '<option value="'+esc(k)+'"'+(c.metric_key===k?' selected':'')+'>'+esc(k)+'</option>';}).join('');
+    if(meta.key==='svc')keyOpts='<option value="">All services</option>'+(CRATES||[]).map(function(s){
+      return '<option value="'+esc(s.sku)+'"'+(c.metric_key===s.sku?' selected':'')+'>'+esc(s.label||s.sku)+'</option>';}).join('');
+
+    var stand=COMPSTAND[c.id];
+    var preview;
+    if(COMPBUSY[c.id])preview='<div class="muted" style="padding:10px 0">Loading standings…</div>';
+    else if(!stand)preview='<div class="muted" style="padding:10px 0">—</div>';
+    else if(!stand.length)preview='<div class="muted" style="padding:10px 0">No sales in this window yet.</div>';
+    else{
+      var elig=stand.filter(function(r2){return r2.eligible;});
+      preview=(elig.length?elig.slice(0,8):[]).map(function(r2){
+        return '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)">'
+          +'<span style="width:28px;flex:none;font-weight:900;color:'+(r2.place===1?'var(--red)':'var(--grey)')+'">#'+r2.place+'</span>'
+          +'<span style="flex:1;min-width:0">'+esc(r2.display_name)+'</span>'
+          +'<span style="font-weight:800">'+compFmt(c,r2.metric_value)+'</span></div>';}).join('')
+        +(elig.length?'':'<div class="muted" style="padding:10px 0">No one has reached the '+c.min_tickets+'-ticket minimum — this would pay nobody.</div>')
+        +(stand.length-elig.length>0?'<div style="font-size:.72rem;color:var(--grey);margin-top:6px">'+(stand.length-elig.length)+' below the ticket minimum</div>':'');
+    }
+
+    editor=(frozen?'<div style="background:#EAF7EF;border:1px solid #BFE3CC;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#1f7d45;font-weight:700;margin-bottom:12px">🏁 Results are locked'
+        +(paid?' — paid in '+esc(paid)+' payroll':'')+'. The rules can no longer be edited; duplicate it to run it again.</div>'
+      :'<div style="font-size:.78rem;color:var(--dark-grey);margin-bottom:12px">Everyone competes company-wide. The winner’s bonus appears in Payroll · Commission &amp; Tips for the run that contains the end date, and locks when that month is archived.</div>')
+      +'<label class="hlbl">Name</label><input class="pgin hfull" id="cpName" value="'+esc(c.name||'')+'"'+dis+' placeholder="e.g. August Attach Race">'
+      +'<label class="hlbl" style="margin-top:12px">What wins</label>'
+      +'<select class="pgin hfull" id="cpMetric"'+dis+'>'+COMP_METRICS.map(function(m){
+          return '<option value="'+m.k+'"'+(c.metric===m.k?' selected':'')+'>'+esc(m.l)+'</option>';}).join('')+'</select>'
+      +(meta.key?'<label class="hlbl" style="margin-top:12px">'+(meta.key==='cat'?'Which category':'Which service')+'</label>'
+          +'<select class="pgin hfull" id="cpKey"'+dis+'>'+keyOpts+'</select>':'')
+      +'<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">'
+        +'<div style="flex:1;min-width:130px"><label class="hlbl">Starts</label><input class="pgin hfull" type="date" id="cpStart" value="'+esc(c.start_date)+'"'+dis+'></div>'
+        +'<div style="flex:1;min-width:130px"><label class="hlbl">Ends</label><input class="pgin hfull" type="date" id="cpEnd" value="'+esc(c.end_date)+'"'+dis+'></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap">'
+        +'<div style="flex:1;min-width:130px"><label class="hlbl">Bonus $</label><input class="pgin hfull" type="number" step="0.01" id="cpBonus" value="'+(Number(c.bonus_amount)||0)+'"'+dis+'></div>'
+        +'<div style="flex:1;min-width:130px"><label class="hlbl">Minimum tickets</label><input class="pgin hfull" type="number" step="1" id="cpMin" value="'+(c.min_tickets==null?20:c.min_tickets)+'"'+dis+'></div>'
+      +'</div>'
+      +'<label class="hlbl" style="margin-top:12px">Note (shown on the scoreboard)</label>'
+      +'<textarea class="pgin hfull" id="cpNote" rows="2" style="resize:vertical"'+dis+'>'+esc(c.note||'')+'</textarea>'
+      +'<label class="hlbl" style="margin-top:12px"><input type="checkbox" id="cpActive"'+(c.active?' checked':'')+' style="width:auto;margin-right:6px">Active</label>'
+      +'<div class="pg2lbl" style="margin-top:18px">Standings right now</div>'+preview
+      +'<div style="display:flex;align-items:center;gap:8px;margin-top:16px">'
+        +'<button class="btn alt sm" id="cpDel" style="color:var(--red)">🗑 Delete</button>'
+        +'<span style="flex:1"></span>'
+        +'<button class="btn alt sm" id="cpDup">Duplicate</button>'
+        +(frozen?'':'<button class="btn sm" id="cpSave">Save</button>')
+      +'</div>';
+  }else editor='<div class="empty" style="padding:20px">No competitions yet — create your first.</div>';
+
+  pane.innerHTML='<div style="display:grid;grid-template-columns:230px 1fr;gap:14px;align-items:start">'
+    +'<div><div class="pg2lbl">Competitions</div>'+rail+'<button class="btn alt sm" id="cpNew" style="margin-top:10px;width:100%">＋ New competition</button></div>'
+    +'<div class="pgcard"><div class="pgcard-hd"><span class="pgcard-t">'+(c?esc(c.name||'Competition'):'Competitions')+'</span></div><div style="padding:14px 16px">'+editor+'</div></div></div>';
+
+  pane.querySelectorAll('[data-cpsel]').forEach(function(b){b.onclick=function(){COMPSEL=+b.getAttribute('data-cpsel');renderCompetitions();};});
+
+  // standings load lazily for whichever competition is open, then repaint
+  if(c&&!COMPSTAND[c.id]&&!COMPBUSY[c.id]){
+    COMPBUSY[c.id]=true;
+    sb.rpc('competition_standings',{p_competition_id:c.id}).then(function(r){
+      COMPBUSY[c.id]=false;COMPSTAND[c.id]=(r&&r.data)||[];
+      if(COMPSEL===c.id)renderCompetitions();
+    });
+  }
+
+  var mSel=$('#cpMetric');if(mSel)mSel.onchange=function(){
+    // repaint so the category/service picker appears or disappears with the metric
+    c.metric=mSel.value;c.metric_key=null;delete COMPSTAND[c.id];renderCompetitions();};
+
+  var nw=$('#cpNew');if(nw)nw.onclick=async function(){
+    var d=new Date(), y=d.getFullYear(), m=d.getMonth();
+    var pad=function(n){return (n<10?'0':'')+n;};
+    var first=y+'-'+pad(m+1)+'-01', last=y+'-'+pad(m+1)+'-'+pad(new Date(y,m+1,0).getDate());
+    var r=await sb.from('competitions').insert({name:'New competition',metric:'attach_rate',
+      start_date:first,end_date:last,bonus_amount:50,min_tickets:20,active:true,
+      created_by:(AUTH&&AUTH.id)||null}).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    COMPS.unshift(r.data);COMPSEL=r.data.id;renderCompetitions();
+  };
+
+  var dup=$('#cpDup');if(dup)dup.onclick=async function(){
+    // the period is a fixed range, so duplicating is how a monthly contest recurs
+    var r=await sb.from('competitions').insert({name:c.name+' (copy)',metric:c.metric,metric_key:c.metric_key,
+      start_date:c.start_date,end_date:c.end_date,bonus_amount:c.bonus_amount,min_tickets:c.min_tickets,
+      note:c.note,active:true,created_by:(AUTH&&AUTH.id)||null}).select('*').single();
+    if(r.error){toast(r.error.message,true);return;}
+    COMPS.unshift(r.data);COMPSEL=r.data.id;renderCompetitions();toast('Duplicated — set its dates');
+  };
+
+  var sv=$('#cpSave');if(sv)sv.onclick=async function(){
+    var kEl=$('#cpKey');
+    var patch={name:($('#cpName').value||'').trim()||'Untitled competition',
+      metric:$('#cpMetric').value,
+      metric_key:kEl?((kEl.value||'').trim()||null):null,
+      start_date:$('#cpStart').value,end_date:$('#cpEnd').value,
+      bonus_amount:Number($('#cpBonus').value)||0,
+      min_tickets:parseInt($('#cpMin').value,10)||0,
+      note:($('#cpNote').value||'').trim()||null,
+      active:$('#cpActive').checked,updated_at:new Date().toISOString()};
+    if(!patch.start_date||!patch.end_date){toast('Set both dates',true);return;}
+    if(patch.end_date<patch.start_date){toast('End date is before the start date',true);return;}
+    var r=await sb.from('competitions').update(patch).eq('id',c.id).select('*').maybeSingle();
+    if(r.error){toast(r.error.message,true);return;}
+    COMPS=COMPS.map(function(x){return x.id===c.id?(r.data||Object.assign({},x,patch)):x;});
+    delete COMPSTAND[c.id];renderCompetitions();toast('✓ Competition saved');
+  };
+
+  var del=$('#cpDel');if(del)del.onclick=async function(){
+    var frz=!!COMPFROZEN[c.id];
+    if(!confirm('Delete “'+(c.name||'untitled')+'”?'+(frz?' Its locked results and the record of who won will be deleted too.':'')))return;
+    var r=await sb.from('competitions').delete().eq('id',c.id);
+    if(r.error){toast(r.error.message,true);return;}
+    COMPS=COMPS.filter(function(x){return x.id!==c.id;});COMPSEL=null;
+    renderCompetitions();toast('Competition deleted');
+  };
+}
+
 function staffStoreRank(name){
   for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
   return 9999;

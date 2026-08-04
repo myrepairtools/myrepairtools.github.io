@@ -133,6 +133,7 @@
     { label:'Notifications',       url:'settings.html#notif',      icon:'bell', acc:'staff.manage' },
     { label:'Page Settings',       url:'settings.html#pages',      icon:'file-cog', acc:'staff.manage' },
     { label:'Commission',          url:'settings.html#commission', icon:'percent', acc:'staff.manage' },
+    { label:'Competitions',        url:'settings.html#competitions', icon:'trophy', acc:'staff.manage' },
     { label:'Integrations',        url:'settings.html#integ',      icon:'plug', acc:'staff.manage' },
     { label:'Roles & Permissions', url:'settings.html#roles',      icon:'shield', acc:'staff.manage' }
   ];
@@ -548,6 +549,7 @@
     'map-pin': '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" /><circle cx="12" cy="10" r="3" />',
     'file-cog': '<path d="M15 8a1 1 0 0 1-1-1V2a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8z" /><path d="M20 8v12a2 2 0 0 1-2 2h-4.182" /><path d="m3.305 19.53.923-.382" /><path d="M4 10.592V4a2 2 0 0 1 2-2h8" /><path d="m4.228 16.852-.924-.383" /><path d="m5.852 15.228-.383-.923" /><path d="m5.852 20.772-.383.924" /><path d="m8.148 15.228.383-.923" /><path d="m8.53 21.696-.382-.924" /><path d="m9.773 16.852.922-.383" /><path d="m9.773 19.148.922.383" /><circle cx="7" cy="18" r="3" />',
     'percent': '<line x1="19" x2="5" y1="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" />',
+    'trophy': '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />',
     'plug': '<path d="M12 22v-5" /><path d="M15 8V2" /><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z" /><path d="M9 8V2" />',
     'shield': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />',
     'banknote': '<rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" />',

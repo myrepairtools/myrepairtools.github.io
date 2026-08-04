@@ -411,6 +411,34 @@ archived month there shows the snapshot instead of recomputing: profile header s
 numbers, and the 12-month trend uses archived totals where they exist. The calculator
 itself always stays live — it *generates* payroll; the archive freezes what it produced.
 
+**Competitions (sales contests that pay out):** `competitions` (name, `metric`, `metric_key`,
+fixed `start_date`/`end_date`, `bonus_amount`, `min_tickets` eligibility floor, active) +
+`competition_results` (the FREEZE — place, metric_value, bonus_amount, `paid_month`; unique
+competition+staff). Owner-write RLS (`is_owner()` — it spends money), read open to all
+authenticated so employees see the contest they're in. Metrics, all off `commission_sales`:
+`attach_rate` · `category_units` (metric_key 'Case'/'Screen Protector'/'Power' — units only,
+there are no per-category dollars) · `service_units` · `device_units` (net of returns) ·
+`accy_net` · `device_net` · `service_net` · `retail_net`. **Standings come from the
+`competition_standings(id)` SECURITY DEFINER RPC, never from client-side ranking** —
+`commission_sales` RLS is `can_see_store`, so ranking in the browser showed a single-store
+tech a "company-wide" board containing only their own store. It ranks on the raw numeric
+(not the rounded display) with `dense_rank` so ties genuinely share first place and each
+takes the full bonus, excludes the owner by ROLE (not the old hardcoded name regex), and
+returns ineligible people too so a tech sees how many tickets short they are.
+**The bonus rides ALONGSIDE `commission-engine.js`, never inside it** — the engine is a pure
+function of one person's own totals and a competition result is a ranking across people;
+tips already established that seam. Surfaces: Settings → Competitions (owner-only tab, rail
++ detail editor with a live standings preview and Duplicate — the period is a fixed range,
+so duplicating is how a monthly contest recurs; a frozen competition's rules go read-only),
+the commission dashboard's Scoreboard cards, and the payroll calculator's **Bonus** column.
+**Which run pays it: the one whose range contains `end_date`** — you pay a contest when it
+concludes. Archiving the month freezes results from the same standings the run displayed and
+stamps `paid_month` (the ledger that stops a second run paying the same award); a winner with
+no payroll row in that run is flagged, not dropped. `commission_snapshots` gained
+`bonus` + `bonus_detail` mirroring `tips`, and `assets/commission-summary.js` returns `bonus`
+in its total (frozen results only — a running contest must never promise an employee money).
+Schema: docs/sql/competitions-schema.sql.
+
 **Tips:** `commission_tips` (store, period 'YYYY-MM', pool, hours jsonb {name:{pp1}}) —
 tip share = (your hours / store hours) × store pool; consumers sum pp1+pp2 so legacy
 two-period rows still read. The calculator's Tips tab has **one hours box per person
