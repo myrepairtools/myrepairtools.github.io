@@ -149,7 +149,7 @@ function monthStart(){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getM
 const STATE={me:null,stores:[],store:lsGet('cc_store','all'),tab:lsGet('cc_tab','summary'),
   start:lsGet('cc_start',monthStart()),end:lsGet('cc_end',isoToday()),
   rates:{},rateLabels:{},rules:{},staffById:{},rosterById:{},
-  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',loaded:false};
+  report:[],manual:{},expanded:{},tips:{},tipsPeriod:'',tipsPeriodPinned:false,loaded:false};
 
 /* deep links: #summary/#commissions/#tips beat the remembered tab */
 const HASH_TABS=['summary','commissions','tips'];
@@ -276,7 +276,11 @@ async function runReport(){
     return {staff_id:e.staff_id,name:e.name,store:home,stores:[...e.stores],byStore:e.byStore,totals:e.totals,
       earns:earns, rules:rules, rates:rates, goal:goal, inRoster:!!(sf&&sf.active)};
   });
-  if(!STATE.tipsPeriod)STATE.tipsPeriod=start.slice(0,7);
+  // Tips follow the range's start month on EVERY run — otherwise switching the
+  // range (e.g. Quick range → Last month at payroll) recomputes commissions but
+  // leaves tips on whatever month the page booted with. Only a period typed by
+  // hand on the Tips tab pins it; that stays put until it's cleared there.
+  if(!STATE.tipsPeriodPinned)STATE.tipsPeriod=start.slice(0,7);
   await loadTips();
   STATE.loaded=true;
   $('#status').textContent=STATE.report.length+' employees · '+start+' → '+end;
@@ -335,6 +339,15 @@ function renderSummary(){
       +(function(){const am=archMonth();
         return '<button class="btn alt sm" id="archiveBtn"'+(am?'':' disabled title="Set the range to one full past month (Quick range → Last month) to archive"')+'>📸 Archive'+(am?' '+esc(am.mon):' month')+'</button>';})()
       +'</div>'
+    +(function(){
+      // The Tips column is always ONE month's pool. Say so out loud whenever that
+      // month isn't simply "the month this range is in" — a pinned period, or a
+      // range straddling two months, both quietly pay the wrong pool.
+      const sM=STATE.start.slice(0,7),eM=STATE.end.slice(0,7),tM=STATE.tipsPeriod;
+      let msg='';
+      if(tM&&tM!==sM)msg='Tips below are '+esc(tM)+"'s pool, but this range starts in "+esc(sM)+'. Change it on the Tips tab.';
+      else if(sM!==eM)msg='This range spans '+esc(sM)+' → '+esc(eM)+', but tips are a whole month at a time — the column shows all of '+esc(tM||sM)+'.';
+      return msg?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:12px">'+msg+'</div>':'';})()
     +'<table><thead><tr><th>Employee</th><th class="r">Store split</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th></tr></thead>'
     +'<tbody>'+(body||'<tr><td colspan="5" class="muted" style="padding:22px 6px">No data for this range.</td></tr>')+'</tbody>'
     +'<tfoot><tr class="tfoot"><td>Total</td><td></td><td class="r">'+copyable(grandC)+'</td><td class="r">'+copyable(grandT)+'</td><td class="r">'+copyable(grandG)+'</td></tr></tfoot></table>'
@@ -552,6 +565,7 @@ async function renderTips(){
       +'<div class="field"><label>Store tip pool $</label><input type="number" id="tipsPool" value="'+(pool||'')+'" step="0.01" style="width:120px;text-align:right"></div>'
       +'<button class="btn alt sm" id="qboFill" title="Overwrite every box with this month’s clocked hours from QuickBooks Time (PTO excluded)">↻ Refill from QB Time</button>'
       +'<button class="btn sm" id="saveTips">Save this store</button></div>'
+    +(STATE.tipsPeriodPinned?'<div style="background:#FFF4E5;border:1px solid #FFD8A8;border-radius:9px;padding:8px 12px;font-size:.78rem;color:#8a5a00;font-weight:700;margin-bottom:10px">Pay period is pinned to '+esc(STATE.tipsPeriod)+', but the report range starts in '+esc(STATE.start.slice(0,7))+'. <button class="btn alt sm" id="tipsMatch" style="margin-left:6px">Match the range ('+esc(STATE.start.slice(0,7))+')</button></div>':'')
     +(sqs?'<div style="display:inline-flex;align-items:center;gap:8px;background:#EAF7EF;border:1px solid #BFE3CC;border-radius:999px;padding:6px 13px;font-family:Nunito;font-weight:800;font-size:.75rem;color:#1f7d45;margin-bottom:10px">⚡ Square: '+money(sqs.sum)+' in tips · '+sqs.days+' day'+(sqs.days===1?'':'s')+' through '+esc(sqs.last)+' — the pool updates automatically each morning</div>':'')
     +'<table><thead><tr><th>Employee</th><th class="r">Hours · '+esc(STATE.tipsPeriod||'month')+'</th><th class="r">Tips</th></tr></thead>'
     +'<tbody>'+(rows||'<tr><td colspan="3" class="muted" style="padding:18px 6px">Run a report first.</td></tr>')+'</tbody></table>'
@@ -559,7 +573,14 @@ async function renderTips(){
     +'</div></div>';
   const setH=(name,val)=>{const d=ensure();d.hours[name]={pp1:val};renderTips();};
   $all('[data-tip]').forEach(inp=>inp.onchange=()=>setH(inp.getAttribute('data-tip'),+inp.value||0));
-  const tp=$('#tipsPeriod');if(tp)tp.onchange=async()=>{STATE.tipsPeriod=tp.value;await loadTips();render();};
+  const setPeriod=async(p)=>{
+    STATE.tipsPeriod=p;
+    // Typing the range's own month is the default, not an override — unpin so it
+    // resumes following the range.
+    STATE.tipsPeriodPinned=(p!==STATE.start.slice(0,7));
+    await loadTips();render();};
+  const tp=$('#tipsPeriod');if(tp)tp.onchange=()=>setPeriod(tp.value);
+  const tpm=$('#tipsMatch');if(tpm)tpm.onclick=()=>setPeriod(STATE.start.slice(0,7));
   const tpl=$('#tipsPool');if(tpl)tpl.onchange=()=>{ensure().pool=+tpl.value||0;renderTips();};
   const qf=$('#qboFill');if(qf)qf.onclick=()=>{const d=ensure();emps.forEach(e=>{if(qbo[e.name]!=null)d.hours[e.name]={pp1:qbo[e.name]};});renderTips();};
   const sv=$('#saveTips');if(sv)sv.onclick=()=>saveTips(store);
