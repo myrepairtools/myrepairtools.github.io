@@ -995,6 +995,50 @@ async function actionSyncIngest(p: any) {
   return json({ ok: res.ok && body?.ok !== false, feed, ...srcLabel, pulled: raw.length, ingest: body });
 }
 
+// Auto-fill claim_repairs/claim_parts.payout_date from RepairQ's REAL deposit
+// date (transaction.deposit_posted_date) — the claim Looks carry no payout date,
+// so it used to be 100% manual and every new invoice landed "undated". Fills only
+// rows whose payout_date is still NULL (never overwrites a manual date).
+async function fillClaimPayoutDates(dry: boolean, days = "180 days") {
+  const pq = {
+    model: "repairq_cpr", view: "ticket",
+    fields: ["ticket.id", "transaction.deposit_posted_date"], pivots: [], fill_fields: [],
+    filters: { "ticket.warranty_provider": "-EMPTY", "transaction.deposit_posted_date": days },
+    filter_expression: "", sorts: ["transaction.deposit_posted_date desc"], limit: "5000",
+    column_limit: "50", total: false, row_total: "", subtotals: [], dynamic_fields: "",
+    query_timezone: "America/Chicago", element_id: "mrtcp", client_id: "mrtcp", generate_links: false,
+    path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+  };
+  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+  const rows: any[] = []; for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+  const byTicket = new Map<string, string>();   // ticket -> latest deposit date
+  for (const r of rows) {
+    const t = r["ticket.id"]; const d = r["transaction.deposit_posted_date"];
+    if (t == null || !d) continue;
+    const key = String(t), day = String(d).slice(0, 10), cur = byTicket.get(key);
+    if (!cur || day > cur) byTicket.set(key, day);
+  }
+  const byDate = new Map<string, string[]>();   // date -> ticket ids (one UPDATE per date)
+  for (const [t, d] of byTicket) (byDate.get(d) || byDate.set(d, []).get(d)!).push(t);
+  if (dry) {
+    const { data: undated } = await admin.from("claim_repairs").select("ticket_id").is("payout_date", null);
+    const undatedSet = new Set((undated ?? []).map((x: any) => String(x.ticket_id)));
+    let wouldFill = 0; for (const t of byTicket.keys()) if (undatedSet.has(t)) wouldFill++;
+    return { ok: true, dry_run: true, deposit_rows: rows.length, tickets_with_deposit: byTicket.size, currently_undated: undatedSet.size, would_fill: wouldFill, deposit_dates: [...byDate.keys()].sort() };
+  }
+  let filledR = 0, filledP = 0;
+  for (const [d, ids] of byDate) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const r1 = await admin.from("claim_repairs").update({ payout_date: d, updated_at: new Date().toISOString() }).in("ticket_id", chunk).is("payout_date", null).select("ticket_id");
+      filledR += (r1.data?.length || 0);
+      const r2 = await admin.from("claim_parts").update({ payout_date: d }).in("ticket_id", chunk).is("payout_date", null).select("ticket_id");
+      filledP += (r2.data?.length || 0);
+    }
+  }
+  return { ok: true, tickets_with_deposit: byTicket.size, filled_repairs: filledR, filled_parts: filledP };
+}
+
 // Sync live PART CONSUMPTION from the Eugene Part-Consumption Look into
 // consumption_log. The report SUMS units per sku/day, so we REPLACE each
 // (store, biz_date) the Look returns — delete that day's existing rows, insert
@@ -2269,7 +2313,12 @@ Deno.serve(async (req) => {
       const dry = !!payload?.dry_run;
       const r1 = await actionSyncIngest({ feed: "claim_repairs", look_id: payload?.repairs_look || "5759", dry_run: dry });
       const r2 = await actionSyncIngest({ feed: "claim_parts", look_id: payload?.parts_look || "5760", dry_run: dry });
-      return json({ ok: true, repairs: await r1.json().catch(() => null), parts: await r2.json().catch(() => null) });
+      // fill payout_date from RepairQ's real deposit date (claim Looks lack it)
+      const pd = await fillClaimPayoutDates(dry);
+      return json({ ok: true, repairs: await r1.json().catch(() => null), parts: await r2.json().catch(() => null), payout_dates: pd });
+    }
+    if (payload?.action === "sync_claim_payouts") {
+      return json(await fillClaimPayoutDates(!!payload?.dry_run, String(payload?.days || "180 days")));
     }
     if (payload?.action === "sync_commission") {
       // all five commission feeds → commission_sales via ingest. Accessory /

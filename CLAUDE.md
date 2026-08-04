@@ -197,6 +197,21 @@ There is **no single backend**. Tools talk to one of two systems:
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
    time-entries, monthly-goals, checklist, task-admin, device-orders, cash-journal.
 
+**Claim payouts (`claim-payouts.html`) — payout_date auto-fill:** claims sync in
+via `repairq-query`'s `sync_claims` (Looks 5759 repairs / 5760 parts → `ingest` →
+`claim_repairs`/`claim_parts`), but those Looks carry **no deposit/payout date**,
+so payout_date used to be 100% manual (every new claim invoice landed "undated" red
+until someone hand-set it; `ingest` only propagated a set date to same-invoice
+siblings via its invMap). `fillClaimPayoutDates()` (repairq-query) now pulls the
+REAL date from RepairQ — `transaction.deposit_posted_date` per ticket (plain Looker
+query on the `ticket` explore, warranty_provider≠empty, 180-day window) — and fills
+any `payout_date` still NULL (matched by ticket_id; **never overwrites a manual
+date**). Runs at the end of `sync_claims` (daily `repairq-claims-sync` cron) and is
+backfillable via `{action:'sync_claim_payouts'[,dry_run,days]}`. Claims with no
+deposit yet stay undated (genuinely unpaid) and fill automatically once Assurant
+deposits. The tool's manual set-date button + invMap propagation still work as the
+override path.
+
 **Device ordering (`device-orders.html`, Ordering & Inventory nav):** used-device
 consumption + suggested buys, the device-side sibling of the parts consumption report.
 Data arrives **automatically**: the `repairq-devices-sync` pg_cron (:50 hourly) calls
