@@ -41,7 +41,7 @@ const CORS: Record<string, string> = {
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const KINDS = ["comms", "task", "schedule", "kb", "goal", "birthday", "anniversary", "system", "interview"];
+const KINDS = ["comms", "task", "schedule", "schedule_preview", "kb", "goal", "birthday", "anniversary", "system", "interview"];
 
 async function callerAllowed(req: Request, body: Record<string, unknown>): Promise<boolean> {
   if (SECRET && body.secret === SECRET) return true;

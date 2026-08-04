@@ -1,0 +1,29 @@
+-- Saturday "your upcoming week is different" heads-up — 2026-08-04
+--
+-- Each Saturday morning, the schedule-notify edge function compares every active
+-- employee's UPCOMING week (the coming Sun–Sat) against their standard recurring
+-- schedule (staff_schedule.shifts). If a schedule_overrides row for a day in that
+-- week changes the store / shift / off-status vs the recurring cell, the employee
+-- gets a personal notification (alerts kind 'schedule_preview' — preference-based:
+-- push on by default, text opt-in, muteable in My Profile) listing what changed.
+--
+-- Time off is NOT stored as an override, so a self-requested PTO day never
+-- triggers this; a manager "off" override that merely mirrors the person's own
+-- approved PTO is suppressed too. Deduped once per person per week via notify_log
+-- (schedwk:<staff>:<weekStart>).
+--
+-- No new tables — reads staff / staff_schedule / schedule_overrides / shifts /
+-- time_off_requests, writes only notify_log + the alerts fanout.
+
+-- Cron: Saturday 16:07 UTC ≈ 9:07 AM Pacific (fixed UTC, like the other jobs).
+-- Replace <NOTIFY_SECRET> with the NOTIFY_SECRET function secret.
+--
+-- select cron.schedule('schedule-weekly-notify', '7 16 * * 6', $$
+--   select net.http_post(
+--     url  := 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/schedule-notify?action=weekly&secret=<NOTIFY_SECRET>',
+--     body := '{}'::jsonb);
+-- $$);
+--
+-- Manual dry-run (admin/owner JWT), preview without sending; optional `anchor`
+-- picks the week from a given date:
+--   POST /functions/v1/schedule-notify {"action":"weekly","dry_run":true,"anchor":"2026-08-01"}

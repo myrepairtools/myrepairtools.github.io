@@ -1055,8 +1055,18 @@ required-reading publish (kind 'kb', everyone), and the **end-of-shift task
 nudge** — `tasks?action=nudge` (pg_cron `tasks-nudge-halfhourly`, */30): anyone
 whose shift ends within 45 min with open tasks due today (assigned to them, or
 'each' without their completion; unassigned any-pool tasks deliberately skipped)
-gets one alert per day (notify_log `nudge:<staff>:<date>` dedupe). Email prefs
-deliberately not offered yet.
+gets one alert per day (notify_log `nudge:<staff>:<date>` dedupe), and the
+**Saturday weekly-schedule heads-up** — the `schedule-notify` edge function
+(pg_cron `schedule-weekly-notify`, Sat 16:07 UTC ≈ 9a Pacific) compares every
+active employee's UPCOMING week (coming Sun–Sat) against their recurring
+`staff_schedule`; any `schedule_overrides` day that changes store/shift/off-status
+vs the recurring cell fires a personal **`schedule_preview`** alert (a Notification,
+NOT the urgent `schedule` tier — push-on/text-opt-in, muteable in profile.html as
+"Weekly schedule preview") listing the changed days. Time off isn't an override so
+self-requested PTO never triggers it (a manager "off" override mirroring the
+person's approved PTO is suppressed too); deduped `schedwk:<staff>:<weekStart>`.
+Dry-run: `schedule-notify {action:'weekly',dry_run:true,anchor?}` (admin JWT).
+Email prefs deliberately not offered yet.
 
 **My Profile (`profile.html`):** every employee's self-service page (avatar menu →
 My Profile; the mobile drawer header also links here). Onboarding-ready: a
