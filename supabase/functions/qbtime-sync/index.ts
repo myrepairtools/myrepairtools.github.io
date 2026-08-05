@@ -93,25 +93,24 @@ async function alertRefreshDead(detail: string, meta: Record<string, unknown> | 
 // qbtime-timesheets-hourly crons fired in the same second inside the refresh
 // window). Only the claim_token_refresh winner (docs/sql/token-refresh-lock.sql)
 // may call the grant endpoint; losers keep using the current access token, which
-// the 2-day proactive window guarantees is still valid.
+// the ~6-hour proactive window guarantees is still valid.
 async function getValidToken(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
     if (!tok || !tok.access_token) throw new Error("not_connected");
     const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
     // Refresh PROACTIVELY on token AGE, not just near access-token expiry. TSheets
-    // refresh tokens expire well before the ~10-day access token — a refresh token
-    // minted at reconnect was already rejected ("invalid, stop trying") by ~day 8
-    // while the access token still worked, so waiting until 2 days before access
-    // expiry to refresh uses an already-dead refresh token (the recurring QB Time
-    // disconnect). Rotate every ~2 days instead (single-flight below prevents a
-    // double-spend), which keeps the refresh token fresh AND leaves days of
-    // access-token runway to retry if a refresh momentarily fails.
+    // refresh tokens on THIS account die FAST — a refresh token minted at reconnect
+    // was rejected ("invalid, stop trying") within 2 days while the ~10-day access
+    // token still worked. Rotating at 2 days landed right at that death boundary, so
+    // the connection still dropped (the recurring QB Time disconnect). Rotate every
+    // ~6 hours instead: the single-flight claim below prevents a double-spend, and
+    // spinning the refresh token forward well ahead of its short lifetime keeps it
+    // alive, while the multi-day access-token runway absorbs any momentary failure.
     const issued = tok.updated_at ? new Date(tok.updated_at).getTime() : 0;
-    const life = (exp && issued && exp > issued) ? exp - issued : 10 * 24 * 3600 * 1000;
-    const refreshAfter = Math.min(2 * 24 * 3600 * 1000, Math.floor(life * 0.25)); // ~2 days
+    const refreshAfter = 6 * 3600 * 1000; // ~6 hours — short refresh-token lifetime on this account
     const freshEnough = issued > 0 && (Date.now() - issued) < refreshAfter;
-    if (freshEnough && Date.now() < exp - 2 * 24 * 3600 * 1000) return tok.access_token; // fresh + not near expiry
+    if (freshEnough && Date.now() < exp) return tok.access_token; // fresh enough + access token still valid
     if (!tok.refresh_token) throw new Error("no_refresh_token");
 
     // If the claim RPC itself errors (e.g. dropped by a migration), refresh WITHOUT
