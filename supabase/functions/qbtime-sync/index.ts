@@ -99,16 +99,17 @@ async function getValidToken(): Promise<string> {
     const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
     if (!tok || !tok.access_token) throw new Error("not_connected");
     const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
-    // Refresh PROACTIVELY on token AGE, not just near access-token expiry. TSheets
-    // refresh tokens on THIS account die FAST — a refresh token minted at reconnect
-    // was rejected ("invalid, stop trying") within 2 days while the ~10-day access
-    // token still worked. Rotating at 2 days landed right at that death boundary, so
-    // the connection still dropped (the recurring QB Time disconnect). Rotate every
-    // ~6 hours instead: the single-flight claim below prevents a double-spend, and
-    // spinning the refresh token forward well ahead of its short lifetime keeps it
-    // alive, while the multi-day access-token runway absorbs any momentary failure.
+    // Refresh PROACTIVELY on token AGE, not just near access-token expiry. On THIS
+    // account the QB Time refresh token minted at reconnect goes invalid ("stop
+    // trying") within HOURS — observed dead ~6h after a reconnect WITHOUT this code
+    // ever spending it (the row's updated_at never advanced past the reconnect). So
+    // rotate aggressively (~1h) to keep spinning a fresh refresh token forward well
+    // ahead of that short lifetime; the single-flight claim below prevents a
+    // double-spend and the multi-day access-token runway absorbs a momentary failure.
+    // (If the token still dies inside 1h despite this, the cause is EXTERNAL — some
+    // other consumer re-authorizing the same QB Time app, which no cadence can fix.)
     const issued = tok.updated_at ? new Date(tok.updated_at).getTime() : 0;
-    const refreshAfter = 6 * 3600 * 1000; // ~6 hours — short refresh-token lifetime on this account
+    const refreshAfter = 60 * 60 * 1000; // ~1 hour — refresh token dies within hours on this account
     const freshEnough = issued > 0 && (Date.now() - issued) < refreshAfter;
     if (freshEnough && Date.now() < exp) return tok.access_token; // fresh enough + access token still valid
     if (!tok.refresh_token) throw new Error("no_refresh_token");
