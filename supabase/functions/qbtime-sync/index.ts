@@ -101,26 +101,39 @@ async function alertRefreshDead(detail: string, meta: Record<string, unknown> | 
 // QB Time down 2026-07-23 00:00, when the timeoff-sync-15min and
 // qbtime-timesheets-hourly crons fired in the same second inside the refresh
 // window). Only the claim_token_refresh winner (docs/sql/token-refresh-lock.sql)
-// may call the grant endpoint; losers keep using the current access token, which
-// the ~6-hour proactive window guarantees is still valid.
+// may call the grant endpoint; losers keep using the current access token.
+//
+// SHORT REFRESH-TOKEN LIFETIME on this account: the QB Time refresh token minted at
+// reconnect goes invalid ("stop trying") on its OWN within the hour — proven with a
+// clean controlled test (nothing else is connected to the TSheets API; the edge logs
+// show no persist failure and no successful rotation; the row's updated_at never
+// advanced past the reconnect). Earlier fixes rotated too LATE (6h, then 1h) — always
+// after it had already died. So rotate AGGRESSIVELY (~10 min): while the token is
+// still young and alive, each rotation mints a fresh refresh token and resets the
+// clock, staying ahead of the short lifetime. If the token dies anyway (rotation
+// still can't beat it), we degrade gracefully: ride the multi-day access token,
+// throttle the pointless dead-token retries (clock_status polls hit this constantly),
+// and let alertRefreshDead nudge a reconnect only when the access token nears expiry.
+const REFRESH_AFTER_MS = 10 * 60 * 1000;   // rotate while the RT is still young
+const RETRY_DEAD_AFTER_MS = 30 * 60 * 1000; // once a refresh fails, don't retry for ~30m
 async function getValidToken(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
     if (!tok || !tok.access_token) throw new Error("not_connected");
     const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
-    // Refresh PROACTIVELY on token AGE, not just near access-token expiry. On THIS
-    // account the QB Time refresh token minted at reconnect goes invalid ("stop
-    // trying") within HOURS — observed dead ~6h after a reconnect WITHOUT this code
-    // ever spending it (the row's updated_at never advanced past the reconnect). So
-    // rotate aggressively (~1h) to keep spinning a fresh refresh token forward well
-    // ahead of that short lifetime; the single-flight claim below prevents a
-    // double-spend and the multi-day access-token runway absorbs a momentary failure.
-    // (If the token still dies inside 1h despite this, the cause is EXTERNAL — some
-    // other consumer re-authorizing the same QB Time app, which no cadence can fix.)
+    const meta = (tok.meta || {}) as Record<string, unknown>;
     const issued = tok.updated_at ? new Date(tok.updated_at).getTime() : 0;
-    const refreshAfter = 60 * 60 * 1000; // ~1 hour — refresh token dies within hours on this account
-    const freshEnough = issued > 0 && (Date.now() - issued) < refreshAfter;
-    if (freshEnough && Date.now() < exp) return tok.access_token; // fresh enough + access token still valid
+    const age = issued > 0 ? Date.now() - issued : Infinity;
+
+    // Young + access token still valid: just use it, no refresh needed.
+    if (age < REFRESH_AFTER_MS && Date.now() < exp) return tok.access_token;
+
+    // The refresh token has been failing (dead RT): don't hammer the grant endpoint
+    // on every clock_status poll. Ride the access token and retry at most ~every 30m.
+    const lastTry = meta.last_refresh_try_at ? new Date(String(meta.last_refresh_try_at)).getTime() : 0;
+    const recentlyFailed = !!meta.last_refresh_error && lastTry > 0 && (Date.now() - lastTry) < RETRY_DEAD_AFTER_MS;
+    if (recentlyFailed && Date.now() < exp) return tok.access_token;
+
     if (!tok.refresh_token) throw new Error("no_refresh_token");
 
     // If the claim RPC itself errors (e.g. dropped by a migration), refresh WITHOUT
@@ -145,11 +158,14 @@ async function getValidToken(): Promise<string> {
         // Surface TSheets' real reason (invalid = reconnect needed, etc.).
         const why = typeof d?.error === "string" ? d.error
           : (String(d?.error_description || "") || (d && Object.keys(d).length ? JSON.stringify(d) : "") || ("http_" + r.status));
-        await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
+        // Stamp the attempt so getValidToken throttles retries on a dead RT (frequent
+        // clock_status polls must not hammer the grant endpoint every few seconds).
+        const failMeta = { ...meta, last_refresh_error: String(why).slice(0, 300), last_refresh_try_at: new Date().toISOString() };
+        await admin.from("integration_tokens").update({ refresh_lock_at: null, meta: failMeta }).eq("provider", PROVIDER);
         // 5xx = TSheets having a moment, stay quiet; <500 = the token is really dead.
         // Pass the access-token expiry so we only ALARM when data loss is imminent
         // (sync limps on the access token until then — see alertRefreshDead).
-        if (r.status < 500) await alertRefreshDead(String(why), tok.meta, exp);
+        if (r.status < 500) await alertRefreshDead(String(why), failMeta, exp);
         if (Date.now() < exp) return tok.access_token; // limp on the current token while it lasts
         throw new Error("refresh_failed: " + why);
       }
@@ -166,7 +182,7 @@ async function getValidToken(): Promise<string> {
       access_token: d.access_token as string,
       refresh_token: (d.refresh_token as string) || tok.refresh_token,
       expires_at: new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString(),
-      meta: { ...((tok.meta || {}) as Record<string, unknown>), scope: d.scope, token_type: d.token_type, client_url: d.client_url, last_refresh_error: null },
+      meta: { ...((tok.meta || {}) as Record<string, unknown>), scope: d.scope, token_type: d.token_type, client_url: d.client_url, last_refresh_error: null, last_refresh_try_at: null },
       refresh_lock_at: null,
       updated_at: new Date().toISOString(),
     };
