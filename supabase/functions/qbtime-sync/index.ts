@@ -50,15 +50,24 @@ function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
 // System-tier alert to the owners when a refresh definitively dies — so a broken
 // connection surfaces in minutes, not days. Deduped to once per 20h via meta.
-async function alertRefreshDead(detail: string, meta: Record<string, unknown> | null) {
+async function alertRefreshDead(detail: string, meta: Record<string, unknown> | null, accessExp?: number) {
   try {
     const m = (meta || {}) as Record<string, unknown>;
-    const last = new Date(String(m.last_refresh_alert_at || 0)).getTime() || 0;
-    if (Date.now() - last < 20 * 3600 * 1000) return;
-    // record the error for the Settings status card regardless of alert delivery
+    // Always record the error for the Settings status card, regardless of whether
+    // we bother the owners about it.
     await admin.from("integration_tokens").update({
       meta: { ...m, last_refresh_error: detail.slice(0, 300) },
     }).eq("provider", PROVIDER);
+    // Don't ALARM on a failed refresh while the access token still has days of
+    // runway — sync keeps working off the access token, so a renewal failure is not
+    // yet user-actionable and firing a "disconnected" alert every cron cycle is just
+    // misleading noise. Only alert once the access token is within ~48h of expiry
+    // (real data loss imminent). Callers without an access expiry (e.g. a rotated
+    // token that couldn't be saved — a genuine at-risk state) alert unconditionally.
+    const imminent = accessExp === undefined || Date.now() > accessExp - 48 * 3600 * 1000;
+    if (!imminent) return;
+    const last = new Date(String(m.last_refresh_alert_at || 0)).getTime() || 0;
+    if (Date.now() - last < 20 * 3600 * 1000) return;
     const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
     if (!NOTIFY_SECRET) return;
     const { data: owners } = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
@@ -138,7 +147,9 @@ async function getValidToken(): Promise<string> {
           : (String(d?.error_description || "") || (d && Object.keys(d).length ? JSON.stringify(d) : "") || ("http_" + r.status));
         await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
         // 5xx = TSheets having a moment, stay quiet; <500 = the token is really dead.
-        if (r.status < 500) await alertRefreshDead(String(why), tok.meta);
+        // Pass the access-token expiry so we only ALARM when data loss is imminent
+        // (sync limps on the access token until then — see alertRefreshDead).
+        if (r.status < 500) await alertRefreshDead(String(why), tok.meta, exp);
         if (Date.now() < exp) return tok.access_token; // limp on the current token while it lasts
         throw new Error("refresh_failed: " + why);
       }
