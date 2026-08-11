@@ -1956,7 +1956,7 @@ Deno.serve(async (req) => {
     const { data: u, error: uerr } = await admin.auth.getUser(tok);
     if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
     const { data: st } = await admin.from("staff")
-      .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+      .select("id, display_name, role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
     const role = st?.role || "";
     if (role !== "admin" && role !== "owner") return json({ ok: false, error: "admin access required" }, 403);
 
@@ -2078,6 +2078,21 @@ Deno.serve(async (req) => {
         } catch (e) { rec.status = "error"; rec.error = String((e as Error).message || e).slice(0, 160); rec.moved = rec.moved || 0; }
         receipt.push(rec);
       }
+      // Persist this chunk's receipt so a page timeout/reset can't lose it (the page
+      // applies in chunks — rows share the client's run_id). Best-effort: a logging
+      // failure must never fail the actual inventory move the caller just did.
+      try {
+        const runId = (typeof payload.run_id === "string" && /^[0-9a-f-]{16,40}$/i.test(payload.run_id)) ? payload.run_id : null;
+        const tally = (s: string) => receipt.filter((r) => r.status === s).length;
+        await admin.from("inventory_edit_log").insert({
+          run_id: runId, store: locName, from_status: fromStatus, to_status: toStatus, note,
+          run_by_id: (st as any)?.id ?? null, run_by_name: (st as any)?.display_name ?? null,
+          total: receipt.length, done: tally("done"),
+          failed: receipt.filter((r) => r.status === "failed" || r.status === "error").length,
+          skipped: tally("skipped"), moved: receipt.reduce((a, r) => a + (Number(r.moved) || 0), 0),
+          receipt,
+        });
+      } catch (_) { /* logging is best-effort */ }
       return json({ ok: true, mode: "apply", location: locName, from_status: fromStatus, to_status: toStatus, receipt });
     }
 

@@ -406,6 +406,7 @@ async function apply(){
   var note=($('#noteInp').value||'').trim()||'Updated via myRepairTools';
   var work=STATE.resolved.filter(function(r){return r.kind!=='notfound' && willMove(r)>0;});
   var skipped=STATE.resolved.filter(function(r){return r.kind==='notfound' || willMove(r)<=0;});
+  var runId=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(''+Date.now()+Math.random().toString(16).slice(2));
   STATE.receipt=[];
   $('#runCard').classList.remove('hide'); $('#rcTiles').classList.add('hide'); $('#rcWrap').classList.add('hide'); $('#dlRow').classList.add('hide');
   $('#rcBody').innerHTML='';
@@ -418,7 +419,7 @@ async function apply(){
   try{
     for(var i=0;i<work.length;i+=APPLY_CHUNK){
       var chunk=work.slice(i,i+APPLY_CHUNK).map(function(r){return {value:r.value,kind:r.kind,catalog_id:r.catalog_id,item_id:r.item_id,qty:r.qty,name:r.name};});
-      var j=await callFn({action:'inventory_status',mode:'apply',location:store,from_status:fromS,to_status:toS,note:note,rows:chunk});
+      var j=await callFn({action:'inventory_status',mode:'apply',location:store,from_status:fromS,to_status:toS,note:note,run_id:runId,rows:chunk});
       (j.receipt||[]).forEach(function(rec){STATE.receipt.push(rec);appendReceiptRow(rec);});
       done=Math.min(i+APPLY_CHUNK,work.length); prog();
     }
