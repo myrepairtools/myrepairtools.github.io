@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Hire Details — CPR Cell Phone Repair</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* New-hire facing page: no site gate, no nav — the intake token is the credential. */
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--border:#E0E2EA;--green:#2E9E5B;--amber:#C9820B;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var(--dark);min-height:100vh}
+.top{background:var(--dark);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:10px}
+.top .logo{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.top .logo b{color:var(--red)}
+.wrap{max-width:680px;margin:0 auto;padding:18px 14px 110px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 3px rgba(45,45,59,.05);margin-bottom:14px;overflow:hidden}
+.card-bd{padding:18px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.3rem;letter-spacing:-.3px;line-height:1.15}
+h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;margin:0 0 3px}
+.sub{color:var(--dark-grey);font-size:.84rem;font-weight:600;margin-top:4px;line-height:1.5}
+.sect{padding:16px 18px;border-top:1px solid var(--border)}
+.sect:first-child{border-top:none}
+.hint{font-size:.76rem;font-weight:600;color:var(--grey);margin-top:2px}
+label.fl{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:var(--dark-grey);margin:12px 0 4px}
+input,select,textarea{width:100%;font-family:'Nunito Sans',sans-serif;font-size:.92rem;font-weight:600;color:var(--dark);
+background:#fff;border:1.5px solid var(--border);border-radius:9px;padding:10px 11px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+input.bad,select.bad{border-color:var(--red);box-shadow:0 0 0 3px rgba(220,40,46,.12)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>div{flex:1;min-width:140px}
+.err{color:var(--red);font-size:.74rem;font-weight:800;margin-top:4px;display:none}
+.err.on{display:block}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--border);padding:12px 14px;
+display:flex;gap:10px;align-items:center;justify-content:center;box-shadow:0 -2px 10px rgba(45,45,59,.06)}
+.btn{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;border:none;border-radius:10px;
+padding:13px 26px;background:var(--red);color:#fff;cursor:pointer;max-width:640px;width:100%}
+.btn[disabled]{opacity:.55;cursor:default}
+.note{background:#FFF8E7;border:1px solid #F2DFAE;border-radius:10px;padding:11px 13px;font-size:.8rem;font-weight:700;color:#7A5A08;line-height:1.5}
+.done{text-align:center;padding:34px 20px}
+.done .tick{width:56px;height:56px;border-radius:999px;background:#E9F7EF;color:var(--green);display:flex;align-items:center;
+justify-content:center;font-size:1.7rem;margin:0 auto 12px}
+.state{padding:44px 24px;text-align:center;color:var(--dark-grey);font-weight:700}
+</style>
+</head>
+<body>
+<div class="top"><span class="logo">my<b>Repair</b>Tools</span></div>
+<div class="wrap" id="app"><div class="state">Loading…</div></div>
+
+<script>
+(function(){
+  'use strict';
+  var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+  var SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+  var $=function(s){return document.querySelector(s);};
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var TOKEN=new URLSearchParams(location.search).get('t')||'';
+  var D=null, TRIED=false;
+
+  /* the table is closed to anon — everything goes through the two token-scoped
+     SECURITY DEFINER RPCs, so a bad token simply returns nothing */
+  function rpc(fn,args){
+    return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SB_ANON,'Authorization':'Bearer '+SB_ANON},
+      body:JSON.stringify(args)}).then(function(r){return r.json();});
+  }
+
+  var STATES=['OR','WA','CA','ID','NV','AZ','UT','TX','Other'];
+  var SIZES=['XS','S','M','L','XL','2XL','3XL'];
+
+  function field(id,label,type,val,ph,extra){
+    return '<label class="fl" for="'+id+'">'+esc(label)+'</label>'
+      +'<input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val||'')+'"'
+      +(ph?' placeholder="'+esc(ph)+'"':'')+(extra||'')+'>'
+      +'<div class="err" id="e_'+id+'">Required</div>';
+  }
+  function sel(id,label,opts,val,blank){
+    return '<label class="fl" for="'+id+'">'+esc(label)+'</label><select id="'+id+'">'
+      +(blank?'<option value="">'+esc(blank)+'</option>':'')
+      +opts.map(function(o){return '<option value="'+esc(o)+'"'+(val===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')
+      +'</select><div class="err" id="e_'+id+'">Required</div>';
+  }
+
+  function form(){
+    var a=D.address||{}, e=D.emergency||{}, e2=D.emergency2||{};
+    var who=D.invited_name?(' , '+D.invited_name):'';
+    return '<div class="card"><div class="card-bd">'
+      +'<h1>Welcome'+(D.invited_name?', '+esc(D.invited_name):'')+' 👋</h1>'
+      +'<div class="sub">A few details before your first day'
+        +(D.invited_store?' at <b>'+esc(D.invited_store.replace(/^CPR\s*/,''))+'</b>':'')
+        +'. Takes about three minutes — it saves paperwork at the counter.</div>'
+      +'</div>'
+
+      +'<div class="sect"><h2>Your name</h2>'
+      +'<div class="hint">Legal name exactly as it appears on your ID — payroll has to match it.</div>'
+      +'<div class="row"><div>'+field('legal_first','Legal first name','text',D.legal_first)+'</div>'
+      +'<div>'+field('legal_middle','Middle (optional)','text',D.legal_middle)+'</div></div>'
+      +field('legal_last','Legal last name','text',D.legal_last)
+      +'<div class="row"><div>'+field('preferred_name','What we should call you','text',D.preferred_name,'e.g. Tris')+'</div>'
+      +'<div>'+field('pronouns','Pronouns (optional)','text',D.pronouns,'e.g. he/him')+'</div></div>'
+      +field('dob','Date of birth','date',D.dob)
+      +'</div>'
+
+      +'<div class="sect"><h2>How we reach you</h2>'
+      +'<div class="row"><div>'+field('phone','Mobile number','tel',D.phone,'(503) 555-0123')+'</div>'
+      +'<div>'+field('personal_email','Personal email','email',D.personal_email)+'</div></div>'
+      +sel('contact_pref','Best way to reach you',['Text','Call','Email'],D.contact_pref,'Choose…')
+      +'</div>'
+
+      +'<div class="sect"><h2>Home address</h2>'
+      +'<div class="hint">Payroll uses this to work out your state and local taxes.</div>'
+      +'<div class="row"><div style="flex:3">'+field('street','Street','text',a.street)+'</div>'
+      +'<div style="flex:1">'+field('unit','Unit','text',a.unit)+'</div></div>'
+      +'<div class="row"><div style="flex:2">'+field('city','City','text',a.city)+'</div>'
+      +'<div style="flex:1">'+sel('state','State',STATES,a.state||'OR')+'</div>'
+      +'<div style="flex:1">'+field('zip','ZIP','text',a.zip)+'</div></div>'
+      +'</div>'
+
+      +'<div class="sect"><h2>Emergency contact</h2>'
+      +'<div class="hint">Who we call if something happens while you are at work.</div>'
+      +'<div class="row"><div style="flex:2">'+field('em_name','Name','text',e.name)+'</div>'
+      +'<div style="flex:1">'+field('em_rel','Relationship','text',e.relation,'e.g. Mother')+'</div></div>'
+      +field('em_phone','Their phone','tel',e.phone)
+      +'<label class="fl">Second contact (optional)</label>'
+      +'<div class="row"><div style="flex:2"><input id="em2_name" placeholder="Name" value="'+esc(e2.name||'')+'"></div>'
+      +'<div style="flex:1"><input id="em2_rel" placeholder="Relationship" value="'+esc(e2.relation||'')+'"></div></div>'
+      +'<div style="margin-top:8px"><input id="em2_phone" placeholder="Their phone" value="'+esc(e2.phone||'')+'"></div>'
+      +'</div>'
+
+      +'<div class="sect"><h2>A few practical things</h2>'
+      +sel('shirt_size','Shirt size',SIZES,D.shirt_size,'Choose…')
+      +sel('transportation','Getting to work',['Own car','Ride share / dropped off','Bus or bike','Walking','Varies'],D.transportation,'Choose…')
+      +'<label class="fl" for="availability">Anything we should know about your availability?</label>'
+      +'<textarea id="availability" rows="3" placeholder="Classes, another job, days you can’t work — optional">'+esc(D.availability||'')+'</textarea>'
+      +'</div>'
+
+      +'<div class="sect"><h2>Your first day</h2>'
+      +'<div class="note">Bring ID for your I-9 — either a passport on its own, or a driver’s licence <b>plus</b> a Social Security card or birth certificate. '
+        +'We fill that in together in person; don’t send photos of it.</div>'
+      +'<label class="fl" for="i9_docs">What do you plan to bring?</label>'
+      +'<input id="i9_docs" value="'+esc(D.i9_docs||'')+'" placeholder="e.g. Passport, or licence + SS card">'
+      +'<div class="hint" style="margin-top:12px">You’ll set up your pay and tax details straight with QuickBooks — we’ll email you that invite separately. Nothing to do with bank details here.</div>'
+      +'</div></div>'
+
+      +'<div class="bar"><button class="btn" id="save">'+(D.status==='submitted'?'Update my details':'Send to my manager')+'</button></div>';
+  }
+
+  function val(id){ var el=$('#'+id); return el?el.value.trim():''; }
+  function mark(id,bad){ var el=$('#'+id), er=$('#e_'+id);
+    if(el)el.classList.toggle('bad',!!bad); if(er)er.classList.toggle('on',!!bad); return !bad; }
+
+  function collect(){
+    var need=['legal_first','legal_last','preferred_name','dob','phone','personal_email',
+              'street','city','zip','em_name','em_rel','em_phone','shirt_size'];
+    var ok=true;
+    need.forEach(function(id){ if(!mark(id,!val(id)))ok=false; });
+    var em=$('#personal_email');
+    if(em&&val('personal_email')&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('personal_email'))){ mark('personal_email',true); ok=false; }
+    // 10 digits is the real bar; formatting is the user's business, not ours
+    ['phone','em_phone'].forEach(function(id){
+      if(val(id)&&(val(id).replace(/\D/g,'').length<10)){ mark(id,true); ok=false; } });
+    if(!ok)return null;
+    return {legal_first:val('legal_first'),legal_middle:val('legal_middle'),legal_last:val('legal_last'),
+      preferred_name:val('preferred_name'),pronouns:val('pronouns'),dob:val('dob'),
+      phone:val('phone'),personal_email:val('personal_email'),contact_pref:val('contact_pref'),
+      address:{street:val('street'),unit:val('unit'),city:val('city'),state:val('state'),zip:val('zip')},
+      emergency:{name:val('em_name'),relation:val('em_rel'),phone:val('em_phone')},
+      emergency2:{name:val('em2_name'),relation:val('em2_rel'),phone:val('em2_phone')},
+      shirt_size:val('shirt_size'),transportation:val('transportation'),
+      availability:val('availability'),i9_docs:val('i9_docs')};
+  }
+
+  function bind(){
+    var b=$('#save'); if(!b)return;
+    b.onclick=function(){
+      TRIED=true;
+      var data=collect();
+      if(!data){ var bad=document.querySelector('.bad'); if(bad)bad.scrollIntoView({block:'center',behavior:'smooth'}); return; }
+      b.disabled=true; b.textContent='Sending…';
+      rpc('intake_submit',{p_token:TOKEN,p_data:data}).then(function(r){
+        if(r&&r.ok){ D=Object.assign(D||{},data,{status:'submitted'}); done(); }
+        else{ b.disabled=false; b.textContent='Send to my manager';
+              alert(r&&r.error==='closed'?'This form has already been completed — talk to your manager.':'Could not send. Check your connection and try again.'); }
+      }).catch(function(){ b.disabled=false; b.textContent='Send to my manager'; alert('Could not send. Check your connection and try again.'); });
+    };
+    if(TRIED)collect();
+  }
+
+  function done(){
+    $('#app').innerHTML='<div class="card"><div class="done">'
+      +'<div class="tick">✓</div>'
+      +'<h1>Thanks'+(D.preferred_name?', '+esc(D.preferred_name):'')+'</h1>'
+      +'<div class="sub">Your details are with your manager. Bring your ID on your first day and we’ll take it from there.</div>'
+      +'</div></div>'
+      +'<div class="card"><div class="card-bd"><div class="sub">Spotted a mistake? Reopen this link and send it again — it stays editable until your manager sets up your account.</div></div></div>';
+  }
+
+  function render(){
+    if(!TOKEN||!D){ $('#app').innerHTML='<div class="card"><div class="state">'
+      +'This link isn’t valid.<br><span style="font-weight:600;color:var(--grey)">Ask your manager to send you a new one.</span></div></div>'; return; }
+    if(D.status==='promoted'){ $('#app').innerHTML='<div class="card"><div class="state">'
+      +'You’re all set up already.<br><span style="font-weight:600;color:var(--grey)">Nothing more to do here.</span></div></div>'; return; }
+    $('#app').innerHTML=form(); bind();
+  }
+
+  if(!TOKEN){ render(); return; }
+  rpc('intake_get',{p_token:TOKEN}).then(function(r){ D=(r&&r.status)?r:null; render(); })
+    .catch(function(){ D=null; render(); });
+})();
+</script>
+</body>
+</html>

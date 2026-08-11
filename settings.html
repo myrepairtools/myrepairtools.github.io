@@ -290,6 +290,12 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     </tr></thead><tbody id="staffRows"></tbody></table>
       <div class="empty" id="staffEmpty">Loading team…</div>
     </div>
+
+    <div class="sect-h" style="margin-top:22px">New-hire intake
+      <span class="spacer"></span>
+      <button class="btn alt sm" id="intakeNew">+ New intake link</button>
+    </div>
+    <div id="intakePane"></div>
   </section>
 
   <!-- LOCATIONS TAB -->
@@ -895,7 +901,7 @@ async function toggleScope(){
   toast(APPSCOPE?'Now separated by store':'Everyone sees all stores');
 }
 async function load(){
-  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission(),loadCompetitions(),loadAppSettings()]);
+  await Promise.all([loadStores(),loadStaff(),loadRBAC(),loadNotif(),loadPages(),loadCommission(),loadCompetitions(),loadIntakes(),loadAppSettings()]);
   if(!REGSTORE){var first=(STORES.filter(function(s){return s.active;})[0]||STORES[0]); REGSTORE=first?first.store:null;}
   await loadRegs();
   renderAll();
@@ -904,7 +910,7 @@ async function load(){
 /* ===== render ===== */
 function activeStores(){return STORES.filter(function(s){return s.active;});}
 function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
-function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderCommission();renderCompetitions();renderRoles();renderModal();}
+function renderAll(){renderTabs();renderStaff();renderIntakes();renderLoc();renderNotif();renderPages();renderCommission();renderCompetitions();renderRoles();renderModal();}
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
   /* section header — the strip is hidden, the nav Settings pane switches sections */
@@ -2021,6 +2027,86 @@ function renderCompetitions(){
   };
 }
 
+/* ===================== New-hire intake (step 1 of hiring) =====================
+   The candidate never touches the staff tables — they fill a token page that
+   writes a PENDING staff_intake row through a definer RPC. Here the manager
+   creates that link, reads what came back, and promotes it onto a staff record
+   they created themselves (role, store and PIN stay the manager's call). */
+var INTAKES=[], INTSEL=null;
+async function loadIntakes(){
+  var r=await sb.from('staff_intake').select('*').neq('status','void').order('created_at',{ascending:false});
+  INTAKES=r.error?[]:(r.data||[]);
+}
+function intakeLink(t){ return location.origin+location.pathname.replace(/[^/]*$/,'')+'intake.html?t='+t; }
+function intakeChip(st){
+  var m={pending:['Waiting on them','var(--grey)'],submitted:['Ready to review','var(--green)'],promoted:['Set up','var(--blue)']}[st]||[st,'var(--grey)'];
+  return '<span style="font-weight:800;font-size:.72rem;color:'+m[1]+'">'+esc(m[0])+'</span>';
+}
+function renderIntakes(){
+  var pane=$('#intakePane'); if(!pane)return;
+  if(!INTAKES.length){ pane.innerHTML='<div class="card"><div class="empty">No intake links yet — create one before a new hire\u2019s first day.</div></div>'; return; }
+  var cur=INTAKES.filter(function(x){return x.id===INTSEL;})[0]||null;
+  pane.innerHTML='<div class="card"><table><thead><tr><th>Who</th><th>Store</th><th>Status</th><th>Sent</th><th></th></tr></thead><tbody>'
+    +INTAKES.map(function(x){
+      var nm=[x.preferred_name||x.legal_first,x.legal_last].filter(Boolean).join(' ')||x.invited_name||'(unnamed)';
+      return '<tr><td style="font-weight:800">'+esc(nm)+'</td>'
+        +'<td>'+esc(shortStore(x.invited_store||'')||'—')+'</td>'
+        +'<td>'+intakeChip(x.status)+'</td>'
+        +'<td style="font-size:.78rem;color:var(--grey);font-weight:700">'+esc(String(x.created_at||'').slice(0,10))+'</td>'
+        +'<td class="r"><button class="btn alt sm" data-intcopy="'+x.id+'">Copy link</button> '
+        +'<button class="btn sm" data-intview="'+x.id+'">'+(x.status==='submitted'?'Review':'Open')+'</button></td></tr>';
+    }).join('')+'</tbody></table></div>'
+    +(cur?intakeDetail(cur):'');
+  pane.querySelectorAll('[data-intcopy]').forEach(function(b){ b.onclick=function(){
+    var x=INTAKES.filter(function(y){return y.id===+b.dataset.intcopy;})[0]; if(!x)return;
+    navigator.clipboard.writeText(intakeLink(x.token)).then(function(){toast('Link copied — text it to them');},
+      function(){ prompt('Copy this link:', intakeLink(x.token)); });
+  };});
+  pane.querySelectorAll('[data-intview]').forEach(function(b){ b.onclick=function(){
+    INTSEL=(INTSEL===+b.dataset.intview)?null:+b.dataset.intview; renderIntakes(); };});
+  var pr=$('#intPromote');
+  if(pr)pr.onclick=async function(){
+    var sid=+$('#intStaff').value; if(!sid){toast('Pick the team member first',true);return;}
+    var r=await sb.rpc('intake_promote',{p_intake_id:INTSEL,p_staff_id:sid});
+    if(r.error){toast(r.error.message,true);return;}
+    toast('Details copied onto their record');
+    await Promise.all([loadIntakes(),loadStaff()]); renderAll();
+  };
+}
+function intakeDetail(x){
+  var a=x.address||{}, e=x.emergency||{}, e2=x.emergency2||{};
+  if(x.status==='pending')
+    return '<div class="card" style="margin-top:12px"><div style="padding:16px">'
+      +'<div style="font-weight:800">Nothing back yet</div>'
+      +'<div class="hint" style="margin-top:4px">Send them the link — the form takes about three minutes on a phone.</div>'
+      +'<input class="pgin hfull" readonly value="'+esc(intakeLink(x.token))+'" style="margin-top:10px" onclick="this.select()">'
+      +'</div></div>';
+  var row=function(l,v){ return v?'<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)">'
+    +'<span style="width:150px;flex:none;font-size:.74rem;font-weight:800;color:var(--grey);text-transform:uppercase;letter-spacing:.4px">'+esc(l)+'</span>'
+    +'<span style="font-weight:700">'+esc(v)+'</span></div>':''; };
+  var addr=[a.street,a.unit,a.city,a.state,a.zip].filter(Boolean).join(', ');
+  var body=row('Legal name',[x.legal_first,x.legal_middle,x.legal_last].filter(Boolean).join(' '))
+    +row('Goes by',x.preferred_name)+row('Pronouns',x.pronouns)+row('Date of birth',x.dob)
+    +row('Mobile',x.phone)+row('Personal email',x.personal_email)+row('Prefers',x.contact_pref)
+    +row('Address',addr)
+    +row('Emergency',[e.name,e.relation,e.phone].filter(Boolean).join(' · '))
+    +row('Second contact',[e2.name,e2.relation,e2.phone].filter(Boolean).join(' · '))
+    +row('Shirt size',x.shirt_size)+row('Transport',x.transportation)
+    +row('Availability',x.availability)+row('Bringing for I-9',x.i9_docs);
+  var staffOpts=STAFF.filter(function(p){return p.active;}).sort(function(p,q){return p.display_name<q.display_name?-1:1;})
+    .map(function(p){return '<option value="'+p.id+'">'+esc(p.display_name)+'</option>';}).join('');
+  return '<div class="card" style="margin-top:12px"><div style="padding:16px">'
+    +'<div style="font-weight:900;font-family:Nunito,sans-serif;font-size:1rem;margin-bottom:8px">What they sent</div>'
+    +body
+    +(x.status==='promoted'
+      ?'<div class="hint" style="margin-top:12px">Already copied onto '+esc((STAFF.filter(function(p){return p.id===x.promoted_staff_id;})[0]||{}).display_name||'their record')+'.</div>'
+      :'<div style="margin-top:14px">'
+        +'<div class="hint">Create the team member above first (that\u2019s where role, store and PIN live), then pick them here to copy these details across.</div>'
+        +'<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">'
+        +'<select class="pgin" id="intStaff" style="max-width:240px"><option value="">Choose the team member…</option>'+staffOpts+'</select>'
+        +'<button class="btn" id="intPromote">Copy onto their record</button></div></div>')
+    +'</div></div>';
+}
 function staffStoreRank(name){
   for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
   return 9999;
@@ -3652,6 +3738,16 @@ function initUI(){
   $all('#rpSeg button').forEach(function(b){b.onclick=function(){RP=b.getAttribute('data-rp');renderRoles();};});
   $('#staffSearch').addEventListener('input',function(){SEARCH=this.value;renderStaff();});
   $all('#rosterSeg button').forEach(function(b){b.onclick=function(){ROSTER=b.getAttribute('data-v');renderStaff();};});
+  $('#intakeNew')&&($('#intakeNew').onclick=async function(){
+    var nm=prompt('First name of the new hire (just so the form can greet them):'); if(nm===null)return;
+    var st=activeStores()[0]; var store=prompt('Which store?', st?st.store:'')||null;
+    var r=await sb.from('staff_intake').insert({invited_name:(nm||'').trim()||null,invited_store:store,
+      invited_by:(AUTH&&AUTH.id)||null}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    await loadIntakes(); INTSEL=r.data.id; renderIntakes();
+    navigator.clipboard.writeText(intakeLink(r.data.token)).then(function(){toast('Link created and copied');},
+      function(){toast('Link created');});
+  });
   $('#addMember').onclick=openAddMember;
   $('#addStore').onclick=openAddStore;
   $('#addReg').onclick=function(){if(!REGSTORE){toast('Add a store first',true);return;}openAddReg();};

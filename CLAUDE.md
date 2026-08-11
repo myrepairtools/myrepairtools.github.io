@@ -1036,6 +1036,28 @@ Manage section) is the roster view: store `.storesel` filter, stat tiles, per-pe
 onboarding %, quizzes passed, receipt pills per required article, overdue = required
 still open 7+ days after publish. Schema: docs/sql/kb-onboarding-schema.sql.
 
+**New-hire intake (step 1 of hiring):** `staff_intake` (random `token` = the
+candidate's capability URL; status pending→submitted→promoted|void; the manager
+seeds invited_name/store, the hire fills legal first/middle/last, preferred name,
+pronouns, dob, phone, personal_email, address jsonb, emergency + emergency2 jsonb,
+shirt_size, transportation, availability, contact_pref, i9_docs). The hiring flow
+is **intake → QuickBooks (employee self-setup) + RepairQ credentials from
+corporate → create in MRT and assign onboarding**. Surfaces: **`intake.html`** —
+public, no gates/nav (the token is the credential), phone-first, required-field
+validation, re-editable until promoted — and a **New-hire intake** block on
+Settings → Team Members (create link + copy, review what came back, then
+"Copy onto their record" once the manager has created the staff row, since role /
+store / PIN are the manager's call, not the candidate's). The table is closed to
+anon entirely; the public page reaches it only through the token-scoped SECURITY
+DEFINER RPCs `intake_get` / `intake_submit` (`intake_promote` is `is_admin()`).
+No edge function — those exist for server-held API keys and this needs none.
+**Deliberately NOT collected: SSN, bank/routing, W-4 elections** — those go
+straight into QuickBooks via its Workforce self-setup invite so they never touch
+this database; I-9 documents stay physical and the form only records what the
+hire plans to bring. It exists because self-serve profile completion doesn't
+happen (3 of 9 staff had no emergency contact, 0 had a birthday, so the
+milestones birthday post had never fired). Schema: docs/sql/staff-intake-schema.sql.
+
 **Training modules are assignable bundles with a third level.** `onboarding_sections`
 (module_id, name, sort) + a nullable `section_id` on `kb_articles` / `onboarding_steps`
 give *Week 2 → iPhone Repairs → Screen removal*; **section_id null keeps an item at
