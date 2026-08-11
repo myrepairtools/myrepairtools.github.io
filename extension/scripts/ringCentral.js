@@ -475,22 +475,39 @@
     // Columns: 0 ID · 1 Location · 2 Items/Devices · 3 Status · 4 Assignee
     //          5 Sales · 6 Receipts · 7 Updated · 8 Est.
     function parseTicketRow(tr, kind) {
-        var no = tr.getAttribute('data-id');
-        if (!/^\d+$/.test(no)) return null;
         var tds = tr.querySelectorAll('td');
-        function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
-        var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
-        // Read the row's real link (lead/quote URLs differ from ticket URLs) —
-        // the ID cell's anchor is the row's primary link; fall back to /ticket/<no>.
+        if (!tds.length) return null;                       // header / spacer row
+        // The row's primary link (ID cell's anchor, else any ticket/lead/quote link).
         var linkA = (tds[0] && tds[0].querySelector('a[href]')) ||
             tr.querySelector('a[href*="/ticket/"],a[href*="/lead/"],a[href*="/quote/"],a[href*="/opportunity/"]');
+        // The ticket # comes from data-id (the #tickets DataTables grid) OR — for the
+        // Leads/Quotes grid, whose rows are plain <tr> with NO data-id — from the
+        // /ticket|lead|quote/<id> link, else the first cell if it's a bare number.
+        var no = tr.getAttribute('data-id') || '';
+        if (!/^\d+$/.test(no)) {
+            var href = linkA ? (linkA.getAttribute('href') || '') : '';
+            var m = href.match(/\/(?:ticket|lead|quote|opportunity)\/(\d+)/);
+            if (m) no = m[1];
+            else { var t0 = (tds[0].textContent || '').replace(/\s+/g, ''); if (/^\d{4,}$/.test(t0)) no = t0; }
+        }
+        if (!/^\d+$/.test(no)) return null;
+        function cell(n) { return tds[n] ? tds[n].textContent.replace(/\s+/g, ' ').trim() : ''; }
+        var devA = tds[2] && tds[2].querySelector('a[data-content], a[data-original-title]');
+        // Status: prefer the status badge (.label span), else column 3.
+        var lbl = tr.querySelector('.label');
+        var status = lbl ? lbl.textContent.replace(/\s+/g, ' ').trim() : cell(3);
+        // Date: the two grids differ (Updated is col 7 on #tickets, col 6 on the
+        // leads grid) — take the last cell that looks like a date.
+        var date = '';
+        for (var i = tds.length - 1; i >= 0; i--) { var c = cell(i); if (/\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2}/.test(c)) { date = c; break; } }
+        if (!date) date = cell(7) || cell(6);
         return {
             no: no,
             href: (linkA && linkA.getAttribute('href')) || ('/ticket/' + no),
             location: cell(1),
             device: (devA && (devA.getAttribute('data-content') || devA.getAttribute('data-original-title'))) || cell(2),
-            status: cell(3),
-            date: cell(7),
+            status: status,
+            date: date,
             isLead: kind === 'lead',
         };
     }
@@ -504,7 +521,9 @@
         var out = [], seen = {};
         function collect(scope, kind) {
             if (!scope) return;
-            scope.querySelectorAll('tr[data-id]').forEach(function (tr) {
+            // ALL rows, not just tr[data-id] — the Leads/Quotes grid rows carry no
+            // data-id (parseTicketRow reads their /ticket/<id> link instead).
+            scope.querySelectorAll('tr').forEach(function (tr) {
                 var t = parseTicketRow(tr, kind);
                 if (t && !seen[t.no]) { seen[t.no] = 1; out.push(t); }
             });
