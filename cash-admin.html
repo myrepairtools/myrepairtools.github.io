@@ -69,6 +69,7 @@ tbody tr:hover td.bal,tbody tr:hover td.den{background:rgba(79,176,227,.04)}
 .op-pill.op-transfer{background:#FFF1DC;color:#8a5a00}
 .op-pill.op-largedep{background:#F3ECFB;color:#5b3fb0}
 .op-pill.op-smalldep{background:#E1F5EE;color:#0f6e56}
+.op-pill.op-bankdep{background:#FDEBEC;color:#b0283a}
 .os{font-family:'Nunito',sans-serif;font-weight:900}.os.ok{color:var(--green)}.os.bad{color:var(--red)}.os.over{color:#d97706}
 .xbtn{cursor:pointer;color:var(--grey);font-weight:900;font-size:1.1rem}.xbtn:hover{color:var(--red)}
 .banner{background:#FFF4E5;border:1px solid #FFD8A8;color:#8a5a00;padding:12px 16px;border-radius:10px;font-size:.9rem;margin-bottom:16px}
@@ -168,7 +169,11 @@ tr.aurow-clk:hover td{background:#f8fafd}
   <!-- BALANCES -->
   <section id="tab-balances">
     <div class="card"><h2 id="balTitle">Balances</h2><div class="bal-grid" id="cards"></div></div>
-    <div class="card"><h2>Activity log</h2>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <h2 style="margin:0">Activity log</h2>
+        <button class="btn" id="addEntryBtn">＋ Add entry</button>
+      </div>
       <div class="store-pills" id="logLocPills" style="margin-bottom:14px"></div>
       <div id="logBody"></div>
     </div>
@@ -350,6 +355,7 @@ var LOG_DENOMS=[{k:'C100',v:100,l:'$100'},{k:'C50',v:50,l:'$50'},{k:'C20',v:20,l
 function opPillClass(e){
   if(e.ToLocation===EXPENSE) return 'exp';
   var op=String(e.Operation||'').toLowerCase();
+  if(op==='deposit' || (op==='transfer' && e.ToLocation===BANK)) return 'op-bankdep';
   if(op==='open') return 'op-open';
   if(op==='close') return 'op-close';
   if(op==='transfer'){
@@ -361,11 +367,14 @@ function opPillClass(e){
 }
 function opLabelFor(e){
   if(e.ToLocation===EXPENSE) return 'Cash Expense';
+  if(e.Operation==='Deposit') return 'Bank Deposit';
+  if(e.Operation==='Transfer' && e.ToLocation===BANK) return 'Bank Deposit';
   if(e.Operation==='Transfer' && e.ToLocation==='Large Safe') return 'Large Safe Deposit';
   if(e.Operation==='Transfer' && e.ToLocation==='Small Safe') return 'Small Safe Deposit';
   return e.Operation;
 }
-var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false,logLoc:null};
+var BANK='Bank';
+var STATE={store:null,period:null,stores:[],staff:[],setup:[],entries:[],dirty:false,logLoc:null,openingByLoc:{}};
 var booted=false;
 
 function thisPeriod(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);}
@@ -454,10 +463,13 @@ function entriesKey(){return 'entries|'+STATE.store+'|'+STATE.period;}
 function tillsFor(store){var t=STATE.setup.filter(function(s){return s.Store===store&&/^VCT\d+$/i.test(String(s.Location));}).map(function(s){return s.Location;});t.sort();return t;}
 function locsFor(store){return STATE.setup.filter(function(s){return s.Store===store;}).map(function(s){return s.Location;});}
 function startBal(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.StartingBalance):0;}
+/* the viewed month's opening for a location: prior closed audit's carry-forward
+   (loadOpeningSeed) if we have it, else the Settings starting balance. */
+function openFor(loc){return (STATE.openingByLoc&&STATE.openingByLoc[loc]!=null)?num(STATE.openingByLoc[loc]):startBal(STATE.store,loc);}
 function floatTarget(store,loc){var r=STATE.setup.filter(function(s){return s.Store===store&&s.Location===loc;})[0];return r?num(r.FloatTarget):0;}
 
 function computeBalances(){
-  var bal={}; locsFor(STATE.store).forEach(function(l){bal[l]=startBal(STATE.store,l);});
+  var bal={}; locsFor(STATE.store).forEach(function(l){bal[l]=openFor(l);});
   STATE.entries.slice().sort(function(a,b){return String(a.Date).localeCompare(String(b.Date));}).forEach(function(e){
     var op=e.Operation,amt=num(e.Amount),loc=e.Location,to=e.ToLocation;
     if(op==='Open'||op==='Close'){if(bal[loc]!=null&&e.Counted!==''&&e.Counted!=null)bal[loc]=num(e.Counted);return;}
@@ -484,9 +496,30 @@ function loadData(){
   if(!STATE.store)return;
   var key=entriesKey(), cached=cacheGet(key), cachedRaw=cached?JSON.stringify(cached):null;
   if(cached){ STATE.entries=cached; renderCards(); renderLog(); }
+  loadOpeningSeed();
   fetchEntries(STATE.store,STATE.period).then(function(rows){ cacheSet(key,rows);
     if(JSON.stringify(rows)!==cachedRaw){ STATE.entries=rows; renderCards(); renderLog(); }
   }).catch(function(e){ if(!cached) toast(String(e&&e.message||e),true); });
+}
+/* Opening balances for the viewed month = the most-recent CLOSED audit ending
+   BEFORE this month started (its confirmed carry-forward). Falls back to the
+   Settings starting balances until it loads / when there's no prior audit. This
+   is what makes the Balances tab agree with the audit chain (e.g. a till opens
+   the month at last month's ending float, and a deposited safe opens at ~$0). */
+async function loadOpeningSeed(){
+  var store=STATE.store, pstart=(STATE.period||thisPeriod())+'-01';
+  STATE.openingByLoc={};
+  try{
+    var a=await sb.from('cash_audits').select('id,period_end').eq('store',store).eq('status','closed')
+      .lt('period_end',pstart).order('period_end',{ascending:false}).limit(1);
+    var prior=a.data&&a.data[0];
+    if(!prior){ renderCards(); return; }
+    var pl=await sb.from('cash_audit_locations').select('location,counted,carry_forward').eq('audit_id',prior.id);
+    var m={}; (pl.data||[]).forEach(function(r){ m[r.location]=num(r.carry_forward!=null?r.carry_forward:r.counted); });
+    if(store!==STATE.store) return;               // store changed while loading — drop
+    STATE.openingByLoc=m; renderCards();
+    if(!$('#tab-balances').classList.contains('hide')) renderLog();
+  }catch(e){}
 }
 
 /* ===== AUDIT =====
@@ -644,6 +677,58 @@ $('#auNewBtn').onclick=function(){
     back.remove(); openWork(ins.data);
   };
 };
+/* ---- manual entry (Deposit to Bank / Transfer between locations) ----
+   Manager-side ledger entry for the safes/tills. A "Deposit to Bank" writes a
+   real entry that draws the location down (location → Bank, Bank untracked), so
+   the balance drops the moment cash is taken to the bank — not only at month-end
+   close. A "Transfer" moves cash between two locations. Both flow through the
+   normal balance replay. */
+function openAddEntry(){
+  var locs=logLocations();
+  if(!locs.length){toast('No locations configured for this store',true);return;}
+  var today=(function(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);})();
+  var defLoc=(STATE.logLoc&&locs.indexOf(STATE.logLoc)>-1)?STATE.logLoc:locs[0];
+  var opts=function(sel){return locs.map(function(l){return '<option'+(l===sel?' selected':'')+'>'+l+'</option>';}).join('');};
+  var back=document.createElement('div');back.className='auwiz-back';
+  back.innerHTML='<div class="auwiz" style="max-width:440px">'
+    +'<h3>Add entry — '+shortStore(STATE.store)+'</h3>'
+    +'<p class="hint" style="margin:6px 0 14px">Record a bank deposit (draws a safe/till down) or a transfer between locations. It posts to the activity log and updates balances.</p>'
+    +'<div class="field" style="margin-bottom:10px"><label>Type</label><select id="aeType"><option value="Deposit">Deposit to Bank</option><option value="Transfer">Transfer between locations</option></select></div>'
+    +'<div class="row"><div class="field" style="margin-bottom:10px"><label id="aeFromLbl">Deposit from</label><select id="aeFrom">'+opts(defLoc)+'</select></div>'
+    +'<div class="field" id="aeToWrap" style="margin-bottom:10px;display:none"><label>To location</label><select id="aeTo">'+opts(locs[1]||locs[0])+'</select></div></div>'
+    +'<div class="row"><div class="field" style="margin-bottom:10px"><label>Amount</label><input type="number" step="0.01" min="0" id="aeAmt" placeholder="0.00"></div>'
+    +'<div class="field" style="margin-bottom:10px"><label>Date</label><input type="date" id="aeDate" value="'+today+'"></div></div>'
+    +'<div class="field"><label>Note <span style="font-weight:600;text-transform:none;color:var(--grey)">(optional)</span></label><input type="text" id="aeNote" maxlength="180" placeholder="e.g. deposit slip #"></div>'
+    +'<div class="save-row" style="justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn alt sm" data-ax>Cancel</button><button class="btn" id="aeGo">Save entry</button></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener('click',function(e){if(e.target===back)back.remove();});
+  back.querySelector('[data-ax]').onclick=function(){back.remove();};
+  var typeSel=back.querySelector('#aeType');
+  function syncType(){
+    var t=typeSel.value;
+    back.querySelector('#aeToWrap').style.display=(t==='Transfer')?'':'none';
+    back.querySelector('#aeFromLbl').textContent=(t==='Transfer')?'From location':'Deposit from';
+  }
+  typeSel.onchange=syncType; syncType();
+  back.querySelector('#aeGo').onclick=async function(){
+    var t=typeSel.value, from=back.querySelector('#aeFrom').value, amt=num(back.querySelector('#aeAmt').value),
+        date=back.querySelector('#aeDate').value, note=(back.querySelector('#aeNote').value||'').trim();
+    var to=(t==='Transfer')?back.querySelector('#aeTo').value:BANK;
+    if(!(amt>0)){toast('Enter an amount',true);return;}
+    if(!date){toast('Pick a date',true);return;}
+    if(t==='Transfer'&&from===to){toast('From and To must differ',true);return;}
+    this.disabled=true;
+    var rec={store:STATE.store,biz_date:date,period:date.slice(0,7),employee:(AUTH?AUTH.name:''),
+      operation:(t==='Deposit'?'Deposit':'Transfer'),location:from,to_location:to,amount:amt,notes:note||null};
+    var ins=await sb.from('cash_entries').insert(rec);
+    if(ins.error){toast(ins.error.message,true);this.disabled=false;return;}
+    back.remove();
+    toast((t==='Deposit'?'Bank deposit':'Transfer')+' recorded — '+money(amt));
+    if(date.slice(0,7)===STATE.period){ cacheDel(entriesKey()); loadData(); }
+    else toast('Saved to '+date.slice(0,7)+' (switch the month to see it)');
+  };
+}
+$('#addEntryBtn').onclick=openAddEntry;
 /* ---- working view (draft) ---- */
 async function openWork(row){
   AUDIT.row=row; AUDIT.data=null;
@@ -1125,7 +1210,7 @@ function entryTouchesLoc(e,loc){
 }
 // Running balance for one location across the month, chronologically.
 function runningBalances(loc){
-  var bal=startBal(STATE.store,loc);
+  var bal=openFor(loc);
   var chron=STATE.entries.slice().sort(function(a,b){
     return String(a.Date).localeCompare(String(b.Date))||String(a.Id).localeCompare(String(b.Id));
   });
