@@ -577,7 +577,10 @@ async function computeAuditDataRange(store,row){
     (pl.error?[]:(pl.data||[])).forEach(function(r2){openingByLoc[r2.location]=num(r2.carry_forward!=null?r2.carry_forward:r2.counted);});
     openingMeta={by:prior.confirmed_by||prior.auditor||'—',at:prior.confirmed_at||prior.closed_at,range:fmtRange(prior.period_start,prior.period_end)};
   }
-  var tracked=computeBalancesSeeded(store,openingByLoc,entries);
+  // Exclude the close-generated deposit/transfer entries ([ac:*]) from tracked —
+  // the carry-forward already accounts for them and the count is taken before them.
+  var trackedEntries=entries.filter(function(e){return !(e.Notes&&e.Notes.indexOf('[ac:')>-1);});
+  var tracked=computeBalancesSeeded(store,openingByLoc,trackedEntries);
   // this audit's own saved work (draft resume / closed detail)
   var savedCounted={},days=[];
   var al=await sb.from('cash_audit_locations').select('location,counted,carry_forward').eq('audit_id',row.id);
@@ -1038,6 +1041,24 @@ async function finalizeAudit(counts,depBank,depSB,depSL){
   var il=await sb.from('cash_audit_locations').insert(rows.map(function(r){return {audit_id:row.id,store:STATE.store,location:r.location,tracked:r.tracked,counted:r.counted,over_short:r.over_short,carry_forward:r.carry};}));
   if(il.error)throw il.error;
   if(days.length){var id2=await sb.from('cash_audit_days').insert(days.map(function(r){return {audit_id:row.id,store:STATE.store,period:row.period,day:(r.day==='__SMALL__'?null:r.day),location:r.location,c100:num(r.C100),c50:num(r.C50),c20:num(r.C20),c10:num(r.C10),c5:num(r.C5),c2:0,c1:num(r.C1),total:r.total};}));if(id2.error)throw id2.error;}
+  await writeCloseDeposits(row,depBank,depSB,depSL);
+}
+/* Auto-create ledger entries for the deposits recorded at audit close, so the
+   safe balance draws down in the activity log (not only via the carry-forward).
+   Tagged [ac:<id>] and dated on the audit's end day; the carry-forward already
+   nets these amounts, so they're EXCLUDED from the audit's own tracked replay
+   (see computeAuditDataRange) to avoid a double-count, and the next period seeds
+   from the carry-forward (not these entries). Idempotent: prior [ac:<id>] rows
+   are cleared first so re-closing an audit doesn't duplicate them. */
+async function writeCloseDeposits(row,depBank,depSB,depSL){
+  var tag='[ac:'+row.id+']';
+  try{ await sb.from('cash_entries').delete().eq('store',row.store).like('notes','%'+tag+'%'); }catch(e){}
+  var end=String(row.period_end).slice(0,10), by=(AUTH?AUTH.name:row.confirmed_by||'');
+  var ins=[];
+  if(num(depBank)>0) ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Deposit',location:'Large Safe',to_location:BANK,amount:num(depBank),notes:'Bank deposit at audit close '+tag});
+  if(num(depSB)>0)   ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Deposit',location:'Small Safe',to_location:BANK,amount:num(depSB),notes:'Bank deposit at audit close '+tag});
+  if(num(depSL)>0)   ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Transfer',location:'Small Safe',to_location:'Large Safe',amount:num(depSL),notes:'Small→Large at audit close '+tag});
+  if(ins.length){ var r=await sb.from('cash_entries').insert(ins); if(r.error) console.warn('close deposit entries:',r.error.message); }
 }
 
 /* ---- DETAIL (closed audits, read-only) + delete ---- */
