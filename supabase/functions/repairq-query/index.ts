@@ -1697,6 +1697,40 @@ async function flipUnit(itemId: string | number, fromStatus: number, toStatus: n
   return { ok: false, error: `post ${w.status}, status still ${vf["InventoryItemForm[status_id]"] ?? "?"}` };
 }
 
+// Parse a <select>'s options (value + label + selected) from an edit-form page.
+function parseSelectOptions(html: string, name: string): Array<{ id: string; name: string; selected: boolean }> {
+  const m = html.match(new RegExp(`<select\\b[^>]*name="${name.replace(/[[\]]/g, "\\$&")}"[^>]*>([\\s\\S]*?)<\\/select>`, "i"));
+  if (!m) return [];
+  const out: Array<{ id: string; name: string; selected: boolean }> = [];
+  for (const o of m[1].matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
+    const val = (o[1].match(/\bvalue="([^"]*)"/) || [])[1] || "";
+    if (!val) continue; // skip the "Choose…" placeholder
+    out.push({ id: val, name: o[2].replace(/<[^>]+>/g, "").trim(), selected: /\bselected\b/i.test(o[1]) });
+  }
+  return out;
+}
+
+// Change ONE unit's supplier via its edit form (works for any editable status;
+// a locked/sold item redirects to the read-only inspect page → not editable).
+// Supplier is per-unit metadata, safe and reversible — unlike a status flip.
+async function setUnitSupplier(itemId: string | number, supplierId: string, note: string):
+  Promise<{ ok: boolean; skipped?: boolean; reason?: string; error?: string; from?: string }> {
+  const g = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+  const b = g.body || "";
+  if (!b || /site\/login|\/inventory\/inspect/i.test((g as any).location || "")) return { ok: false, error: "item not editable (locked/sold)" };
+  const f = parseEditForm(b);
+  const before = f["InventoryItemForm[supplier_id]"];
+  if (before == null) return { ok: false, error: "form parse failed" };
+  if (String(before) === String(supplierId)) return { ok: true, skipped: true, reason: "already this supplier", from: String(before) };
+  f["InventoryItemForm[supplier_id]"] = String(supplierId);
+  if (note) { const prev = f["InventoryItemForm[note]"] || ""; f["InventoryItemForm[note]"] = (prev ? prev + "\n" : "") + note; }
+  const w = await rqRequest({ method: "POST", path: `/inventory/edit/${itemId}`, form: f });
+  const v = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+  const vf = parseEditForm(v.body || "");
+  if (String(vf["InventoryItemForm[supplier_id]"]) === String(supplierId)) return { ok: true, from: String(before) };
+  return { ok: false, error: `post ${w.status}, supplier still ${vf["InventoryItemForm[supplier_id]"] ?? "?"}`, from: String(before) };
+}
+
 /* Shared daily-digest sync: pulls dashboard 2273's tiles into digest_raw for
    "today" (America/Los_Angeles). Called by the secret-gated `sync_digest`
    action (crons) AND the manager-JWT-gated `digest_refresh` action (the Daily
@@ -2096,7 +2130,55 @@ Deno.serve(async (req) => {
       return json({ ok: true, mode: "apply", location: locName, from_status: fromStatus, to_status: toStatus, receipt });
     }
 
-    return json({ ok: false, error: "mode must be 'resolve' or 'apply'" }, 400);
+    // Supplier dropdown for the "change supplier" flow — read a resolved serial's
+    // edit form and return its supplier <select> options (id + name + current).
+    if (mode === "supplier_options") {
+      const itemId = String(payload.item_id || "");
+      if (!/^\d+$/.test(itemId)) return json({ ok: false, error: "item_id required" }, 400);
+      const g = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+      const opts = parseSelectOptions(g.body || "", "InventoryItemForm[supplier_id]");
+      if (!opts.length) return json({ ok: false, error: "could not read suppliers (that unit may be locked/sold — pick another serial)" }, 502);
+      return json({ ok: true, mode: "supplier_options", current: opts.find((o) => o.selected)?.id || null, options: opts });
+    }
+
+    // Change SUPPLIER on serialized units (per-unit metadata — safe/reversible).
+    if (mode === "apply_supplier") {
+      const toSupplier = String(payload.to_supplier || "");
+      if (!/^\d+$/.test(toSupplier)) return json({ ok: false, error: "to_supplier (supplier id) required" }, 400);
+      const note = String(payload.note || "Supplier updated via myRepairTools").replace(/[\u{10000}-\u{10FFFF}]/gu, "").slice(0, 180);
+      const rows: any[] = Array.isArray(payload.rows) ? payload.rows : [];
+      const receipt: any[] = [];
+      for (const row of rows) {
+        const rec: any = { value: row.value, kind: row.kind, name: row.name || null };
+        try {
+          if (row.kind === "serial") {
+            const r = await setUnitSupplier(row.item_id, toSupplier, note);
+            rec.status = r.ok ? (r.skipped ? "skipped" : "done") : "failed";
+            rec.moved = (r.ok && !r.skipped) ? 1 : 0;
+            if (r.error) rec.error = r.error;
+            if (r.reason) rec.reason = r.reason;
+          } else {
+            rec.status = "skipped"; rec.reason = "supplier change is per-unit — provide serials, not SKUs"; rec.moved = 0;
+          }
+        } catch (e) { rec.status = "error"; rec.error = String((e as Error).message || e).slice(0, 160); rec.moved = rec.moved || 0; }
+        receipt.push(rec);
+      }
+      try {
+        const runId = (typeof payload.run_id === "string" && /^[0-9a-f-]{16,40}$/i.test(payload.run_id)) ? payload.run_id : null;
+        const tally = (s: string) => receipt.filter((r) => r.status === s).length;
+        await admin.from("inventory_edit_log").insert({
+          run_id: runId, store: locName, note: "supplier→" + toSupplier + " · " + note,
+          run_by_id: (st as any)?.id ?? null, run_by_name: (st as any)?.display_name ?? null,
+          total: receipt.length, done: tally("done"),
+          failed: receipt.filter((r) => r.status === "failed" || r.status === "error").length,
+          skipped: tally("skipped"), moved: receipt.reduce((a, r) => a + (Number(r.moved) || 0), 0),
+          receipt,
+        });
+      } catch (_) { /* best-effort */ }
+      return json({ ok: true, mode: "apply_supplier", location: locName, to_supplier: toSupplier, receipt });
+    }
+
+    return json({ ok: false, error: "mode must be 'resolve', 'apply', 'supplier_options', or 'apply_supplier'" }, 400);
   }
 
   if (payload?.action === "digest_refresh") {

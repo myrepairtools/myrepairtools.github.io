@@ -106,12 +106,14 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
     <!-- 1 · Setup -->
     <div class="card">
       <div class="ct">1 · What are you changing?</div>
-      <div class="ch">Pick the store and the status move. The default is a pull-back: Instock → RMA Credit.</div>
+      <div class="ch">Change the <b>status</b> of a list (a pull-back defaults to Instock → RMA Credit), or the <b>supplier</b> on serialized units.</div>
       <div class="hd">
+        <div><div class="fldl">Change</div><select class="statsel" id="modeSel"><option value="status">Status</option><option value="supplier">Supplier</option></select></div>
         <div><div class="fldl">Store</div><select class="storesel" id="storeSel"></select></div>
-        <div><div class="fldl">From status</div><select class="statsel" id="fromSel"></select></div>
-        <div class="arrow">→</div>
-        <div><div class="fldl">To status</div><select class="statsel" id="toSel"></select></div>
+        <div class="sfld"><div class="fldl">From status</div><select class="statsel" id="fromSel"></select></div>
+        <div class="arrow sfld">→</div>
+        <div class="sfld"><div class="fldl">To status</div><select class="statsel" id="toSel"></select></div>
+        <div id="supplierField" style="display:none"><div class="fldl">New supplier</div><select class="statsel" id="supSel"><option>Preview first…</option></select></div>
         <div><div class="fldl">Note on each unit</div><input class="noteinp" id="noteInp" maxlength="180" placeholder="Updated via myRepairTools"></div>
       </div>
     </div>
@@ -353,11 +355,23 @@ function readFile(f){
   }
 }
 
+/* ---- change type: Status vs Supplier ---- */
+function curMode(){ var m=$('#modeSel'); return m?m.value:'status'; }
+$('#modeSel').addEventListener('change',function(){
+  var sup=curMode()==='supplier';
+  document.querySelectorAll('.sfld').forEach(function(el){el.style.display=sup?'none':'';});
+  $('#supplierField').style.display=sup?'':'none';
+  $('#previewCard').classList.add('hide'); $('#runCard').classList.add('hide');
+  $('#supSel').innerHTML='<option>Preview first…</option>';
+});
+
 /* ---- preview (resolve) ---- */
 $('#previewBtn').addEventListener('click', preview);
 async function preview(){
   if(!STATE.rows.length) return;
-  var store=$('#storeSel').value, fromS=parseInt($('#fromSel').value,10);
+  var store=$('#storeSel').value;
+  // supplier mode resolves with no from-status (we just want to classify serials)
+  var fromS=curMode()==='supplier'?2:parseInt($('#fromSel').value,10);
   var btn=$('#previewBtn'); btn.disabled=true; var orig=btn.textContent; btn.textContent='Checking RepairQ…';
   try{
     var out=[];
@@ -369,6 +383,15 @@ async function preview(){
     }
     STATE.resolved=out;
     renderPreview();
+    if(curMode()==='supplier'){
+      var firstSerial=out.filter(function(r){return r.kind==='serial';})[0];
+      if(firstSerial){
+        try{
+          var so=await callFn({action:'inventory_status',mode:'supplier_options',location:store,item_id:firstSerial.item_id});
+          $('#supSel').innerHTML=(so.options||[]).map(function(o){return '<option value="'+o.id+'"'+(o.id===so.current?' selected':'')+'>'+esc(o.name)+(o.id===so.current?' (current)':'')+'</option>';}).join('');
+        }catch(e){ toast('Could not load suppliers: '+(e.message||e),true); }
+      } else { toast('No serialized units found — supplier change needs serials',true); }
+    }
   }catch(e){ toast(e.message||'Preview failed',true); }
   finally{ btn.disabled=false; btn.textContent=orig; }
 }
@@ -418,6 +441,17 @@ function renderPreview(){
 // one-way door — reversing it needs RepairQ support. Warn hard before doing it.
 var TERMINAL_SERIAL={1:'Sold',6:'Voided',93:'Write Off',98:'Shrinkage'};
 $('#runBtn').addEventListener('click',function(){
+  if(curMode()==='supplier'){
+    var sup=$('#supSel'); var supName=sup.selectedOptions&&sup.selectedOptions[0]?sup.selectedOptions[0].textContent.replace(/ \(current\)$/,''):sup.value;
+    var nser=STATE.resolved.filter(function(r){return r.kind==='serial';}).length;
+    if(!/^\d+$/.test(sup.value)){ toast('Pick a supplier (Preview first)',true); return; }
+    $('#mTitle').textContent='Change supplier?';
+    $('#mBody').innerHTML='This writes to <b>live RepairQ inventory</b> at '+esc($('#storeSel').value)+'. Supplier is per-unit metadata and can be changed back anytime.';
+    $('#mBig').textContent='Set supplier → '+supName+' on '+nser+' unit'+(nser>1?'s':'');
+    $('#mOk').textContent='Yes, change supplier';
+    $('#mask').classList.add('show');
+    return;
+  }
   var toId=parseInt($('#toSel').value,10);
   var fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[toId];
   var units=STATE.resolved.reduce(function(a,r){return a+willMove(r);},0);
@@ -434,6 +468,7 @@ $('#mCancel').addEventListener('click',function(){$('#mask').classList.remove('s
 $('#mOk').addEventListener('click',function(){$('#mask').classList.remove('show');apply();});
 
 async function apply(){
+  if(curMode()==='supplier') return applySupplier();
   var store=$('#storeSel').value, fromS=parseInt($('#fromSel').value,10), toS=parseInt($('#toSel').value,10);
   var note=($('#noteInp').value||'').trim()||'Updated via myRepairTools';
   var work=STATE.resolved.filter(function(r){return r.kind!=='notfound' && willMove(r)>0;});
@@ -476,12 +511,42 @@ function finishRun(){
   var fail=rc.filter(function(r){return r.status==='failed'||r.status==='error';}).length;
   var skip=rc.filter(function(r){return r.status==='skipped';}).length;
   $('#rcTiles').classList.remove('hide'); $('#rcWrap').classList.remove('hide'); $('#dlRow').classList.remove('hide');
-  var tiles=[{n:moved,l:'units moved',c:'good'},{n:done,l:'SKUs done',c:''},{n:fail,l:'failed',c:fail?'bad':''},{n:skip,l:'skipped',c:skip?'warn':''}];
+  var sup=curMode()==='supplier';
+  var tiles=[{n:sup?done:moved,l:sup?'units updated':'units moved',c:'good'},{n:done,l:'done',c:''},{n:fail,l:'failed',c:fail?'bad':''},{n:skip,l:'skipped',c:skip?'warn':''}];
   $('#rcTiles').innerHTML=tiles.map(function(t){return '<div class="tile '+t.c+'"><div class="n">'+t.n+'</div><div class="l">'+t.l+'</div></div>';}).join('');
-  $('#runSub').innerHTML='<b>'+moved+' units moved</b> to '+STATNAME[parseInt($('#toSel').value,10)]+'.'+(fail?(' <span class="warnx">'+fail+' failed — re-running is safe (already-moved units are left alone).</span>'):'');
+  if(sup){
+    $('#runSub').innerHTML='<b>'+done+' unit'+(done!==1?'s':'')+'</b> updated'+(fail?(' · <span class="warnx">'+fail+' failed</span>'):'')+(skip?(' · '+skip+' skipped (non-serial)'):'')+'.';
+  } else {
+    $('#runSub').innerHTML='<b>'+moved+' units moved</b> to '+STATNAME[parseInt($('#toSel').value,10)]+'.'+(fail?(' <span class="warnx">'+fail+' failed — re-running is safe (already-moved units are left alone).</span>'):'');
+  }
   if($('#progBar').style.width!=='100%'){$('#progBar').style.width='100%';}
   $('#runBtn').disabled=false; $('#previewBtn').disabled=false;
   loadHistory();
+}
+async function applySupplier(){
+  var store=$('#storeSel').value, sup=$('#supSel'), toSup=sup.value;
+  var supName=(sup.selectedOptions&&sup.selectedOptions[0])?sup.selectedOptions[0].textContent.replace(/ \(current\)$/,''):toSup;
+  var note=($('#noteInp').value||'').trim()||'Supplier updated via myRepairTools';
+  var work=STATE.resolved.filter(function(r){return r.kind==='serial';});
+  var skipped=STATE.resolved.filter(function(r){return r.kind!=='serial';});
+  if(!/^\d+$/.test(toSup)){ toast('Pick a supplier',true); return; }
+  if(!work.length){ toast('No serialized units to change',true); return; }
+  var runId=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(''+Date.now()+Math.random().toString(16).slice(2));
+  STATE.receipt=[];
+  $('#runCard').classList.remove('hide'); $('#rcTiles').classList.add('hide'); $('#rcWrap').classList.add('hide'); $('#dlRow').classList.add('hide');
+  $('#rcBody').innerHTML=''; $('#runSub').innerHTML='Setting supplier → <b>'+esc(supName)+'</b> on '+work.length+' unit'+(work.length>1?'s':'')+'…';
+  $('#runBtn').disabled=true; $('#previewBtn').disabled=true;
+  var done=0,total=work.length; function prog(){var p=total?Math.round(done/total*100):100;$('#progBar').style.width=p+'%';$('#progTx').textContent='Processed '+done+' of '+total;} prog();
+  try{
+    for(var i=0;i<work.length;i+=APPLY_CHUNK){
+      var chunk=work.slice(i,i+APPLY_CHUNK).map(function(r){return {value:r.value,kind:r.kind,item_id:r.item_id,name:r.name};});
+      var j=await callFn({action:'inventory_status',mode:'apply_supplier',location:store,to_supplier:toSup,note:note,run_id:runId,rows:chunk});
+      (j.receipt||[]).forEach(function(rec){STATE.receipt.push(rec);appendReceiptRow(rec);});
+      done=Math.min(i+APPLY_CHUNK,work.length); prog();
+    }
+    skipped.forEach(function(r){var rec={value:r.value,kind:r.kind,name:r.name||null,status:'skipped',moved:0,reason:'not a serial — supplier is per-unit'};STATE.receipt.push(rec);appendReceiptRow(rec);});
+    finishRun();
+  }catch(e){ toast(e.message||'Run failed',true); $('#progTx').textContent='Stopped: '+(e.message||'error'); finishRun(); }
 }
 
 /* ---- batch history (reads inventory_edit_log; a run = chunk rows sharing run_id) ---- */
