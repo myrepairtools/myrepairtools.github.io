@@ -115,6 +115,11 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;letter-spac
 .modbar{width:110px;height:7px;border-radius:999px;background:#ECEDF1;overflow:hidden}
 .modbar i{display:block;height:100%;border-radius:999px;background:var(--green)}
 .steprow{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--row);border-left:3px solid transparent}
+/* section header inside a module — a third level between module and item */
+.secthd{display:flex;align-items:center;gap:8px;padding:9px 16px 7px;border-top:1px solid var(--row);background:#FAFBFC}
+.secthd .sn{font-family:'Nunito',sans-serif;font-weight:900;font-size:.82rem}
+.secthd .sc{margin-left:auto;font-size:.7rem;font-weight:800;color:var(--grey)}
+.secthd+.steprow{border-top:none}
 .steprow.next{background:#F3F9FD;border-left-color:var(--blue)}
 .steprow.lock{opacity:.55}
 .stepic{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:900;flex:none}
@@ -198,6 +203,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;letter-spac
 <div id="mdlWrap"></div>
 <div class="toast" id="toast"></div>
 
+<script src="assets/onboarding-track.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script type="module">
@@ -253,7 +259,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 (async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 
 /* ---------- state ---------- */
-let CATS=[],ARTS=[],READS={},MODULES=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
+let CATS=[],ARTS=[],READS={},MODULES=[],ASSIGNS={},SECTIONS=[],QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
 let MODE='list';                 // list | article | onboarding | quiz | quizresult | edit
 let CAT=(function(){try{return localStorage.getItem('cprKbCat')||'all';}catch(e){return 'all';}})();
 let OPEN=null;                   // article being viewed/edited
@@ -261,19 +267,23 @@ let QZ=null;                     // {quiz, questions, idx, answers[], result}
 let SEARCHQ='',SRES=null,SEARCH_T=null;
 
 async function loadAll(){
-  const [c,a,r,m,asn,qz,att,st,sp,sd]=await Promise.all([
+  const [c,a,r,m,asn,qz,att,st,sp,sd,sec]=await Promise.all([
     sb.from('kb_categories').select('*').order('sort'),
     sb.from('kb_articles').select('*').order('updated_at',{ascending:false}),
     sb.from('kb_reads').select('article_id,first_read_at,acknowledged_at,last_viewed_at').eq('staff_id',AUTH.id),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
-    sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id).maybeSingle(),
+    sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id),
     sb.from('kb_quizzes').select('id,article_id,pass_pct,active,kb_quiz_questions(id)').eq('active',true),
     sb.from('kb_quiz_attempts').select('quiz_id,score_pct,passed,attempt_no').eq('staff_id',AUTH.id),
     sb.from('staff').select('id,display_name').eq('active',true),
     sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
-    sb.from('onboarding_step_done').select('step_id,done_by,done_at').eq('staff_id',AUTH.id)
+    sb.from('onboarding_step_done').select('step_id,done_by,done_at').eq('staff_id',AUTH.id),
+    sb.from('onboarding_sections').select('*').eq('active',true).order('sort')
   ]);
-  CATS=c.data||[]; ARTS=a.data||[]; MODULES=m.data||[]; ASSIGN=asn.data||null;
+  CATS=c.data||[]; ARTS=a.data||[]; MODULES=m.data||[]; SECTIONS=sec.data||[];
+  // one assignment row per (staff, module) — a module the viewer isn't assigned
+  // simply isn't part of their track
+  ASSIGNS={}; (asn.data||[]).forEach(x=>{ if(x.module_id!=null)ASSIGNS[x.module_id]=x; });
   STEPS=sp.data||[]; SDONE={}; (sd.data||[]).forEach(x=>SDONE[x.step_id]=x);
   READS={}; (r.data||[]).forEach(x=>READS[x.article_id]=x);
   QUIZ={}; (qz.data||[]).forEach(q=>{ QUIZ[q.article_id]={id:q.id,pass_pct:q.pass_pct,nq:(q.kb_quiz_questions||[]).length}; });
@@ -291,39 +301,16 @@ function acked(a){ const r=READS[a.id]; return r&&r.acknowledged_at; }
 function viewedAt(a){ const r=READS[a.id]; return r?(r.last_viewed_at||r.first_read_at):null; }
 function pubArts(){ return ARTS.filter(a=>a.status==='published'); }
 function reqOutstanding(){ return pubArts().filter(a=>a.require_ack&&!acked(a)); }
-/* onboarding items: a module's track = its ARTICLES (kb_articles.module_id)
-   merged with its TASK STEPS (onboarding_steps — HR paperwork, account setups),
-   ordered together by sort_order. */
-function moduleItems(modId){
-  const items=pubArts().filter(a=>a.module_id===modId).map(a=>({kind:'a',a,sort:a.sort_order||0,id:'a'+a.id}))
-    .concat(STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0,id:'s'+s.id})));
-  return items.sort(itemCmp);
-}
-/* canonical order for mixed module items: sort_order, then articles before
-   steps, then numeric id — IDENTICAL in Setup, My Onboarding & Compliance */
-function itemCmp(x,y){ return (x.sort-y.sort)
-  || (x.kind===y.kind?0:(x.kind==='a'?-1:1))
-  || (x.kind==='a'?(x.a.id-y.a.id):(x.s.id-y.s.id)); }
+/* onboarding track — merge/order/group/unlock all live in
+   assets/onboarding-track.js so Setup, My Onboarding and KB Compliance can
+   never drift out of order. Sections are presentation; unlock is unchanged. */
+const OT=()=>window.CPROnboarding;
+function moduleItems(modId){ return OT().flatten(OT().groupsFor(modId,pubArts(),STEPS,SECTIONS)); }
 function articleDone(a){ const q=QUIZ[a.id]; return !!acked(a)&&(!q||!q.nq||(MYATT[q.id]&&MYATT[q.id].passed)); }
 function itemDone(it){ return it.kind==='a'?articleDone(it.a):!!SDONE[it.s.id]; }
-/* full track: modules with their merged items; global sequential unlock */
-function track(){
-  const mods=MODULES.map(mod=>({mod,items:moduleItems(mod.id)})).filter(x=>x.items.length);
-  let nextFound=false;
-  mods.forEach((mx,mi)=>{
-    mx.done=mx.items.filter(itemDone).length;
-    mx.total=mx.items.length;
-    mx.quizzes=mx.items.filter(it=>it.kind==='a'&&QUIZ[it.a.id]&&QUIZ[it.a.id].nq).length;
-    mx.states=mx.items.map(it=>{
-      if(itemDone(it))return 'done';
-      if(!nextFound){ nextFound=true; return 'next'; }
-      return 'lock';
-    });
-    mx.complete=mx.done===mx.total;
-    mx.lockedModule=mi>0&&!mods.slice(0,mi).every(p=>p.complete)&&mx.done===0;
-  });
-  return mods;
-}
+/* only modules ASSIGNED to me are part of my track */
+function myModules(){ return MODULES.filter(m=>ASSIGNS[m.id]); }
+function track(){ return OT().build(myModules(),pubArts(),STEPS,SECTIONS,itemDone); }
 function obOutstanding(){ const t=track(); return t.reduce((n,mx)=>n+(mx.total-mx.done),0); }
 
 /* ---------- hash routing: #a=slug · #c=cat · #onboarding · #quiz=slug · #edit=id · #new ---------- */
@@ -525,25 +512,36 @@ function drawArticle(){
 }
 
 /* ---------- onboarding ---------- */
-async function ensureAssignment(){
-  if(ASSIGN)return;
-  const r=await sb.from('onboarding_assignments').insert({staff_id:AUTH.id}).select().single();
-  if(r.data)ASSIGN=r.data;
+/* Auto-assigned modules arrive via the security-definer RPC — an employee can
+   no longer insert their own assignment row, so they can't hand themselves a
+   module that wasn't aimed at their role. Cheap and idempotent. */
+async function syncAssignments(){
+  const r=await sb.rpc('onboarding_sync_me');
+  if(r&&!r.error&&r.data>0){
+    const a=await sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id);
+    ASSIGNS={}; ((a&&a.data)||[]).forEach(x=>{ if(x.module_id!=null)ASSIGNS[x.module_id]=x; });
+  }
+}
+function assignStarted(){
+  const ds=Object.keys(ASSIGNS).map(k=>ASSIGNS[k].assigned_at).filter(Boolean).sort();
+  return ds.length?ds[0]:null;
 }
 async function drawOnboarding(){
-  await ensureAssignment();
+  await syncAssignments();
   const t=track();
   const total=t.reduce((n,m)=>n+m.total,0), done=t.reduce((n,m)=>n+m.done,0);
   const pct=total?Math.round(done/total*100):0;
   const quizPassed=t.reduce((n,mx)=>n+mx.items.filter(it=>it.kind==='a'&&QUIZ[it.a.id]&&MYATT[QUIZ[it.a.id].id]&&MYATT[QUIZ[it.a.id].id].passed).length,0);
   const curWeek=Math.min(t.findIndex(m=>!m.complete)+1||t.length,t.length)||1;
   let inner='';
-  if(!t.length){ inner='<div class="empty">No onboarding track yet — managers build it in Onboarding Setup (nav → Manage).</div>'; }
+  if(!t.length){ inner='<div class="empty">'+(Object.keys(ASSIGNS).length
+    ?'Your modules don’t have any content in them yet — managers add it in Onboarding Setup (nav → Manage).'
+    :'Nothing assigned yet — your manager assigns training modules in KB Compliance.')+'</div>'; }
   else{
     inner+='<div class="obhero"><div class="obtile">🎓</div><div style="min-width:0">'
       +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.98rem">Onboarding — '+esc(AUTH.name)+'</div>'
       +'<div style="font-size:.78rem;font-weight:700;color:#8A8FA0;margin-top:1px">'
-        +(ASSIGN?'Started '+fmtD(ASSIGN.started_at)+' · ':'')+'Week '+curWeek+' of '+t.length+' · '+quizPassed+' quiz'+(quizPassed===1?'':'zes')+' passed</div>'
+        +(assignStarted()?'Started '+fmtD(assignStarted())+' · ':'')+'Week '+curWeek+' of '+t.length+' · '+quizPassed+' quiz'+(quizPassed===1?'':'zes')+' passed</div>'
       +'</div><div style="flex:1"></div><div class="obbar"><i style="width:'+pct+'%"></i></div><span class="obpct">'+pct+'%</span></div>';
     t.forEach((mx,mi)=>{
       const locked=mx.lockedModule;
@@ -555,36 +553,46 @@ async function drawOnboarding(){
           ?'<span class="ms">🔒 Unlocks when '+esc((t[mi-1]||{}).mod?t[mi-1].mod.name.split('—')[0].trim():'the previous week')+' is complete · '+mx.total+' item'+(mx.total===1?'':'s')+(mx.quizzes?' · '+mx.quizzes+' quiz'+(mx.quizzes===1?'':'zes'):'')+'</span>'
           :'<div class="modbar"><i style="width:'+Math.round(mx.done/mx.total*100)+'%"></i></div><span style="font-size:.72rem;font-weight:800;color:var(--dark-grey)">'+mx.done+' / '+mx.total+'</span>')
         +'</div>';
-      if(!locked)mx.items.forEach((it,si)=>{
-        const st=mx.states[si];
-        const ics=st==='done'?['✓','var(--greenbg)','var(--greend)']:st==='next'?['▶','var(--blue)','#fff']:['🔒','var(--light-grey)','var(--grey)'];
-        if(it.kind==='a'){
-          const a=it.a, q=QUIZ[a.id], my=q?MYATT[q.id]:null;
-          const chip=q&&q.nq?(my&&my.passed
-            ?'<span class="quizchip pass">✓ Quiz '+my.best+'%</span>'
-            :'<span class="quizchip">Quiz · '+q.nq+' question'+(q.nq===1?'':'s')+'</span>'):'';
-          inner+='<div class="steprow '+st+'">'
+      if(!locked){
+        // render GROUPS: a bare item, or a section header with its own items.
+        // State comes from stateOf so grouping can't desync from the unlock order.
+        const row=(it)=>{
+          const st=mx.stateOf[it.id];
+          const ics=st==='done'?['✓','var(--greenbg)','var(--greend)']:st==='next'?['▶','var(--blue)','#fff']:['🔒','var(--light-grey)','var(--grey)'];
+          if(it.kind==='a'){
+            const a=it.a, q=QUIZ[a.id], my=q?MYATT[q.id]:null;
+            const chip=q&&q.nq?(my&&my.passed
+              ?'<span class="quizchip pass">✓ Quiz '+my.best+'%</span>'
+              :'<span class="quizchip">Quiz · '+q.nq+' question'+(q.nq===1?'':'s')+'</span>'):'';
+            return '<div class="steprow '+st+'">'
+              +'<div class="stepic" style="background:'+ics[1]+';color:'+ics[2]+'">'+ics[0]+'</div>'
+              +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+'</div>'
+              +'<div class="stepmeta">'+readMins(a.body)+' min · '+esc(catName(a.category_id))+'</div></div>'
+              +chip
+              +(st==='done'&&acked(a)?'<span class="footnote">'+fmtD(READS[a.id].acknowledged_at)+'</span>':'')
+              +(st==='next'?'<button class="btn pri sm" data-start="'+a.id+'">Start reading</button>':'')
+            +'</div>';
+          }
+          const sp=it.s, d=SDONE[sp.id], mine=sp.who==='employee';
+          return '<div class="steprow '+st+'">'
             +'<div class="stepic" style="background:'+ics[1]+';color:'+ics[2]+'">'+ics[0]+'</div>'
-            +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+'</div>'
-            +'<div class="stepmeta">'+readMins(a.body)+' min · '+esc(catName(a.category_id))+'</div></div>'
-            +chip
-            +(st==='done'&&acked(a)?'<span class="footnote">'+fmtD(READS[a.id].acknowledged_at)+'</span>':'')
-            +(st==='next'?'<button class="btn pri sm" data-start="'+a.id+'">Start reading</button>':'')
-          +'</div>';
-        }else{
-          const s=it.s, d=SDONE[s.id], mine=s.who==='employee';
-          inner+='<div class="steprow '+st+'">'
-            +'<div class="stepic" style="background:'+ics[1]+';color:'+ics[2]+'">'+ics[0]+'</div>'
-            +'<div class="stepmain"><div class="steptitle">'+esc(s.title)+'</div>'
-            +'<div class="stepmeta">'+(mine?'Your step':'Done with your manager')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+            +'<div class="stepmain"><div class="steptitle">'+esc(sp.title)+'</div>'
+            +'<div class="stepmeta">'+(mine?'Your step':'Done with your manager')+(sp.note?' · '+esc(sp.note):'')+'</div></div>'
             +(st==='done'&&d?'<span class="footnote">'+(d.done_by&&SBN[d.done_by]?esc(SBN[d.done_by])+' · ':'')+fmtD(d.done_at)+'</span>':'')
-            +(st==='next'&&s.link_url?'<a class="btn sm" style="text-decoration:none" href="'+esc(s.link_url)+'">Open</a>':'')
+            +(st==='next'&&sp.link_url?'<a class="btn sm" style="text-decoration:none" href="'+esc(sp.link_url)+'">Open</a>':'')
             +(st==='next'?(mine
-              ?'<button class="btn pri sm" data-stepdone="'+s.id+'">Mark done ✓</button>'
+              ?'<button class="btn pri sm" data-stepdone="'+sp.id+'">Mark done ✓</button>'
               :'<span class="quizchip" style="background:#FDF6E7;color:#7A5A08">Waiting on your manager</span>'):'')
           +'</div>';
-        }
-      });
+        };
+        mx.groups.forEach(g=>{
+          if(g.kind==='item'){ inner+=row(g.it); return; }
+          const pr=OT().sectionProgress(g,itemDone);
+          inner+='<div class="secthd"><span class="sn">'+esc(g.sec.name)+'</span>'
+            +'<span class="sc">'+pr.done+' / '+pr.total+'</span></div>';
+          g.items.forEach(it=>{ inner+=row(it); });
+        });
+      }
       inner+='</div>';
     });
   }
@@ -605,7 +613,7 @@ let MODSEL=null,REORDERING=false;
 function setupItems(modId){   // setup view includes drafts (flagged), unlike the live track
   const arts=ARTS.filter(a=>a.module_id===modId&&a.status!=='archived').map(a=>({kind:'a',a,sort:a.sort_order||0}));
   const steps=STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0}));
-  return arts.concat(steps).sort(itemCmp);
+  return arts.concat(steps).sort(OT().itemCmp);
 }
 async function renumber(modId,items){   // persist merged order as 10,20,30…
   for(let i=0;i<items.length;i++){
