@@ -80,6 +80,8 @@ tr.r-notfound td,tr.r-skipped td{color:var(--grey)}
 .modal p{font-size:.88rem;color:var(--dark-grey);font-weight:600;line-height:1.5}
 .modal .big{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark);margin:12px 0}
 .modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.modal.wide{max-width:860px}
+tr.hrow{cursor:pointer}tr.hrow:hover td{background:#FAFAFB}
 .gate{background:#FFF1F1;border:1px solid #F6C9CA;border-radius:12px;padding:22px;text-align:center;color:var(--red);
 font-weight:800;margin-top:20px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
@@ -160,6 +162,16 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
         <button class="btn alt" id="againBtn">Start another</button>
       </div>
     </div>
+
+    <!-- Batch history -->
+    <div class="card hide" id="histCard">
+      <div class="ct">Batch history</div>
+      <div class="ch">Every run is saved here — click a batch to see exactly what moved and what failed.</div>
+      <div class="tbwrap"><table><thead><tr>
+        <th>When</th><th>Store</th><th>Move</th><th>Moved</th><th>Failed</th><th>By</th>
+      </tr></thead><tbody id="histBody"></tbody></table></div>
+      <div class="ch" id="histEmpty" style="margin:8px 2px 0;display:none">No runs yet.</div>
+    </div>
   </div>
 </main>
 
@@ -171,6 +183,15 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
     <button class="btn alt" id="mCancel">Cancel</button>
     <button class="btn go" id="mOk">Yes, run it</button>
   </div>
+</div></div>
+<div class="mask" id="bmask"><div class="modal wide">
+  <h3 id="bTitle">Batch</h3>
+  <p id="bMeta"></p>
+  <div class="tiles" id="bTiles" style="margin-top:12px"></div>
+  <div class="tbwrap"><table><thead><tr>
+    <th>Value</th><th>Item</th><th>Result</th><th>Moved</th><th>Detail</th>
+  </tr></thead><tbody id="bBody"></tbody></table></div>
+  <div class="row"><button class="btn alt" id="bClose">Close</button></div>
 </div></div>
 <div class="toast" id="toast"></div>
 
@@ -261,6 +282,8 @@ async function callFn(body){
   // status dropdowns
   function fill(elId,def){var el=$('#'+elId);STATUSES.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===def)o.selected=true;el.appendChild(o);});}
   fill('fromSel',2); fill('toSel',96);
+
+  loadHistory();
 })();
 
 /* ---- parse input into aggregated {value, qty} ---- */
@@ -449,7 +472,58 @@ function finishRun(){
   $('#runSub').innerHTML='<b>'+moved+' units moved</b> to '+STATNAME[parseInt($('#toSel').value,10)]+'.'+(fail?(' <span class="warnx">'+fail+' failed — re-running is safe (already-moved units are left alone).</span>'):'');
   if($('#progBar').style.width!=='100%'){$('#progBar').style.width='100%';}
   $('#runBtn').disabled=false; $('#previewBtn').disabled=false;
+  loadHistory();
 }
+
+/* ---- batch history (reads inventory_edit_log; a run = chunk rows sharing run_id) ---- */
+var BATCHES=[];
+function fmtWhen(iso){ try{ var d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }catch(e){ return String(iso||''); } }
+async function loadHistory(){
+  var rows=[];
+  try{ rows=(await sb.from('inventory_edit_log').select('*').order('created_at',{ascending:false}).limit(500)).data||[]; }catch(e){ return; }
+  var map={}, order=[];
+  rows.forEach(function(r){
+    var k=r.run_id||('id:'+r.id);
+    if(!map[k]){ map[k]={created_at:r.created_at,store:r.store,from_status:r.from_status,to_status:r.to_status,note:r.note,by:r.run_by_name,total:0,done:0,failed:0,skipped:0,moved:0,receipt:[]}; order.push(k); }
+    var b=map[k];
+    if(new Date(r.created_at)<new Date(b.created_at)) b.created_at=r.created_at; // batch start = earliest chunk
+    b.total+=r.total||0; b.done+=r.done||0; b.failed+=r.failed||0; b.skipped+=r.skipped||0; b.moved+=r.moved||0;
+    if(Array.isArray(r.receipt)) b.receipt=b.receipt.concat(r.receipt);
+    if(!b.by&&r.run_by_name) b.by=r.run_by_name;
+  });
+  BATCHES=order.map(function(k){return map[k];}).sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at);});
+  var tb=$('#histBody'); tb.innerHTML='';
+  BATCHES.slice(0,100).forEach(function(b,i){
+    var mv=(STATNAME[b.from_status]||b.from_status)+' → '+(STATNAME[b.to_status]||b.to_status);
+    var tr=document.createElement('tr'); tr.className='hrow';
+    tr.innerHTML='<td>'+esc(fmtWhen(b.created_at))+'</td><td>'+esc(b.store||'—')+'</td><td>'+esc(mv)+'</td><td><b>'+b.moved+'</b></td><td'+(b.failed?' style="color:var(--red);font-weight:800"':'')+'>'+b.failed+'</td><td>'+esc(b.by||'—')+'</td>';
+    tr.addEventListener('click',function(){openBatch(i);});
+    tb.appendChild(tr);
+  });
+  $('#histCard').classList.remove('hide');
+  $('#histEmpty').style.display=BATCHES.length?'none':'';
+}
+function openBatch(i){
+  var b=BATCHES[i]; if(!b) return;
+  var mv=(STATNAME[b.from_status]||b.from_status)+' → '+(STATNAME[b.to_status]||b.to_status);
+  $('#bTitle').textContent=(b.store||'')+' · '+mv;
+  $('#bMeta').textContent=fmtWhen(b.created_at)+(b.by?(' · by '+b.by):'')+(b.note?(' · “'+b.note+'”'):'');
+  var tiles=[{n:b.moved,l:'units moved',c:'good'},{n:b.done,l:'done',c:''},{n:b.failed,l:'failed',c:b.failed?'bad':''},{n:b.skipped,l:'skipped',c:b.skipped?'warn':''}];
+  $('#bTiles').innerHTML=tiles.map(function(t){return '<div class="tile '+t.c+'"><div class="n">'+t.n+'</div><div class="l">'+t.l+'</div></div>';}).join('');
+  var body=$('#bBody'); body.innerHTML='';
+  (b.receipt||[]).forEach(function(rec){
+    var st=rec.status||'error';
+    var badge='<span class="badge '+(st==='done'?'done':st==='skipped'?'skip':st==='failed'?'failed':'error')+'">'+st+'</span>';
+    var detail=rec.reason||rec.error||(rec.short?('short '+rec.short):'')||'';
+    var tr=document.createElement('tr'); if(st==='skipped') tr.className='r-skipped';
+    tr.innerHTML='<td class="mono">'+esc(rec.value)+'</td><td>'+esc(rec.name||'—')+'</td><td>'+badge+'</td><td><b>'+(rec.moved||0)+'</b></td><td>'+esc(detail)+'</td>';
+    body.appendChild(tr);
+  });
+  $('#bmask').classList.add('show');
+}
+function closeBatch(){ $('#bmask').classList.remove('show'); }
+$('#bClose').addEventListener('click',closeBatch);
+$('#bmask').addEventListener('click',function(e){ if(e.target===this) closeBatch(); });
 
 $('#dlBtn').addEventListener('click',function(){
   var fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[parseInt($('#toSel').value,10)], store=$('#storeSel').value;
