@@ -43,12 +43,12 @@ BILL_L   = 156.0   # US note, long side -- all denominations are the same
 BILL_H   = 66.3    # US note, short side.  This is what leans.
 BILL_CLR = 4.0     # slack along the note's length
 
-N_BILL = 6         # $1 $5 $10 $20 $50 $100
-N_COIN = 2
-SLOT_W = 24.0      # note slot
+N_BILL = 6         # $1 $5 $10 $20 $50 $100 -- US notes are all one size
+N_COIN = 0         # coin rolls are not kept in the safe.  Set to 2 to get
+SLOT_W = 24.0      # them back; nothing else needs touching.
 COIN_W = 28.0      # coin-roll slot: a quarter roll is 25 mm across
 
-LABELS = ["$1", "$5", "$10", "$20", "$50", "$100", "COIN", "COIN"]
+LABELS = ["$1", "$5", "$10", "$20", "$50", "$100"] + ["COIN"] * N_COIN
 
 # ---------------------------------------------------------------------------
 # The tray
@@ -90,7 +90,8 @@ assert OUTER_W < BED - 6, f"tray {OUTER_W:.0f} mm wide -- will not fit the bed"
 assert OUTER_D < BED - 6, f"tray {OUTER_D:.0f} mm deep -- will not fit the bed"
 assert INNER_D > BILL_L + 2, "notes will not drop in"
 assert min(SLOTS) > 15.0, "slot too narrow to get fingers into"
-assert COIN_W > 26.0, "coin slot too narrow for a quarter roll"
+if N_COIN:
+    assert COIN_W > 26.0, "coin slot too narrow for a quarter roll"
 assert H_FRONT < H_BACK, "front lip is not lower than the back"
 assert SLOPE_Y < INNER_D, "slope runs past the back of the tray"
 assert GRIP_D < H_BACK - H_FRONT, "grip scallop cuts below the front lip"
@@ -180,8 +181,8 @@ if __name__ == "__main__":
 
     print(f"tray      {OUTER_W:.1f} W x {OUTER_D:.1f} D mm, "
           f"{H_FRONT:.0f} mm front lip rising to {H_BACK:.0f} mm at the back")
-    print(f"slots     {N_BILL} x {SLOT_W:.0f} mm for notes, "
-          f"{N_COIN} x {COIN_W:.0f} mm for coin rolls")
+    print(f"slots     {N_BILL} x {SLOT_W:.0f} mm for notes"
+          + (f", {N_COIN} x {COIN_W:.0f} mm for coin rolls" if N_COIN else ""))
     print(f"labels    {', '.join(LABELS)}")
     print(f"notes     {BILL_L} x {BILL_H} mm, {INNER_D:.0f} mm of slot length")
     print(f"CLEARANCE needed inside the safe: "
