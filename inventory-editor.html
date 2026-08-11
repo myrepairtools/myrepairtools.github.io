@@ -413,12 +413,21 @@ function renderPreview(){
 }
 
 /* ---- run (apply) ---- */
+// Statuses RepairQ will NOT let you move a serialized unit back OUT of (they're
+// non-adjustable and their edit page is read-only). Moving a serial here is a
+// one-way door — reversing it needs RepairQ support. Warn hard before doing it.
+var TERMINAL_SERIAL={1:'Sold',6:'Voided',93:'Write Off',98:'Shrinkage'};
 $('#runBtn').addEventListener('click',function(){
-  var fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[parseInt($('#toSel').value,10)];
+  var toId=parseInt($('#toSel').value,10);
+  var fromN=STATNAME[parseInt($('#fromSel').value,10)], toN=STATNAME[toId];
   var units=STATE.resolved.reduce(function(a,r){return a+willMove(r);},0);
+  var serials=STATE.resolved.filter(function(r){return r.kind==='serial' && willMove(r)>0;}).length;
   $('#mTitle').textContent='Run the changes?';
-  $('#mBody').innerHTML='This writes to <b>live RepairQ inventory</b> at '+esc($('#storeSel').value)+'. It only moves units currently in <b>'+fromN+'</b>, so it’s safe to re-run if anything is interrupted.';
+  var trap=(TERMINAL_SERIAL[toId] && serials>0);
+  $('#mBody').innerHTML='This writes to <b>live RepairQ inventory</b> at '+esc($('#storeSel').value)+'. It only moves units currently in <b>'+fromN+'</b>, so it’s safe to re-run if anything is interrupted.'
+    + (trap ? ('<div style="margin-top:12px;padding:11px 13px;border:1.5px solid #F6C9CA;background:#FFF1F1;border-radius:10px;color:var(--red);font-weight:800;font-size:.85rem">⚠ '+serials+' serialized unit'+(serials>1?'s':'')+' → <b>'+esc(toN)+'</b> is a ONE-WAY move. RepairQ locks serialized items in '+esc(toN)+' — you can’t move them back out without RepairQ support. Only continue if that’s intended.</div>') : '');
   $('#mBig').textContent='Move '+units+' units · '+fromN+' → '+toN;
+  $('#mOk').textContent=trap?('Yes, move to '+toN+' anyway'):'Yes, run it';
   $('#mask').classList.add('show');
 });
 $('#mCancel').addEventListener('click',function(){$('#mask').classList.remove('show');});
