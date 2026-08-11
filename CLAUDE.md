@@ -1036,6 +1036,28 @@ Manage section) is the roster view: store `.storesel` filter, stat tiles, per-pe
 onboarding %, quizzes passed, receipt pills per required article, overdue = required
 still open 7+ days after publish. Schema: docs/sql/kb-onboarding-schema.sql.
 
+**Training modules are assignable bundles with a third level.** `onboarding_sections`
+(module_id, name, sort) + a nullable `section_id` on `kb_articles` / `onboarding_steps`
+give *Week 2 → iPhone Repairs → Screen removal*; **section_id null keeps an item at
+module level**, so bare items (*Week 1 → How to answer the phone*) and sections MIX
+inside one module and interleave by sort. Sections are presentation only — the
+sequential unlock still walks the flattened order. `onboarding_assignments` is now one
+row per **(staff, module)** (assigned_by, assigned_at, `due_at`) — a module the viewer
+isn't assigned simply isn't in their track, so building a module no longer drops it on
+the whole team. Modules carry `auto_assign_role` + **`auto_assign_from`**; the date is
+what makes "new hires only" true (without it, arming a module retroactively assigns
+every current employee whose role matches). `due_at` is the cheap per-person goal — the
+roster flags a module past due. Assignment INSERT is `is_admin()` only and employees get
+their rows from the SECURITY DEFINER `onboarding_sync_me()` (plus
+`onboarding_sync_staff(id)` so a new hire is assigned at creation, not first sign-in); a
+DELETE policy was added — there was none, so unassigning was impossible. Compliance
+scopes per-person progress to ASSIGNED modules only, and its detail modal
+assigns/unassigns and sets due dates. **`assets/onboarding-track.js` is the single
+implementation of merge/order/group/unlock** — Setup, My Onboarding and Compliance all
+import it (Compliance used to keep its own copy); three surfaces must agree on order or
+an employee's "next" item stops matching the manager's view.
+Schema: docs/sql/onboarding-sections-assign.sql.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);

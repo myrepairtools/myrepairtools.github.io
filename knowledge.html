@@ -610,6 +610,16 @@ async function drawOnboarding(){
 
 /* ---------- Onboarding Setup (managers): modules + their mixed item lists ---------- */
 let MODSEL=null,REORDERING=false;
+function modSections(modId){ return SECTIONS.filter(x=>x.module_id===modId).sort((a,b)=>(a.sort-b.sort)||(a.id-b.id)); }
+/* a per-item section picker — "no section" keeps the item at module level */
+function secPick(cur,kind,id){
+  const secs=modSections(MODSEL);
+  if(!secs.length)return '';
+  return '<select class="btn sm" data-sec="'+kind+':'+id+'" style="max-width:150px;font-weight:600">'
+    +'<option value="">— no section —</option>'
+    +secs.map(x=>'<option value="'+x.id+'"'+(cur===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')
+    +'</select>';
+}
 function setupItems(modId){   // setup view includes drafts (flagged), unlike the live track
   const arts=ARTS.filter(a=>a.module_id===modId&&a.status!=='archived').map(a=>({kind:'a',a,sort:a.sort_order||0}));
   const steps=STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0}));
@@ -643,12 +653,14 @@ function drawModules(){
         return '<div class="steprow"><div class="atile" style="width:28px;height:28px;font-size:.85rem">'+esc(artIcon(a))+'</div>'
           +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+(a.status==='draft'?' <span class="achip draft">Draft</span>':'')+'</div>'
           +'<div class="stepmeta">Article · '+esc(catName(a.category_id))+(q&&q.nq?' · quiz ('+q.nq+')':'')+(a.require_ack?' · required':'')+'</div></div>'
+          +secPick(a.section_id,'a',a.id)
           +ud+'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
       }
       const s=it.s;
       return '<div class="steprow"><div class="atile" style="width:28px;height:28px;font-size:.85rem">'+(s.who==='manager'?'🧑‍💼':'☑️')+'</div>'
         +'<div class="stepmain"><div class="steptitle">'+esc(s.title)+'</div>'
         +'<div class="stepmeta">'+(s.who==='manager'?'Manager completes':'Employee completes')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+        +secPick(s.section_id,'s',s.id)
         +ud+'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
     }).join('');
     const addable=ARTS.filter(a=>a.status!=='archived'&&a.module_id!==cur.id);
@@ -658,9 +670,22 @@ function drawModules(){
       +'<button class="btn sm" id="mSave">Save</button>'
       +'<button class="btn sm" id="mUp">↑</button><button class="btn sm" id="mDn">↓</button>'
       +'<button class="btn sm" id="mArch" style="color:var(--red)">Archive</button></div>'
+      +'<div style="display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--row);flex-wrap:wrap;align-items:center;font-size:.78rem;font-weight:700">'
+        +'<span>Auto-assign to</span>'
+        +'<select class="btn sm" id="mRole"><option value="">nobody (assign by hand)</option>'
+          +['team_member','admin','owner'].map(r=>'<option value="'+r+'"'+(cur.auto_assign_role===r?' selected':'')+'>'+r.replace("_"," ")+'</option>').join('')+'</select>'
+        +'<span>hired on or after</span>'
+        +'<input type="date" class="btn sm" id="mFrom" value="'+esc(cur.auto_assign_from||'')+'" style="font-weight:600">'
+        +'<button class="btn sm" id="mRuleSave">Save rule</button>'
+        +'<span style="color:var(--grey);font-weight:600">Leave the date set to today so only new hires pick it up — clearing it assigns everyone matching, including current staff.</span>'
+      +'</div>'
       +(rows||'<div class="empty" style="padding:22px">Nothing in this module yet.</div>')
       +'<div style="display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--row);flex-wrap:wrap;align-items:center">'
         +'<button class="btn pri sm" id="stAdd">＋ Add a task step</button>'
+        +'<button class="btn sm" id="secAdd">＋ Add a section</button>'
+        +modSections(cur.id).map(x=>'<span class="achip" style="display:inline-flex;gap:6px;align-items:center">'+esc(x.name)
+          +'<button class="btn sm" data-secren="'+x.id+'" style="padding:1px 6px">✎</button>'
+          +'<button class="btn sm" data-secdel="'+x.id+'" style="padding:1px 6px;color:var(--red)">✕</button></span>').join('')
         +(addable.length?'<select id="artAdd" class="btn sm" style="max-width:280px"><option value="">＋ Add an article…</option>'
           +addable.map(a=>'<option value="'+a.id+'">'+esc(a.title)+(a.module_id?' (in '+esc((MODULES.find(m=>m.id===a.module_id)||{}).name||'another module')+')':'')+(a.status==='draft'?' — draft':'')+'</option>').join('')+'</select>':'')
       +'</div></div>'
@@ -691,6 +716,40 @@ function drawModules(){
     await refresh();
   };
   $('#mUp').onclick=()=>bump(-1); $('#mDn').onclick=()=>bump(1);
+  $('#mRuleSave')&&($('#mRuleSave').onclick=async()=>{
+    const role=$('#mRole').value||null, from=$('#mFrom').value||null;
+    const r=await sb.from('onboarding_modules').update({auto_assign_role:role,auto_assign_from:from}).eq('id',cur.id);
+    if(r.error){ toast(r.error.message,true); return; }
+    toast(role?'Auto-assign on for '+role.replace('_',' '):'Auto-assign off'); await refresh();
+  });
+  $('#secAdd')&&($('#secAdd').onclick=async()=>{
+    const name=prompt('Section name (e.g. "iPhone Repairs", "Important Policy"):'); if(!name)return;
+    const mx=Math.max.apply(null,[0].concat(modSections(cur.id).map(x=>x.sort)));
+    const r=await sb.from('onboarding_sections').insert({module_id:cur.id,name:name.trim(),sort:mx+10}).select().single();
+    if(r.error){ toast(r.error.message,true); return; }
+    await refresh();
+  });
+  document.querySelectorAll('[data-secren]').forEach(b=>b.onclick=async()=>{
+    const x=SECTIONS.find(y=>y.id===+b.dataset.secren); if(!x)return;
+    const name=prompt('Rename section:',x.name); if(!name)return;
+    const r=await sb.from('onboarding_sections').update({name:name.trim()}).eq('id',x.id);
+    if(r.error){ toast(r.error.message,true); return; }
+    await refresh();
+  });
+  document.querySelectorAll('[data-secdel]').forEach(b=>b.onclick=async()=>{
+    const x=SECTIONS.find(y=>y.id===+b.dataset.secdel); if(!x)return;
+    if(!confirm('Delete the "'+x.name+'" section? Its items stay in the module, just ungrouped.'))return;
+    const r=await sb.from('onboarding_sections').delete().eq('id',x.id);   // FK nulls section_id on its items
+    if(r.error){ toast(r.error.message,true); return; }
+    await refresh();
+  });
+  document.querySelectorAll('[data-sec]').forEach(sel=>sel.onchange=async()=>{
+    const [kind,id]=sel.dataset.sec.split(':'), v=sel.value?+sel.value:null;
+    const tbl=kind==='a'?'kb_articles':'onboarding_steps';
+    const r=await sb.from(tbl).update({section_id:v}).eq('id',+id);
+    if(r.error){ toast(r.error.message,true); return; }
+    await refresh();
+  });
   $('#mArch').onclick=async()=>{
     if(!confirm('Archive "'+cur.name+'"? Its articles stay in the KB; its task steps stop appearing.'))return;
     await sb.from('onboarding_modules').update({active:false}).eq('id',cur.id);
