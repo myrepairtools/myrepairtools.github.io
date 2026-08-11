@@ -107,6 +107,17 @@ background:#F7F8FA;border-radius:9px;padding:8px 10px;font-size:.8rem;font-weigh
 .r .gp{color:var(--green);font-weight:800;font-size:.74rem;white-space:nowrap;text-align:right}
 .r .tkt{color:var(--grey);font-weight:800;font-size:.72rem;white-space:nowrap;text-align:right}
 .r .loc{font-size:.7rem;font-weight:800;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* claims are grouped by store, so the location column is replaced by a store
+   sub-head carrying that store's claim count, net and GP */
+.rows.cl .r{grid-template-columns:minmax(0,1fr) 54px 78px 78px}
+.gh{display:grid;grid-template-columns:minmax(0,1fr) 54px 78px 78px;gap:8px;align-items:baseline;
+padding:7px 10px 5px;margin-top:4px;border-bottom:1.5px solid var(--border);
+font-family:'Nunito',sans-serif;font-weight:900;font-size:.78rem}
+.gh:first-child{margin-top:0}
+.gh .gc{font-size:.68rem;font-weight:800;color:var(--grey);text-align:right;white-space:nowrap}
+.gh .gv{text-align:right;white-space:nowrap}
+.gh .gg{color:var(--green);text-align:right;white-space:nowrap}
+.gh .u{font-size:.6rem;font-weight:800;color:var(--grey);text-transform:uppercase;letter-spacing:.4px}
 .quiet{padding:14px 4px;font-size:.8rem;font-weight:700;color:var(--grey)}
 .lb{display:flex;flex-direction:column;gap:8px}
 .lbr{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
@@ -131,6 +142,8 @@ font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;color:var(
   .r .gp{font-size:.68rem}
   .r .tkt{font-size:.66rem}
   .r .loc{font-size:.64rem}
+  .rows.cl .r,.gh{grid-template-columns:minmax(0,1fr) 40px 62px 62px;gap:6px}
+  .gh{font-size:.72rem;padding:6px 8px 4px}
 }
 .demo{display:inline-flex;background:#EAF6FD;color:#1E7AA8;border-radius:99px;padding:3px 10px;
 font-size:.72rem;font-weight:800;margin-left:6px}
@@ -366,23 +379,46 @@ function claimsHtml(){
       gp:pick(r,[/after_cogs/i,/gross_profit/i,/(^|[._])gp(?![._]?percent)([._]|$)/i],'num'),
       total:pick(r,[/^ticket_item\.all_net_repair_sale_total$/i,/payment_amount/i,/(^|[._])(?!.*cogs)total([._]|$)/i],'num') };
   });
-  list.sort(function(a,b){ return storeOrd(a.store)-storeOrd(b.store)||String(a.tkt||'').localeCompare(String(b.tkt||'')); });
-  var gpSum=0,gpAny=false;
-  var items=list.map(function(c){
-    if(c.gp!=null){gpSum+=c.gp;gpAny=true;}
-    return '<div class="r"><div class="main"><div class="t">'+esc(c.dev)+'</div>'
-      +(c.desc?'<div class="s">'+esc(c.desc)+'</div>':'')+'</div>'
-      +'<span class="loc">'+esc(c.store?shortLoc(c.store):'')+'</span>'
-      +'<span class="tkt">'+(c.tkt!=null?'#'+esc(c.tkt):'')+'</span>'
-      +(c.gp!=null?'<span class="gp">GP '+money(c.gp)+'</span>':'<span class="amt">'+(c.total!=null?money(c.total,true):'')+'</span>')+'</div>';
+  /* grouped per store, each with its own net + GP subtotal. Net is the repair
+     sale total and GP is net-after-COGS — both come off the raw row, since
+     Looker's own gross_profit table calc arrives null (same as every other
+     derived metric on this page). */
+  var groups={},order=[];
+  list.forEach(function(c){
+    var k=c.store||'—';
+    if(!groups[k]){groups[k]={items:[],net:0,gp:0,netAny:false,gpAny:false};order.push(k);}
+    var g=groups[k];g.items.push(c);
+    if(c.total!=null){g.net+=c.total;g.netAny=true;}
+    if(c.gp!=null){g.gp+=c.gp;g.gpAny=true;}
+  });
+  order.sort(function(a,b){ return storeOrd(a)-storeOrd(b)||String(a).localeCompare(String(b)); });
+  var n=0,netSum=0,gpSum=0,netAny=false,gpAny=false;
+  var items=order.map(function(k){
+    var g=groups[k];
+    n+=g.items.length;
+    if(g.netAny){netSum+=g.net;netAny=true;}
+    if(g.gpAny){gpSum+=g.gp;gpAny=true;}
+    g.items.sort(function(a,b){ return String(a.tkt||'').localeCompare(String(b.tkt||'')); });
+    return '<div class="gh"><span>'+esc(shortLoc(k))+'</span>'
+      +'<span class="gc">'+g.items.length+'</span>'
+      +'<span class="gv">'+(g.netAny?money(g.net):'—')+' <span class="u">net</span></span>'
+      +'<span class="gg">'+(g.gpAny?money(g.gp):'—')+' <span class="u">gp</span></span></div>'
+      +g.items.map(function(c){
+        return '<div class="r"><div class="main"><div class="t">'+esc(c.dev)+'</div>'
+          +(c.desc?'<div class="s">'+esc(c.desc)+'</div>':'')+'</div>'
+          +'<span class="tkt">'+(c.tkt!=null?'#'+esc(c.tkt):'')+'</span>'
+          +'<span class="amt">'+(c.total!=null?money(c.total,true):'—')+'</span>'
+          +'<span class="gp">'+(c.gp!=null?money(c.gp,true):'—')+'</span></div>';
+      }).join('');
   });
   var payout=(BY.claim_payout_weekly||[]).map(function(r){
     var s=storeOf(r), amt=GN(r,'transaction.payment_amount_total');
     return s&&amt!=null?'<span>'+esc(LOC.display(s))+' '+money(amt)+'</span>':'';
   }).join('');
   return '<div class="sect">Claims Fulfilled Today'
-    +(items.length?'<span class="cnt">'+items.length+' claim'+(items.length===1?'':'s')+(gpAny?' · '+money(gpSum)+' GP':'')+'</span>':'')+'</div>'
-    +'<div class="card">'+(items.length?'<div class="rows">'+items.join('')+'</div>'
+    +(n?'<span class="cnt">'+n+' claim'+(n===1?'':'s')
+      +(netAny?' · '+money(netSum)+' net':'')+(gpAny?' · '+money(gpSum)+' GP':'')+'</span>':'')+'</div>'
+    +'<div class="card">'+(n?'<div class="rows cl">'+items.join('')+'</div>'
       :'<div class="quiet">No claims fulfilled yet today.</div>')
     +(payout?'<div class="chips" style="margin-top:10px"><span style="background:none;padding-left:0;color:var(--grey)">Paid Last 7 Days</span>'+payout+'</div>':'')
     +'</div>';

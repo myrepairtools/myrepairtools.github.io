@@ -285,9 +285,13 @@ Tkt), while ≥1000px always shows a dense label→value ledger instead. Derived
 metrics (GP %, attach, accy %, accy/tkt) are **computed client-side** from raw
 fields (Looker table calcs arrive null; formulas verified in
 docs/daily-digest-design-handoff.md). Today tab also lists Devices Sold Today
-and Claims Fulfilled Today (location as its own column, rows sorted by store
-order; claims flagged "pays out Thursday — traffic signal" + 7-day payout
-chips from `claim_payout_weekly`); Team tab merges today's per-rep sales with
+and Claims Fulfilled Today (**grouped per store** in CPRLocations order, each
+group headed by that store's claim count · net · GP and each claim row showing
+its own net + GP — net is `ticket_item.all_net_repair_sale_total`, GP is
+`all_net_sale_after_cogs_total`, both read off the raw row since Looker's own
+`gross_profit` calc arrives null like every other derived metric here; the
+section header carries the day's totals; claims flagged "pays out Thursday —
+traffic signal" + 7-day payout chips from `claim_payout_weekly`); Team tab merges today's per-rep sales with
 MTD cleanings / express / AKKO counts, sort persisted (`cprDigestSort`).
 Unknown tile row keys are matched defensively (`pick()` regexes) since some
 tiles captured 0 rows at build time. Empty states: signed-out, Managers Only
