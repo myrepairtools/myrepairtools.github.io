@@ -107,14 +107,17 @@ background:#F7F8FA;border-radius:9px;padding:8px 10px;font-size:.8rem;font-weigh
 .r .gp{color:var(--green);font-weight:800;font-size:.74rem;white-space:nowrap;text-align:right}
 .r .tkt{color:var(--grey);font-weight:800;font-size:.72rem;white-space:nowrap;text-align:right}
 .r .loc{font-size:.7rem;font-weight:800;color:var(--dark-grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* claims are grouped by store, so the location column is replaced by a store
-   sub-head carrying that store's claim count, net and GP */
-.rows.cl .r{grid-template-columns:minmax(0,1fr) 54px 78px 78px}
-.gh{display:grid;grid-template-columns:minmax(0,1fr) 54px 78px 78px;gap:8px;align-items:baseline;
+/* Claims are grouped by store, so the location column is replaced by a store
+   sub-head carrying that store's claim count, net and GP. The ticket number
+   moves down into the subtitle line: at >=1000px .duo puts this card in a half
+   column (~345px), and a third fixed column left the device name only ~91px,
+   which clipped every real model name. */
+.rows.cl .r{grid-template-columns:minmax(0,1fr) 74px 74px}
+.gh{display:grid;grid-template-columns:minmax(0,1fr) 74px 74px;gap:8px;align-items:baseline;
 padding:7px 10px 5px;margin-top:4px;border-bottom:1.5px solid var(--border);
 font-family:'Nunito',sans-serif;font-weight:900;font-size:.78rem}
 .gh:first-child{margin-top:0}
-.gh .gc{font-size:.68rem;font-weight:800;color:var(--grey);text-align:right;white-space:nowrap}
+.gh .gc{font-size:.68rem;font-weight:800;color:var(--grey);white-space:nowrap;margin-left:6px}
 .gh .gv{text-align:right;white-space:nowrap}
 .gh .gg{color:var(--green);text-align:right;white-space:nowrap}
 .gh .u{font-size:.6rem;font-weight:800;color:var(--grey);text-transform:uppercase;letter-spacing:.4px}
@@ -142,7 +145,7 @@ font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;color:var(
   .r .gp{font-size:.68rem}
   .r .tkt{font-size:.66rem}
   .r .loc{font-size:.64rem}
-  .rows.cl .r,.gh{grid-template-columns:minmax(0,1fr) 40px 62px 62px;gap:6px}
+  .rows.cl .r,.gh{grid-template-columns:minmax(0,1fr) 64px 64px;gap:6px}
   .gh{font-size:.72rem;padding:6px 8px 4px}
 }
 .demo{display:inline-flex;background:#EAF6FD;color:#1E7AA8;border-radius:99px;padding:3px 10px;
@@ -399,14 +402,14 @@ function claimsHtml(){
     if(g.netAny){netSum+=g.net;netAny=true;}
     if(g.gpAny){gpSum+=g.gp;gpAny=true;}
     g.items.sort(function(a,b){ return String(a.tkt||'').localeCompare(String(b.tkt||'')); });
-    return '<div class="gh"><span>'+esc(shortLoc(k))+'</span>'
-      +'<span class="gc">'+g.items.length+'</span>'
+    return '<div class="gh"><span>'+esc(shortLoc(k))+'<span class="gc">'+g.items.length+'</span></span>'
       +'<span class="gv">'+(g.netAny?money(g.net):'—')+' <span class="u">net</span></span>'
       +'<span class="gg">'+(g.gpAny?money(g.gp):'—')+' <span class="u">gp</span></span></div>'
       +g.items.map(function(c){
+        // ticket rides in the subtitle so the model name keeps the full column
+        var sub=[c.desc,c.tkt!=null?'#'+c.tkt:''].filter(Boolean).join(' · ');
         return '<div class="r"><div class="main"><div class="t">'+esc(c.dev)+'</div>'
-          +(c.desc?'<div class="s">'+esc(c.desc)+'</div>':'')+'</div>'
-          +'<span class="tkt">'+(c.tkt!=null?'#'+esc(c.tkt):'')+'</span>'
+          +(sub?'<div class="s">'+esc(sub)+'</div>':'')+'</div>'
           +'<span class="amt">'+(c.total!=null?money(c.total,true):'—')+'</span>'
           +'<span class="gp">'+(c.gp!=null?money(c.gp,true):'—')+'</span></div>';
       }).join('');
