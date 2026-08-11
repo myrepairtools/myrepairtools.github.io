@@ -8,19 +8,23 @@ every denomination is visible at once — with three changes that matter for us.
 | | |
 | --- | --- |
 | File | `stl/safe-cash-tray.stl` |
-| Footprint | **158.0 × 165.0 mm** |
+| Footprint | **162.2 × 165.0 mm** |
 | Height | 20 mm front lip rising to 45 mm at the back |
-| Slots | 6 × 24 mm, one per denomination |
-| Labels | `$1 $5 $10 $20 $50 $100`, engraved 0.6 mm |
-| Material | ~166 cm³, so roughly 190–210 g |
+| Slots | 5 × 30 mm — $50s and $100s share the last one |
+| Labels | `$1 $5 $10 $20` + a stacked `$50 / $100`, engraved 0.6 mm |
+| Material | ~159 cm³, so roughly 185–200 g |
 
 ## Check the safe first
 
-**Floor needed: 158 × 165 mm. Height needed: 64 mm.**
+**Floor needed: 162 × 165 mm. Height needed: 62 mm.**
 
-That 64 mm is the *standing note*, not the 45 mm wall — a note leans across its
+That 62 mm is the *standing note*, not the 45 mm wall — a note leans across its
 slot, and a US note is 66.3 mm on the short side, so it projects well above the
-tray. Measure the inside of the safe against 64 mm, not 45.
+tray. Measure the inside of the safe against 62 mm, not 45.
+
+Widening the slots is the lever on that number, because a wider slot lets the
+note lean flatter: 24 mm slots stood 64 mm, 30 mm slots stand 62, and 40 mm
+would stand 55. If the safe is tight on height, that's where to spend width.
 
 I sized this to the print bed and to a real note, since I don't have your safe's
 interior dimensions. **Give me interior width, depth and height and I'll resize
@@ -29,14 +33,19 @@ it** — the whole tray is derived from a handful of numbers at the top of
 
 ## What's different from the Amazon one
 
-**6 slots, not 8.** US notes all share one size, so six covers every
-denomination and there is nothing left over to fill. No coin slots — coin rolls
-are not kept in the safe. That drops the tray from 218 mm wide to 158 mm and
-takes a quarter off the print.
+**5 slots, not 8.** No coin slots — coin rolls aren't kept in the safe. And
+**$50s and $100s share the last one**: neither moves in the volume the small
+notes do, and merging them buys a whole slot's width to spread over the rest.
+Every slot went from 24 mm to **30 mm** — 25 % more notes each, and the tray is
+still narrower than the 8-slot version it started as.
+
+The shared slot's label stacks — `$50` over `$100` — because two denominations
+can't sit side by side in 30 mm at a readable size. Label sizing is automatic:
+each one shrinks to fit its slot and the front lip, and an assert fails the
+build if a label ever drops below 4.5 mm.
 
 If coins ever do need a home, `N_COIN = 2` at the top of the source puts two
-28 mm slots back (a quarter roll is 25 mm across, and a 160 mm slot holds two
-end to end). Nothing else needs touching.
+28 mm slots back. Nothing else needs touching.
 
 **Denominations engraved in the front lip.** A count gets read off the tray
 instead of remembered, which is the whole point when the number ends up in a
@@ -58,13 +67,13 @@ tenth of a millimetre across the span.
 ## Printing
 
 Prints as exported: **flat on the floor, walls up. No supports, no brim** — the
-first layer is a solid 158 × 165 mm rectangle, so adhesion is not going to be
+first layer is a solid 162 × 165 mm rectangle, so adhesion is not going to be
 the problem.
 
 0.2 mm layers, 4 walls, 15 % infill (it's nearly all perimeter anyway). PLA+ is
 right: it lives in a safe, never gets warm, and stiffness is what you want.
 
-**It's still a long print** at ~166 cm³ — slice it and look at the real number
+**It's still a long print** at ~159 cm³ — slice it and look at the real number
 before you commit. The acrylic one is $20 and arrives in two days, so the case
 for printing rests entirely on the two things it can't do: fitting *your* safe
 exactly, and carrying the denomination labels.

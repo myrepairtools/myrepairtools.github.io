@@ -1,30 +1,33 @@
 """
 Cash tray for the store safes.
 
-Same idea as the acrylic Amazon trays: eight slots, notes stood on edge leaning
-back so every denomination is visible at once.  Differences that matter for us:
+Same idea as the acrylic Amazon trays: notes stood on edge leaning back so every
+denomination is visible at once.  Differences that matter for us:
 
-  - 6 note slots + 2 WIDER slots for coin rolls, instead of 8 identical ones.
+  - 5 slots, not 8.  $50s and $100s share the last one, and there are no coin
+    slots -- so the width goes into making every slot wider instead.
   - Denominations engraved in the front wall, so a count is read off the tray
     rather than remembered.
   - Sized to the print bed and to a real US note, not to a generic box.
 
 Layout, looking down:
 
-    +---------------------------------------------+
-    |  |    |    |    |    |    |     |     |     |   <- back wall, full height
-    |  |    |    |    |    |    |     |     |     |
-    |  | $1 | $5 | $10| $20| $50| $100|COIN |COIN |   <- notes lie front-to-back
-    |  |    |    |    |    |    |     |     |     |
-    +--+----+----+----+----+----+-----+-----+-----+   <- front wall, low
-       $1   $5   $10  $20  $50  $100  COIN  COIN      <- engraved here
+    +----------------------------------------+
+    |  |     |     |     |     |      |      |   <- back wall, full height
+    |  |     |     |     |     | $50  |      |
+    |  | $1  | $5  | $10 | $20 | $100 |      |   <- notes lie front-to-back
+    |  |     |     |     |     |      |      |
+    +--+-----+-----+-----+-----+------+------+   <- front lip, low
+       $1    $5    $10   $20   $50                 <- engraved here
+                               $100
 
 The front of the tray is cut down on a slope, so the notes lean out toward you
 and there is something to pinch.  The slope is an upward-facing surface, so it
 prints with no supports -- the whole tray is walls on a flat floor.
 
-Notes stand ~63 mm above the floor once they lean, which is the number to check
-against the inside height of the safe, NOT the wall height.
+Wider slots do two things: more notes per slot, and the note leans FLATTER, so
+it stands less proud of the tray.  That second one is what the safe's inside
+height has to clear -- not the wall height.
 
 Run:  python3 cash_tray.py
 """
@@ -43,12 +46,14 @@ BILL_L   = 156.0   # US note, long side -- all denominations are the same
 BILL_H   = 66.3    # US note, short side.  This is what leans.
 BILL_CLR = 4.0     # slack along the note's length
 
-N_BILL = 6         # $1 $5 $10 $20 $50 $100 -- US notes are all one size
+# $50s and $100s share the last slot -- neither moves in the volume the others
+# do, and merging them buys a whole slot's width to spread over the rest.
+N_BILL = 5
 N_COIN = 0         # coin rolls are not kept in the safe.  Set to 2 to get
-SLOT_W = 24.0      # them back; nothing else needs touching.
+SLOT_W = 30.0      # them back; nothing else needs touching.
 COIN_W = 28.0      # coin-roll slot: a quarter roll is 25 mm across
 
-LABELS = ["$1", "$5", "$10", "$20", "$50", "$100"] + ["COIN"] * N_COIN
+LABELS = ["$1", "$5", "$10", "$20", "$50\n$100"] + ["COIN"] * N_COIN
 
 # ---------------------------------------------------------------------------
 # The tray
@@ -64,9 +69,10 @@ SLOPE_Y = 95.0     # how far back the slope runs before reaching full height
 GRIP_W = 45.0      # scallop in each end wall, to lift the tray out
 GRIP_D = 12.0
 
-LABEL_H = 8.0      # engraved text
+LABEL_H = 8.0      # engraved text, shrunk to fit if the label is long
 LABEL_D = 0.6
 LABEL_Z = 10.0     # centre height on the front wall
+LABEL_GAP = 0.28   # between stacked lines, as a fraction of the text height
 
 # ---------------------------------------------------------------------------
 # Derived
@@ -82,8 +88,18 @@ OUTER_W = INNER_W + 2 * WALL
 LEAN_H = max((BILL_H ** 2 - w ** 2) ** 0.5 for w in SLOTS) + FLOOR_T
 
 # DejaVu Sans Bold runs about 0.64 em per character.
-def _label_w(text, size=LABEL_H):
-    return 0.64 * size * len(text)
+def _label_size(label, slot_w):
+    """Text height that keeps a label inside its slot and inside the front lip.
+
+    Labels may carry a newline -- "$50\\n$100" stacks, because a slot that two
+    denominations share cannot fit them side by side at a readable size.
+    """
+    lines = label.split("\n")
+    n = len(lines)
+    longest = max(len(ln) for ln in lines)
+    size = min(LABEL_H, slot_w * 0.88 / (0.64 * longest))
+    size = min(size, H_FRONT * 0.8 / (n + LABEL_GAP * (n - 1)))
+    return lines, size
 
 assert len(LABELS) == N_SLOT, "one label per slot"
 assert OUTER_W < BED - 6, f"tray {OUTER_W:.0f} mm wide -- will not fit the bed"
@@ -96,8 +112,9 @@ assert H_FRONT < H_BACK, "front lip is not lower than the back"
 assert SLOPE_Y < INNER_D, "slope runs past the back of the tray"
 assert GRIP_D < H_BACK - H_FRONT, "grip scallop cuts below the front lip"
 for lbl, w in zip(LABELS, SLOTS):
-    assert _label_w(lbl) < w * 0.92, \
-        f"label {lbl!r} is wider than its {w} mm slot"
+    _lines, _sz = _label_size(lbl, w)
+    assert _sz >= 4.5, \
+        f"label {lbl!r} shrinks to {_sz:.1f} mm in a {w} mm slot -- unreadable"
 
 
 def _spans():
@@ -108,22 +125,31 @@ def _spans():
         x += w + DIV_T
 
 
-def _text_solid(label):
+def _text_solid(label, slot_w):
     """Text lying in the front wall (y = 0), readable from outside.
 
     Built in XY and rotated rather than drawn on a side workplane: an "XZ"
     workplane extrudes along -Y and has twice put a feature outside the part
     it belonged to.
     """
-    t = (
-        cq.Workplane("XY")
-        .text(label, LABEL_H, LABEL_D + 1.0, kind="bold",
-              font="DejaVu Sans", halign="center", valign="center")
-    )
-    # +90 about X: text-up +Y -> +Z, extrusion +Z -> -Y, normal ends at -Y so
-    # it reads from in front of the tray.
-    t = t.rotate((0, 0, 0), (1, 0, 0), 90)
-    return t.translate((0, LABEL_D, LABEL_Z))
+    lines, size = _label_size(label, slot_w)
+    gap = size * LABEL_GAP
+    total = len(lines) * size + (len(lines) - 1) * gap
+    z0 = LABEL_Z + total / 2.0 - size / 2.0
+
+    out = None
+    for i, line in enumerate(lines):
+        t = (
+            cq.Workplane("XY")
+            .text(line, size, LABEL_D + 1.0, kind="bold",
+                  font="DejaVu Sans", halign="center", valign="center")
+        )
+        # +90 about X: text-up +Y -> +Z, extrusion +Z -> -Y, normal ends at -Y
+        # so it reads from in front of the tray.
+        t = t.rotate((0, 0, 0), (1, 0, 0), 90)
+        t = t.translate((0, LABEL_D, z0 - i * (size + gap)))
+        out = t if out is None else out.union(t)
+    return out
 
 
 def tray():
@@ -168,7 +194,7 @@ def tray():
 
     # Engrave the denominations in the front wall.
     for (x0, x1), lbl in zip(_spans(), LABELS):
-        r = r.cut(_text_solid(lbl).translate(((x0 + x1) / 2.0, 0, 0)))
+        r = r.cut(_text_solid(lbl, x1 - x0).translate(((x0 + x1) / 2.0, 0, 0)))
 
     return r
 
@@ -183,7 +209,7 @@ if __name__ == "__main__":
           f"{H_FRONT:.0f} mm front lip rising to {H_BACK:.0f} mm at the back")
     print(f"slots     {N_BILL} x {SLOT_W:.0f} mm for notes"
           + (f", {N_COIN} x {COIN_W:.0f} mm for coin rolls" if N_COIN else ""))
-    print(f"labels    {', '.join(LABELS)}")
+    print(f"labels    {', '.join(l.replace(chr(10), '/') for l in LABELS)}")
     print(f"notes     {BILL_L} x {BILL_H} mm, {INNER_D:.0f} mm of slot length")
     print(f"CLEARANCE needed inside the safe: "
           f"{OUTER_W:.0f} x {OUTER_D:.0f} mm footprint, "
