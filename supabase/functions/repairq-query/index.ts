@@ -2130,6 +2130,54 @@ Deno.serve(async (req) => {
       return json({ ok: true, mode: "apply", location: locName, from_status: fromStatus, to_status: toStatus, receipt });
     }
 
+    // Supplier-mode resolve: per-UNIT rows with each unit's CURRENT supplier, so
+    // the page can filter "only change units from supplier X". A serial resolves
+    // to its one unit (any status); a SKU expands to its ON-HAND units at the
+    // store (Instock/Pending RMA/Pulled/Ordered — Sold and gone-from-store
+    // statuses are excluded so an old SKU doesn't drag in years of sold units).
+    if (mode === "resolve_supplier") {
+      const inRows: Array<{ value: string }> = Array.isArray(payload.rows) ? payload.rows : [];
+      const vals = [...new Set(inRows.map((r) => String(r.value || "").trim()).filter(Boolean))];
+      const skuMap = new Map<string, { cid: any; name: string }>();
+      for (let i = 0; i < vals.length; i += 40) {
+        const batch = vals.slice(i, i + 40);
+        const rows = await lk(["catalog_item.id", "catalog_item.sku", "catalog_item.name"],
+          { "catalog_item.sku": batch.join(","), "location.short_name": locName });
+        for (const r of rows) { const s = String(r["catalog_item.sku"]); if (!skuMap.has(s)) skuMap.set(s, { cid: r["catalog_item.id"], name: r["catalog_item.name"] }); }
+      }
+      const skus = vals.filter((v) => skuMap.has(v));
+      const serials = vals.filter((v) => !skuMap.has(v));
+      const UNIT_FIELDS = ["inventory_item.id", "inventory_item.serial_number", "inventory_item.status_id", "supplier.name", "catalog_item.sku", "catalog_item.name"];
+      const ONHAND = new Set([2, 3, 8, 97]); // Instock · Pending RMA · Pulled · Ordered
+      const out: any[] = [];
+      const unitRow = (r: any, value: string, src: string) => ({
+        value, kind: "unit", src, item_id: r["inventory_item.id"],
+        serial: r["inventory_item.serial_number"] || null, sku: String(r["catalog_item.sku"] || ""),
+        name: r["catalog_item.name"] || null, supplier: r["supplier.name"] || null,
+        status_id: Number(r["inventory_item.status_id"]) || 0,
+      });
+      for (let i = 0; i < skus.length; i += 25) {
+        const batch = skus.slice(i, i + 25);
+        const rows = await lk(UNIT_FIELDS, { "catalog_item.sku": batch.join(","), "location.short_name": locName });
+        for (const r of rows) {
+          if (!ONHAND.has(Number(r["inventory_item.status_id"]))) continue;
+          out.push(unitRow(r, String(r["catalog_item.sku"]), "sku"));
+        }
+      }
+      for (let i = 0; i < serials.length; i += 40) {
+        const batch = serials.slice(i, i + 40);
+        const rows = await lk(UNIT_FIELDS, { "inventory_item.serial_number": batch.join(","), "location.short_name": locName });
+        for (const r of rows) out.push(unitRow(r, String(r["inventory_item.serial_number"]), "serial"));
+      }
+      const found = new Set(out.map((r) => r.value));
+      for (const v of vals) {
+        if (found.has(v)) continue;
+        if (skuMap.has(v)) out.push({ value: v, kind: "nounits", name: skuMap.get(v)!.name });
+        else out.push({ value: v, kind: "notfound" });
+      }
+      return json({ ok: true, mode: "resolve_supplier", location: locName, rows: out });
+    }
+
     // Supplier dropdown for the "change supplier" flow. With an item_id we read
     // that unit's edit form (real "current" marking); without one — the page asks
     // as soon as Supplier mode is picked, before any list exists — we serve a
@@ -2181,14 +2229,14 @@ Deno.serve(async (req) => {
       for (const row of rows) {
         const rec: any = { value: row.value, kind: row.kind, name: row.name || null };
         try {
-          if (row.kind === "serial") {
+          if ((row.kind === "serial" || row.kind === "unit") && /^\d+$/.test(String(row.item_id || ""))) {
             const r = await setUnitSupplier(row.item_id, toSupplier, note);
             rec.status = r.ok ? (r.skipped ? "skipped" : "done") : "failed";
             rec.moved = (r.ok && !r.skipped) ? 1 : 0;
             if (r.error) rec.error = r.error;
             if (r.reason) rec.reason = r.reason;
           } else {
-            rec.status = "skipped"; rec.reason = "supplier change is per-unit — provide serials, not SKUs"; rec.moved = 0;
+            rec.status = "skipped"; rec.reason = "no resolvable unit id"; rec.moved = 0;
           }
         } catch (e) { rec.status = "error"; rec.error = String((e as Error).message || e).slice(0, 160); rec.moved = rec.moved || 0; }
         receipt.push(rec);
