@@ -557,6 +557,8 @@
     'shield': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />',
     'banknote': '<rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" />',
     'pen-line': '<path d="M13 21h8" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />',
+    'archive': '<rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" />',
+    'search': '<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />',
     'monitor-smartphone': '<path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" /><path d="M10 19v-3.96 3.15" /><path d="M7 19h5" /><rect width="6" height="10" x="16" y="12" rx="2" />',
     'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2" /><path d="M12 18h.01" />',
     'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />',
@@ -743,8 +745,8 @@
     var items = null;
     try{ items = JSON.parse(localStorage.getItem('cprKbNav')||'null'); }catch(e){}
     if (!items || !items.length){
-      items = [ {h:'c=all', i:'📚', l:'All articles'}, {h:'c=req', i:'⭐', l:'Required reading'} ];
-      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'✏️',l:'Drafts'},{h:'modules',i:'🧩',l:'Onboarding Setup'},{u:'kb-compliance.html',i:'📋',l:'Compliance'});
+      items = [ {h:'c=all', i:'book-open', l:'All articles'}, {h:'c=req', i:'star', l:'Required reading'} ];
+      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'pen-line',l:'Drafts'});
     }
     var here = currentFile==='knowledge.html' ? location.hash.replace('#','') : '';
     var h = '<div class="cpr-grp">Knowledge Base</div>';
@@ -752,8 +754,11 @@
       if (it.grp){ h += '<div class="cpr-grp">'+esc(it.grp)+'</div>'; return; }
       var href = it.u ? it.u : 'knowledge.html#'+it.h;
       var active = it.u ? (currentFile===it.u) : (currentFile==='knowledge.html' && (here===it.h || (!here && it.h==='c=all')));
+      // Lucide chrome: an `i` matching a NAV_SVG glyph name renders as SVG;
+      // anything else (category emoji = content) renders as text.
+      var glyph = (it.i && NAV_SVG[it.i]) ? navIcon(it.i, 15) : esc(it.i||'📄');
       h += '<a class="cpr-link'+(active?' active':'')+'" href="'+esc(href)+'">'
-        + '<span class="ic" style="font-size:15px;line-height:1">'+esc(it.i||'📄')+'</span>'
+        + '<span class="ic" style="font-size:15px;line-height:1;display:inline-flex;align-items:center">'+glyph+'</span>'
         + '<span style="flex:1">'+esc(it.l)+'</span>'
         + (it.b?'<span style="min-width:18px;text-align:center;background:#DC282E;color:#fff;border-radius:999px;font-size:.62rem;font-weight:800;padding:1px 6px">'+esc(String(it.b))+'</span>':'')
         + (it.c?'<span style="font-size:.68rem;font-weight:800;color:#B9BDCB">'+esc(String(it.c))+'</span>':'')
