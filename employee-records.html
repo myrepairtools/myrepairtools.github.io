@@ -628,12 +628,13 @@ function sortedEntries(e){
 
 /* ===== render (landing ⇄ profile) ===== */
 function render(){
-  writeHash();
   const prof=(S.view==='profile'&&selEmp());
+  if(S.view==='profile'&&!prof){S.view='list';S.empId=null;}   // dead deep link → roster (before the hash writes)
+  writeHash();
   $('#landing').hidden=!!prof;
   $('#pview').hidden=!prof;
   if(prof){renderProfileHead();renderTabs();renderWork();}
-  else{S.view='list';renderLanding();}
+  else renderLanding();
 }
 function writeHash(){
   let h='';
@@ -752,7 +753,9 @@ function openProfile(id){
   S.view='profile';S.empId=e.id;S.tab='profile';S.commSub='settings';S.mDetail=false;
   PD=null;CD=null;syncSel(e);render();
 }
-function backToList(){S.view='list';S.empId=null;PD=null;CD=null;render();}
+function backToList(){
+  if((pfDirty()||cdDirty())&&!confirm('Discard unsaved changes?'))return;
+  S.view='list';S.empId=null;PD=null;CD=null;render();}
 
 /* ----- sync employees (owner; 3b states) ----- */
 async function syncEmployees(){
@@ -850,7 +853,8 @@ function renderWork(){
 
 /* ===== Profile tab (2a form cards + save bar; 3c/3g modals) ===== */
 function genPin(){let s='';for(let i=0;i<4;i++)s+=Math.floor(Math.random()*10);return s;}
-function canEdit(e){const o=AUTH&&AUTH.role==='owner';if(o)return true;
+function canEdit(e){const r=AUTH&&AUTH.role;if(r==='owner')return true;
+  if(r!=='admin'&&r!=='manager')return false;           // caller must be a manager+ (cpr-auth vets this server-side too)
   const t=String(e.roleLevel||'').toLowerCase();return t==='employee'||t==='team_member';}   // mirrors cpr-auth canManageRole
 function initPD(e){
   const prof=PROFILES[e.id]||{phone:'',email:''};
@@ -867,7 +871,8 @@ function storeOptsFor(sel){
   const act=STORES.filter(s=>s.active!==false).map(s=>s.store);
   const list=act.length?act:[...new Set(ALL.map(e=>e.homeStore).filter(Boolean))];
   if(sel&&list.indexOf(sel)<0)list.push(sel);
-  return list.map(s=>'<option value="'+esc(s)+'"'+(s===sel?' selected':'')+'>'+esc(stripStore(s))+'</option>').join('');
+  return (sel?'':'<option value="" selected disabled>Pick a store…</option>')
+    +list.map(s=>'<option value="'+esc(s)+'"'+(s===sel?' selected':'')+'>'+esc(stripStore(s))+'</option>').join('');
 }
 function fld(label,inner,cls){return '<div class="fld'+(cls?' '+cls:'')+'"><label>'+label+'</label>'+inner+'</div>';}
 function profileTabHtml(e){
@@ -1031,9 +1036,10 @@ function openTerminateModal(e,editRecord){
     $('#tm_go').disabled=true;
     const body={action:'update_staff',staff_id:e.id,
       terminated_at:$('#tm_last').value||today,termination_reason:$('#tm_reason').value,
-      termination_note:$('#tm_note').value.trim(),rehire_eligible:$('#tm_rehire').checked,
-      terminated_by:(AUTH&&AUTH.id)||''};
-    if(!editRecord){body.active=false;body.archived=true;body.hr_status='terminated';}
+      termination_note:$('#tm_note').value.trim(),rehire_eligible:$('#tm_rehire').checked};
+    /* stamp terminated_by only on the initial terminate — editing the record keeps the original logger */
+    if(!editRecord){body.active=false;body.archived=true;body.hr_status='terminated';
+      if(AUTH&&AUTH.id)body.terminated_by=AUTH.id;}
     const r=await authFn(body);
     if(!(r.status===200&&r.data.ok)){$('#tm_go').disabled=false;toast((r.data&&r.data.error)||'Failed',true);return;}
     closeModal();toast(editRecord?'Record updated':'Terminated');PD=null;await load();
@@ -1226,6 +1232,7 @@ async function saveCommission(e){
   const r=await sb.from('commission_roster').upsert(row,{onConflict:'staff_id'});
   if(r.error){if(btn)btn.disabled=false;toast('Save failed: '+r.error.message,true);return;}
   CROSTER[e.id]={accy_goal:row.accy_goal,earns_override:row.earns_override,rules_override:row.rules_override,rates_override:row.rates_override};
+  SNAPS_FOR=null;                                       // History's live estimate must recompute with the new overrides
   CD_BASE=JSON.stringify(CD);
   toast('Commission settings saved');
   renderCommissionTab(e);
@@ -1342,9 +1349,12 @@ function ptoHtml(e){
   else{ html+='<div class="toreqs">';
     reqs.forEach(r=>{const range=r.start===r.end?fmt(r.start):(fmt(r.start)+' – '+fmt(r.end));
       const days=reqDays(r), hrs=days*8;
+      /* approval is owner-only (site rule: no self-approval; timeoff.approve defaults to owner) */
+      const mayDecide=AUTH&&AUTH.role==='owner';
       const act=r.status==='pending'
-        ? '<span class="toact"><button class="tobtn deny" data-deny="'+r.id+'">Deny</button><button class="tobtn appr" data-appr="'+r.id+'">Approve</button></span>'
-        : '<span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span><button class="toreopen" data-reopen="'+r.id+'" title="Reopen as pending">Reopen</button>';
+        ? (mayDecide?'<span class="toact"><button class="tobtn deny" data-deny="'+r.id+'">Deny</button><button class="tobtn appr" data-appr="'+r.id+'">Approve</button></span>'
+                    :'<span class="topill" style="'+toStatusStyle(r.status)+'">Pending</span>')
+        : '<span class="topill" style="'+toStatusStyle(r.status)+'">'+esc(r.status.charAt(0).toUpperCase()+r.status.slice(1))+'</span>'+(mayDecide?'<button class="toreopen" data-reopen="'+r.id+'" title="Reopen as pending">Reopen</button>':'');
       html+='<div class="toreq"><div style="flex:1;min-width:0"><div style="font-family:Nunito;font-weight:800;font-size:.86rem">'+esc(range)+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.72rem;color:var(--grey)">'+esc(r.type)+(r.note?(' · '+esc(r.note)):'')+'</div></div>'
         +'<span class="tohrs">'+hrs+' hrs<span class="sub">'+days+(days===1?' day':' days')+'</span></span>'+act+'</div>';});
     html+='</div><div class="empty-sm" style="text-align:left;padding:9px 2px 0;font-size:.72rem">Hours estimated at 8 per day.</div>'; }
@@ -1354,13 +1364,15 @@ function ptoHtml(e){
 function reqDays(r){const s=new Date(r.start+'T00:00:00'),e=new Date(r.end+'T00:00:00');if(isNaN(s)||isNaN(e))return 1;const d=Math.round((e-s)/86400000)+1;return d<1?1:d;}
 /* approve / deny / reopen a request — same write path as Schedule Admin (RLS: is_admin(store) or self) */
 async function decideRequest(id,status){
+  if(!(AUTH&&AUTH.role==='owner'))return;               // approval is owner-only
   let req=null; ALL.forEach(e=>{const r=(e.timeoff||[]).filter(x=>x.id===id)[0]; if(r)req=r;});
   if(!req)return;
   const prev=req.status; req.status=status; render();   // optimistic
   const patch=status==='pending'?{status:status,decided_by:null,decided_at:null}
     :{status:status,decided_by:(AUTH&&AUTH.id)||null,decided_at:new Date().toISOString()};
-  const res=await sb.from('time_off_requests').update(patch).eq('id',id);
-  if(res.error){req.status=prev;render();toast(res.error.message||'Could not update',true);}
+  const res=await sb.from('time_off_requests').update(patch).eq('id',id).select('id');
+  if(res.error||!(res.data&&res.data.length)){          // RLS-filtered 0-row updates return no error
+    req.status=prev;render();toast((res.error&&res.error.message)||'Not permitted',true);}
   else toast(status==='approved'?'Approved':status==='denied'?'Denied':'Reopened');
 }
 
@@ -1763,7 +1775,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 /* ===== events (delegated on stable parents) ===== */
 $('#tabbar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;
   if(S.tab==='profile'&&pfDirty()&&b.dataset.tab!=='profile'&&!confirm('Discard unsaved profile changes?'))return;
-  S.tab=b.dataset.tab;S.mDetail=false;if(b.dataset.tab!=='profile')PD=null;render();});
+  if(S.tab==='commission'&&cdDirty()&&b.dataset.tab!=='commission'&&!confirm('Discard unsaved commission changes?'))return;
+  S.tab=b.dataset.tab;S.mDetail=false;if(b.dataset.tab!=='profile')PD=null;if(b.dataset.tab!=='commission')CD=null;render();});
 window.addEventListener('hashchange',()=>{parseHash();render();});
 $('#work').addEventListener('change',e=>{const f=e.target.closest('[data-f]');if(f){S[f.dataset.f]=f.value;render();}});
 $('#work').addEventListener('click',e=>{
@@ -1785,7 +1798,12 @@ $('#profile').addEventListener('click',e=>{const a=e.target.closest('[data-act]'
 /* boot (skip the lock inside iframes, mirroring the other gates) */
 parseHash();
 if(window.self===window.top)initAuth();
-else{$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
+else{$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');
+  /* iframe: no lock, but still resolve the session so role gates render right */
+  (async()=>{try{const sess=(await sb.auth.getSession()).data.session;
+    if(sess){const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+      if(sr.data)AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};}}catch(_){}
+  load();})();}
 </script>
 </body>
 </html>
