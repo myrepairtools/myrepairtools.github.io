@@ -188,12 +188,23 @@ const TOOLS=[
   {value:'__custom',label:'Paste a URL…'}
 ];
 const RECURS=[['oneoff','One-off'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly'],['flexible','Flexible']];
+/* consecutive weekday runs compress to a range — Mon/Tue/Wed/Thu/Fri/Sat reads "Mon–Sat" */
+function dowRange(days){
+  const s=[...new Set(days)].sort((a,b)=>a-b);
+  if(s.length===7)return 'every day';
+  const runs=[];let st=s[0],pv=s[0];
+  for(let i=1;i<=s.length;i++){const d=s[i];
+    if(d===pv+1){pv=d;continue;}
+    runs.push(st===pv?DOW[st]:(pv-st===1?DOW[st]+'/'+DOW[pv]:DOW[st]+'–'+DOW[pv]));
+    st=pv=d;}
+  return runs.join('/');
+}
 function recurLabel(t){
   const r=t.recur;
   const ev=n=>n===2?'Every other':'Every '+n+(r==='weekly'?' weeks':' months');
   const intPfx=(t.recur_interval||1)>1?ev(t.recur_interval)+(t.recur_interval===2?(r==='weekly'?' week':' month'):'')+' · ':'';
   const winSfx=(t.window_days||0)>0?' · due '+t.window_days+'d later':'';
-  if(r==='weekly') return intPfx+'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+t.weekdays.map(d=>DOW[d]).join('/'):'')+winSfx;
+  if(r==='weekly') return intPfx+'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+dowRange(t.weekdays):'')+winSfx;
   if(r==='monthly') return intPfx+'Monthly'+((t.month_dates&&t.month_dates.length)?' · '+t.month_dates.map(n=>ord(n)).join(', '):'')+winSfx;
   if(r==='flexible') return 'Flexible · '+(t.flex_n||1)+'×/'+(t.flex_per==='month'?'month':'week');
   if(r==='daily') return 'Daily';

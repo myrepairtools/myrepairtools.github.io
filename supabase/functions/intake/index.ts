@@ -126,6 +126,11 @@ function latin1ish(s: string): string {
     .replace(/–/g, "-").replace(/…/g, "...").replace(/ /g, " ")
     .replace(/[^\x0A\x20-\x7E\xA0-\xFF—•]/g, "");
 }
+// Owner signature for the offer letter closing — drawn wherever the body has
+// a line that is exactly "{signature}". Empty until the owner provides one
+// (the placeholder line just collapses), so the template can carry the
+// marker safely.
+const OWNER_SIG_B64 = "";
 // CPR logo for the PDF letterhead — rasterized from
 // assets/images/CPRLogo_NoAssurant_Black.svg (same PNG committed at
 // assets/images/cpr-logo-letterhead.png). Embedded so the function stays
@@ -161,8 +166,22 @@ async function buildOfferPdf(opts: {
     if (line) out.push(line);
     return out.length ? out : [""];
   };
+  let ownerImg: Awaited<ReturnType<typeof doc.embedPng>> | null = null;
+  if (OWNER_SIG_B64) {
+    try { ownerImg = await doc.embedPng(Uint8Array.from(atob(OWNER_SIG_B64), (c) => c.charCodeAt(0))); }
+    catch { /* a bad image just collapses the placeholder */ }
+  }
   const para = (text: string, f = font, size = 10.5, color = dark, lh = 16) => {
     for (const raw of latin1ish(text).split("\n")) {
+      if (raw.trim() === "{signature}") {
+        if (ownerImg) {
+          const sw = 150, sh = sw * (ownerImg.height / ownerImg.width);
+          ensure(sh + 8);
+          page.drawImage(ownerImg, { x: M, y: y - sh, width: sw, height: sh });
+          y -= sh + 4;
+        }
+        continue;
+      }
       if (!raw.trim()) { y -= 8; continue; }
       // light heading markup, same family as the KB: '# ' title, '## ' section
       let lf = f, ls = size, indent = 0, gapAbove = 0, line = raw;

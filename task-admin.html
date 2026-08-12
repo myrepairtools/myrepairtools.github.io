@@ -44,6 +44,9 @@ button{font-family:inherit}
 .trow:hover{background:rgba(79,176,227,.045)}
 .trow>div{padding:11px 12px;min-width:0}
 .bdg{display:inline-flex;align-items:center;border-radius:20px;padding:2px 9px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+/* inside the library grid a chip must never bleed into the next column —
+   wrap instead (the day-range compression makes this rare) */
+.trow .bdg{max-width:100%;white-space:normal}
 .b-daily{background:#EAF5FC;color:#1b6fa3}.b-weekly{background:#E6F4EC;color:var(--green)}.b-monthly{background:#F1EDFC;color:#6d4fc4}.b-flex{background:#FCF3E3;color:var(--amber)}.b-oneoff{background:var(--light-grey);color:var(--dark-grey)}
 .b-must{background:#FBE9EA;color:var(--red)}.b-asap{background:#FCF3E3;color:#B45309}.b-info{background:#EAF5FC;color:#1b6fa3}.b-red{background:#FBE9EA;color:var(--red)}
 .av{border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
@@ -188,9 +191,21 @@ const TOOLS=[
   {value:'__custom',label:'Paste a URL…'}
 ];
 const RECURS=[['oneoff','One-off'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly'],['flexible','Flexible']];
+/* consecutive weekday runs compress to a range — Mon/Tue/Wed/Thu/Fri/Sat reads
+   "Mon–Sat" and stays inside the 150px Recurs column */
+function dowRange(days){
+  const s=[...new Set(days)].sort((a,b)=>a-b);
+  if(s.length===7)return 'every day';
+  const runs=[];let st=s[0],pv=s[0];
+  for(let i=1;i<=s.length;i++){const d=s[i];
+    if(d===pv+1){pv=d;continue;}
+    runs.push(st===pv?DOW[st]:(pv-st===1?DOW[st]+'/'+DOW[pv]:DOW[st]+'–'+DOW[pv]));
+    st=pv=d;}
+  return runs.join('/');
+}
 function recurLabel(t){
   const r=t.recur;
-  if(r==='weekly')return 'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+t.weekdays.map(d=>DOW[d]).join('/'):'');
+  if(r==='weekly')return 'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+dowRange(t.weekdays):'');
   if(r==='monthly')return 'Monthly'+((t.month_dates&&t.month_dates.length)?' · '+t.month_dates.map(n=>ord(n)).join(', '):'');
   if(r==='flexible')return 'Flexible · '+(t.flex_n||1)+'×/'+(t.flex_per==='month'?'month':'week');
   if(r==='daily')return 'Daily';
