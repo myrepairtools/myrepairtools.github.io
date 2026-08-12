@@ -77,6 +77,18 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true, id: data.id, token: data.token });
   }
+  if (action === "cancel") {
+    // delete an un-promoted intake (test rows, rescinded offers). Promoted
+    // intakes are history — they can't be removed from here.
+    const intakeId = Number(body.intake_id);
+    if (!intakeId) return json({ error: "intake_id required" }, 400);
+    const { data: it } = await admin.from("staff_intake").select("id, status").eq("id", intakeId).maybeSingle();
+    if (!it) return json({ error: "not_found" }, 404);
+    if (it.status === "promoted") return json({ error: "already_promoted" }, 409);
+    const { error } = await admin.from("staff_intake").delete().eq("id", intakeId);
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true });
+  }
   if (action === "promote") {
     // copy the intake onto an existing staff row + staff_profiles, stamp the
     // link, and fire module auto-assign for the hire. staff_id required (the

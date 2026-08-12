@@ -191,9 +191,10 @@ function draw(){
       +'<td><span class="stage '+(submitted?'review':'wait')+'">'+(submitted?'Ready to review':'Waiting on them')+'</span></td>'
       +'<td style="font-weight:700">'+(submitted?('intake submitted '+esc(fmtShort(i.submitted_at))):('intake link sent '+esc(fmtShort(i.created_at))))+'</td>'
       +'<td></td>'
-      +'<td style="text-align:right">'+(submitted
+      +'<td style="text-align:right;white-space:nowrap">'+(submitted
         ?'<button class="ghost" data-review="'+i.id+'">Review intake ›</button>'
-        :'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>')+'</td></tr>');
+        :'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>')
+        +' <button class="ghost" data-del="'+i.id+'" title="Delete this intake" style="color:var(--red);border-color:#F6C9CA">✕</button></td></tr>');
   });
   waitingItems+=Object.keys(
     hires.reduce((m,p)=>{const g=gapsFor(p);if(g.todo)m[p.id]=1;return m;},{})).length;
@@ -203,7 +204,10 @@ function draw(){
     +'<span style="flex:1"></span>'
     +'<select class="storesel" id="storeSel"><option value="all"'+(STORE==='all'?' selected':'')+'>All stores</option>'
     +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(STORE===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')
-    +'</select><button class="btn" id="newHire">'+ic('plus',11)+' New hire — send intake link</button></div>';
+    +'</select><button class="ghost" onclick="location.href=\'knowledge.html#modules\'" style="padding:8px 12px">Module Setup ›</button>'
+    +'<button class="ghost" onclick="location.href=\'kb-compliance.html\'" style="padding:8px 12px">Compliance ›</button>'
+    +'<button class="btn" id="newHire">'+ic('plus',11)+' New hire — send intake link</button></div>'
+    +'<div style="font-size:.82rem;font-weight:700;color:var(--dark-grey);margin:-8px 0 14px">The hiring pipeline: send a new hire their intake link → review what they submit and copy it onto their record → watch their training kick off. Day-to-day tracking after that lives on <a href="kb-compliance.html" style="color:var(--blued)">Compliance</a>.</div>';
   h+='<div class="stats">'
     +'<div class="stat"><div class="l">Active new hires</div><div class="v">'+(hires.length+intakes.length)+'</div></div>'
     +'<div class="stat"><div class="l">Waiting on a manager</div><div class="v">'+waitingItems+' item'+(waitingItems===1?'':'s')+'</div></div>'
@@ -218,6 +222,15 @@ function draw(){
   document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>{location.href='kb-compliance.html';});
   document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>copyLink(b.getAttribute('data-copy')));
   document.querySelectorAll('[data-review]').forEach(b=>b.onclick=()=>openReview(+b.getAttribute('data-review')));
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    const i=INTAKES.find(x=>x.id===+b.getAttribute('data-del'));if(!i)return;
+    if(!confirm('Delete this intake'+(i.invited_name?(' for '+i.invited_name):'')+'? Their link stops working.'))return;
+    const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+      body:JSON.stringify({action:'cancel',intake_id:i.id})});
+    const j=await r.json().catch(()=>({}));
+    if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
+    toast('Intake deleted');await loadAll();draw();
+  });
 }
 function intakeUrl(token){return location.origin+location.pathname.replace(/[^/]*$/,'')+'intake.html?t='+token;}
 function copyLink(token){
