@@ -113,6 +113,7 @@
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'calendar-cog', minRole:'admin', acc:'schedule.admin', hidden:true },
     { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', minRole:'admin', hidden:true },
     { label:'KB Compliance',  url:'kb-compliance.html',    icon:'clipboard-check', minRole:'admin', hidden:true },
+    { label:'Module Setup',   url:'onboarding-setup.html', icon:'graduation-cap', minRole:'admin', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' },
     { label:'Bookings',       url:'interviews.html',       icon:'calendar-days', minRole:'admin' }
@@ -315,8 +316,10 @@
   // settings pages highlight the gear (employee-records stays under Employees even
   // though it's also listed in the Settings pane)
   var inSettings = (currentFile === 'settings.html');
-  var inKb = (currentFile === 'knowledge.html' || currentFile === 'kb-compliance.html');
-  // training.html lives in My Hub (owner decision) — not the kb area.
+  var inKb = (currentFile === 'knowledge.html');
+  // training.html lives in My Hub; kb-compliance + onboarding-setup +
+  // onboarding-dashboard are Employees-area management pages (owner decision:
+  // the KB area is only the KB itself).
   var ACTIVE_AREA = inKb ? 'kb' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
 
   // ── STYLES ───────────────────────────────────────────────────────────
@@ -743,7 +746,10 @@
   // rows. Rows are hash links, so clicks route inside the open KB page.
   function kbPaneHtml(){
     var items = null;
-    try{ items = JSON.parse(localStorage.getItem('cprKbNav')||'null'); }catch(e){}
+    // v2 cache shape {v:2, items:[...]} — older plain-array caches predate the
+    // Lucide row names and are ignored so stale emoji rows purge themselves.
+    try{ var c = JSON.parse(localStorage.getItem('cprKbNav')||'null');
+      if (c && c.v === 2 && Array.isArray(c.items)) items = c.items; }catch(e){}
     if (!items || !items.length){
       items = [ {h:'c=all', i:'book-open', l:'All articles'}, {h:'c=req', i:'star', l:'Required reading'} ];
       if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'pen-line',l:'Drafts'});
