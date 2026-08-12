@@ -210,7 +210,10 @@ async function loadAll(){
   SDONE={};(sd.data||[]).forEach(r=>{SDONE[r.step_id]=r;});
 }
 function buildTrack(){
-  return CPRTrack.build({modules:MODULES,sections:SECTIONS,articles:ARTS,steps:STEPS,
+  /* back-office steps are manager-only — the employee never sees them and
+     they never block the employee's sequential unlock */
+  return CPRTrack.build({modules:MODULES,sections:SECTIONS,articles:ARTS,
+    steps:STEPS.filter(s=>s.who!=='backoffice'),
     assignments:ASSIGNS,reads:READS,quizzes:QUIZ,attempts:MYATT,stepDone:SDONE,today:todayISO()});
 }
 /* assigned training = required published reads outside any module, not acked */
@@ -223,7 +226,7 @@ function assignedTraining(){
 function completedItems(){
   const out=[];
   ARTS.forEach(a=>{const r=READS[a.id];if(r&&r.acknowledged_at)out.push({t:a.title,d:r.acknowledged_at,k:'read'});});
-  STEPS.forEach(s=>{const r=SDONE[s.id];if(r)out.push({t:s.title,d:r.done_at,k:'done'});});
+  STEPS.filter(s=>s.who!=='backoffice').forEach(s=>{const r=SDONE[s.id];if(r)out.push({t:s.title,d:r.done_at,k:'done'});});
   out.sort((x,y)=>String(y.d).localeCompare(String(x.d)));
   return out.slice(0,25);
 }

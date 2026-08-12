@@ -162,9 +162,9 @@ function draw(){
           +'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
       }
       const s=it.s;
-      return '<div class="irow" data-iid="s'+s.id+'" draggable="true"><span class="itile">'+(s.who==='manager'?'🧑‍💼':'☑️')+'</span>'
+      return '<div class="irow" data-iid="s'+s.id+'" draggable="true"><span class="itile">'+(s.who==='employee'?'☑️':'🧑‍💼')+'</span>'
         +'<div class="imain"><div class="ititle">'+esc(s.title)+'</div>'
-        +'<div class="imeta">Task · '+(s.who==='manager'?'Manager completes':'Employee completes')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+        +'<div class="imeta">Task · '+(s.who==='backoffice'?'Back office — manager only, hidden from the employee':s.who==='manager'?'Manager, with the employee':'Employee completes')+(s.note?' · '+esc(s.note):'')+'</div></div>'
         +(secsOf.length?secSel('s',s.id,s.section_id):'')
         +'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
     }).join('');
@@ -330,9 +330,14 @@ function openStepEditor(mod,s){
       +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Note (one line, optional)</label>'
       +'<input id="stNote" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem;margin-bottom:12px" value="'+esc(s.note||'')+'" placeholder="What it involves / what to bring">'
       +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:6px">Who completes it</label>'
-      +'<div style="display:flex;gap:8px;margin-bottom:12px">'
-        +'<button class="btn sm'+(who==='manager'?' dk':'')+'" data-who="manager">Manager (with the employee)</button>'
-        +'<button class="btn sm'+(who==='employee'?' dk':'')+'" data-who="employee">Employee themselves</button></div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+        +'<button class="btn sm'+(who==='employee'?' dk':'')+'" data-who="employee">Employee themselves</button>'
+        +'<button class="btn sm'+(who==='manager'?' dk':'')+'" data-who="manager">Manager, with the employee</button>'
+        +'<button class="btn sm'+(who==='backoffice'?' dk':'')+'" data-who="backoffice">Manager only (back office)</button></div>'
+      +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-bottom:12px">'
+        +(who==='backoffice'?'Hidden from the employee — shows only on your Onboarding dashboard &amp; Compliance (e.g. add to QBO payroll).'
+        :who==='manager'?'Shows on both sides — the employee sees “Waiting on your manager”; you tick it off.'
+        :'Shows on both sides — the employee ticks it off themselves.')+'</div>'
       +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Link (optional — a page that does this step)</label>'
       +'<input id="stLink" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem" value="'+esc(s.link_url||'')+'" placeholder="profile.html">'
       +'</div>'
