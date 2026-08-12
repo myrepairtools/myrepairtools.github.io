@@ -180,7 +180,25 @@ Deno.serve(async (req)=>{
     }, {
       onConflict: "device_id"
     });
+    // Sync-created hires (QB Time auto-create) have no auth user yet —
+    // provision one lazily on their first login and stamp it onto the row.
+    if (!staff.auth_uid) {
+      const email = `${crypto.randomUUID()}@pin.cpr.local`;
+      const { data: created, error: ce } = await admin.auth.admin.createUser({
+        email,
+        password: crypto.randomUUID(),
+        email_confirm: true
+      });
+      if (ce) return json({ error: "account setup failed", detail: ce.message }, 500);
+      const { error: ue } = await admin.from("staff").update({ auth_uid: created.user.id }).eq("id", staff.id);
+      if (ue) {
+        await admin.auth.admin.deleteUser(created.user.id).catch(()=>{});
+        return json({ error: "account setup failed", detail: ue.message }, 500);
+      }
+      staff.auth_uid = created.user.id;
+    }
     const { data: u } = await admin.auth.admin.getUserById(staff.auth_uid);
+    if (!u?.user) return json({ error: "account setup failed", detail: "auth user missing" }, 500);
     const { data: link } = await admin.auth.admin.generateLink({
       type: "magiclink",
       email: u.user.email
