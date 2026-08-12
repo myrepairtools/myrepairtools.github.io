@@ -128,7 +128,8 @@
   // the pane to this list instead of navigating. Gear visibility stays staff.manage;
   // rows gate individually. Hash links open that tab on settings.html directly.
   var SETTINGS = [
-    { label:'Team Members',        url:'settings.html#staff',      icon:'users', acc:'staff.manage' },
+    // Team Members consolidated into employee-records.html (Employees area) —
+    // the Settings staff tab is retired; settings.html#staff redirects there.
     { label:'Locations',           url:'settings.html#loc',        icon:'map-pin', acc:'staff.manage' },
     { label:'Notifications',       url:'settings.html#notif',      icon:'bell', acc:'staff.manage' },
     { label:'Page Settings',       url:'settings.html#pages',      icon:'file-cog', acc:'staff.manage' },

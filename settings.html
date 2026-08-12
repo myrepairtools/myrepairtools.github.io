@@ -686,9 +686,13 @@ function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimu
 /* ===== state ===== */
 function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
-var TAB=lsGet('cprSetTab','staff'), SEARCH='', ROSTER='active', RP='roles';
+/* Team Members moved to employee-records.html (consolidation) — old #staff
+   deep links and a remembered staff tab both land there. */
+if(location.hash.replace('#','').toLowerCase()==='staff'){location.replace('employee-records.html');}
+var TAB=lsGet('cprSetTab','loc'), SEARCH='', ROSTER='active', RP='roles';
+if(TAB==='staff'){TAB='loc';lsSet('cprSetTab',TAB);}
 /* deep links from the nav Settings pane (settings.html#integ etc.) beat the remembered tab */
-var HASH_TABS=['staff','loc','notif','pages','commission','integ','roles'];
+var HASH_TABS=['loc','notif','pages','commission','integ','roles'];
 function tabFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
 var _ht=tabFromHash(); if(_ht){TAB=_ht;lsSet('cprSetTab',TAB);}
 window.addEventListener('hashchange',function(){var t=tabFromHash();if(t&&t!==TAB){TAB=t;lsSet('cprSetTab',TAB);renderAll();}});
@@ -902,8 +906,7 @@ function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();render
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
   /* section header — the strip is hidden, the nav Settings pane switches sections */
-  var TT={staff:['📁 Team Members','Stores, access, PINs, commission plans'],
-    loc:['📍 Locations','Stores available across every myRepairTools page'],
+  var TT={loc:['📍 Locations','Stores available across every myRepairTools page'],
     notif:['🔔 Notifications','Automated alerts and where they go'],
     pages:['📄 Page Settings','Per-tool configuration'],
     commission:['📈 Commission','Rates, tiers and payout rules'],
@@ -918,7 +921,7 @@ function renderTabs(){
   $('#ctRoles').textContent=RBROLES.length;
   $('#tabRoles').classList.toggle('hide',!owner);
   $('#tabInteg').classList.toggle('hide',!owner);
-  if(!owner&&(TAB==='roles'||TAB==='integ'))TAB='staff';   /* owner-only tabs */
+  if(!owner&&(TAB==='roles'||TAB==='integ'))TAB='loc';   /* owner-only tabs */
   $('#ctNotif').textContent=NRULES.filter(function(e){return e.enabled;}).length;
   $('#tabStaff').classList.toggle('active',TAB==='staff');
   $('#tabLoc').classList.toggle('active',TAB==='loc');

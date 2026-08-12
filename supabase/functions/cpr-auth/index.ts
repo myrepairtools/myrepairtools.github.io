@@ -228,7 +228,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records, wage_type, birthday").order("active", {
+    const { data } = await admin.from("staff").select("id, display_name, preferred_name, first_name, last_name, username, role, home_store, authorized_stores, active, hide_from_records, wage_type, birthday, title, start_date, hr_status, terminated_at, termination_reason, termination_note, rehire_eligible, created_at").order("active", {
       ascending: false
     }).order("display_name");
     return json({
@@ -306,7 +306,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, birthday, hr_status, notes, archived, hide_from_records } = body;
+    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, birthday, hr_status, notes, archived, hide_from_records, phone, email, terminated_at, termination_reason, termination_note, rehire_eligible, terminated_by } = body;
     if (!staff_id) return json({
       error: "missing staff_id"
     }, 400);
@@ -335,6 +335,12 @@ Deno.serve(async (req)=>{
     if (notes != null) patch.notes = notes;
     if (archived != null) patch.archived = archived;
     if (hide_from_records != null) patch.hide_from_records = !!hide_from_records;
+    // Termination record (Team Members consolidation): "" clears a field.
+    if (terminated_at != null) patch.terminated_at = terminated_at || null;
+    if (termination_reason != null) patch.termination_reason = termination_reason || null;
+    if (termination_note != null) patch.termination_note = termination_note || null;
+    if (rehire_eligible != null) patch.rehire_eligible = !!rehire_eligible;
+    if (terminated_by != null) patch.terminated_by = terminated_by || null;
     // preferred_name: "" clears the override (back to legal), a value sets it, omitted leaves as-is.
     if (preferred_name != null) patch.preferred_name = (String(preferred_name).trim() || null);
     if (first_name != null || last_name != null || username != null || preferred_name != null) {
@@ -347,6 +353,17 @@ Deno.serve(async (req)=>{
       return json({
         error: msg
       }, 400);
+    }
+    // Phone / Email live in staff_profiles (phone / personal_email) — the SMS
+    // pipeline reads staff_profiles.phone, so the admin page edits the SAME field
+    // instead of duplicating it onto staff. Service-role write bypasses the
+    // self-only RLS; "" clears a field.
+    if (phone != null || email != null) {
+      const prof = { staff_id, updated_at: new Date().toISOString() };
+      if (phone != null) prof.phone = String(phone).trim() || null;
+      if (email != null) prof.personal_email = String(email).trim() || null;
+      const { error: pe } = await admin.from("staff_profiles").upsert(prof, { onConflict: "staff_id" });
+      if (pe) return json({ ok: true, profile_error: pe.message });
     }
     return json({
       ok: true
