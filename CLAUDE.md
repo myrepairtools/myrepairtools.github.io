@@ -1007,8 +1007,21 @@ KB RAG **and Price Guide RAG** — pricing-flavored questions also FTS-search
 `price_guide_entries` (imported from price-guide.html's tables via scratchpad
 pg_import.py — re-import after editing the page; schema
 docs/sql/price-guide-entries.sql) and inject matching rows with quote-exactly
-rules, so the assistant answers prices/SKUs from the real guide. Beyond KB +
-Price Guide the assistant still has no live-database tools (Phase 2)** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
+rules, so the assistant answers prices/SKUs from the real guide. **Phase 2 is
+LIVE (owner directive 2026-08-12: "access to everything, scoped by RLS"):
+signed-in users get read-only db tools — `db_select` + `table_columns` — run
+through a client built with the CALLER'S OWN JWT + anon key, so RLS scopes
+every result to what that person already sees in the tools (owner sees all;
+an employee asking for everyone's phone numbers gets only their own row —
+verified both ways). The service-role client is never exposed to the model;
+no raw SQL — filters/order/limit only, 100-row cap, reads only. Table map
+from the `assistant_schema()` RPC (docs/sql/assistant-schema-fn.sql,
+SECURITY DEFINER, execute revoked from browser roles; cached per boot — new
+tables appear after a redeploy/cold start). Streaming is a server-side
+tool-use LOOP (≤6 rounds) that forwards text deltas in Anthropic SSE shape —
+the widget only reads content_block_delta/text_delta, so it needed no
+changes. Anonymous (no-session) chats get no db tools. Phase 3
+(permission-checked, confirm-gated writes) still ahead** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
 from browser roles; strict-then-loose FTS) and injects the top articles into the system
 prompt with citation rules (`from: [title](link)`); the assistant must never state
 CPR-specific policy that isn't in the KB. cpr-assistant's source now lives in

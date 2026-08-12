@@ -19,12 +19,95 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SB_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const ANON = Deno.env.get("SUPABASE_ANON_KEY");
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const admin = createClient(SB_URL, SERVICE, {
   auth: {
     persistSession: false
   }
 });
+// A client that queries AS the signed-in user — every db tool call runs through
+// this, so RLS scopes results to exactly what that person can already see in
+// the tools. The service-role client is never exposed to the model.
+function userClient(jwt) {
+  return createClient(SB_URL, ANON, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${jwt}` } }
+  });
+}
+// ---- public-schema map (assistant_schema RPC; cached per boot) ----
+let SCHEMA = null; // Map<table, cols string>
+async function schemaMap() {
+  if (SCHEMA) return SCHEMA;
+  try {
+    const { data } = await admin.rpc("assistant_schema");
+    SCHEMA = new Map((data || []).map((r) => [String(r.tbl), String(r.cols)]));
+  } catch { SCHEMA = new Map(); }
+  return SCHEMA;
+}
+// ---- db tools (read-only, RLS-scoped via the caller's JWT) ----
+const DB_TOOLS = [
+  {
+    name: "table_columns",
+    description: "Get the column list for one database table. Use before db_select when unsure of column names.",
+    input_schema: { type: "object", properties: { table: { type: "string" } }, required: ["table"] }
+  },
+  {
+    name: "db_select",
+    description: "Read rows from a database table. Runs AS the signed-in user — row-level security scopes what comes back, same as the web tools. Read-only. Keep limits small and filter server-side.",
+    input_schema: {
+      type: "object",
+      properties: {
+        table: { type: "string" },
+        columns: { type: "string", description: "comma-separated columns, default *" },
+        filters: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              column: { type: "string" },
+              op: { type: "string", enum: ["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "in", "is", "contains"] },
+              value: { description: "filter value; array for in/contains; null for is" }
+            },
+            required: ["column", "op"]
+          }
+        },
+        order: { type: "object", properties: { column: { type: "string" }, desc: { type: "boolean" } } },
+        limit: { type: "integer", description: "max rows, default 25, cap 100" },
+        count_only: { type: "boolean", description: "true = return just the row count for the filters" }
+      },
+      required: ["table"]
+    }
+  }
+];
+async function runDbTool(name, input, jwt) {
+  const schema = await schemaMap();
+  const table = String(input?.table || "");
+  if (!schema.has(table)) return { error: `unknown table '${table}' — check the table list` };
+  if (name === "table_columns") return { table, columns: schema.get(table) };
+  const uc = userClient(jwt);
+  const limit = Math.max(1, Math.min(100, Number(input?.limit) || 25));
+  let q = input?.count_only
+    ? uc.from(table).select(String(input?.columns || "*").replace(/[^\w,.* ()->'"]/g, ""), { count: "exact", head: true })
+    : uc.from(table).select(String(input?.columns || "*").replace(/[^\w,.* ()->'"]/g, ""));
+  for (const f of (Array.isArray(input?.filters) ? input.filters : [])) {
+    const col = String(f?.column || ""), op = String(f?.op || "eq"), v = f?.value;
+    if (!col) continue;
+    if (op === "in" && Array.isArray(v)) q = q.in(col, v);
+    else if (op === "contains" && v != null) q = q.contains(col, v);
+    else if (op === "is") q = q.is(col, v ?? null);
+    else if (["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike"].includes(op)) q = q[op](col, v);
+  }
+  if (input?.order?.column) q = q.order(String(input.order.column), { ascending: !input.order.desc });
+  if (!input?.count_only) q = q.limit(limit);
+  const r = await q;
+  if (r.error) return { error: r.error.message };
+  if (input?.count_only) return { table, count: r.count ?? 0 };
+  const rows = r.data || [];
+  let out = JSON.stringify(rows);
+  if (out.length > 14000) out = out.slice(0, 14000) + `…(truncated — ${rows.length} rows returned; filter tighter)`;
+  return { table, rows: rows.length, data: out };
+}
 // Only these models may be requested from the browser (cost/abuse guard).
 const ALLOWED_MODELS = new Set([
   "claude-opus-4-8",
@@ -127,6 +210,23 @@ function pgBlock(rows) {
     "- If the item asked about isn't in the entries above, say the Price Guide doesn't list it and point them to price-guide.html — do not guess.",
   ].join("\n");
 }
+function dbBlock(staff, schema) {
+  if (!staff) return "";
+  const tables = [...schema.keys()].join(", ");
+  return [
+    "",
+    "LIVE DATABASE ACCESS — you have two read-only tools: db_select (query rows) and table_columns (inspect a table).",
+    "Every query runs AS the signed-in user through row-level security, so results are exactly what this person is allowed to see in the web tools — nothing needs extra permission checks on your side, and an empty result may simply mean their access doesn't cover it (say so).",
+    "Available tables: " + tables,
+    "Guidance:",
+    "- Prefer filters + small limits over dumping tables; use count_only for 'how many' questions.",
+    "- Check table_columns when a select errors on a column name.",
+    "- Dates are ISO strings; stores use canonical names like 'CPR Eugene OR' (staff rows carry home_store).",
+    "- Money/commission questions: commission_snapshots.total is commission only — tips are separate.",
+    "- Present results in friendly prose or small lists, not raw JSON. Round money to cents.",
+    "- You are READ-ONLY: you cannot change records. Offer to explain where in the tools a change is made.",
+  ].join("\n");
+}
 function systemPrompt(staff) {
   const name = staff?.display_name || "a CPR team member";
   const role = staff?.role || "team member";
@@ -145,8 +245,8 @@ function systemPrompt(staff) {
     "- Be concise and practical — you are shown in a small chat window. Lead with the answer, then brief supporting detail. Use short paragraphs and simple bullet lists. No LaTeX.",
     "- You have access to the company Knowledge Base (SOPs, policies, repair knowledge, training) and the official Price Guide — relevant articles and price entries are provided below when they match the question.",
     "- NEVER state or imply a CPR-specific policy, price, or process unless it comes from the Knowledge Base articles or Price Guide entries provided to you. If none were provided (or they don't cover it), say so and give general industry guidance clearly labeled as general — do not present it as 'CPR's process'.",
-    "- Beyond the Knowledge Base and Price Guide, you do NOT yet have access to the company's live database (sales, schedules, inventory, orders). If asked for specific live numbers, say that direct data access is coming soon and answer what you can from what the user pastes in.",
-    "- You cannot take actions or change any records yet. If asked to update something, explain that write access is planned and offer to draft what should change.",
+    "- When signed in, you can also READ the live database with the db_select tool (RLS-scoped to the signed-in user) — see LIVE DATABASE ACCESS below. Without a session there are no database tools.",
+    "- You cannot take actions or change any records. If asked to update something, explain that write access is planned and offer to draft what should change.",
     "- When unsure, say so plainly rather than guessing."
   ].join("\n");
 }
@@ -203,32 +303,96 @@ Deno.serve(async (req)=>{
   let kb = await kbRetrieve(lastUser, staff);
   if (!kb.length && prevUser) kb = await kbRetrieve(prevUser + " " + lastUser, staff);
   const pg = await pgRetrieve(lastUser);
-  const system = systemPrompt(staff) + kbBlock(kb) + pgBlock(pg);
-  const upstream = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: MAX_TOKENS,
-      stream: true,
-      system,
-      messages: clean
-    })
+  const jwt = req.headers.get("Authorization")?.replace("Bearer ", "") || "";
+  const schema = staff ? await schemaMap() : new Map();
+  const system = systemPrompt(staff) + kbBlock(kb) + pgBlock(pg) + dbBlock(staff, schema);
+  const tools = staff ? DB_TOOLS : [];
+  // Tool-use loop with pass-through streaming: each round's text deltas are
+  // forwarded to the browser as they arrive (the widget reads only
+  // content_block_delta/text_delta lines); when a round stops on tool_use we
+  // run the RLS-scoped db tools and continue. Capped rounds keep cost bounded.
+  const enc = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const emit = (obj) => controller.enqueue(enc.encode("data: " + JSON.stringify(obj) + "\n\n"));
+      const say = (text) => emit({ type: "content_block_delta", delta: { type: "text_delta", text } });
+      let msgs = clean.slice();
+      try {
+        for (let round = 0; round < 6; round++) {
+          const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": ANTHROPIC_KEY,
+              "anthropic-version": "2023-06-01",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: MAX_TOKENS,
+              stream: true,
+              system,
+              messages: msgs,
+              ...(tools.length ? { tools } : {})
+            })
+          });
+          if (!upstream.ok || !upstream.body) {
+            const detail = await upstream.text().catch(() => "");
+            say("⚠ The assistant hit an upstream error (" + upstream.status + "). Try again in a moment.");
+            console.error("upstream_error", upstream.status, detail.slice(0, 300));
+            break;
+          }
+          // parse this round's SSE: forward text, reconstruct content blocks
+          const blocks = [];
+          let stop = null, buf = "";
+          const reader = upstream.body.getReader();
+          const dec = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const parts = buf.split("\n\n");
+            buf = parts.pop() || "";
+            for (const part of parts) {
+              const line = part.split("\n").find((l) => l.startsWith("data:"));
+              if (!line) continue;
+              let j;
+              try { j = JSON.parse(line.slice(5)); } catch { continue; }
+              if (j.type === "content_block_start") {
+                blocks[j.index] = j.content_block?.type === "tool_use"
+                  ? { type: "tool_use", id: j.content_block.id, name: j.content_block.name, _json: "" }
+                  : { type: "text", text: "" };
+              } else if (j.type === "content_block_delta") {
+                const b = blocks[j.index];
+                if (!b) continue;
+                if (j.delta?.type === "text_delta") { b.text += j.delta.text; say(j.delta.text); }
+                else if (j.delta?.type === "input_json_delta") b._json += j.delta.partial_json || "";
+              } else if (j.type === "message_delta" && j.delta?.stop_reason) stop = j.delta.stop_reason;
+            }
+          }
+          const content = blocks.filter(Boolean)
+            .map((b) => b.type === "tool_use"
+              ? { type: "tool_use", id: b.id, name: b.name, input: (() => { try { return JSON.parse(b._json || "{}"); } catch { return {}; } })() }
+              : { type: "text", text: b.text })
+            .filter((b) => b.type !== "text" || b.text);
+          if (stop !== "tool_use" || !content.some((b) => b.type === "tool_use")) break;
+          msgs = msgs.concat([{ role: "assistant", content }]);
+          const results = [];
+          for (const b of content) {
+            if (b.type !== "tool_use") continue;
+            let res;
+            try { res = await runDbTool(b.name, b.input, jwt); } catch (e) { res = { error: String(e?.message || e).slice(0, 200) }; }
+            results.push({ type: "tool_result", tool_use_id: b.id, content: JSON.stringify(res) });
+          }
+          msgs = msgs.concat([{ role: "user", content: results }]);
+        }
+      } catch (e) {
+        say("⚠ Assistant error: " + String(e?.message || e).slice(0, 200));
+      }
+      emit({ type: "message_stop" });
+      controller.close();
+    }
   });
-  if (!upstream.ok || !upstream.body) {
-    const detail = await upstream.text().catch(()=>"");
-    return json({
-      error: "upstream_error",
-      status: upstream.status,
-      detail: detail.slice(0, 500)
-    }, 502);
-  }
-  // Pass Anthropic's SSE stream straight through to the browser.
-  return new Response(upstream.body, {
+  return new Response(stream, {
     headers: {
       ...CORS,
       "Content-Type": "text/event-stream; charset=utf-8",
