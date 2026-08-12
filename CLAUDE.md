@@ -1088,9 +1088,16 @@ Open/Close endpoints, stored structured jsonb → Review; no pronouns/transporta
 SSN/bank) driven by the **`intake` edge function** (get/submit by token; manager
 create/promote by JWT — the browser never reads `staff_intake`; promote copies onto
 the staff row + staff_profiles fill-empty-only and applies each module's auto-assign
-rule `auto_assign_role`+`auto_assign_from`). Setup (`#modules`) gained the 9c
-controls: auto-assign rule bar, section chips, per-item section selects
-(`onboarding_sections` + section_id on articles/steps). The editor's publish flow
+rule `auto_assign_role`+`auto_assign_from`). **Module Setup is its own page
+`onboarding-setup.html`** (manager+; knowledge.html#modules redirects there) with
+the 9c controls: auto-assign rule bar, section chips, per-item section selects
+(`onboarding_sections` + section_id on articles/steps); the three management
+surfaces (Dashboard/Setup/Compliance) cross-link in their headers and are NOT in
+the KB nav pane (owner call: the KB pane is about the KB — its fixed rows render
+Lucide glyph names via nav.js NAV_SVG, category rows keep content emoji). Intake
+rows are deletable from the dashboard (intake `cancel`, un-promoted only).
+training.html reads articles IN-PAGE (`#read=<slug>` — mark-as-read + quiz CTA
+stay in Training; only quiz-taking hops to knowledge.html). The editor's publish flow
 gained **"Require re-read"** (published+required articles): checking it on Save &
 publish nulls every `kb_reads.acknowledged_at` so the refreshed policy resurfaces in
 Training → Assigned training; ordinary edits never auto-reset. Quiz authoring stays
