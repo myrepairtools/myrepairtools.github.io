@@ -108,6 +108,7 @@
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
     { label:'Team Members',   url:'employee-records.html', icon:'users', minRole:'admin', acc:'staff.view' },
+    { label:'Onboarding',     url:'onboarding-dashboard.html', icon:'graduation-cap', minRole:'admin' },
     // Schedule/Task Admin reached from buttons on My Time / Checklist (hidden from menus)
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'calendar-cog', minRole:'admin', acc:'schedule.admin', hidden:true },
     { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', minRole:'admin', hidden:true },

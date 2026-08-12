@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Onboarding · CPR Oregon</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--blued:#1E7AA8;--bluebg:#EAF6FD;
+--grey:#B9BDCB;--grey2:#8A8FA0;--light-grey:#F3F2F2;--border:#E0E2EA;--row:#F0F1F4;--green:#2E9E5B;
+--greend:#0f6e56;--greenbg:#E1F5EE;--amberbg:#FBF1DC;--ambert:#7A5B10;--redbg:#FDEBEC;--card:0 1px 3px rgba(45,45,59,.05)}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--light-grey)}
+.wrap{max-width:1200px;margin:0 auto;padding:26px 20px 60px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem;letter-spacing:-.3px;margin:0}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.rolebadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--red);border:1px solid #F6C9CA;background:#FFF1F1;border-radius:5px;padding:2px 6px}
+.storesel{height:36px;width:170px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.92rem;color:var(--dark);cursor:pointer}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:8px 14px;border:none;border-radius:9px;
+background:var(--red);color:#fff;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{filter:brightness(1.07)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.stat{flex:1;min-width:170px;max-width:250px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--blue);
+border-radius:12px;padding:10px 14px;box-shadow:var(--card)}
+.stat .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
+.stat .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;color:var(--dark);margin-top:2px}
+.stat.red{border-left-color:var(--red);background:#FFF7F7}
+.stat.red .v{color:var(--red)}
+.tcard{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--card)}
+table{width:100%;border-collapse:collapse}
+th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;
+letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border)}
+td{padding:10px 12px;font-size:.86rem;border-bottom:1px solid rgba(224,226,234,.6);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(79,176,227,.04)}
+.pname{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
+.psub{font-size:.72rem;font-weight:700;color:var(--grey);margin-top:1px}
+.stage{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;padding:3px 10px;border-radius:999px}
+.stage.train{background:var(--bluebg);color:var(--blued)}
+.stage.review{background:var(--amberbg);color:var(--ambert)}
+.stage.wait{background:#F0F1F4;color:var(--grey2)}
+.pbar{width:88px;height:7px;border-radius:999px;background:#ECEDF1;overflow:hidden;display:inline-block;vertical-align:middle}
+.pbar>i{display:block;height:100%;border-radius:999px;background:var(--blue)}
+.pbar>i.red{background:var(--red)}
+.pcount{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;color:var(--dark-grey);margin-left:8px}
+.rednote{font-size:.7rem;font-weight:800;color:var(--red);margin-top:3px}
+.ghost{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;border:1.5px solid var(--border);border-radius:8px;
+background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:nowrap}
+.ghost:hover{border-color:var(--blue);color:var(--blued)}
+.caption{font-size:.74rem;font-weight:700;color:var(--grey);margin-top:10px}
+.empty{color:var(--grey);font-weight:700;font-size:.85rem;padding:20px}
+/* modal (new hire + intake review) */
+.mask{position:fixed;inset:0;background:rgba(45,45,59,.5);display:none;align-items:center;justify-content:center;z-index:1200;padding:16px}
+.mask.show{display:flex}
+.mdl{background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:88vh;overflow:auto}
+.mdl h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.1rem;margin:0 0 12px}
+.f label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:10px 0 3px}
+.f input,.f select{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.88rem}
+.mact{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+.linkbox{display:flex;gap:8px;margin-top:10px}
+.linkbox input{flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;font-family:ui-monospace,monospace}
+.rvrow{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #F7F7F9;font-size:.8rem}
+.rvrow .k{width:100px;flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);padding-top:2px}
+.rvrow .v{font-weight:700}
+.toast{position:fixed;bottom:calc(24px + var(--cpr-bb-h,0px));left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:1300}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap" id="page"><div class="empty">Loading…</div></div>
+<div class="mask" id="mask"><div class="mdl" id="mdl"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js"></script>
+<script src="assets/locations.js"></script>
+<script src="assets/onboarding-track.js"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const FN=SB_URL+'/functions/v1/intake';
+const sb=createClient(SB_URL,ANON);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isMgr=r=>['owner','admin','manager'].indexOf(r)>-1;
+function toast(m,err){const t=$('#toast');t.textContent=m;t.classList.toggle('err',!!err);t.classList.add('show');
+  clearTimeout(toast._h);toast._h=setTimeout(()=>t.classList.remove('show'),4200);}
+const LI={
+ clip:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
+ plus:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'};
+const ic=(n,s)=>LI[n].replace(/\{s\}/g,s||14);
+const NEW_HIRE_DAYS=60;
+
+let AUTH=null,BOOTED=false,STORE='all';
+let STAFF=[],INTAKES=[],MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={};
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){BOOTED=true;AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};boot();}
+}
+sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
+(async()=>{try{const s=(await sb.auth.getSession()).data.session;if(s)resolveMe(s);}catch(e){}})();
+async function jwt(){return (await sb.auth.getSession()).data.session.access_token;}
+
+async function loadAll(){
+  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk]=await Promise.all([
+    sb.from('staff').select('id,display_name,role,home_store,active,start_date,created_at,pin_hash,birthday').eq('active',true),
+    sb.from('staff_intake').select('*').neq('status','promoted').order('created_at',{ascending:false}),
+    sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
+    sb.from('onboarding_sections').select('*'),
+    sb.from('kb_articles').select('id,title,body,status,min_role,module_id,section_id,sort_order').eq('status','published'),
+    sb.from('onboarding_steps').select('*').eq('active',true),
+    sb.from('onboarding_assignments').select('*'),
+    sb.from('kb_reads').select('article_id,staff_id,acknowledged_at'),
+    sb.from('kb_quiz_attempts').select('quiz_id,staff_id,passed'),
+    sb.from('onboarding_step_done').select('step_id,staff_id'),
+    sb.from('kb_quizzes').select('id,article_id,active,kb_quiz_questions(id)').eq('active',true),
+    sb.from('staff_setup_checklist').select('*'),
+  ]);
+  STAFF=(st.data||[]).filter(s=>s.role!=='owner');
+  INTAKES=ik.data||[];MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=sp.data||[];
+  ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
+  READS=rd.data||[];ATTEMPTS=at.data||[];SDONE=sd.data||[];QUIZROWS=qz.data||[];
+  TICKS={};(tk.data||[]).forEach(r=>{(TICKS[r.staff_id]=TICKS[r.staff_id]||[]).push(r);});
+}
+function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
+function isNewHire(p){const s=p.start_date||String(p.created_at||'').slice(0,10);
+  return s&&(Date.parse(todayISO())-Date.parse(s))/864e5<=NEW_HIRE_DAYS;}
+function personTrack(p){
+  const reads={},att={},sdn={};
+  READS.filter(r=>r.staff_id===p.id).forEach(r=>{reads[r.article_id]=r;});
+  const quiz={};QUIZROWS.forEach(q=>{quiz[q.article_id]={id:q.id,nq:(q.kb_quiz_questions||[]).length};});
+  ATTEMPTS.filter(a=>a.staff_id===p.id).forEach(a=>{const c=att[a.quiz_id]||{passed:false};c.passed=c.passed||!!a.passed;att[a.quiz_id]=c;});
+  SDONE.filter(r=>r.staff_id===p.id).forEach(r=>{sdn[r.step_id]=r;});
+  const arts=ARTS.filter(a=>a.min_role!=='manager'||isMgr(p.role));
+  return CPRTrack.build({modules:MODULES,sections:SECTIONS,articles:arts,steps:STEPS,
+    assignments:ASSIGNS.filter(a=>a.staff_id===p.id),reads,quizzes:quiz,attempts:att,stepDone:sdn,today:todayISO()});
+}
+function gapsFor(p){
+  /* mirror of the compliance setup counts, compact: auto gaps + manual to-dos */
+  let gaps=0;
+  if(!p.pin_hash)gaps++;
+  if(!p.home_store)gaps++;
+  if(!p.birthday)gaps++;
+  if(!ASSIGNS.some(a=>a.staff_id===p.id))gaps++;
+  const ticked=(TICKS[p.id]||[]).length;
+  const todo=5-ticked;
+  return {gaps,todo:Math.max(0,todo)};
+}
+
+function draw(){
+  const hires=STAFF.filter(p=>isNewHire(p)).filter(p=>STORE==='all'||p.home_store===STORE);
+  const intakes=INTAKES.filter(i=>STORE==='all'||!i.invited_store||i.invited_store===STORE);
+  const inTraining=hires.filter(p=>ASSIGNS.some(a=>a.staff_id===p.id));
+  let waitingItems=0,pastDueN=0;
+  const rows=[];
+  inTraining.forEach(p=>{
+    const mods=personTrack(p);
+    const total=mods.reduce((n,m)=>n+m.total,0),done=mods.reduce((n,m)=>n+m.done,0);
+    const pd=mods.filter(m=>m.pastDue);
+    pastDueN+=pd.length;
+    /* waiting-on-manager: next item is a manager step */
+    mods.forEach(m=>m.rows.forEach(r=>{
+      if(r.type==='item'&&r.state==='next'&&r.it.kind==='s'&&r.it.s.who==='manager')waitingItems++;
+    }));
+    const g=gapsFor(p);
+    const setup=(g.gaps?g.gaps+' gap'+(g.gaps>1?'s':''):'')+(g.gaps&&g.todo?' · ':'')+(g.todo?g.todo+' to do':'')||'ready';
+    const pct=total?Math.round(done/total*100):0;
+    rows.push('<tr><td><div class="pname">'+esc(p.display_name)+'</div><div class="psub">'
+      +esc(p.role==='employee'?'Tech':p.role)+' · CPR '+esc(shortStore(p.home_store||''))+'</div></td>'
+      +'<td><span class="stage train">In training</span></td>'
+      +'<td style="font-weight:700">'+esc(setup)+'</td>'
+      +'<td><span class="pbar"><i class="'+(pd.length?'red':'')+'" style="width:'+pct+'%"></i></span><span class="pcount">'+done+' / '+total+'</span>'
+      +(pd.length?'<div class="rednote">⚠ '+esc(pd[0].mod.name)+' past due</div>':'')+'</td>'
+      +'<td style="text-align:right"><button class="ghost" data-panel="'+p.id+'">Open panel ›</button></td></tr>');
+  });
+  intakes.forEach(i=>{
+    const submitted=!!i.submitted_at;
+    rows.push('<tr><td><div class="pname">'+esc(i.invited_name||(submitted?[i.legal_first,i.legal_last].filter(Boolean).join(' '):'(link sent)'))+'</div>'
+      +'<div class="psub">'+esc(i.invited_store?('CPR '+shortStore(i.invited_store)):'')+'</div></td>'
+      +'<td><span class="stage '+(submitted?'review':'wait')+'">'+(submitted?'Ready to review':'Waiting on them')+'</span></td>'
+      +'<td style="font-weight:700">'+(submitted?('intake submitted '+esc(fmtShort(i.submitted_at))):('intake link sent '+esc(fmtShort(i.created_at))))+'</td>'
+      +'<td></td>'
+      +'<td style="text-align:right">'+(submitted
+        ?'<button class="ghost" data-review="'+i.id+'">Review intake ›</button>'
+        :'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>')+'</td></tr>');
+  });
+  waitingItems+=Object.keys(
+    hires.reduce((m,p)=>{const g=gapsFor(p);if(g.todo)m[p.id]=1;return m;},{})).length;
+
+  let h='<div class="hd">'+ic('clip',24)+'<h1>Onboarding</h1>'
+    +'<span class="rolebadge">'+esc(AUTH.role==='owner'?'Owner':'Manager')+'</span>'
+    +'<span style="flex:1"></span>'
+    +'<select class="storesel" id="storeSel"><option value="all"'+(STORE==='all'?' selected':'')+'>All stores</option>'
+    +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(STORE===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')
+    +'</select><button class="btn" id="newHire">'+ic('plus',11)+' New hire — send intake link</button></div>';
+  h+='<div class="stats">'
+    +'<div class="stat"><div class="l">Active new hires</div><div class="v">'+(hires.length+intakes.length)+'</div></div>'
+    +'<div class="stat"><div class="l">Waiting on a manager</div><div class="v">'+waitingItems+' item'+(waitingItems===1?'':'s')+'</div></div>'
+    +'<div class="stat'+(pastDueN?' red':'')+'"><div class="l">Past due</div><div class="v">'+pastDueN+' module'+(pastDueN===1?'':'s')+'</div></div></div>';
+  h+='<div class="tcard"><table><thead><tr><th>New hire</th><th>Stage</th><th>Setup</th><th>Training</th><th></th></tr></thead><tbody>'
+    +(rows.length?rows.join(''):'<tr><td colspan="5"><div class="empty">No active new hires — send an intake link to start one.</div></td></tr>')
+    +'</tbody></table></div>';
+  h+='<div class="caption">People drop off this list when setup is complete and all modules finish — ongoing compliance stays on the Compliance page.</div>';
+  $('#page').innerHTML=h;
+  $('#storeSel').onchange=e=>{STORE=e.target.value;draw();};
+  $('#newHire').onclick=openNewHire;
+  document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>{location.href='kb-compliance.html';});
+  document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>copyLink(b.getAttribute('data-copy')));
+  document.querySelectorAll('[data-review]').forEach(b=>b.onclick=()=>openReview(+b.getAttribute('data-review')));
+}
+function intakeUrl(token){return location.origin+location.pathname.replace(/[^/]*$/,'')+'intake.html?t='+token;}
+function copyLink(token){
+  const url=intakeUrl(token);
+  function legacy(){const ta=document.createElement('textarea');ta.value=url;ta.style.position='fixed';ta.style.left='-9999px';
+    document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){}ta.remove();
+    toast(ok?'Link copied':'Copy failed — long-press the link to copy',!ok);}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(()=>toast('Link copied'),legacy);
+  else legacy();
+}
+function openNewHire(){
+  $('#mdl').innerHTML='<h2>New hire — send intake link</h2>'
+    +'<div class="f"><label>Name (as you know it)</label><input id="nhName" placeholder="Devon Reyes"></div>'
+    +'<div class="f"><label>Store</label><select id="nhStore">'
+    +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'">CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
+    +'<div id="nhOut"></div>'
+    +'<div class="mact"><button class="btn alt" id="nhCancel">Close</button><button class="btn" id="nhGo">Create link</button></div>';
+  $('#mask').classList.add('show');
+  $('#nhCancel').onclick=()=>{$('#mask').classList.remove('show');};
+  $('#nhGo').onclick=async()=>{
+    const b=$('#nhGo');b.disabled=true;b.textContent='Creating…';
+    const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+      body:JSON.stringify({action:'create',invited_name:$('#nhName').value.trim(),invited_store:$('#nhStore').value})});
+    const j=await r.json().catch(()=>({}));
+    b.disabled=false;b.textContent='Create link';
+    if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
+    $('#nhOut').innerHTML='<div class="linkbox"><input readonly value="'+esc(intakeUrl(j.token))+'"><button class="btn" id="nhCopy">Copy</button></div>'
+      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:6px">Text or email this to them — it\'s their personal link.</div>';
+    $('#nhCopy').onclick=()=>copyLink(j.token);
+    await loadAll();draw();
+  };
+}
+function openReview(id){
+  const i=INTAKES.find(x=>x.id===id);if(!i)return;
+  const rv=(k,v)=>v?'<div class="rvrow"><span class="k">'+k+'</span><span class="v">'+esc(v)+'</span></div>':'';
+  const name=[i.legal_first,i.legal_middle,i.legal_last].filter(Boolean).join(' ');
+  const addr=i.address?[i.address.street,i.address.city,i.address.zip].filter(Boolean).join(', '):'';
+  const av=(i.availability||[]).map(a=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.day]+' '
+    +(a.mode==='all'?'All day':a.mode==='off'?'Off':(a.from+' – '+a.to))).join(' · ');
+  /* candidates for promotion: sync-created / recently added staff without intake */
+  const cands=STAFF.filter(p=>isNewHire(p));
+  $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+' — intake</h2>'
+    +rv('Name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)+rv('Email',i.personal_email)
+    +rv('Address',addr)+rv('Shirt',i.shirt_size)+rv('I-9 plan',i.i9_docs)
+    +(i.emergency?rv('Emergency',(i.emergency.name||'')+' '+(i.emergency.phone||'')):'')
+    +(av?rv('Availability',av):'')
+    +'<div class="f"><label>Copy onto (their staff record — created by the QB Time sync)</label><select id="rvStaff">'
+    +'<option value="">Pick their staff row…</option>'
+    +cands.map(p=>'<option value="'+p.id+'">'+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div>'
+    +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Copy onto their record ›</button></div>'
+    +'<div style="font-size:.68rem;font-weight:700;color:var(--grey);text-align:right;margin-top:6px">promotes → staff row + auto-assign fires</div>';
+  $('#mask').classList.add('show');
+  $('#rvClose').onclick=()=>{$('#mask').classList.remove('show');};
+  $('#rvGo').onclick=async()=>{
+    const sid=+$('#rvStaff').value;
+    if(!sid){toast('Pick their staff row first',true);return;}
+    const b=$('#rvGo');b.disabled=true;
+    const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+      body:JSON.stringify({action:'promote',intake_id:i.id,staff_id:sid})});
+    const j=await r.json().catch(()=>({}));
+    b.disabled=false;
+    if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
+    $('#mask').classList.remove('show');
+    toast('Promoted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' auto-assigned');
+    await loadAll();draw();
+  };
+}
+$('#mask').addEventListener('mousedown',e=>{if(e.target===$('#mask'))$('#mask').classList.remove('show');});
+async function boot(){
+  if(!isMgr(AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
+  await loadAll();draw();
+}
+</script>
+</body>
+</html>
