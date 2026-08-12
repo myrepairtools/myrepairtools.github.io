@@ -28,6 +28,12 @@ cursor:pointer;margin-bottom:8px;text-align:left;width:100%}
 .railcard.add{border:1.5px dashed #C7CAD4;background:transparent;color:var(--dark-grey);
 font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:10px;text-align:center}
 .railcard.add:hover{border-color:var(--blue);color:var(--blued)}
+.railcard[draggable]{cursor:grab}
+.railcard.dragging{opacity:.45}
+.chip[draggable]{cursor:grab}
+.chip.dragging{opacity:.45}
+.toolrow{display:flex;gap:10px;padding:0 16px 12px;flex-wrap:wrap;align-items:center}
+.toolnote{font-size:.7rem;font-weight:700;color:var(--grey);margin-left:auto}
 .pane{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);overflow:hidden}
 .panehd{display:flex;align-items:center;gap:12px;padding:16px 20px 0;flex-wrap:wrap}
 .btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1.5px solid var(--border);
@@ -131,16 +137,16 @@ function draw(){
   if(!mods.some(m=>m.id===MODSEL))MODSEL=mods.length?mods[0].id:null;
   const cur=mods.find(m=>m.id===MODSEL)||null;
   const items=cur?setupItems(cur.id):[];
-  const left='<div>'+mods.map(m=>{
+  const left='<div id="modRail"><button class="railcard add" id="mAdd">＋ New module</button>'
+    +mods.map(m=>{
     const rule=(m.auto_assign_role&&'auto: '+(m.auto_assign_role==='team_member'?'Tech':m.auto_assign_role)+(m.auto_assign_from?' ≥ '+m.auto_assign_from.slice(5):''))||'';
-    return '<button class="railcard'+(cur&&m.id===cur.id?' on':'')+'" data-msel="'+m.id+'"><div class="nm">'+esc(m.name)+'</div>'
+    return '<button class="railcard'+(cur&&m.id===cur.id?' on':'')+'" data-msel="'+m.id+'" draggable="true"><div class="nm">'+esc(m.name)+'</div>'
       +'<div class="sub">'+setupItems(m.id).length+' item'+(setupItems(m.id).length===1?'':'s')+(rule?' · '+esc(rule):'')+'</div></button>';
-  }).join('')
-    +'<button class="railcard add" id="mAdd">＋ New module</button></div>';
+  }).join('')+'</div>';
   let right='';
   if(!cur)right='<div class="pane"><div class="empty">Add your first module — e.g. “Week 1 — Counter Basics”.</div></div>';
   else{
-    const secsOf=SECTIONS.filter(x=>x.module_id===cur.id&&x.active!==false);
+    const secsOf=SECTIONS.filter(x=>x.module_id===cur.id&&x.active!==false).sort((a,b)=>(a.sort-b.sort)||(a.id-b.id));
     const secSel=(kind,id,curSec)=>'<select class="btn sm" data-secfor="'+kind+id+'" style="max-width:180px;font-weight:700">'
       +'<option value="">— module level —</option>'
       +secsOf.map(sx=>'<option value="'+sx.id+'"'+(curSec===sx.id?' selected':'')+'>'+esc(sx.name)+'</option>').join('')+'</select>';
@@ -168,7 +174,6 @@ function draw(){
       +'<input class="btn sm" id="mName" value="'+esc(cur.name)+'" style="font-weight:900;min-width:230px;flex:1;text-align:left">'
       +'<input class="btn sm" id="mSub" value="'+esc(cur.subtitle||'')+'" placeholder="Subtitle (optional)" style="min-width:200px;flex:1;text-align:left;font-weight:600">'
       +'<button class="btn sm" id="mSave">Save</button>'
-      +'<button class="btn sm" id="mUp">↑</button><button class="btn sm" id="mDn">↓</button>'
       +'<button class="btn sm" id="mArch" style="color:var(--red)">Archive</button></div>'
       +'<div class="rulebar">'
         +'<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;color:var(--blued)">Auto-assign:</span>'
@@ -180,15 +185,16 @@ function draw(){
         +'<input type="date" id="ruleFrom" class="btn sm" value="'+esc(cur.auto_assign_from||'')+'" style="font-weight:800">'
         +'<button class="btn pri sm" id="ruleSave" style="padding:5px 11px;font-size:.72rem">Save rule</button>'
         +'<span style="flex-basis:100%;font-size:.68rem;font-weight:700;color:#7A5B10">⚠ Clearing the date assigns current staff too. Rules apply when a hire is promoted from intake.</span></div>'
-      +'<div class="chips">'
-        +secsOf.map(sx=>'<span class="chip">'+esc(sx.name)+'<button data-secdel="'+sx.id+'" title="Remove section">✕</button></span>').join('')
+      +'<div class="chips" id="secChips">'
+        +secsOf.map(sx=>'<span class="chip" data-sid="'+sx.id+'" draggable="true">'+esc(sx.name)+'<button data-secdel="'+sx.id+'" title="Remove section">✕</button></span>').join('')
         +'<button id="secAdd" class="btn sm" style="border-style:dashed;border-radius:999px">＋ Add section</button></div>'
-      +(rows||'<div class="empty">Nothing in this module yet.</div>')
-      +'<div class="footband">'
+      +'<div class="toolrow">'
         +'<button class="btn pri sm" id="stAdd">＋ Add task step</button>'
         +(addable.length?'<select id="artAdd" class="btn sm" style="max-width:280px"><option value="">＋ Add an article…</option>'
           +addable.map(a=>'<option value="'+a.id+'">'+esc(a.title)+(a.module_id?' (in '+esc((MODULES.find(m=>m.id===a.module_id)||{}).name||'another module')+')':'')+(a.status==='draft'?' — draft':'')+'</option>').join('')+'</select>':'')
-        +'<span class="footnote">order here = employee order · unlock is sequential</span></div></div>';
+        +'<span class="toolnote">order here = employee order · unlock is sequential</span></div>'
+      +(rows||'<div class="empty">Nothing in this module yet.</div>')
+      +'<div style="height:8px"></div></div>';
   }
   $('#page').innerHTML='<div class="hd">'+GRAD+'<h1>Module Setup</h1>'
     +'<span class="rolebadge">'+esc(AUTH.role==='owner'?'Owner':'Manager')+'</span>'
@@ -210,14 +216,6 @@ function draw(){
     if(r.error){toast(r.error.message,true);return;}
     toast('Module saved');await refresh();
   };
-  const bump=async dir=>{
-    const i=mods.findIndex(m=>m.id===cur.id),j=i+dir;
-    if(j<0||j>=mods.length)return;
-    await sb.from('onboarding_modules').update({sort:mods[j].sort}).eq('id',cur.id);
-    await sb.from('onboarding_modules').update({sort:cur.sort}).eq('id',mods[j].id);
-    await refresh();
-  };
-  $('#mUp').onclick=()=>bump(-1);$('#mDn').onclick=()=>bump(1);
   $('#mArch').onclick=async()=>{
     if(!confirm('Archive "'+cur.name+'"? Its articles stay in the KB; its task steps stop appearing.'))return;
     await sb.from('onboarding_modules').update({active:false}).eq('id',cur.id);
@@ -276,6 +274,51 @@ function draw(){
     const r=await sb.from(table).update({section_id:sid}).eq('id',+key.slice(1));
     if(r.error){toast(r.error.message,true);return;}
     await refresh();
+  });
+  /* drag & drop: modules in the rail, section chips — DOM reorders live while
+     dragging, the new order persists on drop */
+  wireDnD($('#modRail'),'[data-msel]',async order=>{
+    for(let i=0;i<order.length;i++){
+      const m=MODULES.find(x=>x.id===+order[i]);
+      if(m&&m.sort!==i+1)await sb.from('onboarding_modules').update({sort:i+1}).eq('id',m.id);
+    }
+    await refresh();
+  },el=>el.getAttribute('data-msel'),false);
+  wireDnD($('#secChips'),'.chip[data-sid]',async order=>{
+    for(let i=0;i<order.length;i++){
+      const sx=SECTIONS.find(x=>x.id===+order[i]);
+      if(sx&&sx.sort!==(i+1)*10)await sb.from('onboarding_sections').update({sort:(i+1)*10}).eq('id',sx.id);
+    }
+    await refresh();
+  },el=>el.getAttribute('data-sid'),true);
+}
+/* generic HTML5 drag-and-drop list reorder */
+function wireDnD(container,selector,persist,idOf,horizontal){
+  if(!container)return;
+  let dragEl=null;
+  container.querySelectorAll(selector).forEach(el=>{
+    el.addEventListener('dragstart',e=>{dragEl=el;el.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',idOf(el));}catch(_){}});
+    el.addEventListener('dragend',async()=>{
+      el.classList.remove('dragging');
+      if(!dragEl)return;dragEl=null;
+      const order=[...container.querySelectorAll(selector)].map(idOf);
+      await persist(order);
+    });
+  });
+  container.addEventListener('dragover',e=>{
+    if(!dragEl)return;e.preventDefault();
+    const sibs=[...container.querySelectorAll(selector)].filter(x=>x!==dragEl);
+    const after=sibs.find(sib=>{
+      const r=sib.getBoundingClientRect();
+      return horizontal?e.clientX<r.left+r.width/2:e.clientY<r.top+r.height/2;
+    });
+    if(after)container.insertBefore(dragEl,after);
+    else{
+      // keep trailing non-list controls (＋ buttons) after the cards
+      const tail=container.querySelector('#secAdd');
+      if(tail)container.insertBefore(dragEl,tail);else container.appendChild(dragEl);
+    }
   });
 }
 function openStepEditor(mod,s){
