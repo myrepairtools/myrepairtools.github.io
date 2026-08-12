@@ -94,11 +94,31 @@ these when adding UI so a new tool looks native.
   Label Resizer — + `PRIVILEGED` + `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
   update the right area array here** (and the tile in `index.html`) or it won't appear in
   the nav. **The rail-bottom gear is a real area** (not a link): clicking it swaps the pane
-  to the `SETTINGS` list (Team Members, Locations, Notifications, Page Settings, Commission,
+  to the `SETTINGS` list (Locations, Notifications, Page Settings, Commission,
   Integrations, Roles & Permissions) and highlights the gear like any area icon. Every row
-  deep-links to `settings.html#<tab>` (staff/loc/notif/pages/commission/integ/roles — the
+  deep-links to `settings.html#<tab>` (loc/notif/pages/commission/integ/roles — the
   page opens that tab from the hash, listens to hashchange, keeps the hash synced via
-  replaceState, and owner-gates integ/roles). settings.html's own tab strip is hidden
+  replaceState, and owner-gates integ/roles).
+  **Team Members is consolidated into `employee-records.html`** (Employees nav, minRole
+  admin) — the Settings staff tab is deleted and `settings.html#staff` redirects there.
+  That one page is the whole staff surface (design handoff "Team Members Redesign"):
+  a landing roster table (grouped by home store via `stores.display_order`, owner rows
+  pinned, Active/Terminated segment, owner-only "↻ Sync employees" from QB Time — no
+  "+ Add member" anywhere; hires auto-create on sync and carry a "Needs setup" chip)
+  and a full-width per-person profile with tabs Profile · Log · PIPs & Reviews ·
+  Tech Damage · Time · PTO · Commission. Profile tab = 4 form cards + dirty-tracked
+  save bar (cpr-auth `update_staff` + `set_pin`; an admin PIN reset shows ONCE in a
+  modal); phone/email live in `staff_profiles.phone/personal_email` (routed through
+  update_staff — the SMS pipeline reads the same field, never duplicate onto `staff`);
+  the QB Time link select is owner-only. Terminate is a modal writing a real record
+  (`staff.terminated_at/termination_reason/termination_note/rehire_eligible/terminated_by`
+  — docs/sql/team-members-consolidation.sql); terminated profiles stay fully browsable
+  (record box + Reinstate). Commission tab: Settings sub-view = the per-person overrides
+  editor over `commission_roster` (inherited placeholders via CommissionEngine —
+  never re-implement the merge); History = `commission_snapshots` (total = commission
+  only; tips separate) + a live current-month recompute mirroring
+  assets/commission-summary.js. Deep links: `#e=<staff id>/<tab>` and `#terminated`.
+  settings.html's own tab strip is hidden
   (kept in the DOM so bindings stay harmless); a dynamic per-section header renders in its
   place. The nav Settings pane is the only section switcher — don't add page-level ones.
   The Locations tab manages the `stores` table (RQ name, color, active, address/phone/email); the canonical

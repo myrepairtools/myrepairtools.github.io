@@ -142,26 +142,6 @@ tbody tr.pinrow{background:#FCFBFA}
 tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .pinchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.54rem;letter-spacing:.4px;text-transform:uppercase;color:var(--red);background:#FBE9EA;border:1px solid #F3C7C9;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:middle}
 .lnk{color:var(--blue);font-weight:800;cursor:pointer;text-decoration:none}
-/* ── Team Members: stack the table into cards on phones ─────────── */
-@media(max-width:640px){
-  #view-staff .bar input[type=search]{max-width:none;width:100%}
-  #view-staff .card{border:none;background:none;box-shadow:none;overflow:visible}
-  #view-staff table,#view-staff tbody,#view-staff tr,#view-staff td{display:block;width:auto}
-  #view-staff thead{display:none}
-  #view-staff tbody tr.grouphdr{background:none;padding:16px 2px 4px;border:none}
-  #view-staff tbody tr.grouphdr td{background:none;padding:0;border:none;font-size:.62rem;color:var(--grey)}
-  #view-staff tbody tr:not(.grouphdr){background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:12px 14px;margin-bottom:10px}
-  #view-staff tbody tr:not(.grouphdr):hover{background:#fff}
-  #view-staff tbody tr.pinrow{box-shadow:inset 3px 0 0 var(--red),0 1px 3px rgba(45,45,59,.05)}
-  #view-staff tbody tr.pinrow td:first-child{box-shadow:none}
-  #view-staff tbody td{border:none;padding:0}
-  #view-staff tbody td[data-label]{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border-top:1px solid var(--light-grey)}
-  #view-staff tbody td[data-label]::before{content:attr(data-label);font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);flex:none}
-  #view-staff tbody td[data-label="Authorized"]{flex-direction:column;align-items:flex-start;gap:6px}
-  #view-staff tbody td[data-cell="emp"]{padding-bottom:9px}
-  #view-staff tbody td[data-cell="act"]{padding-top:11px;text-align:left}
-  #view-staff tbody td[data-cell="act"] .btn{width:100%}
-}
 /* modal (Part Groups shell) */
 .modal-back{position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:2000}
 .modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:620px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(45,45,59,.32);z-index:2001;text-align:left}
@@ -264,7 +244,6 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
   <!-- section switching moved to the nav Settings pane (rail gear); strip kept in
        the DOM (hidden) so its bindings/badges stay harmless -->
   <div class="tabs" style="display:none">
-    <button class="tab active" data-tab="staff" id="tabStaff">Team Members <span class="ct" id="ctStaff">0</span></button>
     <button class="tab" data-tab="loc" id="tabLoc">Locations <span class="ct" id="ctLoc">0</span></button>
     <button class="tab" data-tab="notif" id="tabNotif">Notifications <span class="ct" id="ctNotif">0</span></button>
     <button class="tab" data-tab="pages" id="tabPages">Page Settings</button>
@@ -272,24 +251,6 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
     <button class="tab hide" data-tab="integ" id="tabInteg">Integrations</button>
     <button class="tab hide" data-tab="roles" id="tabRoles">Roles &amp; Permissions <span class="ct" id="ctRoles">0</span></button>
   </div>
-
-  <!-- STAFF TAB -->
-  <section id="view-staff">
-    <div class="bar">
-      <input type="search" id="staffSearch" placeholder="Search name, username, role…">
-      <span class="seg" id="rosterSeg">
-        <button data-v="active" class="on">Active <span class="n" id="cActive">0</span></button>
-        <button data-v="archived">Terminated <span class="n" id="cArchived">0</span></button>
-      </span>
-      <span class="spacer"></span>
-      <button class="btn" id="addMember">+ Add member</button>
-    </div>
-    <div class="card"><table><thead><tr>
-      <th>Employee</th><th>Role</th><th>Home store</th><th>Authorized</th><th>Status</th><th></th>
-    </tr></thead><tbody id="staffRows"></tbody></table>
-      <div class="empty" id="staffEmpty">Loading team…</div>
-    </div>
-  </section>
 
   <!-- LOCATIONS TAB -->
   <section id="view-loc" class="hide">
@@ -902,7 +863,7 @@ async function load(){
 /* ===== render ===== */
 function activeStores(){return STORES.filter(function(s){return s.active;});}
 function storeOpts(sel){return activeStores().map(function(s){return '<option value="'+esc(s.store)+'"'+(s.store===sel?' selected':'')+'>'+esc(s.store)+(s.rq_name&&s.rq_name!==s.store?(' ('+esc(s.rq_name)+')'):'')+'</option>';}).join('');}
-function renderAll(){renderTabs();renderStaff();renderLoc();renderNotif();renderPages();renderCommission();renderRoles();renderModal();}
+function renderAll(){renderTabs();renderLoc();renderNotif();renderPages();renderCommission();renderRoles();renderModal();}
 function renderTabs(){
   var owner=(AUTH&&AUTH.role==='owner');
   /* section header — the strip is hidden, the nav Settings pane switches sections */
@@ -916,21 +877,18 @@ function renderTabs(){
   $('#setSub').textContent=TT[1];
   /* keep the URL hash in step with the open section (nav active row + shareable links) */
   try{if(location.hash.replace('#','')!==TAB)history.replaceState(null,'','#'+TAB);}catch(e){}
-  $('#ctStaff').textContent=STAFF.length;
   $('#ctLoc').textContent=STORES.length;
   $('#ctRoles').textContent=RBROLES.length;
   $('#tabRoles').classList.toggle('hide',!owner);
   $('#tabInteg').classList.toggle('hide',!owner);
   if(!owner&&(TAB==='roles'||TAB==='integ'))TAB='loc';   /* owner-only tabs */
   $('#ctNotif').textContent=NRULES.filter(function(e){return e.enabled;}).length;
-  $('#tabStaff').classList.toggle('active',TAB==='staff');
   $('#tabLoc').classList.toggle('active',TAB==='loc');
   $('#tabNotif').classList.toggle('active',TAB==='notif');
   $('#tabPages').classList.toggle('active',TAB==='pages');
   $('#tabCommission').classList.toggle('active',TAB==='commission');
   $('#tabInteg').classList.toggle('active',TAB==='integ');
   $('#tabRoles').classList.toggle('active',TAB==='roles');
-  $('#view-staff').classList.toggle('hide',TAB!=='staff');
   $('#view-loc').classList.toggle('hide',TAB!=='loc');
   $('#view-notif').classList.toggle('hide',TAB!=='notif');
   $('#view-pages').classList.toggle('hide',TAB!=='pages');
@@ -1835,80 +1793,6 @@ async function resetRules(){
     if(r2.error)toast(r2.error.message,true);else{toast('Cleared '+shortStore(CRSEL)+' rules');renderCommission();}
   }
 }
-function staffStoreRank(name){
-  for(var i=0;i<STORES.length;i++){if(STORES[i].store===name)return STORES[i].display_order==null?9990:STORES[i].display_order;}
-  return 9999;
-}
-/* hard-coded role hierarchy for in-group ordering (highest first); unknown/custom roles fall to the bottom, then alphabetical */
-function roleRank(role){
-  var r=String(role||'').toLowerCase();
-  var R={owner:0,'district manager':1,admin:2,manager:2,'store manager':3,'assistant manager':4,'shift lead':5,'lead technician':6,technician:7,team_member:8,employee:8,csr:9};
-  return (r in R)?R[r]:50;
-}
-function staffRow(m,pinned){
-  var chips=(m.authorized_stores||[]).map(function(s){return '<span class="chip">'+esc(shortStore(s))+'</span>';}).join('');
-  var badge=m.active?'<span class="badge ok"><span class="dot"></span>Active</span>':'<span class="badge off">Terminated</span>';
-  var act=m.active
-    ? '<button class="btn alt sm" data-edit="'+m.id+'">Edit</button>'
-    : '<button class="btn alt sm" data-reinstate="'+m.id+'">Reinstate</button>';
-  var pin=pinned?'<span class="pinchip" title="Pinned to top">Pinned</span>':'';
-  var tr=document.createElement('tr');
-  if(pinned)tr.className='pinrow';
-  tr.innerHTML='<td data-cell="emp"><div class="who"><span class="avatar" style="background:'+avatarBg(m.id)+'">'+esc(initialsOf(m))+'</span>'
-      +'<span><span class="nm">'+esc(m.display_name||'Unnamed')+pin+'</span><span class="un">'+(m.username?('@'+esc(m.username)):'—')+'</span></span></div></td>'
-    +'<td class="muted" data-label="Role">'+esc(roleLabel(m.role))+'</td>'
-    +'<td style="font-weight:700" data-label="Home store">'+esc(shortStore(m.home_store)||'—')+'</td>'
-    +'<td data-label="Authorized">'+(chips||'<span class="muted">—</span>')+'</td>'
-    +'<td data-label="Status">'+badge+'</td>'
-    +'<td class="r" data-cell="act">'+act+'</td>';
-  return tr;
-}
-function renderStaff(){
-  var q=SEARCH.trim().toLowerCase();
-  var rosterAll=STAFF.filter(function(m){return m.active;});
-  var archAll=STAFF.filter(function(m){return !m.active;});
-  $('#cActive').textContent=rosterAll.length; $('#cArchived').textContent=archAll.length;
-  $all('#rosterSeg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===ROSTER);});
-  var list=(ROSTER==='archived'?archAll:rosterAll).filter(function(m){
-    if(!q)return true;
-    var hay=((m.display_name||'')+' '+(m.username||'')+' '+(m.role||'')+' '+(m.home_store||'')).toLowerCase();
-    return hay.indexOf(q)>-1;
-  });
-  var tb=$('#staffRows');tb.innerHTML='';
-  $('#staffEmpty').classList.toggle('hide',list.length>0);
-  $('#staffEmpty').textContent=STAFF_ERR?'Couldn’t load the team — refresh to retry.'
-    :ROSTER==='archived'?'No archived members.':(q?'No matching team members.':'No team members yet.');
-
-  var byName=function(a,b){return String(a.display_name||'').localeCompare(String(b.display_name||''));};
-  var meName=(AUTH&&AUTH.name)||'';
-  /* owner(s) always pinned to the top — the signed-in owner first */
-  var pinned=list.filter(function(m){return String(m.role||'').toLowerCase()==='owner';}).sort(function(a,b){
-    var am=(a.display_name===meName)?0:1, bm=(b.display_name===meName)?0:1;
-    return (am-bm)||byName(a,b);
-  });
-  var rest=list.filter(function(m){return String(m.role||'').toLowerCase()!=='owner';});
-  pinned.forEach(function(m){tb.appendChild(staffRow(m,true));});
-
-  /* group by home store, ordered by Locations settings; role rank then name within each */
-  rest.sort(function(a,b){
-    return staffStoreRank(a.home_store)-staffStoreRank(b.home_store)
-      || String(shortStore(a.home_store)||'').localeCompare(String(shortStore(b.home_store)||''))
-      || roleRank(a.role)-roleRank(b.role)
-      || byName(a,b);
-  });
-  var cur=null;
-  rest.forEach(function(m){
-    var s=m.home_store||'';
-    if(s!==cur){cur=s;var hr=document.createElement('tr');hr.className='grouphdr';hr.innerHTML='<td colspan="6">'+esc(shortStore(s)||'No home store')+'</td>';tb.appendChild(hr);}
-    tb.appendChild(staffRow(m,false));
-  });
-
-  tb.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){openMember(b.getAttribute('data-edit'));};});
-  tb.querySelectorAll('[data-reinstate]').forEach(function(b){b.onclick=async function(){
-    var r=await authFn({action:'update_staff',staff_id:b.getAttribute('data-reinstate'),active:true});
-    if(r.status===200&&r.data.ok){toast('Reinstated');await loadStaff();renderAll();}else toast((r.data&&r.data.error)||'Failed',true);
-  };});
-}
 function renderLoc(){
   var owner=(AUTH&&AUTH.role==='owner');
   $('#addStore').style.display=owner?'':'none';
@@ -2083,248 +1967,6 @@ async function deleteRole(){
   toast('Role deleted'); MOPEN=null; await loadRBAC(); renderAll();
 }
 
-/* ===== member modal ===== */
-function genPin(){var s='';for(var i=0;i<4;i++)s+=Math.floor(Math.random()*10);return s;}
-function openMember(id){
-  var m=STAFF.filter(function(x){return String(x.id)===String(id);})[0];
-  if(!m)return;
-  var ros=CROSTER[m.id]||{};
-  MOPEN={type:'member',isNew:false,draft:{staff_id:m.id,first_name:m.first_name||'',last_name:m.last_name||'',preferred_name:m.preferred_name||'',username:m.username||'',role:m.role||'team_member',home_store:m.home_store||'',authorized_stores:(m.authorized_stores||[]).slice(),active:m.active,hide_from_records:!!m.hide_from_records,wage_type:m.wage_type||'hourly',birthday:(m.birthday?String(m.birthday).slice(0,10):''),pin:'',
-    comm_goal:(ros.accy_goal!=null?ros.accy_goal:0),earns_override:Object.assign({},ros.earns_override||{}),
-    rules_override:Object.assign({},ros.rules_override||{}),rates_override:Object.assign({},ros.rates_override||{})}};
-  renderModal();
-}
-function openAddMember(){
-  var home=(activeStores()[0]||{}).store||'';
-  MOPEN={type:'member',isNew:true,draft:{first_name:'',last_name:'',preferred_name:'',username:'',role:'team_member',home_store:home,authorized_stores:home?[home]:[],active:true,pin:genPin(),
-    comm_goal:0,earns_override:{},rules_override:{},rates_override:{}}};
-  renderModal();
-}
-/* role -> {accessory,device,services} earning eligibility (from RBAC perms) */
-function commPermStreams(){var m={};RBPERMS.forEach(function(p){if(String(p.key).indexOf('commission.earn.')===0)m[p.id]=p.key.split('.').pop();});return m;}
-function roleEarnsFor(roleKey){
-  var rk=ROLE_ALIAS[roleKey]||roleKey;
-  var role=RBROLES.filter(function(r){return r.key===rk;})[0];
-  if(!role)return {accessory:true,device:true,services:true};
-  var pm=commPermStreams(),out={accessory:false,device:false,services:false};
-  RBROLEPERMS.forEach(function(x){if(x.role_id===role.id&&pm[x.permission_id])out[pm[x.permission_id]]=true;});
-  return out;
-}
-/* a person's inherited (store + role) effective rules & rates — used as modal placeholders */
-function ratesBase(){var b={};CRATES.forEach(function(r){b[r.sku]=r.tiers?{goal:r.tiers.goal,lo:r.tiers.lo,hi:r.tiers.hi}:r.amount;});return b;}
-function personInherited(d){
-  var rk=ROLE_ALIAS[d.role]||d.role, role=RBROLES.filter(function(r){return r.key===rk;})[0];
-  var roleO=(role&&CROLEOVER[role.id])?CROLEOVER[role.id]:{rules:{},rates:{}};
-  var E=window.CommissionEngine;
-  return {rules:E?E.mergeRules(CRULES[d.home_store],roleO.rules):{}, rates:E?E.mergeRates(ratesBase(),CSTORERATES[d.home_store],roleO.rates):{}};
-}
-function commOverridesHtml(d){
-  var ovR=d.rules_override||{}, ovRt=d.rates_override||{};
-  var inh=personInherited(d);
-  var pinp=function(key,unit){var has=ovR[key]!=null;var val=has?(unit==='%'?Math.round(ovR[key]*100):ovR[key]):'';
-    var ph=unit==='%'?Math.round((inh.rules[key]||0)*100):(inh.rules[key]||0);
-    return '<input type="number" data-prule="'+key+'" data-unit="'+unit+'" value="'+val+'" placeholder="'+ph+'" class="crin">'+(unit==='%'?'<span class="crpct">%</span>':'');};
-  var pr=function(label,e){return '<div class="commtier-row"><div class="when">'+label+'</div><div class="earn">'+e+'</div></div>';};
-  var roleE=roleEarnsFor(d.role),eov=d.earns_override||{};
-  var earnSel=function(key){var cur=(eov[key]===true?'yes':(eov[key]===false?'no':''));var def=roleE[key]?'Yes':'No';
-    return '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)">Earns</span>'
-      +'<select data-earn="'+key+'" style="font-size:.74rem;padding:2px 6px;min-width:116px"><option value=""'+(cur===''?' selected':'')+'>Role default ('+def+')</option>'
-      +'<option value="yes"'+(cur==='yes'?' selected':'')+'>Yes</option><option value="no"'+(cur==='no'?' selected':'')+'>No</option></select></div>';};
-  var sec=function(title,accent,rows,hr){return '<div class="commtier" style="border-top:3px solid '+accent+';margin-top:10px"><div class="commtier-hd" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="font-family:Nunito;font-weight:900;font-size:.78rem">'+title+'</div>'+(hr||'')+'</div>'+rows+'</div>';};
-  var acc=sec('Accessories','var(--blue)',pr('Tier 1 attach '+pinp('accyAttach1','%'),'+ '+pinp('accyPct1','%'))+pr('Accessory $ goal bonus','+ '+pinp('accyGoalPct','%'))+pr('Tier 2 attach '+pinp('accyAttach2','%'),'+ '+pinp('accyPct2','%')),earnSel('accessory'));
-  var dev=sec('Devices','var(--dark)',pr('Sells '+pinp('dev1Count','')+'+ net devices','earn '+pinp('dev1Pct','%'))+pr('Attach req '+pinp('devAttachReq','%'),'earn '+pinp('devAttachPct','%'))+pr('Band '+pinp('dev2Min','')+'–'+pinp('dev2Max',''),'earn '+pinp('dev2Pct','%'))+pr('Sells '+pinp('dev3Count','')+'+ net devices','earn '+pinp('dev3Pct','%')),earnSel('device'));
-  var pbox=function(lbl,inner,off){return '<div class="ratebox'+(off?' off':'')+'"><label>'+lbl+'</label><span class="in">'+inner+'</span></div>';};
-  var pfld=function(attr,val,ph,money,dis){return (money?'$':'')+'<input type="number" '+attr+' value="'+(val!=null&&val!==''?val:'')+'" placeholder="'+(ph||'')+'" class="crin"'+(dis?' disabled':'')+'>';};
-  var rtsRows=CRATES.map(function(rt){var sku=rt.sku,v=ovRt[sku],tiered=(v&&typeof v==='object');
-    var inhSpec=(inh.rates[sku]!=null?inh.rates[sku]:(rt.tiers||rt.amount)),basePh=(typeof inhSpec==='object')?(inhSpec.lo||0):(Number(inhSpec)||0);
-    var payout=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="lo"':'data-prate="'+esc(sku)+'"', tiered?v.lo:(v!=null?v:''), basePh, true, false);
-    var goal=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="goal"':'', tiered?v.goal:'', '0', false, !tiered);
-    var met=pfld(tiered?'data-prt="'+esc(sku)+'" data-ptk="hi"':'', tiered?v.hi:'', '0', true, !tiered);
-    var tgl='<a class="rtiertgl" data-ptgl="'+esc(sku)+'">'+(tiered?'flat':'tier')+'</a>';
-    return '<div class="ratecell"><div class="ratehd"><div>'+esc(rt.label||humanize(sku))+'</div></div><div class="ratebody">'
-      +pbox('Payout',payout,false)+pbox('Goal',goal,!tiered)+pbox('If met',met,!tiered)+tgl+'</div></div>';}).join('');
-  return acc+dev+sec('Service payouts','var(--green)',rtsRows,earnSel('services'));
-}
-function memberCommPageHtml(d){
-  var nm=(d.first_name+' '+d.last_name).trim()||'this tech';
-  return '<div class="modal-back" data-close></div>'
-   +'<div class="modal"><div class="modal-hd">'
-     +'<button class="modal-x" data-backmain title="Back" style="font-size:1.25rem">←</button>'
-     +'<div class="t">Commission<div class="s">'+esc(nm)+' · blank inherits store + role</div></div>'
-     +'<button class="modal-x" data-close>×</button></div>'
-   +'<div class="modal-body">'
-     +'<div class="grid2"><div class="f"><label>Accessory goal $</label><input data-k="comm_goal" type="number" inputmode="decimal" value="'+esc(d.comm_goal)+'"></div><div class="f"></div></div>'
-     +'<label style="margin-top:14px">Commission &amp; overrides</label>'
-     +commOverridesHtml(d)
-   +'</div>'
-   +'<div class="modal-ft"><button class="btn alt sm" data-backmain>← Back</button><button class="btn blue" data-save>Done</button></div></div>';
-}
-/* ---- QuickBooks Time link on the member modal (same source of truth as Employee Records) ---- */
-async function qbtMapCall(qbt_id,staff_id){
-  var tok=await sessionToken();
-  return fetch(QBT_SYNC_FN+'?action=map',{method:'POST',headers:{'Authorization':'Bearer '+tok,'apikey':ANON,'Content-Type':'application/json'},
-    body:JSON.stringify({qbt_id:qbt_id,staff_id:staff_id})}).then(function(r){return r.json().catch(function(){return {};});});
-}
-async function applyQbtMemberLink(d){
-  if(!(AUTH&&AUTH.role==='owner'))return;            // map is owner-gated; admins see it read-only
-  if(d._qbtPick===undefined)return;                   // untouched
-  var linked=qbtLinkedFor(d.staff_id), cur=linked?String(linked.qbt_id):'', next=String(d._qbtPick||'');
-  if(cur===next)return;
-  if(cur){var r1=await qbtMapCall(cur,null); if(!(r1&&r1.ok)){toast('Saved, but QB link update failed',true);return;}}
-  if(next){var r2=await qbtMapCall(next,d.staff_id); if(!(r2&&r2.ok)){toast('Saved, but QB link update failed',true);return;}}
-  QBU.forEach(function(u){if(String(u.staff_id)===String(d.staff_id))u.staff_id=null; if(String(u.qbt_id)===next)u.staff_id=d.staff_id;});
-}
-function qbtUserName(u){return ((u.first_name||'')+' '+(u.last_name||'')).trim()||('QB #'+u.qbt_id);}
-function qbtLinkedFor(staff_id){return QBU.filter(function(u){return String(u.staff_id)===String(staff_id);})[0]||null;}
-function qbtMemberLinkHtml(d,owner){
-  var linked=qbtLinkedFor(d.staff_id), inactiveInQb=linked&&linked.active===false;
-  var cur=linked?String(linked.qbt_id):'';
-  var pick=(d._qbtPick!==undefined?d._qbtPick:cur);
-  var state=linked?('Linked'+(inactiveInQb?' · ⚠ inactive in QB':'')):'Not linked';
-  var pickable=QBU.filter(function(u){return u.staff_id==null||String(u.staff_id)===String(d.staff_id);})
-    .sort(function(a,b){return (b.active?1:0)-(a.active?1:0)||qbtUserName(a).localeCompare(qbtUserName(b));});
-  var opts='<option value="">— not linked —</option>';
-  pickable.forEach(function(u){opts+='<option value="'+esc(u.qbt_id)+'"'+(String(pick)===String(u.qbt_id)?' selected':'')+'>'+esc(qbtUserName(u))+(u.active===false?' · inactive':'')+'</option>';});
-  var hint=inactiveInQb?'Terminated in QuickBooks Time — set Status to <b>Terminated</b> above if they’ve left.'
-    :(owner?'New hires created in QuickBooks auto-create and link themselves. Use this only to fix a link by hand.':'The QuickBooks Time link is managed by the owner.');
-  return '<div class="row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">'
-    +'<label>QuickBooks Time</label>'
-    +(owner?'<select data-qbtlink>'+opts+'</select>':'<div style="padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--light-grey);color:var(--dark-grey);font-family:\'Nunito Sans\',sans-serif;font-size:.88rem">'+esc(linked?qbtUserName(linked):'Not linked')+'</div>')
-    +'<div style="margin-top:5px;font-size:.72rem;color:var(--dark-grey);line-height:1.4">'+esc(state)+' — '+hint+'</div></div>';
-}
-function memberModalHtml(){
-  var d=MOPEN.draft, owner=(AUTH&&AUTH.role==='owner');
-  if(d._page==='commission')return memberCommPageHtml(d);
-  var roleSet=owner?ROLES:['team_member'];
-  var roleOpts=roleSet.map(function(r){return '<option value="'+r+'"'+(r===d.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('');
-  var home=d.home_store;
-  var pills=activeStores().map(function(s){
-    var isHome=(s.store===home), on=isHome||(d.authorized_stores||[]).indexOf(s.store)>-1; // home is always authorized
-    return '<button class="authpill'+(on?' on':'')+'" data-auth="'+esc(s.store)+'">'+esc(shortStore(s.store))
-      +(isHome?'<span class="home">home</span>':(on?'<span style="color:#1E7AA8;font-weight:900">✓</span>':''))+'</button>';
-  }).join('');
-  var fake={first_name:d.first_name,last_name:d.last_name,display_name:'',username:d.username};
-  var title=MOPEN.isNew?'New team member':((d.first_name+' '+d.last_name).trim()||'Edit member');
-  var pinHint=MOPEN.isNew?'New members get an admin-set 4-digit PIN for tool sign-in. Type one or reset to a random PIN.'
-    :'Leave blank to keep the current PIN. Type a new one or hit Reset PIN to set a new admin PIN (shown once).';
-  var ini=initialsOf(fake); if(ini==='  '||!ini.trim())ini='?';
-  return '<div class="modal-back" data-close></div>'
-   +'<div class="modal"><div class="modal-hd">'
-     +'<span class="avatar" style="width:38px;height:38px;font-size:.8rem;background:'+avatarBg(MOPEN.isNew?'new':d.staff_id)+'">'+esc(ini)+'</span>'
-     +'<div class="t">'+esc(title)+'<div class="s">'+(d.username?('@'+esc(d.username)):'Fill in the details below')+'</div></div>'
-     +'<button class="modal-x" data-close>×</button></div>'
-   +'<div class="modal-body">'
-     +'<div class="grid2">'
-       +'<div class="f"><label>First name</label><input data-k="first_name" value="'+esc(d.first_name)+'"></div>'
-       +'<div class="f"><label>Last name</label><input data-k="last_name" value="'+esc(d.last_name)+'"></div>'
-       +'<div class="f"><label>Username</label><input data-k="username" value="'+esc(d.username)+'" autocomplete="off"></div>'
-       +'<div class="f"><label>Role</label><select data-k="role">'+roleOpts+'</select></div>'
-       +'<div class="f"><label>Home store</label><select data-k="home_store">'+storeOpts(home)+'</select></div>'
-       +'<div class="f"><label>Status</label><select data-k="active"><option value="1"'+(d.active?' selected':'')+'>Active</option><option value="0"'+(d.active?'':' selected')+'>Terminated</option></select></div>'
-     +'</div>'
-     +'<div class="f" style="margin-top:12px"><label>Preferred name</label><input data-k="preferred_name" value="'+esc(d.preferred_name||'')+'" placeholder="'+esc((d.first_name+' '+d.last_name).trim()||'shown across myRepairTools')+'">'
-       +'<div class="h" style="margin-top:4px">Shown everywhere in myRepairTools. Leave blank to use the legal name above.</div></div>'
-     +'<div class="f" style="margin-top:12px"><label>Birthday</label><input type="date" data-k="birthday" value="'+esc(d.birthday||'')+'">'
-       +'<div class="h" style="margin-top:4px">For team celebrations — only the month &amp; day ever show (the year and age stay private).</div></div>'
-     +'<div class="row" style="margin-top:14px"><label>Authorized locations</label><div class="authwrap">'+pills+'</div></div>'
-     +'<div class="row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">'
-     +(function(){
-        var n=Object.keys(d.rules_override||{}).length+Object.keys(d.rates_override||{}).length+Object.keys(d.earns_override||{}).length;
-        var sub='Goal $'+(Number(d.comm_goal)||0)+(n?' · '+n+' override'+(n>1?'s':''):' · no overrides');
-        return '<button type="button" data-commpage class="optrow">'
-          +'<span class="optrow-l"><span class="optrow-t">Commission'+(n?'<span class="optrow-n">'+n+'</span>':'')+'</span>'
-          +'<span class="optrow-s">'+esc(sub)+'</span></span>'
-          +'<span class="optrow-x">Set up ▸</span></button>';
-      })()
-     +'</div>'
-     +(MOPEN.isNew?'':'<div class="row" style="margin-top:14px"><label>Wage type</label><div style="padding:8px 11px;border:1.5px solid var(--border);border-radius:8px;background:var(--light-grey);color:var(--dark-grey);font-family:\'Nunito Sans\',sans-serif;font-size:.88rem">'+(d.wage_type==='salary'?'💼 Salary <span style="color:var(--grey)">· overtime-exempt</span>':'🕐 Hourly')+'</div><div class="h" style="margin-top:5px">Synced from QuickBooks Time.</div></div>')
-     +(MOPEN.isNew?'':qbtMemberLinkHtml(d,owner))
-     +((!MOPEN.isNew&&d.role==='owner')?'<label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;font-family:\'Nunito Sans\',sans-serif;font-size:.84rem;font-weight:700;color:var(--dark-grey)"><input type="checkbox" data-hidefr'+(d.hide_from_records?' checked':'')+' style="width:16px;height:16px;flex:none;margin:0"> Hide from the Employee Records list <span style="font-weight:600;color:var(--grey);font-size:.76rem">(owners only)</span></label>':'')
-     +'<div class="pinbox"><div><label>PIN</label><input data-k="pin" inputmode="numeric" value="'+esc(d.pin)+'" placeholder="'+(MOPEN.isNew?'––––':'••••')+'"></div>'
-       +'<div class="h">'+pinHint+'</div>'
-       +'<button class="btn alt sm" data-genpin>Reset PIN</button></div>'
-   +'</div>'
-   +'<div class="modal-ft">'
-     +(MOPEN.isNew?'<span></span>':'<button class="btn alt sm" data-archive>'+(d.active?'Terminate member':'Reinstate')+'</button>')
-     +'<button class="btn blue" data-save>'+(MOPEN.isNew?'Create member':'Done')+'</button></div></div>';
-}
-function wireMember(host){
-  var d=MOPEN.draft;
-  host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
-  host.querySelectorAll('[data-k]').forEach(function(el){
-    el.oninput=el.onchange=function(){
-      var k=el.getAttribute('data-k'),v=el.value;
-      if(k==='username')v=v.replace(/\s+/g,'').toLowerCase();
-      if(k==='pin')v=v.replace(/\D/g,'').slice(0,8);
-      if(k==='active'){d.active=(v==='1');return;}
-      d[k]=v;
-      if(k==='home_store'){ if((d.authorized_stores||[]).indexOf(v)<0)d.authorized_stores.push(v); renderModal(); }
-      if(k==='role')renderModal(); /* refresh the 'defaults from <role>' earnings labels */
-    };
-  });
-  host.querySelectorAll('[data-auth]').forEach(function(b){b.onclick=function(){
-    var s=b.getAttribute('data-auth');
-    if(s===d.home_store)return; // home locked on
-    var i=d.authorized_stores.indexOf(s);
-    if(i>-1)d.authorized_stores.splice(i,1);else d.authorized_stores.push(s);
-    renderModal();
-  };});
-  host.querySelectorAll('[data-earn]').forEach(function(sel){sel.onchange=function(){
-    var k=sel.getAttribute('data-earn'),v=sel.value;d.earns_override=d.earns_override||{};
-    if(v==='')delete d.earns_override[k];else d.earns_override[k]=(v==='yes');};});
-  host.querySelectorAll('[data-commpage]').forEach(function(b){b.onclick=function(){d._page='commission';renderModal();};});
-  host.querySelectorAll('[data-backmain]').forEach(function(b){b.onclick=function(){d._page='main';renderModal();};});
-  host.querySelectorAll('[data-prule]').forEach(function(input){input.onchange=function(){
-    var key=input.getAttribute('data-prule'),unit=input.getAttribute('data-unit');d.rules_override=d.rules_override||{};
-    if(input.value==='')delete d.rules_override[key];else d.rules_override[key]=(unit==='%'?((+input.value||0)/100):(+input.value||0));};});
-  host.querySelectorAll('[data-prate]').forEach(function(input){input.onchange=function(){
-    var sku=input.getAttribute('data-prate');d.rates_override=d.rates_override||{};
-    if(input.value==='')delete d.rates_override[sku];else d.rates_override[sku]=+input.value||0;};});
-  host.querySelectorAll('[data-prt]').forEach(function(input){input.onchange=function(){
-    var sku=input.getAttribute('data-prt'),k=input.getAttribute('data-ptk');d.rates_override=d.rates_override||{};
-    if(!d.rates_override[sku]||typeof d.rates_override[sku]!=='object')d.rates_override[sku]={};
-    d.rates_override[sku][k]=(input.value===''?'':(+input.value||0));};});
-  host.querySelectorAll('[data-ptgl]').forEach(function(a){a.onclick=function(e){e.preventDefault();var sku=a.getAttribute('data-ptgl');d.rates_override=d.rates_override||{};var v=d.rates_override[sku];
-    if(v&&typeof v==='object'){if(v.lo!=null&&v.lo!=='')d.rates_override[sku]=+v.lo||0;else delete d.rates_override[sku];}
-    else d.rates_override[sku]={goal:'',lo:(v!=null?v:''),hi:''};renderModal();};});
-  var ql=host.querySelector('[data-qbtlink]');if(ql)ql.onchange=function(){d._qbtPick=ql.value;};
-  var hf=host.querySelector('[data-hidefr]');if(hf)hf.onchange=function(){d.hide_from_records=hf.checked;};
-  var gp=host.querySelector('[data-genpin]');if(gp)gp.onclick=function(){d.pin=genPin();renderModal();};
-  var arch=host.querySelector('[data-archive]');if(arch)arch.onclick=function(){d.active=!d.active;saveMember();};
-  host.querySelector('[data-save]').onclick=saveMember;
-}
-async function saveMember(){
-  var d=MOPEN.draft;
-  if(!d.username){toast('Username is required',true);return;}
-  if(!d.home_store){toast('Pick a home store',true);return;}
-  d.authorized_stores=d.authorized_stores||[];
-  if(d.authorized_stores.indexOf(d.home_store)<0)d.authorized_stores.push(d.home_store); // home is always authorized
-  var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
-  try{
-    if(MOPEN.isNew){
-      if(!d.pin||d.pin.length<3){toast('Set a PIN (3-8 digits)',true);if(btn)btn.disabled=false;return;}
-      var c=await authFn({action:'create_staff',first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,pin:d.pin});
-      if(c.status!==200||!c.data.ok){toast((c.data&&c.data.error)||'Create failed',true);if(btn)btn.disabled=false;return;}
-      toast('Member created · PIN '+d.pin);
-    } else {
-      var u=await authFn({action:'update_staff',staff_id:d.staff_id,first_name:d.first_name,last_name:d.last_name,preferred_name:d.preferred_name,username:d.username,role:d.role,home_store:d.home_store,authorized_stores:d.authorized_stores,active:d.active,hide_from_records:d.hide_from_records,birthday:(d.birthday!=null?d.birthday:undefined)});
-      if(u.status!==200||!u.data.ok){toast((u.data&&u.data.error)||'Save failed',true);if(btn)btn.disabled=false;return;}
-      if(d.pin){ var p=await authFn({action:'set_pin',staff_id:d.staff_id,pin:d.pin});
-        if(p.status===200&&p.data.ok)toast('Saved · new PIN '+d.pin); else toast((p.data&&p.data.error)||'Saved, but PIN reset failed',true);
-      } else toast('Saved');
-      await applyQbtMemberLink(d);
-    }
-    // commission profile (goal / role / exempt) -> commission_roster, keyed to staff
-    var sid=d.staff_id||(c&&c.data&&(c.data.staff_id||c.data.id||(c.data.staff&&c.data.staff.id)));
-    if(sid){
-      var nn=function(o){return (o&&Object.keys(o).length)?o:null;};
-      var cr=await sb.from('commission_roster').upsert({staff_id:sid,accy_goal:Number(d.comm_goal)||0,
-        earns_override:nn(d.earns_override),rules_override:nn(d.rules_override),rates_override:nn(rateMapClean(d.rates_override||{}))},{onConflict:'staff_id'});
-      if(cr.error)toast('Saved, but commission settings failed: '+cr.error.message,true);
-    }
-    MOPEN=null; await loadStaff(); await loadCommission(); renderAll();
-  }catch(e){toast(String(e&&e.message||e),true);if(btn)btn.disabled=false;}
-}
 
 /* ===== store modal (owner only) ===== */
 function openStore(store){
@@ -3314,8 +2956,7 @@ async function pgDrop(key,dragId,targetId,after){
 function renderModal(){
   var host=$('#modalHost');if(!host)return;
   if(!MOPEN){host.innerHTML='';return;}
-  if(MOPEN.type==='member'){host.innerHTML=memberModalHtml();wireMember(host);}
-  else if(MOPEN.type==='store'){host.innerHTML=storeModalHtml();wireStore(host);}
+  if(MOPEN.type==='store'){host.innerHTML=storeModalHtml();wireStore(host);}
   else if(MOPEN.type==='reg'){host.innerHTML=regModalHtml();wireReg(host);}
   else if(MOPEN.type==='role'){host.innerHTML=roleModalHtml();wireRole(host);}
   else if(MOPEN.type==='channel'){host.innerHTML=channelModalHtml();wireChannel(host);}
@@ -3324,7 +2965,6 @@ function renderModal(){
 
 /* ===== wiring ===== */
 function initUI(){
-  $('#tabStaff').onclick=function(){TAB='staff';lsSet('cprSetTab',TAB);SEARCH='';$('#staffSearch').value='';renderAll();};
   $('#tabLoc').onclick=function(){TAB='loc';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabNotif').onclick=function(){TAB='notif';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
   $('#tabPages').onclick=function(){TAB='pages';lsSet('cprSetTab',TAB);SEARCH='';renderAll();};
@@ -3466,9 +3106,6 @@ function initUI(){
   });
   $('#addRole').onclick=openAddRole;
   $all('#rpSeg button').forEach(function(b){b.onclick=function(){RP=b.getAttribute('data-rp');renderRoles();};});
-  $('#staffSearch').addEventListener('input',function(){SEARCH=this.value;renderStaff();});
-  $all('#rosterSeg button').forEach(function(b){b.onclick=function(){ROSTER=b.getAttribute('data-v');renderStaff();};});
-  $('#addMember').onclick=openAddMember;
   $('#addStore').onclick=openAddStore;
   $('#addReg').onclick=function(){if(!REGSTORE){toast('Add a store first',true);return;}openAddReg();};
   $('#regStore').onchange=async function(){REGSTORE=this.value;await loadRegs();renderAll();};
