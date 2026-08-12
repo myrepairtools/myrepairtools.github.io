@@ -27,9 +27,21 @@ alter table public.staff_intake add column if not exists handbook_signed_name te
 alter table public.staff_intake add column if not exists handbook_signed_at timestamptz;
 alter table public.staff_intake add column if not exists signed_meta     jsonb;        -- {offer:{ip,ua},handbook:{ip,ua}}
 
+-- Offer-PDF delta (same day): the offer letter travels as a PDF.
+alter table public.staff_intake add column if not exists offer_sent_at  timestamptz;
+alter table public.staff_intake add column if not exists offer_sent_via text;
+-- Reply-to for offer emails (owner-editable; intake fn falls back to GMAIL_USER).
+insert into public.app_settings (key, value)
+values ('hiring.reply_to', jsonb_build_object('email','bbay@cpr-stores.com'))
+on conflict (key) do nothing;
+
 -- Default offer-letter template (owner-editable in app_settings; the New
--- Candidate modal prefills from it, resolves the {placeholders}, and lets the
+-- Candidate wizard prefills from it, resolves the {placeholders}, and lets the
 -- manager edit before the snapshot lands in staff_intake.offer_body).
+-- NOTE: the live row now carries the REAL CPR offer letter (from the owner's
+-- Tristen offer PDF, 2026-08-12), parametrized with {name}/{position}/{pay}/
+-- {store}/{start} and using the PDF renderer's light markup ('# '/'## '
+-- headings, '• ' bullets). The seed below is only the original fallback.
 insert into public.app_settings (key, value)
 values ('hiring.offer_template', jsonb_build_object('body',
 'Dear {name},

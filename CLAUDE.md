@@ -1084,13 +1084,22 @@ nav 'Onboarding', manager+) is the hiring pipeline (10b): stat tiles, stage chip
 Declined), "New candidate", Review & convert → "Convert to New Employee ›"
 (promotes + fires auto-assign; a missing-docs convert warns but is allowed —
 paper case). **Candidate stage (owner directive 2026-08-12): new hires start as
-New Candidates.** The New Candidate modal takes name/store/position/pay/start +
-optional phone/email and an **offer letter** (prefilled from `app_settings`
-`hiring.offer_template` with {name}/{position}/{pay}/{store}/{start} resolved
-live until the manager hand-edits; the exact text is snapshotted to
-`staff_intake.offer_body` — what they sign never changes after send), then
-Copy link / **Text it** (messaging fn, store's line, `candidate_link` template
-key). One link does the whole flow: **sign the offer** (accept, or decline with
+New Candidates.** The **New Candidate wizard** (4 steps, chips like the
+Checklist Template wizard: Candidate → Offer Letter → Preview → Send) takes
+name/store/position/pay/start + optional phone/email, then the **offer
+letter** (prefilled from `app_settings` `hiring.offer_template` with
+{name}/{position}/{pay}/{store}/{start} resolved live until the manager
+hand-edits; the exact text is snapshotted to `staff_intake.offer_body` — what
+they sign never changes after send. The live template is the owner's REAL
+offer letter, parametrized). **The offer travels as a PDF** (intake fn,
+pdf-lib lazy-import, US-Letter, CPR letterhead + store address/phone from
+`stores`, light markup: '# '/'## ' headings + '• ' bullets): step 3 previews
+the exact PDF (`offer_pdf` action → blob iframe), step 4 creates the row then
+offers **Email the offer — PDF attached** (`send_offer`: Gmail SMTP w/
+attachment, reply-to `app_settings` 'hiring.reply_to' = bbay@cpr-stores.com,
+signing link in the body, stamps offer_sent_at/_via) / **Text the signing
+link** (messaging fn, store's line, `candidate_link` template key) / Copy.
+One link does the whole flow: **sign the offer** (accept, or decline with
 an optional note → status 'declined', terminal, row kept + deletable) → **sign
 the Employee Handbook** (accordion rendered LIVE from the KB's Employee
 Handbook category via the intake fn — published employee articles only, so
@@ -1098,7 +1107,10 @@ candidates always sign current wording) → the 5-step new-hire form. Signatures
 follow the contracts pattern (png data-url + typed name + ip/ua in
 `signed_meta`); server enforces order (submit refuses `docs_first`/`declined`)
 and each milestone fires a best-effort **'hiring' alert** (new alerts kind,
-Notification tier) to the manager who created the link. Docs columns:
+Notification tier) to the manager who created the link. **`signed_pdf`**
+(token-auth) renders the SIGNED record — offer + embedded signature block +
+an Employee Handbook acknowledgment page — downloadable from the candidate's
+done card and the manager review modal's "⬇ Signed offer (PDF)". Docs columns:
 docs/sql/candidate-stage.sql. A link created with the docs checkbox OFF keeps
 the original form-only flow (offer_body null).
 **Intake:** `intake.html` is a PUBLIC token page (11a; candidate phases above,

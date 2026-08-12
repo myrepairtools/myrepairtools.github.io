@@ -277,78 +277,174 @@ function copyLink(token){
 function e164ish(v){const d=String(v||'').replace(/\D/g,'');
   if(d.length===10)return '+1'+d;if(d.length===11&&d[0]==='1')return '+'+d;
   const t=String(v||'').trim();return t.startsWith('+')&&d.length>=11?t:null;}
+/* ---- New Candidate wizard (workflow-style, like the Checklist Template wizard) ---- */
+const WSTEPS=[['Candidate','Who you\'re hiring'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+let CD=null;
 function openNewHire(){
-  let tplDirty=false;
-  $('#mdl').innerHTML='<h2>New candidate</h2>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
-    +'<div class="f"><label>Name (as you know it)</label><input id="nhName" placeholder="Devon Reyes"></div>'
-    +'<div class="f"><label>Store</label><select id="nhStore">'
-    +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'">CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
-    +'<div class="f"><label>Position</label><input id="nhPos" placeholder="Repair Technician"></div>'
-    +'<div class="f"><label>Pay</label><input id="nhPay" placeholder="$18/hr + commission"></div>'
-    +'<div class="f"><label>Proposed start</label><input id="nhStart" placeholder="Monday, Aug 24"></div>'
-    +'<div class="f"><label>Mobile (to text the link)</label><input id="nhPhone" inputmode="tel" placeholder="(555) 555-5555"></div>'
-    +'</div>'
-    +'<div class="f"><label>Email (optional)</label><input id="nhEmail" inputmode="email" placeholder="them@example.com"></div>'
-    +'<label style="display:flex;gap:8px;align-items:center;margin:12px 0 0;cursor:pointer;font-size:.82rem;font-weight:700">'
-    +'<input type="checkbox" id="nhDocs" checked style="width:15px;height:15px;accent-color:var(--red)">'
-    +'Offer letter + handbook to sign before the new-hire form</label>'
-    +'<div class="f" id="nhTplWrap"><label>Offer letter (edit before sending — this exact wording is what they sign)</label>'
-    +'<textarea id="nhTpl"></textarea></div>'
-    +'<div id="nhOut"></div>'
-    +'<div class="mact"><button class="btn alt" id="nhCancel">Close</button><button class="btn" id="nhGo">Create link</button></div>';
+  CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',pay:'',start:'',
+    phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null};
+  drawWiz();
   $('#mask').classList.add('show');
-  const buildOffer=()=>{
-    const v={name:$('#nhName').value.trim(),position:$('#nhPos').value.trim(),pay:$('#nhPay').value.trim(),
-      store:'CPR '+shortStore($('#nhStore').value),start:$('#nhStart').value.trim()};
-    let b=OFFER_TPL||'';
-    Object.keys(v).forEach(k=>{if(v[k])b=b.split('{'+k+'}').join(v[k]);});
-    return b;
+}
+function buildOffer(){
+  const v={name:CD.name,position:CD.pos,pay:CD.pay,store:'CPR '+shortStore(CD.store),start:CD.start};
+  let b=OFFER_TPL||'';
+  Object.keys(v).forEach(k=>{if(v[k])b=b.split('{'+k+'}').join(v[k]);});
+  return b;
+}
+function grabWiz(){
+  if(CD.step===1){
+    CD.name=($('#wName')||{value:CD.name}).value.trim();
+    CD.store=($('#wStore')||{value:CD.store}).value;
+    CD.pos=($('#wPos')||{value:CD.pos}).value.trim();
+    CD.pay=($('#wPay')||{value:CD.pay}).value.trim();
+    CD.start=($('#wStart')||{value:CD.start}).value.trim();
+    CD.phone=($('#wPhone')||{value:CD.phone}).value.trim();
+    CD.email=($('#wEmail')||{value:CD.email}).value.trim();
+  }
+  if(CD.step===2){
+    const dc=$('#wDocs');if(dc)CD.docs=dc.checked;
+    const ta=$('#wTpl');if(ta)CD.body=ta.value;
+  }
+}
+function drawWiz(){
+  const chips='<div style="display:flex;gap:6px;margin:2px 0 12px">'+WSTEPS.map((s,i)=>{
+    const n=i+1,on=n===CD.step,done=n<CD.step;
+    return '<div style="flex:1;text-align:center;font-family:Nunito,sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:7px 3px;border-radius:8px;'
+      +(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s[0]+'</div>';}).join('')+'</div>';
+  let body='';
+  if(CD.step===1){
+    body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+      +'<div class="f"><label>Name (as you know it)</label><input id="wName" placeholder="Devon Reyes" value="'+esc(CD.name)+'"></div>'
+      +'<div class="f"><label>Store</label><select id="wStore">'
+      +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(CD.store===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
+      +'<div class="f"><label>Position</label><input id="wPos" placeholder="Cell Phone Repair Technician…" value="'+esc(CD.pos)+'"></div>'
+      +'<div class="f"><label>Base pay</label><input id="wPay" placeholder="$16.00 per hour" value="'+esc(CD.pay)+'"></div>'
+      +'<div class="f"><label>Proposed start</label><input id="wStart" placeholder="Monday, August 24" value="'+esc(CD.start)+'"></div>'
+      +'<div class="f"><label>Mobile</label><input id="wPhone" inputmode="tel" placeholder="(555) 555-5555" value="'+esc(CD.phone)+'"></div>'
+      +'</div>'
+      +'<div class="f"><label>Email (for the offer PDF)</label><input id="wEmail" inputmode="email" placeholder="them@example.com" value="'+esc(CD.email)+'"></div>';
+  }else if(CD.step===2){
+    body='<label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;cursor:pointer;font-size:.82rem;font-weight:700">'
+      +'<input type="checkbox" id="wDocs"'+(CD.docs?' checked':'')+' style="width:15px;height:15px;accent-color:var(--red)">'
+      +'Offer letter + handbook to sign before the new-hire form</label>'
+      +(CD.docs
+        ?'<div class="f"><label>Offer letter — this exact wording is what they sign ("# " and "## " make headings, "• " bullets)</label>'
+          +'<textarea id="wTpl" style="min-height:260px"></textarea>'
+          +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-top:4px">Prefilled from your template with this candidate\'s details — edit anything. Step-1 fields update it until you type in here.</div></div>'
+        :'<div style="font-size:.8rem;font-weight:700;color:var(--grey2);padding:10px 0">No offer letter — their link goes straight to the new-hire form.</div>');
+  }else if(CD.step===3){
+    body=CD.docs
+      ?'<div style="font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-bottom:8px">This is the PDF they\'ll get — their personal signing link is added when it sends.</div>'
+        +'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:440px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
+      :'<div style="font-size:.85rem;font-weight:700;color:var(--grey2);padding:24px 0;text-align:center">No offer letter to preview — this link is form-only.</div>';
+  }else{
+    const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],['Base pay',CD.pay||'—'],
+      ['Start',CD.start||'—'],['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Docs',CD.docs?'Offer + handbook + form':'Form only']];
+    body='<div style="border:1px solid #F0F1F4;border-radius:10px;padding:8px 12px;margin-bottom:12px">'
+      +rows.map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')+'</div>'
+      +(CD.created
+        ?'<div class="linkbox"><input readonly value="'+esc(intakeUrl(CD.created.token))+'"><button class="ghost" id="wCopy" style="padding:8px 12px">Copy</button></div>'
+          +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+          +(CD.docs&&CD.email?'<button class="btn" id="wEmailGo" style="background:var(--blued)">Email the offer — PDF attached</button>':'')
+          +(e164ish(CD.phone)?'<button class="btn" id="wTextGo">Text the signing link</button>':'')
+          +'</div><div id="wSendOut" style="font-size:.76rem;font-weight:700;color:var(--grey2);margin-top:8px"></div>'
+          +(CD.docs&&!CD.email?'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:6px">No email on file — text or copy the link instead; the offer renders on their signing page.</div>':'')
+        :'<div style="font-size:.78rem;font-weight:700;color:var(--dark-grey)">Creating the candidate makes their personal link — then email the offer PDF, text the link, or copy it.</div>');
+  }
+  const canBack=CD.step>1&&!CD.created;
+  const footer='<div class="mact" style="align-items:center">'
+    +'<div style="flex:1;font-size:.72rem;font-weight:800;color:var(--grey)">Step '+CD.step+' of 4</div>'
+    +(canBack?'<button class="btn alt" id="wBack">Back</button>':'<button class="btn alt" id="wClose">'+(CD.created?'Done':'Cancel')+'</button>')
+    +(CD.step<4?'<button class="btn" id="wNext">Next</button>'
+      :(CD.created?'':'<button class="btn" id="wCreate">Create candidate &amp; link</button>'))
+    +'</div>';
+  $('#mdl').style.maxWidth='640px';
+  $('#mdl').innerHTML='<h2>New Candidate'+(CD.name?' — '+esc(CD.name):'')+'</h2>'+chips+body+footer;
+  wireWiz();
+}
+function wireWiz(){
+  if(CD.step===2){
+    $('#wDocs').onchange=e=>{grabWiz();CD.docs=e.target.checked;drawWiz();};
+    const ta=$('#wTpl');
+    if(ta){
+      ta.value=CD.tplDirty?CD.body:buildOffer();
+      CD.body=ta.value;
+      ta.oninput=()=>{CD.tplDirty=true;CD.body=ta.value;};
+    }
+  }
+  if(CD.step===3&&CD.docs)buildPdfPreview();
+  const bk=$('#wBack');if(bk)bk.onclick=()=>{grabWiz();CD.step--;drawWiz();};
+  const cl=$('#wClose');if(cl)cl.onclick=async()=>{
+    $('#mask').classList.remove('show');$('#mdl').style.maxWidth='';
+    if(CD.created){await loadAll();draw();}
   };
-  const syncTpl=()=>{if(!tplDirty)$('#nhTpl').value=buildOffer();};
-  syncTpl();
-  ['nhName','nhPos','nhPay','nhStart'].forEach(id=>{$('#'+id).oninput=syncTpl;});
-  $('#nhStore').onchange=syncTpl;
-  $('#nhTpl').oninput=()=>{tplDirty=true;};
-  $('#nhDocs').onchange=()=>{$('#nhTplWrap').style.display=$('#nhDocs').checked?'':'none';};
-  $('#nhCancel').onclick=()=>{$('#mask').classList.remove('show');};
-  $('#nhGo').onclick=async()=>{
-    const docs=$('#nhDocs').checked;
-    if(docs&&!$('#nhTpl').value.trim()){toast('The offer letter is empty.',true);return;}
-    const b=$('#nhGo');b.disabled=true;b.textContent='Creating…';
+  const nx=$('#wNext');if(nx)nx.onclick=()=>{
+    grabWiz();
+    if(CD.step===1&&!CD.name){toast('Give the candidate a name.',true);return;}
+    if(CD.step===2&&CD.docs&&!CD.body.trim()){toast('The offer letter is empty.',true);return;}
+    if(CD.step===2&&!CD.tplDirty)CD.body=buildOffer();
+    CD.step++;drawWiz();
+  };
+  const cr=$('#wCreate');if(cr)cr.onclick=createCandidate;
+  const cp=$('#wCopy');if(cp)cp.onclick=()=>copyLink(CD.created.token);
+  const eg=$('#wEmailGo');if(eg)eg.onclick=emailOffer;
+  const tg=$('#wTextGo');if(tg)tg.onclick=textLink;
+}
+async function buildPdfPreview(){
+  const box=$('#wPdfBox');if(!box)return;
+  try{
     const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
-      body:JSON.stringify({action:'create',invited_name:$('#nhName').value.trim(),invited_store:$('#nhStore').value,
-        position:$('#nhPos').value.trim(),pay:$('#nhPay').value.trim(),start_hint:$('#nhStart').value.trim(),
-        offer_body:docs?$('#nhTpl').value:null,
-        phone:e164ish($('#nhPhone').value)||$('#nhPhone').value.trim()||null,
-        personal_email:$('#nhEmail').value.trim()||null})});
+      body:JSON.stringify({action:'offer_pdf',offer_body:CD.body,store:CD.store})});
     const j=await r.json().catch(()=>({}));
-    b.disabled=false;b.textContent='Create link';
-    if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
-    const phone=e164ish($('#nhPhone').value);
-    const first=($('#nhName').value.trim().split(/\s+/)[0])||'there';
-    $('#nhOut').innerHTML='<div class="linkbox"><input readonly value="'+esc(intakeUrl(j.token))+'"><button class="btn" id="nhCopy">Copy</button>'
-      +(phone?'<button class="btn" id="nhText" style="background:var(--blued)">Text it</button>':'')+'</div>'
-      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:6px">'
-      +(docs?'One link does it all: they sign the offer, sign the handbook, then fill out the new-hire form.':'Their personal link to the new-hire form.')+'</div>';
-    $('#nhCopy').onclick=()=>copyLink(j.token);
-    const tx=$('#nhText');if(tx)tx.onclick=async()=>{
-      tx.disabled=true;tx.textContent='Sending…';
-      const msg='Hi '+first+', '+(docs
-        ?'here’s your job offer from CPR Cell Phone Repair — review, sign, and finish your new-hire paperwork here: '
-        :'here’s your CPR new-hire form: ')+intakeUrl(j.token);
-      try{
-        const mr=await fetch(SB_URL+'/functions/v1/messaging',{method:'POST',
-          headers:{'Content-Type':'application/json','apikey':ANON,'Authorization':'Bearer '+await jwt()},
-          body:JSON.stringify({action:'send',to:phone,body:msg,store:$('#nhStore').value,
-            template_key:'candidate_link',agent_name:AUTH.name})});
-        const md=await mr.json().catch(()=>({}));
-        if(mr.ok&&md.ok!==false){tx.textContent='Sent ✓';toast('Texted the link');}
-        else{tx.disabled=false;tx.textContent='Text it';toast(md.error||'Text failed — copy the link instead',true);}
-      }catch(e){tx.disabled=false;tx.textContent='Text it';toast('Text failed — copy the link instead',true);}
-    };
-    await loadAll();draw();
-  };
+    if(!(r.status===200&&j.ok&&j.pdf))throw new Error(j.error||'preview failed');
+    const bytes=Uint8Array.from(atob(j.pdf),c=>c.charCodeAt(0));
+    if(CD.pdfUrl)URL.revokeObjectURL(CD.pdfUrl);
+    CD.pdfUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+    box.innerHTML='<iframe src="'+CD.pdfUrl+'" style="width:100%;height:100%;border:none"></iframe>';
+  }catch(e){
+    box.innerHTML='<div style="padding:16px;text-align:center">Preview failed — '+esc(e.message||'error')+'.<br>You can still create and send; the letter renders on their signing page.</div>';
+  }
+}
+async function createCandidate(){
+  const b=$('#wCreate');b.disabled=true;b.textContent='Creating…';
+  const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+    body:JSON.stringify({action:'create',invited_name:CD.name,invited_store:CD.store,
+      position:CD.pos,pay:CD.pay,start_hint:CD.start,
+      offer_body:CD.docs?CD.body:null,
+      phone:e164ish(CD.phone)||CD.phone||null,
+      personal_email:CD.email||null})});
+  const j=await r.json().catch(()=>({}));
+  if(!(r.status===200&&j.ok)){b.disabled=false;b.textContent='Create candidate & link';toast(j.error||'Failed',true);return;}
+  CD.created={id:j.id,token:j.token};
+  drawWiz();
+}
+async function emailOffer(){
+  const b=$('#wEmailGo'),out=$('#wSendOut');
+  b.disabled=true;b.textContent='Emailing…';
+  const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+    body:JSON.stringify({action:'send_offer',intake_id:CD.created.id})});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===200&&j.ok){b.textContent='Emailed ✓';out.textContent='Offer PDF emailed to '+CD.email+' with their signing link.';}
+  else{b.disabled=false;b.textContent='Email the offer — PDF attached';
+    out.innerHTML='<span style="color:var(--red)">Email failed — '+esc(j.error||'error')+'.</span> Text or copy the link instead; the letter renders on their signing page.';}
+}
+async function textLink(){
+  const b=$('#wTextGo'),out=$('#wSendOut');
+  b.disabled=true;b.textContent='Texting…';
+  const first=(CD.name.split(/\s+/)[0])||'there';
+  const msg='Hi '+first+', '+(CD.docs
+    ?'here’s your job offer from CPR Cell Phone Repair — review, sign, and finish your new-hire paperwork here: '
+    :'here’s your CPR new-hire form: ')+intakeUrl(CD.created.token);
+  try{
+    const mr=await fetch(SB_URL+'/functions/v1/messaging',{method:'POST',
+      headers:{'Content-Type':'application/json','apikey':ANON,'Authorization':'Bearer '+await jwt()},
+      body:JSON.stringify({action:'send',to:e164ish(CD.phone),body:msg,store:CD.store,
+        template_key:'candidate_link',agent_name:AUTH.name})});
+    const md=await mr.json().catch(()=>({}));
+    if(mr.ok&&md.ok!==false){b.textContent='Texted ✓';out.textContent='Signing link texted to '+CD.phone+'.';}
+    else{b.disabled=false;b.textContent='Text the signing link';toast(md.error||'Text failed — copy the link instead',true);}
+  }catch(e){b.disabled=false;b.textContent='Text the signing link';toast('Text failed — copy the link instead',true);}
 }
 function openReview(id){
   const i=INTAKES.find(x=>x.id===id);if(!i)return;
@@ -369,7 +465,8 @@ function openReview(id){
       +'Declined the offer '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' — “'+esc(i.decline_note)+'”':'')+'</div>':'')
     +rv('Position',i.position)+rv('Pay',i.pay)+rv('Start',i.start_hint)
     +(docs?sig('Offer',i.offer_signature,i.offer_signed_name,i.offer_signed_at)
-      +sig('Handbook',i.handbook_signature,i.handbook_signed_name,i.handbook_signed_at):'')
+      +sig('Handbook',i.handbook_signature,i.handbook_signed_name,i.handbook_signed_at)
+      +(i.offer_signed_at?'<div style="margin:8px 0 4px"><button class="ghost" id="rvPdf">⬇ Signed offer (PDF)</button></div>':''):'')
     +rv('Name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)+rv('Email',i.personal_email)
     +rv('Address',addr)+rv('Shirt',i.shirt_size)+rv('I-9 plan',i.i9_docs)
     +(i.emergency?rv('Emergency',(i.emergency.name||'')+' '+(i.emergency.phone||'')):'')
@@ -382,6 +479,21 @@ function openReview(id){
       +'<div style="font-size:.68rem;font-weight:700;color:var(--grey);text-align:right;margin-top:6px">copies onto the staff row + auto-assigns their training</div>');
   $('#mask').classList.add('show');
   $('#rvClose').onclick=()=>{$('#mask').classList.remove('show');};
+  const pb=$('#rvPdf');if(pb)pb.onclick=async()=>{
+    pb.disabled=true;pb.textContent='Building…';
+    try{
+      const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'signed_pdf',token:i.token})});
+      const j=await r.json().catch(()=>({}));
+      if(!(r.status===200&&j.ok&&j.pdf))throw new Error(j.error||'failed');
+      const bytes=Uint8Array.from(atob(j.pdf),c=>c.charCodeAt(0));
+      const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+      const a=document.createElement('a');a.href=url;a.download=j.filename||'CPR Offer — signed.pdf';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      pb.disabled=false;pb.textContent='⬇ Signed offer (PDF)';
+    }catch(e){pb.disabled=false;pb.textContent='⬇ Signed offer (PDF)';toast('PDF failed — '+(e.message||'error'),true);}
+  };
   const go=$('#rvGo');if(go)go.onclick=async()=>{
     const sid=+$('#rvStaff').value;
     if(!sid){toast('Pick their staff row first',true);return;}

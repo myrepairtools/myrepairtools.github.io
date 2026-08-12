@@ -432,7 +432,22 @@ function draw(){
   if(PHASE==='done'){
     card.innerHTML='<div class="chd"><div class="logo"><b>my</b>Repair<b>Tools</b></div></div>'
       +'<div class="done"><span class="ck">'+CHECK+'</span><h2>All set'+(firstName()?', '+esc(firstName()):'')+'!</h2>'
-      +'<p>Your manager has everything they need.<br>See you on your first day.</p></div>';
+      +'<p>Your manager has everything they need.<br>See you on your first day.</p>'
+      +(INVITE&&INVITE.offer_signed_at?'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">⬇ Download your signed offer (PDF)</button>':'')
+      +'</div>';
+    const dl=$('#dlPdf');if(dl)dl.onclick=async()=>{
+      dl.disabled=true;dl.textContent='Building…';
+      try{
+        const r=await call({action:'signed_pdf',token:TOKEN});
+        if(!(r.status===200&&r.data.ok&&r.data.pdf))throw new Error(r.data.error||'failed');
+        const bytes=Uint8Array.from(atob(r.data.pdf),c=>c.charCodeAt(0));
+        const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+        const a=document.createElement('a');a.href=url;a.download=r.data.filename||'CPR Offer — signed.pdf';
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),4000);
+      }catch(e){alert('Download failed — try again.');}
+      dl.disabled=false;dl.textContent='⬇ Download your signed offer (PDF)';
+    };
     return;
   }
   if(PHASE==='declined'){
