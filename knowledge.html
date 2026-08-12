@@ -266,14 +266,15 @@ async function loadAll(){
     sb.from('kb_articles').select('*').order('updated_at',{ascending:false}),
     sb.from('kb_reads').select('article_id,first_read_at,acknowledged_at,last_viewed_at').eq('staff_id',AUTH.id),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
-    sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id).maybeSingle(),
+    sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id),
     sb.from('kb_quizzes').select('id,article_id,pass_pct,active,kb_quiz_questions(id)').eq('active',true),
     sb.from('kb_quiz_attempts').select('quiz_id,score_pct,passed,attempt_no').eq('staff_id',AUTH.id),
     sb.from('staff').select('id,display_name').eq('active',true),
     sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
     sb.from('onboarding_step_done').select('step_id,done_by,done_at').eq('staff_id',AUTH.id)
   ]);
-  CATS=c.data||[]; ARTS=a.data||[]; MODULES=m.data||[]; ASSIGN=asn.data||null;
+  CATS=c.data||[]; ARTS=a.data||[]; MODULES=m.data||[];
+  ASSIGN=(asn.data||[]).filter(x=>x.module_id!=null);   // per-module assignment rows (Training model)
   STEPS=sp.data||[]; SDONE={}; (sd.data||[]).forEach(x=>SDONE[x.step_id]=x);
   READS={}; (r.data||[]).forEach(x=>READS[x.article_id]=x);
   QUIZ={}; (qz.data||[]).forEach(q=>{ QUIZ[q.article_id]={id:q.id,pass_pct:q.pass_pct,nq:(q.kb_quiz_questions||[]).length}; });
@@ -308,7 +309,8 @@ function articleDone(a){ const q=QUIZ[a.id]; return !!acked(a)&&(!q||!q.nq||(MYA
 function itemDone(it){ return it.kind==='a'?articleDone(it.a):!!SDONE[it.s.id]; }
 /* full track: modules with their merged items; global sequential unlock */
 function track(){
-  const mods=MODULES.map(mod=>({mod,items:moduleItems(mod.id)})).filter(x=>x.items.length);
+  const aset=new Set((ASSIGN||[]).map(x=>x.module_id));
+  const mods=MODULES.filter(m=>aset.has(m.id)).map(mod=>({mod,items:moduleItems(mod.id)})).filter(x=>x.items.length);
   let nextFound=false;
   mods.forEach((mx,mi)=>{
     mx.done=mx.items.filter(itemDone).length;
@@ -331,7 +333,7 @@ function applyHash(){
   const h=location.hash.replace('#','');
   let m;
   if((m=h.match(/^a=([\w-]+)/))){ const art=ARTS.find(x=>x.slug===m[1]); if(art){ openArticle(art.id); return true; } }
-  if(h==='onboarding'){ MODE='onboarding'; draw(); return true; }
+  if(h==='onboarding'){ location.replace('training.html#track'); return true; }   // the employee track lives in Training (My Hub) now
   if(h==='modules'&&isMgr(AUTH.role)){ MODE='modules'; draw(); return true; }
   if((m=h.match(/^quiz=([\w-]+)/))){ const art=ARTS.find(x=>x.slug===m[1]); if(art&&QUIZ[art.id]){ startQuiz(art); return true; } }
   if((m=h.match(/^edit=(\d+)/))&&isMgr(AUTH.role)){ const art=ARTS.find(x=>x.id===+m[1]); if(art){ OPEN=art; MODE='edit'; draw(); return true; } }
@@ -367,7 +369,7 @@ async function refresh(first){
 function publishNav(){
   const items=[];
   const onb=obOutstanding(), reqN=reqOutstanding().length;
-  if(track().length)items.push({h:'onboarding',i:'🎓',l:'My onboarding',b:onb||''});
+  items.push({u:'training.html',i:'🎓',l:'Training',b:onb||''});
   items.push({h:'c=all',i:'📚',l:'All articles',c:pubArts().length});
   if(reqN)items.push({h:'c=req',i:'⭐',l:'Required reading',b:reqN});
   CATS.forEach(c=>{
@@ -526,9 +528,8 @@ function drawArticle(){
 
 /* ---------- onboarding ---------- */
 async function ensureAssignment(){
-  if(ASSIGN)return;
-  const r=await sb.from('onboarding_assignments').insert({staff_id:AUTH.id}).select().single();
-  if(r.data)ASSIGN=r.data;
+  /* per-module assignment model: rows are created by managers (compliance /
+     dashboard) or module auto-assign — never lazily by the employee page. */
 }
 async function drawOnboarding(){
   await ensureAssignment();
