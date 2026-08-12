@@ -2130,15 +2130,45 @@ Deno.serve(async (req) => {
       return json({ ok: true, mode: "apply", location: locName, from_status: fromStatus, to_status: toStatus, receipt });
     }
 
-    // Supplier dropdown for the "change supplier" flow — read a resolved serial's
-    // edit form and return its supplier <select> options (id + name + current).
+    // Supplier dropdown for the "change supplier" flow. With an item_id we read
+    // that unit's edit form (real "current" marking); without one — the page asks
+    // as soon as Supplier mode is picked, before any list exists — we serve a
+    // cached copy of the company-wide supplier list (app_settings key
+    // 'repairq.suppliers'), self-seeding it from a recent Instock unit in
+    // device_inventory (hourly-synced) when the cache is stale or empty.
     if (mode === "supplier_options") {
+      const parseFrom = async (id: string) => {
+        const g = await rqRequest({ method: "GET", path: `/inventory/edit/${id}` });
+        return parseSelectOptions(g.body || "", "InventoryItemForm[supplier_id]");
+      };
+      const cacheSet = async (opts: Array<{ id: string; name: string }>) => {
+        try {
+          await admin.from("app_settings").upsert({
+            key: "repairq.suppliers",
+            value: { at: new Date().toISOString(), options: opts.map((o) => ({ id: o.id, name: o.name })) },
+          }, { onConflict: "key" });
+        } catch (_) { /* cache is best-effort */ }
+      };
       const itemId = String(payload.item_id || "");
-      if (!/^\d+$/.test(itemId)) return json({ ok: false, error: "item_id required" }, 400);
-      const g = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
-      const opts = parseSelectOptions(g.body || "", "InventoryItemForm[supplier_id]");
-      if (!opts.length) return json({ ok: false, error: "could not read suppliers (that unit may be locked/sold — pick another serial)" }, 502);
-      return json({ ok: true, mode: "supplier_options", current: opts.find((o) => o.selected)?.id || null, options: opts });
+      if (/^\d+$/.test(itemId)) {
+        const opts = await parseFrom(itemId);
+        if (!opts.length) return json({ ok: false, error: "could not read suppliers (that unit may be locked/sold — pick another serial)" }, 502);
+        await cacheSet(opts);
+        return json({ ok: true, mode: "supplier_options", current: opts.find((o) => o.selected)?.id || null, options: opts });
+      }
+      const { data: cached } = await admin.from("app_settings").select("value").eq("key", "repairq.suppliers").maybeSingle();
+      const cv: any = cached?.value || null;
+      if (cv?.options?.length && Date.now() - new Date(cv.at || 0).getTime() < 7 * 864e5) {
+        return json({ ok: true, mode: "supplier_options", current: null, options: cv.options, cached: true });
+      }
+      const { data: units } = await admin.from("device_inventory").select("rq_id")
+        .ilike("status", "instock%").order("uploaded_at", { ascending: false }).limit(5);
+      for (const u of (units || [])) {
+        const opts = await parseFrom(String(u.rq_id));
+        if (opts.length) { await cacheSet(opts); return json({ ok: true, mode: "supplier_options", current: null, options: opts }); }
+      }
+      if (cv?.options?.length) return json({ ok: true, mode: "supplier_options", current: null, options: cv.options, cached: true });
+      return json({ ok: false, error: "no supplier list available yet — run a Preview with a serial once" }, 502);
     }
 
     // Change SUPPLIER on serialized units (per-unit metadata — safe/reversible).

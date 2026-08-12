@@ -12,7 +12,7 @@
 --ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
-main{max-width:1180px;margin:0;padding:24px 28px 80px}
+main{max-width:none;margin:0;padding:24px 28px 80px}
 .titlerow{display:flex;align-items:center;gap:9px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
 .tag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;letter-spacing:.4px;text-transform:uppercase;
@@ -106,14 +106,14 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
     <!-- 1 · Setup -->
     <div class="card">
       <div class="ct">1 · What are you changing?</div>
-      <div class="ch">Change the <b>status</b> of a list (a pull-back defaults to Instock → RMA Credit), or the <b>supplier</b> on serialized units.</div>
+      <div class="ch" id="modeHint">Change the <b>status</b> of a list (a pull-back defaults to Instock → RMA Credit), or the <b>supplier</b> on serialized units.</div>
       <div class="hd">
         <div><div class="fldl">Change</div><select class="statsel" id="modeSel"><option value="status">Status</option><option value="supplier">Supplier</option></select></div>
         <div><div class="fldl">Store</div><select class="storesel" id="storeSel"></select></div>
         <div class="sfld"><div class="fldl">From status</div><select class="statsel" id="fromSel"></select></div>
         <div class="arrow sfld">→</div>
         <div class="sfld"><div class="fldl">To status</div><select class="statsel" id="toSel"></select></div>
-        <div id="supplierField" style="display:none"><div class="fldl">New supplier</div><select class="statsel" id="supSel"><option>Preview first…</option></select></div>
+        <div id="supplierField" style="display:none"><div class="fldl">New supplier</div><select class="statsel" id="supSel"><option value="">Choose supplier…</option></select></div>
         <div><div class="fldl">Note on each unit</div><input class="noteinp" id="noteInp" maxlength="180" placeholder="Updated via myRepairTools"></div>
       </div>
     </div>
@@ -362,8 +362,27 @@ $('#modeSel').addEventListener('change',function(){
   document.querySelectorAll('.sfld').forEach(function(el){el.style.display=sup?'none':'';});
   $('#supplierField').style.display=sup?'':'none';
   $('#previewCard').classList.add('hide'); $('#runCard').classList.add('hide');
-  $('#supSel').innerHTML='<option>Preview first…</option>';
+  $('#modeHint').innerHTML=sup
+    ?'Sets the supplier on <b>exactly the serials you paste</b> — each serial is one unit at the selected store, whatever status it\'s in. SKU lines are skipped (supplier is per-unit), and locked units (e.g. Sold) report as not editable.'
+    :'Change the <b>status</b> of a list (a pull-back defaults to Instock → RMA Credit), or the <b>supplier</b> on serialized units.';
+  if(sup)loadSuppliers();
+  else $('#supSel').innerHTML='<option value="">Choose supplier…</option>';
 });
+/* fill the supplier dropdown as soon as Supplier mode is picked (server caches
+   the company-wide list); Preview refreshes it from a real unit's form. */
+async function loadSuppliers(){
+  $('#supSel').innerHTML='<option value="">Loading suppliers…</option>';
+  try{
+    var so=await callFn({action:'inventory_status',mode:'supplier_options',location:$('#storeSel').value});
+    fillSupSel(so,null);
+  }catch(e){ $('#supSel').innerHTML='<option value="">Choose supplier…</option>'; toast('Could not load suppliers: '+(e.message||e),true); }
+}
+function fillSupSel(so,keepPick){
+  var opts=(so.options||[]).filter(function(o){return /^\d+$/.test(String(o.id));});
+  $('#supSel').innerHTML='<option value="">Choose supplier…</option>'+opts.map(function(o){
+    return '<option value="'+o.id+'"'+(o.id===so.current?' selected':'')+'>'+esc(o.name)+(o.id===so.current?' (current)':'')+'</option>';}).join('');
+  if(keepPick&&/^\d+$/.test(keepPick))$('#supSel').value=keepPick;
+}
 
 /* ---- preview (resolve) ---- */
 $('#previewBtn').addEventListener('click', preview);
@@ -387,8 +406,9 @@ async function preview(){
       var firstSerial=out.filter(function(r){return r.kind==='serial';})[0];
       if(firstSerial){
         try{
+          var prevPick=$('#supSel').value;
           var so=await callFn({action:'inventory_status',mode:'supplier_options',location:store,item_id:firstSerial.item_id});
-          $('#supSel').innerHTML=(so.options||[]).map(function(o){return '<option value="'+o.id+'"'+(o.id===so.current?' selected':'')+'>'+esc(o.name)+(o.id===so.current?' (current)':'')+'</option>';}).join('');
+          fillSupSel(so,prevPick);   // keep an already-picked supplier through the refresh
         }catch(e){ toast('Could not load suppliers: '+(e.message||e),true); }
       } else { toast('No serialized units found — supplier change needs serials',true); }
     }
@@ -444,7 +464,7 @@ $('#runBtn').addEventListener('click',function(){
   if(curMode()==='supplier'){
     var sup=$('#supSel'); var supName=sup.selectedOptions&&sup.selectedOptions[0]?sup.selectedOptions[0].textContent.replace(/ \(current\)$/,''):sup.value;
     var nser=STATE.resolved.filter(function(r){return r.kind==='serial';}).length;
-    if(!/^\d+$/.test(sup.value)){ toast('Pick a supplier (Preview first)',true); return; }
+    if(!/^\d+$/.test(sup.value)){ toast('Pick a supplier',true); return; }
     $('#mTitle').textContent='Change supplier?';
     $('#mBody').innerHTML='This writes to <b>live RepairQ inventory</b> at '+esc($('#storeSel').value)+'. Supplier is per-unit metadata and can be changed back anytime.';
     $('#mBig').textContent='Set supplier → '+supName+' on '+nser+' unit'+(nser>1?'s':'');
