@@ -508,10 +508,15 @@ function renderStore(){
   if(!store){$('#view').innerHTML='<div class="empty">No store schedule to show.</div>';return;}
   var html=DAYS.map(function(dy,wd){
     var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isToday=di===todayIso;
-    var working=[];
+    var working=[],away=[];
     STAFF.forEach(function(e){
       var ap=approvedOn(e.id,di);if(ap&&!apPartial(ap,di))return;   // partial-day people still work part of the shift
-      var r=effDayRec(e.id,wd,di);if(r.none||r.off||r.store!==store)return;
+      var r=effDayRec(e.id,wd,di);if(r.none||r.off)return;
+      if(r.store!==store){
+        /* home-store person working elsewhere today — show where (mirrors Schedule Admin) */
+        if(e.home_store===store)away.push({e:e,name:e.display_name,store:r.store,me:e.id===ME.id});
+        return;
+      }
       var v=holAdjust(shiftView(r,wd),r,wd,di),rd=resolve(r.shift_id,store,wd),pl=parseLabel(r.label);
       var startMin=rd.start!=null?rd.start:(pl?pl[0]:9999);
       working.push({e:e,name:e.display_name,tm:v.time||v.name,start:startMin,me:e.id===ME.id});
@@ -520,6 +525,9 @@ function renderStore(){
     var rows=working.length?working.map(function(w){
       return '<div class="who">'+avFor(w.e)+'<span class="nm"'+(w.me?' style="color:#1E7AA8"':'')+'>'+esc(w.name)+(w.me?' <span style="font-size:.5rem;color:#1E7AA8;background:#E3F0F7;padding:1px 5px;border-radius:999px">YOU</span>':'')+'</span><span class="tm">'+esc(w.tm)+'</span></div>';
     }).join(''):'<div class="empty">No one scheduled.</div>';
+    rows+=away.map(function(w){var ac=storeColor(w.store);
+      return '<div class="who" style="opacity:.75">'+avFor(w.e)+'<span class="nm">'+esc(w.name)+'</span><span class="tm" style="color:'+esc(ac)+';font-weight:800">In '+esc(shortStore(w.store))+'</span></div>';
+    }).join('');
     return '<div class="scard'+(isToday?' today':'')+'"><div class="scard-hd"><span class="h"'+(isToday?' style="color:var(--red)"':'')+'>'+DAYL[wd]+' '+dt.getDate()+'</span>'+(isToday?'<span class="pill" style="color:#fff;background:var(--red);margin:0">TODAY</span>':'')+'<span style="flex:1"></span><span class="tm" style="font-family:Nunito Sans;font-weight:700;font-size:.7rem;color:var(--grey)">'+working.length+' on</span></div><div class="scard-bd">'+rows+'</div></div>';
   }).join('');
   $('#view').innerHTML=html;
@@ -742,7 +750,17 @@ function weekShiftCell(staffId,wd,di,cardStore){
   if(ap&&apPartial(ap,di)){var cp=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(cp,0.13)+';border-left:2px solid '+cp+'"><div class="n" style="color:#8a5a00">½ Partial</div><div class="t">away '+apAway(ap,di)+'h</div></div>';}
   if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(c,0.13)+';border-left:2px solid '+c+'"><div class="n" style="color:'+c+'">Off</div><div class="t">'+esc(ap.type)+'</div></div>';}
   var r=effDayRec(staffId,wd,di);
-  if(r.none||r.off||(cardStore&&r.store!==cardStore))return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
+  if(r.none||r.off||(cardStore&&r.store!==cardStore)){
+    /* working at another location: show "In <store>" on their HOME board (mirrors Schedule Admin's cellAway) */
+    if(cardStore&&!r.none&&!r.off&&r.store){
+      var he=staffById(staffId);
+      if(he&&he.home_store===cardStore){
+        var av=holAdjust(shiftView(r,wd),r,wd,di), ac=storeColor(r.store);
+        return '<div class="wchip" style="background:'+hexA(ac,0.09)+';border-left:2px solid '+esc(ac)+'"><div class="n" style="color:'+esc(ac)+'">In '+esc(shortStore(r.store))+'</div><div class="t">'+esc(av.time||'')+'</div></div>';
+      }
+    }
+    return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
+  }
   var v=holAdjust(shiftView(r,wd),r,wd,di);
   return '<div class="wchip" style="background:'+hexA(v.color,0.12)+';border-left:2px solid '+esc(v.color)+'"><div class="n">'+esc(v.name)+(v.warn?' ⚠️':'')+'</div><div class="t">'+esc(v.time)+'</div></div>';
 }

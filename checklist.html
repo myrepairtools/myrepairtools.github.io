@@ -190,13 +190,51 @@ const TOOLS=[
 const RECURS=[['oneoff','One-off'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly'],['flexible','Flexible']];
 function recurLabel(t){
   const r=t.recur;
-  if(r==='weekly') return 'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+t.weekdays.map(d=>DOW[d]).join('/'):'');
-  if(r==='monthly') return 'Monthly'+((t.month_dates&&t.month_dates.length)?' · '+t.month_dates.map(n=>ord(n)).join(', '):'');
+  const ev=n=>n===2?'Every other':'Every '+n+(r==='weekly'?' weeks':' months');
+  const intPfx=(t.recur_interval||1)>1?ev(t.recur_interval)+(t.recur_interval===2?(r==='weekly'?' week':' month'):'')+' · ':'';
+  const winSfx=(t.window_days||0)>0?' · due '+t.window_days+'d later':'';
+  if(r==='weekly') return intPfx+'Weekly'+((t.weekdays&&t.weekdays.length)?' · '+t.weekdays.map(d=>DOW[d]).join('/'):'')+winSfx;
+  if(r==='monthly') return intPfx+'Monthly'+((t.month_dates&&t.month_dates.length)?' · '+t.month_dates.map(n=>ord(n)).join(', '):'')+winSfx;
   if(r==='flexible') return 'Flexible · '+(t.flex_n||1)+'×/'+(t.flex_per==='month'?'month':'week');
   if(r==='daily') return 'Daily';
   return 'One-off';
 }
 function recurBadgeCls(r){return r==='daily'?'b-daily':r==='weekly'?'b-weekly':r==='monthly'?'b-monthly':r==='flexible'?'b-flex':'b-oneoff';}
+/* next generation day for a recurring template — mirrors the tasks edge
+   function exactly (weekday/month-date match + every-N interval from anchor). */
+function nextGen(t,fromIso){
+  if(!t||t.recur==='oneoff')return null;
+  const addD=(iso,n)=>{const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
+  const dowOf=iso=>new Date(iso+'T12:00:00Z').getUTCDay();
+  const wkStart=iso=>addD(iso,-dowOf(iso));
+  const weeksBetween=(a,b)=>Math.round((Date.parse(wkStart(b)+'T00:00:00Z')-Date.parse(wkStart(a)+'T00:00:00Z'))/604800000);
+  const monthsBetween=(a,b)=>{const A=a.split('-').map(Number),B=b.split('-').map(Number);return (B[0]-A[0])*12+(B[1]-A[1]);};
+  const dim=iso=>{const p=iso.split('-').map(Number);return new Date(p[0],p[1],0).getDate();};
+  const iv=Math.max(1,Number(t.recur_interval)||1);
+  const anchor=String(t.recur_anchor||t.created_at||fromIso).slice(0,10);
+  if(t.recur==='flexible')return {label:'anytime this '+(t.flex_per==='month'?'month':'week')};
+  let d=addD(fromIso,1);
+  for(let i=0;i<370;i++,d=addD(d,1)){
+    if(t.recur==='daily')break;
+    if(t.recur==='weekly'){
+      const n=weeksBetween(anchor,d);
+      if((t.weekdays||[]).indexOf(dowOf(d))>-1&&(iv<=1||(n>=0&&n%iv===0)))break;
+    }else if(t.recur==='monthly'){
+      const day=Number(d.slice(8,10)),m=dim(d),n=monthsBetween(anchor,d);
+      if((t.month_dates||[]).some(x=>Math.min(Number(x)||0,m)===day)&&(iv<=1||(n>=0&&n%iv===0)))break;
+    }else return null;
+    if(i===369)return null;
+  }
+  const win=Math.max(0,Math.min(14,Number(t.window_days)||0));
+  return {gen:d,due:addD(d,win)};
+}
+function nextGenLabel(t){
+  const n=nextGen(t,iso(new Date()));
+  if(!n)return null;
+  if(n.label)return 'Next: '+n.label;
+  const f=isoStr=>{const d=new Date(isoStr+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});};
+  return 'Next: '+f(n.gen)+(n.due!==n.gen?' · due '+f(n.due):'');
+}
 function ord(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
 function prioInfo(p){if(p==='must')return{label:'Must do today',cls:'b-must'};if(p==='asap')return{label:'Please do ASAP',cls:'b-asap'};return null;}
 
@@ -598,7 +636,8 @@ function openDetail(id){
   const instr=t&&t.instructions?'<div><div class="fld"><span class="fl">Instructions</span></div><div style="font-size:.9rem;line-height:1.55">'+linkify(t.instructions)+'</div></div>':'';
   openModal(
     '<div class="mdl" style="border-top:3px solid '+(over?'var(--red)':'var(--blue)')+'">'+
-    '<div class="mdl-hd"><div><div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="bdg '+recurBadgeCls(i.recur)+'">'+esc(recurLabel(t||i))+'</span><span class="bdg '+st.cls+'">'+st.lb+'</span>'+(prio?'<span class="bdg '+prio.cls+'">'+prio.label+'</span>':'')+(i.personal?'<span class="bdg b-pers">Personal</span>':'')+'</div>'+
+    '<div class="mdl-hd"><div><div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="bdg '+recurBadgeCls(i.recur)+'">'+esc(recurLabel(t||i))+'</span><span class="bdg '+st.cls+'">'+st.lb+'</span>'+(prio?'<span class="bdg '+prio.cls+'">'+prio.label+'</span>':'')+(i.personal?'<span class="bdg b-pers">Personal</span>':'')
+      +(function(){const nl=t?nextGenLabel(t):null;return nl?'<span class="bdg" style="background:#EAF6FD;color:#2E7CA6">'+esc(nl)+'</span>':'';})()+'</div>'+
     '<h2 style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.25rem;line-height:1.25">'+linkedName(i)+'</h2></div><button class="mdl-x" data-close>✕</button></div>'+
     '<div class="mdl-bd">'+
       '<div class="grid2" style="margin-bottom:18px">'+
@@ -620,6 +659,7 @@ function newDraft(){
   const mgr=isMgr(ME.role);
   return {name:'',linkText:'',linkUrl:'',customUrl:'',priority:'normal',recur:'daily',
     weekdays:[5],monthDates:'',flexN:'1',flexPer:'week',
+    recurInterval:'1',recurAnchor:'',windowDays:'0',
     target:'person',assignee:mgr?(STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner')[0]||ME).id:ME.id,fallback:'',
     shift:(SHIFTS[0]||{}).id,role:'any',pool:STAFF.filter(s=>s.home_store===SEL&&s.role!=='owner').map(s=>s.id),strategy:'rotate',completion:'any',
     store:SEL,dueTime:'18:00',dueType:'same',dueAfterN:'3',dueAfterUnit:'days',dueDate:'',instr:'',personal:!mgr};
@@ -628,6 +668,7 @@ function draftFrom(t){
   return {name:t.name||'',linkText:t.link_text||'',linkUrl:(t.link_url&&TOOLS.some(o=>o.value===t.link_url))?t.link_url:(t.link_url?'__custom':''),customUrl:t.link_url||'',
     priority:t.priority||'normal',recur:t.recur||'daily',
     weekdays:(t.weekdays||[]).slice(),monthDates:(t.month_dates||[]).join(', '),flexN:String(t.flex_n||1),flexPer:t.flex_per||'week',
+    recurInterval:String(t.recur_interval||1),recurAnchor:t.recur_anchor||'',windowDays:String(t.window_days||0),
     target:t.target||'person',assignee:t.assignee_staff_id||ME.id,fallback:t.fallback_staff_id||'',
     shift:t.shift_id||(SHIFTS[0]||{}).id,role:t.role_key||'any',pool:(t.pool||[]).slice(),strategy:t.strategy||'rotate',completion:t.completion||'any',
     store:t.store||SEL,dueTime:t.due_time||'18:00',dueType:t.due_type||'same',dueAfterN:String(t.due_after_n||3),dueAfterUnit:t.due_after_unit||'days',dueDate:t.due_date||'',instr:t.instructions||'',personal:!!t.personal};
@@ -635,6 +676,12 @@ function draftFrom(t){
 function openEditor(t){
   const mgr=isMgr(ME.role);
   if(t&&!mgr&&!(t.personal&&t.created_by===ME.id)){toast('Only managers can edit store tasks',true);return;}
+  // a multi-store group task must be edited in Task Admin — a single-row edit
+  // here would break the stores out of sync (Task Admin reconciles the group)
+  if(t&&mgr&&!t.personal&&t.group_id&&TPLS.some(x=>x.group_id===t.group_id&&x.id!==t.id)){
+    toast('This task runs at several stores — opening Task Admin to keep them in sync');
+    setTimeout(function(){location.href='task-admin.html';},700);return;
+  }
   EDIT_ID=t?t.id:null;
   DRAFT=t?draftFrom(t):newDraft();
   drawEditor();
@@ -652,9 +699,33 @@ function drawEditor(){
   if(d.linkText&&url&&(d.name||'').indexOf(d.linkText)>-1){const at=d.name.indexOf(d.linkText);prev=esc(d.name.slice(0,at))+'<span class="clink" style="cursor:default">'+esc(d.linkText)+'</span>'+esc(d.name.slice(at+d.linkText.length));}
   const wk=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const wkIdx=[1,2,3,4,5,6,0];
+  /* every-N cadence + due-window controls (same as Task Admin's wizard; the
+     generator honors recur_interval/recur_anchor/window_days for any template) */
+  const DOWNAME=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const intUnit=d.recur==='monthly'?'month':'week';
+  const intN=Math.max(1,Math.min(4,+d.recurInterval||1));
+  const winN=Math.max(0,+d.windowDays||0);
+  const winOpts=[[0,'Same day'],[1,'Next day'],[2,'2 days later'],[3,'3 days later'],[4,'4 days later'],[5,'5 days later'],[6,'6 days later'],[7,'A week later']];
+  const dueDay=(w,short)=>{const n=DOWNAME[(w+winN)%7];return (winN>=7?'next ':'')+(short?n.slice(0,3):n);};
+  let winPrev='';
+  if(winN>0&&d.recur==='weekly'&&(d.weekdays||[]).length){
+    const selDays=(d.weekdays||[]).slice().sort();
+    winPrev=selDays.length===1
+      ?('Assigned '+DOWNAME[selDays[0]]+' · due '+dueDay(selDays[0],false))
+      :selDays.map(w=>DOWNAME[w].slice(0,3)+' → '+dueDay(w,true)).join(' · ');
+  }
+  const intervalCtl=(d.recur==='weekly'||d.recur==='monthly')?
+    '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">'+
+      '<label class="fld" style="margin:0"><span class="fl">Repeat</span><select class="inp" id="eRecurInt" style="width:auto;min-width:150px">'+
+        [1,2,3,4].map(n=>'<option value="'+n+'"'+(intN===n?' selected':'')+'>'+(n===1?'Every '+intUnit:'Every '+n+' '+intUnit+'s')+'</option>').join('')+'</select></label>'+
+      (intN>1?'<label class="fld" style="margin:0"><span class="fl">Starting '+(intUnit==='week'?'week of':'month')+'</span><input class="inp" type="date" id="eRecurAnchor" value="'+esc(d.recurAnchor||'')+'"></label>':'')+
+      '<label class="fld" style="margin:0"><span class="fl">Due</span><select class="inp" id="eWindow" style="width:auto;min-width:140px">'+
+        winOpts.map(o=>'<option value="'+o[0]+'"'+(winN===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>'+
+      (winPrev?'<div style="padding-bottom:11px;font-size:.84rem;font-weight:700;color:var(--dark-grey)">'+esc(winPrev)+'</div>':'')+
+    '</div>':'';
   const recurPanel=
-    d.recur==='weekly'?'<div class="hint" style="margin-bottom:9px">Pick weekdays — choose two for twice a week.</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>':
-    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month (e.g. 5, 20)</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>':
+    d.recur==='weekly'?'<div class="hint" style="margin-bottom:9px">Pick weekdays — choose two for twice a week.</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+wkIdx.map((wd,j)=>'<button class="pill'+(d.weekdays.indexOf(wd)>-1?' on':'')+'" style="'+(d.weekdays.indexOf(wd)>-1?'background:var(--blue);border-color:var(--blue)':'')+'" data-wd="'+wd+'">'+wk[j]+'</button>').join('')+'</div>'+intervalCtl:
+    d.recur==='monthly'?'<label class="fld" style="margin:0"><span class="fl">Dates of the month (e.g. 5, 20)</span><input class="inp" id="eMonthDates" value="'+esc(d.monthDates)+'" placeholder="5, 20"></label>'+intervalCtl:
     d.recur==='flexible'?'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap"><label class="fld" style="width:80px;margin:0"><span class="fl">Times</span><input class="inp" id="eFlexN" value="'+esc(d.flexN)+'"></label><label class="fld" style="width:150px;margin:0"><span class="fl">per</span><select class="inp" id="eFlexPer"><option value="week"'+(d.flexPer==='week'?' selected':'')+'>week</option><option value="month"'+(d.flexPer==='month'?' selected':'')+'>month</option></select></label><div class="hint" style="padding-bottom:9px">Any day in the window — movable (e.g. clean the bathroom once a week).</div></div>':
     '<div class="hint">'+(d.recur==='daily'?'Generates fresh every day — overdue ones don’t pile up.':'Happens once. A one-off never auto-expires — it waits until done or a manager closes it.')+'</div>';
   const assignPanel=
@@ -699,7 +770,9 @@ function drawEditor(){
       :'')+
       '<label class="fld"><span class="fl">Instructions <span style="text-transform:none;font-weight:600;color:var(--grey)">(links are clickable)</span></span><textarea class="inp" id="eInstr" rows="3" placeholder="Add steps, par levels, or paste a knowledge-base link…">'+esc(d.instr)+'</textarea></label>'+
     '</div>'+
-    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">'+(personal?'Personal — only you see it':'Applies to '+esc(shortStore(d.store)))+'</div>'+(EDIT_ID&&mgr?'<button class="linkdel" data-arch>Archive template</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?'Save changes':'Create task')+'</button></div></div></div>'
+    '<div class="mdl-ft"><div style="display:flex;align-items:center;gap:14px"><div class="hint">'+(personal?'Personal — only you see it':'Applies to '+esc(shortStore(d.store)))
+      +(function(){const nl=nextGenLabel({recur:d.recur,weekdays:d.weekdays,month_dates:String(d.monthDates||'').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=31),recur_interval:+d.recurInterval||1,recur_anchor:d.recurAnchor||null,window_days:+d.windowDays||0,flex_per:d.flexPer,created_at:iso(new Date())});return nl?' · '+esc(nl):'';})()+'</div>'
+      +(EDIT_ID&&mgr?'<button class="linkdel" data-arch>Archive template</button>':'')+'</div><div style="display:flex;gap:10px"><button class="btn alt" data-close>Cancel</button><button class="btn" data-save>'+(EDIT_ID?'Save changes':'Create task')+'</button></div></div></div>'
   );
   // wire draft fields (re-render on structural changes)
   const grab=()=>{
@@ -708,6 +781,9 @@ function drawEditor(){
     if(g('eLinkText')!=null)d.linkText=g('eLinkText');
     if(g('eCustomUrl')!=null)d.customUrl=g('eCustomUrl');
     if(g('eMonthDates')!=null)d.monthDates=g('eMonthDates');
+    if(g('eRecurInt')!=null)d.recurInterval=g('eRecurInt');
+    if(g('eRecurAnchor')!=null)d.recurAnchor=g('eRecurAnchor');
+    if(g('eWindow')!=null)d.windowDays=g('eWindow');
     if(g('eFlexN')!=null)d.flexN=g('eFlexN');if(g('eFlexPer')!=null)d.flexPer=g('eFlexPer');
     if(g('eAssignee')!=null)d.assignee=g('eAssignee');if(g('eFallback')!=null)d.fallback=g('eFallback');
     if(g('eShift')!=null)d.shift=g('eShift');if(g('eRole')!=null)d.role=g('eRole');
@@ -724,6 +800,8 @@ function drawEditor(){
   document.querySelectorAll('#mdlWrap [data-duety]').forEach(b=>b.onclick=()=>{grab();d.dueType=b.dataset.duety;drawEditor();});
   document.querySelectorAll('#mdlWrap [data-wd]').forEach(b=>b.onclick=()=>{grab();const wd=+b.dataset.wd;const at=d.weekdays.indexOf(wd);if(at>-1)d.weekdays.splice(at,1);else d.weekdays.push(wd);drawEditor();});
   document.querySelectorAll('#mdlWrap [data-pool]').forEach(b=>b.onclick=()=>{grab();const id=+b.dataset.pool;const at=d.pool.indexOf(id);if(at>-1)d.pool.splice(at,1);else d.pool.push(id);drawEditor();});
+  const ri=$('#mdlWrap #eRecurInt');if(ri)ri.onchange=()=>{grab();drawEditor();};
+  const wn=$('#mdlWrap #eWindow');if(wn)wn.onchange=()=>{grab();drawEditor();};
   const lu=$('#mdlWrap #eLinkUrl');if(lu)lu.onchange=()=>{grab();d.linkUrl=lu.value;drawEditor();};
   const st2=$('#mdlWrap #eStore');if(st2)st2.onchange=()=>{grab();d.store=st2.value;d.pool=STAFF.filter(s=>s.home_store===d.store&&s.role!=='owner').map(s=>s.id);drawEditor();};
   const nm=$('#mdlWrap #eName');if(nm)nm.oninput=()=>{d.name=nm.value;};
@@ -745,6 +823,9 @@ async function saveTemplate(){
     month_dates:d.recur==='monthly'?String(d.monthDates||'').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=31):null,
     flex_n:d.recur==='flexible'?Math.max(1,+d.flexN||1):null,
     flex_per:d.recur==='flexible'?(d.flexPer==='month'?'month':'week'):null,
+    recur_interval:(d.recur==='weekly'||d.recur==='monthly')?Math.max(1,Math.min(4,+d.recurInterval||1)):1,
+    recur_anchor:((d.recur==='weekly'||d.recur==='monthly')&&(+d.recurInterval||1)>1&&d.recurAnchor)?d.recurAnchor:null,
+    window_days:(d.recur==='weekly'||d.recur==='monthly')?Math.max(0,Math.min(14,+d.windowDays||0)):0,
     target:personal?'person':d.target,
     assignee_staff_id:personal?ME.id:(d.target==='person'?+d.assignee||null:null),
     fallback_staff_id:(!personal&&d.target==='person'&&d.fallback)?+d.fallback:null,

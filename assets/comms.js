@@ -190,12 +190,22 @@
         +'<div style="margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.56rem;text-transform:uppercase;letter-spacing:.4px;border-radius:999px;padding:2px 8px;color:'+k.color+';background:'+k.color+'20">'+k.label+'</span>'
         +'<span style="font-size:.74rem;font-weight:700;color:#B9BDCB">'+escR(item.author)+' · '+when+'</span></div></div>'
         +'<button data-rdx style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#B9BDCB;line-height:1;flex:none">×</button></div>'
-      +'<div style="padding:16px 22px 22px;font-family:\'Nunito Sans\',sans-serif;font-size:.95rem;line-height:1.65;color:#4E4E50">'
+      +'<div style="padding:16px 22px 8px;font-family:\'Nunito Sans\',sans-serif;font-size:.95rem;line-height:1.65;color:#4E4E50">'
         +(item.body?fmtBody(item.body):'<span style="color:#B9BDCB">No details.</span>')+'</div>'
+      +'<div style="padding:0 22px 20px;display:flex;justify-content:flex-end">'
+        +'<button data-rddis style="font-family:Nunito,sans-serif;font-weight:800;font-size:.82rem;padding:9px 16px;border:1.5px solid #E0E2EA;background:#fff;color:#4E4E50;border-radius:10px;cursor:pointer">✓ Dismiss</button></div>'
       +'</div>';
     function close(){ rdFlush(); back.remove(); if(opts&&opts.onClose)opts.onClose(); }
     back.addEventListener('click',function(e){ if(e.target===back)close(); });
     back.querySelector('[data-rdx]').onclick=close;
+    /* Dismiss = read + hide from the widget for this user (undo lives on the
+       Communications page). Closes the modal and tells the caller. */
+    back.querySelector('[data-rddis]').onclick=function(){
+      dismiss(item.id); item.dismissed=true;
+      rdFlush(); back.remove();
+      if(opts&&opts.onDismiss)opts.onDismiss(item);
+      else if(opts&&opts.onClose)opts.onClose();
+    };
     document.body.appendChild(back);
     return {close:close};
   }

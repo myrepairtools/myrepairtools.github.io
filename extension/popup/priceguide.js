@@ -19,14 +19,26 @@
     btn.innerHTML = COPY_SVG;
     btn.addEventListener('click', function(e) {
       e.preventDefault();
-      navigator.clipboard.writeText(text).then(function() {
-        btn.classList.add('copied');
-        btn.innerHTML = CHECK_SVG;
-        setTimeout(function() {
-          btn.classList.remove('copied');
-          btn.innerHTML = COPY_SVG;
-        }, 1500);
-      });
+      // clipboard API can reject inside the fullview iframe / locked-down
+      // browsers — fall back to textarea copy, always show feedback
+      function flash(ok) {
+        btn.classList.add(ok ? 'copied' : 'copyfail');
+        btn.innerHTML = ok ? CHECK_SVG : '✕';
+        setTimeout(function() { btn.classList.remove('copied', 'copyfail'); btn.innerHTML = COPY_SVG; }, 1500);
+      }
+      function legacy() {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select(); ta.setSelectionRange(0, text.length);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (err) {}
+        ta.remove(); flash(ok);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() { flash(true); }, legacy);
+      } else legacy();
     });
     wrap.appendChild(btn);
   });
