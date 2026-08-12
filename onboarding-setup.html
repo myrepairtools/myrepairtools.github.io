@@ -32,6 +32,8 @@ font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:10px;tex
 .railcard.dragging{opacity:.45}
 .chip[draggable]{cursor:grab}
 .chip.dragging{opacity:.45}
+.irow[draggable]{cursor:grab}
+.irow.dragging{opacity:.45;background:#F3F9FD}
 .toolrow{display:flex;gap:10px;padding:0 16px 12px;flex-wrap:wrap;align-items:center}
 .toolnote{font-size:.7rem;font-weight:700;color:var(--grey);margin-left:auto}
 .pane{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);overflow:hidden}
@@ -150,24 +152,21 @@ function draw(){
     const secSel=(kind,id,curSec)=>'<select class="btn sm" data-secfor="'+kind+id+'" style="max-width:180px;font-weight:700">'
       +'<option value="">— module level —</option>'
       +secsOf.map(sx=>'<option value="'+sx.id+'"'+(curSec===sx.id?' selected':'')+'>'+esc(sx.name)+'</option>').join('')+'</select>';
-    const rows=items.map((it,i)=>{
-      const ud='<span style="display:inline-flex;gap:4px;flex:none">'
-        +'<button class="btn sm" data-up="'+i+'"'+(i===0?' disabled':'')+' style="padding:4px 9px">↑</button>'
-        +'<button class="btn sm" data-dn="'+i+'"'+(i===items.length-1?' disabled':'')+' style="padding:4px 9px">↓</button></span>';
+    const rows=items.map(it=>{
       if(it.kind==='a'){
         const a=it.a,q=QUIZ[a.id];
-        return '<div class="irow"><span class="itile">'+esc(artIcon(a))+'</span>'
+        return '<div class="irow" data-iid="a'+a.id+'" draggable="true"><span class="itile">'+esc(artIcon(a))+'</span>'
           +'<div class="imain"><div class="ititle">'+esc(a.title)+(a.status==='draft'?'<span class="achip">Draft</span>':'')+'</div>'
           +'<div class="imeta">Article · '+esc(catName(a.category_id))+(q&&q.nq?' · quiz ('+q.nq+')':'')+(a.require_ack?' · required':'')+'</div></div>'
           +(secsOf.length?secSel('a',a.id,a.section_id):'')
-          +ud+'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
+          +'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
       }
       const s=it.s;
-      return '<div class="irow"><span class="itile">'+(s.who==='manager'?'🧑‍💼':'☑️')+'</span>'
+      return '<div class="irow" data-iid="s'+s.id+'" draggable="true"><span class="itile">'+(s.who==='manager'?'🧑‍💼':'☑️')+'</span>'
         +'<div class="imain"><div class="ititle">'+esc(s.title)+'</div>'
         +'<div class="imeta">Task · '+(s.who==='manager'?'Manager completes':'Employee completes')+(s.note?' · '+esc(s.note):'')+'</div></div>'
         +(secsOf.length?secSel('s',s.id,s.section_id):'')
-        +ud+'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
+        +'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
     }).join('');
     const addable=ARTS.filter(a=>a.status!=='archived'&&a.module_id!==cur.id);
     right='<div class="pane"><div class="panehd">'
@@ -187,13 +186,12 @@ function draw(){
         +'<span style="flex-basis:100%;font-size:.68rem;font-weight:700;color:#7A5B10">⚠ Clearing the date assigns current staff too. Rules apply when a hire is promoted from intake.</span></div>'
       +'<div class="chips" id="secChips">'
         +secsOf.map(sx=>'<span class="chip" data-sid="'+sx.id+'" draggable="true">'+esc(sx.name)+'<button data-secdel="'+sx.id+'" title="Remove section">✕</button></span>').join('')
-        +'<button id="secAdd" class="btn sm" style="border-style:dashed;border-radius:999px">＋ Add section</button></div>'
-      +'<div class="toolrow">'
+        +'<button id="secAdd" class="btn sm" style="border-style:dashed;border-radius:999px">＋ Add section</button>'
         +'<button class="btn pri sm" id="stAdd">＋ Add task step</button>'
         +(addable.length?'<select id="artAdd" class="btn sm" style="max-width:280px"><option value="">＋ Add an article…</option>'
           +addable.map(a=>'<option value="'+a.id+'">'+esc(a.title)+(a.module_id?' (in '+esc((MODULES.find(m=>m.id===a.module_id)||{}).name||'another module')+')':'')+(a.status==='draft'?' — draft':'')+'</option>').join('')+'</select>':'')
-        +'<span class="toolnote">order here = employee order · unlock is sequential</span></div>'
-      +(rows||'<div class="empty">Nothing in this module yet.</div>')
+        +'<span class="toolnote">drag rows to reorder · order here = employee order · unlock is sequential</span></div>'
+      +'<div id="itemList">'+(rows||'<div class="empty">Nothing in this module yet.</div>')+'</div>'
       +'<div style="height:8px"></div></div>';
   }
   $('#page').innerHTML='<div class="hd">'+GRAD+'<h1>Module Setup</h1>'
@@ -221,16 +219,6 @@ function draw(){
     await sb.from('onboarding_modules').update({active:false}).eq('id',cur.id);
     MODSEL=null;await refresh();
   };
-  const move=async(i,dir)=>{
-    if(REORDERING)return;REORDERING=true;
-    try{
-      const j=i+dir;if(j<0||j>=items.length)return;
-      const sw=items[i];items[i]=items[j];items[j]=sw;
-      await renumber(cur.id,items);await refresh();
-    }finally{REORDERING=false;}
-  };
-  document.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>move(+b.dataset.up,-1));
-  document.querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>move(+b.dataset.dn,1));
   document.querySelectorAll('[data-aedit]').forEach(b=>b.onclick=()=>{location.href='knowledge.html#edit='+b.dataset.aedit;});
   document.querySelectorAll('[data-arem]').forEach(b=>b.onclick=async()=>{
     await sb.from('kb_articles').update({module_id:null}).eq('id',+b.dataset.arem);await refresh();
@@ -291,6 +279,14 @@ function draw(){
     }
     await refresh();
   },el=>el.getAttribute('data-sid'),true);
+  wireDnD($('#itemList'),'.irow[data-iid]',async order=>{
+    if(REORDERING)return;REORDERING=true;
+    try{
+      const byId={};items.forEach(it=>{byId[(it.kind==='a'?'a'+it.a.id:'s'+it.s.id)]=it;});
+      const newItems=order.map(id=>byId[id]).filter(Boolean);
+      await renumber(cur.id,newItems);await refresh();
+    }finally{REORDERING=false;}
+  },el=>el.getAttribute('data-iid'),false);
 }
 /* generic HTML5 drag-and-drop list reorder */
 function wireDnD(container,selector,persist,idOf,horizontal){
