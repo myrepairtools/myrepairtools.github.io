@@ -414,6 +414,42 @@ async function syncUsers(token: string) {
     if (error) return { ok: false, error: "db_" + error.message };
   }
 
+  // Contact backfill — QB Time carries each hire's email + mobile, so fill
+  // staff_profiles (phone / personal_email — the SMS pipeline reads phone) for
+  // any linked row whose profile field is still empty. Never overwrites
+  // owner- or self-entered contact info; best-effort, never breaks the sync.
+  let contactsFilled = 0;
+  try {
+    const linked = rows.filter((r) => r.staff_id != null);
+    if (linked.length) {
+      const ids = [...new Set(linked.map((r) => r.staff_id))];
+      const { data: profs } = await admin.from("staff_profiles").select("staff_id, phone, personal_email").in("staff_id", ids);
+      const pmap = new Map((profs || []).map((p: Record<string, unknown>) => [Number(p.staff_id), p]));
+      const e164 = (v: unknown) => {
+        const d = String(v || "").replace(/\D/g, "");
+        if (d.length === 10) return "+1" + d;
+        if (d.length === 11 && d.startsWith("1")) return "+" + d;
+        return null;
+      };
+      for (const r of linked) {
+        const u = r.raw as Record<string, unknown>;
+        const cur = pmap.get(Number(r.staff_id)) as Record<string, unknown> | undefined;
+        const phone = e164(u.mobile_number) || e164(u.phone_number);
+        const email = String(u.email || "").trim() || null;
+        const wantPhone = !!phone && !(cur && cur.phone);
+        const wantEmail = !!email && !(cur && cur.personal_email);
+        if (!wantPhone && !wantEmail) continue;
+        const { error: pe } = await admin.from("staff_profiles").upsert({
+          staff_id: r.staff_id,
+          phone: wantPhone ? phone : (cur?.phone ?? null),
+          personal_email: wantEmail ? email : (cur?.personal_email ?? null),
+          updated_at: stamp,
+        }, { onConflict: "staff_id" });
+        if (!pe) contactsFilled++;
+      }
+    }
+  } catch (_) { /* best-effort */ }
+
   // One-way termination sync — PROPOSE only, never auto-apply. A *mapped* QB user that's gone
   // inactive while the MRT staff row is still active is a *candidate* for deactivation; we surface
   // it for the owner to confirm in Settings (read → propose → confirm → write), never the reverse
@@ -442,6 +478,7 @@ async function syncUsers(token: string) {
     matched: rows.filter((r) => r.staff_id != null).length,
     created: created.length ? created : undefined,                 // new hires auto-created in MRT
     start_dates_backfilled: backfilledStart || undefined,          // hire dates pulled from QB onto blank records
+    contacts_filled: contactsFilled || undefined,                  // phone/email pulled from QB onto blank profiles
     termination_candidates: termination_candidates.length ? termination_candidates : undefined,
     // only surface *active* unmatched QB users — inactive strangers are just noise.
     unmatched: rows.filter((r) => r.staff_id == null && r.active !== false)
