@@ -1057,6 +1057,46 @@ Manage section) is the roster view: store `.storesel` filter, stat tiles, per-pe
 onboarding %, quizzes passed, receipt pills per required article, overdue = required
 still open 7+ days after publish. Schema: docs/sql/kb-onboarding-schema.sql.
 
+**Training Center (round-2 design handoff, 2026-08-12):** the training surface
+split three ways. **`training.html`** (My Hub 'Training', graduation-cap) is the
+employee home: My onboarding module cards (bar · due chip · Continue), Assigned
+training (required reads + "Require re-read" refreshers), quiet Completed history,
+"Nothing assigned yet" zero state; `#track` is the 9b module detail (section header
+bands with per-section counts, next/lock/done rows, "Waiting on your manager" chip,
+past-due = red chip+bar, NOTHING locks on past-due; sections are presentation only —
+unlock stays strictly sequential). knowledge.html#onboarding redirects here.
+**Assignment is per (person, module)** — `onboarding_assignments` rows carry
+module_id/assigned_by/assigned_at/due_at (docs/sql/onboarding-sections-assign.sql;
+the legacy one-row-per-person unique is gone); unassigned people see/count NOTHING
+("Nothing assigned", never 0%). **`assets/onboarding-track.js`** (`window.CPRTrack`)
+is the ONE merge/order/section/unlock implementation — training, kb-compliance and
+knowledge Setup all render from it; never fork the math. **`kb-compliance.html`**
+rebuilt per 9a: roster (Onboarding bar + New-hire setup tone chip — new hire =
+started ≤60 days, others "—") + a right slide-over per person: **New-hire setup
+checklist** — auto-verified rows computed LIVE (pin_hash, home store, staff_schedule,
+assignments, staff_profiles phone/emergency, birthday, commission_roster gated by
+whether the ROLE earns accessory/device → n/a otherwise) + 5 manual trust-me ticks
+(I-9, QB Workforce invite, RepairQ creds, shirt, team chat) in `staff_setup_checklist`
+with checked_by/at audit; assigned-module toggles + due-date chips (pickers.js);
+next-up items with inline manager ticks. **`onboarding-dashboard.html`** (Employees
+nav 'Onboarding', manager+) is the hiring pipeline (10b): stat tiles, stage chips
+(Waiting on them → Ready to review → In training), "New hire — send intake link",
+Review intake → "Copy onto their record ›" (promotes + fires auto-assign).
+**Intake:** `intake.html` is a PUBLIC token page (11a, 5 steps: About you → Address
+& work details → Emergency contacts → Availability with All day/Hours/Off per day and
+Open/Close endpoints, stored structured jsonb → Review; no pronouns/transportation/
+SSN/bank) driven by the **`intake` edge function** (get/submit by token; manager
+create/promote by JWT — the browser never reads `staff_intake`; promote copies onto
+the staff row + staff_profiles fill-empty-only and applies each module's auto-assign
+rule `auto_assign_role`+`auto_assign_from`). Setup (`#modules`) gained the 9c
+controls: auto-assign rule bar, section chips, per-item section selects
+(`onboarding_sections` + section_id on articles/steps). The editor's publish flow
+gained **"Require re-read"** (published+required articles): checking it on Save &
+publish nulls every `kb_reads.acknowledged_at` so the refreshed policy resurfaces in
+Training → Assigned training; ordinary edits never auto-reset. Quiz authoring stays
+the modal (11b full-page treatment deferred); the 9d Team Members intake review card
+is covered by the dashboard's Review modal for now.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);
