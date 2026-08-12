@@ -667,7 +667,7 @@ function renderWeekly(){
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
         else inner=cellShift(a,s.store,wd);
         total+=cellHours(a,s.store,wd);
-        return '<td class="cell clk" data-emp="'+e.id+'" data-wd="'+wd+'">'+inner+'</td>';
+        return '<td class="cell clk" data-emp="'+e.id+'" data-wd="'+wd+'" data-store="'+esc(s.store)+'">'+inner+'</td>';
       }).join('');
       boardH+=total;
       return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+hrsTd(total)+'</tr>';
@@ -1042,16 +1042,19 @@ function openWeekPicker(anchor){
 }
 function openPicker(td,ev){
   closePop();var emp=Number(td.getAttribute('data-emp')),wd=Number(td.getAttribute('data-wd')),e=empById(emp);if(!e)return;
-  var homeStore=e.home_store;
+  // Use the STORE OF THE SECTION the cell is in — not the person's home store — so a
+  // visiting tech (e.g. Dylan in the Clackamas board) gets THAT store's shifts (its
+  // Opener/Closer with the right hours), not their home store's.
+  var store=td.getAttribute('data-store')||e.home_store;
   var back=document.createElement('div');back.className='pop-back';back.onclick=closePop;
   var pop=document.createElement('div');pop.className='pop';
-  var shifts=SHIFTS.filter(function(sh){if(!sh.active)return false;var h=HOURS[sh.id+'|'+homeStore];return h&&h.def&&h.def.enabled;}).sort(function(a,b){return (a.sort||0)-(b.sort||0);});
+  var shifts=SHIFTS.filter(function(sh){if(!sh.active)return false;var h=HOURS[sh.id+'|'+store];return h&&h.def&&h.def.enabled;}).sort(function(a,b){return (a.sort||0)-(b.sort||0);});
   var html='<div class="pop-hd"><div class="n">'+esc(e.display_name)+'</div><div class="d">'+DAYL[wd]+'</div></div>'
     +'<button class="pop-item" data-act="off">Off</button><button class="pop-item muted" data-act="clear">Not scheduled</button>'
-    +'<div class="pop-grp"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(homeStore))+'"></span>'+esc(shortStore(homeStore))+' shifts</div>';
-  shifts.forEach(function(sh){var rd=resolve(sh.id,homeStore,wd),closed=!!rd.closed;var t=closed?'closed':(rd.offered===false?'—':rangeMin(rd.start,rd.end));
+    +'<div class="pop-grp"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(store))+'"></span>'+esc(shortStore(store))+' shifts</div>';
+  shifts.forEach(function(sh){var rd=resolve(sh.id,store,wd),closed=!!rd.closed;var t=closed?'closed':(rd.offered===false?'—':rangeMin(rd.start,rd.end));
     html+='<button class="pop-item" data-shift="'+sh.id+'"><span style="width:9px;height:9px;border-radius:50%;background:'+esc(sh.color||'#4FB0E3')+'"></span>'+esc(sh.name)+'<span class="tm"'+(closed?' style="color:var(--red)"':'')+'>'+esc(t)+'</span></button>';});
-  var aways=STORES.filter(function(st){return st.store!==homeStore&&canSee(st.store);});
+  var aways=STORES.filter(function(st){return st.store!==store&&canSee(st.store);});
   if(aways.length){html+='<div class="pop-grp" style="border-top:1px solid #EEF0F4;margin-top:3px;padding-top:9px">Working at another store</div>';
     aways.forEach(function(st){html+='<button class="pop-item" data-away="'+esc(st.store)+'"><span style="width:9px;height:9px;border-radius:50%;background:'+esc(storeColor(st.store))+'"></span>In '+esc(shortStore(st.store))+'</button>';});}
   pop.innerHTML=html;document.body.appendChild(back);document.body.appendChild(pop);POP={remove:function(){back.remove();pop.remove();}};
@@ -1059,7 +1062,7 @@ function openPicker(td,ev){
   pop.querySelectorAll('[data-act],[data-shift],[data-away]').forEach(function(b){b.onclick=function(){
     if(b.getAttribute('data-act')==='off')assign(emp,wd,'off');
     else if(b.getAttribute('data-act')==='clear')assign(emp,wd,null);
-    else if(b.hasAttribute('data-shift'))assign(emp,wd,{store:homeStore,id:Number(b.getAttribute('data-shift'))});
+    else if(b.hasAttribute('data-shift'))assign(emp,wd,{store:store,id:Number(b.getAttribute('data-shift'))});
     else assign(emp,wd,{store:b.getAttribute('data-away'),away:true});
   };});
 }
