@@ -143,20 +143,42 @@ diag_sessions
   pattern). Real value, real scope; phase 2.
 - **Commission / scorecard tie-ins** — same deferral lcd-buyback made.
 
-## 8. Open questions for the owner
+## 8. Decisions (owner, 2026-08-11)
 
-1. **Modal timing & stacking** — Follow-Up already pops right after the first save.
-   Two stacked modals is clumsy: sequence them (Follow-Up → Diagnostics), or merge
-   into one two-step check-in flow? Recommend sequencing first, merging later.
-2. **Who holds the phone during tests** — the customer at the counter (their hands,
-   their passcode — nice liability property: *they* attest the mic worked) or the
-   tech? Copy and tone of the test page depend on this.
-3. **Skippable?** — like Follow-Up (skip remembered per ticket), or nag harder?
-   KB 51's tone suggests it should at least leave a visible "skipped" mark.
-4. **Which repairs trigger it** — every check-in, or gated by item type like
-   lcdCapture's screen-repair regex?
-5. **Battery health** — worth the one manual number field on iPhones? (KB 51 says
-   >87% = good; it's also a sales prompt.)
+- **Tech-driven, on the customer's device.** The tech scans the QR with the
+  customer's phone and runs the tests; copy addresses the tech.
+- **Every repair** triggers it — no item-type gating.
+- **Manual-first card model.** Every test is one card: instruction → optional
+  helper button ("Play sound", "Show grid", "Open camera") → **Pass / Fail /
+  Not testable**. The page assists; the tech judges. Free automation (touch grid
+  mapping, Android charge detection) rides inside its card as the helper, never
+  as a replacement for the tech's verdict.
+- **Not-testable fork confirmed**: when the QR modal pops in RepairQ, a
+  "Device not testable" button records the reason straight to MRT — no QR needed.
+- **iPhone battery health**: manual number field, confirmed (>87% = good per KB 51).
+
+### Two technical answers behind those decisions
+
+- **Volume-button auto-detect: not possible.** iOS Safari exposes nothing when a
+  hardware volume key is pressed, and Android Chrome doesn't reliably either — the
+  keys change system volume without firing page events. So the card is guided:
+  "Press volume up — did the volume overlay appear?" → Pass / Fail. (Keyboards on
+  tablets/laptops DO fire key events — a real auto keyboard tester is possible for
+  the computer checklist later.)
+- **Deep link to Settings → Battery Health: blocked by Apple.** The `App-Prefs:`
+  URL scheme that once opened Settings screens is private and has been blocked
+  from web pages for years; attempts fail silently or throw a Safari error. The
+  card instead shows the exact path ("Settings → Battery → Battery Health &
+  Charging"), a big numeric input, and the >87% pass line. Android: skipped per
+  KB 51.
+
+## Still open
+
+1. **Modal stacking** — Follow-Up already pops right after the first save; sequence
+   Diagnostics after it, or merge into one check-in stepper? (Recommend sequencing.)
+2. **Hard-block or soft-skip** — "all repairs" is the policy; can a slammed tech
+   still skip, leaving a visible "skipped" mark on the ticket (Follow-Up model), or
+   is it a hard gate?
 
 ## 9. Effort shape (rough)
 
