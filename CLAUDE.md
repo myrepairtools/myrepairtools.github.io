@@ -1080,15 +1080,37 @@ whether the ROLE earns accessory/device → n/a otherwise) + 5 manual trust-me t
 with checked_by/at audit; assigned-module toggles + due-date chips (pickers.js);
 next-up items with inline manager ticks. **`onboarding-dashboard.html`** (Employees
 nav 'Onboarding', manager+) is the hiring pipeline (10b): stat tiles, stage chips
-(Waiting on them → Ready to review → In training), "New hire — send intake link",
-Review intake → "Copy onto their record ›" (promotes + fires auto-assign).
-**Intake:** `intake.html` is a PUBLIC token page (11a, 5 steps: About you → Address
+(Candidate — offer out → signing docs → Ready to convert → In training, plus
+Declined), "New candidate", Review & convert → "Convert to New Employee ›"
+(promotes + fires auto-assign; a missing-docs convert warns but is allowed —
+paper case). **Candidate stage (owner directive 2026-08-12): new hires start as
+New Candidates.** The New Candidate modal takes name/store/position/pay/start +
+optional phone/email and an **offer letter** (prefilled from `app_settings`
+`hiring.offer_template` with {name}/{position}/{pay}/{store}/{start} resolved
+live until the manager hand-edits; the exact text is snapshotted to
+`staff_intake.offer_body` — what they sign never changes after send), then
+Copy link / **Text it** (messaging fn, store's line, `candidate_link` template
+key). One link does the whole flow: **sign the offer** (accept, or decline with
+an optional note → status 'declined', terminal, row kept + deletable) → **sign
+the Employee Handbook** (accordion rendered LIVE from the KB's Employee
+Handbook category via the intake fn — published employee articles only, so
+candidates always sign current wording) → the 5-step new-hire form. Signatures
+follow the contracts pattern (png data-url + typed name + ip/ua in
+`signed_meta`); server enforces order (submit refuses `docs_first`/`declined`)
+and each milestone fires a best-effort **'hiring' alert** (new alerts kind,
+Notification tier) to the manager who created the link. Docs columns:
+docs/sql/candidate-stage.sql. A link created with the docs checkbox OFF keeps
+the original form-only flow (offer_body null).
+**Intake:** `intake.html` is a PUBLIC token page (11a; candidate phases above,
+then 5 steps: About you → Address
 & work details → Emergency contacts → Availability with All day/Hours/Off per day and
 Open/Close endpoints, stored structured jsonb → Review; no pronouns/transportation/
-SSN/bank) driven by the **`intake` edge function** (get/submit by token; manager
-create/promote by JWT — the browser never reads `staff_intake`; promote copies onto
+SSN/bank) driven by the **`intake` edge function** (get/sign_offer/decline_offer/
+sign_handbook/submit by token; manager
+create/promote/cancel by JWT — the browser never reads `staff_intake` from the
+candidate side; managers read it directly under the is_admin RLS; promote copies onto
 the staff row + staff_profiles fill-empty-only and applies each module's auto-assign
-rule `auto_assign_role`+`auto_assign_from`). **Module Setup is its own page
+rule `auto_assign_role`+`auto_assign_from`, and refuses declined rows). **Module Setup is its own page
 `onboarding-setup.html`** (manager+; knowledge.html#modules redirects there) with
 the 9c controls: auto-assign rule bar, section chips, per-item section selects
 (`onboarding_sections` + section_id on articles/steps); the three management

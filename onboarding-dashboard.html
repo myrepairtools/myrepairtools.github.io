@@ -43,6 +43,14 @@ tbody tr:hover{background:rgba(79,176,227,.04)}
 .stage.train{background:var(--bluebg);color:var(--blued)}
 .stage.review{background:var(--amberbg);color:var(--ambert)}
 .stage.wait{background:#F0F1F4;color:var(--grey2)}
+.stage.dec{background:var(--redbg);color:var(--red)}
+.stage.ready{background:var(--greenbg);color:var(--greend)}
+.dchip{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;border-radius:6px;
+padding:2px 7px;margin:1px 4px 1px 0;background:#F0F1F4;color:var(--grey2);white-space:nowrap}
+.dchip.on{background:var(--greenbg);color:var(--greend)}
+.mdl textarea{width:100%;min-height:180px;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;
+font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.82rem;line-height:1.55;resize:vertical}
+.sigthumb{border:1px solid var(--border);border-radius:8px;background:#fff;max-width:170px;max-height:60px;display:block}
 .pbar{width:88px;height:7px;border-radius:999px;background:#ECEDF1;overflow:hidden;display:inline-block;vertical-align:middle}
 .pbar>i{display:block;height:100%;border-radius:999px;background:var(--blue)}
 .pbar>i.red{background:var(--red)}
@@ -101,6 +109,7 @@ const NEW_HIRE_DAYS=60;
 
 let AUTH=null,BOOTED=false,STORE='all';
 let STAFF=[],INTAKES=[],MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={};
+let OFFER_TPL='';
 async function resolveMe(sess){
   if(!sess||BOOTED)return;
   const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
@@ -111,7 +120,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 async function jwt(){return (await sb.auth.getSession()).data.session.access_token;}
 
 async function loadAll(){
-  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk]=await Promise.all([
+  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,active,start_date,created_at,pin_hash,birthday').eq('active',true),
     sb.from('staff_intake').select('*').neq('status','promoted').order('created_at',{ascending:false}),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
@@ -124,7 +133,9 @@ async function loadAll(){
     sb.from('onboarding_step_done').select('step_id,staff_id'),
     sb.from('kb_quizzes').select('id,article_id,active,kb_quiz_questions(id)').eq('active',true),
     sb.from('staff_setup_checklist').select('*'),
+    sb.from('app_settings').select('value').eq('key','hiring.offer_template').maybeSingle(),
   ]);
+  OFFER_TPL=(tpl.data&&tpl.data.value&&tpl.data.value.body)||'';
   STAFF=(st.data||[]).filter(s=>s.role!=='owner');
   INTAKES=ik.data||[];MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=sp.data||[];
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
@@ -132,6 +143,10 @@ async function loadAll(){
   TICKS={};(tk.data||[]).forEach(r=>{(TICKS[r.staff_id]=TICKS[r.staff_id]||[]).push(r);});
 }
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dchips(i){
+  const c=(l,on)=>'<span class="dchip'+(on?' on':'')+'">'+(on?'✓ ':'○ ')+l+'</span>';
+  return c('Offer',!!i.offer_signed_at)+c('Handbook',!!i.handbook_signed_at)+c('Form',!!i.submitted_at);
+}
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
 function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
 function isNewHire(p){const s=p.start_date||String(p.created_at||'').slice(0,10);
@@ -185,15 +200,32 @@ function draw(){
       +'<td style="text-align:right"><button class="ghost" data-panel="'+p.id+'">Open panel ›</button></td></tr>');
   });
   intakes.forEach(i=>{
-    const submitted=!!i.submitted_at;
-    rows.push('<tr><td><div class="pname">'+esc(i.invited_name||(submitted?[i.legal_first,i.legal_last].filter(Boolean).join(' '):'(link sent)'))+'</div>'
-      +'<div class="psub">'+esc(i.invited_store?('CPR '+shortStore(i.invited_store)):'')+'</div></td>'
-      +'<td><span class="stage '+(submitted?'review':'wait')+'">'+(submitted?'Ready to review':'Waiting on them')+'</span></td>'
-      +'<td style="font-weight:700">'+(submitted?('intake submitted '+esc(fmtShort(i.submitted_at))):('intake link sent '+esc(fmtShort(i.created_at))))+'</td>'
+    const submitted=!!i.submitted_at, declined=!!i.offer_declined_at, docs=!!i.offer_body;
+    const nm=i.invited_name||[i.legal_first,i.legal_last].filter(Boolean).join(' ')||'(link sent)';
+    let stage,setup;
+    if(declined){
+      stage='<span class="stage dec">Declined</span>';
+      setup='declined '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' · “'+esc(i.decline_note)+'”':'');
+    }else if(submitted){
+      stage='<span class="stage ready">Ready to convert</span>';
+      setup=(docs?dchips(i)+' ':'')+'submitted '+esc(fmtShort(i.submitted_at));
+    }else if(docs){
+      stage='<span class="stage wait">'+(i.offer_signed_at?'Candidate — signing docs':'Candidate — offer out')+'</span>';
+      setup=dchips(i)+' sent '+esc(fmtShort(i.created_at));
+    }else{
+      stage='<span class="stage wait">Waiting on them</span>';
+      setup='intake link sent '+esc(fmtShort(i.created_at));
+    }
+    rows.push('<tr><td><div class="pname">'+esc(nm)+'</div>'
+      +'<div class="psub">'+esc([i.invited_store?('CPR '+shortStore(i.invited_store)):'',i.position||''].filter(Boolean).join(' · '))+'</div></td>'
+      +'<td>'+stage+'</td>'
+      +'<td style="font-weight:700">'+setup+'</td>'
       +'<td></td>'
-      +'<td style="text-align:right;white-space:nowrap">'+(submitted
-        ?'<button class="ghost" data-review="'+i.id+'">Review intake ›</button>'
-        :'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>')
+      +'<td style="text-align:right;white-space:nowrap">'
+        +(submitted?'<button class="ghost" data-review="'+i.id+'">Review &amp; convert ›</button>'
+          :declined?'<button class="ghost" data-review="'+i.id+'">View ›</button>'
+          :'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>'
+            +(docs?' <button class="ghost" data-review="'+i.id+'">View ›</button>':''))
         +' <button class="ghost" data-del="'+i.id+'" title="Delete this intake" style="color:var(--red);border-color:#F6C9CA">✕</button></td></tr>');
   });
   waitingItems+=Object.keys(
@@ -204,12 +236,13 @@ function draw(){
     +'<span style="flex:1"></span>'
     +'<select class="storesel" id="storeSel"><option value="all"'+(STORE==='all'?' selected':'')+'>All stores</option>'
     +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(STORE===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')
-    +'</select><button class="ghost" onclick="location.href=\'knowledge.html#modules\'" style="padding:8px 12px">Module Setup ›</button>'
+    +'</select><button class="ghost" onclick="location.href=\'onboarding-setup.html\'" style="padding:8px 12px">Module Setup ›</button>'
     +'<button class="ghost" onclick="location.href=\'kb-compliance.html\'" style="padding:8px 12px">Compliance ›</button>'
-    +'<button class="btn" id="newHire">'+ic('plus',11)+' New hire — send intake link</button></div>'
-    +'<div style="font-size:.82rem;font-weight:700;color:var(--dark-grey);margin:-8px 0 14px">The hiring pipeline: send a new hire their intake link → review what they submit and copy it onto their record → watch their training kick off. Day-to-day tracking after that lives on <a href="kb-compliance.html" style="color:var(--blued)">Compliance</a>.</div>';
+    +'<button class="btn" id="newHire">'+ic('plus',11)+' New candidate</button></div>'
+    +'<div style="font-size:.82rem;font-weight:700;color:var(--dark-grey);margin:-8px 0 14px">The hiring pipeline: send a candidate their offer — they sign it, sign the handbook, and fill out the new-hire form on one link → when it\'s all back, convert them to a New Employee (kicks off your back-office steps + their training). Day-to-day tracking after that lives on <a href="kb-compliance.html" style="color:var(--blued)">Compliance</a>.</div>';
+  const cands=intakes.filter(i=>!i.offer_declined_at);
   h+='<div class="stats">'
-    +'<div class="stat"><div class="l">Active new hires</div><div class="v">'+(hires.length+intakes.length)+'</div></div>'
+    +'<div class="stat"><div class="l">Candidates &amp; new hires</div><div class="v">'+(hires.length+cands.length)+'</div></div>'
     +'<div class="stat"><div class="l">Waiting on a manager</div><div class="v">'+waitingItems+' item'+(waitingItems===1?'':'s')+'</div></div>'
     +'<div class="stat'+(pastDueN?' red':'')+'"><div class="l">Past due</div><div class="v">'+pastDueN+' module'+(pastDueN===1?'':'s')+'</div></div></div>';
   h+='<div class="tcard"><table><thead><tr><th>New hire</th><th>Stage</th><th>Setup</th><th>Training</th><th></th></tr></thead><tbody>'
@@ -241,25 +274,79 @@ function copyLink(token){
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(()=>toast('Link copied'),legacy);
   else legacy();
 }
+function e164ish(v){const d=String(v||'').replace(/\D/g,'');
+  if(d.length===10)return '+1'+d;if(d.length===11&&d[0]==='1')return '+'+d;
+  const t=String(v||'').trim();return t.startsWith('+')&&d.length>=11?t:null;}
 function openNewHire(){
-  $('#mdl').innerHTML='<h2>New hire — send intake link</h2>'
+  let tplDirty=false;
+  $('#mdl').innerHTML='<h2>New candidate</h2>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
     +'<div class="f"><label>Name (as you know it)</label><input id="nhName" placeholder="Devon Reyes"></div>'
     +'<div class="f"><label>Store</label><select id="nhStore">'
     +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'">CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
+    +'<div class="f"><label>Position</label><input id="nhPos" placeholder="Repair Technician"></div>'
+    +'<div class="f"><label>Pay</label><input id="nhPay" placeholder="$18/hr + commission"></div>'
+    +'<div class="f"><label>Proposed start</label><input id="nhStart" placeholder="Monday, Aug 24"></div>'
+    +'<div class="f"><label>Mobile (to text the link)</label><input id="nhPhone" inputmode="tel" placeholder="(555) 555-5555"></div>'
+    +'</div>'
+    +'<div class="f"><label>Email (optional)</label><input id="nhEmail" inputmode="email" placeholder="them@example.com"></div>'
+    +'<label style="display:flex;gap:8px;align-items:center;margin:12px 0 0;cursor:pointer;font-size:.82rem;font-weight:700">'
+    +'<input type="checkbox" id="nhDocs" checked style="width:15px;height:15px;accent-color:var(--red)">'
+    +'Offer letter + handbook to sign before the new-hire form</label>'
+    +'<div class="f" id="nhTplWrap"><label>Offer letter (edit before sending — this exact wording is what they sign)</label>'
+    +'<textarea id="nhTpl"></textarea></div>'
     +'<div id="nhOut"></div>'
     +'<div class="mact"><button class="btn alt" id="nhCancel">Close</button><button class="btn" id="nhGo">Create link</button></div>';
   $('#mask').classList.add('show');
+  const buildOffer=()=>{
+    const v={name:$('#nhName').value.trim(),position:$('#nhPos').value.trim(),pay:$('#nhPay').value.trim(),
+      store:'CPR '+shortStore($('#nhStore').value),start:$('#nhStart').value.trim()};
+    let b=OFFER_TPL||'';
+    Object.keys(v).forEach(k=>{if(v[k])b=b.split('{'+k+'}').join(v[k]);});
+    return b;
+  };
+  const syncTpl=()=>{if(!tplDirty)$('#nhTpl').value=buildOffer();};
+  syncTpl();
+  ['nhName','nhPos','nhPay','nhStart'].forEach(id=>{$('#'+id).oninput=syncTpl;});
+  $('#nhStore').onchange=syncTpl;
+  $('#nhTpl').oninput=()=>{tplDirty=true;};
+  $('#nhDocs').onchange=()=>{$('#nhTplWrap').style.display=$('#nhDocs').checked?'':'none';};
   $('#nhCancel').onclick=()=>{$('#mask').classList.remove('show');};
   $('#nhGo').onclick=async()=>{
+    const docs=$('#nhDocs').checked;
+    if(docs&&!$('#nhTpl').value.trim()){toast('The offer letter is empty.',true);return;}
     const b=$('#nhGo');b.disabled=true;b.textContent='Creating…';
     const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
-      body:JSON.stringify({action:'create',invited_name:$('#nhName').value.trim(),invited_store:$('#nhStore').value})});
+      body:JSON.stringify({action:'create',invited_name:$('#nhName').value.trim(),invited_store:$('#nhStore').value,
+        position:$('#nhPos').value.trim(),pay:$('#nhPay').value.trim(),start_hint:$('#nhStart').value.trim(),
+        offer_body:docs?$('#nhTpl').value:null,
+        phone:e164ish($('#nhPhone').value)||$('#nhPhone').value.trim()||null,
+        personal_email:$('#nhEmail').value.trim()||null})});
     const j=await r.json().catch(()=>({}));
     b.disabled=false;b.textContent='Create link';
     if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
-    $('#nhOut').innerHTML='<div class="linkbox"><input readonly value="'+esc(intakeUrl(j.token))+'"><button class="btn" id="nhCopy">Copy</button></div>'
-      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:6px">Text or email this to them — it\'s their personal link.</div>';
+    const phone=e164ish($('#nhPhone').value);
+    const first=($('#nhName').value.trim().split(/\s+/)[0])||'there';
+    $('#nhOut').innerHTML='<div class="linkbox"><input readonly value="'+esc(intakeUrl(j.token))+'"><button class="btn" id="nhCopy">Copy</button>'
+      +(phone?'<button class="btn" id="nhText" style="background:var(--blued)">Text it</button>':'')+'</div>'
+      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:6px">'
+      +(docs?'One link does it all: they sign the offer, sign the handbook, then fill out the new-hire form.':'Their personal link to the new-hire form.')+'</div>';
     $('#nhCopy').onclick=()=>copyLink(j.token);
+    const tx=$('#nhText');if(tx)tx.onclick=async()=>{
+      tx.disabled=true;tx.textContent='Sending…';
+      const msg='Hi '+first+', '+(docs
+        ?'here’s your job offer from CPR Cell Phone Repair — review, sign, and finish your new-hire paperwork here: '
+        :'here’s your CPR new-hire form: ')+intakeUrl(j.token);
+      try{
+        const mr=await fetch(SB_URL+'/functions/v1/messaging',{method:'POST',
+          headers:{'Content-Type':'application/json','apikey':ANON,'Authorization':'Bearer '+await jwt()},
+          body:JSON.stringify({action:'send',to:phone,body:msg,store:$('#nhStore').value,
+            template_key:'candidate_link',agent_name:AUTH.name})});
+        const md=await mr.json().catch(()=>({}));
+        if(mr.ok&&md.ok!==false){tx.textContent='Sent ✓';toast('Texted the link');}
+        else{tx.disabled=false;tx.textContent='Text it';toast(md.error||'Text failed — copy the link instead',true);}
+      }catch(e){tx.disabled=false;tx.textContent='Text it';toast('Text failed — copy the link instead',true);}
+    };
     await loadAll();draw();
   };
 }
@@ -270,31 +357,47 @@ function openReview(id){
   const addr=i.address?[i.address.street,i.address.city,i.address.zip].filter(Boolean).join(', '):'';
   const av=(i.availability||[]).map(a=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.day]+' '
     +(a.mode==='all'?'All day':a.mode==='off'?'Off':(a.from+' – '+a.to))).join(' · ');
+  const declined=!!i.offer_declined_at, docs=!!i.offer_body;
+  const sig=(label,img,who,at)=>img
+    ?'<div class="rvrow"><span class="k">'+label+'</span><span class="v"><img class="sigthumb" src="'+img+'" alt="signature">'
+      +'<div style="font-size:.68rem;color:var(--grey);margin-top:2px">'+esc(who||'')+' · '+esc(fmtShort(at))+'</div></span></div>'
+    :'<div class="rvrow"><span class="k">'+label+'</span><span class="v" style="color:var(--grey2)">not signed yet</span></div>';
   /* candidates for promotion: sync-created / recently added staff without intake */
   const cands=STAFF.filter(p=>isNewHire(p));
-  $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+' — intake</h2>'
+  $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+(declined?' — declined':' — candidate')+'</h2>'
+    +(declined?'<div style="background:var(--redbg);border-radius:9px;padding:9px 12px;font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:10px">'
+      +'Declined the offer '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' — “'+esc(i.decline_note)+'”':'')+'</div>':'')
+    +rv('Position',i.position)+rv('Pay',i.pay)+rv('Start',i.start_hint)
+    +(docs?sig('Offer',i.offer_signature,i.offer_signed_name,i.offer_signed_at)
+      +sig('Handbook',i.handbook_signature,i.handbook_signed_name,i.handbook_signed_at):'')
     +rv('Name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)+rv('Email',i.personal_email)
     +rv('Address',addr)+rv('Shirt',i.shirt_size)+rv('I-9 plan',i.i9_docs)
     +(i.emergency?rv('Emergency',(i.emergency.name||'')+' '+(i.emergency.phone||'')):'')
     +(av?rv('Availability',av):'')
-    +'<div class="f"><label>Copy onto (their staff record — created by the QB Time sync)</label><select id="rvStaff">'
-    +'<option value="">Pick their staff row…</option>'
-    +cands.map(p=>'<option value="'+p.id+'">'+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div>'
-    +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Copy onto their record ›</button></div>'
-    +'<div style="font-size:.68rem;font-weight:700;color:var(--grey);text-align:right;margin-top:6px">promotes → staff row + auto-assign fires</div>';
+    +(declined?'<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>'
+      :'<div class="f"><label>Convert onto (their staff record — created by the QB Time sync)</label><select id="rvStaff">'
+      +'<option value="">Pick their staff row…</option>'
+      +cands.map(p=>'<option value="'+p.id+'">'+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div>'
+      +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Convert to New Employee ›</button></div>'
+      +'<div style="font-size:.68rem;font-weight:700;color:var(--grey);text-align:right;margin-top:6px">copies onto the staff row + auto-assigns their training</div>');
   $('#mask').classList.add('show');
   $('#rvClose').onclick=()=>{$('#mask').classList.remove('show');};
-  $('#rvGo').onclick=async()=>{
+  const go=$('#rvGo');if(go)go.onclick=async()=>{
     const sid=+$('#rvStaff').value;
     if(!sid){toast('Pick their staff row first',true);return;}
-    const b=$('#rvGo');b.disabled=true;
+    const missing=[];
+    if(docs&&!i.offer_signed_at)missing.push('offer signature');
+    if(docs&&!i.handbook_signed_at)missing.push('handbook signature');
+    if(!i.submitted_at)missing.push('new-hire form');
+    if(missing.length&&!confirm('Still missing: '+missing.join(', ')+'. Convert anyway (e.g. done on paper)?'))return;
+    go.disabled=true;
     const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
       body:JSON.stringify({action:'promote',intake_id:i.id,staff_id:sid})});
     const j=await r.json().catch(()=>({}));
-    b.disabled=false;
+    go.disabled=false;
     if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
     $('#mask').classList.remove('show');
-    toast('Promoted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' auto-assigned');
+    toast('Converted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' auto-assigned');
     await loadAll();draw();
   };
 }

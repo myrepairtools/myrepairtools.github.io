@@ -34,6 +34,9 @@ create table if not exists public.staff_intake (
 );
 -- round-2 delta: availability was text; structured now (safe — applied when empty)
 -- alter table public.staff_intake alter column availability type jsonb using nullif(availability,'')::jsonb;
+-- candidate-stage delta (2026-08-12): offer-letter + handbook-signature columns,
+-- status 'declined', and the app_settings 'hiring.offer_template' seed live in
+-- docs/sql/candidate-stage.sql.
 
 alter table public.staff_intake enable row level security;
 drop policy if exists staff_intake_admin on public.staff_intake;

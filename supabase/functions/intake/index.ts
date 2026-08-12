@@ -2,10 +2,19 @@
 // as contracts/interviews). The browser NEVER touches staff_intake directly:
 // candidates GET their invite + POST their submission here with the token;
 // managers create invites / promote via their JWT (admin role checked).
+//
+// Candidate stage (v3): a link created WITH an offer letter opens as a
+// candidate flow — sign the offer (or decline), sign the Employee Handbook
+// acknowledgment (rendered live from the KB's Employee Handbook category),
+// THEN the new-hire form. Signatures follow the contracts pattern (png
+// data-url + typed name + ip/ua). Milestones fire a 'hiring' alert to the
+// manager who created the link. Links created without an offer_body keep the
+// original form-only behavior.
 // Deploy with verify_jwt:false.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 const admin = createClient(SB_URL, SERVICE, { auth: { persistSession: false } });
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +32,57 @@ async function manager(req: Request) {
   const { data: s } = await admin.from("staff").select("id, display_name, role").eq("auth_uid", data.user.id).eq("active", true).maybeSingle();
   return s && ["owner", "admin", "manager"].includes(s.role) ? s : null;
 }
-const PUBLIC_FIELDS = "token, status, invited_name, invited_store, legal_first, legal_middle, legal_last, preferred_name, dob, phone, personal_email, address, emergency, emergency2, shirt_size, availability, i9_docs, submitted_at";
+const PUBLIC_FIELDS = "token, status, invited_name, invited_store, position, start_hint, " +
+  "offer_body, offer_signed_at, offer_signed_name, offer_declined_at, " +
+  "handbook_signed_at, handbook_signed_name, " +
+  "legal_first, legal_middle, legal_last, preferred_name, dob, phone, personal_email, " +
+  "address, emergency, emergency2, shirt_size, availability, i9_docs, submitted_at";
+
+// Signature validation — same bounds as the contracts function.
+function badSig(sig: string): boolean {
+  return !sig.startsWith("data:image/png;base64,") || sig.length < 1000 || sig.length > 400000;
+}
+function sigMeta(req: Request) {
+  return {
+    ip: (req.headers.get("x-forwarded-for") || "").split(",")[0].trim(),
+    ua: (req.headers.get("user-agent") || "").slice(0, 300),
+    at: new Date().toISOString(),
+  };
+}
+
+// Best-effort 'hiring' alert to the manager who created the link — a
+// notification problem must never break the candidate's flow.
+async function alertMgr(staffId: unknown, title: string, body: string) {
+  const id = Number(staffId);
+  if (!id || !NOTIFY_SECRET) return;
+  try {
+    await fetch(SB_URL + "/functions/v1/alerts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "send", secret: NOTIFY_SECRET, kind: "hiring",
+        title, body, link: "onboarding-dashboard.html", staff_ids: [id],
+      }),
+    });
+  } catch { /* best-effort */ }
+}
+
+// The Employee Handbook, rendered live from the KB so candidates always sign
+// the current wording. Read with the service role but filtered to published,
+// employee-visible articles only.
+async function handbookArticles() {
+  const { data: cat } = await admin.from("kb_categories").select("id").ilike("name", "%handbook%").maybeSingle();
+  if (!cat) return [];
+  const { data } = await admin.from("kb_articles")
+    .select("slug, title, body, sort_order")
+    .eq("category_id", cat.id).eq("status", "published").eq("min_role", "employee")
+    .order("sort_order").order("id");
+  return (data || []).map((a) => ({ slug: a.slug, title: a.title, body: a.body }));
+}
+
+function candName(it: Record<string, unknown>): string {
+  return String(it.offer_signed_name || it.invited_name ||
+    [it.legal_first, it.legal_last].filter(Boolean).join(" ") || "Candidate");
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -38,14 +97,79 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: "token required" }, 400);
     const { data } = await admin.from("staff_intake").select(PUBLIC_FIELDS).eq("token", token).maybeSingle();
     if (!data) return json({ error: "not_found" }, 404);
-    return json({ ok: true, intake: data });
+    // Hand the handbook over only when it's the next thing to sign.
+    let handbook: unknown[] | undefined;
+    if (data.offer_body && data.offer_signed_at && !data.offer_declined_at && !data.handbook_signed_at) {
+      handbook = await handbookArticles();
+    }
+    return json({ ok: true, intake: data, ...(handbook ? { handbook } : {}) });
   }
+
+  if (action === "sign_offer" || action === "decline_offer" || action === "sign_handbook") {
+    const token = String(body.token || "");
+    if (!token) return json({ error: "token required" }, 400);
+    const { data: it } = await admin.from("staff_intake").select("*").eq("token", token).maybeSingle();
+    if (!it) return json({ error: "not_found" }, 404);
+    if (it.status === "promoted") return json({ error: "already_promoted" }, 409);
+    if (!it.offer_body) return json({ error: "no_offer" }, 409);
+    if (it.offer_declined_at) return json({ error: "declined" }, 409);
+    const now = new Date().toISOString();
+    const meta = (it.signed_meta && typeof it.signed_meta === "object") ? it.signed_meta : {};
+
+    if (action === "sign_offer") {
+      if (it.offer_signed_at) return json({ error: "already_signed" }, 409);
+      const name = String(body.signed_name || "").trim();
+      const sig = String(body.signature || "");
+      if (name.length < 2) return json({ error: "name_required" }, 400);
+      if (badSig(sig)) return json({ error: "signature_required" }, 400);
+      const { error } = await admin.from("staff_intake").update({
+        offer_signature: sig, offer_signed_name: name.slice(0, 120), offer_signed_at: now,
+        signed_meta: { ...meta, offer: sigMeta(req) }, updated_at: now,
+      }).eq("id", it.id).is("offer_signed_at", null);
+      if (error) return json({ error: error.message }, 500);
+      await alertMgr(it.invited_by, "Offer signed — " + name,
+        name + " accepted and signed their offer" + (it.position ? " (" + it.position + ")" : "") + ". Handbook + new-hire form are next.");
+      return json({ ok: true });
+    }
+
+    if (action === "decline_offer") {
+      if (it.offer_signed_at) return json({ error: "already_signed" }, 409);
+      const note = body.note == null ? null : String(body.note).slice(0, 500) || null;
+      const { error } = await admin.from("staff_intake").update({
+        status: "declined", offer_declined_at: now, decline_note: note, updated_at: now,
+      }).eq("id", it.id).is("offer_declined_at", null);
+      if (error) return json({ error: error.message }, 500);
+      await alertMgr(it.invited_by, "Offer declined — " + candName(it),
+        candName(it) + " declined the offer" + (it.position ? " (" + it.position + ")" : "") + (note ? '. "' + note + '"' : "."));
+      return json({ ok: true });
+    }
+
+    // sign_handbook
+    if (!it.offer_signed_at) return json({ error: "offer_first" }, 409);
+    if (it.handbook_signed_at) return json({ error: "already_signed" }, 409);
+    const name = String(body.signed_name || "").trim();
+    const sig = String(body.signature || "");
+    if (name.length < 2) return json({ error: "name_required" }, 400);
+    if (badSig(sig)) return json({ error: "signature_required" }, 400);
+    const { error } = await admin.from("staff_intake").update({
+      handbook_signature: sig, handbook_signed_name: name.slice(0, 120), handbook_signed_at: now,
+      signed_meta: { ...meta, handbook: sigMeta(req) }, updated_at: now,
+    }).eq("id", it.id).is("handbook_signed_at", null);
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true });
+  }
+
   if (action === "submit") {
     const token = String(body.token || "");
     if (!token) return json({ error: "token required" }, 400);
-    const { data: row } = await admin.from("staff_intake").select("id, status").eq("token", token).maybeSingle();
+    const { data: row } = await admin.from("staff_intake")
+      .select("id, status, invited_by, position, offer_body, offer_signed_at, offer_declined_at, handbook_signed_at")
+      .eq("token", token).maybeSingle();
     if (!row) return json({ error: "not_found" }, 404);
     if (row.status === "promoted") return json({ error: "already_promoted" }, 409);
+    if (row.offer_declined_at) return json({ error: "declined" }, 409);
+    // Docs flow: the form only opens after both signatures.
+    if (row.offer_body && (!row.offer_signed_at || !row.handbook_signed_at)) return json({ error: "docs_first" }, 409);
     const f = (k: string, max = 200) => body[k] == null ? null : String(body[k]).slice(0, max) || null;
     const patch: Record<string, unknown> = {
       legal_first: f("legal_first"), legal_middle: f("legal_middle"), legal_last: f("legal_last"),
@@ -60,6 +184,9 @@ Deno.serve(async (req) => {
     };
     const { error } = await admin.from("staff_intake").update(patch).eq("id", row.id);
     if (error) return json({ error: error.message }, 500);
+    const nm = [patch.legal_first, patch.legal_last].filter(Boolean).join(" ") || "A candidate";
+    await alertMgr(row.invited_by, "New-hire form in — " + nm,
+      nm + " finished their paperwork" + (row.offer_body ? " (offer + handbook signed)" : "") + " — ready to convert to a New Employee.");
     return json({ ok: true });
   }
 
@@ -68,18 +195,22 @@ Deno.serve(async (req) => {
   if (!mgr) return json({ error: "forbidden" }, 403);
   if (action === "create") {
     const token = crypto.randomUUID().replace(/-/g, "").slice(0, 24);
+    const s = (k: string, max = 200) => String(body[k] || "").slice(0, max) || null;
     const { data, error } = await admin.from("staff_intake").insert({
       token, status: "sent",
-      invited_name: String(body.invited_name || "").slice(0, 120) || null,
-      invited_store: String(body.invited_store || "").slice(0, 60) || null,
+      invited_name: s("invited_name", 120),
+      invited_store: s("invited_store", 60),
       invited_by: mgr.id,
+      position: s("position", 80), pay: s("pay", 120), start_hint: s("start_hint", 60),
+      offer_body: body.offer_body == null ? null : String(body.offer_body).slice(0, 8000) || null,
+      phone: s("phone", 30), personal_email: s("personal_email"),
     }).select("id, token").single();
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true, id: data.id, token: data.token });
   }
   if (action === "cancel") {
-    // delete an un-promoted intake (test rows, rescinded offers). Promoted
-    // intakes are history — they can't be removed from here.
+    // delete an un-promoted intake (test rows, rescinded offers, declines).
+    // Promoted intakes are history — they can't be removed from here.
     const intakeId = Number(body.intake_id);
     if (!intakeId) return json({ error: "intake_id required" }, 400);
     const { data: it } = await admin.from("staff_intake").select("id, status").eq("id", intakeId).maybeSingle();
@@ -93,10 +224,13 @@ Deno.serve(async (req) => {
     // copy the intake onto an existing staff row + staff_profiles, stamp the
     // link, and fire module auto-assign for the hire. staff_id required (the
     // staff row is created by the QB Time sync or Team Members first).
+    // Doc gating lives in the UI (a paper-signed candidate can still be
+    // converted) — but a declined offer is a hard no.
     const intakeId = Number(body.intake_id), staffId = Number(body.staff_id);
     if (!intakeId || !staffId) return json({ error: "intake_id and staff_id required" }, 400);
     const { data: it } = await admin.from("staff_intake").select("*").eq("id", intakeId).maybeSingle();
     if (!it) return json({ error: "not_found" }, 404);
+    if (it.offer_declined_at) return json({ error: "declined" }, 409);
     const { data: st } = await admin.from("staff").select("id, role, start_date, birthday, first_name, last_name, preferred_name").eq("id", staffId).maybeSingle();
     if (!st) return json({ error: "staff_not_found" }, 404);
     const patch: Record<string, unknown> = {};
