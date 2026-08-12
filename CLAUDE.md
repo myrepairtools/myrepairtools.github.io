@@ -1003,7 +1003,12 @@ upload to kb-media + preview; publish/unpublish/archive), a Drafts pill, and a
 (`source_key 'kb:<id>:…'`). Deep links: `knowledge.html#a=<slug>`. Dashboard
 **Knowledge widget** (`assets/kb-summary.js`, `window.CPRKnowledge.forMe()`) shows
 required-reading queue + newest articles. **AI: the `cpr-assistant` edge function does
-KB RAG** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
+KB RAG **and Price Guide RAG** — pricing-flavored questions also FTS-search
+`price_guide_entries` (imported from price-guide.html's tables via scratchpad
+pg_import.py — re-import after editing the page; schema
+docs/sql/price-guide-entries.sql) and inject matching rows with quote-exactly
+rules, so the assistant answers prices/SKUs from the real guide. Beyond KB +
+Price Guide the assistant still has no live-database tools (Phase 2)** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
 from browser roles; strict-then-loose FTS) and injects the top articles into the system
 prompt with citation rules (`from: [title](link)`); the assistant must never state
 CPR-specific policy that isn't in the KB. cpr-assistant's source now lives in
@@ -1093,7 +1098,12 @@ recurringly scheduled at that weekday (`SCHED[staff].arr[getDay]`), so a move
 destination. Send fans out alerts (staff_ids, **`push:false`** — the owner wants
 this broadcast to be a **text only, not push + text**; the alerts fanout still
 forces SMS for the urgent `schedule` kind and always writes the feed row, it just
-skips web-push when the caller passes `push:false`) + the routed rule. Keep the
+skips web-push when the caller passes `push:false`). **Scoped sends skip the
+routed rule** (owner report 2026-08-12: a 3-person send posted to the all-staff
+Communications feed) — only true all-store broadcasts fire
+`schedule.manual_broadcast`; a scoped send is alerts+SMS only and always
+includes the SENDER in staff_ids so their own alert row keeps the
+last-broadcast marker fresh. Keep the
 alert title's 'Schedule updated' prefix — it's the last-broadcast marker), KB
 required-reading publish (kind 'kb', everyone), and the **end-of-shift task
 nudge** — `tasks?action=nudge` (pg_cron `tasks-nudge-halfhourly`, */30): anyone

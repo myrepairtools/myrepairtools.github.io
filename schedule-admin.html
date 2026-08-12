@@ -542,6 +542,7 @@ async function openNotifyModal(){
         NB_TARGET=everyone?null:{stores:stores,ids:recips.map(function(e){return e.id;})};
         $('#nbTo').innerHTML='To: <b>'+(everyone?'All stores':esc(stores.map(shortStore).join(' + ')))+'</b>'
           +' <span style="color:var(--grey);font-weight:800;font-size:.72rem">· '+recips.length+' people</span>';
+        $('#nbSend').textContent=everyone?'📣 Send to All Staff':('📣 Send to '+recips.length+' '+(recips.length===1?'Person':'People'));
         if(!dirty)$('#nbMsg').value=picked.length?(picked.join('\n')+'\nOpen My Time for your updated shifts.'):fallback;
       }
       $('#nbDetect').querySelectorAll('[data-nbw]').forEach(function(cb){cb.onchange=rebuild;});
@@ -560,13 +561,28 @@ async function sendNotify(msg,target){
     /* personal alerts feed + push/text per prefs — rides alongside the rule channels.
        Title must keep the 'Schedule updated' prefix: it's how the modal finds the
        last broadcast for change detection. Scoped sends target only the affected
-       stores' people (home store or authorized there). */
-    var aud=target&&target.ids&&target.ids.length?{staff_ids:target.ids}:{all_active:true};
-    fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
+       stores' people (home store or authorized there) — the SENDER is always
+       included so their own alert row keeps the last-broadcast marker fresh. */
+    var scoped=!!(target&&target.ids&&target.ids.length);
+    var ids=scoped?target.ids.slice():null;
+    if(scoped&&AUTH&&AUTH.id&&ids.indexOf(AUTH.id)<0)ids.push(AUTH.id);
+    var aud=scoped?{staff_ids:ids}:{all_active:true};
+    var alertsReq=fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},
       body:JSON.stringify(Object.assign({action:'send',kind:'schedule',push:false,
         title:'Schedule updated',body:msg,
-        link:'my-schedule.html'},aud))}).catch(function(){});
+        link:'my-schedule.html'},aud))});
+    /* SCOPED send: personal alerts + texts to the affected people only — no
+       all-staff Communications post. The routed rule (Communications Feed)
+       fires only on true all-store broadcasts, so the feed stays uncluttered. */
+    if(scoped){
+      var ar=await alertsReq.then(function(r){return r.json();}).catch(function(){return null;});
+      if(ar&&ar.ok!==false){toast('✓ Notified '+target.ids.length+' '+(target.ids.length===1?'person':'people'));closeNotifyModal();}
+      else{toast('Notify failed: '+((ar&&ar.error)||'alerts error'),true);}
+      if(btn){btn.disabled=false;btn.textContent='📣 Send to All Staff';}
+      return;
+    }
+    alertsReq.catch(function(){});
     var scope=target&&target.stores&&target.stores.length?target.stores.map(shortStore).join(' + '):'All stores';
     var whenLabel=new Date().toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     var r=await fetch(NOTIFY_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':ANON},

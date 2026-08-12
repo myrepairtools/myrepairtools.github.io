@@ -87,6 +87,46 @@ function kbBlock(articles) {
     "- If the articles don't cover the question, say the Knowledge Base doesn't cover it yet, then answer from general knowledge (clearly as such). Never invent company policy.",
   ].join("\n");
 }
+// ---- Price Guide retrieval (price_guide_entries — imported from price-guide.html) ----
+async function pgRetrieve(question) {
+  const q = String(question || "").trim();
+  if (q.length < 3) return [];
+  // only bother when the question smells like pricing/quoting/SKUs
+  if (!/price|pricing|cost|charge|quote|sku|how much|\$|fee|guide|screen protector|case|repair.*(run|cost)|consult/i.test(q)) return [];
+  try {
+    const terms = q.replace(/[^\w\s+-]/g, " ").split(/\s+/).filter((w) => w.length > 2).slice(0, 8).join(" | ");
+    if (!terms) return [];
+    const { data } = await admin.from("price_guide_entries")
+      .select("section, subsection, item, details, sku, price")
+      .textSearch("search", terms, { type: "websearch" })
+      .limit(20);
+    if (data?.length) return data;
+    // loose fallback: OR the terms
+    const { data: loose } = await admin.from("price_guide_entries")
+      .select("section, subsection, item, details, sku, price")
+      .textSearch("search", terms.split(" | ").join(" or "), { type: "websearch" })
+      .limit(20);
+    return loose || [];
+  } catch {
+    return [];
+  }
+}
+function pgBlock(rows) {
+  if (!rows.length) return "";
+  const lines = rows.map((r) =>
+    `- [${r.section}${r.subsection ? " › " + r.subsection : ""}] ${r.item}${r.details ? " — " + r.details : ""}${r.sku ? " · SKU " + r.sku : ""}${r.price ? " · " + r.price : ""}`
+  ).join("\n");
+  return [
+    "",
+    "PRICE GUIDE — CPR Oregon's official pricing, matched to this question:",
+    lines,
+    "",
+    "Rules for using the Price Guide:",
+    "- Quote prices and SKUs EXACTLY as listed — never round, estimate, or invent a price.",
+    "- Pricing rules like \"Parts + $100\" are formulas, not totals: explain that the final number needs the part cost (the Price Calculator does this).",
+    "- If the item asked about isn't in the entries above, say the Price Guide doesn't list it and point them to price-guide.html — do not guess.",
+  ].join("\n");
+}
 function systemPrompt(staff) {
   const name = staff?.display_name || "a CPR team member";
   const role = staff?.role || "team member";
@@ -103,9 +143,9 @@ function systemPrompt(staff) {
     "",
     "Guidelines:",
     "- Be concise and practical — you are shown in a small chat window. Lead with the answer, then brief supporting detail. Use short paragraphs and simple bullet lists. No LaTeX.",
-    "- You have access to the company Knowledge Base (SOPs, policies, repair knowledge, training) — relevant articles are provided below when they match the question.",
-    "- NEVER state or imply a CPR-specific policy, price, or process unless it comes from Knowledge Base articles provided to you. If none were provided (or they don't cover it), say the Knowledge Base doesn't cover it yet and give general industry guidance clearly labeled as general — do not present it as 'CPR's process'.",
-    "- You do NOT yet have access to the company's live database (sales, schedules, inventory, orders). If asked for specific live numbers, say that direct data access is coming soon and answer what you can from what the user pastes in.",
+    "- You have access to the company Knowledge Base (SOPs, policies, repair knowledge, training) and the official Price Guide — relevant articles and price entries are provided below when they match the question.",
+    "- NEVER state or imply a CPR-specific policy, price, or process unless it comes from the Knowledge Base articles or Price Guide entries provided to you. If none were provided (or they don't cover it), say so and give general industry guidance clearly labeled as general — do not present it as 'CPR's process'.",
+    "- Beyond the Knowledge Base and Price Guide, you do NOT yet have access to the company's live database (sales, schedules, inventory, orders). If asked for specific live numbers, say that direct data access is coming soon and answer what you can from what the user pastes in.",
     "- You cannot take actions or change any records yet. If asked to update something, explain that write access is planned and offer to draft what should change.",
     "- When unsure, say so plainly rather than guessing."
   ].join("\n");
@@ -162,7 +202,8 @@ Deno.serve(async (req)=>{
   const prevUser = clean.filter((m)=>m.role === "user").slice(-2, -1).map((m)=>m.content).join(" ");
   let kb = await kbRetrieve(lastUser, staff);
   if (!kb.length && prevUser) kb = await kbRetrieve(prevUser + " " + lastUser, staff);
-  const system = systemPrompt(staff) + kbBlock(kb);
+  const pg = await pgRetrieve(lastUser);
+  const system = systemPrompt(staff) + kbBlock(kb) + pgBlock(pg);
   const upstream = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
