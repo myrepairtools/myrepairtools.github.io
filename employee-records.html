@@ -984,6 +984,7 @@ async function saveProfile(e){
     const r=await authFn(body);
     if(!(r.status===200&&r.data.ok)){toast((r.data&&r.data.error)||'Save failed',true);if(btn)btn.disabled=false;return;}
     let pinToShow=null;
+    if(d.pin&&!/^\d{4,8}$/.test(d.pin)){toast('Saved, but the PIN must be 4-8 digits',true);d.pin='';}
     if(d.pin){
       const p=await authFn({action:'set_pin',staff_id:e.id,pin:d.pin});
       if(p.status===200&&p.data.ok)pinToShow=d.pin;
@@ -1047,7 +1048,7 @@ async function reinstateFromProfile(e){
 /* ===== Commission tab (1f settings · 3i/3j history · 3d read-only) ===== */
 const MONTHFULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
 function humanize(s){return String(s||'').replace(/[_-]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
-function rateMapClean(m){const o={};for(const k in m){const v=m[k];if(v==null||v==='')continue;if(typeof v==='object'){if(v.goal)o[k]={goal:Number(v.goal)||0,lo:Number(v.lo)||0,hi:Number(v.hi)||0};}else o[k]=Number(v)||0;}return o;}
+function rateMapClean(m){const o={};for(const k in m){const v=m[k];if(v==null||v==='')continue;if(typeof v==='object'){if(v.goal||v.lo||v.hi)o[k]={goal:Number(v.goal)||0,lo:Number(v.lo)||0,hi:Number(v.hi)||0};}else o[k]=Number(v)||0;}return o;}
 const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
 let CCFG_READY=false;
 async function loadCommissionCfg(){
@@ -1249,7 +1250,7 @@ async function loadHistoryFor(e){
   const n=new Date(),y=n.getFullYear(),mo=n.getMonth();
   const mStart=y+'-'+String(mo+1).padStart(2,'0')+'-01', mEnd=todayISO(), period=y+'-'+String(mo+1).padStart(2,'0');
   const [snapRes,salesRes,tipRes,goalRes]=await Promise.all([
-    sb.from('commission_snapshots').select('month,totals,tips,total,bonus').eq('staff_id',e.id).order('month',{ascending:false}).limit(24),
+    sb.from('commission_snapshots').select('month,totals,tips,total').eq('staff_id',e.id).order('month',{ascending:false}).limit(24),
     e.archived?Promise.resolve({data:[]}):sb.from('commission_sales').select('*').eq('staff_id',e.id).gte('biz_date',mStart).lte('biz_date',mEnd),
     e.archived?Promise.resolve({data:[]}):sb.from('commission_tips').select('*').eq('period',period),
     e.archived?Promise.resolve({data:[]}):sb.from('commission_goals').select('accy_goal').eq('staff_id',e.id).eq('month',period+'-01'),

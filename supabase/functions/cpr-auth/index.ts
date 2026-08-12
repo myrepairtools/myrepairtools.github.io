@@ -379,6 +379,9 @@ Deno.serve(async (req)=>{
     if (!staff_id || !pin) return json({
       error: "missing fields"
     }, 400);
+    if (!/^\d{4,8}$/.test(String(pin))) return json({
+      error: "PIN must be 4-8 digits"
+    }, 400);
     const { data: target } = await admin.from("staff").select("role").eq("id", staff_id).maybeSingle();
     if (!target) return json({
       error: "not found"
@@ -386,6 +389,13 @@ Deno.serve(async (req)=>{
     if (!canManageRole(c.role, target.role)) return json({
       error: "managers cannot reset an admin's PIN"
     }, 403);
+    // PIN-only login must resolve to exactly one person — reject collisions (mirrors change_pin)
+    const { data: others } = await admin.from("staff").select("id, pin_hash").eq("active", true).neq("id", staff_id);
+    for (const s of (others ?? [])) {
+      if (s.pin_hash && await verifyPin(String(pin), s.pin_hash)) return json({
+        error: "That PIN is already in use — generate a different one"
+      }, 409);
+    }
     const { error } = await admin.from("staff").update({
       pin_hash: await hashPin(pin)
     }).eq("id", staff_id);
