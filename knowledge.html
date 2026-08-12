@@ -253,7 +253,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 (async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 
 /* ---------- state ---------- */
-let CATS=[],ARTS=[],READS={},MODULES=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
+let CATS=[],ARTS=[],READS={},MODULES=[],SECTIONS=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
 let MODE='list';                 // list | article | onboarding | quiz | quizresult | edit
 let CAT=(function(){try{return localStorage.getItem('cprKbCat')||'all';}catch(e){return 'all';}})();
 let OPEN=null;                   // article being viewed/edited
@@ -261,7 +261,7 @@ let QZ=null;                     // {quiz, questions, idx, answers[], result}
 let SEARCHQ='',SRES=null,SEARCH_T=null;
 
 async function loadAll(){
-  const [c,a,r,m,asn,qz,att,st,sp,sd]=await Promise.all([
+  const [c,a,r,m,asn,qz,att,st,sp,sd,sec]=await Promise.all([
     sb.from('kb_categories').select('*').order('sort'),
     sb.from('kb_articles').select('*').order('updated_at',{ascending:false}),
     sb.from('kb_reads').select('article_id,first_read_at,acknowledged_at,last_viewed_at').eq('staff_id',AUTH.id),
@@ -271,11 +271,13 @@ async function loadAll(){
     sb.from('kb_quiz_attempts').select('quiz_id,score_pct,passed,attempt_no').eq('staff_id',AUTH.id),
     sb.from('staff').select('id,display_name').eq('active',true),
     sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
-    sb.from('onboarding_step_done').select('step_id,done_by,done_at').eq('staff_id',AUTH.id)
+    sb.from('onboarding_step_done').select('step_id,done_by,done_at').eq('staff_id',AUTH.id),
+    sb.from('onboarding_sections').select('*')
   ]);
   CATS=c.data||[]; ARTS=a.data||[]; MODULES=m.data||[];
   ASSIGN=(asn.data||[]).filter(x=>x.module_id!=null);   // per-module assignment rows (Training model)
   STEPS=sp.data||[]; SDONE={}; (sd.data||[]).forEach(x=>SDONE[x.step_id]=x);
+  SECTIONS=(sec&&sec.data)||[];
   READS={}; (r.data||[]).forEach(x=>READS[x.article_id]=x);
   QUIZ={}; (qz.data||[]).forEach(q=>{ QUIZ[q.article_id]={id:q.id,pass_pct:q.pass_pct,nq:(q.kb_quiz_questions||[]).length}; });
   MYATT={}; (att.data||[]).forEach(x=>{ const cur=MYATT[x.quiz_id]||{best:0,passed:false,attempts:0};
@@ -628,6 +630,10 @@ function drawModules(){
   let right='';
   if(!cur)right='<div class="empty">Add your first module — e.g. “Week 1 — Bench basics”.</div>';
   else{
+    const secsOf=SECTIONS.filter(x=>x.module_id===cur.id&&x.active!==false);
+    const secSel=(kind,id,curSec)=>'<select class="btn sm" data-secfor="'+kind+id+'" style="max-width:180px;font-weight:700">'
+      +'<option value="">— module level —</option>'
+      +secsOf.map(sx=>'<option value="'+sx.id+'"'+(curSec===sx.id?' selected':'')+'>'+esc(sx.name)+'</option>').join('')+'</select>';
     const rows=items.map((it,i)=>{
       const ud='<span style="display:inline-flex;gap:4px;flex:none">'
         +'<button class="btn sm" data-up="'+i+'"'+(i===0?' disabled':'')+' style="padding:4px 9px">↑</button>'
@@ -637,21 +643,41 @@ function drawModules(){
         return '<div class="steprow"><div class="atile" style="width:28px;height:28px;font-size:.85rem">'+esc(artIcon(a))+'</div>'
           +'<div class="stepmain"><div class="steptitle">'+esc(a.title)+(a.status==='draft'?' <span class="achip draft">Draft</span>':'')+'</div>'
           +'<div class="stepmeta">Article · '+esc(catName(a.category_id))+(q&&q.nq?' · quiz ('+q.nq+')':'')+(a.require_ack?' · required':'')+'</div></div>'
+          +(secsOf.length?secSel('a',a.id,a.section_id):'')
           +ud+'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
       }
       const s=it.s;
       return '<div class="steprow"><div class="atile" style="width:28px;height:28px;font-size:.85rem">'+(s.who==='manager'?'🧑‍💼':'☑️')+'</div>'
         +'<div class="stepmain"><div class="steptitle">'+esc(s.title)+'</div>'
         +'<div class="stepmeta">'+(s.who==='manager'?'Manager completes':'Employee completes')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+        +(secsOf.length?secSel('s',s.id,s.section_id):'')
         +ud+'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
     }).join('');
     const addable=ARTS.filter(a=>a.status!=='archived'&&a.module_id!==cur.id);
+    const modSecs=SECTIONS.filter(x=>x.module_id===cur.id&&x.active!==false);
+    /* 9c — auto-assign rule bar */
+    const rulebar='<div style="background:#F8FAFD;border:1.5px solid #CDE8F7;border-radius:10px;padding:9px 13px;margin:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+      +'<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;color:#1E7AA8">Auto-assign:</span>'
+      +'<select id="ruleRole" class="btn sm" style="min-width:120px"><option value=""'+(!cur.auto_assign_role?' selected':'')+'>Off</option>'
+        +'<option value="team_member"'+(cur.auto_assign_role==='team_member'?' selected':'')+'>Tech</option>'
+        +'<option value="admin"'+(cur.auto_assign_role==='admin'?' selected':'')+'>Manager</option>'
+        +'<option value="any"'+(cur.auto_assign_role==='any'?' selected':'')+'>Any role</option></select>'
+      +'<span style="font-size:.76rem;font-weight:700;color:var(--dark-grey)">hired on or after</span>'
+      +'<input type="date" id="ruleFrom" class="btn sm" value="'+esc(cur.auto_assign_from||'')+'" style="font-weight:800">'
+      +'<button class="btn pri sm" id="ruleSave" style="padding:5px 11px;font-size:.72rem">Save rule</button>'
+      +'<span style="flex-basis:100%;font-size:.68rem;font-weight:700;color:#7A5B10">⚠ Clearing the date assigns current staff too. Rules apply when a hire is promoted from intake.</span></div>';
+    /* 9c — section chips */
+    const chips='<div style="display:flex;gap:7px;flex-wrap:wrap;margin:0 16px 12px;align-items:center">'
+      +modSecs.map(sx=>'<span style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border);border-radius:999px;background:#fff;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;padding:4px 6px 4px 11px">'+esc(sx.name)
+        +'<button data-secdel="'+sx.id+'" title="Remove section" style="width:18px;height:18px;border-radius:50%;border:none;background:var(--light-grey);color:#8A8FA0;cursor:pointer;line-height:1">✕</button></span>').join('')
+      +'<button id="secAdd" class="btn sm" style="border-style:dashed;border-radius:999px">＋ Add section</button></div>';
     right='<div class="modcard"><div class="modhd" style="gap:12px;flex-wrap:wrap">'
       +'<input class="btn sm" id="mName" value="'+esc(cur.name)+'" style="font-weight:900;min-width:230px;flex:1;text-align:left">'
       +'<input class="btn sm" id="mSub" value="'+esc(cur.subtitle||'')+'" placeholder="Subtitle (optional)" style="min-width:200px;flex:1;text-align:left;font-weight:600">'
       +'<button class="btn sm" id="mSave">Save</button>'
       +'<button class="btn sm" id="mUp">↑</button><button class="btn sm" id="mDn">↓</button>'
       +'<button class="btn sm" id="mArch" style="color:var(--red)">Archive</button></div>'
+      +rulebar+chips
       +(rows||'<div class="empty" style="padding:22px">Nothing in this module yet.</div>')
       +'<div style="display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--row);flex-wrap:wrap;align-items:center">'
         +'<button class="btn pri sm" id="stAdd">＋ Add a task step</button>'
@@ -716,6 +742,35 @@ function drawModules(){
     await sb.from('kb_articles').update({module_id:cur.id,sort_order:maxSort+10}).eq('id',id);
     await refresh();
   };
+  /* 9c — auto-assign rule, sections, per-item section placement */
+  $('#ruleSave').onclick=async()=>{
+    const role=$('#ruleRole').value||null, from=$('#ruleFrom').value||null;
+    const r=await sb.from('onboarding_modules').update({auto_assign_role:role,auto_assign_from:role?from:null}).eq('id',cur.id);
+    if(r.error){toast(r.error.message,true);return;}
+    toast(role?'Auto-assign rule saved':'Auto-assign turned off'); await refresh();
+  };
+  $('#secAdd').onclick=async()=>{
+    const name=prompt('Section name (e.g. "Check-in & Quoting"):'); if(!name)return;
+    const maxSort=Math.max.apply(null,[0].concat(SECTIONS.filter(x=>x.module_id===cur.id).map(x=>x.sort)));
+    const r=await sb.from('onboarding_sections').insert({module_id:cur.id,name:name.trim(),sort:maxSort+10});
+    if(r.error){toast(r.error.message,true);return;}
+    await refresh();
+  };
+  document.querySelectorAll('[data-secdel]').forEach(b=>b.onclick=async()=>{
+    const id=+b.dataset.secdel;
+    if(!confirm('Remove this section? Its items move back to module level.'))return;
+    await sb.from('kb_articles').update({section_id:null}).eq('section_id',id);
+    await sb.from('onboarding_steps').update({section_id:null}).eq('section_id',id);
+    await sb.from('onboarding_sections').delete().eq('id',id);
+    await refresh();
+  });
+  document.querySelectorAll('[data-secfor]').forEach(sel=>sel.onchange=async()=>{
+    const key=sel.getAttribute('data-secfor'), sid=sel.value?+sel.value:null;
+    const table=key[0]==='a'?'kb_articles':'onboarding_steps';
+    const r=await sb.from(table).update({section_id:sid}).eq('id',+key.slice(1));
+    if(r.error){toast(r.error.message,true);return;}
+    await refresh();
+  });
 }
 function openStepEditor(mod,s){
   const isNew=!s; s=s||{who:'manager'};
@@ -847,6 +902,7 @@ function drawEditor(){
   +'<div class="crumb"><a data-nav="back">‹ Knowledge Base</a><span class="sep">/</span><span class="cat">'+(a?'Edit article':'New article')+'</span>'
     +'<span style="flex:1"></span>'
     +'<span class="statuschip '+(status==='published'?'pub':'draft')+'">'+(status==='published'?'Published':'Draft — unpublished'+(a?' edits':''))+'</span>'
+    +(a&&status==='published'&&ED.require_ack?'<label style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);cursor:pointer"><input type="checkbox" id="edReread"'+(ED.reread?' checked':'')+' style="accent-color:var(--red)"> Require re-read</label>':'')
     +'<button class="btn sm" id="edPrev">Preview</button>'
     +'<button class="btn sm" id="edDraft">Save draft</button>'
     +'<button class="btn pri sm" id="edPub">'+(status==='published'?'Save &amp; publish':'Publish')+'</button>'
@@ -952,6 +1008,15 @@ function drawEditor(){
     await sb.from('kb_article_versions').insert({article_id:saved.id,version:saved.version,
       title:saved.title,summary:saved.summary,body:saved.body,tags:saved.tags,edited_by:AUTH.id});
     if(status==='published'&&!(a&&a.published_at)&&ED.announce)announcePublish(saved,true);
+    /* "Require re-read" on publish: reset receipts so the article resurfaces in
+       Training → Assigned training for everyone. Never fires on ordinary edits —
+       only when the author checks the box. */
+    const rrEl=$('#edReread');
+    if(status==='published'&&rrEl&&rrEl.checked){
+      const rr=await sb.from('kb_reads').update({acknowledged_at:null}).eq('article_id',saved.id);
+      if(rr.error)toast('Saved, but the re-read reset failed: '+rr.error.message,true);
+      else announcePublish(saved,false);
+    }
     toast(status==='published'?'Published ✔':'Draft saved.');
     ED=null; OPEN=saved; MODE=status==='published'?'article':'edit';
     await refresh();
