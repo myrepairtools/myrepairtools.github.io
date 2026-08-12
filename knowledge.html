@@ -374,9 +374,14 @@ function publishNav(){
   items.push({u:'training.html',i:'graduation-cap',l:'Training',b:onb||''});
   items.push({h:'c=all',i:'book-open',l:'All articles',c:pubArts().length});
   if(reqN)items.push({h:'c=req',i:'star',l:'Required reading',b:reqN});
+  /* pane chrome is Lucide — categories map by name (DB emoji stays for the
+     per-article content tiles, this is just the nav row glyph) */
+  const CATGLYPH={'sops-policies':'clipboard-check','repair-knowledge':'wrench','insurance-claims':'shield',
+    'training':'graduation-cap','tools-systems':'monitor-smartphone','vendors-contacts':'notebook-tabs',
+    'employee-handbook':'book-open'};
   CATS.forEach(c=>{
     const n=pubArts().filter(a=>a.category_id===c.id).length;
-    if(n)items.push({h:'c='+slugify(c.name),i:c.icon||'📄',l:c.name,c:n});
+    if(n)items.push({h:'c='+slugify(c.name),i:CATGLYPH[slugify(c.name)]||'book-open',l:c.name,c:n});
   });
   if(isMgr(AUTH.role)){
     const nd=ARTS.filter(a=>a.status==='draft').length, na=ARTS.filter(a=>a.status==='archived').length;
@@ -387,7 +392,7 @@ function publishNav(){
        Onboarding dashboard in the Employees area — not in the KB pane
        (owner feedback 2026-08-12: keep the KB pane about the KB). */
   }
-  try{ localStorage.setItem('cprKbNav',JSON.stringify({v:2,items:items})); }catch(e){}
+  try{ localStorage.setItem('cprKbNav',JSON.stringify({v:3,items:items})); }catch(e){}
   if(window.CPRKbNav)window.CPRKbNav.refresh();
 }
 function shell(inner){

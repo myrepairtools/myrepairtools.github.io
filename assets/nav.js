@@ -561,6 +561,7 @@
     'banknote': '<rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" />',
     'pen-line': '<path d="M13 21h8" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />',
     'archive': '<rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" />',
+    'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />',
     'search': '<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />',
     'monitor-smartphone': '<path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" /><path d="M10 19v-3.96 3.15" /><path d="M7 19h5" /><rect width="6" height="10" x="16" y="12" rx="2" />',
     'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2" /><path d="M12 18h.01" />',
@@ -749,7 +750,7 @@
     // v2 cache shape {v:2, items:[...]} — older plain-array caches predate the
     // Lucide row names and are ignored so stale emoji rows purge themselves.
     try{ var c = JSON.parse(localStorage.getItem('cprKbNav')||'null');
-      if (c && c.v === 2 && Array.isArray(c.items)) items = c.items; }catch(e){}
+      if (c && c.v === 3 && Array.isArray(c.items)) items = c.items; }catch(e){}
     if (!items || !items.length){
       items = [ {h:'c=all', i:'book-open', l:'All articles'}, {h:'c=req', i:'star', l:'Required reading'} ];
       if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'pen-line',l:'Drafts'});
