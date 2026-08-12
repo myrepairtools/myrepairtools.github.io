@@ -2196,7 +2196,7 @@ function memberModalHtml(){
   var roleOpts=roleSet.map(function(r){return '<option value="'+r+'"'+(r===d.role?' selected':'')+'>'+roleLabel(r)+'</option>';}).join('');
   var home=d.home_store;
   var pills=activeStores().map(function(s){
-    var on=(d.authorized_stores||[]).indexOf(s.store)>-1, isHome=(s.store===home);
+    var isHome=(s.store===home), on=isHome||(d.authorized_stores||[]).indexOf(s.store)>-1; // home is always authorized
     return '<button class="authpill'+(on?' on':'')+'" data-auth="'+esc(s.store)+'">'+esc(shortStore(s.store))
       +(isHome?'<span class="home">home</span>':(on?'<span style="color:#1E7AA8;font-weight:900">✓</span>':''))+'</button>';
   }).join('');
@@ -2294,6 +2294,8 @@ async function saveMember(){
   var d=MOPEN.draft;
   if(!d.username){toast('Username is required',true);return;}
   if(!d.home_store){toast('Pick a home store',true);return;}
+  d.authorized_stores=d.authorized_stores||[];
+  if(d.authorized_stores.indexOf(d.home_store)<0)d.authorized_stores.push(d.home_store); // home is always authorized
   var btn=$('#modalHost [data-save]');if(btn)btn.disabled=true;
   try{
     if(MOPEN.isNew){
