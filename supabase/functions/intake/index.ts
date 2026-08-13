@@ -30,6 +30,10 @@ const GMAIL_USER = Deno.env.get("GMAIL_USER") || "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") || "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const NOTIFY_FROM = Deno.env.get("NOTIFY_FROM") || "onboarding@resend.dev";
+// Candidate-facing mail can carry its own From (e.g. hiring@) — an offer letter
+// reading "noreply@" undercuts it. Falls back to the system sender.
+const HIRING_FROM = Deno.env.get("HIRING_FROM") || NOTIFY_FROM;
+const REPLY_TO_ENV = Deno.env.get("NOTIFY_REPLY_TO") || "";
 const SITE = "https://myrepairtools.github.io";
 const admin = createClient(SB_URL, SERVICE, { auth: { persistSession: false } });
 const CORS = {
@@ -349,7 +353,7 @@ async function sendOfferEmail(to: string, subject: string, text: string,
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: NOTIFY_FROM, to: [to], subject, text, html: emailHtml(text),
+        from: HIRING_FROM, to: [to], subject, text, html: emailHtml(text),
         ...(replyTo ? { reply_to: replyTo } : {}),
         attachments: [{ filename, content: b64 }],
       }),
@@ -391,7 +395,8 @@ async function storeLetterhead(store: unknown): Promise<string | undefined> {
 async function hiringReplyTo(): Promise<string | undefined> {
   const { data } = await admin.from("app_settings").select("value").eq("key", "hiring.reply_to").maybeSingle();
   const v = data?.value?.email;
-  return v && /@/.test(String(v)) ? String(v) : undefined;
+  if (v && /@/.test(String(v))) return String(v);
+  return REPLY_TO_ENV && /@/.test(REPLY_TO_ENV) ? REPLY_TO_ENV : undefined;
 }
 
 Deno.serve(async (req) => {

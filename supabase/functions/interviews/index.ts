@@ -28,6 +28,8 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const NOTIFY_FROM = Deno.env.get("NOTIFY_FROM") || "onboarding@resend.dev";
+// candidates reply to interview confirmations — send those replies somewhere real
+const REPLY_TO = Deno.env.get("NOTIFY_REPLY_TO") || "";
 const GMAIL_USER = Deno.env.get("GMAIL_USER") || "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") || "";
 const SITE = "https://myrepairtools.com";
@@ -200,7 +202,8 @@ async function sendEmail(to: string, subject: string, text: string): Promise<boo
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: NOTIFY_FROM, to: [to], subject, text, html }),
+        body: JSON.stringify({ from: NOTIFY_FROM, to: [to], subject, text, html,
+          ...(REPLY_TO ? { reply_to: REPLY_TO } : {}) }),
       });
       if (r.ok) return true;
     } catch { /* fall through to Gmail */ }
@@ -211,7 +214,8 @@ async function sendEmail(to: string, subject: string, text: string): Promise<boo
       const client = new SMTPClient({
         connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD } },
       });
-      await client.send({ from: `CPR Cell Phone Repair <${GMAIL_USER}>`, to, subject, content: text, html });
+      await client.send({ from: `CPR Cell Phone Repair <${GMAIL_USER}>`, to, subject, content: text, html,
+        ...(REPLY_TO ? { replyTo: REPLY_TO } : {}) });
       await client.close();
       return true;
     } catch { return false; }

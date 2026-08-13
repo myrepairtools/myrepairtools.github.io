@@ -18,6 +18,9 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const NOTIFY_FROM = Deno.env.get("NOTIFY_FROM") || "CPR Tools <onboarding@resend.dev>";
+// We send from a domain nobody reads (outbound-only), so every message carries a
+// reply-to a human actually watches — otherwise a reply vanishes.
+const REPLY_TO = Deno.env.get("NOTIFY_REPLY_TO") || "";
 // Gmail SMTP fallback (no domain/DNS needed): app password on a Gmail account.
 const GMAIL_USER = Deno.env.get("GMAIL_USER") || "";
 const GMAIL_APP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") || "";
@@ -85,7 +88,8 @@ async function sendViaResend(to: string, subject: string, text: string): Promise
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: NOTIFY_FROM, to: [to], subject, text, html: emailHtml(text) }),
+    body: JSON.stringify({ from: NOTIFY_FROM, to: [to], subject, text, html: emailHtml(text),
+      ...(REPLY_TO ? { reply_to: REPLY_TO } : {}) }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) return { ok: false, error: (d && (d.message || d.name)) || `resend_${r.status}` };
@@ -97,7 +101,8 @@ async function sendViaGmail(to: string, subject: string, text: string): Promise<
     const client = new SMTPClient({
       connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD } },
     });
-    await client.send({ from: `CPR Tools <${GMAIL_USER}>`, to, subject, content: text, html: emailHtml(text) });
+    await client.send({ from: `CPR Tools <${GMAIL_USER}>`, to, subject, content: text, html: emailHtml(text),
+      ...(REPLY_TO ? { replyTo: REPLY_TO } : {}) });
     await client.close();
     return { ok: true };
   } catch (err) {
