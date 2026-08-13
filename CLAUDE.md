@@ -169,7 +169,9 @@ these when adding UI so a new tool looks native.
   accordion — never re-implement it per page. Syntax: `#`/`##`/`###`/`####`
   headings · `- ` / `1. ` lists that **nest by two-space indentation**
   (sub-numbers render a./i.) · `!>` amber callout with `!r>`/`!g>`/`!b>` red /
-  green / blue variants and `!n>` a plain no-color box · **pipe tables**
+  green / blue variants and `!n>` a plain outline-only box (no fill); a box may
+  carry a heading — `!> ## Title` — which the size dropdown edits in place
+  (formatBlock on the box itself would delete the box) · **pipe tables**
   (`| a | b |`, a `|---|---|` row under the first makes it a header) · `---`
   divider · `**bold** *italic* __underline__ `code` [text](url) ![alt](img)`.
   Structural CSS (callout tints, tables, sub-list markers) is **injected by the

@@ -33,6 +33,9 @@
     + '.callout.c-green{background:#E6F6EE;border-color:#B7E2CC}.callout.c-green .ct{color:#1B6844}'
     + '.callout.c-blue{background:#EAF6FD;border-color:#BFE2F5}.callout.c-blue .ct{color:#175E82}'
     + '.callout.c-plain{background:transparent;border-color:#E0E2EA}.callout.c-plain .ct{color:var(--dark,#2D2D3B)}'
+    + '.callout .ct h3,.callout .ct h4,.callout .ct h5,.callout .ct h6{margin:0;color:inherit;font-family:Nunito,sans-serif;font-weight:900}'
+    + '.callout .ct h3{font-size:1.05rem}.callout .ct h4{font-size:.95rem}'
+    + '.callout .ct h5{font-size:.88rem}.callout .ct h6{font-size:.8rem}'
     /* tables scroll on their own rather than pushing the page sideways */
     + '.mk-tblwrap{overflow-x:auto;margin:12px 0;-webkit-overflow-scrolling:touch}'
     + '.mk-tbl{border-collapse:collapse;width:100%;min-width:340px;font-size:.86rem}'
@@ -156,9 +159,12 @@
       for (var c = 0; c < CALLOUTS.length; c++) {
         if ((m = CALLOUTS[c].re.exec(ln))) {
           flush();
+          /* a box may carry a heading: "!> ## Get the Demo CSV File" */
+          var txt = m[1], hm = /^(#{1,4})\s+([\s\S]*)$/.exec(txt), htag = '';
+          if (hm) { htag = { 1: 'h3', 2: 'h4', 3: 'h5', 4: 'h6' }[hm[1].length]; txt = hm[2]; }
           out += '<div class="callout' + (CALLOUTS[c].cls ? ' ' + CALLOUTS[c].cls : '') + '">'
             + (CALLOUTS[c].icon ? '<span class="ci">' + CALLOUTS[c].icon + '</span>' : '')
-            + '<div class="ct">' + m[1] + '</div></div>';
+            + '<div class="ct">' + (htag ? '<' + htag + '>' + txt + '</' + htag + '>' : txt) + '</div></div>';
           hit = true; break;
         }
       }

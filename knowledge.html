@@ -341,6 +341,7 @@ border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px
 .ed-rich .ed-callout.c-green{background:#E6F6EE;border-color:#B7E2CC;color:#1B6844}
 .ed-rich .ed-callout.c-blue{background:#EAF6FD;border-color:#BFE2F5;color:#175E82}
 .ed-rich .ed-callout.c-plain{background:transparent;border-color:#E0E2EA;color:var(--dark)}
+.ed-rich .ed-callout h3,.ed-rich .ed-callout h4,.ed-rich .ed-callout h5,.ed-rich .ed-callout h6{margin:0;color:inherit}
 .ed-rich h5{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark);margin:12px 0 4px}
 .ed-rich h6{font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;color:var(--dark-grey);margin:10px 0 4px}
 .edtools .edsep{width:1px;height:20px;background:var(--border);margin:0 4px}
@@ -1428,7 +1429,12 @@ function mdToEditor(md){
       buf.push({indent:m[1].replace(/\t/g,'  ').length,tag:/^\d/.test(m[2])?'ol':'ul',text:m[3]}); continue; }
     if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; continue; }
     const co=CO_KINDS.map(k=>({k,m:k.re.exec(raw)})).find(x=>x.m);
-    if(co){ close(); out+='<div class="ed-callout'+(co.k.cls?' '+co.k.cls:'')+'">'+(inlineToHtml(co.m[1])||'<br>')+'</div>'; continue; }
+    if(co){ close();
+      /* a box can carry a heading: "!> ## Title" */
+      let ctxt=co.m[1], hm=/^(#{1,4})\s+([\s\S]*)$/.exec(ctxt), ht='';
+      if(hm){ ht={1:'h3',2:'h4',3:'h5',4:'h6'}[hm[1].length]; ctxt=hm[2]; }
+      const inner=inlineToHtml(ctxt)||'<br>';
+      out+='<div class="ed-callout'+(co.k.cls?' '+co.k.cls:'')+'">'+(ht?'<'+ht+'>'+inner+'</'+ht+'>':inner)+'</div>'; continue; }
     if((m=/^####\s+(.*)$/.exec(raw))){ close(); out+='<h6>'+inlineToHtml(m[1])+'</h6>'; }
     else if((m=/^###\s+(.*)$/.exec(raw))){ close(); out+='<h5>'+inlineToHtml(m[1])+'</h5>'; }
     else if((m=/^##\s+(.*)$/.exec(raw))){ close(); out+='<h4>'+inlineToHtml(m[1])+'</h4>'; }
@@ -1524,7 +1530,9 @@ function editorToMd(root){
     if(tag==='ul'||tag==='ol'){ listToMd(el,0); push(''); return; }
     if(tag==='table'){ tableToMd(el); push(''); return; }
     if(el.classList&&el.classList.contains('ed-callout')){
-      push(calloutPrefix(el)+inlineToMd(el).trim()); push(''); return; }
+      const bh=el.querySelector('h3,h4,h5,h6');
+      const lvl=bh?({h3:'# ',h4:'## ',h5:'### ',h6:'#### '})[bh.tagName.toLowerCase()]:'';
+      push(calloutPrefix(el)+lvl+inlineToMd(el).trim()); push(''); return; }
     if(tag==='blockquote'){ push('!> '+inlineToMd(el).trim()); push(''); return; }
     /* p / div / anything else = a paragraph; a lone <br> is a blank line */
     const txt=inlineToMd(el).trim();
@@ -1745,13 +1753,35 @@ function drawEditor(){
     /* the size dropdown shows what the caret is sitting in */
     const sel=$('#eBlock');
     if(sel){
-      let blk='';
-      try{ blk=(document.queryCommandValue('formatBlock')||'').toLowerCase().replace(/[<>]/g,''); }catch(e){}
-      if(blk==='h1')blk='h3'; if(blk==='h2')blk='h4';
-      sel.value=['h3','h4','h5','h6'].indexOf(blk)>-1?blk:'p';
+      const cur=currentBlock();
+      if(cur&&cur.classList&&cur.classList.contains('ed-callout')){
+        const bh=cur.querySelector('h3,h4,h5,h6');
+        sel.value=bh?bh.tagName.toLowerCase():'p';
+      }else{
+        let blk='';
+        try{ blk=(document.queryCommandValue('formatBlock')||'').toLowerCase().replace(/[<>]/g,''); }catch(e){}
+        if(blk==='h1')blk='h3'; if(blk==='h2')blk='h4';
+        sel.value=['h3','h4','h5','h6'].indexOf(blk)>-1?blk:'p';
+      }
     }
   }
-  $('#eBlock').addEventListener('change',()=>{ exec('formatBlock','<'+$('#eBlock').value+'>'); });
+  /* Inside a note box, formatBlock would convert the BOX itself and the box
+     would vanish — so size the box's own text instead. */
+  function setBoxHeading(box,tag){
+    const h=box.querySelector('h3,h4,h5,h6');
+    if(tag==='p'){ if(h)h.replaceWith(...h.childNodes); }
+    else if(h){ const n=document.createElement(tag); n.innerHTML=h.innerHTML; h.replaceWith(n); }
+    else{ const n=document.createElement(tag); n.innerHTML=box.innerHTML||'<br>'; box.innerHTML=''; box.appendChild(n); }
+    placeCaret(box.querySelector('h3,h4,h5,h6')||box);
+    syncTools();
+  }
+  $('#eBlock').addEventListener('change',()=>{
+    const v=$('#eBlock').value;
+    rich.focus();
+    const blk=currentBlock();
+    if(blk&&blk.classList&&blk.classList.contains('ed-callout')){ setBoxHeading(blk,v); return; }
+    exec('formatBlock','<'+v+'>');
+  });
   const holdCaret=b=>{ ['mouseup','click'].forEach(ev=>b.addEventListener(ev,e=>e.preventDefault())); };
   document.querySelectorAll('[data-cmd]').forEach(b=>{
     holdCaret(b);
