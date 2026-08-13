@@ -331,6 +331,13 @@ border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px
 .edmenu .mic svg{display:block}
 .edmenu .lbl{flex:1;min-width:0;text-align:left}
 .edmenu .sw{width:15px;height:15px;border-radius:5px;border:1.5px solid}
+/* color picker: swatches only, no labels (the name rides in the tooltip) */
+.edmenu.pal{display:flex;gap:6px;padding:8px;min-width:0}
+.edmenu.pal button{width:28px;height:28px;padding:0;border:1.5px solid;border-radius:8px;flex:none}
+.edmenu.pal button:hover{background-clip:padding-box;box-shadow:0 0 0 2px rgba(79,176,227,.45)}
+.edmenu.pal button.none{background:#fff;position:relative;overflow:hidden}
+.edmenu.pal button.none::after{content:'';position:absolute;inset:0;
+background:linear-gradient(to top right,transparent 44%,var(--red) 44%,var(--red) 56%,transparent 56%)}
 /* tables inside the editor look like tables, with a visible grid while editing */
 .ed-rich table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.86rem}
 .ed-rich th,.ed-rich td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top;min-width:44px}
@@ -340,7 +347,8 @@ border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px
 .ed-rich .ed-callout.c-red{background:#FDEBEC;border-color:#F2C4C6;color:#93262B}
 .ed-rich .ed-callout.c-green{background:#E6F6EE;border-color:#B7E2CC;color:#1B6844}
 .ed-rich .ed-callout.c-blue{background:#EAF6FD;border-color:#BFE2F5;color:#175E82}
-.ed-rich .ed-callout.c-plain{background:transparent;border-color:#E0E2EA;color:var(--dark)}
+.ed-rich .ed-callout.c-plain{background:#F8F8FA;border-color:#E0E2EA;color:#4E4E50}
+.ed-rich .ed-callout.c-dark{background:#2D2D3B;border-color:#2D2D3B;color:#fff}
 .ed-rich .ed-callout h3,.ed-rich .ed-callout h4,.ed-rich .ed-callout h5,.ed-rich .ed-callout h6{margin:0;color:inherit}
 .ed-rich h5{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark);margin:12px 0 4px}
 .ed-rich h6{font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;color:var(--dark-grey);margin:10px 0 4px}
@@ -1472,7 +1480,8 @@ const CO_KINDS=[
   {key:'red',  cls:'c-red',  prefix:'!r> ',re:/^!r>\s+(.*)$/, label:'Red — do not do this',  bg:'#FDEBEC', bd:'#F2C4C6'},
   {key:'green',cls:'c-green',prefix:'!g> ',re:/^!g>\s+(.*)$/, label:'Green — best practice', bg:'#E6F6EE', bd:'#B7E2CC'},
   {key:'blue', cls:'c-blue', prefix:'!b> ',re:/^!b>\s+(.*)$/, label:'Blue — good to know',   bg:'#EAF6FD', bd:'#BFE2F5'},
-  {key:'plain',cls:'c-plain',prefix:'!n> ',re:/^!n>\s+(.*)$/, label:'Plain box — no fill',   bg:'transparent', bd:'#C7CAD4'}
+  {key:'plain',cls:'c-plain',prefix:'!n> ',re:/^!n>\s+(.*)$/, label:'Grey — plain box',       bg:'#F8F8FA', bd:'#E0E2EA'},
+  {key:'dark', cls:'c-dark', prefix:'!d> ',re:/^!d>\s+(.*)$/, label:'Dark blue',              bg:'#2D2D3B', bd:'#2D2D3B'}
 ];
 function calloutPrefix(el){
   const k=CO_KINDS.find(x=>x.cls&&el.classList.contains(x.cls));
@@ -1862,9 +1871,25 @@ function drawEditor(){
       if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown',off); }
     }),0);
   }
+  /* colors pop down as swatches — no labels, like Word's color picker */
+  function openPalette(btn,items){
+    document.querySelectorAll('.edmenu').forEach(m=>m.remove());
+    const m=document.createElement('div'); m.className='edmenu pal';
+    m.innerHTML=items.map((it,i)=>'<button type="button" data-i="'+i+'" title="'+escAttr(it.label)+'"'
+      +(it.none?' class="none"':'')+' style="background:'+it.bg+';border-color:'+it.bd+'"></button>').join('');
+    document.body.appendChild(m);
+    const r=btn.getBoundingClientRect();
+    m.style.top=(r.bottom+window.scrollY+5)+'px';
+    m.style.left=Math.min(r.left+window.scrollX,window.innerWidth-m.offsetWidth-12)+'px';
+    m.querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>{
+      const it=items[+b.dataset.i]; m.remove(); if(it&&it.run)it.run(); }));
+    setTimeout(()=>document.addEventListener('mousedown',function off(e){
+      if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown',off); }
+    }),0);
+  }
   $('#edCoBtn').addEventListener('mousedown',e=>{ e.preventDefault();
-    openMenu($('#edCoBtn'),CO_KINDS.map(k=>({label:k.label,swatch:[k.bg,k.bd],run:()=>setCallout(k.key)}))
-      .concat([{sep:true},{label:'Remove box',icon:'eraser',run:()=>setCallout(null)}]));
+    openPalette($('#edCoBtn'),CO_KINDS.map(k=>({label:k.label,bg:k.bg,bd:k.bd,run:()=>setCallout(k.key)}))
+      .concat([{label:'Remove box',bg:'#fff',bd:'#E0E2EA',none:true,run:()=>setCallout(null)}]));
   });
   /* ---- tables ---- */
   function caretCell(){

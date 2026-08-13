@@ -10,7 +10,7 @@
  *   - item  /  1. item    lists; two spaces of indent per sub-level
  *   !> text               callout box — amber by default
  *   !r> !g> !b> text      red / green / blue callouts
- *   !n> text              plain box, no color (section grouping)
+ *   !n> text              plain grey box · !d> solid dark-blue box
  *   | a | b |             tables; a |---|---| row under the first row makes it a header
  *   ---                   divider
  *   **bold** *italic* __underline__ `code` [text](url) ![alt](img)
@@ -32,7 +32,8 @@
     + '.callout.c-red{background:#FDEBEC;border-color:#F2C4C6}.callout.c-red .ct{color:#93262B}'
     + '.callout.c-green{background:#E6F6EE;border-color:#B7E2CC}.callout.c-green .ct{color:#1B6844}'
     + '.callout.c-blue{background:#EAF6FD;border-color:#BFE2F5}.callout.c-blue .ct{color:#175E82}'
-    + '.callout.c-plain{background:transparent;border-color:#E0E2EA}.callout.c-plain .ct{color:var(--dark,#2D2D3B)}'
+    + '.callout.c-plain{background:#F8F8FA;border-color:#E0E2EA}.callout.c-plain .ct{color:#4E4E50}'
+    + '.callout.c-dark{background:#2D2D3B;border-color:#2D2D3B}.callout.c-dark .ct{color:#fff}'
     + '.callout .ct h3,.callout .ct h4,.callout .ct h5,.callout .ct h6{margin:0;color:inherit;font-family:Nunito,sans-serif;font-weight:900}'
     + '.callout .ct h3{font-size:1.05rem}.callout .ct h4{font-size:.95rem}'
     + '.callout .ct h5{font-size:.88rem}.callout .ct h6{font-size:.8rem}'
@@ -135,6 +136,7 @@
     { re: /^!g&gt;\s+(.*)$/, cls: 'c-green', icon: '✅' },
     { re: /^!b&gt;\s+(.*)$/, cls: 'c-blue', icon: 'ℹ️' },
     { re: /^!n&gt;\s+(.*)$/, cls: 'c-plain', icon: '' },
+    { re: /^!d&gt;\s+(.*)$/, cls: 'c-dark', icon: '' },
     { re: /^!&gt;\s+(.*)$/, cls: '', icon: '⚠️' }
   ];
 
