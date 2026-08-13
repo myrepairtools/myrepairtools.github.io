@@ -186,6 +186,24 @@ def suction_cup():
     ]
 
 
+def sim():
+    """A SIM card, cut corner and all.  The pocket holds the eject pin, but a
+    pin drawn at 10 mm is a line -- the card is what everyone reads as SIM."""
+    return [[
+        (3.0, 4.5), (13.5, 4.5), (17.0, 8.0), (17.0, 15.5), (3.0, 15.5),
+    ]]
+
+
+def grinder():
+    """Rotary grinding burr: shaft into a barrel with a rounded end."""
+    pts = [(9.0, 2.0), (11.0, 2.0), (11.0, 7.5), (14.0, 7.5)]
+    for i in range(25):                       # rounded end, y is DOWN here
+        t = math.radians(180 * i / 24)
+        pts.append((10 + 4 * math.cos(t), 14.5 + 4 * math.sin(t)))
+    pts += [(6.0, 7.5), (9.0, 7.5)]
+    return [pts]
+
+
 def magnet():
     """Horseshoe -- the one shape everyone reads as 'magnet'."""
     r_out, r_in, leg = 8.0, 3.6, 17.6
@@ -211,6 +229,8 @@ ICONS = {
     "tweezers": tweezers,
     "snips": snips,
     "suction-cup": suction_cup,
+    "sim": sim,
+    "grinder": grinder,
     "magnet": magnet,
 }
 
