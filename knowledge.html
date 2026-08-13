@@ -421,6 +421,9 @@ async function loadAll(){
 
 /* ---------- derived ---------- */
 function catById(id){ return CATS.find(x=>x.id===id); }
+/* manager-only categories (kb_categories.min_role) hide from employees at the
+   UI level; article RLS remains the real enforcement */
+function catVisible(c){ return !c||c.min_role!=='manager'||isMgr(AUTH.role); }
 function catName(id){ const c=catById(id); return c?c.name:'—'; }
 function artIcon(a){ return a.emoji||((catById(a.category_id)||{}).icon)||'📄'; }
 function acked(a){ const r=READS[a.id]; return r&&r.acknowledged_at; }
@@ -483,6 +486,7 @@ function applyHash(){
     if(['all','req','drafts','archived'].indexOf(v)>-1){ if((v==='drafts'||v==='archived')&&!isMgr(AUTH.role))return false;
       CAT=v; FACET={s:null,t:null}; save(); MODE='list'; draw(); return true; }
     const cc=CATS.find(x=>String(x.id)===v||slugify(x.name)===v);
+    if(cc&&!catVisible(cc))return false;
     if(cc){ CAT=String(cc.id); MODE='list';
       const ss=m[2]?SUBCATS.find(x=>x.category_id===cc.id&&slugify(x.name)===m[2]):null;
       const tt=m[3]?TAGS.find(x=>x.category_id===cc.id&&slugify(x.name)===m[3]):null;
@@ -582,7 +586,7 @@ function drawList(){
 /* ---------- portal home (13c) + hero search morph (14a) ---------- */
 const CATGLYPH={'sops-policies':'clipboard-check','repair-knowledge':'wrench','insurance-claims':'shield',
   'training':'graduation-cap','tools-systems':'monitor-smartphone','vendors-contacts':'notebook-tabs',
-  'employee-handbook':'book-open','myrepairtools':'plug'};
+  'employee-handbook':'book-open','myrepairtools':'plug','mrt-internals':'file-cog'};
 function catGlyph(c,size){ const n=CATGLYPH[slugify(c.name)]||'book-open';
   return window.CPRNavIcon?CPRNavIcon(n,size||18):esc(c.icon||'📄'); }
 /* the retired nav pane's Manage rows live in a + menu now (owner call
@@ -629,7 +633,7 @@ function wirePlus(){
   }));
 }
 function drawHome(){
-  const cats=CATS.map(c=>({c,n:pubArts().filter(a=>a.category_id===c.id).length})).filter(x=>x.n);
+  const cats=CATS.filter(catVisible).map(c=>({c,n:pubArts().filter(a=>a.category_id===c.id).length})).filter(x=>x.n);
   const vis=new Set(pubArts().map(a=>a.id));
   const most=MOSTREAD.filter(m=>vis.has(m.article_id)).slice(0,6)
     .map(m=>({a:ARTS.find(x=>x.id===m.article_id),n:m.n})).filter(x=>x.a);
@@ -645,7 +649,7 @@ function drawHome(){
     +cats.map(x=>'<button class="cattile" data-cat="'+x.c.id+'"'+(isMgr(AUTH.role)?' draggable="true" title="Drag to organize"':'')+'>'
       +'<span class="ctic">'+catGlyph(x.c,18)+'</span>'
       +'<span class="ctn">'+esc(x.c.name)+'</span>'
-      +'<span class="ctc">'+x.n+' article'+(x.n===1?'':'s')+'</span></button>').join('')+'</div>';
+      +'<span class="ctc">'+x.n+' article'+(x.n===1?'':'s')+(x.c.min_role==='manager'?' · managers':'')+'</span></button>').join('')+'</div>';
   const rr=reqOutstanding();
   if(rr.length)inner+='<div class="reqbanner" style="margin-top:14px"><span style="font-size:1.05rem">🎓</span><div class="t" data-reqlist style="cursor:pointer">'
     +rr.length+' required read'+(rr.length===1?'':'s')+' outstanding — '
@@ -742,7 +746,7 @@ function renderHeroSearch(){
 function allLbl(cat){ return cat.subcat_label?('All '+cat.subcat_label.toLowerCase()+'s'):'All'; }
 function drawTopic(){
   const cat=catById(+CAT);
-  if(!cat){ CAT='all'; return drawHome(); }
+  if(!cat||!catVisible(cat)){ CAT='all'; return drawHome(); }
   const subs=SUBCATS.filter(s=>s.category_id===cat.id);
   const tags=TAGS.filter(t=>t.category_id===cat.id);
   if(FACET.s&&!subs.some(s=>s.id===FACET.s))FACET.s=null;
@@ -927,6 +931,7 @@ function drawCats(){
       +'<span class="cric">'+catGlyph(c,15)+'</span>'
       +'<span style="flex:1;min-width:0"><span class="crn">'+esc(c.name)+'</span>'
       +'<span class="crs">'+(ns?ns+' sub-categor'+(ns===1?'y':'ies'):'no sub-categories')+(nt?' · '+nt+' tag'+(nt===1?'':'s'):'')+' · '+nArts(c)+' article'+(nArts(c)===1?'':'s')+'</span></span>'
+      +(c.min_role==='manager'?'<span class="crfac" style="background:#FDEBEC;color:var(--red)">Managers</span>':'')
       +(fac?'<span class="crfac">'+esc(fac)+'</span>':'<span class="crnone">—</span>')
     +'</button>';
   }).join('');
@@ -941,6 +946,9 @@ function drawCats(){
         +'<span style="width:40px;height:40px;border-radius:11px;background:#EAF6FD;color:#1E7AA8;display:flex;align-items:center;justify-content:center;flex:none">'+catGlyph(sel,19)+'</span>'
         +'<div style="flex:1;min-width:180px"><input id="ctName" value="'+esc(sel.name)+'" style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;border:1.5px solid transparent;border-radius:8px;padding:2px 6px;margin-left:-6px;width:100%;background:none" onfocus="this.style.borderColor=\'var(--blue)\'" onblur="this.style.borderColor=\'transparent\'">'
         +'<div style="font-size:.74rem;font-weight:700;color:var(--grey)">'+nArts(sel)+' articles · '+subs.length+' sub-categor'+(subs.length===1?'y':'ies')+' · '+tags.length+' tag'+(tags.length===1?'':'s')+'</div></div>'
+        +'<select id="ctVis" class="glbl" style="width:auto;margin:0" title="Who can browse this category">'
+          +'<option value="employee"'+(sel.min_role!=='manager'?' selected':'')+'>Everyone</option>'
+          +'<option value="manager"'+(sel.min_role==='manager'?' selected':'')+'>Managers &amp; up</option></select>'
         +'<button class="btn dk sm" id="ctSave">Save</button>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="facpanels">'
@@ -984,7 +992,8 @@ function drawCats(){
   $('#ctSave').addEventListener('click',async()=>{
     const patch={name:($('#ctName').value.trim()||sel.name),
       subcat_label:$('#ctSubLbl').value.trim()||null,
-      tag_label:$('#ctTagLbl').value.trim()||null};
+      tag_label:$('#ctTagLbl').value.trim()||null,
+      min_role:$('#ctVis').value};
     const {error}=await sb.from('kb_categories').update(patch).eq('id',sel.id);
     if(error){ toast('Save failed: '+error.message,true); return; }
     await loadAll(); drawCats(); toast('Saved ✔');
@@ -1378,8 +1387,11 @@ function drawEditor(){
   async function save(status){
     grab();
     if(!ED.title.trim()){ toast('Give it a title.',true); return; }
+    /* an article filed into a managers-only category can never be
+       employee-visible — the category gate is UI, this is the enforcement */
+    const catGated=(catById(ED.category_id)||{}).min_role==='manager';
     const row={title:ED.title.trim(),summary:ED.summary.trim()||null,category_id:ED.category_id,
-      body:ED.body,status,min_role:ED.min_role,require_ack:ED.require_ack,emoji:ED.emoji||null,
+      body:ED.body,status,min_role:catGated?'manager':ED.min_role,require_ack:ED.require_ack,emoji:ED.emoji||null,
       module_id:ED.module_id,sort_order:ED.sort_order,updated_by:AUTH.id,
       subcategory_id:ED.subcategory_id};
     if(status==='published'&&!(a&&a.published_at))row.published_at=new Date().toISOString();

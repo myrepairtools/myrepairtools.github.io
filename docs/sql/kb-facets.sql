@@ -73,3 +73,10 @@ grant execute on function public.kb_most_read(int) to authenticated;
 -- anyone's onboarding sequence. null = falls after ordered cards (newest
 -- first among themselves).
 alter table public.kb_articles add column if not exists browse_order int;
+
+-- Manager/owner-only categories (owner ask 2026-08-12): kb_categories.min_role
+-- ('employee' default | 'manager') hides the tile + topic view from
+-- employees. UI gating only — the real enforcement stays kb_articles RLS, and
+-- the editor forces min_role='manager' on any article saved into a gated
+-- category so content can never leak through a mislabeled article.
+alter table public.kb_categories add column if not exists min_role text not null default 'employee';
