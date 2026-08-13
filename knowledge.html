@@ -222,6 +222,7 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .artbody h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark);margin:22px 0 10px}
 .artbody h4{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;color:var(--dark);margin:18px 0 8px}
 .artbody ul,.artbody ol{margin:0 0 16px;padding-left:22px}
+.artbody li>ul,.artbody li>ol{margin:4px 0 0}   /* nested list sits inside its step */
 .artbody li{margin:4px 0}
 .artbody img{max-width:100%;border-radius:12px;border:1px solid var(--border);margin:10px 0;display:block}
 .artbody a{color:#1E7AA8;font-weight:700}
@@ -380,16 +381,30 @@ function render(text){
   s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
   s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
   s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<i>$2</i>');
-  const lines=s.split('\n'); let out='',ul=false,ol=false;
-  const close=()=>{ if(ul){out+='</ul>';ul=false;} if(ol){out+='</ol>';ol=false;} };
+  const lines=s.split('\n'); let out='';
+  /* Lists keep a stack of open levels. An INDENTED marker opens a nested list
+     inside the <li> above it instead of closing the outer one — without that a
+     sub-bullet under step 1 ends the <ol> and step 2 restarts numbering at 1. */
+  const st=[];                                   /* [{tag,ind,li}] */
+  const closeLi=()=>{ const t=st[st.length-1]; if(t&&t.li){ out+='</li>'; t.li=false; } };
+  const popList=()=>{ closeLi(); out+='</'+st.pop().tag+'>'; };
+  const item=(ind,tag,html)=>{
+    while(st.length && ind<st[st.length-1].ind) popList();
+    const t=st[st.length-1];
+    if(t&&ind>t.ind){ out+='<'+tag+'>'; st.push({tag:tag,ind:ind,li:false}); }
+    else if(!t||t.tag!==tag){ if(t)popList(); out+='<'+tag+'>'; st.push({tag:tag,ind:ind,li:false}); }
+    else closeLi();
+    out+='<li>'+html; st[st.length-1].li=true;
+  };
+  const close=()=>{ while(st.length) popList(); };
   for(const ln of lines){
     let m;
     if(/^\s*---+\s*$/.test(ln)){ close(); out+='<hr>'; }
     else if((m=/^!&gt;\s+(.*)$/.exec(ln))){ close(); out+='<div class="callout"><span class="ci">⚠️</span><div class="ct">'+m[1]+'</div></div>'; }
     else if((m=/^##\s+(.*)$/.exec(ln))){ close(); out+='<h4>'+m[1]+'</h4>'; }
     else if((m=/^#\s+(.*)$/.exec(ln))){ close(); out+='<h3>'+m[1]+'</h3>'; }
-    else if((m=/^\s*[-•]\s+(.*)$/.exec(ln))){ if(ol){out+='</ol>';ol=false;} if(!ul){out+='<ul>';ul=true;} out+='<li>'+m[1]+'</li>'; }
-    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(ln))){ if(ul){out+='</ul>';ul=false;} if(!ol){out+='<ol>';ol=true;} out+='<li>'+m[1]+'</li>'; }
+    else if((m=/^(\s*)[-•]\s+(.*)$/.exec(ln))){ item(m[1].length,'ul',m[2]); }
+    else if((m=/^(\s*)\d+[.)]\s+(.*)$/.exec(ln))){ item(m[1].length,'ol',m[2]); }
     else if(ln.trim()===''){ close(); out+='<div style="height:8px"></div>'; }
     else { close(); out+=ln+'<br>'; }
   }
@@ -1378,16 +1393,28 @@ function inlineToHtml(t){
 }
 function mdToEditor(md){
   const lines=String(md||'').split('\n');
-  let out='',ul=false,ol=false;
-  const close=()=>{ if(ul){out+='</ul>';ul=false;} if(ol){out+='</ol>';ol=false;} };
+  let out='';
+  /* same nesting stack as render() — see the comment there */
+  const st=[];
+  const closeLi=()=>{ const t=st[st.length-1]; if(t&&t.li){ out+='</li>'; t.li=false; } };
+  const popList=()=>{ closeLi(); out+='</'+st.pop().tag+'>'; };
+  const item=(ind,tag,html)=>{
+    while(st.length && ind<st[st.length-1].ind) popList();
+    const t=st[st.length-1];
+    if(t&&ind>t.ind){ out+='<'+tag+'>'; st.push({tag:tag,ind:ind,li:false}); }
+    else if(!t||t.tag!==tag){ if(t)popList(); out+='<'+tag+'>'; st.push({tag:tag,ind:ind,li:false}); }
+    else closeLi();
+    out+='<li>'+html; st[st.length-1].li=true;
+  };
+  const close=()=>{ while(st.length) popList(); };
   for(const raw of lines){
     let m;
     if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; }
     else if((m=/^!>\s+(.*)$/.exec(raw))){ close(); out+='<div class="ed-callout">'+(inlineToHtml(m[1])||'<br>')+'</div>'; }
     else if((m=/^##\s+(.*)$/.exec(raw))){ close(); out+='<h4>'+inlineToHtml(m[1])+'</h4>'; }
     else if((m=/^#\s+(.*)$/.exec(raw))){ close(); out+='<h3>'+inlineToHtml(m[1])+'</h3>'; }
-    else if((m=/^\s*[-•]\s+(.*)$/.exec(raw))){ if(ol){out+='</ol>';ol=false;} if(!ul){out+='<ul>';ul=true;} out+='<li>'+inlineToHtml(m[1])+'</li>'; }
-    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(raw))){ if(ul){out+='</ul>';ul=false;} if(!ol){out+='<ol>';ol=true;} out+='<li>'+inlineToHtml(m[1])+'</li>'; }
+    else if((m=/^(\s*)[-•]\s+(.*)$/.exec(raw))){ item(m[1].length,'ul',inlineToHtml(m[2])); }
+    else if((m=/^(\s*)\d+[.)]\s+(.*)$/.exec(raw))){ item(m[1].length,'ol',inlineToHtml(m[2])); }
     else if(raw.trim()===''){ close(); }
     else { close(); out+='<p>'+inlineToHtml(raw)+'</p>'; }
   }
@@ -1417,6 +1444,19 @@ const ED_BLOCK=/^(P|DIV|H1|H2|H3|H4|H5|H6|UL|OL|HR|BLOCKQUOTE|SECTION|ARTICLE)$/
 function editorToMd(root){
   const out=[];
   const push=t=>{ out.push(t); };
+  /* a nested <ul>/<ol> lives INSIDE its parent <li>; serialize the li's own
+     text without it, then recurse two spaces deeper (render() reads that
+     indent back as nesting). Flattening here would renumber the outer steps. */
+  const listOf=(el,depth)=>{
+    const tag=el.tagName.toLowerCase(), pad='  '.repeat(depth); let i=1;
+    el.querySelectorAll(':scope > li').forEach(li=>{
+      const subs=[...li.children].filter(c=>c.tagName==='UL'||c.tagName==='OL');
+      const clone=li.cloneNode(true);
+      [...clone.children].forEach(c=>{ if(c.tagName==='UL'||c.tagName==='OL')c.remove(); });
+      push(pad+(tag==='ul'?'- ':(i++)+'. ')+inlineToMd(clone).trim());
+      subs.forEach(s=>listOf(s,depth+1));
+    });
+  };
   const blockOf=el=>{
     const tag=el.tagName.toLowerCase();
     /* contenteditable happily nests blocks (Chrome puts <ul> INSIDE the <p>
@@ -1434,15 +1474,7 @@ function editorToMd(root){
     if(tag==='h1'||tag==='h3'){ push('# '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='h2'||tag==='h4'){ push('## '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='hr'){ push('---'); push(''); return; }
-    if(tag==='ul'||tag==='ol'){
-      let i=1;
-      el.querySelectorAll(':scope > li').forEach(li=>{
-        const txt=inlineToMd(li).trim();
-        push((tag==='ul'?'- ':(i++)+'. ')+txt);
-      });
-      push('');
-      return;
-    }
+    if(tag==='ul'||tag==='ol'){ listOf(el,0); push(''); return; }
     if(el.classList&&el.classList.contains('ed-callout')){ push('!> '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='blockquote'){ push('!> '+inlineToMd(el).trim()); push(''); return; }
     /* p / div / anything else = a paragraph; a lone <br> is a blank line */

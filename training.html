@@ -93,6 +93,7 @@ box-shadow:var(--card);padding:24px 26px;max-width:820px}
 .artbody img{max-width:100%;border-radius:10px;margin:8px 0}
 .artbody code{background:var(--light-grey);border-radius:5px;padding:1px 6px;font-size:.85em}
 .artbody ul,.artbody ol{margin:6px 0;padding-left:22px}
+.artbody li>ul,.artbody li>ol{margin:4px 0 0}
 .artbody hr{border:none;border-top:1px solid var(--border);margin:14px 0}
 .artbody .callout{display:flex;gap:12px;background:#FDF6E7;border:1.5px solid #F2DFAE;border-radius:10px;padding:13px 16px;margin:10px 0}
 .artbody .callout .ci{font-size:1rem;flex:none}
@@ -171,15 +172,29 @@ function render(text){
   s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
   s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
   s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<i>$2</i>');
-  const lines=s.split('\n');let out='',ul=false,ol=false;
-  const close=()=>{if(ul){out+='</ul>';ul=false;}if(ol){out+='</ol>';ol=false;}};
+  const lines=s.split('\n');let out='';
+  /* Lists keep a stack of open levels. An INDENTED marker opens a nested list
+     inside the <li> above it instead of closing the outer one — without that a
+     sub-bullet under step 1 ends the <ol> and step 2 restarts numbering at 1. */
+  const st=[];
+  const closeLi=()=>{const t=st[st.length-1];if(t&&t.li){out+='</li>';t.li=false;}};
+  const popList=()=>{closeLi();out+='</'+st.pop().tag+'>';};
+  const item=(ind,tag,html)=>{
+    while(st.length&&ind<st[st.length-1].ind)popList();
+    const t=st[st.length-1];
+    if(t&&ind>t.ind){out+='<'+tag+'>';st.push({tag:tag,ind:ind,li:false});}
+    else if(!t||t.tag!==tag){if(t)popList();out+='<'+tag+'>';st.push({tag:tag,ind:ind,li:false});}
+    else closeLi();
+    out+='<li>'+html;st[st.length-1].li=true;
+  };
+  const close=()=>{while(st.length)popList();};
   for(const ln of lines){let m;
     if(/^\s*---+\s*$/.test(ln)){close();out+='<hr>';}
     else if((m=/^!&gt;\s+(.*)$/.exec(ln))){close();out+='<div class="callout"><span class="ci">⚠️</span><div class="ct">'+m[1]+'</div></div>';}
     else if((m=/^##\s+(.*)$/.exec(ln))){close();out+='<h4>'+m[1]+'</h4>';}
     else if((m=/^#\s+(.*)$/.exec(ln))){close();out+='<h3>'+m[1]+'</h3>';}
-    else if((m=/^\s*[-•]\s+(.*)$/.exec(ln))){if(ol){out+='</ol>';ol=false;}if(!ul){out+='<ul>';ul=true;}out+='<li>'+m[1]+'</li>';}
-    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(ln))){if(ul){out+='</ul>';ul=false;}if(!ol){out+='<ol>';ol=true;}out+='<li>'+m[1]+'</li>';}
+    else if((m=/^(\s*)[-•]\s+(.*)$/.exec(ln))){item(m[1].length,'ul',m[2]);}
+    else if((m=/^(\s*)\d+[.)]\s+(.*)$/.exec(ln))){item(m[1].length,'ol',m[2]);}
     else if(ln.trim()===''){close();out+='<div style="height:8px"></div>';}
     else{close();out+=ln+'<br>';}
   }
