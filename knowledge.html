@@ -223,6 +223,11 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .artbody h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark);margin:22px 0 10px}
 .artbody h4{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;color:var(--dark);margin:18px 0 8px}
 .artbody ul,.artbody ol{margin:0 0 16px;padding-left:22px}
+/* sub-items read as a. b. c. then i. ii. iii. — the outline everyone expects */
+.artbody ol ol,.ed-rich ol ol{list-style-type:lower-alpha}
+.artbody ol ol ol,.ed-rich ol ol ol{list-style-type:lower-roman}
+.artbody ul ul,.ed-rich ul ul{list-style-type:circle}
+.artbody li>ul,.artbody li>ol,.ed-rich li>ul,.ed-rich li>ol{margin:4px 0 4px}
 .artbody li{margin:4px 0}
 .artbody img{max-width:100%;border-radius:12px;border:1px solid var(--border);margin:10px 0;display:block}
 .artbody a{color:#1E7AA8;font-weight:700}
@@ -372,6 +377,33 @@ function readMins(body){ const w=String(body||'').split(/\s+/).length; return Ma
 function slugify(t){ return String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||('a-'+Date.now()); }
 
 /* ---------- light markup → safe HTML (house renderer + !> amber callouts) ---------- */
+/* Lists nest by INDENTATION — two spaces (or a tab) per level, standard
+   markdown. One parser feeds both the reading view and the editor, so what you
+   indent in the editor is what readers see. Levels never jump more than one at
+   a time, and a level that switches bullet/number starts its own list. */
+const LIST_RE=/^([ \t]*)([-•]|\d+[.)])[ \t]+(.*)$/;
+function listBlock(items,inline){
+  let prev=0;
+  items.forEach((it,i)=>{
+    let lv=Math.floor(it.indent/2);
+    if(i===0)lv=0; else if(lv>prev+1)lv=prev+1;
+    it.depth=lv; prev=lv;
+  });
+  let i=0,html='';
+  const build=depth=>{
+    const tag=items[i].tag;
+    let h='<'+tag+'>';
+    while(i<items.length&&items[i].depth===depth&&items[i].tag===tag){
+      h+='<li>'+inline(items[i].text);
+      i++;
+      if(i<items.length&&items[i].depth>depth)h+=build(items[i].depth);
+      h+='</li>';
+    }
+    return h+'</'+tag+'>';
+  };
+  while(i<items.length)html+=build(items[i].depth);
+  return html;
+}
 function render(text){
   let s=esc(text);
   s=s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g,'<img src="$2" alt="$1" loading="lazy">');
@@ -381,16 +413,16 @@ function render(text){
   s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
   s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
   s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<i>$2</i>');
-  const lines=s.split('\n'); let out='',ul=false,ol=false;
-  const close=()=>{ if(ul){out+='</ul>';ul=false;} if(ol){out+='</ol>';ol=false;} };
+  const lines=s.split('\n'); let out='',buf=[];
+  const close=()=>{ if(buf.length){ out+=listBlock(buf,x=>x); buf=[]; } };
   for(const ln of lines){
     let m;
+    if((m=LIST_RE.exec(ln))&&!/^\s*---+\s*$/.test(ln)){
+      buf.push({indent:m[1].replace(/\t/g,'  ').length,tag:/^\d/.test(m[2])?'ol':'ul',text:m[3]}); continue; }
     if(/^\s*---+\s*$/.test(ln)){ close(); out+='<hr>'; }
     else if((m=/^!&gt;\s+(.*)$/.exec(ln))){ close(); out+='<div class="callout"><span class="ci">⚠️</span><div class="ct">'+m[1]+'</div></div>'; }
     else if((m=/^##\s+(.*)$/.exec(ln))){ close(); out+='<h4>'+m[1]+'</h4>'; }
     else if((m=/^#\s+(.*)$/.exec(ln))){ close(); out+='<h3>'+m[1]+'</h3>'; }
-    else if((m=/^\s*[-•]\s+(.*)$/.exec(ln))){ if(ol){out+='</ol>';ol=false;} if(!ul){out+='<ul>';ul=true;} out+='<li>'+m[1]+'</li>'; }
-    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(ln))){ if(ul){out+='</ul>';ul=false;} if(!ol){out+='<ol>';ol=true;} out+='<li>'+m[1]+'</li>'; }
     else if(ln.trim()===''){ close(); out+='<div style="height:8px"></div>'; }
     else { close(); out+=ln+'<br>'; }
   }
@@ -1385,16 +1417,16 @@ function inlineToHtml(t){
 }
 function mdToEditor(md){
   const lines=String(md||'').split('\n');
-  let out='',ul=false,ol=false;
-  const close=()=>{ if(ul){out+='</ul>';ul=false;} if(ol){out+='</ol>';ol=false;} };
+  let out='',buf=[];
+  const close=()=>{ if(buf.length){ out+=listBlock(buf,inlineToHtml); buf=[]; } };
   for(const raw of lines){
     let m;
+    if((m=LIST_RE.exec(raw))&&!/^\s*---+\s*$/.test(raw)){
+      buf.push({indent:m[1].replace(/\t/g,'  ').length,tag:/^\d/.test(m[2])?'ol':'ul',text:m[3]}); continue; }
     if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; }
     else if((m=/^!>\s+(.*)$/.exec(raw))){ close(); out+='<div class="ed-callout">'+(inlineToHtml(m[1])||'<br>')+'</div>'; }
     else if((m=/^##\s+(.*)$/.exec(raw))){ close(); out+='<h4>'+inlineToHtml(m[1])+'</h4>'; }
     else if((m=/^#\s+(.*)$/.exec(raw))){ close(); out+='<h3>'+inlineToHtml(m[1])+'</h3>'; }
-    else if((m=/^\s*[-•]\s+(.*)$/.exec(raw))){ if(ol){out+='</ol>';ol=false;} if(!ul){out+='<ul>';ul=true;} out+='<li>'+inlineToHtml(m[1])+'</li>'; }
-    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(raw))){ if(ul){out+='</ul>';ul=false;} if(!ol){out+='<ol>';ol=true;} out+='<li>'+inlineToHtml(m[1])+'</li>'; }
     else if(raw.trim()===''){ close(); }
     else { close(); out+='<p>'+inlineToHtml(raw)+'</p>'; }
   }
@@ -1424,6 +1456,22 @@ const ED_BLOCK=/^(P|DIV|H1|H2|H3|H4|H5|H6|UL|OL|HR|BLOCKQUOTE|SECTION|ARTICLE)$/
 function editorToMd(root){
   const out=[];
   const push=t=>{ out.push(t); };
+  /* nested lists serialize as two spaces per level. A sub-list can sit inside
+     its parent <li> (what we render) or as a sibling list (what Chrome's
+     indent command sometimes leaves behind) — both mean "one level deeper". */
+  const listToMd=(el,depth)=>{
+    const tag=el.tagName.toLowerCase();
+    let i=1;
+    [...el.children].forEach(ch=>{
+      const ct=ch.tagName;
+      if(ct==='UL'||ct==='OL'){ listToMd(ch,depth+1); return; }
+      if(ct!=='LI')return;
+      const clone=ch.cloneNode(true);
+      [...clone.children].forEach(c=>{ if(c.tagName==='UL'||c.tagName==='OL')c.remove(); });
+      push('  '.repeat(depth)+(tag==='ul'?'- ':(i++)+'. ')+inlineToMd(clone).trim());
+      [...ch.children].forEach(c=>{ if(c.tagName==='UL'||c.tagName==='OL')listToMd(c,depth+1); });
+    });
+  };
   const blockOf=el=>{
     const tag=el.tagName.toLowerCase();
     /* contenteditable happily nests blocks (Chrome puts <ul> INSIDE the <p>
@@ -1441,15 +1489,7 @@ function editorToMd(root){
     if(tag==='h1'||tag==='h3'){ push('# '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='h2'||tag==='h4'){ push('## '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='hr'){ push('---'); push(''); return; }
-    if(tag==='ul'||tag==='ol'){
-      let i=1;
-      el.querySelectorAll(':scope > li').forEach(li=>{
-        const txt=inlineToMd(li).trim();
-        push((tag==='ul'?'- ':(i++)+'. ')+txt);
-      });
-      push('');
-      return;
-    }
+    if(tag==='ul'||tag==='ol'){ listToMd(el,0); push(''); return; }
     if(el.classList&&el.classList.contains('ed-callout')){ push('!> '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='blockquote'){ push('!> '+inlineToMd(el).trim()); push(''); return; }
     /* p / div / anything else = a paragraph; a lone <br> is a blank line */
@@ -1536,6 +1576,8 @@ function drawEditor(){
         +'<span class="edsep"></span>'
         +'<button data-cmd="insertUnorderedList" title="Bulleted list">• List</button>'
         +'<button data-cmd="insertOrderedList" title="Numbered list">1. List</button>'
+        +'<button data-cmd="indent" title="Make it a sub-item (Tab)">→ Indent</button>'
+        +'<button data-cmd="outdent" title="Pull it back out (Shift+Tab)">← Outdent</button>'
         +'<span class="edsep"></span>'
         +'<button data-do="link" title="Add a link">🔗 Link</button>'
         +'<button id="edImg" title="Upload an image">🖼️ Image</button>'
@@ -1622,6 +1664,36 @@ function drawEditor(){
       if(par.classList&&par.classList.contains('ed-callout'))return;
       par.replaceWith(...par.childNodes);
     });
+    /* Outdent leaves the pulled-out <li> parked INSIDE its old parent <li>,
+       which breaks the numbering on screen and merges the two items on save.
+       Lift it (and anything after it) out to sit after that parent item. */
+    let guard=0;
+    while(guard++<40){
+      const inner=rich.querySelector('li > li');
+      if(!inner)break;
+      const outer=inner.parentElement, list=outer.parentElement;
+      if(!list||!/^(UL|OL)$/.test(list.tagName)){ inner.replaceWith(...inner.childNodes); continue; }
+      const move=[]; for(let n=inner;n;n=n.nextSibling)move.push(n);
+      const ref=outer.nextSibling;
+      move.forEach(node=>list.insertBefore(node,ref));
+    }
+    /* a sub-list left as a sibling belongs to the item just above it */
+    rich.querySelectorAll('ul > ul, ul > ol, ol > ul, ol > ol').forEach(sub=>{
+      const prev=sub.previousElementSibling;
+      if(prev&&prev.tagName==='LI')prev.appendChild(sub);
+    });
+    /* Indenting into an existing group leaves a SECOND list next to the first,
+       so the numbering restarts at 1. Same kind + adjacent = one list. */
+    for(let pass=0;pass<10;pass++){
+      let merged=false;
+      rich.querySelectorAll('ul,ol').forEach(list=>{
+        const prev=list.previousElementSibling;
+        if(!prev||prev.tagName!==list.tagName)return;
+        while(list.firstChild)prev.appendChild(list.firstChild);
+        list.remove(); merged=true;
+      });
+      if(!merged)break;
+    }
   }
   const exec=(c,v)=>{ rich.focus(); document.execCommand(c,false,v||null); normalize(); syncTools(); };
   function syncTools(){
@@ -1679,6 +1751,19 @@ function drawEditor(){
   }); });
   /* Enter inside a note box should LEAVE the box (the browser's default is to
      clone it forever); Enter elsewhere makes a clean <p> */
+  /* Tab inside a list makes a sub-item (Shift+Tab pulls it back out) — the
+     thing everyone expects from Word. Outside a list Tab still moves focus. */
+  rich.addEventListener('keydown',e=>{
+    if(e.key!=='Tab')return;
+    const sel=window.getSelection(); if(!sel.rangeCount)return;
+    let n=sel.getRangeAt(0).startContainer;
+    if(n.nodeType===3)n=n.parentNode;
+    let li=null;
+    while(n&&n!==rich){ if(n.tagName==='LI'){ li=n; break; } n=n.parentNode; }
+    if(!li)return;
+    e.preventDefault();
+    exec(e.shiftKey?'outdent':'indent');
+  });
   rich.addEventListener('keydown',e=>{
     if(e.key!=='Enter'||e.shiftKey)return;
     const blk=currentBlock();
