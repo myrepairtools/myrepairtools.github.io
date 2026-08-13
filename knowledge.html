@@ -382,6 +382,7 @@ let CATSEL=null;                 // selected category in the Categories manage v
 let OPEN=null;                   // article being viewed/edited
 let QZ=null;                     // {quiz, questions, idx, answers[], result}
 let SEARCHQ='',SRES=null,SEARCH_T=null,SELIDX=-1,SEXPAND=false;
+let PREVIEW=(function(){try{return localStorage.getItem('cprKbPreview')==='1';}catch(e){return false;}})();
 
 async function loadAll(){
   const [c,a,r,m,asn,qz,att,st,sp,sd,sec,sub,tg,atg,mr]=await Promise.all([
@@ -422,7 +423,11 @@ function catName(id){ const c=catById(id); return c?c.name:'—'; }
 function artIcon(a){ return a.emoji||((catById(a.category_id)||{}).icon)||'📄'; }
 function acked(a){ const r=READS[a.id]; return r&&r.acknowledged_at; }
 function viewedAt(a){ const r=READS[a.id]; return r?(r.last_viewed_at||r.first_read_at):null; }
-function pubArts(){ return ARTS.filter(a=>a.status==='published'); }
+/* preview mode: managers see drafts placed exactly where they'll publish —
+   the sandbox. Every browse surface flows from here; draft cards keep their
+   amber chip so live vs not-yet is always visible. */
+function previewOn(){ return PREVIEW&&isMgr(AUTH.role); }
+function pubArts(){ return ARTS.filter(a=>a.status==='published'||(previewOn()&&a.status==='draft')); }
 function reqOutstanding(){ return pubArts().filter(a=>a.require_ack&&!acked(a)); }
 /* onboarding items: a module's track = its ARTICLES (kb_articles.module_id)
    merged with its TASK STEPS (onboarding_steps — HR paperwork, account setups),
@@ -572,6 +577,14 @@ function catGlyph(c,size){ const n=CATGLYPH[slugify(c.name)]||'book-open';
   return window.CPRNavIcon?CPRNavIcon(n,size||18):esc(c.icon||'📄'); }
 /* the retired nav pane's Manage rows live in a + menu now (owner call
    2026-08-12: no white KB pane — Training moved to the rail) */
+function previewPill(){
+  if(!previewOn())return '';
+  return '<button id="pvOff" style="font-family:Nunito,sans-serif;font-weight:800;font-size:.68rem;background:#FBF1DC;color:#7A5B10;border:1px solid #EBD8AC;border-radius:999px;padding:4px 12px;cursor:pointer" title="Drafts are shown as if published — click to return to the live view">Previewing drafts · exit</button>';
+}
+function wirePreviewPill(){
+  const b=$('#pvOff'); if(b)b.addEventListener('click',()=>{ PREVIEW=false;
+    try{localStorage.setItem('cprKbPreview','0');}catch(e){} toast('Preview off — live view.'); draw(); });
+}
 function plusMenu(){
   if(!isMgr(AUTH.role))return '';
   const nd=ARTS.filter(a=>a.status==='draft').length, na=ARTS.filter(a=>a.status==='archived').length;
@@ -581,6 +594,8 @@ function plusMenu(){
       +'<button class="pmrow" data-pm="new">＋ New article</button>'
       +'<button class="pmrow" data-pm="drafts"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('pen-line',15):'')+'</span> Drafts'+(nd?'<span class="pmc">'+nd+'</span>':'')+'</button>'
       +'<button class="pmrow" data-pm="cats"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('folder',15):'')+'</span> Categories</button>'
+      +'<button class="pmrow" data-pm="preview"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('lightbulb',15):'')+'</span> Preview drafts'
+        +'<span class="pmc" style="color:'+(PREVIEW?'var(--amber)':'var(--grey)')+'">'+(PREVIEW?'On':'Off')+'</span></button>'
       +(na?'<button class="pmrow" data-pm="archived"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('archive',15):'')+'</span> Archived<span class="pmc">'+na+'</span></button>':'')
     +'</div></div>';
 }
@@ -597,6 +612,9 @@ function wirePlus(){
     const k=el.dataset.pm;
     if(k==='new'){ OPEN=null; MODE='edit'; setHash('new'); draw(); }
     else if(k==='cats'){ MODE='cats'; draw(); }
+    else if(k==='preview'){ PREVIEW=!PREVIEW;
+      try{localStorage.setItem('cprKbPreview',PREVIEW?'1':'0');}catch(e){}
+      toast(PREVIEW?'Previewing drafts — only you see this.':'Preview off — live view.'); draw(); }
     else{ CAT=k; MODE='list'; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} setHash('c='+k); draw(); }
   }));
 }
@@ -609,6 +627,7 @@ function drawHome(){
     +'<div class="hnew">'+plusMenu()+'</div>'
     +'<div class="hlogo">'+(window.CPRNavIcon?CPRNavIcon('book-open',22):'')+'<b>Knowledge Base</b></div>'
     +'<div class="hsub">How do we do that here? Start typing.</div>'
+    +(previewOn()?'<div style="margin-top:8px">'+previewPill()+'</div>':'')
     +'<div id="heroS" class="herosearch"></div>'
   +'</div>'
   +'<div class="homebody" id="homeBody">'
@@ -629,7 +648,7 @@ function drawHome(){
       +'<span class="mrn">'+x.n+' read'+(x.n===1?'':'s')+'</span></button>').join('')+'</div>';
   inner+='</div>';
   $('#page').innerHTML=inner;
-  renderHeroSearch(); wirePlus();
+  renderHeroSearch(); wirePlus(); wirePreviewPill();
   const sr=$('#startReq'); if(sr)sr.addEventListener('click',()=>{ const a=reqOutstanding()[0]; if(a)openArticle(a.id); });
   const rq=document.querySelector('[data-reqlist]'); if(rq)rq.addEventListener('click',()=>{
     CAT='req'; MODE='list'; try{localStorage.setItem('cprKbCat','req');}catch(e){} setHash('c=req'); draw(); });
@@ -737,6 +756,7 @@ function drawTopic(){
     +'<div class="tsearch"><span class="tsic">'+(window.CPRNavIcon?CPRNavIcon('search',14):'')+'</span>'
     +'<input id="tq" value="'+esc(TQ)+'" placeholder="Search '+esc(cat.name)+'…" autocomplete="off"></div>'
     +(/handbook/i.test(cat.name)?'<button class="btn dk sm" id="hbFullPdf" style="border-color:rgba(255,255,255,.3)" title="The whole handbook, assembled as one PDF">⬇ Full PDF</button>':'')
+    +previewPill()
     +plusMenu()
   +'</div>';
   if(subs.length){
@@ -777,6 +797,7 @@ function drawTopic(){
   document.querySelectorAll('[data-tag]').forEach(el=>el.addEventListener('click',()=>{
     FACET.t=el.dataset.tag?+el.dataset.tag:null; setHash(catHash()); draw(); }));
   wireGrid();
+  wirePreviewPill();
   if(canDrag)wireCardDnD();
   const hp=$('#hbFullPdf'); if(hp)hp.addEventListener('click',async()=>{
     hp.disabled=true;hp.textContent='Building…';
