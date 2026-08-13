@@ -1408,6 +1408,12 @@ When changing a tool's data layer, check which generation it uses first — they
   commission-calculator, lcd-buyback, hyla-orders, consumption-report, checklist,
   task-admin, my-schedule, schedule-admin, contracts (status filter), knowledge
   (`#a=<slug>` articles + `#c=<category>`). New tabbed tools must ship with both.
+  **Exception — knowledge.html browses like a SITE, not a tabbed tool** (owner
+  call 2026-08-12): level transitions (portal → category → article →
+  editor/quiz) use **pushState** (`goHash`) so the browser Back button walks
+  back up the levels; facet pills/scoped search/save flows stay replaceState;
+  and there is deliberately NO last-tab restore — a fresh visit always lands
+  on the portal home (`cprKbCat` is gone).
 - **Cross-page transitions:** nav.js opts every page into cross-document view
   transitions (`@view-transition{navigation:auto}`, .18s crossfade) and pins the app
   chrome (`view-transition-name` on `.cpr-topbar`/`.cpr-rail`/`.cpr-pane`) so the nav

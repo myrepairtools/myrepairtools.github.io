@@ -375,7 +375,9 @@ sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 let CATS=[],ARTS=[],READS={},MODULES=[],SECTIONS=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
 let SUBCATS=[],TAGS=[],ARTTAGS={},MOSTREAD=[];   // facet data + portal most-read
 let MODE='list';                 // list | article | onboarding | quiz | quizresult | edit | cats
-let CAT=(function(){try{return localStorage.getItem('cprKbCat')||'all';}catch(e){return 'all';}})();
+let CAT='all';   // fresh visits land on the portal home; deep links + browser
+                 // history do the remembering (owner call 2026-08-12 — the KB
+                 // browses like a site, not a tabbed tool)
 let FACET={s:null,t:null};       // topic-view facet selection (subcategory id / tag id)
 let TQ='';                       // topic-scoped search text (client-side filter)
 let CATSEL=null;                 // selected category in the Categories manage view
@@ -488,9 +490,13 @@ function applyHash(){
       save(); draw(); return true; }
   }
   return false;
-  function save(){ try{localStorage.setItem('cprKbCat',CAT);}catch(e){} }
+  function save(){ }
 }
 function setHash(h){ try{ if(location.hash.replace('#','')!==h) history.replaceState(null,'','#'+h); }catch(e){} }
+/* level transitions (portal -> category -> article -> editor/quiz) PUSH a
+   history entry so the browser Back button walks back up; facet pills, scoped
+   search and save flows stay replaceState (refinements, not levels) */
+function goHash(h){ try{ if(location.hash.replace('#','')!==h) history.pushState(null,'','#'+h); }catch(e){} }
 function catHash(){ if(['all','req','drafts','archived'].indexOf(String(CAT))>-1)return 'c='+CAT;
   const c=catById(+CAT); let h='c='+(c?slugify(c.name):CAT);
   const ss=FACET.s&&SUBCATS.find(x=>x.id===FACET.s), tt=FACET.t&&TAGS.find(x=>x.id===FACET.t);
@@ -519,9 +525,9 @@ function shell(inner){
   +inner;
 }
 function wireShell(){
-  const bn=$('#btnNew'); if(bn)bn.addEventListener('click',()=>{ OPEN=null; MODE='edit'; setHash('new'); draw(); });
+  const bn=$('#btnNew'); if(bn)bn.addEventListener('click',()=>{ OPEN=null; MODE='edit'; goHash('new'); draw(); });
   const nh=document.querySelector('[data-navhome]'); if(nh)nh.addEventListener('click',()=>{
-    CAT='all'; MODE='list'; try{localStorage.setItem('cprKbCat','all');}catch(e){} setHash('c=all'); draw(); });
+    CAT='all'; MODE='list'; goHash('c=all'); draw(); });
   const q=$('#q'); if(q){
     q.addEventListener('input',()=>{ SEARCHQ=q.value.trim();
       clearTimeout(SEARCH_T); SEARCH_T=setTimeout(runSearch,250); });
@@ -610,12 +616,12 @@ function wirePlus(){
   }
   document.querySelectorAll('[data-pm]').forEach(el=>el.addEventListener('click',()=>{
     const k=el.dataset.pm;
-    if(k==='new'){ OPEN=null; MODE='edit'; setHash('new'); draw(); }
-    else if(k==='cats'){ MODE='cats'; draw(); }
+    if(k==='new'){ OPEN=null; MODE='edit'; goHash('new'); draw(); }
+    else if(k==='cats'){ MODE='cats'; goHash('cats'); draw(); }
     else if(k==='preview'){ PREVIEW=!PREVIEW;
       try{localStorage.setItem('cprKbPreview',PREVIEW?'1':'0');}catch(e){}
       toast(PREVIEW?'Previewing drafts — only you see this.':'Preview off — live view.'); draw(); }
-    else{ CAT=k; MODE='list'; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} setHash('c='+k); draw(); }
+    else{ CAT=k; MODE='list'; goHash('c='+k); draw(); }
   }));
 }
 function drawHome(){
@@ -651,11 +657,10 @@ function drawHome(){
   renderHeroSearch(); wirePlus(); wirePreviewPill();
   const sr=$('#startReq'); if(sr)sr.addEventListener('click',()=>{ const a=reqOutstanding()[0]; if(a)openArticle(a.id); });
   const rq=document.querySelector('[data-reqlist]'); if(rq)rq.addEventListener('click',()=>{
-    CAT='req'; MODE='list'; try{localStorage.setItem('cprKbCat','req');}catch(e){} setHash('c=req'); draw(); });
+    CAT='req'; MODE='list'; goHash('c=req'); draw(); });
   document.querySelectorAll('[data-cat]').forEach(el=>el.addEventListener('click',()=>{
     CAT=String(el.dataset.cat); FACET={s:null,t:null}; TQ=''; SEARCHQ=''; SRES=null;
-    try{localStorage.setItem('cprKbCat',CAT);}catch(e){}
-    setHash(catHash()); draw(); window.scrollTo(0,0);
+    goHash(catHash()); draw(); window.scrollTo(0,0);
   }));
   document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openArticle(+el.dataset.open)));
   if(isMgr(AUTH.role))wireTileDnD();
@@ -784,8 +789,7 @@ function drawTopic(){
   $('#page').innerHTML=band+surface;
   wirePlus();
   $('#bcHome').addEventListener('click',()=>{ CAT='all'; FACET={s:null,t:null}; TQ='';
-    try{localStorage.setItem('cprKbCat','all');}catch(e){}
-    setHash('c=all'); draw(); });
+    goHash('c=all'); draw(); });
   const tq=$('#tq'); tq.addEventListener('input',()=>{ TQ=tq.value.trim();
     const shown2=TQ?rows.filter(a=>(a.title+' '+(a.summary||'')).toLowerCase().indexOf(TQ.toLowerCase())>-1):rows;
     $('#tGrid').innerHTML=topicGrid(shown2,cat,subs);
@@ -1041,7 +1045,7 @@ function drawCats(){
 async function openArticle(id){
   const a=ARTS.find(x=>x.id===id); if(!a)return;
   OPEN=a; MODE='article'; SRES=null; SEARCHQ='';
-  setHash('a='+(a.slug||''));
+  goHash('a='+(a.slug||''));
   // record the view (Viewed column); first_read_at fills on first insert
   if(a.status==='published'){
     const now=new Date().toISOString();
@@ -1087,8 +1091,8 @@ function drawArticle(){
   $('#page').innerHTML=inner;
   document.querySelectorAll('[data-nav]').forEach(el=>el.addEventListener('click',()=>{
     const k=el.dataset.nav;
-    if(k==='list'){ MODE='list'; OPEN=null; setHash(catHash()); draw(); }
-    else if(k==='edit'){ MODE='edit'; setHash('edit='+a.id); draw(); }
+    if(k==='list'){ MODE='list'; OPEN=null; goHash(catHash()); draw(); }
+    else if(k==='edit'){ MODE='edit'; goHash('edit='+a.id); draw(); }
     else if(k==='next'&&next){ openArticle(next.id); }
   }));
   const mr=$('#markRead'); if(mr)mr.addEventListener('click',async()=>{
@@ -1182,7 +1186,7 @@ async function startQuiz(a){
   const {data,error}=await sb.from('kb_quiz_questions').select('id,sort,question,options,section_hint').eq('quiz_id',q.id).order('sort').order('id');
   if(error||!data||!data.length){ toast('Could not load the quiz.',true); return; }
   QZ={art:a,quiz:q,questions:data,idx:0,answers:new Array(data.length).fill(null),result:null};
-  MODE='quiz'; setHash('quiz='+(a.slug||'')); draw();
+  MODE='quiz'; goHash('quiz='+(a.slug||'')); draw();
 }
 function drawQuiz(){
   const z=QZ; const n=z.questions.length; const cur=z.questions[z.idx];
@@ -1337,7 +1341,7 @@ function drawEditor(){
     const id=+b.dataset.etag, i=ED.tag_ids.indexOf(id);
     if(i>-1)ED.tag_ids.splice(i,1); else ED.tag_ids.push(id);
     drawEditor(); }));
-  document.querySelector('[data-nav="back"]').addEventListener('click',()=>{ ED=null; MODE=a?'article':'list'; setHash(a?'a='+a.slug:catHash()); draw(); });
+  document.querySelector('[data-nav="back"]').addEventListener('click',()=>{ ED=null; MODE=a?'article':'list'; goHash(a?'a='+a.slug:catHash()); draw(); });
   $('#eReq').addEventListener('click',()=>{ ED.require_ack=!ED.require_ack; grab(); drawEditor(); });
   const ta=$('#eBody');
   function wrap(pre,post,ph){ const s=ta.selectionStart,e=ta.selectionEnd,vv=ta.value,sel=vv.slice(s,e)||ph;
