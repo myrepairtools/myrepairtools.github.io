@@ -76,15 +76,18 @@ CLEAR = 0.5             # margin between an icon and the start of a rim
 # Sizes differ because the room does: the grid rows have 8 mm, the far-right
 # slots have 18.7 mm, and pocket 23 has a whole clear column beside it.
 PLACEMENTS = [
-    ("pentalobe",   95.0, (69.0, 77.0),  7.0, "under", "7  - 3x3 top left"),
-    ("phillips",   125.0, (69.0, 77.0),  7.0, "under", "8  - 3x3 top middle"),
-    ("tripoint-y", 155.0, (69.0, 77.0),  7.0, "under", "9  - 3x3 top right"),
-    ("standoff",    95.0, (45.0, 53.0),  7.0, "under", "14 - 3x3 middle left"),
-    ("jimmy",       34.5, (58.2, 65.6),  7.0, "under", "11 - big rectangle"),
-    ("sim",        215.0, (47.7, 66.4), 10.0, "under", "12 - far right slot"),
-    ("grinder",    233.5, (47.7, 66.4), 10.0, "under", "13 - far right slot"),
-    # pocket 23 has 3 mm beneath it and nothing else, so this one goes alongside
-    ("snips",      180.0, (16.0, 39.9), 10.0, "centre", "23 - bottom rectangle"),
+    ("pentalobe",   95.0, (69.0, 77.0),  7.0, "under",  "7  - 3x3 top left"),
+    ("phillips",   125.0, (69.0, 77.0),  7.0, "under",  "8  - 3x3 top middle"),
+    ("tripoint-y", 155.0, (69.0, 77.0),  7.0, "under",  "9  - 3x3 top right"),
+    ("standoff",    95.0, (45.0, 53.0),  7.0, "under",  "14 - 3x3 middle left"),
+    # 10 and 17 get theirs ALONGSIDE: there is only 8.0 mm of face under 10 and
+    # 5.3 mm under 17, but 15.9 mm of clear column to their right.  Each sits
+    # 0.8 mm off its own pocket and 3.0 mm off the next, so it still reads as
+    # belonging to the hole on its left.
+    ("sim",        202.9, (81.5, 89.5),  8.0, "centre", "10 - beside, 4th column top"),
+    ("grinder",    203.9, (57.5, 65.5),  8.0, "centre", "17 - beside, 4th column middle"),
+    ("snips",      215.0, (47.7, 66.4), 10.0, "under",  "12 - far right slot"),
+    ("jimmy",      233.5, (47.7, 66.4), 10.0, "under",  "13 - far right slot"),
 ]
 
 # Pockets, so the script can prove an icon never lands on top of one.

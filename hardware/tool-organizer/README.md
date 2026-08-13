@@ -7,7 +7,7 @@ Takes your `CPR_Tool_Organizer_Master.stl` and cuts the tool-tip icons into it.
 | Output | `stl/CPR_Tool_Organizer_Master-engraved.stl` |
 | Depth | 0.6 mm, measured along the face normal |
 | Icon sizes | 7 mm in the grid, 10 mm where there's room |
-| Volume removed | 91.1 mm³ — matches the icon outlines exactly |
+| Volume removed | 86.5 mm³ — matches the icon outlines exactly |
 
 ![Engraved face](svg/engraved-face.png)
 
@@ -47,16 +47,26 @@ Numbers refer to the pocket map:
 
 ![Pocket map](svg/pocket-map.png)
 
-| Pocket | Icon | Why |
+| Pocket | Icon | Placed |
 | --- | --- | --- |
-| 7, 8, 9 | pentalobe, phillips, tripoint-y | 3×3 read left→right, top→bottom |
-| 14 | standoff | fourth in that reading order |
-| 12, 13 | sim, grinder | the only two holes at the far right, and narrow — 15, 17 are the same oval as the driver holes |
-| 11 | jimmy | 56 mm wide = 2 × 28 mm, a Jimmy's width |
-| 23 | snips | 51 mm wide = 2 × 25 mm, a snip's width |
+| 7, 8, 9 | pentalobe, phillips, tripoint-y | under, 7 mm |
+| 14 | standoff | under, 7 mm |
+| 10 | sim | **beside**, 8 mm |
+| 17 | grinder | **beside**, 8 mm |
+| 12 | snips | under, 10 mm |
+| 13 | jimmy | under, 10 mm |
 
-**Five of the nine grid holes are unlabelled** (15, 16, 20, 21, 22) — you gave
-four icons for a nine-hole grid, so I filled the first four in reading order.
+**10 and 17 get theirs alongside, not underneath.** There is only 8.0 mm of
+face under 10 and **5.3 mm** under 17 — not enough for a legible icon — but
+15.9 mm of clear column to their right. Each sits 0.8 mm off its own pocket and
+3 mm or more off the next, so it still reads as belonging to the hole on its
+left. The build refused the first attempt at this: pocket 17's rim runs 0.2 mm
+further right than the row I had probed, and the band check caught it before
+anything was cut.
+
+**Five of the nine grid holes are unlabelled** (15, 16, 20, 21, 22) — four
+icons were given for a nine-hole grid, so they went in the first four positions
+in reading order. Pockets 11 and 23 are unlabelled too.
 
 ## Re-running
 
