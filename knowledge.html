@@ -152,6 +152,14 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .acard .acbadge.grey{background:#F0F1F4;color:var(--dark-grey)}
 .acard .actitle{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;line-height:1.35;color:var(--dark)}
 .acard .acfoot{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:700;color:var(--grey);border-top:1px solid var(--row);padding-top:8px;margin-top:auto}
+/* ---- sub-category drill-down landing (per-category landing='subcats') ---- */
+.subgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+.subcard{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);padding:15px 15px 12px;display:flex;flex-direction:column;gap:7px;cursor:pointer}
+.subcard:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(45,45,59,.1)}
+.subcard .subtop{display:flex;align-items:center;gap:9px}
+.subcard .sic{width:34px;height:34px;border-radius:10px;background:#EAF6FD;color:#1E7AA8;display:flex;align-items:center;justify-content:center;flex:none}
+.subcard .sn{font-family:'Nunito',sans-serif;font-weight:900;font-size:.92rem;line-height:1.3;color:var(--dark)}
+.subcard .scnt{font-size:.7rem;font-weight:700;color:var(--grey);border-top:1px solid var(--row);padding-top:7px;margin-top:auto}
 /* ---- category settings (20a) ---- */
 .catgrid{display:grid;grid-template-columns:290px minmax(0,1fr);gap:16px;align-items:start;margin-top:14px}
 @media(max-width:900px){.catgrid{grid-template-columns:1fr}}
@@ -800,10 +808,16 @@ function drawTopic(){
   const tagOk=a=>!FACET.t||(ARTTAGS[a.id]||[]).indexOf(FACET.t)>-1;
   const subOk=a=>!FACET.s||a.subcategory_id===FACET.s;
   const rows=catArts.filter(a=>subOk(a)&&tagOk(a));
+  /* landing='subcats' (owner ask 2026-08-13): the category opens as
+     sub-category CARDS you click into instead of a pill-filtered grid.
+     Any refinement (a picked sub, a tag, a search) leaves the landing. */
+  const landing=cat.landing==='subcats'&&subs.length>0&&!FACET.s&&!FACET.t&&!TQ;
   const sName=FACET.s?(subs.find(x=>x.id===FACET.s)||{}).name:null;
   const tName=FACET.t?(tags.find(x=>x.id===FACET.t)||{}).name:null;
   const shown=TQ?rows.filter(a=>(a.title+' '+(a.summary||'')).toLowerCase().indexOf(TQ.toLowerCase())>-1):rows;
-  const summary=(tName?tName+' · ':'')+(subs.length?((sName||allLbl(cat).toLowerCase())+' · '):'')
+  const summary=landing
+    ?subs.length+' sub-categor'+(subs.length===1?'y':'ies')+' · '+shown.length+' article'+(shown.length===1?'':'s')
+    :(tName?tName+' · ':'')+(subs.length?((sName||allLbl(cat).toLowerCase())+' · '):'')
     +shown.length+' article'+(shown.length===1?'':'s');
   let band='<div class="tband"><div class="tbin">'
     +'<button class="bc" id="bcHome">'+(window.CPRNavIcon?CPRNavIcon('book-open',14):'')+'Knowledge Base</button>'
@@ -816,7 +830,7 @@ function drawTopic(){
     +previewPill()+gridPill()
     +plusMenu()
   +'</div>';
-  if(subs.length){
+  if(subs.length&&!landing){
     const allN=catArts.filter(tagOk).length;
     band+='<div class="pillrow">'
       +(cat.subcat_label?'<span class="plab">'+esc(cat.subcat_label)+'</span>':'')
@@ -836,20 +850,26 @@ function drawTopic(){
         return '<button class="fchip'+(FACET.t===t.id?' on':'')+'" data-tag="'+t.id+'">'+esc(t.name)+' <span class="n">'+n+'</span></button>';}).join('')
     +'</div>';
   }
-  const canDrag=GRIDEDIT&&isMgr(AUTH.role)&&!FACET.s&&!FACET.t&&!TQ;
-  surface+='<div id="tGrid">'+topicGrid(shown,cat,subs,canDrag)+'</div></div>';
+  const canDrag=GRIDEDIT&&isMgr(AUTH.role)&&!FACET.s&&!FACET.t&&!TQ&&!landing;
+  surface+='<div id="tGrid">'+(landing?landingGrid(catArts,tagOk,cat,subs):topicGrid(shown,cat,subs,canDrag))+'</div></div>';
   $('#page').innerHTML=band+surface;
   wirePlus();
   $('#bcHome').addEventListener('click',()=>{ CAT='all'; FACET={s:null,t:null}; TQ='';
     goHash('c=all'); draw(); });
   const tq=$('#tq'); tq.addEventListener('input',()=>{ TQ=tq.value.trim();
+    const land2=cat.landing==='subcats'&&subs.length>0&&!FACET.s&&!FACET.t&&!TQ;
     const shown2=TQ?rows.filter(a=>(a.title+' '+(a.summary||'')).toLowerCase().indexOf(TQ.toLowerCase())>-1):rows;
-    $('#tGrid').innerHTML=topicGrid(shown2,cat,subs);
-    $('#tSum').textContent=(tName?tName+' · ':'')+(subs.length?((sName||allLbl(cat).toLowerCase())+' · '):'')
+    $('#tGrid').innerHTML=land2?landingGrid(catArts,tagOk,cat,subs):topicGrid(shown2,cat,subs);
+    $('#tSum').textContent=land2
+      ?subs.length+' sub-categor'+(subs.length===1?'y':'ies')+' · '+shown2.length+' article'+(shown2.length===1?'':'s')
+      :(tName?tName+' · ':'')+(subs.length?((sName||allLbl(cat).toLowerCase())+' · '):'')
       +shown2.length+' article'+(shown2.length===1?'':'s');
     wireGrid(); });
   document.querySelectorAll('[data-sub]').forEach(el=>el.addEventListener('click',()=>{
-    FACET.s=el.dataset.sub?+el.dataset.sub:null; setHash(catHash()); draw(); }));
+    FACET.s=el.dataset.sub?+el.dataset.sub:null;
+    /* in a drill-down category, sub-category moves are LEVELS (Back walks
+       cards ↔ articles); in a pill category they stay filter refinements */
+    (cat.landing==='subcats'?goHash:setHash)(catHash()); draw(); }));
   document.querySelectorAll('[data-tag]').forEach(el=>el.addEventListener('click',()=>{
     FACET.t=el.dataset.tag?+el.dataset.tag:null; setHash(catHash()); draw(); }));
   wireGrid();
@@ -872,7 +892,26 @@ function drawTopic(){
     }catch(e){toast('PDF failed — '+(e.message||'error'),true);}
     hp.disabled=false;hp.textContent='⬇ Full PDF';
   });
-  function wireGrid(){ document.querySelectorAll('#tGrid [data-open]').forEach(el=>el.addEventListener('click',()=>openArticle(+el.dataset.open))); }
+  function wireGrid(){
+    document.querySelectorAll('#tGrid [data-open]').forEach(el=>el.addEventListener('click',()=>openArticle(+el.dataset.open)));
+    document.querySelectorAll('#tGrid [data-subcard]').forEach(el=>el.addEventListener('click',()=>{
+      FACET.s=+el.dataset.subcard; goHash(catHash()); draw(); }));
+  }
+}
+/* the drill-down landing: one card per sub-category (live counts), with any
+   articles not in a sub-category shown as normal cards below — files next to
+   folders, so nothing becomes unreachable when a category flips to 'subcats' */
+function landingGrid(catArts,tagOk,cat,subs){
+  let h='<div class="subgrid">'+subs.map(s=>{
+    const n=catArts.filter(a=>a.subcategory_id===s.id&&tagOk(a)).length;
+    return '<div class="subcard" data-subcard="'+s.id+'">'
+      +'<div class="subtop"><span class="sic">'+(window.CPRNavIcon?CPRNavIcon('folder',16):'')+'</span>'
+      +'<span class="sn">'+esc(s.name)+'</span></div>'
+      +'<div class="scnt">'+(n?n+' article'+(n===1?'':'s'):'No articles yet')+'</div></div>';
+  }).join('')+'</div>';
+  const loose=catArts.filter(a=>!a.subcategory_id&&tagOk(a));
+  if(loose.length)h+=topicGrid(loose,cat,[],false);
+  return h;
 }
 function wireCardDnD(){
   const grid=document.querySelector('#tGrid .cardgrid'); if(!grid)return;
@@ -993,6 +1032,9 @@ function drawCats(){
         +'<select id="ctVis" class="glbl" style="width:auto;margin:0" title="Who can browse this category">'
           +'<option value="employee"'+(sel.min_role!=='manager'?' selected':'')+'>Everyone</option>'
           +'<option value="manager"'+(sel.min_role==='manager'?' selected':'')+'>Managers &amp; up</option></select>'
+        +'<select id="ctLand" class="glbl" style="width:auto;margin:0" title="How this category opens">'
+          +'<option value="articles"'+(sel.landing!=='subcats'?' selected':'')+'>Articles + filter pills</option>'
+          +'<option value="subcats"'+(sel.landing==='subcats'?' selected':'')+'>Sub-category cards first</option></select>'
         +'<button class="btn dk sm" id="ctSave">Save</button>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="facpanels">'
@@ -1014,7 +1056,7 @@ function drawCats(){
           +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-top:10px;line-height:1.5">Articles pick tags in the editor sidebar. Tags only exist within this category.</div>'
         +'</div>'
       +'</div>'
-      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:14px;line-height:1.55">Sub-categories exist → pills in the topic band · tags exist → a chips row · neither → the same card grid with no filter rows.</div>'
+      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:14px;line-height:1.55">Sub-categories exist → pills in the topic band · tags exist → a chips row · neither → the same card grid with no filter rows. “Sub-category cards first” opens the category as cards you click into instead of pills.</div>'
     +'</div>';
   }
   $('#page').innerHTML=''
@@ -1037,7 +1079,8 @@ function drawCats(){
     const patch={name:($('#ctName').value.trim()||sel.name),
       subcat_label:$('#ctSubLbl').value.trim()||null,
       tag_label:$('#ctTagLbl').value.trim()||null,
-      min_role:$('#ctVis').value};
+      min_role:$('#ctVis').value,
+      landing:$('#ctLand').value};
     const {error}=await sb.from('kb_categories').update(patch).eq('id',sel.id);
     if(error){ toast('Save failed: '+error.message,true); return; }
     await loadAll(); drawCats(); toast('Saved ✔');
