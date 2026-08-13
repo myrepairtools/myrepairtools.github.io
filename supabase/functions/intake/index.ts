@@ -127,10 +127,20 @@ function latin1ish(s: string): string {
     .replace(/[^\x0A\x20-\x7E\xA0-\xFF—•]/g, "");
 }
 // Owner signature for the offer letter closing — drawn wherever the body has
-// a line that is exactly "{signature}". Empty until the owner provides one
-// (the placeholder line just collapses), so the template can carry the
-// marker safely.
-const OWNER_SIG_B64 = "";
+// a line that is exactly "{signature}"; the line collapses if the image is
+// missing. The PNG lives in the PRIVATE hr-private storage bucket (no
+// policies — service-role only), deliberately NOT in the public repo:
+// a real signature on public hosting would be a forgery kit. Cached per
+// warm boot.
+let _ownerSig: Uint8Array | null | undefined;
+async function ownerSigBytes(): Promise<Uint8Array | null> {
+  if (_ownerSig !== undefined) return _ownerSig;
+  try {
+    const { data } = await admin.storage.from("hr-private").download("owner-signature.png");
+    _ownerSig = data ? new Uint8Array(await data.arrayBuffer()) : null;
+  } catch { _ownerSig = null; }
+  return _ownerSig;
+}
 // CPR logo for the PDF letterhead — rasterized from
 // assets/images/CPRLogo_NoAssurant_Black.svg (same PNG committed at
 // assets/images/cpr-logo-letterhead.png). Embedded so the function stays
@@ -167,8 +177,9 @@ async function buildOfferPdf(opts: {
     return out.length ? out : [""];
   };
   let ownerImg: Awaited<ReturnType<typeof doc.embedPng>> | null = null;
-  if (OWNER_SIG_B64) {
-    try { ownerImg = await doc.embedPng(Uint8Array.from(atob(OWNER_SIG_B64), (c) => c.charCodeAt(0))); }
+  const sigBytes = await ownerSigBytes();
+  if (sigBytes) {
+    try { ownerImg = await doc.embedPng(sigBytes); }
     catch { /* a bad image just collapses the placeholder */ }
   }
   const para = (text: string, f = font, size = 10.5, color = dark, lh = 16) => {
