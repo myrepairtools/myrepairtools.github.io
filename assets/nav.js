@@ -319,7 +319,10 @@
   // own — the KB's white browse pane was retired 2026-08-12 with the portal
   // redesign; kb-compliance + onboarding-setup + onboarding-dashboard are
   // Employees-area management pages).
-  var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home + KB + Training)
+  var inOps = OPERATIONS.concat(TOOLS).some(function(t){ return t.url.toLowerCase() === currentFile; });
+  // '' = no AREA row lights up — Home/KB/Training rows highlight themselves,
+  // and a page in no list (profile, alerts…) shouldn't fake-select Operations.
+  var ACTIVE_AREA = ON_HOME ? '' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : inOps ? 'ops' : '';
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248, RAIL_EXP_W = 216;   // PANE_W = mobile drawer only now
