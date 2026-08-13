@@ -284,6 +284,25 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .edtools button:hover{background:var(--light-grey);border-color:var(--border)}
 .edbody{width:100%;border:none;resize:vertical;flex:1;min-height:340px;padding:20px 28px 26px;font-family:'Nunito Sans',sans-serif;font-size:.95rem;line-height:1.75;color:#3A3A45}
 .edbody:focus{outline:none}
+/* WYSIWYG surface — same typography as the reading view, so what you see IS
+   the article. (.artbody rules are reused via the ed-rich class below.) */
+.ed-rich{min-height:420px;padding:20px 28px 40px;font-family:'Nunito Sans',sans-serif;font-size:.95rem;line-height:1.75;color:#3A3A45;outline:none}
+.ed-rich:focus{outline:none}
+.ed-rich h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark);margin:22px 0 10px}
+.ed-rich h4{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;color:var(--dark);margin:18px 0 8px}
+.ed-rich p{margin:0 0 14px}
+.ed-rich ul,.ed-rich ol{margin:0 0 16px;padding-left:22px}
+.ed-rich li{margin:4px 0}
+.ed-rich img{max-width:100%;border-radius:12px;border:1px solid var(--border);margin:10px 0;display:block}
+.ed-rich a{color:#1E7AA8;font-weight:700}
+.ed-rich hr{border:none;border-top:1.5px solid var(--border);margin:18px 0}
+.ed-rich code{background:var(--row);border-radius:5px;padding:1px 6px;font-size:.86em}
+.ed-rich .ed-callout{background:#FDF6E7;border:1.5px solid #F2DFAE;border-radius:10px;padding:13px 16px;margin:0 0 16px;font-size:.85rem;font-weight:700;color:#7A5A08;line-height:1.55}
+.ed-rich:empty:before{content:'Write it how you\'d explain it to a new hire…';color:var(--grey)}
+.edtools button.on{background:#EAF6FD;border-color:#CDE8F7;color:#1E7AA8}
+.edtools .edsep{width:1px;height:20px;background:var(--border);margin:0 4px}
+.edsrc{width:100%;border:none;resize:vertical;min-height:420px;padding:20px 28px 26px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.7;color:#3A3A45}
+.edsrc:focus{outline:none}
 .sdc{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);padding:14px 16px;margin-bottom:12px}
 .edgrid .sdc:last-child{margin-bottom:0}
 .sdc .k{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.9px;color:var(--grey);margin-bottom:10px}
@@ -1297,8 +1316,143 @@ function drawQuizResult(){
 
 /* ---------- editor ---------- */
 let ED=null;   // draft state while editing
+/* ================= WYSIWYG editor =================
+   You edit what the article LOOKS like; the stored body stays the same light
+   markup every other surface reads (training.html, the candidate handbook
+   accordion, the PDF builder, kb_search's tsvector). mdToEditor() renders
+   markup into editable HTML on open; editorToMd() serializes it back on save.
+   No library — contenteditable + execCommand, which is all this needs. */
+function escAttr(v){ return String(v==null?'':v).replace(/"/g,'&quot;'); }
+function inlineToHtml(t){
+  let s=esc(t);
+  s=s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g,(m,a,u)=>'<img src="'+escAttr(u)+'" alt="'+escAttr(a)+'">');
+  s=s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,(m,tx,u)=>'<a href="'+escAttr(u)+'">'+tx+'</a>');
+  s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');
+  s=s.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
+  s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<em>$2</em>');
+  return s;
+}
+function mdToEditor(md){
+  const lines=String(md||'').split('\n');
+  let out='',ul=false,ol=false;
+  const close=()=>{ if(ul){out+='</ul>';ul=false;} if(ol){out+='</ol>';ol=false;} };
+  for(const raw of lines){
+    let m;
+    if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; }
+    else if((m=/^!>\s+(.*)$/.exec(raw))){ close(); out+='<div class="ed-callout">'+(inlineToHtml(m[1])||'<br>')+'</div>'; }
+    else if((m=/^##\s+(.*)$/.exec(raw))){ close(); out+='<h4>'+inlineToHtml(m[1])+'</h4>'; }
+    else if((m=/^#\s+(.*)$/.exec(raw))){ close(); out+='<h3>'+inlineToHtml(m[1])+'</h3>'; }
+    else if((m=/^\s*[-•]\s+(.*)$/.exec(raw))){ if(ol){out+='</ol>';ol=false;} if(!ul){out+='<ul>';ul=true;} out+='<li>'+inlineToHtml(m[1])+'</li>'; }
+    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(raw))){ if(ul){out+='</ul>';ul=false;} if(!ol){out+='<ol>';ol=true;} out+='<li>'+inlineToHtml(m[1])+'</li>'; }
+    else if(raw.trim()===''){ close(); }
+    else { close(); out+='<p>'+inlineToHtml(raw)+'</p>'; }
+  }
+  close();
+  return out||'<p><br></p>';
+}
+function inlineToMd(node){
+  let s='';
+  node.childNodes.forEach(n=>{
+    if(n.nodeType===3){ s+=n.nodeValue.replace(/ /g,' '); return; }
+    if(n.nodeType!==1)return;
+    const tag=n.tagName.toLowerCase();
+    if(tag==='br'){ s+=' '; return; }
+    if(tag==='img'){ s+='!['+(n.getAttribute('alt')||'image')+']('+n.getAttribute('src')+')'; return; }
+    const inner=inlineToMd(n);
+    if(!inner.trim()&&tag!=='a'){ s+=inner; return; }
+    if(tag==='strong'||tag==='b')s+='**'+inner+'**';
+    else if(tag==='em'||tag==='i')s+='*'+inner+'*';
+    else if(tag==='u')s+='__'+inner+'__';
+    else if(tag==='code')s+='`'+inner+'`';
+    else if(tag==='a')s+='['+inner+']('+(n.getAttribute('href')||'')+')';
+    else s+=inner;
+  });
+  return s;
+}
+const ED_BLOCK=/^(P|DIV|H1|H2|H3|H4|H5|H6|UL|OL|HR|BLOCKQUOTE|SECTION|ARTICLE)$/;
+function editorToMd(root){
+  const out=[];
+  const push=t=>{ out.push(t); };
+  const blockOf=el=>{
+    const tag=el.tagName.toLowerCase();
+    /* contenteditable happily nests blocks (Chrome puts <ul> INSIDE the <p>
+       it was invoked from) — walk into those instead of flattening to text */
+    const isWrapper=(tag==='p'||tag==='div'||tag==='section'||tag==='article')
+      && !(el.classList&&el.classList.contains('ed-callout'))
+      && [...el.children].some(c=>ED_BLOCK.test(c.tagName));
+    if(isWrapper){
+      el.childNodes.forEach(n=>{
+        if(n.nodeType===3){ const t=n.nodeValue.trim(); if(t){ push(t); push(''); } return; }
+        if(n.nodeType===1)blockOf(n);
+      });
+      return;
+    }
+    if(tag==='h1'||tag==='h3'){ push('# '+inlineToMd(el).trim()); push(''); return; }
+    if(tag==='h2'||tag==='h4'){ push('## '+inlineToMd(el).trim()); push(''); return; }
+    if(tag==='hr'){ push('---'); push(''); return; }
+    if(tag==='ul'||tag==='ol'){
+      let i=1;
+      el.querySelectorAll(':scope > li').forEach(li=>{
+        const txt=inlineToMd(li).trim();
+        push((tag==='ul'?'- ':(i++)+'. ')+txt);
+      });
+      push('');
+      return;
+    }
+    if(el.classList&&el.classList.contains('ed-callout')){ push('!> '+inlineToMd(el).trim()); push(''); return; }
+    if(tag==='blockquote'){ push('!> '+inlineToMd(el).trim()); push(''); return; }
+    /* p / div / anything else = a paragraph; a lone <br> is a blank line */
+    const txt=inlineToMd(el).trim();
+    if(txt){ push(txt); push(''); }
+    return;
+  };
+  root.childNodes.forEach(n=>{
+    if(n.nodeType===3){ const t=n.nodeValue.trim(); if(t){ push(t); push(''); } return; }
+    if(n.nodeType===1)blockOf(n);
+  });
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+/* paste: keep basic formatting, drop everything else (SharePoint/Word HTML is
+   a swamp — this is what stops pasted articles from carrying junk styling) */
+function cleanPaste(html){
+  const box=document.createElement('div');
+  box.innerHTML=String(html||'');
+  box.querySelectorAll('style,script,meta,link,o\\:p').forEach(el=>el.remove());
+  const ALLOW={P:1,DIV:1,BR:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,UL:1,OL:1,LI:1,STRONG:1,B:1,EM:1,I:1,U:1,A:1,CODE:1,HR:1,IMG:1,SPAN:1,TABLE:1,TR:1,TD:1,TH:1,TBODY:1};
+  const walk=el=>{
+    [...el.children].forEach(c=>{
+      walk(c);
+      if(!ALLOW[c.tagName]){ c.replaceWith(...c.childNodes); return; }
+      [...c.attributes].forEach(a=>{
+        const keep=(c.tagName==='A'&&a.name==='href')||(c.tagName==='IMG'&&(a.name==='src'||a.name==='alt'));
+        if(!keep)c.removeAttribute(a.name);
+      });
+      if(c.tagName==='SPAN')c.replaceWith(...c.childNodes);
+      /* Word/SharePoint bullet paragraphs come through as plain <p>· text */
+      if(c.tagName==='P'&&/^\s*[·•]\s+/.test(c.textContent)){
+        const li=document.createElement('li');
+        li.innerHTML=c.innerHTML.replace(/^\s*[·•]\s+/,'');
+        const ul=document.createElement('ul'); ul.appendChild(li); c.replaceWith(ul);
+      }
+      /* tables aren't in the light markup — flatten each row to a bullet */
+      if(c.tagName==='TABLE'){
+        const rows=[...c.querySelectorAll('tr')].map(tr=>
+          [...tr.children].map(td=>td.textContent.trim()).filter(Boolean).join(' — '));
+        const ul=document.createElement('ul');
+        rows.filter(Boolean).forEach(r=>{ const li=document.createElement('li'); li.textContent=r; ul.appendChild(li); });
+        c.replaceWith(ul);
+      }
+    });
+  };
+  walk(box);
+  return box.innerHTML;
+}
+
+let SRCMODE=false;   // the editor's raw-markup escape hatch
 function drawEditor(){
   const a=OPEN;
+  SRCMODE=false;
   if(!ED)ED={title:a?a.title:'',summary:a?a.summary||'':'',category_id:a?a.category_id:(CATS[0]||{}).id,
     min_role:a?a.min_role:'employee',require_ack:a?!!a.require_ack:false,emoji:a?a.emoji||'':'',
     module_id:a?a.module_id:null,sort_order:a?a.sort_order||0:0,body:a?a.body:'',announce:true,
@@ -1321,13 +1475,29 @@ function drawEditor(){
         +'<div class="footnote" style="margin-top:4px">'+(a?'Last saved '+fmtD(a.updated_at):'Not saved yet')+' · editing as '+esc(AUTH.name)+'</div>'
       +'</div>'
       +'<div class="edtools">'
-        +'<button data-md="b" style="font-weight:900">B</button><button data-md="i" style="font-style:italic">I</button>'
-        +'<button data-md="h2">H2</button><button data-md="ul">• List</button><button data-md="ol">1. List</button>'
-        +'<button data-md="callout">⚠️ Callout</button><button data-md="link">🔗 Link</button><button id="edImg">🖼️ Image</button>'
+        +'<button data-cmd="formatBlock" data-val="p" title="Normal text">Text</button>'
+        +'<button data-cmd="formatBlock" data-val="h3" title="Big heading">Heading</button>'
+        +'<button data-cmd="formatBlock" data-val="h4" title="Small heading">Subheading</button>'
+        +'<span class="edsep"></span>'
+        +'<button data-cmd="bold" title="Bold (Ctrl+B)" style="font-weight:900">B</button>'
+        +'<button data-cmd="italic" title="Italic (Ctrl+I)" style="font-style:italic">I</button>'
+        +'<button data-cmd="underline" title="Underline (Ctrl+U)" style="text-decoration:underline">U</button>'
+        +'<span class="edsep"></span>'
+        +'<button data-cmd="insertUnorderedList" title="Bulleted list">• List</button>'
+        +'<button data-cmd="insertOrderedList" title="Numbered list">1. List</button>'
+        +'<span class="edsep"></span>'
+        +'<button data-do="link" title="Add a link">🔗 Link</button>'
+        +'<button id="edImg" title="Upload an image">🖼️ Image</button>'
+        +'<button data-do="callout" title="Amber note box">⚠️ Note</button>'
+        +'<button data-do="hr" title="Divider line">— Divider</button>'
+        +'<span class="edsep"></span>'
+        +'<button data-do="clear" title="Strip formatting from the selection">Clear format</button>'
+        +'<span style="flex:1"></span>'
+        +'<button id="edSrc" title="Edit the raw markup (advanced)">&lt;/&gt; Source</button>'
         +'<input type="file" id="edImgFile" accept="image/*" hidden>'
       +'</div>'
-      +'<textarea class="edbody" id="eBody" placeholder="# Heading&#10;&#10;Write it how you’d explain it to a new hire. **Bold** the must-knows.&#10;&#10;- bullets&#10;- like this&#10;&#10;!> Amber warning callout">'+esc(ED.body)+'</textarea>'
-      +'<div id="edPrevBox" class="artbody" style="display:none;border-top:1.5px dashed var(--border)"></div>'
+      +'<div class="ed-rich" id="eBody" contenteditable="true" spellcheck="true">'+mdToEditor(ED.body)+'</div>'
+      +'<textarea class="edsrc" id="eSrc" style="display:none" spellcheck="false">'+esc(ED.body)+'</textarea>'
     +'</div>'
     +'<div>'
       +'<div class="sdc"><div class="k">Article settings</div>'
@@ -1368,7 +1538,9 @@ function drawEditor(){
   +'</div>';
   $('#page').innerHTML=inner;
   // ---- wiring ----
-  const grab=()=>{ ED.title=$('#eTitle').value; ED.body=$('#eBody').value; ED.summary=$('#eSummary').value;
+  const grab=()=>{ ED.title=$('#eTitle').value;
+    ED.body=SRCMODE?$('#eSrc').value:editorToMd($('#eBody'));
+    ED.summary=$('#eSummary').value;
     ED.category_id=+$('#eCat').value||null; ED.min_role=$('#eVis').value; ED.emoji=$('#eEmoji').value.trim();
     ED.module_id=$('#eMod').value?+$('#eMod').value:null; ED.sort_order=+$('#eSort').value||0;
     const es=$('#eSub'); ED.subcategory_id=es?(+es.value||null):null; };
@@ -1381,19 +1553,94 @@ function drawEditor(){
     drawEditor(); }));
   document.querySelector('[data-nav="back"]').addEventListener('click',()=>{ ED=null; MODE=a?'article':'list'; goHash(a?'a='+a.slug:catHash()); draw(); });
   $('#eReq').addEventListener('click',()=>{ ED.require_ack=!ED.require_ack; grab(); drawEditor(); });
-  const ta=$('#eBody');
-  function wrap(pre,post,ph){ const s=ta.selectionStart,e=ta.selectionEnd,vv=ta.value,sel=vv.slice(s,e)||ph;
-    ta.value=vv.slice(0,s)+pre+sel+post+vv.slice(e); ta.focus();
-    ta.selectionStart=s+pre.length; ta.selectionEnd=s+pre.length+sel.length; }
-  function linePrefix(pfx){ const s=ta.selectionStart,vv=ta.value; const a0=vv.lastIndexOf('\n',s-1)+1;
-    ta.value=vv.slice(0,a0)+pfx+vv.slice(a0); ta.focus(); ta.selectionStart=ta.selectionEnd=s+pfx.length; }
-  document.querySelectorAll('[data-md]').forEach(b=>b.addEventListener('click',()=>{
-    const k=b.dataset.md;
-    if(k==='b')wrap('**','**','bold text'); else if(k==='i')wrap('*','*','italic text');
-    else if(k==='h2')linePrefix('# '); else if(k==='ul')linePrefix('- '); else if(k==='ol')linePrefix('1. ');
-    else if(k==='callout')linePrefix('!> ');
-    else if(k==='link'){ const u=prompt('Link URL:','https://'); if(u)wrap('[',']('+u+')','link text'); }
-  }));
+  const rich=$('#eBody'), src=$('#eSrc');
+  try{ document.execCommand('defaultParagraphSeparator',false,'p'); }catch(e){}
+  /* Chrome's list commands leave <p><ul>…</ul></p>; unwrap so the document
+     stays flat blocks (the serializer copes either way, this keeps it tidy) */
+  function normalize(){
+    rich.querySelectorAll('p > ul, p > ol, div > ul, div > ol').forEach(list=>{
+      const par=list.parentElement;
+      if(par===rich||!par)return;
+      if(par.classList&&par.classList.contains('ed-callout'))return;
+      par.replaceWith(...par.childNodes);
+    });
+  }
+  const exec=(c,v)=>{ rich.focus(); document.execCommand(c,false,v||null); normalize(); syncTools(); };
+  function syncTools(){
+    document.querySelectorAll('[data-cmd]').forEach(b=>{
+      const c=b.dataset.cmd;
+      let on=false;
+      try{
+        if(c==='formatBlock'){
+          const blk=(document.queryCommandValue('formatBlock')||'').toLowerCase().replace(/[<>]/g,'');
+          on=(blk===b.dataset.val)||(b.dataset.val==='p'&&(blk===''||blk==='div'));
+        } else on=document.queryCommandState(c);
+      }catch(e){}
+      b.classList.toggle('on',!!on);
+    });
+  }
+  const holdCaret=b=>{ ['mouseup','click'].forEach(ev=>b.addEventListener(ev,e=>e.preventDefault())); };
+  document.querySelectorAll('[data-cmd]').forEach(b=>{
+    holdCaret(b);
+    b.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      exec(b.dataset.cmd, b.dataset.val?('<'+b.dataset.val+'>'):null);
+    });
+  });
+  ['keyup','mouseup','focus'].forEach(ev=>rich.addEventListener(ev,syncTools));
+  /* block-level helpers the browser has no command for */
+  function currentBlock(){
+    const sel=window.getSelection(); if(!sel.rangeCount)return null;
+    let n=sel.getRangeAt(0).startContainer;
+    while(n&&n!==rich&&!(n.parentNode===rich))n=n.parentNode;
+    return (n&&n!==rich)?n:null;
+  }
+  document.querySelectorAll('[data-do]').forEach(b=>{ holdCaret(b); b.addEventListener('mousedown',async e=>{
+    e.preventDefault();
+    const k=b.dataset.do;
+    rich.focus();
+    if(k==='link'){
+      const sel=window.getSelection();
+      const had=sel&&String(sel).trim();
+      const u=prompt('Link URL:','https://');
+      if(!u)return;
+      if(had)document.execCommand('createLink',false,u);
+      else document.execCommand('insertHTML',false,'<a href="'+escAttr(u)+'">'+esc(u)+'</a>');
+    }
+    else if(k==='hr')document.execCommand('insertHTML',false,'<hr><p><br></p>');
+    else if(k==='clear')document.execCommand('removeFormat');
+    else if(k==='callout'){
+      const blk=currentBlock();
+      if(blk&&blk.classList&&blk.classList.contains('ed-callout')){
+        const p=document.createElement('p'); p.innerHTML=blk.innerHTML; blk.replaceWith(p);
+      }else if(blk){
+        const d=document.createElement('div'); d.className='ed-callout'; d.innerHTML=blk.innerHTML||'<br>'; blk.replaceWith(d);
+      }else document.execCommand('insertHTML',false,'<div class="ed-callout">Note</div><p><br></p>');
+    }
+    syncTools();
+  }); });
+  /* Enter inside a note box should LEAVE the box (the browser's default is to
+     clone it forever); Enter elsewhere makes a clean <p> */
+  rich.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||e.shiftKey)return;
+    const blk=currentBlock();
+    if(blk&&blk.classList&&blk.classList.contains('ed-callout')){
+      e.preventDefault();
+      const p=document.createElement('p'); p.innerHTML='<br>';
+      blk.after(p);
+      const r=document.createRange(); r.setStart(p,0); r.collapse(true);
+      const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      syncTools();
+    }
+  });
+  /* paste: keep basic formatting, strip Word/SharePoint junk */
+  rich.addEventListener('paste',e=>{
+    const html=e.clipboardData&&e.clipboardData.getData('text/html');
+    const text=e.clipboardData&&e.clipboardData.getData('text/plain');
+    e.preventDefault();
+    if(html)document.execCommand('insertHTML',false,cleanPaste(html));
+    else if(text)document.execCommand('insertText',false,text);
+  });
   $('#edImg').addEventListener('click',()=>$('#edImgFile').click());
   $('#edImgFile').addEventListener('change',async()=>{
     const f=$('#edImgFile').files[0]; if(!f)return;
@@ -1401,13 +1648,25 @@ function drawEditor(){
     const path=Date.now()+'-'+f.name.toLowerCase().replace(/[^a-z0-9.]+/g,'-');
     const {error}=await sb.storage.from('kb-media').upload(path,f,{contentType:f.type});
     if(error){ toast('Upload failed: '+error.message,true); return; }
-    wrap('\n![image]('+SB_URL+'/storage/v1/object/public/kb-media/'+path+')\n','','');
+    rich.focus();
+    document.execCommand('insertHTML',false,'<img src="'+escAttr(SB_URL+'/storage/v1/object/public/kb-media/'+path)+'" alt="image"><p><br></p>');
     toast('Image added.');
   });
+  /* advanced escape hatch: edit the raw markup */
+  $('#edSrc').addEventListener('click',()=>{
+    if(!SRCMODE){ src.value=editorToMd(rich); rich.style.display='none'; src.style.display='block'; SRCMODE=true; $('#edSrc').classList.add('on'); }
+    else{ rich.innerHTML=mdToEditor(src.value); src.style.display='none'; rich.style.display='block'; SRCMODE=false; $('#edSrc').classList.remove('on'); }
+  });
   $('#edPrev').addEventListener('click',()=>{
-    const box=$('#edPrevBox');
-    if(box.style.display==='none'){ box.innerHTML=render(ta.value); box.style.display='block'; }
-    else box.style.display='none';
+    grab();
+    const w=window.open('','_blank','width=760,height=900');
+    if(!w){ toast('Allow pop-ups to preview.',true); return; }
+    w.document.write('<meta charset="utf-8"><title>Preview</title>'
+      +'<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">'
+      +'<style>body{margin:0;background:#F3F2F2}.artwrap{max-width:760px;margin:20px auto;background:#fff;border-radius:12px;padding:8px 0}'
+      +[...document.styleSheets].filter(ss=>!ss.href).map(ss=>{try{return [...ss.cssRules].map(r=>r.cssText).join('\n');}catch(e){return '';}}).join('\n')
+      +'</style><div class="artwrap"><div class="artbody">'+render(ED.body)+'</div></div>');
+    w.document.close();
   });
   async function save(status){
     grab();

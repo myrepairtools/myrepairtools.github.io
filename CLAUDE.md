@@ -1023,8 +1023,17 @@ drag-ordered sub-categories, tag pills. The article editor sidebar picks
 sub-category + tags (category-scoped; save replaces the article's tag set).
 Required/Drafts/Archived keep the pre-portal list layout. The article view
 records the read and shows the ack bar for required
-articles, 👍/👎 footer; managers additionally get the inline editor (toolbar + image
-upload to kb-media + preview; publish/unpublish/archive), a Drafts pill, and a
+articles, 👍/👎 footer; managers additionally get the inline editor — a **WYSIWYG surface**
+(owner call 2026-08-12: "a real full editor"): contenteditable styled with the
+reading view's typography, a plain-language toolbar (Text/Heading/Subheading ·
+B/I/U · lists · Link · Image · Note · Divider · Clear format), Word/SharePoint
+paste sanitizing (junk styles stripped, `·` paragraphs → real bullets, tables
+flattened to bullets), image upload to kb-media, a pop-out Preview, and a
+`</> Source` escape hatch for the raw markup. **Storage is unchanged** — the
+body is still the light markup every other surface reads (training.html,
+the candidate handbook accordion, the handbook PDF, kb_search's tsvector):
+mdToEditor() renders markup → editable HTML on open, editorToMd() serializes
+back on save (round-trip verified). Also a Drafts pill, and a
 **Compliance tab** (per required article: acknowledged vs outstanding roster with
 "read but not acked" / "never opened" flags, overall % tiles). First publish (and
 🔁 Reset acknowledgments — re-certification) auto-posts to Communications
