@@ -1,5 +1,11 @@
 # Pre-Repair Diagnostics Suite — investigation
 
+> **SCRAPPED (owner call, 2026-08-13).** The browser-based approach can't do what
+> the owner actually wants — do not build or resurrect this without asking. Kept
+> as a record of the feasibility findings (what web APIs can and cannot test) in
+> case a different approach (native app, MDM, Apple/Samsung diag tools) is ever
+> explored. Nothing was built: no schema, no edge function, no extension change.
+
 **The idea (owner, 2026-08-11):** at check-in, when the tech saves the ticket, the
 Chrome extension pops a QR code. The customer's device scans it and lands on a testing
 page with a unique ID; the device **tests itself** in the browser; results save to
