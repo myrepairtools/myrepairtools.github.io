@@ -453,6 +453,8 @@
   .cpr-tb-sq:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-sq.open{ background:rgba(255,255,255,.22); }
   .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-fb{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-fb:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell .bdg{ position:absolute; top:1px; right:1px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
     background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; align-items:center; justify-content:center;
@@ -516,6 +518,7 @@
     body{ padding-bottom:var(--cpr-bb-h) !important; }
     .cpr-tb-burger{ display:none; }                         /* More tab replaces the hamburger */
     .cpr-tb-sq{ display:none; }                             /* Square lives under More on mobile */
+    .cpr-tb-fb{ display:none; }                             /* feedback lives under More on mobile */
     .cpra-fab{ bottom:calc(var(--cpr-bb-h) + 12px) !important; }  /* assistant ✨ sits above the tab bar */
   }
   .cpr-bb-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; border:none; background:none;
@@ -533,6 +536,8 @@
     'house': '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
     'list-checks': '<path d="M13 5h8" /><path d="M13 12h8" /><path d="M13 19h8" /><path d="m3 17 2 2 4-4" /><path d="m3 7 2 2 4-4" />',
     'bell': '<path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />',
+    'bug': '<path d="m8 2 1.88 1.88" /><path d="M14.12 3.88 16 2" /><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1" /><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6Z" /><path d="M12 20v-9" /><path d="M6.53 9C4.6 8.8 3 7.1 3 5" /><path d="M6 13H2" /><path d="M3 21c0-2.1 1.7-3.9 3.8-4" /><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4" /><path d="M22 13h-4" /><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4" />',
+    'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5A6.14 6.14 0 0 0 18 7.5 6 6 0 0 0 6 7.5c0 1.5.5 2.9 1.5 4 .8.8 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" />',
     'star': '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />',
     'sunrise': '<path d="M12 2v8" /><path d="m4.93 10.93 1.41 1.41" /><path d="M2 18h2" /><path d="M20 18h2" /><path d="m19.07 10.93-1.41 1.41" /><path d="M22 22H2" /><path d="m8 6 4-4 4 4" /><path d="M16 18a4 4 0 0 0-8 0" />',
     'megaphone': '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" /><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" /><path d="M8 6v8" />',
@@ -819,7 +824,10 @@
       var st = SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       if (st) h += '<div class="cpr-grp">Settings</div>' + st;
     }
-    /* Square lives here on mobile (the top-bar button is hidden below 860px) */
+    /* feedback + Square live here on mobile (top-bar buttons hide below 860px) */
+    h += '<div class="cpr-grp">Feedback</div>'
+      + '<div class="cpr-link" data-fb="issue" role="button" tabindex="0"><span class="ic">'+navIcon('bug',15)+'</span> Report an Issue</div>'
+      + '<div class="cpr-link" data-fb="feature" role="button" tabindex="0"><span class="ic">'+navIcon('lightbulb',15)+'</span> Suggest a Feature</div>';
     h += '<div class="cpr-grp">Register</div>'
       + '<div class="cpr-link" data-sqrow role="button" tabindex="0">'
       + '<svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex:none"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
@@ -1008,6 +1016,12 @@
       + '<button class="cpr-tb-burger" aria-label="Menu">☰</button>'
       + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home">'+navLogoTop()+'</a>'
       + '<span class="cpr-tb-sp"></span>'
+      + '<button class="cpr-tb-fb" data-fb="issue" title="Report an Issue" aria-label="Report an issue">'
+      +   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6ZM12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>'
+      + '</button>'
+      + '<button class="cpr-tb-fb" data-fb="feature" title="Suggest a Feature" aria-label="Suggest a feature">'
+      +   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5A6.14 6.14 0 0 0 18 7.5 6 6 0 0 0 6 7.5c0 1.5.5 2.9 1.5 4 .8.8 1.3 1.5 1.5 2.5M9 18h6M10 22h4"/></svg>'
+      + '</button>'
       + '<button class="cpr-tb-sq" data-square title="Square — take a payment (backup register)" aria-label="Square virtual terminal">'
       +   '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
       + '</button>'
@@ -1158,6 +1172,58 @@
     function setMenu(open){ pane.classList.toggle('open', open); scrim.classList.toggle('show', open); if (tbBurger) tbBurger.innerHTML = open ? '✕' : '☰'; }
     function closeMenu(){ setMenu(false); }
     function toggleMenu(){ setMenu(!pane.classList.contains('open')); }
+
+    // ── Report an Issue / Suggest a Feature (top-bar + mobile drawer rows) ──
+    // Same pipeline as the extension's issue reporting (report-issue fn):
+    // issues land in extension_issues (source 'site'), feature requests in
+    // their own feature_requests list. Both text the owner.
+    function openFeedback(kind){
+      var isFeat = kind === 'feature';
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px';
+      ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px 22px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+        + '<div style="display:flex;align-items:center;gap:9px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;color:#2D2D3B;margin-bottom:4px">'
+        +   navIcon(isFeat ? 'lightbulb' : 'bug', 19) + (isFeat ? 'Suggest a Feature' : 'Report an Issue') + '</div>'
+        + '<div style="font-size:.76rem;font-weight:700;color:#8A8FA0;margin-bottom:10px">'
+        +   (isFeat ? 'What should myRepairTools do next? Goes straight to the owner\'s list.'
+                    : 'What went wrong? Your name and this page are attached automatically.') + '</div>'
+        + '<textarea data-fbmsg style="width:100%;box-sizing:border-box;min-height:110px;padding:10px 12px;border:1.5px solid #E0E2EA;border-radius:10px;font-family:\'Nunito Sans\',sans-serif;font-weight:600;font-size:.88rem;resize:vertical;color:#2D2D3B" placeholder="' + (isFeat ? 'It would be great if…' : 'Describe what happened — which page, what you expected…') + '"></textarea>'
+        + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">'
+        + '<button data-fbx style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1.5px solid #E0E2EA;background:#fff;color:#2D2D3B;border-radius:10px;cursor:pointer">Cancel</button>'
+        + '<button data-fbgo style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:none;background:#DC282E;color:#fff;border-radius:10px;cursor:pointer">Send</button>'
+        + '</div></div>';
+      document.body.appendChild(ov);
+      var ta = ov.querySelector('[data-fbmsg]'); ta.focus();
+      function close(){ ov.remove(); document.removeEventListener('keydown', onKey); }
+      function onKey(e){ if (e.key === 'Escape') close(); }
+      document.addEventListener('keydown', onKey);
+      ov.addEventListener('mousedown', function(e){ if (e.target === ov) close(); });
+      ov.querySelector('[data-fbx]').onclick = close;
+      ov.querySelector('[data-fbgo]').onclick = function(){
+        var msg = ta.value.trim();
+        if (!msg){ ta.focus(); return; }
+        var go = ov.querySelector('[data-fbgo]'); go.disabled = true; go.textContent = 'Sending…';
+        fetch(SB_URL + '/functions/v1/report-issue', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SB_ANON, 'apikey':SB_ANON },
+          body: JSON.stringify({
+            message: msg, kind: isFeat ? 'feature' : 'site',
+            reporter: NAV_NAME || null,
+            store: (NAV_STAFF && NAV_STAFF.home_store) || null,
+            url: location.href, user_agent: navigator.userAgent
+          })
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if (d && d.ok){ close(); toastNav(isFeat ? 'Suggestion sent — thank you!' : 'Reported — thank you!'); }
+          else { go.disabled = false; go.textContent = 'Send'; toastNav((d && d.error) || 'Send failed — try again', true); }
+        }).catch(function(){ go.disabled = false; go.textContent = 'Send'; toastNav('Send failed — try again', true); });
+      };
+    }
+    document.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('[data-fb]');
+      if (!b) return;
+      closeMenu();
+      openFeedback(b.getAttribute('data-fb'));
+    });
     if (burger) burger.onclick = toggleMenu;
     if (tbBurger) tbBurger.onclick = toggleMenu;
     var bbMore = document.querySelector('.cpr-bottombar [data-bbmore]');

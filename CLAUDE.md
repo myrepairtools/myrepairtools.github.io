@@ -1263,6 +1263,16 @@ offline fallback. Exists because iOS home-screen apps cling to stale caches
 (owners saw old code until delete/re-add). Normal deploys need no SW changes;
 bump its VERSION only to GC the cache bucket. Push notifications will live here.
 
+**Feedback (top bar):** two icon buttons by the bell — **Report an Issue**
+(bug) and **Suggest a Feature** (lightbulb); on mobile they're rows under
+More → Feedback. Both open a small modal and post through the same
+`report-issue` edge function the extension uses: issues land in
+`extension_issues` with `source='site'` (extension reports stay
+`source='extension'`), feature requests in their OWN `feature_requests` table
+(owner call: separate list; RLS `is_admin()`). Both text the owner
+(`ISSUE_ALERT_NUMBER`), with reporter name + page URL attached automatically.
+No triage surface yet — the owner works from the texts/tables.
+
 **Mobile app shell (nav.js):** nav.js owns standalone (A2HS) safe-area handling
 site-wide — it flags `html.mrt-standalone`, patches `viewport-fit=cover` into the
 viewport meta when a page didn't declare it, and grows `--cpr-top-h` by
