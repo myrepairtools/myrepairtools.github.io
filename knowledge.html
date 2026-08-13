@@ -98,6 +98,8 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;letter-spac
 .cattile .ctc{font-size:.66rem;font-weight:800;color:var(--grey)}
 .cattiles.mgr .cattile{cursor:grab}
 .cattile.dragging{opacity:.45}
+.cardgrid.mgr .acard{cursor:grab}
+.acard.dragging{opacity:.45}
 .mostread{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);overflow:hidden;margin-top:14px}
 .mostread .mrh{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.7px;color:#8A8FA0;padding:11px 16px;border-bottom:1px solid var(--row)}
 .mrrow{display:flex;align-items:center;gap:11px;width:100%;padding:8px 16px;border:none;border-bottom:1px solid #F7F7F9;background:none;cursor:pointer;text-align:left}
@@ -717,7 +719,9 @@ function drawTopic(){
   const tags=TAGS.filter(t=>t.category_id===cat.id);
   if(FACET.s&&!subs.some(s=>s.id===FACET.s))FACET.s=null;
   if(FACET.t&&!tags.some(t=>t.id===FACET.t))FACET.t=null;
-  const catArts=pubArts().filter(a=>a.category_id===cat.id);
+  const catArts=pubArts().filter(a=>a.category_id===cat.id)
+    .sort((a,b)=>((a.browse_order??1e9)-(b.browse_order??1e9))
+      ||(new Date(b.updated_at)-new Date(a.updated_at)));
   const tagOk=a=>!FACET.t||(ARTTAGS[a.id]||[]).indexOf(FACET.t)>-1;
   const subOk=a=>!FACET.s||a.subcategory_id===FACET.s;
   const rows=catArts.filter(a=>subOk(a)&&tagOk(a));
@@ -754,7 +758,8 @@ function drawTopic(){
         return '<button class="fchip'+(FACET.t===t.id?' on':'')+'" data-tag="'+t.id+'">'+esc(t.name)+' <span class="n">'+n+'</span></button>';}).join('')
     +'</div>';
   }
-  surface+='<div id="tGrid">'+topicGrid(shown,cat,subs)+'</div></div>';
+  const canDrag=isMgr(AUTH.role)&&!FACET.s&&!FACET.t&&!TQ;
+  surface+='<div id="tGrid">'+topicGrid(shown,cat,subs,canDrag)+'</div></div>';
   $('#page').innerHTML=band+surface;
   wirePlus();
   $('#bcHome').addEventListener('click',()=>{ CAT='all'; FACET={s:null,t:null}; TQ='';
@@ -771,15 +776,40 @@ function drawTopic(){
   document.querySelectorAll('[data-tag]').forEach(el=>el.addEventListener('click',()=>{
     FACET.t=el.dataset.tag?+el.dataset.tag:null; setHash(catHash()); draw(); }));
   wireGrid();
+  if(canDrag)wireCardDnD();
   function wireGrid(){ document.querySelectorAll('#tGrid [data-open]').forEach(el=>el.addEventListener('click',()=>openArticle(+el.dataset.open))); }
 }
-function topicGrid(list,cat,subs){
+function wireCardDnD(){
+  const grid=document.querySelector('#tGrid .cardgrid'); if(!grid)return;
+  let dragging=null;
+  grid.querySelectorAll('.acard').forEach(c=>{
+    c.addEventListener('dragstart',()=>{ dragging=c; c.classList.add('dragging'); });
+    c.addEventListener('dragend',async()=>{
+      c.classList.remove('dragging'); dragging=null;
+      const ids=[...grid.querySelectorAll('.acard')].map(x=>+x.dataset.open);
+      for(let i=0;i<ids.length;i++){
+        const a=ARTS.find(x=>x.id===ids[i]);
+        if(a)a.browse_order=(i+1)*10;
+        await sb.from('kb_articles').update({browse_order:(i+1)*10}).eq('id',ids[i]);
+      }
+      toast('Order saved ✔');
+    });
+  });
+  grid.addEventListener('dragover',e=>{
+    e.preventDefault(); if(!dragging)return;
+    const others=[...grid.querySelectorAll('.acard:not(.dragging)')];
+    const after=others.find(o=>{const r=o.getBoundingClientRect();
+      return e.clientY<r.top+r.height/2||(e.clientY<r.bottom&&e.clientX<r.left+r.width/2);});
+    if(after)grid.insertBefore(dragging,after); else grid.appendChild(dragging);
+  });
+}
+function topicGrid(list,cat,subs,canDrag){
   if(!list.length){
     const t=FACET.t?(TAGS.find(x=>x.id===FACET.t)||{}).name:null;
     const s=FACET.s?(SUBCATS.find(x=>x.id===FACET.s)||{}).name:null;
     return '<div class="empty">No articles'+(t?' tagged '+esc(t):'')+(s?(t?' under ':' under ')+esc(s):'')+(TQ?' matching “'+esc(TQ)+'”':'')+' yet.</div>';
   }
-  return '<div class="cardgrid">'+list.map(a=>{
+  return '<div class="cardgrid'+(canDrag?' mgr':'')+'">'+list.map(a=>{
     const v=viewedAt(a), never=!v;
     const vCol=never?(a.require_ack&&!acked(a)?'var(--red)':'var(--amber)'):'#8A8FA0';
     let badge='';
@@ -788,7 +818,7 @@ function topicGrid(list,cat,subs){
       badge=s?'<span class="acbadge">'+esc(s.name)+'</span>'
         :'<span class="acbadge grey">'+esc(allLbl(cat))+'</span>';
     }
-    return '<div class="acard" data-open="'+a.id+'">'
+    return '<div class="acard" data-open="'+a.id+'"'+(canDrag?' draggable="true" title="Drag to organize"':'')+'>'
       +'<div class="actop"><span class="actile">'+esc(artIcon(a))+'</span><span style="flex:1"></span>'
         +badge+cardChip(a)+'</div>'
       +'<div class="actitle">'+esc(a.title)+'</div>'

@@ -66,3 +66,10 @@ language sql security definer set search_path = public as $$
 $$;
 revoke all on function public.kb_most_read(int) from public;
 grant execute on function public.kb_most_read(int) to authenticated;
+
+-- Card order inside a topic view (drag-to-organize on the category grid).
+-- Deliberately NOT kb_articles.sort_order — that orders module tracks
+-- (Training), and rearranging a category's browse grid must never reorder
+-- anyone's onboarding sequence. null = falls after ordered cards (newest
+-- first among themselves).
+alter table public.kb_articles add column if not exists browse_order int;
