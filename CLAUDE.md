@@ -992,15 +992,36 @@ public `kb-media` storage bucket; tags, summary, status draft→published→arch
 `kb_article_versions` (snapshot on every save) + `kb_reads` (per-person first_read_at +
 acknowledged_at — the compliance record) + `kb_feedback` (👍/👎 per person). Authoring is
 **manager-only** (RLS `is_admin()`); employees read published `min_role='employee'`
-articles. Surface: `knowledge.html` (My Hub, everyone) — search-first (RPC `kb_search`:
-strict websearch + loose OR fallback, both role-safe via RLS), category pills, cards
-with unread dots, article view records the read and shows the ack bar for required
+articles. Surface: `knowledge.html` (My Hub, everyone). **Browse redesign (design
+handoff 13c/14a/17a/19a/20a, 2026-08-12) — the portal flow:** the `#c=all` landing
+is a **search-first portal** (dark hero band + centered search, category tiles
+overlapping the band bottom, "Most read this month" card from the
+`kb_most_read(days)` SECURITY DEFINER RPC — returns (article_id,n) only, the page
+joins against articles the caller can already see). Typing ≥2 chars morphs the
+hero search into a results panel (kb_search RPC, ↑↓/Enter/Esc keyboard nav,
+tiles dim behind, "All N results ›" expands). A category opens the **two-axis
+topic view**: slim dark band with breadcrumb + scoped search + **sub-category
+pills** (facet 1), **tag chips** on the surface (facet 2) — labels over each row
+come from the category config (`kb_categories.subcat_label/tag_label`, e.g.
+Device/Component — nothing baked into code), facets combine freely with live
+filtered counts, cards carry sub-category badges when Device=All, and a category
+with no facets renders the same card grid with no filter rows. Data:
+`kb_subcategories` (+ `kb_articles.subcategory_id`) and category-scoped
+`kb_tags` + `kb_article_tags` (docs/sql/kb-facets.sql; Repair Knowledge seeded
+Device/Component per the handoff). Managers configure it all in **Categories**
+(KB nav pane → Manage → `#cats`): master–detail with a facet-status pill per
+category ("Device · Component" / "—" = setup audit), group-label inputs,
+drag-ordered sub-categories, tag pills. The article editor sidebar picks
+sub-category + tags (category-scoped; save replaces the article's tag set).
+Required/Drafts/Archived keep the pre-portal list layout. The article view
+records the read and shows the ack bar for required
 articles, 👍/👎 footer; managers additionally get the inline editor (toolbar + image
 upload to kb-media + preview; publish/unpublish/archive), a Drafts pill, and a
 **Compliance tab** (per required article: acknowledged vs outstanding roster with
 "read but not acked" / "never opened" flags, overall % tiles). First publish (and
 🔁 Reset acknowledgments — re-certification) auto-posts to Communications
-(`source_key 'kb:<id>:…'`). Deep links: `knowledge.html#a=<slug>`. Dashboard
+(`source_key 'kb:<id>:…'`). Deep links: `knowledge.html#a=<slug>` +
+`#c={cat}&s={subcat}&t={tag}` facet URLs. Dashboard
 **Knowledge widget** (`assets/kb-summary.js`, `window.CPRKnowledge.forMe()`) shows
 required-reading queue + newest articles. **AI: the `cpr-assistant` edge function does
 KB RAG **and Price Guide RAG** — pricing-flavored questions also FTS-search
