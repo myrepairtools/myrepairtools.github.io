@@ -157,7 +157,7 @@ const D={first:'',middle:'',last:'',preferred:'',dob:'',phone:'',email:'',
   street:'',city:'',zip:'',shirt:'',i9:'',
   e1name:'',e1phone:'',e2name:'',e2phone:'',
   avail:DAYS.map((d,i)=>({day:i,mode:'all',from:'Open',to:'Close'}))};
-let INVITE=null,HANDBOOK=null,HBOPEN=0;
+let INVITE=null,HANDBOOK=null,ACK=null,HBOPEN=0;
 
 async function call(body){
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -286,10 +286,17 @@ function handbookBody(){
   const rows=arts.map((a,i)=>'<div class="hbrow'+(HBOPEN===i?' open':'')+'"><button class="hbbtn" data-hb="'+i+'">'
     +'<span class="t">'+esc(a.title.replace(/^Handbook\s*[—-]\s*/,''))+'</span>'+CHEVD+'</button>'
     +'<div class="hbbody">'+render(a.body)+'</div></div>').join('');
+  const ackBox=ACK?'<div style="border:1.5px solid var(--border);border-radius:12px;background:#FDFDFE;padding:13px 15px;margin-top:14px">'
+      +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.88rem;margin-bottom:2px">'+esc(ACK.title||'')+'</div>'
+      +(ACK.version?'<div style="font-size:.7rem;font-weight:700;color:var(--grey2);margin-bottom:8px">Handbook Version: '+esc(ACK.version)+'</div>':'')
+      +'<div style="font-size:.78rem;font-weight:600;line-height:1.55;white-space:pre-line">'+esc(ACK.body||'')+'</div></div>':'';
   return '<h2>Read through the handbook</h2>'
     +'<div class="hint">Tap each section to read it — the important stuff about pay, time off, and how we work.</div>'
     +(rows?'<div class="hb">'+rows+'</div>':'<div class="hint">Handbook unavailable — ask your manager.</div>')
-    +'<label class="agree"><input type="checkbox" id="hbAgree"><span>I acknowledge that I have received, read, and understand the CPR Employee Handbook, and I agree to follow its policies.</span></label>'
+    +ackBox
+    +'<label class="agree"><input type="checkbox" id="hbAgree"><span>'+(ACK
+      ?'I have read and agree to the acknowledgment above.'
+      :'I acknowledge that I have received, read, and understand the CPR Employee Handbook, and I agree to follow its policies.')+'</span></label>'
     +'<div class="f full" style="margin-top:12px"><label>Your full legal name</label><input id="sigName" autocomplete="name" placeholder="Type your full name" value="'+esc(INVITE.offer_signed_name||INVITE.invited_name||'')+'"></div>'
     +sigHtml()
     +'<div class="errline" id="err"></div>'
@@ -467,6 +474,7 @@ async function refresh(){
   if(r.status===200&&r.data.ok){
     INVITE=r.data.intake;
     if(r.data.handbook)HANDBOOK=r.data.handbook;
+    if(r.data.ack)ACK=r.data.ack;
     DECLINING=false;derivePhase();
   }
   draw();window.scrollTo(0,0);
@@ -477,6 +485,7 @@ async function refresh(){
   if(!(r.status===200&&r.data.ok)){$('#card').innerHTML='<div class="gone">This link isn’t valid anymore — ask your manager to resend it.</div>';return;}
   INVITE=r.data.intake;
   if(r.data.handbook)HANDBOOK=r.data.handbook;
+  if(r.data.ack)ACK=r.data.ack;
   derivePhase();
   if(INVITE.invited_name&&!D.first){const p=INVITE.invited_name.split(' ');D.first=p[0]||'';D.last=p.slice(1).join(' ');}
   draw();

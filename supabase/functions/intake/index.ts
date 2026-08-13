@@ -132,6 +132,19 @@ function latin1ish(s: string): string {
 // policies — service-role only), deliberately NOT in the public repo:
 // a real signature on public hosting would be a forgery kit. Cached per
 // warm boot.
+// The handbook acknowledgment wording (the owner's real At-Will Employment
+// Agreement page) — owner-editable in app_settings 'hiring.handbook_ack';
+// falls back to a minimal built-in acknowledgment.
+const ACK_FALLBACK = {
+  title: "Employee Handbook Acknowledgment",
+  version: "", employer_name: "", employer_title: "",
+  body: "I acknowledge that I have received, read, and understand the CPR Employee Handbook, and I agree to follow its policies.",
+};
+async function handbookAck() {
+  const { data } = await admin.from("app_settings").select("value").eq("key", "hiring.handbook_ack").maybeSingle();
+  const v = (data?.value && typeof data.value === "object") ? data.value : {};
+  return { ...ACK_FALLBACK, ...v };
+}
 let _ownerSig: Uint8Array | null | undefined;
 async function ownerSigBytes(): Promise<Uint8Array | null> {
   if (_ownerSig !== undefined) return _ownerSig;
@@ -151,6 +164,7 @@ async function buildOfferPdf(opts: {
   body: string; link?: string; storeLine?: string;
   offerSig?: SigBlock | null;
   handbookSig?: SigBlock | null;
+  ack?: Record<string, unknown> | null;
 }): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("https://esm.sh/pdf-lib@1.17.1");
   const doc = await PDFDocument.create();
@@ -272,11 +286,32 @@ async function buildOfferPdf(opts: {
     y -= 18;
   }
   if (opts.handbookSig) {
+    const ack = opts.ack || ACK_FALLBACK;
     newPage();
-    page.drawText("Employee Handbook Acknowledgment", { x: M, y: y - 14, size: 14, font: bold, color: dark });
-    y -= 34;
-    await drawSig("Acknowledged and agreed", opts.handbookSig,
-      "I acknowledge that I have received, read, and understand the CPR Employee Handbook, and I agree to follow its policies. The handbook was presented in full, section by section, immediately before this signature was captured.");
+    for (const ln of wrapW(latin1ish(String(ack.title || "Employee Handbook Acknowledgment")), bold, 13, CW)) {
+      page.drawText(ln, { x: M, y: y - 13, size: 13, font: bold, color: dark });
+      y -= 19;
+    }
+    y -= 4;
+    const meta = ["Employee: " + (opts.handbookSig.name || ""), ack.version ? "Handbook Version: " + ack.version : ""].filter(Boolean).join("   ·   ");
+    page.drawText(latin1ish(meta), { x: M, y: y - 9.5, size: 9.5, font, color: grey });
+    y -= 24;
+    para(String(ack.body || ""), font, 9.8, dark, 14.5);
+    y -= 6;
+    para("The Employee Handbook was presented in full, section by section, immediately before the employee signature below was captured.", font, 8.5, grey, 12.5);
+    if (ownerImg && ack.employer_name) {
+      ensure(120);
+      y -= 12;
+      const sw = 120, sh = sw * (ownerImg.height / ownerImg.width);
+      page.drawImage(ownerImg, { x: M, y: y - sh, width: sw, height: sh });
+      y -= sh + 4;
+      page.drawLine({ start: { x: M, y }, end: { x: M + 220, y }, thickness: 0.8, color: grey });
+      y -= 13;
+      page.drawText(latin1ish(ack.employer_name + (ack.employer_title ? "  ·  " + ack.employer_title : "") + "  ·  Employer"),
+        { x: M, y, size: 9.5, font, color: grey });
+      y -= 8;
+    }
+    await drawSig("Employee signature", opts.handbookSig);
   }
   return await doc.save();
 }
@@ -353,11 +388,12 @@ Deno.serve(async (req) => {
     const { data } = await admin.from("staff_intake").select(PUBLIC_FIELDS).eq("token", token).maybeSingle();
     if (!data) return json({ error: "not_found" }, 404);
     // Hand the handbook over only when it's the next thing to sign.
-    let handbook: unknown[] | undefined;
+    let handbook: unknown[] | undefined, ack: unknown | undefined;
     if (data.offer_body && data.offer_signed_at && !data.offer_declined_at && !data.handbook_signed_at) {
       handbook = await handbookArticles();
+      ack = await handbookAck();
     }
-    return json({ ok: true, intake: data, ...(handbook ? { handbook } : {}) });
+    return json({ ok: true, intake: data, ...(handbook ? { handbook, ack } : {}) });
   }
 
   if (action === "sign_offer" || action === "decline_offer" || action === "sign_handbook") {
@@ -430,6 +466,7 @@ Deno.serve(async (req) => {
       handbookSig: it.handbook_signed_at
         ? { png: it.handbook_signature, name: it.handbook_signed_name || "", at: it.handbook_signed_at }
         : null,
+      ack: it.handbook_signed_at ? await handbookAck() : null,
     });
     return json({ ok: true, pdf: b64FromBytes(pdf), filename: "CPR Offer — " + (it.offer_signed_name || "signed") + ".pdf" });
   }
