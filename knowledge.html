@@ -322,11 +322,15 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .edtools select{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);padding:5px 7px;cursor:pointer}
 .edtools select:focus{outline:none;border-color:var(--blue)}
 .edmenu{position:absolute;z-index:60;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(45,45,59,.18);padding:5px;min-width:186px}
-.edmenu button{display:flex;align-items:center;gap:9px;width:100%;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;
+.edmenu button{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;
 border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px;cursor:pointer;text-align:left;line-height:1.2}
 .edmenu button:hover{background:var(--light-grey)}
 .edmenu .sep{height:1px;background:var(--row);margin:4px 2px}
-.edmenu .sw{width:15px;height:15px;border-radius:5px;border:1.5px solid;flex:none}
+/* two fixed columns: icon slot, then labels that all start on the same line */
+.edmenu .mic{width:16px;height:16px;flex:none;display:inline-flex;align-items:center;justify-content:center}
+.edmenu .mic svg{display:block}
+.edmenu .lbl{flex:1;min-width:0;text-align:left}
+.edmenu .sw{width:15px;height:15px;border-radius:5px;border:1.5px solid}
 /* tables inside the editor look like tables, with a visible grid while editing */
 .ed-rich table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.86rem}
 .ed-rich th,.ed-rich td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top;min-width:44px}
@@ -336,7 +340,7 @@ border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px
 .ed-rich .ed-callout.c-red{background:#FDEBEC;border-color:#F2C4C6;color:#93262B}
 .ed-rich .ed-callout.c-green{background:#E6F6EE;border-color:#B7E2CC;color:#1B6844}
 .ed-rich .ed-callout.c-blue{background:#EAF6FD;border-color:#BFE2F5;color:#175E82}
-.ed-rich .ed-callout.c-plain{background:#F8F8FA;border-color:#E0E2EA;color:#4E4E50}
+.ed-rich .ed-callout.c-plain{background:transparent;border-color:#E0E2EA;color:var(--dark)}
 .ed-rich h5{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark);margin:12px 0 4px}
 .ed-rich h6{font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;color:var(--dark-grey);margin:10px 0 4px}
 .edtools .edsep{width:1px;height:20px;background:var(--border);margin:0 4px}
@@ -1462,7 +1466,7 @@ const CO_KINDS=[
   {key:'red',  cls:'c-red',  prefix:'!r> ',re:/^!r>\s+(.*)$/, label:'Red — do not do this',  bg:'#FDEBEC', bd:'#F2C4C6'},
   {key:'green',cls:'c-green',prefix:'!g> ',re:/^!g>\s+(.*)$/, label:'Green — best practice', bg:'#E6F6EE', bd:'#B7E2CC'},
   {key:'blue', cls:'c-blue', prefix:'!b> ',re:/^!b>\s+(.*)$/, label:'Blue — good to know',   bg:'#EAF6FD', bd:'#BFE2F5'},
-  {key:'plain',cls:'c-plain',prefix:'!n> ',re:/^!n>\s+(.*)$/, label:'Plain box — no color',  bg:'#F8F8FA', bd:'#E0E2EA'}
+  {key:'plain',cls:'c-plain',prefix:'!n> ',re:/^!n>\s+(.*)$/, label:'Plain box — no fill',   bg:'transparent', bd:'#C7CAD4'}
 ];
 function calloutPrefix(el){
   const k=CO_KINDS.find(x=>x.cls&&el.classList.contains(x.cls));
@@ -1813,8 +1817,10 @@ function drawEditor(){
     const m=document.createElement('div'); m.className='edmenu';
     m.innerHTML=items.map((it,i)=>it.sep?'<div class="sep"></div>'
       :'<button type="button" data-i="'+i+'">'
+        +'<span class="mic">'
         +(it.swatch?'<span class="sw" style="background:'+it.swatch[0]+';border-color:'+it.swatch[1]+'"></span>':'')
-        +(it.icon?ic(it.icon,15):'')+'<span>'+esc(it.label)+'</span></button>').join('');
+        +(it.icon?ic(it.icon,15):'')+'</span>'
+        +'<span class="lbl">'+esc(it.label)+'</span></button>').join('');
     document.body.appendChild(m);
     const r=btn.getBoundingClientRect();
     m.style.top=(r.bottom+window.scrollY+5)+'px';

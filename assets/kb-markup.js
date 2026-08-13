@@ -32,7 +32,7 @@
     + '.callout.c-red{background:#FDEBEC;border-color:#F2C4C6}.callout.c-red .ct{color:#93262B}'
     + '.callout.c-green{background:#E6F6EE;border-color:#B7E2CC}.callout.c-green .ct{color:#1B6844}'
     + '.callout.c-blue{background:#EAF6FD;border-color:#BFE2F5}.callout.c-blue .ct{color:#175E82}'
-    + '.callout.c-plain{background:#F8F8FA;border-color:#E0E2EA}.callout.c-plain .ct{color:#4E4E50}'
+    + '.callout.c-plain{background:transparent;border-color:#E0E2EA}.callout.c-plain .ct{color:var(--dark,#2D2D3B)}'
     /* tables scroll on their own rather than pushing the page sideways */
     + '.mk-tblwrap{overflow-x:auto;margin:12px 0;-webkit-overflow-scrolling:touch}'
     + '.mk-tbl{border-collapse:collapse;width:100%;min-width:340px;font-size:.86rem}'
