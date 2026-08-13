@@ -138,6 +138,7 @@ letter-spacing:.4px;color:var(--grey);padding-top:2px}
 <body>
 <div class="card" id="card"><div class="gone">Loading…</div></div>
 
+<script src="assets/kb-markup.js"></script>
 <script type="module">
 const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
 const FN=SB_URL+'/functions/v1/intake';
@@ -163,29 +164,9 @@ async function call(body){
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   return {status:r.status,data:await r.json().catch(()=>({}))};
 }
-/* light markup → safe HTML (same family as training.html's renderer) */
-function render(text){
-  let s=esc(text);
-  s=s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g,'<img src="$2" alt="$1" loading="lazy">');
-  s=s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-  s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');
-  s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
-  s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
-  s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<i>$2</i>');
-  const lines=s.split('\n');let out='',ul=false,ol=false;
-  const close=()=>{if(ul){out+='</ul>';ul=false;}if(ol){out+='</ol>';ol=false;}};
-  for(const ln of lines){let m;
-    if(/^\s*---+\s*$/.test(ln)){close();out+='<hr>';}
-    else if((m=/^!&gt;\s+(.*)$/.exec(ln))){close();out+='<div class="callout"><span>⚠️</span><div>'+m[1]+'</div></div>';}
-    else if((m=/^##\s+(.*)$/.exec(ln))){close();out+='<h4>'+m[1]+'</h4>';}
-    else if((m=/^#\s+(.*)$/.exec(ln))){close();out+='<h3>'+m[1]+'</h3>';}
-    else if((m=/^\s*[-•]\s+(.*)$/.exec(ln))){if(ol){out+='</ol>';ol=false;}if(!ul){out+='<ul>';ul=true;}out+='<li>'+m[1]+'</li>';}
-    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(ln))){if(ul){out+='</ul>';ul=false;}if(!ol){out+='<ol>';ol=true;}out+='<li>'+m[1]+'</li>';}
-    else if(ln.trim()===''){close();out+='<div style="height:8px"></div>';}
-    else{close();out+=ln+'<br>';}
-  }
-  close();return out;
-}
+/* light markup → safe HTML — the shared KB renderer (assets/kb-markup.js), so
+   the handbook a candidate signs looks exactly like the KB article it came from */
+function render(text){ return window.CPRMarkup.render(text); }
 function firstName(){return D.preferred||D.first||(INVITE&&INVITE.invited_name?INVITE.invited_name.split(' ')[0]:'');}
 function derivePhase(){
   if(INVITE.status==='promoted'||INVITE.submitted_at){PHASE='done';SUBMITTED=true;return;}

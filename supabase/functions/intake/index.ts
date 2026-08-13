@@ -106,9 +106,18 @@ function kbToPdfMarkup(body: string): string {
   return String(body || "").split("\n").map((ln) => {
     let l = ln;
     if (/^\s*!\[/.test(l)) return "";
-    if (/^#\s+/.test(l)) l = "## " + l.replace(/^#\s+/, "");
+    // the PDF has no table engine — drop the |---| rule and lay each row out
+    // as "cell — cell" so a handbook table still reads as prose
+    if (/^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(l) && /-/.test(l) && /\|/.test(l)) return "";
+    if (/^\s*\|.*\|\s*$/.test(l)) {
+      return "• " + l.replace(/^\s*\|/, "").replace(/\|\s*$/, "")
+        .split("|").map((c) => c.trim()).filter(Boolean).join("  —  ");
+    }
+    if (/^####\s+/.test(l)) l = "## " + l.replace(/^####\s+/, "");
+    else if (/^###\s+/.test(l)) l = "## " + l.replace(/^###\s+/, "");
+    else if (/^#\s+/.test(l)) l = "## " + l.replace(/^#\s+/, "");
     l = l.replace(/^(\s*)[-*]\s+/, "$1• ");
-    l = l.replace(/^!>\s+/, "Note: ");
+    l = l.replace(/^!([rgbn])?>\s+/, "Note: ");
     l = l.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1");
     l = l.replace(/(^|[\s(>])\*([^*\n]+)\*/g, "$1$2");
     l = l.replace(/!\[[^\]]*\]\([^)]+\)/g, "");

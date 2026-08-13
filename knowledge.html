@@ -222,6 +222,8 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 @media(max-width:700px){.artbody{padding:18px 20px 8px}}
 .artbody h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;color:var(--dark);margin:22px 0 10px}
 .artbody h4{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;color:var(--dark);margin:18px 0 8px}
+.artbody h5{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;color:var(--dark);margin:15px 0 6px}
+.artbody h6{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark-grey);margin:13px 0 5px;text-transform:none}
 .artbody ul,.artbody ol{margin:0 0 16px;padding-left:22px}
 /* sub-items read as a. b. c. then i. ii. iii. — the outline everyone expects */
 .artbody ol ol,.ed-rich ol ol{list-style-type:lower-alpha}
@@ -314,6 +316,29 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .ed-rich .ed-callout{background:#FDF6E7;border:1.5px solid #F2DFAE;border-radius:10px;padding:13px 16px;margin:0 0 16px;font-size:.85rem;font-weight:700;color:#7A5A08;line-height:1.55}
 .ed-rich:empty:before{content:'Write it how you\'d explain it to a new hire…';color:var(--grey)}
 .edtools button.on{background:#EAF6FD;border-color:#CDE8F7;color:#1E7AA8}
+/* icon-only toolbar: the label lives in the tooltip, the glyph does the work */
+.edtools button{display:inline-flex;align-items:center;gap:2px;line-height:0}
+.edtools button svg{display:block}
+.edtools select{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);padding:5px 7px;cursor:pointer}
+.edtools select:focus{outline:none;border-color:var(--blue)}
+.edmenu{position:absolute;z-index:60;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(45,45,59,.18);padding:5px;min-width:186px}
+.edmenu button{display:flex;align-items:center;gap:9px;width:100%;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;
+border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px;cursor:pointer;text-align:left;line-height:1.2}
+.edmenu button:hover{background:var(--light-grey)}
+.edmenu .sep{height:1px;background:var(--row);margin:4px 2px}
+.edmenu .sw{width:15px;height:15px;border-radius:5px;border:1.5px solid;flex:none}
+/* tables inside the editor look like tables, with a visible grid while editing */
+.ed-rich table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.86rem}
+.ed-rich th,.ed-rich td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top;min-width:44px}
+.ed-rich th{background:#F3F6FA;font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
+.ed-rich td:focus,.ed-rich th:focus{outline:2px solid var(--blue);outline-offset:-2px}
+/* callout colors in the editor mirror the reading view */
+.ed-rich .ed-callout.c-red{background:#FDEBEC;border-color:#F2C4C6;color:#93262B}
+.ed-rich .ed-callout.c-green{background:#E6F6EE;border-color:#B7E2CC;color:#1B6844}
+.ed-rich .ed-callout.c-blue{background:#EAF6FD;border-color:#BFE2F5;color:#175E82}
+.ed-rich .ed-callout.c-plain{background:#F8F8FA;border-color:#E0E2EA;color:#4E4E50}
+.ed-rich h5{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark);margin:12px 0 4px}
+.ed-rich h6{font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;color:var(--dark-grey);margin:10px 0 4px}
 .edtools .edsep{width:1px;height:20px;background:var(--border);margin:0 4px}
 .edsrc{width:100%;border:none;resize:vertical;min-height:420px;padding:20px 28px 26px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.7;color:#3A3A45}
 .edsrc:focus{outline:none}
@@ -359,6 +384,7 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 <div id="mdlWrap"></div>
 <div class="toast" id="toast"></div>
 
+<script src="assets/kb-markup.js"></script>
 <script src="assets/pin-gate.js"></script>
 <script src="assets/nav.js"></script>
 <script type="module">
@@ -377,58 +403,13 @@ function readMins(body){ const w=String(body||'').split(/\s+/).length; return Ma
 function slugify(t){ return String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||('a-'+Date.now()); }
 
 /* ---------- light markup → safe HTML (house renderer + !> amber callouts) ---------- */
-/* Lists nest by INDENTATION — two spaces (or a tab) per level, standard
-   markdown. One parser feeds both the reading view and the editor, so what you
-   indent in the editor is what readers see. Levels never jump more than one at
-   a time, and a level that switches bullet/number starts its own list. */
-const LIST_RE=/^([ \t]*)([-•]|\d+[.)])[ \t]+(.*)$/;
-function listBlock(items,inline){
-  let prev=0;
-  items.forEach((it,i)=>{
-    let lv=Math.floor(it.indent/2);
-    if(i===0)lv=0; else if(lv>prev+1)lv=prev+1;
-    it.depth=lv; prev=lv;
-  });
-  let i=0,html='';
-  const build=depth=>{
-    const tag=items[i].tag;
-    let h='<'+tag+'>';
-    while(i<items.length&&items[i].depth===depth&&items[i].tag===tag){
-      h+='<li>'+inline(items[i].text);
-      i++;
-      if(i<items.length&&items[i].depth>depth)h+=build(items[i].depth);
-      h+='</li>';
-    }
-    return h+'</'+tag+'>';
-  };
-  while(i<items.length)html+=build(items[i].depth);
-  return html;
-}
-function render(text){
-  let s=esc(text);
-  s=s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g,'<img src="$2" alt="$1" loading="lazy">');
-  s=s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-  s=s.replace(/(^|[\s>])(https?:\/\/[^\s<]+)/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
-  s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');
-  s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
-  s=s.replace(/__([^_\n]+)__/g,'<u>$1</u>');
-  s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<i>$2</i>');
-  const lines=s.split('\n'); let out='',buf=[];
-  const close=()=>{ if(buf.length){ out+=listBlock(buf,x=>x); buf=[]; } };
-  for(const ln of lines){
-    let m;
-    if((m=LIST_RE.exec(ln))&&!/^\s*---+\s*$/.test(ln)){
-      buf.push({indent:m[1].replace(/\t/g,'  ').length,tag:/^\d/.test(m[2])?'ol':'ul',text:m[3]}); continue; }
-    if(/^\s*---+\s*$/.test(ln)){ close(); out+='<hr>'; }
-    else if((m=/^!&gt;\s+(.*)$/.exec(ln))){ close(); out+='<div class="callout"><span class="ci">⚠️</span><div class="ct">'+m[1]+'</div></div>'; }
-    else if((m=/^##\s+(.*)$/.exec(ln))){ close(); out+='<h4>'+m[1]+'</h4>'; }
-    else if((m=/^#\s+(.*)$/.exec(ln))){ close(); out+='<h3>'+m[1]+'</h3>'; }
-    else if(ln.trim()===''){ close(); out+='<div style="height:8px"></div>'; }
-    else { close(); out+=ln+'<br>'; }
-  }
-  close();
-  return out;
-}
+/* light markup → safe HTML: the shared KB renderer (assets/kb-markup.js) —
+   knowledge/training/intake all render article bodies through it, so tables,
+   callouts and nested lists look the same everywhere. The EDITOR's
+   markup→editable-HTML pass lives further down (it needs different output). */
+function render(text){ return window.CPRMarkup.render(text,{autolink:true}); }
+const LIST_RE=window.CPRMarkup.LIST_RE, TABLE_RE=window.CPRMarkup.TABLE_RE, TSEP_RE=window.CPRMarkup.TSEP_RE;
+const listBlock=window.CPRMarkup.listBlock, mkCells=window.CPRMarkup.cells;
 
 /* ---------- auth ---------- */
 let AUTH=null, BOOTED=false;
@@ -1415,16 +1396,37 @@ function inlineToHtml(t){
   s=s.replace(/(^|[\s(>])\*([^*\n]+)\*/g,'$1<em>$2</em>');
   return s;
 }
+function edTableHtml(rows){
+  const head=(rows.length>1&&TSEP_RE.test(rows[1])&&/-/.test(rows[1]))?mkCells(rows[0]):null;
+  const body=head?rows.slice(2):rows;
+  const cols=Math.max(head?head.length:0,...body.map(r=>mkCells(r).length));
+  const pad=a=>{ while(a.length<cols)a.push(''); return a; };
+  let h='<table>';
+  if(head)h+='<thead><tr>'+pad(head).map(c=>'<th>'+(inlineToHtml(c)||'<br>')+'</th>').join('')+'</tr></thead>';
+  h+='<tbody>';
+  body.forEach(r=>{ if(TSEP_RE.test(r)&&/-/.test(r))return;
+    h+='<tr>'+pad(mkCells(r)).map(c=>'<td>'+(inlineToHtml(c)||'<br>')+'</td>').join('')+'</tr>'; });
+  return h+'</tbody></table>';
+}
 function mdToEditor(md){
   const lines=String(md||'').split('\n');
-  let out='',buf=[];
-  const close=()=>{ if(buf.length){ out+=listBlock(buf,inlineToHtml); buf=[]; } };
+  let out='',buf=[],tbl=[];
+  const close=()=>{
+    if(buf.length){ out+=listBlock(buf,inlineToHtml); buf=[]; }
+    if(tbl.length){ out+=edTableHtml(tbl); tbl=[]; }
+  };
   for(const raw of lines){
     let m;
+    if(TABLE_RE.test(raw)&&!/^\s*---+\s*$/.test(raw)){
+      if(buf.length){ out+=listBlock(buf,inlineToHtml); buf=[]; } tbl.push(raw); continue; }
     if((m=LIST_RE.exec(raw))&&!/^\s*---+\s*$/.test(raw)){
+      if(tbl.length){ out+=edTableHtml(tbl); tbl=[]; }
       buf.push({indent:m[1].replace(/\t/g,'  ').length,tag:/^\d/.test(m[2])?'ol':'ul',text:m[3]}); continue; }
-    if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; }
-    else if((m=/^!>\s+(.*)$/.exec(raw))){ close(); out+='<div class="ed-callout">'+(inlineToHtml(m[1])||'<br>')+'</div>'; }
+    if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; continue; }
+    const co=CO_KINDS.map(k=>({k,m:k.re.exec(raw)})).find(x=>x.m);
+    if(co){ close(); out+='<div class="ed-callout'+(co.k.cls?' '+co.k.cls:'')+'">'+(inlineToHtml(co.m[1])||'<br>')+'</div>'; continue; }
+    if((m=/^####\s+(.*)$/.exec(raw))){ close(); out+='<h6>'+inlineToHtml(m[1])+'</h6>'; }
+    else if((m=/^###\s+(.*)$/.exec(raw))){ close(); out+='<h5>'+inlineToHtml(m[1])+'</h5>'; }
     else if((m=/^##\s+(.*)$/.exec(raw))){ close(); out+='<h4>'+inlineToHtml(m[1])+'</h4>'; }
     else if((m=/^#\s+(.*)$/.exec(raw))){ close(); out+='<h3>'+inlineToHtml(m[1])+'</h3>'; }
     else if(raw.trim()===''){ close(); }
@@ -1452,7 +1454,20 @@ function inlineToMd(node){
   });
   return s;
 }
-const ED_BLOCK=/^(P|DIV|H1|H2|H3|H4|H5|H6|UL|OL|HR|BLOCKQUOTE|SECTION|ARTICLE)$/;
+const ED_BLOCK=/^(P|DIV|H1|H2|H3|H4|H5|H6|UL|OL|HR|BLOCKQUOTE|SECTION|ARTICLE|TABLE)$/;
+/* callout colors ride as a prefix letter: !r> red, !g> green, !b> blue,
+   !n> plain box, bare !> amber (what every existing article already uses) */
+const CO_KINDS=[
+  {key:'amber',cls:'',       prefix:'!> ', re:/^!>\s+(.*)$/,  label:'Amber — heads up',      bg:'#FDF6E7', bd:'#F2DFAE'},
+  {key:'red',  cls:'c-red',  prefix:'!r> ',re:/^!r>\s+(.*)$/, label:'Red — do not do this',  bg:'#FDEBEC', bd:'#F2C4C6'},
+  {key:'green',cls:'c-green',prefix:'!g> ',re:/^!g>\s+(.*)$/, label:'Green — best practice', bg:'#E6F6EE', bd:'#B7E2CC'},
+  {key:'blue', cls:'c-blue', prefix:'!b> ',re:/^!b>\s+(.*)$/, label:'Blue — good to know',   bg:'#EAF6FD', bd:'#BFE2F5'},
+  {key:'plain',cls:'c-plain',prefix:'!n> ',re:/^!n>\s+(.*)$/, label:'Plain box — no color',  bg:'#F8F8FA', bd:'#E0E2EA'}
+];
+function calloutPrefix(el){
+  const k=CO_KINDS.find(x=>x.cls&&el.classList.contains(x.cls));
+  return k?k.prefix:'!> ';
+}
 function editorToMd(root){
   const out=[];
   const push=t=>{ out.push(t); };
@@ -1472,6 +1487,17 @@ function editorToMd(root){
       [...ch.children].forEach(c=>{ if(c.tagName==='UL'||c.tagName==='OL')listToMd(c,depth+1); });
     });
   };
+  /* tables serialize as pipe rows; a header row gets the |---|---| separator
+     under it so the renderer knows to bold+shade it */
+  const tableToMd=el=>{
+    const rowMd=tr=>'| '+[...tr.children].map(c=>inlineToMd(c).trim().replace(/\|/g,'\\|')||' ').join(' | ')+' |';
+    const rows=[...el.querySelectorAll('tr')];
+    if(!rows.length)return;
+    const first=rows[0], isHead=[...first.children].some(c=>c.tagName==='TH');
+    push(rowMd(first));
+    if(isHead)push('|'+[...first.children].map(()=>'---').join('|')+'|');
+    rows.slice(1).forEach(tr=>push(rowMd(tr)));
+  };
   const blockOf=el=>{
     const tag=el.tagName.toLowerCase();
     /* contenteditable happily nests blocks (Chrome puts <ul> INSIDE the <p>
@@ -1488,9 +1514,13 @@ function editorToMd(root){
     }
     if(tag==='h1'||tag==='h3'){ push('# '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='h2'||tag==='h4'){ push('## '+inlineToMd(el).trim()); push(''); return; }
+    if(tag==='h5'){ push('### '+inlineToMd(el).trim()); push(''); return; }
+    if(tag==='h6'){ push('#### '+inlineToMd(el).trim()); push(''); return; }
     if(tag==='hr'){ push('---'); push(''); return; }
     if(tag==='ul'||tag==='ol'){ listToMd(el,0); push(''); return; }
-    if(el.classList&&el.classList.contains('ed-callout')){ push('!> '+inlineToMd(el).trim()); push(''); return; }
+    if(tag==='table'){ tableToMd(el); push(''); return; }
+    if(el.classList&&el.classList.contains('ed-callout')){
+      push(calloutPrefix(el)+inlineToMd(el).trim()); push(''); return; }
     if(tag==='blockquote'){ push('!> '+inlineToMd(el).trim()); push(''); return; }
     /* p / div / anything else = a paragraph; a lone <br> is a blank line */
     const txt=inlineToMd(el).trim();
@@ -1509,7 +1539,7 @@ function cleanPaste(html){
   const box=document.createElement('div');
   box.innerHTML=String(html||'');
   box.querySelectorAll('style,script,meta,link,o\\:p').forEach(el=>el.remove());
-  const ALLOW={P:1,DIV:1,BR:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,UL:1,OL:1,LI:1,STRONG:1,B:1,EM:1,I:1,U:1,A:1,CODE:1,HR:1,IMG:1,SPAN:1,TABLE:1,TR:1,TD:1,TH:1,TBODY:1};
+  const ALLOW={P:1,DIV:1,BR:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,UL:1,OL:1,LI:1,STRONG:1,B:1,EM:1,I:1,U:1,A:1,CODE:1,HR:1,IMG:1,SPAN:1,TABLE:1,TR:1,TD:1,TH:1,TBODY:1,THEAD:1,TFOOT:1};
   const walk=el=>{
     [...el.children].forEach(c=>{
       walk(c);
@@ -1525,14 +1555,8 @@ function cleanPaste(html){
         li.innerHTML=c.innerHTML.replace(/^\s*[·•]\s+/,'');
         const ul=document.createElement('ul'); ul.appendChild(li); c.replaceWith(ul);
       }
-      /* tables aren't in the light markup — flatten each row to a bullet */
-      if(c.tagName==='TABLE'){
-        const rows=[...c.querySelectorAll('tr')].map(tr=>
-          [...tr.children].map(td=>td.textContent.trim()).filter(Boolean).join(' — '));
-        const ul=document.createElement('ul');
-        rows.filter(Boolean).forEach(r=>{ const li=document.createElement('li'); li.textContent=r; ul.appendChild(li); });
-        c.replaceWith(ul);
-      }
+      /* tables ARE supported now, so a pasted table stays a table — we only
+         strip its styling (the cells were already cleaned on the way down) */
     });
   };
   walk(box);
@@ -1540,6 +1564,8 @@ function cleanPaste(html){
 }
 
 let SRCMODE=false;   // the editor's raw-markup escape hatch
+/* toolbar glyph — Lucide via nav.js's shared map, text label lives in title= */
+function ic(name,size){ return window.CPRNavIcon?CPRNavIcon(name,size||16):''; }
 function drawEditor(){
   const a=OPEN;
   SRCMODE=false;
@@ -1566,27 +1592,31 @@ function drawEditor(){
         +'<div class="footnote" style="margin-top:4px">'+(a?'Last saved '+fmtD(a.updated_at):'Not saved yet')+' · editing as '+esc(AUTH.name)+'</div>'
       +'</div>'
       +'<div class="edtools">'
-        +'<button data-cmd="formatBlock" data-val="p" title="Normal text">Text</button>'
-        +'<button data-cmd="formatBlock" data-val="h3" title="Big heading">Heading</button>'
-        +'<button data-cmd="formatBlock" data-val="h4" title="Small heading">Subheading</button>'
+        +'<select id="eBlock" title="Text size">'
+          +'<option value="p">Normal text</option>'
+          +'<option value="h3">Heading 1</option>'
+          +'<option value="h4">Heading 2</option>'
+          +'<option value="h5">Heading 3</option>'
+          +'<option value="h6">Heading 4</option></select>'
         +'<span class="edsep"></span>'
-        +'<button data-cmd="bold" title="Bold (Ctrl+B)" style="font-weight:900">B</button>'
-        +'<button data-cmd="italic" title="Italic (Ctrl+I)" style="font-style:italic">I</button>'
-        +'<button data-cmd="underline" title="Underline (Ctrl+U)" style="text-decoration:underline">U</button>'
+        +'<button data-cmd="bold" title="Bold (Ctrl+B)">'+ic('bold')+'</button>'
+        +'<button data-cmd="italic" title="Italic (Ctrl+I)">'+ic('italic')+'</button>'
+        +'<button data-cmd="underline" title="Underline (Ctrl+U)">'+ic('underline')+'</button>'
         +'<span class="edsep"></span>'
-        +'<button data-cmd="insertUnorderedList" title="Bulleted list">• List</button>'
-        +'<button data-cmd="insertOrderedList" title="Numbered list">1. List</button>'
-        +'<button data-cmd="indent" title="Make it a sub-item (Tab)">→ Indent</button>'
-        +'<button data-cmd="outdent" title="Pull it back out (Shift+Tab)">← Outdent</button>'
+        +'<button data-cmd="insertUnorderedList" title="Bulleted list">'+ic('list')+'</button>'
+        +'<button data-cmd="insertOrderedList" title="Numbered list">'+ic('list-ordered')+'</button>'
+        +'<button data-cmd="indent" title="Make it a sub-item (Tab)">'+ic('indent-increase')+'</button>'
+        +'<button data-cmd="outdent" title="Pull it back out (Shift+Tab)">'+ic('indent-decrease')+'</button>'
         +'<span class="edsep"></span>'
-        +'<button data-do="link" title="Add a link">🔗 Link</button>'
-        +'<button id="edImg" title="Upload an image">🖼️ Image</button>'
-        +'<button data-do="callout" title="Amber note box">⚠️ Note</button>'
-        +'<button data-do="hr" title="Divider line">— Divider</button>'
+        +'<button data-do="link" title="Add a link">'+ic('link')+'</button>'
+        +'<button id="edImg" title="Upload an image">'+ic('image')+'</button>'
+        +'<button class="hasmenu" id="edTblBtn" title="Table">'+ic('table')+ic('chevron-down',12)+'</button>'
+        +'<button class="hasmenu" id="edCoBtn" title="Note box">'+ic('triangle-alert')+ic('chevron-down',12)+'</button>'
+        +'<button data-do="hr" title="Divider line">'+ic('minus')+'</button>'
         +'<span class="edsep"></span>'
-        +'<button data-do="clear" title="Strip formatting from the selection">Clear format</button>'
+        +'<button data-do="clear" title="Strip formatting from the selection">'+ic('eraser')+'</button>'
         +'<span style="flex:1"></span>'
-        +'<button id="edSrc" title="Edit the raw markup (advanced)">&lt;/&gt; Source</button>'
+        +'<button id="edSrc" title="Edit the raw markup (advanced)">'+ic('code')+'</button>'
         +'<input type="file" id="edImgFile" accept="image/*" hidden>'
       +'</div>'
       +'<div class="ed-rich" id="eBody" contenteditable="true" spellcheck="true">'+mdToEditor(ED.body)+'</div>'
@@ -1708,7 +1738,16 @@ function drawEditor(){
       }catch(e){}
       b.classList.toggle('on',!!on);
     });
+    /* the size dropdown shows what the caret is sitting in */
+    const sel=$('#eBlock');
+    if(sel){
+      let blk='';
+      try{ blk=(document.queryCommandValue('formatBlock')||'').toLowerCase().replace(/[<>]/g,''); }catch(e){}
+      if(blk==='h1')blk='h3'; if(blk==='h2')blk='h4';
+      sel.value=['h3','h4','h5','h6'].indexOf(blk)>-1?blk:'p';
+    }
   }
+  $('#eBlock').addEventListener('change',()=>{ exec('formatBlock','<'+$('#eBlock').value+'>'); });
   const holdCaret=b=>{ ['mouseup','click'].forEach(ev=>b.addEventListener(ev,e=>e.preventDefault())); };
   document.querySelectorAll('[data-cmd]').forEach(b=>{
     holdCaret(b);
@@ -1739,22 +1778,130 @@ function drawEditor(){
     }
     else if(k==='hr')document.execCommand('insertHTML',false,'<hr><p><br></p>');
     else if(k==='clear')document.execCommand('removeFormat');
-    else if(k==='callout'){
-      const blk=currentBlock();
-      if(blk&&blk.classList&&blk.classList.contains('ed-callout')){
-        const p=document.createElement('p'); p.innerHTML=blk.innerHTML; blk.replaceWith(p);
-      }else if(blk){
-        const d=document.createElement('div'); d.className='ed-callout'; d.innerHTML=blk.innerHTML||'<br>'; blk.replaceWith(d);
-      }else document.execCommand('insertHTML',false,'<div class="ed-callout">Note</div><p><br></p>');
-    }
     syncTools();
   }); });
+  /* ---- note boxes: pick a color, or turn one back into plain text ---- */
+  function setCallout(kind){
+    rich.focus();
+    const blk=currentBlock();
+    if(kind===null){   // "remove box"
+      if(blk&&blk.classList&&blk.classList.contains('ed-callout')){
+        const p=document.createElement('p'); p.innerHTML=blk.innerHTML; blk.replaceWith(p); placeCaret(p);
+      }
+      syncTools(); return;
+    }
+    const k=CO_KINDS.find(x=>x.key===kind)||CO_KINDS[0];
+    if(blk&&blk.classList&&blk.classList.contains('ed-callout')){
+      blk.className='ed-callout'+(k.cls?' '+k.cls:'');   // recolor in place
+    }else if(blk){
+      const d=document.createElement('div');
+      d.className='ed-callout'+(k.cls?' '+k.cls:'');
+      d.innerHTML=blk.innerHTML||'<br>';
+      blk.replaceWith(d); placeCaret(d);
+    }else{
+      document.execCommand('insertHTML',false,'<div class="ed-callout'+(k.cls?' '+k.cls:'')+'">Note</div><p><br></p>');
+    }
+    syncTools();
+  }
+  function placeCaret(el){
+    const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
+    const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  /* one little dropdown used by both the note-box and table buttons */
+  function openMenu(btn,items){
+    document.querySelectorAll('.edmenu').forEach(m=>m.remove());
+    const m=document.createElement('div'); m.className='edmenu';
+    m.innerHTML=items.map((it,i)=>it.sep?'<div class="sep"></div>'
+      :'<button type="button" data-i="'+i+'">'
+        +(it.swatch?'<span class="sw" style="background:'+it.swatch[0]+';border-color:'+it.swatch[1]+'"></span>':'')
+        +(it.icon?ic(it.icon,15):'')+'<span>'+esc(it.label)+'</span></button>').join('');
+    document.body.appendChild(m);
+    const r=btn.getBoundingClientRect();
+    m.style.top=(r.bottom+window.scrollY+5)+'px';
+    m.style.left=Math.min(r.left+window.scrollX,window.innerWidth-m.offsetWidth-12)+'px';
+    m.querySelectorAll('[data-i]').forEach(b=>b.addEventListener('click',()=>{
+      const it=items[+b.dataset.i]; m.remove(); if(it&&it.run)it.run();
+    }));
+    setTimeout(()=>document.addEventListener('mousedown',function off(e){
+      if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown',off); }
+    }),0);
+  }
+  $('#edCoBtn').addEventListener('mousedown',e=>{ e.preventDefault();
+    openMenu($('#edCoBtn'),CO_KINDS.map(k=>({label:k.label,swatch:[k.bg,k.bd],run:()=>setCallout(k.key)}))
+      .concat([{sep:true},{label:'Remove box',icon:'eraser',run:()=>setCallout(null)}]));
+  });
+  /* ---- tables ---- */
+  function caretCell(){
+    const sel=window.getSelection(); if(!sel.rangeCount)return null;
+    let n=sel.getRangeAt(0).startContainer;
+    if(n.nodeType===3)n=n.parentNode;
+    while(n&&n!==rich){ if(n.tagName==='TD'||n.tagName==='TH')return n; n=n.parentNode; }
+    return null;
+  }
+  function insertTable(cols,rows){
+    let h='<table><thead><tr>';
+    for(let c=0;c<cols;c++)h+='<th>Column '+(c+1)+'</th>';
+    h+='</tr></thead><tbody>';
+    for(let r=0;r<rows;r++){ h+='<tr>'; for(let c=0;c<cols;c++)h+='<td><br></td>'; h+='</tr>'; }
+    h+='</tbody></table><p><br></p>';
+    rich.focus(); document.execCommand('insertHTML',false,h); normalize();
+  }
+  function tableOp(op){
+    const cell=caretCell();
+    if(!cell){ toast('Put the cursor inside a table first.',true); return; }
+    const tr=cell.parentElement, table=cell.closest('table'), idx=[...tr.children].indexOf(cell);
+    if(op==='row'){
+      const nr=document.createElement('tr');
+      [...tr.children].forEach(()=>{ const td=document.createElement('td'); td.innerHTML='<br>'; nr.appendChild(td); });
+      (tr.parentElement.tagName==='THEAD'?table.tBodies[0]:tr.parentElement)
+        .insertBefore(nr, tr.parentElement.tagName==='THEAD'?table.tBodies[0].firstChild:tr.nextSibling);
+      placeCaret(nr.firstChild);
+    }else if(op==='col'){
+      [...table.querySelectorAll('tr')].forEach(r=>{
+        const src=r.children[idx]||r.lastElementChild;
+        const c=document.createElement(src&&src.tagName==='TH'?'th':'td');
+        c.innerHTML=src&&src.tagName==='TH'?'Column':'<br>';
+        r.insertBefore(c,(r.children[idx]||null)&&r.children[idx].nextSibling);
+      });
+    }else if(op==='delrow'){
+      if(table.querySelectorAll('tr').length<2){ toast('That is the last row — delete the table instead.',true); return; }
+      tr.remove();
+    }else if(op==='delcol'){
+      if(tr.children.length<2){ toast('That is the last column — delete the table instead.',true); return; }
+      [...table.querySelectorAll('tr')].forEach(r=>{ if(r.children[idx])r.children[idx].remove(); });
+    }else if(op==='del'){
+      const p=document.createElement('p'); p.innerHTML='<br>'; table.replaceWith(p); placeCaret(p);
+    }
+    syncTools();
+  }
+  $('#edTblBtn').addEventListener('mousedown',e=>{ e.preventDefault();
+    openMenu($('#edTblBtn'),[
+      {label:'Insert table (3 × 3)',icon:'table',run:()=>insertTable(3,3)},
+      {sep:true},
+      {label:'Add row below',icon:'plus',run:()=>tableOp('row')},
+      {label:'Add column right',icon:'plus',run:()=>tableOp('col')},
+      {label:'Delete row',icon:'trash-2',run:()=>tableOp('delrow')},
+      {label:'Delete column',icon:'trash-2',run:()=>tableOp('delcol')},
+      {sep:true},
+      {label:'Delete table',icon:'trash-2',run:()=>tableOp('del')}
+    ]);
+  });
   /* Enter inside a note box should LEAVE the box (the browser's default is to
      clone it forever); Enter elsewhere makes a clean <p> */
   /* Tab inside a list makes a sub-item (Shift+Tab pulls it back out) — the
      thing everyone expects from Word. Outside a list Tab still moves focus. */
   rich.addEventListener('keydown',e=>{
     if(e.key!=='Tab')return;
+    /* in a table Tab walks cells (and adds a row off the last one, like Word) */
+    const cell=caretCell();
+    if(cell){
+      e.preventDefault();
+      const cells=[...cell.closest('table').querySelectorAll('th,td')];
+      const i=cells.indexOf(cell)+(e.shiftKey?-1:1);
+      if(i>=0&&i<cells.length)placeCaret(cells[i]);
+      else if(!e.shiftKey){ tableOp('row'); }
+      return;
+    }
     const sel=window.getSelection(); if(!sel.rangeCount)return;
     let n=sel.getRangeAt(0).startContainer;
     if(n.nodeType===3)n=n.parentNode;

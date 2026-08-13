@@ -163,6 +163,20 @@ these when adding UI so a new tool looks native.
 - **`xlsx.min.js`** — vendored SheetJS `xlsx.mini.min.js` v0.18.5 (Apache-2.0); global
   `window.XLSX`, read-only `.xlsx/.xls/.csv` parsing. Loaded as a classic `<script>` by
   `inventory-editor.html`. Update: `npm pack xlsx@<ver>` → copy `package/dist/xlsx.mini.min.js`.
+- **`kb-markup.js`** — the ONE renderer for the KB's light markup
+  (`window.CPRMarkup.render(body,{autolink})`), used by knowledge.html's reading
+  view, training.html's in-page reader and intake.html's candidate handbook
+  accordion — never re-implement it per page. Syntax: `#`/`##`/`###`/`####`
+  headings · `- ` / `1. ` lists that **nest by two-space indentation**
+  (sub-numbers render a./i.) · `!>` amber callout with `!r>`/`!g>`/`!b>` red /
+  green / blue variants and `!n>` a plain no-color box · **pipe tables**
+  (`| a | b |`, a `|---|---|` row under the first makes it a header) · `---`
+  divider · `**bold** *italic* __underline__ `code` [text](url) ![alt](img)`.
+  Structural CSS (callout tints, tables, sub-list markers) is **injected by the
+  script** like pickers.js does; pages keep their own `.artbody` typography.
+  The editor's markup→editable-HTML pass stays in knowledge.html (it needs
+  contenteditable-shaped output) but writes this same syntax, and the handbook
+  PDF builder (intake fn `kbToPdfMarkup`) degrades tables to `cell — cell` rows.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
   source of truth for the Commission Calculator (nav label "Payroll · Commission & Tips" —
   same tool, payroll-focused name; file stays commission-calculator.html) + Dashboard.
@@ -1065,8 +1079,12 @@ Required/Drafts/Archived keep the pre-portal list layout. The article view
 records the read and shows the ack bar for required
 articles, 👍/👎 footer; managers additionally get the inline editor — a **WYSIWYG surface**
 (owner call 2026-08-12: "a real full editor"): contenteditable styled with the
-reading view's typography, a plain-language toolbar (Text/Heading/Subheading ·
-B/I/U · lists · Link · Image · Note · Divider · Clear format), Word/SharePoint
+reading view's typography, an **icon-only toolbar** (Lucide via CPRNavIcon — labels live in
+tooltips) with a text-size **dropdown** (Normal / Heading 1-4 → `#`..`####`),
+B/I/U, lists with Tab/Shift+Tab sub-items, **Tables** (menu: insert, add/delete
+row & column, delete table; Tab walks cells and adds a row off the last one),
+**Note boxes in amber/red/green/blue plus a plain no-color box** (menu recolors
+one in place; "Remove box" unwraps it), Link, Image, Divider, Clear format, Word/SharePoint
 paste sanitizing (junk styles stripped, `·` paragraphs → real bullets, tables
 flattened to bullets), image upload to kb-media, a pop-out Preview, and a
 `</> Source` escape hatch for the raw markup. **Storage is unchanged** — the
