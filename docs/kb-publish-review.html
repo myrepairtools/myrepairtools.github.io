@@ -1,0 +1,277 @@
+<title>KB Publishing Run</title>
+<style>
+:root{
+  --ground:#F5F4F5; --surface:#FFFFFF; --sunk:#EFEEF1;
+  --ink:#2D2D3B; --ink-2:#4A4A5C; --muted:#6E6E82; --line:#DEDDE3;
+  --blue:#2E7FAB; --blue-soft:#E4F2FA;
+  --red:#C4232A; --red-soft:#FBE7E8;
+  --amber:#9A6A0F; --amber-soft:#FBF0DA;
+  --shadow:0 1px 2px rgba(45,45,59,.06), 0 6px 18px rgba(45,45,59,.05);
+  --disp:ui-rounded,"SF Pro Rounded","Segoe UI Variable Display","Trebuchet MS",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#17171F; --surface:#212129; --sunk:#1C1C24;
+    --ink:#ECEBEF; --ink-2:#C6C5CF; --muted:#9694A6; --line:#33333F;
+    --blue:#74C2EC; --blue-soft:#17313F;
+    --red:#F0797E; --red-soft:#3A1E20;
+    --amber:#E2AC4E; --amber-soft:#372C13;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#17171F; --surface:#212129; --sunk:#1C1C24;
+  --ink:#ECEBEF; --ink-2:#C6C5CF; --muted:#9694A6; --line:#33333F;
+  --blue:#74C2EC; --blue-soft:#17313F;
+  --red:#F0797E; --red-soft:#3A1E20;
+  --amber:#E2AC4E; --amber-soft:#372C13;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.28);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:900px; margin:0 auto; padding:40px 22px 80px; display:flex; flex-direction:column; gap:38px}
+
+/* ---- masthead: one red spine, used once ---- */
+.mast{display:flex; gap:20px; align-items:flex-start}
+.spine{flex:0 0 5px; align-self:stretch; min-height:92px; background:var(--red); border-radius:3px}
+.mast h1{
+  font-family:var(--disp); font-weight:800; font-size:clamp(1.85rem,4.4vw,2.6rem);
+  line-height:1.08; letter-spacing:-.02em; margin:0 0 8px; text-wrap:balance;
+}
+.mast p{margin:0; color:var(--muted); max-width:62ch}
+.stamp{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--muted); margin:0 0 10px !important;
+}
+
+/* ---- counts ---- */
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px}
+.tile{
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:16px 18px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:2px;
+}
+.tile b{
+  font-family:var(--disp); font-weight:800; font-size:2rem; line-height:1;
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em;
+}
+.tile span{font-size:.83rem; color:var(--muted)}
+.tile.t-pub b{color:var(--blue)}
+.tile.t-hold b{color:var(--amber)}
+.tile.t-arch b{color:var(--muted)}
+
+/* ---- progress ---- */
+.prog{
+  display:flex; align-items:center; gap:14px; background:var(--sunk);
+  border:1px solid var(--line); border-radius:10px; padding:12px 16px;
+}
+.bar{flex:1; height:7px; background:var(--line); border-radius:4px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--blue); border-radius:4px; transition:width .25s ease}
+.prog .n{font-family:var(--mono); font-size:.82rem; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap}
+.prog button{
+  font:inherit; font-size:.82rem; color:var(--muted); background:none;
+  border:1px solid var(--line); border-radius:7px; padding:4px 11px; cursor:pointer;
+}
+.prog button:hover{color:var(--ink); border-color:var(--muted)}
+.prog button:focus-visible{outline:2px solid var(--blue); outline-offset:2px}
+
+/* ---- blocks ---- */
+.block{display:flex; flex-direction:column; gap:16px}
+.block > h2{
+  font-family:var(--disp); font-weight:800; font-size:1.22rem; letter-spacing:-.01em;
+  margin:0; display:flex; align-items:baseline; gap:10px;
+}
+.block > h2 .lede{font-family:var(--body); font-weight:400; font-size:.88rem; color:var(--muted); letter-spacing:0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden}
+.card.warn{border-color:var(--amber); background:var(--amber-soft)}
+
+.grp{border-top:1px solid var(--line)}
+.grp:first-child{border-top:0}
+.grp h3{
+  margin:0; padding:12px 18px; background:var(--sunk); border-bottom:1px solid var(--line);
+  font-family:var(--disp); font-weight:800; font-size:.78rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-2); display:flex; align-items:center; gap:9px;
+}
+.cnt{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:0; color:var(--muted);
+  background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:1px 8px;
+  font-variant-numeric:tabular-nums;
+}
+
+.rows{list-style:none; margin:0; padding:0}
+.row{
+  display:flex; gap:14px; align-items:flex-start;
+  padding:14px 18px; border-top:1px solid var(--line);
+}
+.rows .row:first-child{border-top:0}
+.rmain{flex:1; min-width:0}
+.rt{
+  font-family:var(--disp); font-weight:700; font-size:1.02rem; color:var(--ink);
+  text-decoration:none; display:inline-block; line-height:1.3;
+}
+a.rt{text-decoration:underline; text-decoration-color:transparent; text-underline-offset:3px; transition:text-decoration-color .15s}
+a.rt:hover{color:var(--blue); text-decoration-color:currentColor}
+a.rt:focus-visible{outline:2px solid var(--blue); outline-offset:3px; border-radius:3px}
+.rs{margin:3px 0 0; font-size:.9rem; color:var(--muted); max-width:70ch}
+.why{
+  margin:6px 0 0; font-size:.88rem; color:var(--ink-2); max-width:70ch;
+  border-left:2px solid var(--amber); padding-left:10px;
+}
+.id{
+  font-family:var(--mono); font-size:.74rem; color:var(--muted);
+  font-variant-numeric:tabular-nums; padding-top:4px; flex:0 0 auto;
+}
+.row.arch .rt{color:var(--muted); font-weight:600}
+.row.arch .rs{border-left:0; padding-left:0}
+.row.hold{background:transparent}
+
+/* ---- checkbox ---- */
+.chk{position:relative; flex:0 0 auto; width:19px; height:19px; margin-top:3px; cursor:pointer}
+.chk input{position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer}
+.chk span{
+  display:block; width:19px; height:19px; border:1.5px solid var(--line);
+  border-radius:5px; background:var(--surface); transition:.12s;
+}
+.chk input:checked + span{background:var(--blue); border-color:var(--blue)}
+.chk input:checked + span::after{
+  content:""; position:absolute; left:6px; top:2px; width:5px; height:10px;
+  border:solid var(--surface); border-width:0 2px 2px 0; transform:rotate(42deg);
+}
+.chk input:focus-visible + span{outline:2px solid var(--blue); outline-offset:2px}
+.row:has(input:checked) .rt{color:var(--muted)}
+.row:has(input:checked) .rs{opacity:.6}
+
+/* ---- notes ---- */
+.notes{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px 22px; box-shadow:var(--shadow)}
+.notes h3{font-family:var(--disp); font-weight:800; font-size:.95rem; margin:0 0 10px}
+.notes h3 + p{margin-top:0}
+.notes p{margin:0 0 12px; font-size:.93rem; color:var(--ink-2); max-width:70ch}
+.notes p:last-child{margin-bottom:0}
+.notes ul{margin:0 0 14px; padding-left:20px; font-size:.93rem; color:var(--ink-2); max-width:70ch}
+.notes li{margin-bottom:5px}
+.notes hr{border:0; border-top:1px solid var(--line); margin:18px 0}
+code{font-family:var(--mono); font-size:.86em; background:var(--sunk); border:1px solid var(--line); border-radius:4px; padding:1px 5px}
+strong{color:var(--ink)}
+
+@media (max-width:520px){
+  .wrap{padding:28px 15px 60px; gap:30px}
+  .row{padding:13px 14px; gap:11px}
+  .grp h3{padding:11px 14px}
+  .id{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div class="spine" aria-hidden="true"></div>
+    <div>
+      <p class="stamp">Knowledge Base &middot; 13 August 2026</p>
+      <h1>The SharePoint drafts are live</h1>
+      <p>Every draft carried over from SharePoint has been rewritten into the KB's own format and published, except three that need a call from you. Tick each one off as you read it — this page remembers your place.</p>
+    </div>
+  </header>
+
+  <div class="tiles">
+    <div class="tile t-pub"><b>43</b><span>Published — live to staff now</span></div>
+    <div class="tile t-hold"><b>3</b><span>Held back — needs your call</span></div>
+    <div class="tile t-arch"><b>7</b><span>Archived — dated announcements</span></div>
+  </div>
+
+  <div class="prog">
+    <span class="n" id="pn">0 of 43 reviewed</span>
+    <div class="bar"><i id="pb"></i></div>
+    <button type="button" id="reset">Clear</button>
+  </div>
+
+  <section class="block">
+    <h2>Needs your call <span class="lede">Still drafts — nobody can see these yet</span></h2>
+    <div class="card warn"><ul class="rows"><li class="row hold"><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=lender-credentials-and-comparison" target="_blank" rel="noopener">Lender Credentials and Comparison</a><p class="why">Contains four sets of live lender passwords, and the SharePoint import lost the lender-name column — the pairings below are inferred. Also switched to manager-only.</p></div><span class="id">#5</span></li><li class="row hold"><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=commission-structure" target="_blank" rel="noopener">Commission Structure</a><p class="why">Device thresholds disagreed with what the calculator actually pays (old text said 20–29 → 5% and 30+ → 5%; the engine pays 20–24 → 5% and 25+ → 10%). Rewritten to match the engine, with every difference listed at the bottom of the article.</p></div><span class="id">#7</span></li><li class="row hold"><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=acrorip-print-settings" target="_blank" rel="noopener">ACRORIP Print Settings</a><p class="why">The Layout / Printer / Color / White tab settings were screenshots that didn&#x27;t survive the import. Four empty sections until someone re-shoots them at the printer.</p></div><span class="id">#31</span></li></ul></div>
+  </section>
+
+  <section class="block">
+    <h2>Published <span class="lede">Grouped as they appear in the KB</span></h2>
+    <div class="card"><section class="grp"><h3>SOPs &amp; Policies<span class="cnt">14</span></h3><ul class="rows"><li class="row"><label class="chk"><input type="checkbox" data-k="26"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=annual-inventory-count" target="_blank" rel="noopener">Annual Inventory Count</a><p class="rs">The once-a-year full physical count of parts, accessories and devices — the policy, the batch-counting practices that make it survivable, and the step-by-step.</p></div><span class="id">#26</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="17"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=customer-check-in-procedure" target="_blank" rel="noopener">Customer Check-In Procedure</a><p class="rs">The standard check-in: look up the customer, work out whether it&#x27;s a new issue or a return repair, record the device, and set expectations before anything is promised.</p></div><span class="id">#17</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="61"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=daily-inventory-count-instructions" target="_blank" rel="noopener">Daily Inventory Count Instructions</a><p class="rs">The daily count: pull the day&#x27;s consumed parts from the Consumption Report, scan them into RepairQ Inventory Counts, and reconcile — except OEM and serialized parts.</p></div><span class="id">#61</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="49"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=device-abandonment-policy" target="_blank" rel="noopener">Device Abandonment Policy</a><p class="rs">How long we hold a customer&#x27;s device, when it becomes ours, and the Terms &amp; Conditions language behind it.</p></div><span class="id">#49</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="39"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=device-buybacks" target="_blank" rel="noopener">Device Buybacks</a><p class="rs">The full buyback SOP: what we buy outright, what needs manager approval, the Verizon hard-no, proof-of-payoff rules by carrier, Gazelle pricing, and the RepairQ trade-in steps.</p></div><span class="id">#39</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="52"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=diagnostic-credits-on-cpo-devices" target="_blank" rel="noopener">Diagnostic Credits on CPO Devices — Use the Right SKU</a><p class="rs">Crediting a diagnostic fee toward a Certified Pre-Owned device sale uses CPODIAGCREDIT — never the RTP Adjustment SKU.</p></div><span class="id">#52</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="11"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=express-repairs" target="_blank" rel="noopener">Express Repairs</a><p class="rs">What Express Repair is, which repairs qualify and in what time, and the $10 commission a tech earns on every one sold.</p></div><span class="id">#11</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="50"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=guide-ready-for-pickup-review" target="_blank" rel="noopener">Guide: Ready-for-Pickup Review</a><p class="rs">How to run a ready-for-pickup review in RepairQ — setting up the view, and the right action for every kind of stuck ticket.</p></div><span class="id">#50</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="48"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=how-to-handle-abandoned-devices" target="_blank" rel="noopener">How to Handle Abandoned Devices</a><p class="rs">The full flow for a device a customer never picked up: confirming it is abandoned, closing the ticket, then salvaging or selling it.</p></div><span class="id">#48</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="3"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=price-quoting-and-skus" target="_blank" rel="noopener">Price Quoting &amp; SKUs</a><p class="rs">How to quote a customer: the $XX.99 rule, the parts-plus-labor formulas by device type, and where the live SKU and price tables live.</p></div><span class="id">#3</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="23"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=refund-policy-financed-lease-to-own-sales" target="_blank" rel="noopener">Refund Policy — Financed / Lease-to-Own Sales</a><p class="rs">Financed and lease-to-own sales are final — the store cannot refund, cancel or void them. Send the customer to their finance provider.</p></div><span class="id">#23</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="22"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=refund-processing-policy" target="_blank" rel="noopener">Refund Processing Policy</a><p class="rs">Refunds always go back to the original payment method — plus how bundle discounts unwind, when manager approval is required, and what to note on the ticket.</p></div><span class="id">#22</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="27"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=setting-due-times-for-repair-tickets" target="_blank" rel="noopener">Setting Due Times for Repair Tickets</a><p class="rs">How to set an honest due time on every ticket — the standard and express timetable by repair type, and the rule that a slipping due time means you call the customer first.</p></div><span class="id">#27</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="30"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=standardized-promotional-skus-for-discounts" target="_blank" rel="noopener">Standardized Promotional SKUs for Discounts</a><p class="rs">All approved discount SKUs are tagged &quot;Current Promotions&quot; in the RepairQ Price Checker — use those and nothing else.</p></div><span class="id">#30</span></li></ul></section><section class="grp"><h3>Insurance &amp; Claims<span class="cnt">12</span></h3><ul class="rows"><li class="row"><label class="chk"><input type="checkbox" data-k="34"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=akko-deductible-payments" target="_blank" rel="noopener">AKKO Deductible Payments</a><p class="rs">An AKKO deductible is always its own transaction — never combined with accessories or out-of-pocket repairs on the same ticket.</p></div><span class="id">#34</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="16"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=akko-membership-benefits" target="_blank" rel="noopener">AKKO Membership Benefits</a><p class="rs">What an AKKO membership gets the customer — the six benefits — and exactly how to build the discount onto a RepairQ ticket.</p></div><span class="id">#16</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="35"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=akko-plans-skus-and-logging-the-sale" target="_blank" rel="noopener">AKKO Plans — SKUs &amp; Logging the Sale</a><p class="rs">The RepairQ SKU for every AKKO plan, and the rule that every plan sold gets added to the ticket so it counts on your sales report.</p></div><span class="id">#35</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="4"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=allstate-squaretrade" target="_blank" rel="noopener">Allstate / Squaretrade</a><p class="rs">How Allstate (formerly SquareTrade) claims work, our store IDs, and the pricing check to run before you commit to a repair.</p></div><span class="id">#4</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="33"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=assurant-claim-cancellation-policy" target="_blank" rel="noopener">Assurant Claim Cancellation Policy</a><p class="rs">No one cancels an Assurant claim without Britt&#x27;s approval first — canceling triggers a $99 deductible for the customer, and most cancellations are avoidable.</p></div><span class="id">#33</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="28"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=assurant-best-buy-claims-and-samsung-charging-ports" target="_blank" rel="noopener">Assurant: Best Buy Claims &amp; Samsung Charging Ports</a><p class="rs">Two Assurant repair types we can now take: Best Buy protection claims (Android only, claim filed through Best Buy) and Samsung charging ports (2021+, Just-in-Time parts only).</p></div><span class="id">#28</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="15"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=claim-inventory-management" target="_blank" rel="noopener">Claim Inventory Management</a><p class="rs">Reserving the part when a claim comes in, and the missed-appointment → no-show flow that recovers claim parts back into inventory after 7 days.</p></div><span class="id">#15</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="59"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=examples-of-proper-zagg-warranty" target="_blank" rel="noopener">Examples of Proper Zagg Warranty</a><p class="rs">How to prepare Zagg warranty returns — receipt folding, taping, and the plastic-on trick for failed installs — so we get full credit.</p></div><span class="id">#59</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="20"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=how-to-file-an-akko-claim" target="_blank" rel="noopener">How to File an AKKO Claim</a><p class="rs">Filing a brand-new AKKO claim: making the claim in the app, the single uninterrupted device video, and sending it to AKKO support to speed up approval.</p></div><span class="id">#20</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="10"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=how-to-process-an-akko-claim" target="_blank" rel="noopener">How to Process an AKKO Claim</a><p class="rs">Working an approved AKKO claim: verifying status and the approved repair limit on the Partner Portal, pricing a replacement device, and building the RepairQ ticket correctly.</p></div><span class="id">#10</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="9"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=registering-devices" target="_blank" rel="noopener">Registering Devices</a><p class="rs">Step-by-step AKKO device registration — the app flow for the primary phone, and the browser flow for extra devices on a multi-device plan.</p></div><span class="id">#9</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="8"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=requirements-for-coverage" target="_blank" rel="noopener">Requirements for Coverage</a><p class="rs">The condition a device must be in before AKKO will cover it — check every one of these at registration or no claim will pay, including loss and theft.</p></div><span class="id">#8</span></li></ul></section><section class="grp"><h3>Repair Knowledge<span class="cnt">13</span></h3><ul class="rows"><li class="row"><label class="chk"><input type="checkbox" data-k="13"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=apple-calibration-matrix" target="_blank" rel="noopener">Apple Calibration Matrix</a><p class="rs">Which Apple parts need calibration, which system does it (AST2 or RepairCal), and which models work with Repair Assistant — by iPhone generation.</p></div><span class="id">#13</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="37"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=can-we-fix-folding-phones-and-how" target="_blank" rel="noopener">Can we Fix Folding Phones? And How?</a><p class="rs">Which folding phones we can repair, and the Hall Effect calibration a Samsung inner-screen replacement needs.</p></div><span class="id">#37</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="12"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=device-port-cleanings" target="_blank" rel="noopener">Device &amp; Port Cleanings</a><p class="rs">Why a charging-port cleaning is a $29.99 service and not a free tweezer job — what the service includes, how to position it, and the $10 commission.</p></div><span class="id">#12</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="19"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=device-identification" target="_blank" rel="noopener">Device Identification</a><p class="rs">How to positively identify a device at check-in — on-device, by IMEI, or physically when it won&#x27;t power on — so we don&#x27;t misquote or order the wrong part.</p></div><span class="id">#19</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="56"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=does-this-phone-open-from-the-front-or-the-back" target="_blank" rel="noopener">Does this Phone Open from the Front or the Back?</a><p class="rs">Quick reference for which side of a phone to open to reach the internals, model by model.</p></div><span class="id">#56</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="38"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=folding-phone-repair-guidelines" target="_blank" rel="noopener">Folding Phone Repair Guidelines</a><p class="rs">Which folding phones we can repair, the carrier check that has to happen BEFORE quoting a Samsung inner screen, and the Hall Effect calibration procedure.</p></div><span class="id">#38</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="24"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=mail-out-micro-soldering-repairs" target="_blank" rel="noopener">Mail-Out Micro Soldering Repairs</a><p class="rs">Where to send board-level work — EZ Fix for a working phone, VCC for data recovery — plus pricing, shipping, SKUs, ticket status, and how to refund a no-fix.</p></div><span class="id">#24</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="18"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=micro-soldering-agreement-invoicing" target="_blank" rel="noopener">Micro Soldering Agreement &amp; Invoicing</a><p class="rs">Which devices need a signed micro-soldering agreement before they ship out, and how to send it — the Contracts tool handles the agreement and the payment together.</p></div><span class="id">#18</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="51"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=repair-test-checklists" target="_blank" rel="noopener">Repair Test Checklists</a><p class="rs">The tests required before and after every repair, and why the check-in results are our defense when a customer disputes a repair.</p></div><span class="id">#51</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="53"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=repair-warranties" target="_blank" rel="noopener">Repair Warranties</a><p class="rs">What each repair type is warrantied for — lifetime, one-year, 90-day, the 30-day accidental screen replacement, and the exclusions.</p></div><span class="id">#53</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="14"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=repairs-without-parts-report" target="_blank" rel="noopener">Repairs Without Parts — Reviewing the Report</a><p class="rs">How to work RepairQ&#x27;s Repair w/o Parts report: find tickets missing a part, and know which ones legitimately shouldn&#x27;t have one.</p></div><span class="id">#14</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="29"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=samsung-s25-edge-repair-notes" target="_blank" rel="noopener">Samsung S25 Edge — Repair Notes</a><p class="rs">Two things that make the S25 Edge different: re-seat the flex cables before assuming a failure, and thermal paste is required on every Assurant repair.</p></div><span class="id">#29</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="45"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=samsung-z-fold-and-z-flip-repair-guidelines-updated" target="_blank" rel="noopener">Samsung Z Fold and Z Flip Repair Guidelines (Updated)</a><p class="rs">Living notes on Samsung Z Fold / Z Flip inner-screen replacement — what we&#x27;ve tried, what worked, and what is still unknown.</p></div><span class="id">#45</span></li></ul></section><section class="grp"><h3>Vendors<span class="cnt">2</span></h3><ul class="rows"><li class="row"><label class="chk"><input type="checkbox" data-k="44"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=mobile-sentrix-parts-rma-non-irp-isp" target="_blank" rel="noopener">Mobile Sentrix Parts RMA (Non IRP / ISP)</a><p class="rs">Filing a non-IRP/ISP parts RMA with Mobile Sentrix — scan every unit as its own line, enter quantities last, and let MS supply the shipping label.</p></div><span class="id">#44</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="43"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=phonelcdparts-cases" target="_blank" rel="noopener">PhoneLCDParts Cases</a><p class="rs">The PhoneLCDParts case lineup — search term, available colors, and which models each case fits.</p></div><span class="id">#43</span></li></ul></section><section class="grp"><h3>Equipment &amp; Software<span class="cnt">2</span></h3><ul class="rows"><li class="row"><label class="chk"><input type="checkbox" data-k="57"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=tech-support-guide" target="_blank" rel="noopener">Tech Support Guide</a><p class="rs">What counts as tech support, how to run one of those appointments, and the obstacles that come up most.</p></div><span class="id">#57</span></li><li class="row"><label class="chk"><input type="checkbox" data-k="63"><span></span></label><div class="rmain"><a class="rt" href="https://myrepairtools.github.io/knowledge.html#a=uv-case-printing-clear-removable-camera-ring" target="_blank" rel="noopener">UV Case Printing — Clear Case w/ Removable Camera Ring</a><p class="rs">Full UV case-printing SOP: remote-desktop access, the Canva workflow, Acrorip steps, and caliper-measured per-model dimensions.</p></div><span class="id">#63</span></li></ul></section></div>
+  </section>
+
+  <section class="block">
+    <h2>Archived <span class="lede">Kept, hidden from browse — restore any of these if you disagree</span></h2>
+    <div class="card"><ul class="rows"><li class="row arch"><div class="rmain"><span class="rt">Micro Soldering Repair Updates</span><p class="rs">Announced two guides that are now published in their own right.</p></div><span class="id">#25</span></li><li class="row arch"><div class="rmain"><span class="rt">MASSIVE Price Drop on iPhone Housings!</span><p class="rs">Housing prices from a one-off announcement; the Price Guide is the live authority.</p></div><span class="id">#32</span></li><li class="row arch"><div class="rmain"><span class="rt">Weekend Update 11-21-25</span><p class="rs">Weekend recap from 11-21-25 — SharePoint-era, links dead.</p></div><span class="id">#36</span></li><li class="row arch"><div class="rmain"><span class="rt">New Device Buyback SOP</span><p class="rs">Announcement pointing at the SharePoint copy of Device Buybacks.</p></div><span class="id">#40</span></li><li class="row arch"><div class="rmain"><span class="rt">Inventory Update - Devices on the Way</span><p class="rs">One-time heads-up about a 12/16 Hyla shipment.</p></div><span class="id">#46</span></li><li class="row arch"><div class="rmain"><span class="rt">Schedule Update: Starting 2/8/26</span><p class="rs">Schedule change starting 2/8/26.</p></div><span class="id">#47</span></li><li class="row arch"><div class="rmain"><span class="rt">Work Schedules Updated</span><p class="rs">Schedule-posted notice, links to the retired SharePoint schedule page.</p></div><span class="id">#60</span></li></ul></div>
+  </section>
+
+  <section class="block">
+    <h2>What changed, and what's left</h2>
+    <div class="notes">
+      <h3>Applied to every article</h3>
+      <ul>
+        <li>Dropped the dead <em>Acknowledge SOP</em> links to corporate SharePoint and the &ldquo;add a comment below to acknowledge&rdquo; lines — <strong>Mark as read</strong> is the acknowledgment now.</li>
+        <li>Rewrote every summary. They were all the first 200 characters of the body, which read badly on the category cards and in the search results.</li>
+        <li>Rebuilt the numbered procedures. The SharePoint import stripped the step headings out of several SOPs, leaving orphaned bullets — Customer Check-In and Device Identification were the worst.</li>
+        <li>Added a <strong>Related</strong> block with working cross-links, and turned the <code>!&gt;</code> callout on for the lines that are actually warnings.</li>
+        <li>Checked every article against the KB's renderer: no blockquotes, no bold spanning an asterisk, no <code>mailto:</code> links — all three render as raw text.</li>
+      </ul>
+
+      <hr>
+
+      <h3>Facts I changed, not just formatting</h3>
+      <ul>
+        <li><strong>Price Quoting &amp; SKUs</strong> was a full copy of the price tables, already drifting from <a href="https://myrepairtools.github.io/price-guide.html" target="_blank" rel="noopener">the Price Guide</a> (the Pixel row disagreed). It's now the quoting <em>rules</em> — the $XX.99 convention, the parts-plus-labor formulas — pointing at the Price Guide for numbers.</li>
+        <li><strong>Daily Inventory Count</strong> said to get the day's list from a Teams channel. It now points at the Consumption Report, including Send to RepairQ and the range mode for missed days.</li>
+        <li><strong>Micro Soldering Agreement</strong> now describes sending the agreement through the Contracts tool rather than the old Square flow.</li>
+        <li><strong>Express Repairs</strong> and <strong>Device &amp; Port Cleanings</strong> pointed commission tracking at a Teams channel and Monday.com. Both now point at My Commission.</li>
+      </ul>
+
+      <hr>
+
+      <h3>Two things worth your eye</h3>
+      <p><strong>A conflict between two policies.</strong> Assurant Claim Cancellation says nobody cancels a claim without your approval, &ldquo;for any reason.&rdquo; Claim Inventory Management tells staff to cancel a claim outright at the seven-day no-show mark. I read those as different situations and cross-linked them rather than picking a winner — but if a no-show cancellation also needs your sign-off, say so and I'll tighten the wording.</p>
+      <p><strong>Nothing was announced.</strong> Publishing through the KB page posts to the Communications feed once per article, so doing it that way would have put 43 posts in everyone's feed this afternoon. These went in quietly. Once you've reviewed, I can post a single &ldquo;the knowledge base is filled in&rdquo; note — or set specific articles to require acknowledgment, which is the version that actually fires alerts.</p>
+
+      <hr>
+
+      <h3>Still open</h3>
+      <ul>
+        <li><strong>Zagg Warranty</strong> and <strong>Mobile Sentrix RMA</strong> published without their step photos — the SharePoint images didn't come across. The text stands on its own, but they'd be better with pictures.</li>
+        <li><strong>UV Case Printing</strong> links to <em>Image Coordinates for Jig</em>, which is archived. Restore it or I'll drop the link.</li>
+        <li><strong>KB Writing Backlog</strong> and <strong>KB Futures</strong> are still drafts. They're your planning notes rather than articles, so I left them where they were.</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  var boxes=[].slice.call(document.querySelectorAll('.rows input[type=checkbox]'));
+  var pn=document.getElementById('pn'), pb=document.getElementById('pb');
+  var KEY='kbreview.v1', done={};
+  try{ done=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ done={}; }
+
+  function paint(){
+    var n=boxes.filter(function(b){return b.checked;}).length;
+    pn.textContent=n+' of '+boxes.length+' reviewed';
+    pb.style.width=(boxes.length? (n/boxes.length*100):0)+'%';
+  }
+  boxes.forEach(function(b){
+    if(done[b.dataset.k]) b.checked=true;
+    b.addEventListener('change',function(){
+      if(b.checked) done[b.dataset.k]=1; else delete done[b.dataset.k];
+      try{ localStorage.setItem(KEY,JSON.stringify(done)); }catch(e){}
+      paint();
+    });
+  });
+  document.getElementById('reset').addEventListener('click',function(){
+    boxes.forEach(function(b){ b.checked=false; });
+    done={}; try{ localStorage.removeItem(KEY); }catch(e){}
+    paint();
+  });
+  paint();
+})();
+</script>
