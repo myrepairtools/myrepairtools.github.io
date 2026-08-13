@@ -12,6 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 // where the alert text goes; overridable via secret without a redeploy of code
 const ALERT_TO = Deno.env.get("ISSUE_ALERT_NUMBER") || "+15415154212";
 
@@ -75,10 +76,13 @@ Deno.serve(async (req) => {
     if (row.ticket_no) parts.push("tkt " + row.ticket_no);
     if (row.ext_version) parts.push("v" + row.ext_version);
     const body = parts.join(" · ") + "\n" + message.slice(0, 300);
+    // send from the OFFICIAL alerts line (ALERTS_FROM_NUMBER — the 971 the
+    // owner has saved as "MRT Notifications"), not the reporter's store line,
+    // so every report threads under one contact
     const r = await fetch(`${SB_URL}/functions/v1/messaging`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ANON}`, "apikey": ANON },
-      body: JSON.stringify({ action: "send", to: ALERT_TO, body, store: row.store || undefined, agent_name: "issue-bot" }),
+      body: JSON.stringify({ action: "system_send", secret: NOTIFY_SECRET, to: ALERT_TO, body }),
     });
     sms = await r.json().catch(() => null);
   } catch (e) {
