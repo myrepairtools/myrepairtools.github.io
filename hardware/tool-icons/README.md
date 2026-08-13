@@ -1,13 +1,13 @@
 # Tool-Tip Icons
 
-Thirteen icons for labelling the tool organizer, built to import into TinkerCAD
+Fourteen icons for labelling the tool organizer, built to import into TinkerCAD
 without a fight.
 
 ![Contact sheet](svg/_contact-sheet.png)
 
 | Driver tips | Tools |
 | --- | --- |
-| `phillips` `flathead` `pentalobe` `torx` `tripoint-y` `hex` `standoff` | `jimmy` `spudger` `tweezers` `snips` `suction-cup` `magnet` |
+| `phillips` `flathead` `pentalobe` `torx` `tripoint-y` `hex` `standoff` `standoff-driver` | `jimmy` `spudger` `tweezers` `snips` `suction-cup` `magnet` |
 
 Each is a **20 × 20 mm** SVG in `svg/`. (`_contact-sheet.svg` is just the
 picture above — don't import that one.)
@@ -23,12 +23,26 @@ TinkerCAD's importer has three rules that quietly ruin most icon files:
   the horseshoe — is polygonised at build time, so there are no arcs or béziers
   to be interpreted differently.
 
-The `standoff` hex has a real hole in it. That's done by winding the inner ring
-the *opposite* direction rather than relying on `fill-rule="evenodd"`, which
-importers disagree about.
+`standoff` and `standoff-driver` have real holes in them. That's done by winding
+the inner ring the *opposite* direction rather than relying on
+`fill-rule="evenodd"`, which importers disagree about.
 
-The build asserts all three — it fails if a stroke or a text element ever creeps
-in, or if a point lands outside the 20 mm box.
+A hole ring must also stay **inside** its outer ring. Anything poking out has
+winding −1, which is nonzero, so it renders as a stray solid sliver and imports
+as one — the standoff driver's bore did exactly that on the first pass.
+
+The build asserts all of it: no stroke, no text, nothing outside the 20 mm box,
+and no hole reaching past the shape it's cut from.
+
+## Two standoff icons
+
+![Standoff options](svg/_standoff-options.png)
+
+`standoff` is the **tip, end-on** — a hollow hex, matching how the rest of the
+driver icons are drawn. `standoff-driver` is the **tool from the side**, bore
+open at the end. Same tool, different reading; use whichever is clearer on the
+tray. The side view deliberately breaks the set's convention, so don't mix it
+with the end-on tips unless it genuinely reads better to your techs.
 
 ## Importing into TinkerCAD
 

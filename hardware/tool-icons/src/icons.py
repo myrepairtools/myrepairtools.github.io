@@ -103,9 +103,26 @@ def hex_tip():
 
 
 def standoff():
-    """Hollow hex.  The inner ring is wound the OTHER way, so it reads as a
-    hole under the nonzero rule and does not depend on evenodd surviving."""
+    """Standoff driver seen END-ON, like the rest of the driver tips: a hollow
+    hex socket.  The inner ring is wound the OTHER way, so it reads as a hole
+    under the nonzero rule and does not depend on evenodd surviving."""
     return [_ngon(6, 8.0, ccw=True) + [None] + _ngon(6, 4.6, ccw=False)]
+
+
+def standoff_driver():
+    """The same tool seen from the SIDE -- a shaft with a socket end and the
+    bore open at the tip.  Breaks the set's end-on convention on purpose: some
+    people picture the tool, not the tip profile.  Use whichever reads."""
+    # The bore must stop exactly ON the tip, never past it.  A hole polygon
+    # that overhangs its outer ring has winding -1 out there, which is nonzero,
+    # so the overhang renders FILLED -- a stray sliver that imports as a solid.
+    tip = 18.6
+    outer = [
+        (7.5, 2.0), (12.5, 2.0), (12.5, 12.0), (13.6, 13.5),
+        (13.6, tip), (6.4, tip), (6.4, 13.5), (7.5, 12.0),
+    ]
+    bore = [(8.9, 14.2), (8.9, tip), (11.1, tip), (11.1, 14.2)]
+    return [outer + [None] + bore]
 
 
 def tripoint():
@@ -188,6 +205,7 @@ ICONS = {
     "tripoint-y": tripoint,
     "hex": hex_tip,
     "standoff": standoff,
+    "standoff-driver": standoff_driver,
     "jimmy": jimmy,
     "spudger": spudger,
     "tweezers": tweezers,
@@ -222,8 +240,24 @@ def svg_for(name):
     )
 
 
+def _check_hole(name, poly):
+    """A hole ring that pokes outside its outer ring does not vanish -- under
+    the nonzero rule the part sticking out has winding -1, which is nonzero, so
+    it renders as a solid sliver and imports as one."""
+    i = poly.index(None)
+    outer, hole = poly[:i], poly[i + 1:]
+    ox = [p[0] for p in outer]; oy = [p[1] for p in outer]
+    hx = [p[0] for p in hole]; hy = [p[1] for p in hole]
+    assert min(ox) <= min(hx) and max(hx) <= max(ox) \
+        and min(oy) <= min(hy) and max(hy) <= max(oy), \
+        f"{name}: the hole reaches outside the shape -- that becomes a sliver"
+
+
 def _check(name, polys):
     """Everything has to sit inside the box, or TinkerCAD scales it oddly."""
+    for poly in polys:
+        if None in poly:
+            _check_hole(name, poly)
     for poly in polys:
         for p in poly:
             if p is None:
