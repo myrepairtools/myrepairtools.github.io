@@ -103,9 +103,11 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;letter-spac
 .cattile .mgrflag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.4px;color:var(--red)}
 .mgrchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;
 background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3px 10px;white-space:nowrap}
-.cattiles.mgr .cattile{cursor:grab}
+.cattiles.mgr .cattile{cursor:grab;border-style:dashed;border-color:#C7CAD4}
+.cattiles.mgr .cattile:hover{border-style:solid}
 .cattile.dragging{opacity:.45}
-.cardgrid.mgr .acard{cursor:grab}
+.cardgrid.mgr .acard{cursor:grab;border-style:dashed;border-color:#C7CAD4}
+.cardgrid.mgr .acard:hover{border-style:solid}
 .acard.dragging{opacity:.45}
 .mostread{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);overflow:hidden;margin-top:14px}
 .mostread .mrh{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.7px;color:#8A8FA0;padding:11px 16px;border-bottom:1px solid var(--row)}
@@ -392,6 +394,7 @@ let OPEN=null;                   // article being viewed/edited
 let QZ=null;                     // {quiz, questions, idx, answers[], result}
 let SEARCHQ='',SRES=null,SEARCH_T=null,SELIDX=-1,SEXPAND=false;
 let PREVIEW=(function(){try{return localStorage.getItem('cprKbPreview')==='1';}catch(e){return false;}})();
+let GRIDEDIT=false;   // drag-to-organize is an explicit mode (+ menu → Edit grid)
 
 async function loadAll(){
   const [c,a,r,m,asn,qz,att,st,sp,sd,sec,sub,tg,atg,mr]=await Promise.all([
@@ -599,6 +602,13 @@ function catGlyph(c,size){ const n=CATGLYPH[slugify(c.name)]||'book-open';
   return window.CPRNavIcon?CPRNavIcon(n,size||18):esc(c.icon||'📄'); }
 /* the retired nav pane's Manage rows live in a + menu now (owner call
    2026-08-12: no white KB pane — Training moved to the rail) */
+function gridPill(){
+  if(!GRIDEDIT||!isMgr(AUTH.role))return '';
+  return '<button id="geOff" style="font-family:Nunito,sans-serif;font-weight:800;font-size:.68rem;background:#EAF6FD;color:#1E7AA8;border:1px solid #CDE8F7;border-radius:999px;padding:4px 12px;cursor:pointer" title="Drag tiles and cards to reorder — click when you\'re done">Editing grid · done</button>';
+}
+function wireGridPill(){
+  const b=$('#geOff'); if(b)b.addEventListener('click',()=>{ GRIDEDIT=false; toast('Edit grid off.'); draw(); });
+}
 function previewPill(){
   if(!previewOn())return '';
   return '<button id="pvOff" style="font-family:Nunito,sans-serif;font-weight:800;font-size:.68rem;background:#FBF1DC;color:#7A5B10;border:1px solid #EBD8AC;border-radius:999px;padding:4px 12px;cursor:pointer" title="Drafts are shown as if published — click to return to the live view">Previewing drafts · exit</button>';
@@ -618,6 +628,8 @@ function plusMenu(){
       +'<button class="pmrow" data-pm="cats"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('folder',15):'')+'</span> Categories</button>'
       +'<button class="pmrow" data-pm="preview"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('lightbulb',15):'')+'</span> Preview drafts'
         +'<span class="pmc" style="color:'+(PREVIEW?'var(--amber)':'var(--grey)')+'">'+(PREVIEW?'On':'Off')+'</span></button>'
+      +'<button class="pmrow" data-pm="grid"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('list-checks',15):'')+'</span> Edit grid'
+        +'<span class="pmc" style="color:'+(GRIDEDIT?'var(--blued)':'var(--grey)')+'">'+(GRIDEDIT?'On':'Off')+'</span></button>'
       +(na?'<button class="pmrow" data-pm="archived"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('archive',15):'')+'</span> Archived<span class="pmc">'+na+'</span></button>':'')
     +'</div></div>';
 }
@@ -634,6 +646,8 @@ function wirePlus(){
     const k=el.dataset.pm;
     if(k==='new'){ OPEN=null; MODE='edit'; goHash('new'); draw(); }
     else if(k==='cats'){ MODE='cats'; goHash('cats'); draw(); }
+    else if(k==='grid'){ GRIDEDIT=!GRIDEDIT;
+      toast(GRIDEDIT?'Edit grid on — drag tiles and cards to organize.':'Edit grid off.'); draw(); }
     else if(k==='preview'){ PREVIEW=!PREVIEW;
       try{localStorage.setItem('cprKbPreview',PREVIEW?'1':'0');}catch(e){}
       toast(PREVIEW?'Previewing drafts — only you see this.':'Preview off — live view.'); draw(); }
@@ -649,12 +663,12 @@ function drawHome(){
     +'<div class="hnew">'+plusMenu()+'</div>'
     +'<div class="hlogo">'+(window.CPRNavIcon?CPRNavIcon('book-open',22):'')+'<b>Knowledge Base</b></div>'
     +'<div class="hsub">How do we do that here? Start typing.</div>'
-    +(previewOn()?'<div style="margin-top:8px">'+previewPill()+'</div>':'')
+    +((previewOn()||GRIDEDIT)?'<div style="margin-top:8px;display:flex;gap:8px;justify-content:center">'+previewPill()+gridPill()+'</div>':'')
     +'<div id="heroS" class="herosearch"></div>'
   +'</div>'
   +'<div class="homebody" id="homeBody">'
-    +'<div class="cattiles'+(isMgr(AUTH.role)?' mgr':'')+'" id="catTiles">'
-    +cats.map(x=>'<button class="cattile'+(x.c.min_role==='manager'?' gated':'')+'" data-cat="'+x.c.id+'"'+(isMgr(AUTH.role)?' draggable="true" title="Drag to organize"':'')+'>'
+    +'<div class="cattiles'+(GRIDEDIT&&isMgr(AUTH.role)?' mgr':'')+'" id="catTiles">'
+    +cats.map(x=>'<button class="cattile'+(x.c.min_role==='manager'?' gated':'')+'" data-cat="'+x.c.id+'"'+(GRIDEDIT&&isMgr(AUTH.role)?' draggable="true" title="Drag to organize"':'')+'>'
       +'<span class="ctic">'+catGlyph(x.c,18)+'</span>'
       +'<span class="ctn">'+esc(x.c.name)+'</span>'
       +'<span class="ctc">'+x.n+' article'+(x.n===1?'':'s')+'</span>'
@@ -672,7 +686,7 @@ function drawHome(){
       +'<span class="mrn">'+x.n+' read'+(x.n===1?'':'s')+'</span></button>').join('')+'</div>';
   inner+='</div>';
   $('#page').innerHTML=inner;
-  renderHeroSearch(); wirePlus(); wirePreviewPill();
+  renderHeroSearch(); wirePlus(); wirePreviewPill(); wireGridPill();
   const sr=$('#startReq'); if(sr)sr.addEventListener('click',()=>{ const a=reqOutstanding()[0]; if(a)openArticle(a.id); });
   const rq=document.querySelector('[data-reqlist]'); if(rq)rq.addEventListener('click',()=>{
     CAT='req'; MODE='list'; goHash('c=req'); draw(); });
@@ -681,7 +695,7 @@ function drawHome(){
     goHash(catHash()); draw(); window.scrollTo(0,0);
   }));
   document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openArticle(+el.dataset.open)));
-  if(isMgr(AUTH.role))wireTileDnD();
+  if(GRIDEDIT&&isMgr(AUTH.role))wireTileDnD();
 }
 function wireTileDnD(){
   const grid=$('#catTiles'); if(!grid)return;
@@ -780,7 +794,7 @@ function drawTopic(){
     +'<div class="tsearch"><span class="tsic">'+(window.CPRNavIcon?CPRNavIcon('search',14):'')+'</span>'
     +'<input id="tq" value="'+esc(TQ)+'" placeholder="Search '+esc(cat.name)+'…" autocomplete="off"></div>'
     +(/handbook/i.test(cat.name)?'<button class="btn dk sm" id="hbFullPdf" style="border-color:rgba(255,255,255,.3)" title="The whole handbook, assembled as one PDF">⬇ Full PDF</button>':'')
-    +previewPill()
+    +previewPill()+gridPill()
     +plusMenu()
   +'</div>';
   if(subs.length){
@@ -803,7 +817,7 @@ function drawTopic(){
         return '<button class="fchip'+(FACET.t===t.id?' on':'')+'" data-tag="'+t.id+'">'+esc(t.name)+' <span class="n">'+n+'</span></button>';}).join('')
     +'</div>';
   }
-  const canDrag=isMgr(AUTH.role)&&!FACET.s&&!FACET.t&&!TQ;
+  const canDrag=GRIDEDIT&&isMgr(AUTH.role)&&!FACET.s&&!FACET.t&&!TQ;
   surface+='<div id="tGrid">'+topicGrid(shown,cat,subs,canDrag)+'</div></div>';
   $('#page').innerHTML=band+surface;
   wirePlus();
@@ -820,7 +834,7 @@ function drawTopic(){
   document.querySelectorAll('[data-tag]').forEach(el=>el.addEventListener('click',()=>{
     FACET.t=el.dataset.tag?+el.dataset.tag:null; setHash(catHash()); draw(); }));
   wireGrid();
-  wirePreviewPill();
+  wirePreviewPill(); wireGridPill();
   if(canDrag)wireCardDnD();
   const hp=$('#hbFullPdf'); if(hp)hp.addEventListener('click',async()=>{
     hp.disabled=true;hp.textContent='Building…';
