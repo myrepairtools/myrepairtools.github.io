@@ -89,7 +89,6 @@
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
     { label:'Dashboard',           url:'index.html',                icon:'house' },
-    { label:'Training',            url:'training.html',             icon:'graduation-cap' },
     { label:'Checklist',           url:'checklist.html',            icon:'list-checks' },
     { label:'Alerts',              url:'alerts.html',               icon:'bell' },
     { label:'Communications',      url:'communications.html',       icon:'megaphone' },
@@ -316,11 +315,11 @@
   // settings pages highlight the gear (employee-records stays under Employees even
   // though it's also listed in the Settings pane)
   var inSettings = (currentFile === 'settings.html');
-  var inKb = (currentFile === 'knowledge.html');
-  // training.html lives in My Hub; kb-compliance + onboarding-setup +
-  // onboarding-dashboard are Employees-area management pages (owner decision:
-  // the KB area is only the KB itself).
-  var ACTIVE_AREA = inKb ? 'kb' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
+  // knowledge.html + training.html are rail-level links (no pane area of their
+  // own — the KB's white browse pane was retired 2026-08-12 with the portal
+  // redesign; kb-compliance + onboarding-setup + onboarding-dashboard are
+  // Employees-area management pages).
+  var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home + KB + Training)
 
   // ── STYLES ───────────────────────────────────────────────────────────
   var RAIL_W = 64, PANE_W = 248;
@@ -605,7 +604,8 @@
     gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z',
     chart: 'M3 21h18M6.5 21V11M12 21V5M17.5 21v-7',
     people: 'M9 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM2.5 19.5v-.3c0-2.7 2.6-4.3 6.5-4.3s6.5 1.6 6.5 4.3v.3M16 5.3a3.2 3.2 0 0 1 0 6.2M17.5 14.6c2.5.5 4 1.9 4 4v.3',
-    book:  'M3 5.5h5.2c1.6 0 3 .7 3.8 1.9.8-1.2 2.2-1.9 3.8-1.9H21v13h-5.2c-1.5 0-2.9.6-3.8 1.7-.9-1.1-2.3-1.7-3.8-1.7H3v-13ZM12 7.4V20.2'
+    book:  'M3 5.5h5.2c1.6 0 3 .7 3.8 1.9.8-1.2 2.2-1.9 3.8-1.9H21v13h-5.2c-1.5 0-2.9.6-3.8 1.7-.9-1.1-2.3-1.7-3.8-1.7H3v-13ZM12 7.4V20.2',
+    cap:   'M21.4 10.9 12.7 15.4a1.6 1.6 0 0 1-1.4 0L2.6 10.9a1 1 0 0 1 0-1.8l8.7-4.5a1.6 1.6 0 0 1 1.4 0l8.7 4.5a1 1 0 0 1 0 1.8ZM6 12.5v3.6c0 1.6 2.7 3 6 3s6-1.4 6-3v-3.6'
   };
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
@@ -742,44 +742,8 @@
     var ico = '<span class="cpr-tb-ico"><svg viewBox="13 8 48 48" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
     return wm + ico;
   }
-  // Knowledge Base pane: the KB's Browse list lives in the nav (no in-page
-  // sidebar). knowledge.html publishes its categories/counts to localStorage
-  // (cprKbNav) on every load; before the first visit we fall back to the core
-  // rows. Rows are hash links, so clicks route inside the open KB page.
-  function kbPaneHtml(){
-    var items = null;
-    // v2 cache shape {v:2, items:[...]} — older plain-array caches predate the
-    // Lucide row names and are ignored so stale emoji rows purge themselves.
-    try{ var c = JSON.parse(localStorage.getItem('cprKbNav')||'null');
-      if (c && c.v === 3 && Array.isArray(c.items)) items = c.items; }catch(e){}
-    if (!items || !items.length){
-      items = [ {h:'c=all', i:'book-open', l:'All articles'}, {h:'c=req', i:'star', l:'Required reading'} ];
-      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'pen-line',l:'Drafts'});
-    }
-    var here = currentFile==='knowledge.html' ? location.hash.replace('#','') : '';
-    var h = '<div class="cpr-grp">Knowledge Base</div>';
-    items.forEach(function(it){
-      if (it.grp){ h += '<div class="cpr-grp">'+esc(it.grp)+'</div>'; return; }
-      var href = it.u ? it.u : 'knowledge.html#'+it.h;
-      var active = it.u ? (currentFile===it.u) : (currentFile==='knowledge.html' && (here===it.h || (!here && it.h==='c=all')));
-      // Lucide chrome: an `i` matching a NAV_SVG glyph name renders as SVG;
-      // anything else (category emoji = content) renders as text.
-      var glyph = (it.i && NAV_SVG[it.i]) ? navIcon(it.i, 15) : esc(it.i||'📄');
-      h += '<a class="cpr-link'+(active?' active':'')+'" href="'+esc(href)+'">'
-        + '<span class="ic" style="font-size:15px;line-height:1;display:inline-flex;align-items:center">'+glyph+'</span>'
-        + '<span style="flex:1">'+esc(it.l)+'</span>'
-        + (it.b?'<span style="min-width:18px;text-align:center;background:#DC282E;color:#fff;border-radius:999px;font-size:.62rem;font-weight:800;padding:1px 6px">'+esc(String(it.b))+'</span>':'')
-        + (it.c?'<span style="font-size:.68rem;font-weight:800;color:#B9BDCB">'+esc(String(it.c))+'</span>':'')
-        + '</a>';
-    });
-    return h;
-  }
   function paneInner(area){
     var hd = '';   // brand now lives in the top bar; the pane starts at its tool list
-    if (area === 'kb'){
-      return hd + kbPaneHtml()
-        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
-    }
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -835,6 +799,7 @@
     var h = '<a class="cpr-mhd" href="profile.html" style="text-decoration:none;color:inherit"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></a>';
     h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'book-open' });
+    h += linkHtml({ label:'Training', url:'training.html', icon:'graduation-cap' });
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
     var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -862,12 +827,6 @@
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
   function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
-  // KB pane rows are hash links — keep their active state in sync as the open
-  // KB page routes, and let knowledge.html refresh counts after it loads data.
-  window.addEventListener('hashchange', function(){
-    if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); }
-  });
-  window.CPRKbNav = { refresh: function(){ if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); } } };
 
   var rail, pane, scrim, top, usermenu;
   function setArea(area){
@@ -1028,6 +987,7 @@
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
       + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'</a>'
+      + '<a class="cpr-areabtn'+(currentFile==='training.html'?' active':'')+'" href="training.html" title="Training">'+railIcon('cap')+'</a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'

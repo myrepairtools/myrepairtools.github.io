@@ -1009,7 +1009,7 @@ with no facets renders the same card grid with no filter rows. Data:
 `kb_subcategories` (+ `kb_articles.subcategory_id`) and category-scoped
 `kb_tags` + `kb_article_tags` (docs/sql/kb-facets.sql; Repair Knowledge seeded
 Device/Component per the handoff). Managers configure it all in **Categories**
-(KB nav pane → Manage → `#cats`): master–detail with a facet-status pill per
+(the KB page's ＋ menu → Categories, `#cats`): master–detail with a facet-status pill per
 category ("Device · Component" / "—" = setup audit), group-label inputs,
 drag-ordered sub-categories, tag pills. The article editor sidebar picks
 sub-category + tags (category-scoped; save replaces the article's tag set).
@@ -1052,7 +1052,16 @@ to the notifications project. Importing existing docs: give them to Claude in a 
 it converts and inserts articles directly.
 
 **KB v2 — onboarding & quizzes (design-handoff rebuild):** knowledge.html is now the
-full training surface: the **Browse list lives in the NAV PANE**, not the page — nav.js's 'kb' area renders it from a localStorage cache (`cprKbNav`) the page publishes on every draw (counts/badges live; hash links route in-page; static fallback pre-first-visit). The library is full-width list rows with
+full training surface. **The KB's white nav pane is RETIRED (owner call
+2026-08-12, post-portal):** knowledge.html shows the standard menu pane like any
+page, **Training has its own rail icon** (`cap` glyph, direct link — removed
+from the HUB list; the mobile drawer carries an explicit Training row next to
+Knowledge Base), and the pane's Manage rows collapsed into a **＋ menu** on the
+KB page (hero top-right + topic band; managers only): New article · Drafts ·
+Categories · Archived-when-any. The required-reading banner's text opens the
+`#c=req` list; Drafts/Archived/Required views carry a "‹ Knowledge Base" crumb
+back to the portal. nav.js's kb area, kbPaneHtml, `cprKbNav` cache, and
+knowledge.html's publishNav are all deleted — don't resurrect them. The library is full-width list rows with
 per-user **Viewed** column — "Never" amber, red when required-unacked), restyled
 reading view (read-time meta, `!> ` amber callouts in the light markup, footer
 "✓ Mark as read" = `kb_reads.acknowledged_at`, the read receipt that feeds
@@ -1148,8 +1157,8 @@ rule `auto_assign_role`+`auto_assign_from`, and refuses declined rows). **Module
 the 9c controls: auto-assign rule bar, section chips, per-item section selects
 (`onboarding_sections` + section_id on articles/steps); the three management
 surfaces (Dashboard/Setup/Compliance) cross-link in their headers and are NOT in
-the KB nav pane (owner call: the KB pane is about the KB — its fixed rows render
-Lucide glyph names via nav.js NAV_SVG, category rows keep content emoji). Intake
+the KB surface (they cross-link from their own headers; the KB pane itself is
+retired — see above). Intake
 rows are deletable from the dashboard (intake `cancel`, un-promoted only).
 training.html reads articles IN-PAGE (`#read=<slug>` — mark-as-read + quiz CTA
 stay in Training; only quiz-taking hops to knowledge.html). The editor's publish flow

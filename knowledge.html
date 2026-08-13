@@ -171,6 +171,11 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;letter-spac
 .adddash.pill{border-radius:999px;padding:4px 11px}
 .tagpill{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;padding:4px 6px 4px 11px;border:1.5px solid var(--border);border-radius:999px;background:#fff}
 .tagpill .tc{font-size:.62rem;font-weight:800;color:var(--grey)}
+/* + menu (replaces the retired KB nav pane's Manage rows) */
+.pmrow{display:flex;align-items:center;gap:9px;width:100%;padding:9px 14px;border:none;border-bottom:1px solid #F7F7F9;background:#fff;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark);cursor:pointer;text-align:left}
+.pmrow:hover{background:#F8FAFD}
+.pmrow:last-child{border-bottom:none}
+.pmrow .pmc{margin-left:auto;font-size:.68rem;font-weight:800;color:var(--grey)}
 /* search results */
 .sres{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);overflow:hidden;margin-bottom:12px}
 .sresrow{padding:12px 17px;border-bottom:1px solid var(--row);cursor:pointer}
@@ -495,35 +500,9 @@ async function refresh(first){
   draw();
 }
 
-/* ---------- Browse lives in the NAV pane, not the page. Publish the row list
-   (with live counts/badges) for nav.js's kb area, then ask it to re-render. */
-function publishNav(){
-  const items=[];
-  const onb=obOutstanding(), reqN=reqOutstanding().length;
-  items.push({u:'training.html',i:'graduation-cap',l:'Training',b:onb||''});
-  items.push({h:'c=all',i:'book-open',l:'All articles',c:pubArts().length});
-  if(reqN)items.push({h:'c=req',i:'star',l:'Required reading',b:reqN});
-  /* pane chrome is Lucide — categories map by name via the global CATGLYPH
-     (DB emoji stays for the per-article content tiles) */
-  CATS.forEach(c=>{
-    const n=pubArts().filter(a=>a.category_id===c.id).length;
-    if(n)items.push({h:'c='+slugify(c.name),i:CATGLYPH[slugify(c.name)]||'book-open',l:c.name,c:n});
-  });
-  if(isMgr(AUTH.role)){
-    const nd=ARTS.filter(a=>a.status==='draft').length, na=ARTS.filter(a=>a.status==='archived').length;
-    items.push({grp:'Manage'});
-    items.push({h:'c=drafts',i:'pen-line',l:'Drafts',c:nd||''});
-    if(na)items.push({h:'c=archived',i:'archive',l:'Archived',c:na});
-    items.push({h:'cats',i:'folder',l:'Categories'});
-    /* training management (Setup / Dashboard / Compliance) lives off the
-       Onboarding dashboard in the Employees area — not in the KB pane
-       (owner feedback 2026-08-12: keep the KB pane about the KB). */
-  }
-  try{ localStorage.setItem('cprKbNav',JSON.stringify({v:3,items:items})); }catch(e){}
-  if(window.CPRKbNav)window.CPRKbNav.refresh();
-}
 function shell(inner){
   return ''
+  +'<div style="margin-bottom:8px"><a data-navhome style="font-family:Nunito,sans-serif;font-weight:800;font-size:.78rem;color:var(--dark-grey);cursor:pointer">‹ Knowledge Base</a></div>'
   +'<div class="hd"><div><h1 style="display:flex;align-items:center;gap:9px">'+(window.CPRNavIcon?CPRNavIcon('book-open',22):'')+'Knowledge Base</h1><div class="sub">SOPs, repair knowledge, training &amp; how-tos</div></div>'
   +'<div style="margin-left:auto">'+(isMgr(AUTH.role)?'<button class="btn dk sm" id="btnNew">＋ New article</button>':'')+'</div></div>'
   +'<div class="searchbox"><span class="ic" style="display:inline-flex;align-items:center">'+(window.CPRNavIcon?CPRNavIcon('search',16):'')+'</span><input id="q" value="'+esc(SEARCHQ)+'" placeholder="Search everything — “warranty”, “S24 back glass”, “opening checklist”…" autocomplete="off"></div>'
@@ -531,6 +510,8 @@ function shell(inner){
 }
 function wireShell(){
   const bn=$('#btnNew'); if(bn)bn.addEventListener('click',()=>{ OPEN=null; MODE='edit'; setHash('new'); draw(); });
+  const nh=document.querySelector('[data-navhome]'); if(nh)nh.addEventListener('click',()=>{
+    CAT='all'; MODE='list'; try{localStorage.setItem('cprKbCat','all');}catch(e){} setHash('c=all'); draw(); });
   const q=$('#q'); if(q){
     q.addEventListener('input',()=>{ SEARCHQ=q.value.trim();
       clearTimeout(SEARCH_T); SEARCH_T=setTimeout(runSearch,250); });
@@ -584,13 +565,43 @@ const CATGLYPH={'sops-policies':'clipboard-check','repair-knowledge':'wrench','i
   'employee-handbook':'book-open'};
 function catGlyph(c,size){ const n=CATGLYPH[slugify(c.name)]||'book-open';
   return window.CPRNavIcon?CPRNavIcon(n,size||18):esc(c.icon||'📄'); }
+/* the retired nav pane's Manage rows live in a + menu now (owner call
+   2026-08-12: no white KB pane — Training moved to the rail) */
+function plusMenu(){
+  if(!isMgr(AUTH.role))return '';
+  const nd=ARTS.filter(a=>a.status==='draft').length, na=ARTS.filter(a=>a.status==='archived').length;
+  return '<div style="position:relative;display:inline-block" id="plusWrap">'
+    +'<button class="btn dk sm" id="plusBtn" style="border-color:rgba(255,255,255,.25);font-size:1rem;line-height:1;padding:7px 13px" title="New article, drafts & categories">＋</button>'
+    +'<div id="plusMenuBox" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 10px 30px rgba(45,45,59,.18);min-width:200px;z-index:80;overflow:hidden">'
+      +'<button class="pmrow" data-pm="new">＋ New article</button>'
+      +'<button class="pmrow" data-pm="drafts"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('pen-line',15):'')+'</span> Drafts'+(nd?'<span class="pmc">'+nd+'</span>':'')+'</button>'
+      +'<button class="pmrow" data-pm="cats"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('folder',15):'')+'</span> Categories</button>'
+      +(na?'<button class="pmrow" data-pm="archived"><span style="display:inline-flex">'+(window.CPRNavIcon?CPRNavIcon('archive',15):'')+'</span> Archived<span class="pmc">'+na+'</span></button>':'')
+    +'</div></div>';
+}
+function wirePlus(){
+  const b=$('#plusBtn'); if(!b)return;
+  b.addEventListener('click',e=>{ e.stopPropagation();
+    const m=$('#plusMenuBox'); m.style.display=m.style.display==='none'?'block':'none'; });
+  if(!window.__pmBound){
+    document.addEventListener('click',e=>{ const m=$('#plusMenuBox');
+      if(m&&!e.target.closest('#plusWrap'))m.style.display='none'; });
+    window.__pmBound=true;
+  }
+  document.querySelectorAll('[data-pm]').forEach(el=>el.addEventListener('click',()=>{
+    const k=el.dataset.pm;
+    if(k==='new'){ OPEN=null; MODE='edit'; setHash('new'); draw(); }
+    else if(k==='cats'){ MODE='cats'; draw(); }
+    else{ CAT=k; MODE='list'; try{localStorage.setItem('cprKbCat',CAT);}catch(e){} setHash('c='+k); draw(); }
+  }));
+}
 function drawHome(){
   const cats=CATS.map(c=>({c,n:pubArts().filter(a=>a.category_id===c.id).length})).filter(x=>x.n);
   const vis=new Set(pubArts().map(a=>a.id));
   const most=MOSTREAD.filter(m=>vis.has(m.article_id)).slice(0,6)
     .map(m=>({a:ARTS.find(x=>x.id===m.article_id),n:m.n})).filter(x=>x.a);
   let inner='<div class="hero">'
-    +(isMgr(AUTH.role)?'<div class="hnew"><button class="btn dk sm" id="btnNew" style="border-color:rgba(255,255,255,.25)">＋ New article</button></div>':'')
+    +'<div class="hnew">'+plusMenu()+'</div>'
     +'<div class="hlogo">'+(window.CPRNavIcon?CPRNavIcon('book-open',22):'')+'<b>Knowledge Base</b></div>'
     +'<div class="hsub">How do we do that here? Start typing.</div>'
     +'<div id="heroS" class="herosearch"></div>'
@@ -601,7 +612,7 @@ function drawHome(){
       +'<span class="ctn">'+esc(x.c.name)+'</span>'
       +'<span class="ctc">'+x.n+' article'+(x.n===1?'':'s')+'</span></button>').join('')+'</div>';
   const rr=reqOutstanding();
-  if(rr.length)inner+='<div class="reqbanner" style="margin-top:14px"><span style="font-size:1.05rem">🎓</span><div class="t">'
+  if(rr.length)inner+='<div class="reqbanner" style="margin-top:14px"><span style="font-size:1.05rem">🎓</span><div class="t" data-reqlist style="cursor:pointer">'
     +rr.length+' required read'+(rr.length===1?'':'s')+' outstanding — '
     +rr.slice(0,2).map(a=>'<b>'+esc(a.title)+'</b>').join(' · ')+(rr.length>2?' · …':'')
     +'</div><button class="btn pri sm" id="startReq">Start reading</button></div>';
@@ -612,9 +623,10 @@ function drawHome(){
       +'<span class="mrn">'+x.n+' read'+(x.n===1?'':'s')+'</span></button>').join('')+'</div>';
   inner+='</div>';
   $('#page').innerHTML=inner;
-  renderHeroSearch();
-  const bn=$('#btnNew'); if(bn)bn.addEventListener('click',()=>{ OPEN=null; MODE='edit'; setHash('new'); draw(); });
+  renderHeroSearch(); wirePlus();
   const sr=$('#startReq'); if(sr)sr.addEventListener('click',()=>{ const a=reqOutstanding()[0]; if(a)openArticle(a.id); });
+  const rq=document.querySelector('[data-reqlist]'); if(rq)rq.addEventListener('click',()=>{
+    CAT='req'; MODE='list'; try{localStorage.setItem('cprKbCat','req');}catch(e){} setHash('c=req'); draw(); });
   document.querySelectorAll('[data-cat]').forEach(el=>el.addEventListener('click',()=>{
     CAT=String(el.dataset.cat); FACET={s:null,t:null}; TQ=''; SEARCHQ=''; SRES=null;
     try{localStorage.setItem('cprKbCat',CAT);}catch(e){}
@@ -690,6 +702,7 @@ function drawTopic(){
     +'<span class="bsum" id="tSum">'+esc(summary)+'</span>'
     +'<div class="tsearch"><span class="tsic">'+(window.CPRNavIcon?CPRNavIcon('search',14):'')+'</span>'
     +'<input id="tq" value="'+esc(TQ)+'" placeholder="Search '+esc(cat.name)+'…" autocomplete="off"></div>'
+    +plusMenu()
   +'</div>';
   if(subs.length){
     const allN=catArts.filter(tagOk).length;
@@ -713,6 +726,7 @@ function drawTopic(){
   }
   surface+='<div id="tGrid">'+topicGrid(shown,cat,subs)+'</div></div>';
   $('#page').innerHTML=band+surface;
+  wirePlus();
   $('#bcHome').addEventListener('click',()=>{ CAT='all'; FACET={s:null,t:null}; TQ='';
     try{localStorage.setItem('cprKbCat','all');}catch(e){}
     setHash('c=all'); draw(); });
@@ -1436,7 +1450,6 @@ async function announcePublish(a,isNew){
 
 /* ---------- draw ---------- */
 function draw(){
-  publishNav();   // keep the nav pane's counts/badges/active row current
   if(MODE==='article'&&OPEN)drawArticle();
   else if(MODE==='onboarding')drawOnboarding();
   else if(MODE==='quiz'&&QZ)drawQuiz();
