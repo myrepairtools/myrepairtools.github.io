@@ -1137,7 +1137,10 @@ readable; **correct answers live in `kb_quiz_answers` with no client read** — 
 is the SECURITY DEFINER RPC `kb_quiz_grade` which records `kb_quiz_attempts` and
 returns only ok/hint per question; managers author via `kb_quiz_set_answer`/
 `kb_quiz_get_answers`; 80% pass, unlimited attempts, best kept), and the sidebar-card
-**article editor** (per-article `emoji`, module slot, quiz editor modal, archive/
+**article editor** (per-article `emoji` + optional `icon_url` — an uploaded logo
+image (kb-media `icons/…`, ≤128px PNG) that replaces the emoji on every row-icon
+surface (cards, lists, search, article header, Training reader, Setup rows) via
+knowledge.html's `artIconHtml()`, module slot, quiz editor modal, archive/
 restore, publish still announces to Communications + alerts). `kb-compliance.html`
 (nav 'KB Compliance', Employees, manager+, hidden:true — linked from the KB sidebar's
 Manage section) is the roster view: store `.storesel` filter, stat tiles, per-person

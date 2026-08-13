@@ -107,7 +107,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 async function loadAll(){
   const [c,a,m,se,sp,qz]=await Promise.all([
     sb.from('kb_categories').select('*').order('sort'),
-    sb.from('kb_articles').select('id,title,status,emoji,category_id,module_id,section_id,sort_order,require_ack'),
+    sb.from('kb_articles').select('id,title,status,emoji,icon_url,category_id,module_id,section_id,sort_order,require_ack'),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('onboarding_sections').select('*'),
     sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
@@ -155,7 +155,7 @@ function draw(){
     const rows=items.map(it=>{
       if(it.kind==='a'){
         const a=it.a,q=QUIZ[a.id];
-        return '<div class="irow" data-iid="a'+a.id+'" draggable="true"><span class="itile">'+esc(artIcon(a))+'</span>'
+        return '<div class="irow" data-iid="a'+a.id+'" draggable="true"><span class="itile">'+(a.icon_url?'<img src="'+String(a.icon_url).replace(/"/g,'&quot;')+'" alt="" style="width:18px;height:18px;object-fit:contain;border-radius:4px;vertical-align:-3px">':esc(artIcon(a)))+'</span>'
           +'<div class="imain"><div class="ititle">'+esc(a.title)+(a.status==='draft'?'<span class="achip">Draft</span>':'')+'</div>'
           +'<div class="imeta">Article · '+esc(catName(a.category_id))+(q&&q.nq?' · quiz ('+q.nq+')':'')+(a.require_ack?' · required':'')+'</div></div>'
           +(secsOf.length?secSel('a',a.id,a.section_id):'')

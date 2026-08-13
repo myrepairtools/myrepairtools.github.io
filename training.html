@@ -194,7 +194,7 @@ async function loadAll(){
   const [mo,se,ar,st,as,rd,qz,at,sd]=await Promise.all([
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('onboarding_sections').select('*'),
-    sb.from('kb_articles').select('id,slug,title,summary,body,status,min_role,require_ack,emoji,module_id,section_id,sort_order,category_id,updated_at,version').eq('status','published'),
+    sb.from('kb_articles').select('id,slug,title,summary,body,status,min_role,require_ack,emoji,icon_url,module_id,section_id,sort_order,category_id,updated_at,version').eq('status','published'),
     sb.from('onboarding_steps').select('*').eq('active',true),
     sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id),
     sb.from('kb_reads').select('*').eq('staff_id',AUTH.id),
@@ -358,7 +358,7 @@ async function drawRead(){
   const passed=q&&q.nq?!!(MYATT[q.id]&&MYATT[q.id].passed):null;
   let h='<button class="backlnk" id="rdBack">‹ Back to Training</button>';
   h+='<div class="artcard">'
-    +'<h2>'+(a.emoji?esc(a.emoji)+' ':'')+esc(a.title)+'</h2>'
+    +'<h2>'+(a.icon_url?'<img src="'+String(a.icon_url).replace(/"/g,'&quot;')+'" alt="" style="width:26px;height:26px;object-fit:contain;border-radius:5px;vertical-align:-4px"> ':(a.emoji?esc(a.emoji)+' ':''))+esc(a.title)+'</h2>'
     +'<div class="artmeta">'+readMins(a.body)+' min read'+(a.require_ack?' · required reading':'')+'</div>'
     +'<div class="artbody">'+render(a.body||'')+'</div>'
     +'<div class="artfoot">'

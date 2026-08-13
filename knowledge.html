@@ -152,6 +152,7 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .acard .acbadge.grey{background:#F0F1F4;color:var(--dark-grey)}
 .acard .actitle{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;line-height:1.35;color:var(--dark)}
 .acard .acfoot{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:700;color:var(--grey);border-top:1px solid var(--row);padding-top:8px;margin-top:auto}
+.aticon{object-fit:contain;border-radius:5px;vertical-align:-4px}
 /* ---- sub-category drill-down landing (per-category landing='subcats') ---- */
 .subgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:16px}
 .subcard{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);padding:15px 15px 12px;display:flex;flex-direction:column;gap:7px;cursor:pointer}
@@ -463,6 +464,12 @@ function catById(id){ return CATS.find(x=>x.id===id); }
 function catVisible(c){ return !c||c.min_role!=='manager'||isMgr(AUTH.role); }
 function catName(id){ const c=catById(id); return c?c.name:'—'; }
 function artIcon(a){ return a.emoji||((catById(a.category_id)||{}).icon)||'📄'; }
+/* an uploaded icon image (vendor/tool logo) beats the emoji wherever the row
+   icon renders; falls back to artIcon() when none is set */
+function artIconHtml(a,size){
+  if(a&&a.icon_url)return '<img class="aticon" src="'+String(a.icon_url).replace(/"/g,'&quot;')+'" alt="" style="width:'+(size||22)+'px;height:'+(size||22)+'px">';
+  return esc(a?artIcon(a):'📄');
+}
 function acked(a){ const r=READS[a.id]; return r&&r.acknowledged_at; }
 function viewedAt(a){ const r=READS[a.id]; return r?(r.last_viewed_at||r.first_read_at):null; }
 /* preview mode: managers see drafts placed exactly where they'll publish —
@@ -708,7 +715,7 @@ function drawHome(){
     +'</div><button class="btn pri sm" id="startReq">Start reading</button></div>';
   if(most.length)inner+='<div class="mostread"><div class="mrh">Most read this month</div>'
     +most.map(x=>'<button class="mrrow" data-open="'+x.a.id+'">'
-      +'<span class="mre">'+esc(artIcon(x.a))+'</span>'
+      +'<span class="mre">'+artIconHtml(x.a,18)+'</span>'
       +'<span class="mrt">'+esc(x.a.title)+'</span>'
       +'<span class="mrn">'+x.n+' read'+(x.n===1?'':'s')+'</span></button>').join('')+'</div>';
   inner+='</div>';
@@ -764,7 +771,7 @@ function renderHeroSearch(){
       +(shown.length?shown.map((r,i)=>{
           const a=ARTS.find(x=>x.id===r.id);
           return '<button class="sprow'+(i===SELIDX?' sel':'')+'" data-open="'+r.id+'" data-i="'+i+'">'
-            +'<span class="rtile">'+esc(a?artIcon(a):'📄')+'</span>'
+            +'<span class="rtile">'+artIconHtml(a,20)+'</span>'
             +'<span style="flex:1;min-width:0"><span style="display:flex;align-items:center;gap:8px">'
               +'<span class="rtitle">'+esc(r.title)+'</span>'+(a?chipFor(a):'')+'</span>'
             +'<span class="rsnip">'+String(esc(r.snippet||r.summary||'')).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')+'</span>'
@@ -953,7 +960,7 @@ function topicGrid(list,cat,subs,canDrag){
         :'<span class="acbadge grey">'+esc(allLbl(cat))+'</span>';
     }
     return '<div class="acard" data-open="'+a.id+'"'+(canDrag?' draggable="true" title="Drag to organize"':'')+'>'
-      +'<div class="actop"><span class="actile">'+esc(artIcon(a))+'</span><span style="flex:1"></span>'
+      +'<div class="actop"><span class="actile">'+artIconHtml(a,24)+'</span><span style="flex:1"></span>'
         +badge+cardChip(a)+'</div>'
       +'<div class="actitle">'+esc(a.title)+'</div>'
       +'<div class="acfoot"><span>'+readMins(a.body)+' min</span><span>·</span><span>upd '+fmtD(a.updated_at)+'</span>'
@@ -975,7 +982,7 @@ function drawSimpleList(){
   }
   if(SRES){
     inner+=SRES.length
-      ? '<div class="sres">'+SRES.map(r=>'<div class="sresrow" data-open="'+r.id+'"><div class="st">'+esc((ARTS.find(x=>x.id===r.id)?artIcon(ARTS.find(x=>x.id===r.id)):'📄'))+' '+esc(r.title)+'</div><div class="sn">'+String(esc(r.snippet||r.summary||'')).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')+'</div></div>').join('')+'</div>'
+      ? '<div class="sres">'+SRES.map(r=>'<div class="sresrow" data-open="'+r.id+'"><div class="st">'+artIconHtml(ARTS.find(x=>x.id===r.id),16)+' '+esc(r.title)+'</div><div class="sn">'+String(esc(r.snippet||r.summary||'')).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')+'</div></div>').join('')+'</div>'
       : '<div class="sres"><div class="sresrow"><div class="sn">No matches for “'+esc(SEARCHQ)+'” — try different words, or ask the assistant (✨ bottom right).</div></div></div>';
   }
   const rows=listRows();
@@ -984,7 +991,7 @@ function drawSimpleList(){
     const never=!v;
     const vCol=never?(a.require_ack&&!acked(a)?'var(--red)':'var(--amber)'):'#8A8FA0';
     return '<div class="arow" data-open="'+a.id+'">'
-      +'<div class="atile">'+esc(artIcon(a))+'</div>'
+      +'<div class="atile">'+artIconHtml(a,24)+'</div>'
       +'<div class="amain"><div class="atitlerow">'
         +(never&&a.status==='published'?'<span class="adot"></span>':'')
         +'<span class="atitle'+(never?' unread':'')+'">'+esc(a.title)+'</span>'+chipFor(a)
@@ -1173,7 +1180,7 @@ function drawArticle(){
     +(a.require_ack?'<span class="achip req">Required'+(mod?' · '+esc(weekLabel(mod)):'')+'</span>':'')
   +'</div>'
   +'<div class="artcard">'
-    +'<div class="ahd"><h2>'+esc(artIcon(a))+' '+esc(a.title)+'</h2>'
+    +'<div class="ahd"><h2>'+artIconHtml(a,26)+' '+esc(a.title)+'</h2>'
     +'<div class="artmeta"><span>'+readMins(a.body)+' min read</span><span>·</span><span>updated '+fmtD(a.updated_at)+'</span>'
       +(author?'<span>·</span><span>by '+esc(author)+'</span>':'')+'<span>·</span><span style="color:#8A8FA0">Applies to: all stores</span></div>'
     +'<div style="height:1px;background:var(--row);margin:20px 0 0"></div></div>'
@@ -1498,6 +1505,7 @@ function drawEditor(){
   SRCMODE=false;
   if(!ED)ED={title:a?a.title:'',summary:a?a.summary||'':'',category_id:a?a.category_id:(CATS[0]||{}).id,
     min_role:a?a.min_role:'employee',require_ack:a?!!a.require_ack:false,emoji:a?a.emoji||'':'',
+    icon_url:a?a.icon_url||null:null,
     module_id:a?a.module_id:null,sort_order:a?a.sort_order||0:0,body:a?a.body:'',announce:true,
     subcategory_id:a?a.subcategory_id||null:null,tag_ids:a?(ARTTAGS[a.id]||[]).slice():[]};
   const q=a?QUIZ[a.id]:null;
@@ -1557,6 +1565,13 @@ function drawEditor(){
           return h; })()
         +'<label class="fl">Visible to</label><select id="eVis"><option value="employee"'+(ED.min_role!=='manager'?' selected':'')+'>Everyone</option><option value="manager"'+(ED.min_role==='manager'?' selected':'')+'>Managers &amp; up</option></select>'
         +'<label class="fl">Emoji (row icon)</label><input type="text" id="eEmoji" value="'+esc(ED.emoji)+'" placeholder="e.g. 💧 (falls back to category icon)">'
+        +'<label class="fl">Icon image <span style="color:var(--grey);text-transform:none;letter-spacing:0">— optional, replaces the emoji (e.g. a vendor logo)</span></label>'
+        +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">'
+          +(ED.icon_url?'<img src="'+escAttr(ED.icon_url)+'" alt="" style="width:34px;height:34px;object-fit:contain;border:1px solid var(--border);border-radius:9px;background:#fff;padding:3px;flex:none">':'')
+          +'<button type="button" class="btn sm" id="eIconUp">'+(ED.icon_url?'Replace':'⬆ Upload image')+'</button>'
+          +(ED.icon_url?'<button type="button" class="linkdel" id="eIconRm" style="font-size:.74rem">Remove</button>':'')
+          +'<input type="file" id="eIconFile" accept="image/*" hidden>'
+        +'</div>'
         +'<label class="fl">One-line summary</label><input type="text" id="eSummary" value="'+esc(ED.summary)+'" placeholder="Shows on the list row">'
       +'</div>'
       +'<div class="sdc"><div class="k">Onboarding</div>'
@@ -1695,6 +1710,33 @@ function drawEditor(){
     document.execCommand('insertHTML',false,'<img src="'+escAttr(SB_URL+'/storage/v1/object/public/kb-media/'+path)+'" alt="image"><p><br></p>');
     toast('Image added.');
   });
+  /* icon image (sidebar): downscaled to ≤128px PNG so logos stay crisp but
+     tiny; lives in kb-media like article images. Saved with the article. */
+  function iconBlob(f){ return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{ const max=128,sc=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.max(1,Math.round(img.width*sc)); c.height=Math.max(1,Math.round(img.height*sc));
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>b?res(b):rej(new Error('encode failed')),'image/png');
+      URL.revokeObjectURL(img.src); };
+    img.onerror=()=>rej(new Error('not an image'));
+    img.src=URL.createObjectURL(f);
+  }); }
+  $('#eIconUp').addEventListener('click',()=>$('#eIconFile').click());
+  $('#eIconFile').addEventListener('change',async()=>{
+    const f=$('#eIconFile').files[0]; if(!f)return;
+    toast('Uploading icon…');
+    try{
+      const blob=await iconBlob(f);
+      const path='icons/'+Date.now()+'-'+f.name.toLowerCase().replace(/\.[a-z0-9]+$/,'').replace(/[^a-z0-9]+/g,'-')+'.png';
+      const {error}=await sb.storage.from('kb-media').upload(path,blob,{contentType:'image/png'});
+      if(error)throw error;
+      grab(); ED.icon_url=SB_URL+'/storage/v1/object/public/kb-media/'+path;
+      drawEditor(); toast('Icon set — save to keep it.');
+    }catch(e){ toast('Upload failed: '+(e.message||e),true); }
+  });
+  const irm=$('#eIconRm'); if(irm)irm.addEventListener('click',()=>{ grab(); ED.icon_url=null; drawEditor(); });
   /* advanced escape hatch: edit the raw markup */
   $('#edSrc').addEventListener('click',()=>{
     if(!SRCMODE){ src.value=editorToMd(rich); rich.style.display='none'; src.style.display='block'; SRCMODE=true; $('#edSrc').classList.add('on'); }
@@ -1719,6 +1761,7 @@ function drawEditor(){
     const catGated=(catById(ED.category_id)||{}).min_role==='manager';
     const row={title:ED.title.trim(),summary:ED.summary.trim()||null,category_id:ED.category_id,
       body:ED.body,status,min_role:catGated?'manager':ED.min_role,require_ack:ED.require_ack,emoji:ED.emoji||null,
+      icon_url:ED.icon_url||null,
       module_id:ED.module_id,sort_order:ED.sort_order,updated_by:AUTH.id,
       subcategory_id:ED.subcategory_id};
     if(status==='published'&&!(a&&a.published_at))row.published_at=new Date().toISOString();

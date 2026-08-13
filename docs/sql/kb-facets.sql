@@ -88,3 +88,9 @@ alter table public.kb_categories add column if not exists min_role text not null
 -- sub-category first. Inside a sub-category the pills row appears for
 -- sideways jumps. Set per category in the Categories settings.
 alter table public.kb_categories add column if not exists landing text not null default 'articles';
+
+-- Article icon image (owner ask 2026-08-13, "use the 3uTools logo"): an
+-- uploaded logo (kb-media bucket, icons/…, downscaled to ≤128px PNG in the
+-- editor) that replaces the emoji wherever the row icon renders. null = emoji
+-- (or the category icon) as before.
+alter table public.kb_articles add column if not exists icon_url text;
