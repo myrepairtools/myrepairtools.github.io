@@ -508,10 +508,15 @@ function renderStore(){
   if(!store){$('#view').innerHTML='<div class="empty">No store schedule to show.</div>';return;}
   var html=DAYS.map(function(dy,wd){
     var dt=new Date(WK);dt.setDate(dt.getDate()+wd);var di=iso(dt);var isToday=di===todayIso;
-    var working=[];
+    var working=[],away=[];
     STAFF.forEach(function(e){
       var ap=approvedOn(e.id,di);if(ap&&!apPartial(ap,di))return;   // partial-day people still work part of the shift
-      var r=effDayRec(e.id,wd,di);if(r.none||r.off||r.store!==store)return;
+      var r=effDayRec(e.id,wd,di);if(r.none||r.off)return;
+      if(r.store!==store){
+        /* home-store person working elsewhere today — show where (mirrors Schedule Admin) */
+        if(e.home_store===store)away.push({e:e,name:e.display_name,store:r.store,me:e.id===ME.id});
+        return;
+      }
       var v=holAdjust(shiftView(r,wd),r,wd,di),rd=resolve(r.shift_id,store,wd),pl=parseLabel(r.label);
       var startMin=rd.start!=null?rd.start:(pl?pl[0]:9999);
       working.push({e:e,name:e.display_name,tm:v.time||v.name,start:startMin,me:e.id===ME.id});
@@ -520,6 +525,9 @@ function renderStore(){
     var rows=working.length?working.map(function(w){
       return '<div class="who">'+avFor(w.e)+'<span class="nm"'+(w.me?' style="color:#1E7AA8"':'')+'>'+esc(w.name)+(w.me?' <span style="font-size:.5rem;color:#1E7AA8;background:#E3F0F7;padding:1px 5px;border-radius:999px">YOU</span>':'')+'</span><span class="tm">'+esc(w.tm)+'</span></div>';
     }).join(''):'<div class="empty">No one scheduled.</div>';
+    rows+=away.map(function(w){var ac=storeColor(w.store);
+      return '<div class="who" style="opacity:.75">'+avFor(w.e)+'<span class="nm">'+esc(w.name)+'</span><span class="tm" style="color:'+esc(ac)+';font-weight:800">In '+esc(shortStore(w.store))+'</span></div>';
+    }).join('');
     return '<div class="scard'+(isToday?' today':'')+'"><div class="scard-hd"><span class="h"'+(isToday?' style="color:var(--red)"':'')+'>'+DAYL[wd]+' '+dt.getDate()+'</span>'+(isToday?'<span class="pill" style="color:#fff;background:var(--red);margin:0">TODAY</span>':'')+'<span style="flex:1"></span><span class="tm" style="font-family:Nunito Sans;font-weight:700;font-size:.7rem;color:var(--grey)">'+working.length+' on</span></div><div class="scard-bd">'+rows+'</div></div>';
   }).join('');
   $('#view').innerHTML=html;
@@ -666,16 +674,20 @@ function ackBoxHtml(conflictTxt,acked){
 function renderTimeoff(){
   var form='<button class="btn btn-red" id="openReq" style="margin-bottom:18px">+ Request Time Off</button>';
 
-  var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
-  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';
+  var today=iso(new Date());
+  var allMine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
+  /* past requests fall off (finished + already decided); pending stays visible whatever the dates (late sick filings) */
+  var mine=allMine.filter(function(r){return r.end_date>=today||r.status==='pending';});
+  var pastMine=allMine.filter(function(r){return !(r.end_date>=today||r.status==='pending');});
+  var mineRow=function(r){var c=TYPES[r.type]||'#B9BDCB';
     var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';
     var ownPend=r.status==='pending';
     var ownAttr=ownPend?(canDecide()?' data-decide-own="'+r.id+'"':' data-cancel="'+r.id+'"'):'';
     var ownHint=ownPend?(canDecide()?' · tap the status to decide':' · tap to cancel'):'';
     return '<div class="req" style="border-left:4px solid '+c+'"><div class="meta"><div style="display:flex;align-items:center;gap:7px"><span class="dr">'+esc(fmtRange(r.start_date,r.end_date))+'</span><span class="tbadge" style="color:'+c+';background:'+hexA(c,0.13)+'">'+esc(r.type)+'</span></div><div class="sm">'+dayCount(r.start_date,r.end_date)+hrs+ownHint+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+ownAttr+'>'+statusLabel(r.status)+(ownPend&&canDecide()?' ▾':'')+'</span></div>';
-  }).join(''):'<div class="empty">No requests yet.</div>';
-
-  var today=iso(new Date());
+  };
+  var mineHtml=mine.length?mine.map(mineRow).join(''):'<div class="empty">'+(pastMine.length?'No upcoming requests.':'No requests yet.')+'</div>';
+  if(pastMine.length)mineHtml+='<button id="pastTgl" style="background:none;border:none;color:var(--grey);font-family:\'Nunito Sans\',sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;padding:8px 0;text-align:left">Show past requests ('+pastMine.length+') ▾</button><div id="pastList" style="display:none">'+pastMine.map(mineRow).join('')+'</div>';
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
   var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};
     var dec=r.status==='pending'&&canDecide();
@@ -688,6 +700,13 @@ function renderTimeoff(){
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
   $('#view').querySelectorAll('[data-decide]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide')),false);};});
   $('#view').querySelectorAll('[data-decide-own]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide-own')),true);};});
+  wirePastToggle();
+}
+function wirePastToggle(){
+  var pt=$('#pastTgl');if(!pt)return;
+  pt.onclick=function(){var l=$('#pastList'),show=l.style.display==='none';
+    l.style.display=show?'':'none';
+    pt.textContent=pt.textContent.replace(show?'Show':'Hide',show?'Hide':'Show').replace(show?'▾':'▴',show?'▴':'▾');};
 }
 async function cancelRequest(id){
   var r=await sb.from('time_off_requests').delete().eq('id',id);
@@ -731,7 +750,17 @@ function weekShiftCell(staffId,wd,di,cardStore){
   if(ap&&apPartial(ap,di)){var cp=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(cp,0.13)+';border-left:2px solid '+cp+'"><div class="n" style="color:#8a5a00">½ Partial</div><div class="t">away '+apAway(ap,di)+'h</div></div>';}
   if(ap){var c=TYPES[ap.type]||'#B9BDCB';return '<div class="wchip" style="background:'+hexA(c,0.13)+';border-left:2px solid '+c+'"><div class="n" style="color:'+c+'">Off</div><div class="t">'+esc(ap.type)+'</div></div>';}
   var r=effDayRec(staffId,wd,di);
-  if(r.none||r.off||(cardStore&&r.store!==cardStore))return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
+  if(r.none||r.off||(cardStore&&r.store!==cardStore)){
+    /* working at another location: show "In <store>" on their HOME board (mirrors Schedule Admin's cellAway) */
+    if(cardStore&&!r.none&&!r.off&&r.store){
+      var he=staffById(staffId);
+      if(he&&he.home_store===cardStore){
+        var av=holAdjust(shiftView(r,wd),r,wd,di), ac=storeColor(r.store);
+        return '<div class="wchip" style="background:'+hexA(ac,0.09)+';border-left:2px solid '+esc(ac)+'"><div class="n" style="color:'+esc(ac)+'">In '+esc(shortStore(r.store))+'</div><div class="t">'+esc(av.time||'')+'</div></div>';
+      }
+    }
+    return '<div style="text-align:center;color:#d8dbe2;font-weight:800;font-size:.58rem">·</div>';
+  }
   var v=holAdjust(shiftView(r,wd),r,wd,di);
   return '<div class="wchip" style="background:'+hexA(v.color,0.12)+';border-left:2px solid '+esc(v.color)+'"><div class="n">'+esc(v.name)+(v.warn?' ⚠️':'')+'</div><div class="t">'+esc(v.time)+'</div></div>';
 }
@@ -836,11 +865,15 @@ function isMgrRole(r){return ['owner','admin','manager'].indexOf(r)>-1;}
 function timeoffPanelHtml(web){
   var actions='<button class="btn btn-red" id="openReq" style="height:48px;width:100%">+ Request Time Off</button>';
   var form='';
-  var mine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
-  var mineHtml=mine.length?mine.map(function(r){var c=TYPES[r.type]||'#B9BDCB';var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';
-    var ownAttr=r.status==='pending'?(canDecide()?' data-decide-own="'+r.id+'" title="Tap to decide"':' data-cancel="'+r.id+'" title="Tap to cancel"'):'';
-    return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+hrs+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+ownAttr+'>'+statusLabel(r.status)+(r.status==='pending'&&canDecide()?' ▾':'')+'</span></div>';}).join(''):'<div class="empty">No requests yet.</div>';
   var today=iso(new Date());
+  var allMine=REQS.filter(function(r){return r.staff_id===ME.id;}).sort(function(a,b){return a.start_date<b.start_date?1:-1;});
+  var mine=allMine.filter(function(r){return r.end_date>=today||r.status==='pending';});
+  var pastMine=allMine.filter(function(r){return !(r.end_date>=today||r.status==='pending');});
+  var mineRow=function(r){var c=TYPES[r.type]||'#B9BDCB';var hrs=(r.hours!=null&&Number(r.hours)>0)?(' · '+Number(r.hours)+'h'+(r.paid===false?'':' PTO')):'';
+    var ownAttr=r.status==='pending'?(canDecide()?' data-decide-own="'+r.id+'" title="Tap to decide"':' data-cancel="'+r.id+'" title="Tap to cancel"'):'';
+    return '<div style="display:flex;align-items:center;gap:9px;border-left:4px solid '+c+';padding:4px 0 4px 9px"><div style="flex:1"><div style="font-family:Nunito;font-weight:800;font-size:.78rem">'+esc(fmtRange(r.start_date,r.end_date))+'</div><div style="font-family:Nunito Sans;font-weight:700;font-size:.66rem;color:var(--grey)">'+esc(r.type)+' · '+dayCount(r.start_date,r.end_date)+hrs+'</div></div><span class="sbadge" style="'+statusStyle(r.status)+'"'+ownAttr+'>'+statusLabel(r.status)+(r.status==='pending'&&canDecide()?' ▾':'')+'</span></div>';};
+  var mineHtml=mine.length?mine.map(mineRow).join(''):'<div class="empty">'+(pastMine.length?'No upcoming requests.':'No requests yet.')+'</div>';
+  if(pastMine.length)mineHtml+='<button id="pastTgl" style="background:none;border:none;color:var(--grey);font-family:\'Nunito Sans\',sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;padding:8px 0;text-align:left">Show past requests ('+pastMine.length+') ▾</button><div id="pastList" style="display:none;flex-direction:column;gap:8px">'+pastMine.map(mineRow).join('')+'</div>';
   var team=REQS.filter(function(r){return r.staff_id!==ME.id&&r.status!=='denied'&&r.end_date>=today;}).sort(function(a,b){return a.start_date<b.start_date?-1:1;});
   var teamHtml=team.length?team.map(function(r){var e=staffById(r.staff_id)||{display_name:'?'};
     var dec=r.status==='pending'&&canDecide();
@@ -856,6 +889,7 @@ function wireTimeoffPanel(){
   $('#view').querySelectorAll('[data-cancel]').forEach(function(b){b.onclick=function(){cancelRequest(Number(b.getAttribute('data-cancel')));};});
   $('#view').querySelectorAll('[data-decide]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide')),false);};});
   $('#view').querySelectorAll('[data-decide-own]').forEach(function(b){b.onclick=function(){openDecideSheet(Number(b.getAttribute('data-decide-own')),true);};});
+  wirePastToggle();
 }
 /* ===== Request Time Off — 3-step wizard (everything stays in the modal) =====
    Step 1 pick dates on the calendar (your own booked days now show as ME chips) ·

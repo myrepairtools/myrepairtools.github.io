@@ -1,120 +1,126 @@
-/* ===========================================================================
- * CPR onboarding-track.js — the canonical shape of an onboarding track.
+/* onboarding-track.js — the ONE implementation of the onboarding track:
+ * merge a module's articles + task steps, group by section, order canonically,
+ * and compute sequential unlock. knowledge.html (Setup preview), training.html
+ * (employee track) and kb-compliance.html (per-person panel) all render from
+ * this — surfaces must never fork the merge/order/unlock math.
  *
- * Three surfaces render the same track and MUST agree on its order, or an
- * employee's "next" item stops matching what the manager sees:
- *   knowledge.html  #onboarding  (My Onboarding — the employee)
- *   knowledge.html  #modules     (Onboarding Setup — the author)
- *   kb-compliance.html           (the roster / tracking view)
- * kb-compliance used to keep its own copy of this logic; this file replaces it
- * so there is one implementation to change.
+ * window.CPRTrack.build(data) -> [{mod, items, rows, done, total, complete,
+ *   lockedModule, states, sections:{id:{done,total}}, due, pastDue}]
  *
- * A module's track = its ARTICLES (kb_articles.module_id) merged with its TASK
- * STEPS (onboarding_steps.module_id), ordered together by sort_order.
+ * data = {
+ *   modules:      active onboarding_modules rows (sorted by .sort),
+ *   sections:     onboarding_sections rows (all modules),
+ *   articles:     kb_articles rows to consider (published for live surfaces;
+ *                 Setup passes drafts too),
+ *   steps:        active onboarding_steps rows,
+ *   assignments:  onboarding_assignments rows for ONE person (module_id, due_at)
+ *                 — pass null/undefined for the legacy everyone-sees-all track,
+ *   reads:        {articleId: kb_reads row} for that person,
+ *   quizzes:      {articleId: {id, pass_pct, nq}} active quizzes,
+ *   attempts:     {quizId: {best, passed}} that person's attempts,
+ *   stepDone:     {stepId: onboarding_step_done row} for that person,
+ *   today:        'YYYY-MM-DD' (optional; for pastDue),
+ * }
  *
- * Sections add a third level. An item with section_id null sits directly under
- * the module, so bare items and sections MIX inside one module and interleave by
- * sort — "Week 1 > How to answer the phone" can sit above the "Important Policy"
- * section. Sections are presentation only: the sequential unlock still walks the
- * flattened order exactly as it did before they existed.
- * ========================================================================= */
+ * Row list per module (`rows`) interleaves section headers with items:
+ *   {type:'section', sec, done, total}   — presentation only
+ *   {type:'item', it, state:'done'|'next'|'lock'}
+ * Sequential unlock is GLOBAL across assigned modules and ignores section
+ * boundaries (sections are presentation only). Nothing locks on past-due.
+ */
 (function (root) {
-  'use strict';
-
-  /* canonical item ordering: sort_order, then articles before steps, then id */
+  /* canonical order for mixed module items: sort, then articles before steps,
+     then numeric id — IDENTICAL everywhere. Section grouping wraps around this:
+     an item belongs to a section (section_id) or module level (null); the row
+     order is: module-level+section blocks interleaved by each block's minimum
+     item sort, section header first inside its block. */
   function itemCmp(x, y) {
     return (x.sort - y.sort)
       || (x.kind === y.kind ? 0 : (x.kind === 'a' ? -1 : 1))
       || (x.kind === 'a' ? (x.a.id - y.a.id) : (x.s.id - y.s.id));
   }
 
-  /* raw items of a module, flat and ordered (pre-grouping) */
-  function itemsFor(modId, arts, steps) {
-    var items = (arts || []).filter(function (a) { return a.module_id === modId; })
-        .map(function (a) { return { kind: 'a', a: a, sort: a.sort_order || 0, section: a.section_id == null ? null : a.section_id, id: 'a' + a.id }; })
-      .concat((steps || []).filter(function (s) { return s.module_id === modId; })
-        .map(function (s) { return { kind: 's', s: s, sort: s.sort_order || 0, section: s.section_id == null ? null : s.section_id, id: 's' + s.id }; }));
-    return items.sort(itemCmp);
-  }
+  function build(d) {
+    var modules = d.modules || [];
+    var sections = d.sections || [];
+    var articles = d.articles || [];
+    var steps = d.steps || [];
+    var reads = d.reads || {};
+    var quizzes = d.quizzes || {};
+    var attempts = d.attempts || {};
+    var stepDone = d.stepDone || {};
+    var assigned = null, dueBy = {};
+    if (Array.isArray(d.assignments)) {
+      assigned = {};
+      d.assignments.forEach(function (a) {
+        if (a.module_id != null) { assigned[a.module_id] = true; if (a.due_at) dueBy[a.module_id] = a.due_at; }
+      });
+    }
+    var today = d.today || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-  /* module -> ordered GROUPS. A group is {kind:'item', it} or
-     {kind:'section', sec, items[]}. A section sorts by its own `sort` against
-     the bare items' sort_order, so the two interleave predictably.
-     A section with no items is dropped — an empty header helps nobody. */
-  function groupsFor(modId, arts, steps, sections) {
-    var items = itemsFor(modId, arts, steps);
-    var secs = (sections || []).filter(function (x) { return x.module_id === modId && x.active !== false; });
-    var bucket = {};
-    secs.forEach(function (x) { bucket[x.id] = []; });
-    var groups = [];
-    items.forEach(function (it) {
-      if (it.section != null && bucket[it.section]) bucket[it.section].push(it);
-      else groups.push({ kind: 'item', sort: it.sort, it: it });
-    });
-    secs.forEach(function (x) {
-      if (bucket[x.id].length) groups.push({ kind: 'section', sort: x.sort || 0, sec: x, items: bucket[x.id] });
-    });
-    groups.sort(function (a, b) {
-      return (a.sort - b.sort)
-        || (a.kind === b.kind ? 0 : (a.kind === 'item' ? -1 : 1))
-        || (a.kind === 'section' ? (a.sec.id - b.sec.id) : 0);
-    });
-    return groups;
-  }
+    function articleDone(a) {
+      var r = reads[a.id], q = quizzes[a.id];
+      var ok = !!(r && r.acknowledged_at);
+      return ok && (!q || !q.nq || (attempts[q.id] && attempts[q.id].passed));
+    }
+    function itemDone(it) { return it.kind === 'a' ? articleDone(it.a) : !!stepDone[it.s.id]; }
 
-  /* groups -> the flat render/unlock sequence */
-  function flatten(groups) {
-    var out = [];
-    (groups || []).forEach(function (g) {
-      if (g.kind === 'item') out.push(g.it);
-      else g.items.forEach(function (i) { out.push(i); });
-    });
-    return out;
-  }
-
-  /* Build the full track for one person.
-     mods    : onboarding_modules rows, already filtered to what's ASSIGNED
-     isDone  : fn(item) -> bool
-     Returns [{mod, groups, items, states, done, total, complete, lockedModule}]
-     where `states` is parallel to `items` ('done' | 'next' | 'lock').
-     Unlock is global and sequential across modules, unchanged by sections. */
-  function build(mods, arts, steps, sections, isDone) {
-    var out = (mods || []).map(function (mod) {
-      var groups = groupsFor(mod.id, arts, steps, sections);
-      return { mod: mod, groups: groups, items: flatten(groups) };
-    }).filter(function (x) { return x.items.length; });
+    var mods = modules
+      .filter(function (m) { return assigned ? assigned[m.id] : true; })
+      .map(function (mod) {
+        var items = articles.filter(function (a) { return a.module_id === mod.id; })
+          .map(function (a) { return { kind: 'a', a: a, sort: a.sort_order || 0, sec: a.section_id || null, id: 'a' + a.id }; })
+          .concat(steps.filter(function (s) { return s.module_id === mod.id; })
+            .map(function (s) { return { kind: 's', s: s, sort: s.sort_order || 0, sec: s.section_id || null, id: 's' + s.id }; }))
+          .sort(itemCmp);
+        return { mod: mod, items: items };
+      })
+      .filter(function (x) { return x.items.length; });
 
     var nextFound = false;
-    out.forEach(function (mx, mi) {
-      mx.done = mx.items.filter(isDone).length;
+    mods.forEach(function (mx, mi) {
+      mx.done = mx.items.filter(itemDone).length;
       mx.total = mx.items.length;
+      mx.quizzes = mx.items.filter(function (it) { return it.kind === 'a' && quizzes[it.a.id] && quizzes[it.a.id].nq; }).length;
       mx.states = mx.items.map(function (it) {
-        if (isDone(it)) return 'done';
+        if (itemDone(it)) return 'done';
         if (!nextFound) { nextFound = true; return 'next'; }
         return 'lock';
       });
-      /* state lookup by item id, so a group renderer can find an item's state
-         without tracking its flat index */
-      mx.stateOf = {};
-      mx.items.forEach(function (it, i) { mx.stateOf[it.id] = mx.states[i]; });
       mx.complete = mx.done === mx.total;
-      mx.lockedModule = mi > 0 && !out.slice(0, mi).every(function (p) { return p.complete; }) && mx.done === 0;
+      mx.lockedModule = mi > 0 && !mods.slice(0, mi).every(function (p) { return p.complete; }) && mx.done === 0;
+      mx.due = dueBy[mx.mod.id] || null;
+      mx.pastDue = !!(mx.due && !mx.complete && String(mx.due).slice(0, 10) < today);
+
+      /* section grouping: blocks of (module-level items) and (sections), each
+         block anchored at its minimum item sort so authored interleave holds */
+      var modSecs = sections.filter(function (s) { return s.module_id === mx.mod.id && s.active !== false; });
+      var blocks = [];
+      var loose = mx.items.map(function (it, i) { return { it: it, i: i }; }).filter(function (x) { return !x.it.sec; });
+      if (loose.length) loose.forEach(function (x) { blocks.push({ anchor: x.it.sort, order2: x.i, rows: [{ type: 'item', it: x.it, idx: x.i }] }); });
+      modSecs.forEach(function (sec) {
+        var inSec = mx.items.map(function (it, i) { return { it: it, i: i }; }).filter(function (x) { return x.it.sec === sec.id; });
+        if (!inSec.length) return;
+        var anchor = Math.min.apply(null, inSec.map(function (x) { return x.it.sort; }));
+        var rows = [{ type: 'section', sec: sec, done: inSec.filter(function (x) { return itemDone(x.it); }).length, total: inSec.length }]
+          .concat(inSec.map(function (x) { return { type: 'item', it: x.it, idx: x.i }; }));
+        blocks.push({ anchor: anchor, order2: inSec[0].i, rows: rows });
+      });
+      blocks.sort(function (a, b) { return (a.anchor - b.anchor) || (a.order2 - b.order2); });
+      mx.rows = [];
+      blocks.forEach(function (b) {
+        b.rows.forEach(function (r) {
+          if (r.type === 'item') r.state = mx.states[r.idx];
+          mx.rows.push(r);
+        });
+      });
     });
-    return out;
+    return mods;
   }
 
-  /* per-section progress, for a section header */
-  function sectionProgress(group, isDone) {
-    var d = group.items.filter(isDone).length;
-    return { done: d, total: group.items.length };
+  function outstanding(mods) {
+    return (mods || []).reduce(function (n, mx) { return n + (mx.total - mx.done); }, 0);
   }
 
-  root.CPROnboarding = {
-    itemCmp: itemCmp,
-    itemsFor: itemsFor,
-    groupsFor: groupsFor,
-    flatten: flatten,
-    build: build,
-    sectionProgress: sectionProgress
-  };
+  root.CPRTrack = { build: build, outstanding: outstanding, itemCmp: itemCmp };
 })(typeof window !== 'undefined' ? window : this);

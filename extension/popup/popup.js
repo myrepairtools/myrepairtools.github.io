@@ -234,14 +234,29 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('copyTotalBtn').addEventListener('click', function() {
     var val = document.getElementById('totalDisplay').textContent;
     if (val === '--' || !val) return;
-    navigator.clipboard.writeText(val).then(function() {
-      var btn = document.getElementById('copyTotalBtn');
+    var btn = document.getElementById('copyTotalBtn');
+    function flash(ok) {
       btn.classList.add('copied');
-      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      btn.innerHTML = ok
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        : '✕';
       setTimeout(function() {
         btn.classList.remove('copied');
         btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
       }, 1500);
-    });
+    }
+    function legacy() {
+      var ta = document.createElement('textarea');
+      ta.value = val; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, val.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) {}
+      ta.remove(); flash(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val).then(function() { flash(true); }, legacy);
+    } else legacy();
   });
 });

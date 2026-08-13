@@ -83,3 +83,12 @@ drop policy if exists "read steps" on public.onboarding_steps;
 create policy "read steps" on public.onboarding_steps for select to authenticated using (true);
 drop policy if exists "read modules" on public.onboarding_modules;
 create policy "read modules" on public.onboarding_modules for select to authenticated using (true);
+
+-- 2026-08-12: third task kind — 'backoffice' (manager-only, e.g. "add to QBO
+-- payroll"): never shown on the employee's track and never blocks their
+-- sequential unlock; lives only on the manager surfaces (Compliance panel /
+-- Onboarding dashboard). 'manager' remains "done WITH the employee" (visible
+-- to the employee as Waiting on your manager).
+-- alter table onboarding_steps drop constraint onboarding_steps_who_check;
+-- alter table onboarding_steps add constraint onboarding_steps_who_check
+--   check (who in ('employee','manager','backoffice'));

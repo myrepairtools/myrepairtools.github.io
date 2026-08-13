@@ -754,6 +754,28 @@ Deno.serve(async (req) => {
       .sort((a, b) => a.name.localeCompare(b.name));
     return json({ employees });
   }
+  if (action === "timeactivity") {
+    // Read-only TimeActivity probe/reader — first brick of the QB Time → QBO
+    // Workforce migration: if Intuit lands Workforce time entries here, this is
+    // the stable modern read path (rest.tsheets.com is being sunset).
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+    const startP = String((body.start as string) || url.searchParams.get("start") || "").slice(0, 10);
+    const start = /^\d{4}-\d{2}-\d{2}$/.test(startP) ? startP
+      : new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    const q = `select * from TimeActivity where TxnDate >= '${start}' orderby TxnDate desc maxresults 500`;
+    const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+    const rows = ((d?.QueryResponse?.TimeActivity || []) as Array<Record<string, any>>)
+      .map((t) => ({
+        id: String(t.Id), date: t.TxnDate, name: t.EmployeeRef?.name || t.VendorRef?.name || t.NameOf || null,
+        hours: Number(t.Hours) || 0, minutes: Number(t.Minutes) || 0,
+        start: t.StartTime || null, end: t.EndTime || null, description: t.Description || null,
+      }));
+    return json({ start, count: rows.length, rows });
+  }
   if (action === "extract_receipt") {
     return await extractReceipt(body);
   }

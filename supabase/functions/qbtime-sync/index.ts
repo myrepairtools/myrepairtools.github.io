@@ -50,15 +50,24 @@ function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
 // System-tier alert to the owners when a refresh definitively dies — so a broken
 // connection surfaces in minutes, not days. Deduped to once per 20h via meta.
-async function alertRefreshDead(detail: string, meta: Record<string, unknown> | null) {
+async function alertRefreshDead(detail: string, meta: Record<string, unknown> | null, accessExp?: number) {
   try {
     const m = (meta || {}) as Record<string, unknown>;
-    const last = new Date(String(m.last_refresh_alert_at || 0)).getTime() || 0;
-    if (Date.now() - last < 20 * 3600 * 1000) return;
-    // record the error for the Settings status card regardless of alert delivery
+    // Always record the error for the Settings status card, regardless of whether
+    // we bother the owners about it.
     await admin.from("integration_tokens").update({
       meta: { ...m, last_refresh_error: detail.slice(0, 300) },
     }).eq("provider", PROVIDER);
+    // Don't ALARM on a failed refresh while the access token still has days of
+    // runway — sync keeps working off the access token, so a renewal failure is not
+    // yet user-actionable and firing a "disconnected" alert every cron cycle is just
+    // misleading noise. Only alert once the access token is within ~48h of expiry
+    // (real data loss imminent). Callers without an access expiry (e.g. a rotated
+    // token that couldn't be saved — a genuine at-risk state) alert unconditionally.
+    const imminent = accessExp === undefined || Date.now() > accessExp - 48 * 3600 * 1000;
+    if (!imminent) return;
+    const last = new Date(String(m.last_refresh_alert_at || 0)).getTime() || 0;
+    if (Date.now() - last < 20 * 3600 * 1000) return;
     const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
     if (!NOTIFY_SECRET) return;
     const { data: owners } = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
@@ -92,26 +101,39 @@ async function alertRefreshDead(detail: string, meta: Record<string, unknown> | 
 // QB Time down 2026-07-23 00:00, when the timeoff-sync-15min and
 // qbtime-timesheets-hourly crons fired in the same second inside the refresh
 // window). Only the claim_token_refresh winner (docs/sql/token-refresh-lock.sql)
-// may call the grant endpoint; losers keep using the current access token, which
-// the 2-day proactive window guarantees is still valid.
+// may call the grant endpoint; losers keep using the current access token.
+//
+// SHORT REFRESH-TOKEN LIFETIME on this account: the QB Time refresh token minted at
+// reconnect goes invalid ("stop trying") on its OWN within the hour — proven with a
+// clean controlled test (nothing else is connected to the TSheets API; the edge logs
+// show no persist failure and no successful rotation; the row's updated_at never
+// advanced past the reconnect). Earlier fixes rotated too LATE (6h, then 1h) — always
+// after it had already died. So rotate AGGRESSIVELY (~10 min): while the token is
+// still young and alive, each rotation mints a fresh refresh token and resets the
+// clock, staying ahead of the short lifetime. If the token dies anyway (rotation
+// still can't beat it), we degrade gracefully: ride the multi-day access token,
+// throttle the pointless dead-token retries (clock_status polls hit this constantly),
+// and let alertRefreshDead nudge a reconnect only when the access token nears expiry.
+const REFRESH_AFTER_MS = 10 * 60 * 1000;   // rotate while the RT is still young
+const RETRY_DEAD_AFTER_MS = 30 * 60 * 1000; // once a refresh fails, don't retry for ~30m
 async function getValidToken(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
     if (!tok || !tok.access_token) throw new Error("not_connected");
     const exp = tok.expires_at ? new Date(tok.expires_at).getTime() : 0;
-    // Refresh PROACTIVELY on token AGE, not just near access-token expiry. TSheets
-    // refresh tokens expire well before the ~10-day access token — a refresh token
-    // minted at reconnect was already rejected ("invalid, stop trying") by ~day 8
-    // while the access token still worked, so waiting until 2 days before access
-    // expiry to refresh uses an already-dead refresh token (the recurring QB Time
-    // disconnect). Rotate every ~2 days instead (single-flight below prevents a
-    // double-spend), which keeps the refresh token fresh AND leaves days of
-    // access-token runway to retry if a refresh momentarily fails.
+    const meta = (tok.meta || {}) as Record<string, unknown>;
     const issued = tok.updated_at ? new Date(tok.updated_at).getTime() : 0;
-    const life = (exp && issued && exp > issued) ? exp - issued : 10 * 24 * 3600 * 1000;
-    const refreshAfter = Math.min(2 * 24 * 3600 * 1000, Math.floor(life * 0.25)); // ~2 days
-    const freshEnough = issued > 0 && (Date.now() - issued) < refreshAfter;
-    if (freshEnough && Date.now() < exp - 2 * 24 * 3600 * 1000) return tok.access_token; // fresh + not near expiry
+    const age = issued > 0 ? Date.now() - issued : Infinity;
+
+    // Young + access token still valid: just use it, no refresh needed.
+    if (age < REFRESH_AFTER_MS && Date.now() < exp) return tok.access_token;
+
+    // The refresh token has been failing (dead RT): don't hammer the grant endpoint
+    // on every clock_status poll. Ride the access token and retry at most ~every 30m.
+    const lastTry = meta.last_refresh_try_at ? new Date(String(meta.last_refresh_try_at)).getTime() : 0;
+    const recentlyFailed = !!meta.last_refresh_error && lastTry > 0 && (Date.now() - lastTry) < RETRY_DEAD_AFTER_MS;
+    if (recentlyFailed && Date.now() < exp) return tok.access_token;
+
     if (!tok.refresh_token) throw new Error("no_refresh_token");
 
     // If the claim RPC itself errors (e.g. dropped by a migration), refresh WITHOUT
@@ -136,9 +158,14 @@ async function getValidToken(): Promise<string> {
         // Surface TSheets' real reason (invalid = reconnect needed, etc.).
         const why = typeof d?.error === "string" ? d.error
           : (String(d?.error_description || "") || (d && Object.keys(d).length ? JSON.stringify(d) : "") || ("http_" + r.status));
-        await admin.from("integration_tokens").update({ refresh_lock_at: null }).eq("provider", PROVIDER);
+        // Stamp the attempt so getValidToken throttles retries on a dead RT (frequent
+        // clock_status polls must not hammer the grant endpoint every few seconds).
+        const failMeta = { ...meta, last_refresh_error: String(why).slice(0, 300), last_refresh_try_at: new Date().toISOString() };
+        await admin.from("integration_tokens").update({ refresh_lock_at: null, meta: failMeta }).eq("provider", PROVIDER);
         // 5xx = TSheets having a moment, stay quiet; <500 = the token is really dead.
-        if (r.status < 500) await alertRefreshDead(String(why), tok.meta);
+        // Pass the access-token expiry so we only ALARM when data loss is imminent
+        // (sync limps on the access token until then — see alertRefreshDead).
+        if (r.status < 500) await alertRefreshDead(String(why), failMeta, exp);
         if (Date.now() < exp) return tok.access_token; // limp on the current token while it lasts
         throw new Error("refresh_failed: " + why);
       }
@@ -155,7 +182,7 @@ async function getValidToken(): Promise<string> {
       access_token: d.access_token as string,
       refresh_token: (d.refresh_token as string) || tok.refresh_token,
       expires_at: new Date(Date.now() + (Number(d.expires_in) || 0) * 1000).toISOString(),
-      meta: { ...((tok.meta || {}) as Record<string, unknown>), scope: d.scope, token_type: d.token_type, client_url: d.client_url, last_refresh_error: null },
+      meta: { ...((tok.meta || {}) as Record<string, unknown>), scope: d.scope, token_type: d.token_type, client_url: d.client_url, last_refresh_error: null, last_refresh_try_at: null },
       refresh_lock_at: null,
       updated_at: new Date().toISOString(),
     };
@@ -387,6 +414,42 @@ async function syncUsers(token: string) {
     if (error) return { ok: false, error: "db_" + error.message };
   }
 
+  // Contact backfill — QB Time carries each hire's email + mobile, so fill
+  // staff_profiles (phone / personal_email — the SMS pipeline reads phone) for
+  // any linked row whose profile field is still empty. Never overwrites
+  // owner- or self-entered contact info; best-effort, never breaks the sync.
+  let contactsFilled = 0;
+  try {
+    const linked = rows.filter((r) => r.staff_id != null);
+    if (linked.length) {
+      const ids = [...new Set(linked.map((r) => r.staff_id))];
+      const { data: profs } = await admin.from("staff_profiles").select("staff_id, phone, personal_email").in("staff_id", ids);
+      const pmap = new Map((profs || []).map((p: Record<string, unknown>) => [Number(p.staff_id), p]));
+      const e164 = (v: unknown) => {
+        const d = String(v || "").replace(/\D/g, "");
+        if (d.length === 10) return "+1" + d;
+        if (d.length === 11 && d.startsWith("1")) return "+" + d;
+        return null;
+      };
+      for (const r of linked) {
+        const u = r.raw as Record<string, unknown>;
+        const cur = pmap.get(Number(r.staff_id)) as Record<string, unknown> | undefined;
+        const phone = e164(u.mobile_number) || e164(u.phone_number);
+        const email = String(u.email || "").trim() || null;
+        const wantPhone = !!phone && !(cur && cur.phone);
+        const wantEmail = !!email && !(cur && cur.personal_email);
+        if (!wantPhone && !wantEmail) continue;
+        const { error: pe } = await admin.from("staff_profiles").upsert({
+          staff_id: r.staff_id,
+          phone: wantPhone ? phone : (cur?.phone ?? null),
+          personal_email: wantEmail ? email : (cur?.personal_email ?? null),
+          updated_at: stamp,
+        }, { onConflict: "staff_id" });
+        if (!pe) contactsFilled++;
+      }
+    }
+  } catch (_) { /* best-effort */ }
+
   // One-way termination sync — PROPOSE only, never auto-apply. A *mapped* QB user that's gone
   // inactive while the MRT staff row is still active is a *candidate* for deactivation; we surface
   // it for the owner to confirm in Settings (read → propose → confirm → write), never the reverse
@@ -415,6 +478,7 @@ async function syncUsers(token: string) {
     matched: rows.filter((r) => r.staff_id != null).length,
     created: created.length ? created : undefined,                 // new hires auto-created in MRT
     start_dates_backfilled: backfilledStart || undefined,          // hire dates pulled from QB onto blank records
+    contacts_filled: contactsFilled || undefined,                  // phone/email pulled from QB onto blank profiles
     termination_candidates: termination_candidates.length ? termination_candidates : undefined,
     // only surface *active* unmatched QB users — inactive strangers are just noise.
     unmatched: rows.filter((r) => r.staff_id == null && r.active !== false)

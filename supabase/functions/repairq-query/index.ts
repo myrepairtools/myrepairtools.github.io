@@ -995,6 +995,50 @@ async function actionSyncIngest(p: any) {
   return json({ ok: res.ok && body?.ok !== false, feed, ...srcLabel, pulled: raw.length, ingest: body });
 }
 
+// Auto-fill claim_repairs/claim_parts.payout_date from RepairQ's REAL deposit
+// date (transaction.deposit_posted_date) — the claim Looks carry no payout date,
+// so it used to be 100% manual and every new invoice landed "undated". Fills only
+// rows whose payout_date is still NULL (never overwrites a manual date).
+async function fillClaimPayoutDates(dry: boolean, days = "180 days") {
+  const pq = {
+    model: "repairq_cpr", view: "ticket",
+    fields: ["ticket.id", "transaction.deposit_posted_date"], pivots: [], fill_fields: [],
+    filters: { "ticket.warranty_provider": "-EMPTY", "transaction.deposit_posted_date": days },
+    filter_expression: "", sorts: ["transaction.deposit_posted_date desc"], limit: "5000",
+    column_limit: "50", total: false, row_total: "", subtotals: [], dynamic_fields: "",
+    query_timezone: "America/Chicago", element_id: "mrtcp", client_id: "mrtcp", generate_links: false,
+    path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+  };
+  const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [pq] });
+  const rows: any[] = []; for (const r of run.results) if (Array.isArray(r.rows)) rows.push(...flattenLookerRows(r.rows));
+  const byTicket = new Map<string, string>();   // ticket -> latest deposit date
+  for (const r of rows) {
+    const t = r["ticket.id"]; const d = r["transaction.deposit_posted_date"];
+    if (t == null || !d) continue;
+    const key = String(t), day = String(d).slice(0, 10), cur = byTicket.get(key);
+    if (!cur || day > cur) byTicket.set(key, day);
+  }
+  const byDate = new Map<string, string[]>();   // date -> ticket ids (one UPDATE per date)
+  for (const [t, d] of byTicket) (byDate.get(d) || byDate.set(d, []).get(d)!).push(t);
+  if (dry) {
+    const { data: undated } = await admin.from("claim_repairs").select("ticket_id").is("payout_date", null);
+    const undatedSet = new Set((undated ?? []).map((x: any) => String(x.ticket_id)));
+    let wouldFill = 0; for (const t of byTicket.keys()) if (undatedSet.has(t)) wouldFill++;
+    return { ok: true, dry_run: true, deposit_rows: rows.length, tickets_with_deposit: byTicket.size, currently_undated: undatedSet.size, would_fill: wouldFill, deposit_dates: [...byDate.keys()].sort() };
+  }
+  let filledR = 0, filledP = 0;
+  for (const [d, ids] of byDate) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const r1 = await admin.from("claim_repairs").update({ payout_date: d, updated_at: new Date().toISOString() }).in("ticket_id", chunk).is("payout_date", null).select("ticket_id");
+      filledR += (r1.data?.length || 0);
+      const r2 = await admin.from("claim_parts").update({ payout_date: d }).in("ticket_id", chunk).is("payout_date", null).select("ticket_id");
+      filledP += (r2.data?.length || 0);
+    }
+  }
+  return { ok: true, tickets_with_deposit: byTicket.size, filled_repairs: filledR, filled_parts: filledP };
+}
+
 // Sync live PART CONSUMPTION from the Eugene Part-Consumption Look into
 // consumption_log. The report SUMS units per sku/day, so we REPLACE each
 // (store, biz_date) the Look returns — delete that day's existing rows, insert
@@ -1653,6 +1697,40 @@ async function flipUnit(itemId: string | number, fromStatus: number, toStatus: n
   return { ok: false, error: `post ${w.status}, status still ${vf["InventoryItemForm[status_id]"] ?? "?"}` };
 }
 
+// Parse a <select>'s options (value + label + selected) from an edit-form page.
+function parseSelectOptions(html: string, name: string): Array<{ id: string; name: string; selected: boolean }> {
+  const m = html.match(new RegExp(`<select\\b[^>]*name="${name.replace(/[[\]]/g, "\\$&")}"[^>]*>([\\s\\S]*?)<\\/select>`, "i"));
+  if (!m) return [];
+  const out: Array<{ id: string; name: string; selected: boolean }> = [];
+  for (const o of m[1].matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
+    const val = (o[1].match(/\bvalue="([^"]*)"/) || [])[1] || "";
+    if (!val) continue; // skip the "Choose…" placeholder
+    out.push({ id: val, name: o[2].replace(/<[^>]+>/g, "").trim(), selected: /\bselected\b/i.test(o[1]) });
+  }
+  return out;
+}
+
+// Change ONE unit's supplier via its edit form (works for any editable status;
+// a locked/sold item redirects to the read-only inspect page → not editable).
+// Supplier is per-unit metadata, safe and reversible — unlike a status flip.
+async function setUnitSupplier(itemId: string | number, supplierId: string, note: string):
+  Promise<{ ok: boolean; skipped?: boolean; reason?: string; error?: string; from?: string }> {
+  const g = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+  const b = g.body || "";
+  if (!b || /site\/login|\/inventory\/inspect/i.test((g as any).location || "")) return { ok: false, error: "item not editable (locked/sold)" };
+  const f = parseEditForm(b);
+  const before = f["InventoryItemForm[supplier_id]"];
+  if (before == null) return { ok: false, error: "form parse failed" };
+  if (String(before) === String(supplierId)) return { ok: true, skipped: true, reason: "already this supplier", from: String(before) };
+  f["InventoryItemForm[supplier_id]"] = String(supplierId);
+  if (note) { const prev = f["InventoryItemForm[note]"] || ""; f["InventoryItemForm[note]"] = (prev ? prev + "\n" : "") + note; }
+  const w = await rqRequest({ method: "POST", path: `/inventory/edit/${itemId}`, form: f });
+  const v = await rqRequest({ method: "GET", path: `/inventory/edit/${itemId}` });
+  const vf = parseEditForm(v.body || "");
+  if (String(vf["InventoryItemForm[supplier_id]"]) === String(supplierId)) return { ok: true, from: String(before) };
+  return { ok: false, error: `post ${w.status}, supplier still ${vf["InventoryItemForm[supplier_id]"] ?? "?"}`, from: String(before) };
+}
+
 /* Shared daily-digest sync: pulls dashboard 2273's tiles into digest_raw for
    "today" (America/Los_Angeles). Called by the secret-gated `sync_digest`
    action (crons) AND the manager-JWT-gated `digest_refresh` action (the Daily
@@ -1912,7 +1990,7 @@ Deno.serve(async (req) => {
     const { data: u, error: uerr } = await admin.auth.getUser(tok);
     if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
     const { data: st } = await admin.from("staff")
-      .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+      .select("id, display_name, role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
     const role = st?.role || "";
     if (role !== "admin" && role !== "owner") return json({ ok: false, error: "admin access required" }, 403);
 
@@ -2034,10 +2112,151 @@ Deno.serve(async (req) => {
         } catch (e) { rec.status = "error"; rec.error = String((e as Error).message || e).slice(0, 160); rec.moved = rec.moved || 0; }
         receipt.push(rec);
       }
+      // Persist this chunk's receipt so a page timeout/reset can't lose it (the page
+      // applies in chunks — rows share the client's run_id). Best-effort: a logging
+      // failure must never fail the actual inventory move the caller just did.
+      try {
+        const runId = (typeof payload.run_id === "string" && /^[0-9a-f-]{16,40}$/i.test(payload.run_id)) ? payload.run_id : null;
+        const tally = (s: string) => receipt.filter((r) => r.status === s).length;
+        await admin.from("inventory_edit_log").insert({
+          run_id: runId, store: locName, from_status: fromStatus, to_status: toStatus, note,
+          run_by_id: (st as any)?.id ?? null, run_by_name: (st as any)?.display_name ?? null,
+          total: receipt.length, done: tally("done"),
+          failed: receipt.filter((r) => r.status === "failed" || r.status === "error").length,
+          skipped: tally("skipped"), moved: receipt.reduce((a, r) => a + (Number(r.moved) || 0), 0),
+          receipt,
+        });
+      } catch (_) { /* logging is best-effort */ }
       return json({ ok: true, mode: "apply", location: locName, from_status: fromStatus, to_status: toStatus, receipt });
     }
 
-    return json({ ok: false, error: "mode must be 'resolve' or 'apply'" }, 400);
+    // Supplier-mode resolve: per-UNIT rows with each unit's CURRENT supplier, so
+    // the page can filter "only change units from supplier X". A serial resolves
+    // to its one unit (any status); a SKU expands to its ON-HAND units at the
+    // store (Instock/Pending RMA/Pulled/Ordered — Sold and gone-from-store
+    // statuses are excluded so an old SKU doesn't drag in years of sold units).
+    if (mode === "resolve_supplier") {
+      const inRows: Array<{ value: string }> = Array.isArray(payload.rows) ? payload.rows : [];
+      const vals = [...new Set(inRows.map((r) => String(r.value || "").trim()).filter(Boolean))];
+      const skuMap = new Map<string, { cid: any; name: string }>();
+      for (let i = 0; i < vals.length; i += 40) {
+        const batch = vals.slice(i, i + 40);
+        const rows = await lk(["catalog_item.id", "catalog_item.sku", "catalog_item.name"],
+          { "catalog_item.sku": batch.join(","), "location.short_name": locName });
+        for (const r of rows) { const s = String(r["catalog_item.sku"]); if (!skuMap.has(s)) skuMap.set(s, { cid: r["catalog_item.id"], name: r["catalog_item.name"] }); }
+      }
+      const skus = vals.filter((v) => skuMap.has(v));
+      const serials = vals.filter((v) => !skuMap.has(v));
+      const UNIT_FIELDS = ["inventory_item.id", "inventory_item.serial_number", "inventory_item.status_id", "supplier.name", "catalog_item.sku", "catalog_item.name"];
+      const ONHAND = new Set([2, 3, 8, 97]); // Instock · Pending RMA · Pulled · Ordered
+      const out: any[] = [];
+      const unitRow = (r: any, value: string, src: string) => ({
+        value, kind: "unit", src, item_id: r["inventory_item.id"],
+        serial: r["inventory_item.serial_number"] || null, sku: String(r["catalog_item.sku"] || ""),
+        name: r["catalog_item.name"] || null, supplier: r["supplier.name"] || null,
+        status_id: Number(r["inventory_item.status_id"]) || 0,
+      });
+      for (let i = 0; i < skus.length; i += 25) {
+        const batch = skus.slice(i, i + 25);
+        const rows = await lk(UNIT_FIELDS, { "catalog_item.sku": batch.join(","), "location.short_name": locName });
+        for (const r of rows) {
+          if (!ONHAND.has(Number(r["inventory_item.status_id"]))) continue;
+          out.push(unitRow(r, String(r["catalog_item.sku"]), "sku"));
+        }
+      }
+      for (let i = 0; i < serials.length; i += 40) {
+        const batch = serials.slice(i, i + 40);
+        const rows = await lk(UNIT_FIELDS, { "inventory_item.serial_number": batch.join(","), "location.short_name": locName });
+        for (const r of rows) out.push(unitRow(r, String(r["inventory_item.serial_number"]), "serial"));
+      }
+      const found = new Set(out.map((r) => r.value));
+      for (const v of vals) {
+        if (found.has(v)) continue;
+        if (skuMap.has(v)) out.push({ value: v, kind: "nounits", name: skuMap.get(v)!.name });
+        else out.push({ value: v, kind: "notfound" });
+      }
+      return json({ ok: true, mode: "resolve_supplier", location: locName, rows: out });
+    }
+
+    // Supplier dropdown for the "change supplier" flow. With an item_id we read
+    // that unit's edit form (real "current" marking); without one — the page asks
+    // as soon as Supplier mode is picked, before any list exists — we serve a
+    // cached copy of the company-wide supplier list (app_settings key
+    // 'repairq.suppliers'), self-seeding it from a recent Instock unit in
+    // device_inventory (hourly-synced) when the cache is stale or empty.
+    if (mode === "supplier_options") {
+      const parseFrom = async (id: string) => {
+        const g = await rqRequest({ method: "GET", path: `/inventory/edit/${id}` });
+        return parseSelectOptions(g.body || "", "InventoryItemForm[supplier_id]");
+      };
+      const cacheSet = async (opts: Array<{ id: string; name: string }>) => {
+        try {
+          await admin.from("app_settings").upsert({
+            key: "repairq.suppliers",
+            value: { at: new Date().toISOString(), options: opts.map((o) => ({ id: o.id, name: o.name })) },
+          }, { onConflict: "key" });
+        } catch (_) { /* cache is best-effort */ }
+      };
+      const itemId = String(payload.item_id || "");
+      if (/^\d+$/.test(itemId)) {
+        const opts = await parseFrom(itemId);
+        if (!opts.length) return json({ ok: false, error: "could not read suppliers (that unit may be locked/sold — pick another serial)" }, 502);
+        await cacheSet(opts);
+        return json({ ok: true, mode: "supplier_options", current: opts.find((o) => o.selected)?.id || null, options: opts });
+      }
+      const { data: cached } = await admin.from("app_settings").select("value").eq("key", "repairq.suppliers").maybeSingle();
+      const cv: any = cached?.value || null;
+      if (cv?.options?.length && Date.now() - new Date(cv.at || 0).getTime() < 7 * 864e5) {
+        return json({ ok: true, mode: "supplier_options", current: null, options: cv.options, cached: true });
+      }
+      const { data: units } = await admin.from("device_inventory").select("rq_id")
+        .ilike("status", "instock%").order("uploaded_at", { ascending: false }).limit(5);
+      for (const u of (units || [])) {
+        const opts = await parseFrom(String(u.rq_id));
+        if (opts.length) { await cacheSet(opts); return json({ ok: true, mode: "supplier_options", current: null, options: opts }); }
+      }
+      if (cv?.options?.length) return json({ ok: true, mode: "supplier_options", current: null, options: cv.options, cached: true });
+      return json({ ok: false, error: "no supplier list available yet — run a Preview with a serial once" }, 502);
+    }
+
+    // Change SUPPLIER on serialized units (per-unit metadata — safe/reversible).
+    if (mode === "apply_supplier") {
+      const toSupplier = String(payload.to_supplier || "");
+      if (!/^\d+$/.test(toSupplier)) return json({ ok: false, error: "to_supplier (supplier id) required" }, 400);
+      const note = String(payload.note || "Supplier updated via myRepairTools").replace(/[\u{10000}-\u{10FFFF}]/gu, "").slice(0, 180);
+      const rows: any[] = Array.isArray(payload.rows) ? payload.rows : [];
+      const receipt: any[] = [];
+      for (const row of rows) {
+        const rec: any = { value: row.value, kind: row.kind, name: row.name || null };
+        try {
+          if ((row.kind === "serial" || row.kind === "unit") && /^\d+$/.test(String(row.item_id || ""))) {
+            const r = await setUnitSupplier(row.item_id, toSupplier, note);
+            rec.status = r.ok ? (r.skipped ? "skipped" : "done") : "failed";
+            rec.moved = (r.ok && !r.skipped) ? 1 : 0;
+            if (r.error) rec.error = r.error;
+            if (r.reason) rec.reason = r.reason;
+          } else {
+            rec.status = "skipped"; rec.reason = "no resolvable unit id"; rec.moved = 0;
+          }
+        } catch (e) { rec.status = "error"; rec.error = String((e as Error).message || e).slice(0, 160); rec.moved = rec.moved || 0; }
+        receipt.push(rec);
+      }
+      try {
+        const runId = (typeof payload.run_id === "string" && /^[0-9a-f-]{16,40}$/i.test(payload.run_id)) ? payload.run_id : null;
+        const tally = (s: string) => receipt.filter((r) => r.status === s).length;
+        await admin.from("inventory_edit_log").insert({
+          run_id: runId, store: locName, note: "supplier→" + toSupplier + " · " + note,
+          run_by_id: (st as any)?.id ?? null, run_by_name: (st as any)?.display_name ?? null,
+          total: receipt.length, done: tally("done"),
+          failed: receipt.filter((r) => r.status === "failed" || r.status === "error").length,
+          skipped: tally("skipped"), moved: receipt.reduce((a, r) => a + (Number(r.moved) || 0), 0),
+          receipt,
+        });
+      } catch (_) { /* best-effort */ }
+      return json({ ok: true, mode: "apply_supplier", location: locName, to_supplier: toSupplier, receipt });
+    }
+
+    return json({ ok: false, error: "mode must be 'resolve', 'apply', 'supplier_options', or 'apply_supplier'" }, 400);
   }
 
   if (payload?.action === "digest_refresh") {
@@ -2269,7 +2488,12 @@ Deno.serve(async (req) => {
       const dry = !!payload?.dry_run;
       const r1 = await actionSyncIngest({ feed: "claim_repairs", look_id: payload?.repairs_look || "5759", dry_run: dry });
       const r2 = await actionSyncIngest({ feed: "claim_parts", look_id: payload?.parts_look || "5760", dry_run: dry });
-      return json({ ok: true, repairs: await r1.json().catch(() => null), parts: await r2.json().catch(() => null) });
+      // fill payout_date from RepairQ's real deposit date (claim Looks lack it)
+      const pd = await fillClaimPayoutDates(dry);
+      return json({ ok: true, repairs: await r1.json().catch(() => null), parts: await r2.json().catch(() => null), payout_dates: pd });
+    }
+    if (payload?.action === "sync_claim_payouts") {
+      return json(await fillClaimPayoutDates(!!payload?.dry_run, String(payload?.days || "180 days")));
     }
     if (payload?.action === "sync_commission") {
       // all five commission feeds → commission_sales via ingest. Accessory /

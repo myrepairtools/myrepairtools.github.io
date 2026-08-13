@@ -88,17 +88,45 @@ these when adding UI so a new tool looks native.
 
 ## Shared assets (`assets/`)
 
-- **`nav.js`** — the navigation shell. Injects the fixed icon-rail + slide-out menu pane
-  into every page, defines the canonical tool lists (`OPERATIONS` + `TOOLS` — a
+- **`nav.js`** — the navigation shell. **Rail-only desktop nav (owner redesign
+  2026-08-12):** the fixed dark rail is the whole desktop nav — EXPANDED
+  (default, 216px) it shows icon + section name per row (Home · Knowledge
+  Base · Training · My Hub · Sales & Pricing · Ordering & Inventory ·
+  Operations · Employees · Reports · Admin & Owner · Settings); the chevron
+  collapses it to the classic 64px icon rail. Hovering (or clicking) an AREA
+  row opens the tools **flyout** in either state — the white menu pane is
+  `display:none` on desktop and survives only as the mobile (<860px) slide-in
+  drawer. The admin flyout carries the full PIN-unlock card
+  (wirePriv/doUnlock take a root element). nav.js still defines the canonical tool lists (`OPERATIONS` + `TOOLS` — a
   "Tools" sub-group rendered under Operations for single-purpose utilities like the
   Label Resizer — + `PRIVILEGED` + `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
   update the right area array here** (and the tile in `index.html`) or it won't appear in
   the nav. **The rail-bottom gear is a real area** (not a link): clicking it swaps the pane
-  to the `SETTINGS` list (Team Members, Locations, Notifications, Page Settings, Commission,
+  to the `SETTINGS` list (Locations, Notifications, Page Settings, Commission,
   Integrations, Roles & Permissions) and highlights the gear like any area icon. Every row
-  deep-links to `settings.html#<tab>` (staff/loc/notif/pages/commission/integ/roles — the
+  deep-links to `settings.html#<tab>` (loc/notif/pages/commission/integ/roles — the
   page opens that tab from the hash, listens to hashchange, keeps the hash synced via
-  replaceState, and owner-gates integ/roles). settings.html's own tab strip is hidden
+  replaceState, and owner-gates integ/roles).
+  **Team Members is consolidated into `employee-records.html`** (Employees nav, minRole
+  admin) — the Settings staff tab is deleted and `settings.html#staff` redirects there.
+  That one page is the whole staff surface (design handoff "Team Members Redesign"):
+  a landing roster table (grouped by home store via `stores.display_order`, owner rows
+  pinned, Active/Terminated segment, owner-only "↻ Sync employees" from QB Time — no
+  "+ Add member" anywhere; hires auto-create on sync and carry a "Needs setup" chip)
+  and a full-width per-person profile with tabs Profile · Log · PIPs & Reviews ·
+  Tech Damage · Time · PTO · Commission. Profile tab = 4 form cards + dirty-tracked
+  save bar (cpr-auth `update_staff` + `set_pin`; an admin PIN reset shows ONCE in a
+  modal); phone/email live in `staff_profiles.phone/personal_email` (routed through
+  update_staff — the SMS pipeline reads the same field, never duplicate onto `staff`);
+  the QB Time link select is owner-only. Terminate is a modal writing a real record
+  (`staff.terminated_at/termination_reason/termination_note/rehire_eligible/terminated_by`
+  — docs/sql/team-members-consolidation.sql); terminated profiles stay fully browsable
+  (record box + Reinstate). Commission tab: Settings sub-view = the per-person overrides
+  editor over `commission_roster` (inherited placeholders via CommissionEngine —
+  never re-implement the merge); History = `commission_snapshots` (total = commission
+  only; tips separate) + a live current-month recompute mirroring
+  assets/commission-summary.js. Deep links: `#e=<staff id>/<tab>` and `#terminated`.
+  settings.html's own tab strip is hidden
   (kept in the DOM so bindings stay harmless); a dynamic per-section header renders in its
   place. The nav Settings pane is the only section switcher — don't add page-level ones.
   The Locations tab manages the `stores` table (RQ name, color, active, address/phone/email); the canonical
@@ -196,6 +224,21 @@ There is **no single backend**. Tools talk to one of two systems:
    consumption-report, settings, login-test, damage-tracker, employee-records, hyla-orders,
    claim-payouts, commission-calculator, commission-dashboard, schedule pages,
    time-entries, monthly-goals, checklist, task-admin, device-orders, cash-journal.
+
+**Claim payouts (`claim-payouts.html`) — payout_date auto-fill:** claims sync in
+via `repairq-query`'s `sync_claims` (Looks 5759 repairs / 5760 parts → `ingest` →
+`claim_repairs`/`claim_parts`), but those Looks carry **no deposit/payout date**,
+so payout_date used to be 100% manual (every new claim invoice landed "undated" red
+until someone hand-set it; `ingest` only propagated a set date to same-invoice
+siblings via its invMap). `fillClaimPayoutDates()` (repairq-query) now pulls the
+REAL date from RepairQ — `transaction.deposit_posted_date` per ticket (plain Looker
+query on the `ticket` explore, warranty_provider≠empty, 180-day window) — and fills
+any `payout_date` still NULL (matched by ticket_id; **never overwrites a manual
+date**). Runs at the end of `sync_claims` (daily `repairq-claims-sync` cron) and is
+backfillable via `{action:'sync_claim_payouts'[,dry_run,days]}`. Claims with no
+deposit yet stay undated (genuinely unpaid) and fill automatically once Assurant
+deposits. The tool's manual set-date button + invMap propagation still work as the
+override path.
 
 **Device ordering (`device-orders.html`, Ordering & Inventory nav):** used-device
 consumption + suggested buys, the device-side sibling of the parts consumption report.
@@ -989,18 +1032,66 @@ public `kb-media` storage bucket; tags, summary, status draft→published→arch
 `kb_article_versions` (snapshot on every save) + `kb_reads` (per-person first_read_at +
 acknowledged_at — the compliance record) + `kb_feedback` (👍/👎 per person). Authoring is
 **manager-only** (RLS `is_admin()`); employees read published `min_role='employee'`
-articles. Surface: `knowledge.html` (My Hub, everyone) — search-first (RPC `kb_search`:
-strict websearch + loose OR fallback, both role-safe via RLS), category pills, cards
-with unread dots, article view records the read and shows the ack bar for required
-articles, 👍/👎 footer; managers additionally get the inline editor (toolbar + image
-upload to kb-media + preview; publish/unpublish/archive), a Drafts pill, and a
+articles. Surface: `knowledge.html` (My Hub, everyone). **Browse redesign (design
+handoff 13c/14a/17a/19a/20a, 2026-08-12) — the portal flow:** the `#c=all` landing
+is a **search-first portal** (dark hero band + centered search, category tiles
+overlapping the band bottom, "Most read this month" card from the
+`kb_most_read(days)` SECURITY DEFINER RPC — returns (article_id,n) only, the page
+joins against articles the caller can already see). Typing ≥2 chars morphs the
+hero search into a results panel (kb_search RPC, ↑↓/Enter/Esc keyboard nav,
+tiles dim behind, "All N results ›" expands). A category opens the **two-axis
+topic view**: slim dark band with breadcrumb + scoped search + **sub-category
+pills** (facet 1), **tag chips** on the surface (facet 2) — labels over each row
+come from the category config (`kb_categories.subcat_label/tag_label`, e.g.
+Device/Component — nothing baked into code), facets combine freely with live
+filtered counts, cards carry sub-category badges when Device=All, and a category
+with no facets renders the same card grid with no filter rows. Data:
+`kb_subcategories` (+ `kb_articles.subcategory_id`) and category-scoped
+`kb_tags` + `kb_article_tags` (docs/sql/kb-facets.sql; Repair Knowledge seeded
+Device/Component per the handoff). Managers configure it all in **Categories**
+(the KB page's ＋ menu → Categories, `#cats`): master–detail with a facet-status pill per
+category ("Device · Component" / "—" = setup audit), group-label inputs,
+drag-ordered sub-categories, tag pills. The article editor sidebar picks
+sub-category + tags (category-scoped; save replaces the article's tag set).
+Required/Drafts/Archived keep the pre-portal list layout. The article view
+records the read and shows the ack bar for required
+articles, 👍/👎 footer; managers additionally get the inline editor — a **WYSIWYG surface**
+(owner call 2026-08-12: "a real full editor"): contenteditable styled with the
+reading view's typography, a plain-language toolbar (Text/Heading/Subheading ·
+B/I/U · lists · Link · Image · Note · Divider · Clear format), Word/SharePoint
+paste sanitizing (junk styles stripped, `·` paragraphs → real bullets, tables
+flattened to bullets), image upload to kb-media, a pop-out Preview, and a
+`</> Source` escape hatch for the raw markup. **Storage is unchanged** — the
+body is still the light markup every other surface reads (training.html,
+the candidate handbook accordion, the handbook PDF, kb_search's tsvector):
+mdToEditor() renders markup → editable HTML on open, editorToMd() serializes
+back on save (round-trip verified). Also a Drafts pill, and a
 **Compliance tab** (per required article: acknowledged vs outstanding roster with
 "read but not acked" / "never opened" flags, overall % tiles). First publish (and
 🔁 Reset acknowledgments — re-certification) auto-posts to Communications
-(`source_key 'kb:<id>:…'`). Deep links: `knowledge.html#a=<slug>`. Dashboard
+(`source_key 'kb:<id>:…'`). Deep links: `knowledge.html#a=<slug>` +
+`#c={cat}&s={subcat}&t={tag}` facet URLs. Dashboard
 **Knowledge widget** (`assets/kb-summary.js`, `window.CPRKnowledge.forMe()`) shows
 required-reading queue + newest articles. **AI: the `cpr-assistant` edge function does
-KB RAG** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
+KB RAG **and Price Guide RAG** — pricing-flavored questions also FTS-search
+`price_guide_entries` (imported from price-guide.html's tables via scratchpad
+pg_import.py — re-import after editing the page; schema
+docs/sql/price-guide-entries.sql) and inject matching rows with quote-exactly
+rules, so the assistant answers prices/SKUs from the real guide. **Phase 2 is
+LIVE (owner directive 2026-08-12: "access to everything, scoped by RLS"):
+signed-in users get read-only db tools — `db_select` + `table_columns` — run
+through a client built with the CALLER'S OWN JWT + anon key, so RLS scopes
+every result to what that person already sees in the tools (owner sees all;
+an employee asking for everyone's phone numbers gets only their own row —
+verified both ways). The service-role client is never exposed to the model;
+no raw SQL — filters/order/limit only, 100-row cap, reads only. Table map
+from the `assistant_schema()` RPC (docs/sql/assistant-schema-fn.sql,
+SECURITY DEFINER, execute revoked from browser roles; cached per boot — new
+tables appear after a redeploy/cold start). Streaming is a server-side
+tool-use LOOP (≤6 rounds) that forwards text deltas in Anthropic SSE shape —
+the widget only reads content_block_delta/text_delta, so it needed no
+changes. Anonymous (no-session) chats get no db tools. Phase 3
+(permission-checked, confirm-gated writes) still ahead** — every question runs `kb_retrieve(q, mgr)` (SECURITY DEFINER, execute revoked
 from browser roles; strict-then-loose FTS) and injects the top articles into the system
 prompt with citation rules (`from: [title](link)`); the assistant must never state
 CPR-specific policy that isn't in the KB. cpr-assistant's source now lives in
@@ -1010,7 +1101,16 @@ to the notifications project. Importing existing docs: give them to Claude in a 
 it converts and inserts articles directly.
 
 **KB v2 — onboarding & quizzes (design-handoff rebuild):** knowledge.html is now the
-full training surface: the **Browse list lives in the NAV PANE**, not the page — nav.js's 'kb' area renders it from a localStorage cache (`cprKbNav`) the page publishes on every draw (counts/badges live; hash links route in-page; static fallback pre-first-visit). The library is full-width list rows with
+full training surface. **The KB's white nav pane is RETIRED (owner call
+2026-08-12, post-portal):** knowledge.html shows the standard menu pane like any
+page, **Training has its own rail icon** (`cap` glyph, direct link — removed
+from the HUB list; the mobile drawer carries an explicit Training row next to
+Knowledge Base), and the pane's Manage rows collapsed into a **＋ menu** on the
+KB page (hero top-right + topic band; managers only): New article · Drafts ·
+Categories · Archived-when-any. The required-reading banner's text opens the
+`#c=req` list; Drafts/Archived/Required views carry a "‹ Knowledge Base" crumb
+back to the portal. nav.js's kb area, kbPaneHtml, `cprKbNav` cache, and
+knowledge.html's publishNav are all deleted — don't resurrect them. The library is full-width list rows with
 per-user **Viewed** column — "Never" amber, red when required-unacked), restyled
 reading view (read-time meta, `!> ` amber callouts in the light markup, footer
 "✓ Mark as read" = `kb_reads.acknowledged_at`, the read receipt that feeds
@@ -1036,49 +1136,86 @@ Manage section) is the roster view: store `.storesel` filter, stat tiles, per-pe
 onboarding %, quizzes passed, receipt pills per required article, overdue = required
 still open 7+ days after publish. Schema: docs/sql/kb-onboarding-schema.sql.
 
-**New-hire intake (step 1 of hiring):** `staff_intake` (random `token` = the
-candidate's capability URL; status pending→submitted→promoted|void; the manager
-seeds invited_name/store, the hire fills legal first/middle/last, preferred name,
-pronouns, dob, phone, personal_email, address jsonb, emergency + emergency2 jsonb,
-shirt_size, transportation, availability, contact_pref, i9_docs). The hiring flow
-is **intake → QuickBooks (employee self-setup) + RepairQ credentials from
-corporate → create in MRT and assign onboarding**. Surfaces: **`intake.html`** —
-public, no gates/nav (the token is the credential), phone-first, required-field
-validation, re-editable until promoted — and a **New-hire intake** block on
-Settings → Team Members (create link + copy, review what came back, then
-"Copy onto their record" once the manager has created the staff row, since role /
-store / PIN are the manager's call, not the candidate's). The table is closed to
-anon entirely; the public page reaches it only through the token-scoped SECURITY
-DEFINER RPCs `intake_get` / `intake_submit` (`intake_promote` is `is_admin()`).
-No edge function — those exist for server-held API keys and this needs none.
-**Deliberately NOT collected: SSN, bank/routing, W-4 elections** — those go
-straight into QuickBooks via its Workforce self-setup invite so they never touch
-this database; I-9 documents stay physical and the form only records what the
-hire plans to bring. It exists because self-serve profile completion doesn't
-happen (3 of 9 staff had no emergency contact, 0 had a birthday, so the
-milestones birthday post had never fired). Schema: docs/sql/staff-intake-schema.sql.
-
-**Training modules are assignable bundles with a third level.** `onboarding_sections`
-(module_id, name, sort) + a nullable `section_id` on `kb_articles` / `onboarding_steps`
-give *Week 2 → iPhone Repairs → Screen removal*; **section_id null keeps an item at
-module level**, so bare items (*Week 1 → How to answer the phone*) and sections MIX
-inside one module and interleave by sort. Sections are presentation only — the
-sequential unlock still walks the flattened order. `onboarding_assignments` is now one
-row per **(staff, module)** (assigned_by, assigned_at, `due_at`) — a module the viewer
-isn't assigned simply isn't in their track, so building a module no longer drops it on
-the whole team. Modules carry `auto_assign_role` + **`auto_assign_from`**; the date is
-what makes "new hires only" true (without it, arming a module retroactively assigns
-every current employee whose role matches). `due_at` is the cheap per-person goal — the
-roster flags a module past due. Assignment INSERT is `is_admin()` only and employees get
-their rows from the SECURITY DEFINER `onboarding_sync_me()` (plus
-`onboarding_sync_staff(id)` so a new hire is assigned at creation, not first sign-in); a
-DELETE policy was added — there was none, so unassigning was impossible. Compliance
-scopes per-person progress to ASSIGNED modules only, and its detail modal
-assigns/unassigns and sets due dates. **`assets/onboarding-track.js` is the single
-implementation of merge/order/group/unlock** — Setup, My Onboarding and Compliance all
-import it (Compliance used to keep its own copy); three surfaces must agree on order or
-an employee's "next" item stops matching the manager's view.
-Schema: docs/sql/onboarding-sections-assign.sql.
+**Training Center (round-2 design handoff, 2026-08-12):** the training surface
+split three ways. **`training.html`** (My Hub 'Training', graduation-cap) is the
+employee home: My onboarding module cards (bar · due chip · Continue), Assigned
+training (required reads + "Require re-read" refreshers), quiet Completed history,
+"Nothing assigned yet" zero state; `#track` is the 9b module detail (section header
+bands with per-section counts, next/lock/done rows, "Waiting on your manager" chip,
+past-due = red chip+bar, NOTHING locks on past-due; sections are presentation only —
+unlock stays strictly sequential). knowledge.html#onboarding redirects here.
+**Assignment is per (person, module)** — `onboarding_assignments` rows carry
+module_id/assigned_by/assigned_at/due_at (docs/sql/onboarding-sections-assign.sql;
+the legacy one-row-per-person unique is gone); unassigned people see/count NOTHING
+("Nothing assigned", never 0%). **`assets/onboarding-track.js`** (`window.CPRTrack`)
+is the ONE merge/order/section/unlock implementation — training, kb-compliance and
+knowledge Setup all render from it; never fork the math. **`kb-compliance.html`**
+rebuilt per 9a: roster (Onboarding bar + New-hire setup tone chip — new hire =
+started ≤60 days, others "—") + a right slide-over per person: **New-hire setup
+checklist** — auto-verified rows computed LIVE (pin_hash, home store, staff_schedule,
+assignments, staff_profiles phone/emergency, birthday, commission_roster gated by
+whether the ROLE earns accessory/device → n/a otherwise) + 5 manual trust-me ticks
+(I-9, QB Workforce invite, RepairQ creds, shirt, team chat) in `staff_setup_checklist`
+with checked_by/at audit; assigned-module toggles + due-date chips (pickers.js);
+next-up items with inline manager ticks. **`onboarding-dashboard.html`** (Employees
+nav 'Onboarding', manager+) is the hiring pipeline (10b): stat tiles, stage chips
+(Candidate — offer out → signing docs → Ready to convert → In training, plus
+Declined), "New candidate", Review & convert → "Convert to New Employee ›"
+(promotes + fires auto-assign; a missing-docs convert warns but is allowed —
+paper case). **Candidate stage (owner directive 2026-08-12): new hires start as
+New Candidates.** The **New Candidate wizard** (4 steps, chips like the
+Checklist Template wizard: Candidate → Offer Letter → Preview → Send) takes
+name/store/position/pay/start + optional phone/email, then the **offer
+letter** (prefilled from `app_settings` `hiring.offer_template` with
+{name}/{position}/{pay}/{store}/{start} resolved live until the manager
+hand-edits; the exact text is snapshotted to `staff_intake.offer_body` — what
+they sign never changes after send. The live template is the owner's REAL
+offer letter, parametrized). **The offer travels as a PDF** (intake fn,
+pdf-lib lazy-import, US-Letter, CPR letterhead + store address/phone from
+`stores`, light markup: '# '/'## ' headings + '• ' bullets): step 3 previews
+the exact PDF (`offer_pdf` action → blob iframe), step 4 creates the row then
+offers **Email the offer — PDF attached** (`send_offer`: Gmail SMTP w/
+attachment, reply-to `app_settings` 'hiring.reply_to' = bbay@cpr-stores.com,
+signing link in the body, stamps offer_sent_at/_via) / **Text the signing
+link** (messaging fn, store's line, `candidate_link` template key) / Copy.
+One link does the whole flow: **sign the offer** (accept, or decline with
+an optional note → status 'declined', terminal, row kept + deletable) → **sign
+the Employee Handbook** (accordion rendered LIVE from the KB's Employee
+Handbook category via the intake fn — published employee articles only, so
+candidates always sign current wording) → the 5-step new-hire form. Signatures
+follow the contracts pattern (png data-url + typed name + ip/ua in
+`signed_meta`); server enforces order (submit refuses `docs_first`/`declined`)
+and each milestone fires a best-effort **'hiring' alert** (new alerts kind,
+Notification tier) to the manager who created the link. **`signed_pdf`**
+(token-auth) renders the SIGNED record — offer + embedded signature block +
+an Employee Handbook acknowledgment page — downloadable from the candidate's
+done card and the manager review modal's "⬇ Signed offer (PDF)". Docs columns:
+docs/sql/candidate-stage.sql. A link created with the docs checkbox OFF keeps
+the original form-only flow (offer_body null).
+**Intake:** `intake.html` is a PUBLIC token page (11a; candidate phases above,
+then 5 steps: About you → Address
+& work details → Emergency contacts → Availability with All day/Hours/Off per day and
+Open/Close endpoints, stored structured jsonb → Review; no pronouns/transportation/
+SSN/bank) driven by the **`intake` edge function** (get/sign_offer/decline_offer/
+sign_handbook/submit by token; manager
+create/promote/cancel by JWT — the browser never reads `staff_intake` from the
+candidate side; managers read it directly under the is_admin RLS; promote copies onto
+the staff row + staff_profiles fill-empty-only and applies each module's auto-assign
+rule `auto_assign_role`+`auto_assign_from`, and refuses declined rows). **Module Setup is its own page
+`onboarding-setup.html`** (manager+; knowledge.html#modules redirects there) with
+the 9c controls: auto-assign rule bar, section chips, per-item section selects
+(`onboarding_sections` + section_id on articles/steps); the three management
+surfaces (Dashboard/Setup/Compliance) cross-link in their headers and are NOT in
+the KB surface (they cross-link from their own headers; the KB pane itself is
+retired — see above). Intake
+rows are deletable from the dashboard (intake `cancel`, un-promoted only).
+training.html reads articles IN-PAGE (`#read=<slug>` — mark-as-read + quiz CTA
+stay in Training; only quiz-taking hops to knowledge.html). The editor's publish flow
+gained **"Require re-read"** (published+required articles): checking it on Save &
+publish nulls every `kb_reads.acknowledged_at` so the refreshed policy resurfaces in
+Training → Assigned training; ordinary edits never auto-reset. Quiz authoring stays
+the modal (11b full-page treatment deferred); the 9d Team Members intake review card
+is covered by the dashboard's Review modal for now.
 
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
@@ -1134,7 +1271,12 @@ recurringly scheduled at that weekday (`SCHED[staff].arr[getDay]`), so a move
 destination. Send fans out alerts (staff_ids, **`push:false`** — the owner wants
 this broadcast to be a **text only, not push + text**; the alerts fanout still
 forces SMS for the urgent `schedule` kind and always writes the feed row, it just
-skips web-push when the caller passes `push:false`) + the routed rule. Keep the
+skips web-push when the caller passes `push:false`). **Scoped sends skip the
+routed rule** (owner report 2026-08-12: a 3-person send posted to the all-staff
+Communications feed) — only true all-store broadcasts fire
+`schedule.manual_broadcast`; a scoped send is alerts+SMS only and always
+includes the SENDER in staff_ids so their own alert row keeps the
+last-broadcast marker fresh. Keep the
 alert title's 'Schedule updated' prefix — it's the last-broadcast marker), KB
 required-reading publish (kind 'kb', everyone), and the **end-of-shift task
 nudge** — `tasks?action=nudge` (pg_cron `tasks-nudge-halfhourly`, */30): anyone
@@ -1169,6 +1311,16 @@ goes to the live site (navigations force revalidation), the cache is only an
 offline fallback. Exists because iOS home-screen apps cling to stale caches
 (owners saw old code until delete/re-add). Normal deploys need no SW changes;
 bump its VERSION only to GC the cache bucket. Push notifications will live here.
+
+**Feedback (top bar):** two icon buttons by the bell — **Report an Issue**
+(bug) and **Suggest a Feature** (lightbulb); on mobile they're rows under
+More → Feedback. Both open a small modal and post through the same
+`report-issue` edge function the extension uses: issues land in
+`extension_issues` with `source='site'` (extension reports stay
+`source='extension'`), feature requests in their OWN `feature_requests` table
+(owner call: separate list; RLS `is_admin()`). Both text the owner
+(`ISSUE_ALERT_NUMBER`), with reporter name + page URL attached automatically.
+No triage surface yet — the owner works from the texts/tables.
 
 **Mobile app shell (nav.js):** nav.js owns standalone (A2HS) safe-area handling
 site-wide — it flags `html.mrt-standalone`, patches `viewport-fit=cover` into the
@@ -1297,6 +1449,12 @@ When changing a tool's data layer, check which generation it uses first — they
   commission-calculator, lcd-buyback, hyla-orders, consumption-report, checklist,
   task-admin, my-schedule, schedule-admin, contracts (status filter), knowledge
   (`#a=<slug>` articles + `#c=<category>`). New tabbed tools must ship with both.
+  **Exception — knowledge.html browses like a SITE, not a tabbed tool** (owner
+  call 2026-08-12): level transitions (portal → category → article →
+  editor/quiz) use **pushState** (`goHash`) so the browser Back button walks
+  back up the levels; facet pills/scoped search/save flows stay replaceState;
+  and there is deliberately NO last-tab restore — a fresh visit always lands
+  on the portal home (`cprKbCat` is gone).
 - **Cross-page transitions:** nav.js opts every page into cross-document view
   transitions (`@view-transition{navigation:auto}`, .18s crossfade) and pins the app
   chrome (`view-transition-name` on `.cpr-topbar`/`.cpr-rail`/`.cpr-pane`) so the nav

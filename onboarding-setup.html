@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module Setup · CPR Oregon</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--blued:#1E7AA8;--grey:#B9BDCB;
+--grey2:#8A8FA0;--light-grey:#F3F2F2;--border:#E0E2EA;--row:#F0F1F4;--green:#2E9E5B;--card:0 1px 3px rgba(45,45,59,.05)}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Nunito Sans',sans-serif;color:var(--dark);background:var(--light-grey)}
+.wrap{max-width:1200px;margin:0 auto;padding:26px 20px 60px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem;letter-spacing:-.3px;margin:0}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.rolebadge{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--red);border:1px solid #F6C9CA;background:#FFF1F1;border-radius:5px;padding:2px 6px}
+.cols{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.railcard{background:#fff;border:1px solid var(--border);border-radius:11px;padding:11px 14px;box-shadow:var(--card);
+cursor:pointer;margin-bottom:8px;text-align:left;width:100%}
+.railcard .nm{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark)}
+.railcard .sub{font-size:.7rem;font-weight:700;color:var(--grey);margin-top:2px}
+.railcard.on{border:1.5px solid var(--blue)}
+.railcard.on .nm{font-weight:900;color:var(--blued)}
+.railcard.add{border:1.5px dashed #C7CAD4;background:transparent;color:var(--dark-grey);
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:10px;text-align:center}
+.railcard.add:hover{border-color:var(--blue);color:var(--blued)}
+.railcard[draggable]{cursor:grab}
+.railcard.dragging{opacity:.45}
+.chip[draggable]{cursor:grab}
+.chip.dragging{opacity:.45}
+.irow[draggable]{cursor:grab}
+.irow.dragging{opacity:.45;background:#F3F9FD}
+.toolrow{display:flex;gap:10px;padding:0 16px 12px;flex-wrap:wrap;align-items:center}
+.toolnote{font-size:.7rem;font-weight:700;color:var(--grey);margin-left:auto}
+.pane{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);overflow:hidden}
+.panehd{display:flex;align-items:center;gap:12px;padding:16px 20px 0;flex-wrap:wrap}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1.5px solid var(--border);
+background:#fff;color:var(--dark);border-radius:10px;cursor:pointer}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff}
+.btn.dk{background:var(--dark);border-color:var(--dark);color:#fff}
+.btn.sm{padding:7px 13px;font-size:.76rem}
+.btn:hover{border-color:var(--blue)}
+.btn.pri:hover{filter:brightness(1.07);border-color:var(--red)}
+.rulebar{background:#F8FAFD;border:1.5px solid #CDE8F7;border-radius:10px;padding:9px 13px;margin:12px 16px;
+display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin:0 16px 12px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border);border-radius:999px;background:#fff;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;padding:4px 6px 4px 11px}
+.chip button{width:18px;height:18px;border-radius:50%;border:none;background:var(--light-grey);color:#8A8FA0;cursor:pointer;line-height:1}
+.chip button:hover{background:#FDEBEC;color:var(--red)}
+.irow{display:flex;align-items:center;gap:10px;padding:9px 20px;border-top:1px solid var(--row)}
+.itile{width:26px;height:26px;border-radius:8px;background:#F3F6FA;color:var(--dark-grey);display:flex;align-items:center;justify-content:center;flex:none;font-size:.85rem}
+.imain{flex:1;min-width:0}
+.ititle{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imeta{font-size:.68rem;font-weight:700;color:var(--grey);margin-top:1px}
+.achip{display:inline-block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;padding:1px 7px;border-radius:999px;
+background:#FCF3E3;color:#B87A00;margin-left:6px}
+.footband{display:flex;gap:10px;padding:12px 20px;border-top:1px solid var(--row);background:#FAFAFB;flex-wrap:wrap;align-items:center}
+.footnote{font-size:.7rem;font-weight:700;color:var(--grey);margin-left:auto}
+.empty{color:var(--grey);font-weight:700;font-size:.85rem;padding:22px}
+.ovl{position:fixed;inset:0;background:rgba(45,45,59,.5);display:flex;align-items:center;justify-content:center;z-index:1200;padding:16px}
+.mdl{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:88vh;overflow:auto;max-width:96vw}
+.mdl-hd{display:flex;align-items:center;gap:10px;padding:18px 22px 0}
+.mdl-bd{padding:14px 22px}
+.mdl-ft{display:flex;gap:10px;justify-content:flex-end;padding:0 22px 20px}
+.mdl-x{margin-left:auto;border:none;background:none;font-size:1.2rem;color:var(--grey);cursor:pointer}
+.toast{position:fixed;bottom:calc(24px + var(--cpr-bb-h,0px));left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:1300}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap" id="page"><div class="empty">Loading…</div></div>
+<div id="mdlWrap"></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+const SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+const sb=createClient(SB_URL,ANON);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const isMgr=r=>['owner','admin','manager'].indexOf(r)>-1;
+function toast(m,err){const t=$('#toast');t.textContent=m;t.classList.toggle('err',!!err);t.classList.add('show');
+  clearTimeout(toast._h);toast._h=setTimeout(()=>t.classList.remove('show'),4200);}
+const GRAD='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>';
+
+let AUTH=null,BOOTED=false;
+let CATS=[],ARTS=[],MODULES=[],SECTIONS=[],STEPS=[],QUIZ={};
+let MODSEL=null,REORDERING=false;
+async function resolveMe(sess){
+  if(!sess||BOOTED)return;
+  const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
+  if(sr.data){BOOTED=true;AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};boot();}
+}
+sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
+(async()=>{try{const s=(await sb.auth.getSession()).data.session;if(s)resolveMe(s);}catch(e){}})();
+
+async function loadAll(){
+  const [c,a,m,se,sp,qz]=await Promise.all([
+    sb.from('kb_categories').select('*').order('sort'),
+    sb.from('kb_articles').select('id,title,status,emoji,category_id,module_id,section_id,sort_order,require_ack'),
+    sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
+    sb.from('onboarding_sections').select('*'),
+    sb.from('onboarding_steps').select('*').eq('active',true).order('sort_order'),
+    sb.from('kb_quizzes').select('id,article_id,active,kb_quiz_questions(id)').eq('active',true),
+  ]);
+  CATS=c.data||[];ARTS=a.data||[];MODULES=m.data||[];SECTIONS=se.data||[];STEPS=sp.data||[];
+  QUIZ={};(qz.data||[]).forEach(q=>{QUIZ[q.article_id]={id:q.id,nq:(q.kb_quiz_questions||[]).length};});
+}
+async function refresh(){await loadAll();draw();}
+const catById=id=>CATS.find(c=>c.id===id);
+function catName(id){const c=catById(id);return c?c.name:'—';}
+function artIcon(a){return a.emoji||((catById(a.category_id)||{}).icon)||'📄';}
+function itemCmp(x,y){return (x.sort-y.sort)||(x.kind===y.kind?0:(x.kind==='a'?-1:1))||(x.kind==='a'?(x.a.id-y.a.id):(x.s.id-y.s.id));}
+function setupItems(modId){
+  const arts=ARTS.filter(a=>a.module_id===modId&&a.status!=='archived').map(a=>({kind:'a',a,sort:a.sort_order||0}));
+  const steps=STEPS.filter(s=>s.module_id===modId).map(s=>({kind:'s',s,sort:s.sort_order||0}));
+  return arts.concat(steps).sort(itemCmp);
+}
+async function renumber(modId,items){
+  for(let i=0;i<items.length;i++){
+    const want=(i+1)*10,it=items[i];
+    if(it.sort===want)continue;
+    if(it.kind==='a')await sb.from('kb_articles').update({sort_order:want}).eq('id',it.a.id);
+    else await sb.from('onboarding_steps').update({sort_order:want}).eq('id',it.s.id);
+  }
+}
+function draw(){
+  const mods=MODULES.slice().sort((a,b)=>a.sort-b.sort);
+  if(!mods.some(m=>m.id===MODSEL))MODSEL=mods.length?mods[0].id:null;
+  const cur=mods.find(m=>m.id===MODSEL)||null;
+  const items=cur?setupItems(cur.id):[];
+  const left='<div id="modRail"><button class="railcard add" id="mAdd">＋ New module</button>'
+    +mods.map(m=>{
+    const rule=(m.auto_assign_role&&'auto: '+(m.auto_assign_role==='team_member'?'Tech':m.auto_assign_role)+(m.auto_assign_from?' ≥ '+m.auto_assign_from.slice(5):''))||'';
+    return '<button class="railcard'+(cur&&m.id===cur.id?' on':'')+'" data-msel="'+m.id+'" draggable="true"><div class="nm">'+esc(m.name)+'</div>'
+      +'<div class="sub">'+setupItems(m.id).length+' item'+(setupItems(m.id).length===1?'':'s')+(rule?' · '+esc(rule):'')+'</div></button>';
+  }).join('')+'</div>';
+  let right='';
+  if(!cur)right='<div class="pane"><div class="empty">Add your first module — e.g. “Week 1 — Counter Basics”.</div></div>';
+  else{
+    const secsOf=SECTIONS.filter(x=>x.module_id===cur.id&&x.active!==false).sort((a,b)=>(a.sort-b.sort)||(a.id-b.id));
+    const secSel=(kind,id,curSec)=>'<select class="btn sm" data-secfor="'+kind+id+'" style="max-width:180px;font-weight:700">'
+      +'<option value="">— module level —</option>'
+      +secsOf.map(sx=>'<option value="'+sx.id+'"'+(curSec===sx.id?' selected':'')+'>'+esc(sx.name)+'</option>').join('')+'</select>';
+    const rows=items.map(it=>{
+      if(it.kind==='a'){
+        const a=it.a,q=QUIZ[a.id];
+        return '<div class="irow" data-iid="a'+a.id+'" draggable="true"><span class="itile">'+esc(artIcon(a))+'</span>'
+          +'<div class="imain"><div class="ititle">'+esc(a.title)+(a.status==='draft'?'<span class="achip">Draft</span>':'')+'</div>'
+          +'<div class="imeta">Article · '+esc(catName(a.category_id))+(q&&q.nq?' · quiz ('+q.nq+')':'')+(a.require_ack?' · required':'')+'</div></div>'
+          +(secsOf.length?secSel('a',a.id,a.section_id):'')
+          +'<button class="btn sm" data-aedit="'+a.id+'">Open</button><button class="btn sm" data-arem="'+a.id+'" title="Remove from module">✕</button></div>';
+      }
+      const s=it.s;
+      return '<div class="irow" data-iid="s'+s.id+'" draggable="true"><span class="itile">'+(s.who==='employee'?'☑️':'🧑‍💼')+'</span>'
+        +'<div class="imain"><div class="ititle">'+esc(s.title)+'</div>'
+        +'<div class="imeta">Task · '+(s.who==='backoffice'?'Manager — back office, hidden from the employee':s.who==='manager'?'Manager + Employee':'Employee')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+        +(secsOf.length?secSel('s',s.id,s.section_id):'')
+        +'<button class="btn sm" data-sedit="'+s.id+'">Edit</button><button class="btn sm" data-sdel="'+s.id+'">✕</button></div>';
+    }).join('');
+    const addable=ARTS.filter(a=>a.status!=='archived'&&a.module_id!==cur.id);
+    right='<div class="pane"><div class="panehd">'
+      +'<input class="btn sm" id="mName" value="'+esc(cur.name)+'" style="font-weight:900;min-width:230px;flex:1;text-align:left">'
+      +'<input class="btn sm" id="mSub" value="'+esc(cur.subtitle||'')+'" placeholder="Subtitle (optional)" style="min-width:200px;flex:1;text-align:left;font-weight:600">'
+      +'<button class="btn sm" id="mSave">Save</button>'
+      +'<button class="btn sm" id="mArch" style="color:var(--red)">Archive</button></div>'
+      +'<div class="rulebar">'
+        +'<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;color:var(--blued)">Auto-assign:</span>'
+        +'<select id="ruleRole" class="btn sm" style="min-width:120px"><option value=""'+(!cur.auto_assign_role?' selected':'')+'>Off</option>'
+          +'<option value="team_member"'+(cur.auto_assign_role==='team_member'?' selected':'')+'>Tech</option>'
+          +'<option value="admin"'+(cur.auto_assign_role==='admin'?' selected':'')+'>Manager</option>'
+          +'<option value="any"'+(cur.auto_assign_role==='any'?' selected':'')+'>Any role</option></select>'
+        +'<span style="font-size:.76rem;font-weight:700;color:var(--dark-grey)">hired on or after</span>'
+        +'<input type="date" id="ruleFrom" class="btn sm" value="'+esc(cur.auto_assign_from||'')+'" style="font-weight:800">'
+        +'<button class="btn pri sm" id="ruleSave" style="padding:5px 11px;font-size:.72rem">Save rule</button>'
+        +'<span style="flex-basis:100%;font-size:.68rem;font-weight:700;color:#7A5B10">⚠ Clearing the date assigns current staff too. Rules apply when a hire is promoted from intake.</span></div>'
+      +'<div class="chips" id="secChips">'
+        +secsOf.map(sx=>'<span class="chip" data-sid="'+sx.id+'" draggable="true">'+esc(sx.name)+'<button data-secdel="'+sx.id+'" title="Remove section">✕</button></span>').join('')
+        +'<button id="secAdd" class="btn sm" style="border-style:dashed;border-radius:999px">＋ Add section</button>'
+        +'<button class="btn pri sm" id="stAdd">＋ Add task step</button>'
+        +(addable.length?'<select id="artAdd" class="btn sm" style="max-width:280px"><option value="">＋ Add an article…</option>'
+          +addable.map(a=>'<option value="'+a.id+'">'+esc(a.title)+(a.module_id?' (in '+esc((MODULES.find(m=>m.id===a.module_id)||{}).name||'another module')+')':'')+(a.status==='draft'?' — draft':'')+'</option>').join('')+'</select>':'')
+        +'<span class="toolnote">drag rows to reorder · order here = employee order · unlock is sequential</span></div>'
+      +'<div id="itemList">'+(rows||'<div class="empty">Nothing in this module yet.</div>')+'</div>'
+      +'<div style="height:8px"></div></div>';
+  }
+  $('#page').innerHTML='<div class="hd">'+GRAD+'<h1>Module Setup</h1>'
+    +'<span class="rolebadge">'+esc(AUTH.role==='owner'?'Owner':'Manager')+'</span>'
+    +'<span style="flex:1"></span>'
+    +'<button class="btn sm" onclick="location.href=\'onboarding-dashboard.html\'">Onboarding Dashboard ›</button>'
+    +'<button class="btn sm" onclick="location.href=\'kb-compliance.html\'">Compliance ›</button></div>'
+    +'<div class="cols">'+left+'<div style="min-width:0">'+right+'</div></div>';
+  document.querySelectorAll('[data-msel]').forEach(b=>b.onclick=()=>{MODSEL=+b.dataset.msel;draw();});
+  $('#mAdd').onclick=async()=>{
+    const name=prompt('Module name (e.g. "Week 3 — Advanced repairs"):');if(!name)return;
+    const maxSort=Math.max.apply(null,[0].concat(MODULES.map(m=>m.sort)));
+    const r=await sb.from('onboarding_modules').insert({name:name.trim(),sort:maxSort+1}).select().single();
+    if(r.error){toast(r.error.message,true);return;}
+    MODSEL=r.data.id;await refresh();
+  };
+  if(!cur)return;
+  $('#mSave').onclick=async()=>{
+    const r=await sb.from('onboarding_modules').update({name:$('#mName').value.trim()||cur.name,subtitle:$('#mSub').value.trim()||null}).eq('id',cur.id);
+    if(r.error){toast(r.error.message,true);return;}
+    toast('Module saved');await refresh();
+  };
+  $('#mArch').onclick=async()=>{
+    if(!confirm('Archive "'+cur.name+'"? Its articles stay in the KB; its task steps stop appearing.'))return;
+    await sb.from('onboarding_modules').update({active:false}).eq('id',cur.id);
+    MODSEL=null;await refresh();
+  };
+  document.querySelectorAll('[data-aedit]').forEach(b=>b.onclick=()=>{location.href='knowledge.html#edit='+b.dataset.aedit;});
+  document.querySelectorAll('[data-arem]').forEach(b=>b.onclick=async()=>{
+    await sb.from('kb_articles').update({module_id:null}).eq('id',+b.dataset.arem);await refresh();
+  });
+  document.querySelectorAll('[data-sedit]').forEach(b=>b.onclick=()=>openStepEditor(cur,STEPS.find(s=>s.id===+b.dataset.sedit)));
+  document.querySelectorAll('[data-sdel]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('Delete this step? Completion history for it is removed too.'))return;
+    await sb.from('onboarding_steps').delete().eq('id',+b.dataset.sdel);await refresh();
+  });
+  $('#stAdd').onclick=()=>openStepEditor(cur,null);
+  const aa=$('#artAdd');if(aa)aa.onchange=async()=>{
+    const id=+aa.value;if(!id)return;
+    const maxSort=Math.max.apply(null,[0].concat(items.map(it=>it.sort)));
+    await sb.from('kb_articles').update({module_id:cur.id,sort_order:maxSort+10}).eq('id',id);
+    await refresh();
+  };
+  $('#ruleSave').onclick=async()=>{
+    const role=$('#ruleRole').value||null,from=$('#ruleFrom').value||null;
+    const r=await sb.from('onboarding_modules').update({auto_assign_role:role,auto_assign_from:role?from:null}).eq('id',cur.id);
+    if(r.error){toast(r.error.message,true);return;}
+    toast(role?'Auto-assign rule saved':'Auto-assign turned off');await refresh();
+  };
+  $('#secAdd').onclick=async()=>{
+    const name=prompt('Section name (e.g. "Check-in & Quoting"):');if(!name)return;
+    const maxSort=Math.max.apply(null,[0].concat(SECTIONS.filter(x=>x.module_id===cur.id).map(x=>x.sort)));
+    const r=await sb.from('onboarding_sections').insert({module_id:cur.id,name:name.trim(),sort:maxSort+10});
+    if(r.error){toast(r.error.message,true);return;}
+    await refresh();
+  };
+  document.querySelectorAll('[data-secdel]').forEach(b=>b.onclick=async()=>{
+    const id=+b.dataset.secdel;
+    if(!confirm('Remove this section? Its items move back to module level.'))return;
+    await sb.from('kb_articles').update({section_id:null}).eq('section_id',id);
+    await sb.from('onboarding_steps').update({section_id:null}).eq('section_id',id);
+    await sb.from('onboarding_sections').delete().eq('id',id);
+    await refresh();
+  });
+  document.querySelectorAll('[data-secfor]').forEach(sel=>sel.onchange=async()=>{
+    const key=sel.getAttribute('data-secfor'),sid=sel.value?+sel.value:null;
+    const table=key[0]==='a'?'kb_articles':'onboarding_steps';
+    const r=await sb.from(table).update({section_id:sid}).eq('id',+key.slice(1));
+    if(r.error){toast(r.error.message,true);return;}
+    await refresh();
+  });
+  /* drag & drop: modules in the rail, section chips — DOM reorders live while
+     dragging, the new order persists on drop */
+  wireDnD($('#modRail'),'[data-msel]',async order=>{
+    for(let i=0;i<order.length;i++){
+      const m=MODULES.find(x=>x.id===+order[i]);
+      if(m&&m.sort!==i+1)await sb.from('onboarding_modules').update({sort:i+1}).eq('id',m.id);
+    }
+    await refresh();
+  },el=>el.getAttribute('data-msel'),false);
+  wireDnD($('#secChips'),'.chip[data-sid]',async order=>{
+    for(let i=0;i<order.length;i++){
+      const sx=SECTIONS.find(x=>x.id===+order[i]);
+      if(sx&&sx.sort!==(i+1)*10)await sb.from('onboarding_sections').update({sort:(i+1)*10}).eq('id',sx.id);
+    }
+    await refresh();
+  },el=>el.getAttribute('data-sid'),true);
+  wireDnD($('#itemList'),'.irow[data-iid]',async order=>{
+    if(REORDERING)return;REORDERING=true;
+    try{
+      const byId={};items.forEach(it=>{byId[(it.kind==='a'?'a'+it.a.id:'s'+it.s.id)]=it;});
+      const newItems=order.map(id=>byId[id]).filter(Boolean);
+      await renumber(cur.id,newItems);await refresh();
+    }finally{REORDERING=false;}
+  },el=>el.getAttribute('data-iid'),false);
+}
+/* generic HTML5 drag-and-drop list reorder */
+function wireDnD(container,selector,persist,idOf,horizontal){
+  if(!container)return;
+  let dragEl=null;
+  container.querySelectorAll(selector).forEach(el=>{
+    el.addEventListener('dragstart',e=>{dragEl=el;el.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',idOf(el));}catch(_){}});
+    el.addEventListener('dragend',async()=>{
+      el.classList.remove('dragging');
+      if(!dragEl)return;dragEl=null;
+      const order=[...container.querySelectorAll(selector)].map(idOf);
+      await persist(order);
+    });
+  });
+  container.addEventListener('dragover',e=>{
+    if(!dragEl)return;e.preventDefault();
+    const sibs=[...container.querySelectorAll(selector)].filter(x=>x!==dragEl);
+    const after=sibs.find(sib=>{
+      const r=sib.getBoundingClientRect();
+      return horizontal?e.clientX<r.left+r.width/2:e.clientY<r.top+r.height/2;
+    });
+    if(after)container.insertBefore(dragEl,after);
+    else{
+      // keep trailing non-list controls (＋ buttons) after the cards
+      const tail=container.querySelector('#secAdd');
+      if(tail)container.insertBefore(dragEl,tail);else container.appendChild(dragEl);
+    }
+  });
+}
+function openStepEditor(mod,s){
+  const isNew=!s;s=s||{who:'manager'};
+  const wrapEl=$('#mdlWrap');
+  let who=s.who||'manager';
+  function paint(){
+    wrapEl.innerHTML='<div class="ovl"><div class="mdl" style="width:520px">'
+      +'<div class="mdl-hd"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem">'+(isNew?'New task step':'Edit task step')+'</div><button class="mdl-x" data-close>✕</button></div>'
+      +'<div class="mdl-bd">'
+      +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Step title</label>'
+      +'<input id="stTitle" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:12px" value="'+esc(s.title||'')+'" placeholder="e.g. I-9 employment eligibility verification">'
+      +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Note (one line, optional)</label>'
+      +'<input id="stNote" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem;margin-bottom:12px" value="'+esc(s.note||'')+'" placeholder="What it involves / what to bring">'
+      +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:6px">Who completes it</label>'
+      +'<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+        +'<button class="btn sm'+(who==='backoffice'?' dk':'')+'" data-who="backoffice">Manager</button>'
+        +'<button class="btn sm'+(who==='employee'?' dk':'')+'" data-who="employee">Employee</button>'
+        +'<button class="btn sm'+(who==='manager'?' dk':'')+'" data-who="manager">Manager + Employee</button></div>'
+      +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-bottom:12px">'
+        +(who==='backoffice'?'Back office — hidden from the employee; shows only on your Onboarding dashboard &amp; Compliance (e.g. add to QBO payroll).'
+        :who==='manager'?'Done together — shows on both sides; the employee sees “Waiting on your manager”, you tick it off.'
+        :'Shows on both sides — the employee ticks it off themselves.')+'</div>'
+      +'<label style="display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:4px">Link (optional — a page that does this step)</label>'
+      +'<input id="stLink" style="width:100%;height:36px;padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:.88rem" value="'+esc(s.link_url||'')+'" placeholder="profile.html">'
+      +'</div>'
+      +'<div class="mdl-ft"><button class="btn sm" data-close>Cancel</button><button class="btn pri sm" id="stSave">'+(isNew?'Add step':'Save step')+'</button></div>'
+      +'</div></div>';
+    wrapEl.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{wrapEl.innerHTML='';});
+    wrapEl.querySelectorAll('[data-who]').forEach(b=>b.onclick=()=>{who=b.dataset.who;
+      const t=$('#stTitle').value,n=$('#stNote').value,l=$('#stLink').value;paint();
+      $('#stTitle').value=t;$('#stNote').value=n;$('#stLink').value=l;});
+    $('#stSave').onclick=async()=>{
+      const title=$('#stTitle').value.trim();if(!title){toast('Give the step a title.',true);return;}
+      const row={title,note:$('#stNote').value.trim()||null,who,link_url:$('#stLink').value.trim()||null};
+      let r;
+      if(isNew){
+        const maxSort=Math.max.apply(null,[0].concat(setupItems(mod.id).map(it=>it.sort)));
+        r=await sb.from('onboarding_steps').insert(Object.assign(row,{module_id:mod.id,sort_order:maxSort+10}));
+      }else r=await sb.from('onboarding_steps').update(row).eq('id',s.id);
+      if(r.error){toast(r.error.message,true);return;}
+      wrapEl.innerHTML='';toast(isNew?'Step added':'Step saved');await refresh();
+    };
+  }
+  paint();
+}
+async function boot(){
+  if(!isMgr(AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
+  await loadAll();draw();
+}
+</script>
+</body>
+</html>

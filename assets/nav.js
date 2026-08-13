@@ -107,10 +107,12 @@
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
     { label:'Team Members',   url:'employee-records.html', icon:'users', minRole:'admin', acc:'staff.view' },
+    { label:'Onboarding',     url:'onboarding-dashboard.html', icon:'graduation-cap', minRole:'admin' },
     // Schedule/Task Admin reached from buttons on My Time / Checklist (hidden from menus)
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'calendar-cog', minRole:'admin', acc:'schedule.admin', hidden:true },
     { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', minRole:'admin', hidden:true },
     { label:'KB Compliance',  url:'kb-compliance.html',    icon:'clipboard-check', minRole:'admin', hidden:true },
+    { label:'Module Setup',   url:'onboarding-setup.html', icon:'graduation-cap', minRole:'admin', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' },
     { label:'Bookings',       url:'interviews.html',       icon:'calendar-days', minRole:'admin' }
@@ -128,7 +130,8 @@
   // the pane to this list instead of navigating. Gear visibility stays staff.manage;
   // rows gate individually. Hash links open that tab on settings.html directly.
   var SETTINGS = [
-    { label:'Team Members',        url:'settings.html#staff',      icon:'users', acc:'staff.manage' },
+    // Team Members consolidated into employee-records.html (Employees area) —
+    // the Settings staff tab is retired; settings.html#staff redirects there.
     { label:'Locations',           url:'settings.html#loc',        icon:'map-pin', acc:'staff.manage' },
     { label:'Notifications',       url:'settings.html#notif',      icon:'bell', acc:'staff.manage' },
     { label:'Page Settings',       url:'settings.html#pages',      icon:'file-cog', acc:'staff.manage' },
@@ -313,11 +316,17 @@
   // settings pages highlight the gear (employee-records stays under Employees even
   // though it's also listed in the Settings pane)
   var inSettings = (currentFile === 'settings.html');
-  var inKb = (currentFile === 'knowledge.html' || currentFile === 'kb-compliance.html');
-  var ACTIVE_AREA = inKb ? 'kb' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home)
+  // knowledge.html + training.html are rail-level links (no pane area of their
+  // own — the KB's white browse pane was retired 2026-08-12 with the portal
+  // redesign; kb-compliance + onboarding-setup + onboarding-dashboard are
+  // Employees-area management pages).
+  var inOps = OPERATIONS.concat(TOOLS).some(function(t){ return t.url.toLowerCase() === currentFile; });
+  // '' = no AREA row lights up — Home/KB/Training rows highlight themselves,
+  // and a page in no list (profile, alerts…) shouldn't fake-select Operations.
+  var ACTIVE_AREA = ON_HOME ? '' : inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : inOps ? 'ops' : '';
 
   // ── STYLES ───────────────────────────────────────────────────────────
-  var RAIL_W = 64, PANE_W = 248;
+  var RAIL_W = 64, PANE_W = 248, RAIL_EXP_W = 216;   // PANE_W = mobile drawer only now
   var css = `
   /* Smooth cross-document navigations (MPA) — cross-fade instead of a white flash.
      Both the leaving and entering page opt in via this rule; nav.js is on every page.
@@ -336,22 +345,32 @@
   ::view-transition-old(cpr-rail),::view-transition-new(cpr-rail),
   ::view-transition-old(cpr-pane),::view-transition-new(cpr-pane){ animation:none; }
 
-  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px; --cpr-top-h:52px;
+  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_EXP_W}px; --cpr-top-h:52px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }
   .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:'Nunito','Nunito Sans',sans-serif; }
 
-  /* icon rail — CPR Blue Dark, white icons. Starts below the top bar (app shell). */
-  .cpr-rail{ position:fixed; top:var(--cpr-top-h); left:0; bottom:0; width:var(--cpr-rail-w);
-    background:var(--cpr-blue-dark); z-index:1001; display:flex; flex-direction:column; align-items:center; padding-top:12px; gap:6px; }
+  /* the rail — CPR Blue Dark. EXPANDED (default): wide, icon left + section
+     name right; tools reach the page via the hover flyout (owner call
+     2026-08-12 — the white pane is desktop-retired). COLLAPSED: the classic
+     64px icon rail, unchanged. */
+  .cpr-rail{ position:fixed; top:var(--cpr-top-h); left:0; bottom:0; width:var(--cpr-nav-w);
+    background:var(--cpr-blue-dark); z-index:1001; display:flex; flex-direction:column; align-items:stretch; padding:12px 10px 0; gap:6px; }
   .cpr-rail .cpr-burger2{ display:none; width:40px; height:40px; border:none; background:none; color:#fff; font-size:1.3rem; cursor:pointer; border-radius:11px; }
   .cpr-rail .cpr-burger2:hover{ background:rgba(255,255,255,.12); }
-  .cpr-rail .cpr-areabtn{ width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
-    font-size:1.15rem; cursor:pointer; color:#fff; border:none; background:none; }
+  .cpr-rail .cpr-areabtn{ width:100%; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:flex-start; gap:12px; padding:0 11px;
+    font-size:1.15rem; cursor:pointer; color:#fff; border:none; background:none; text-decoration:none; }
+  .cpr-rail .cpr-areabtn svg{ flex:none; }
+  .cpr-rail .rlbl{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.84rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cpr-rail .cpr-areabtn:hover{ background:rgba(255,255,255,.12); }
   .cpr-rail .cpr-areabtn.active{ background:var(--cpr-blue); color:#fff; }
   .cpr-rail .cpr-railsp{ flex:1; }
-  .cpr-rail .cpr-raildiv{ width:28px; height:1px; background:rgba(255,255,255,.16); margin:3px 0; }
-  .cpr-rail .cpr-railgear{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:14px; text-decoration:none; opacity:.78; }
+  .cpr-rail .cpr-raildiv{ width:auto; height:1px; background:rgba(255,255,255,.16); margin:3px 6px; }
+  body.cpr-nav-collapsed .cpr-rail{ width:var(--cpr-rail-w); align-items:center; padding:12px 0 0; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-areabtn{ width:40px; justify-content:center; gap:0; padding:0; }
+  body.cpr-nav-collapsed .cpr-rail .rlbl{ display:none; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-raildiv{ width:28px; margin:3px 0; }
+  .cpr-rail .cpr-railgear{ width:100%; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:flex-start; gap:12px; padding:0 11px; margin-bottom:14px; text-decoration:none; opacity:.78; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-railgear{ width:40px; justify-content:center; gap:0; padding:0; }
   .cpr-rail .cpr-railgear:hover{ background:rgba(255,255,255,.12); opacity:1; }
   .cpr-rail .cpr-railgear.active{ background:var(--cpr-blue); opacity:1; }
   .cpr-usermenu{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
@@ -364,7 +383,8 @@
   .cpr-usermenu button .umic{ width:16px; text-align:center; flex:none; opacity:.85; }
   .cpr-usermenu button:hover{ background:#F3F2F2; color:#2D2D3B; }
   .cpr-usermenu button.danger:hover{ color:#DC282E; background:#FFF1F1; }
-  .cpr-rail .cpr-collapse{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:6px; opacity:.7; }
+  .cpr-rail .cpr-collapse{ width:100%; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:flex-start; padding:0 11px; margin-bottom:6px; opacity:.7; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-collapse{ width:40px; justify-content:center; padding:0; }
   .cpr-rail .cpr-collapse:hover{ background:rgba(255,255,255,.12); opacity:1; }
 
   /* collapsed flyout — hover an area icon to reach its tools without expanding */
@@ -448,6 +468,8 @@
   .cpr-tb-sq:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-sq.open{ background:rgba(255,255,255,.22); }
   .cpr-tb-bell{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-fb{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cpr-tb-fb:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell .bdg{ position:absolute; top:1px; right:1px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
     background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; align-items:center; justify-content:center;
@@ -475,7 +497,7 @@
   @media(min-width:860px){
     body{ margin-left:var(--cpr-nav-w) !important; }
     body.cpr-nav-collapsed{ margin-left:var(--cpr-rail-w) !important; }
-    body.cpr-nav-collapsed .cpr-pane{ transform:translateX(-100%); }
+    .cpr-pane{ display:none; }   /* desktop pane retired — tools live in the flyouts */
   }
 
   /* mobile — rail stays visible, pane slides */
@@ -511,6 +533,7 @@
     body{ padding-bottom:var(--cpr-bb-h) !important; }
     .cpr-tb-burger{ display:none; }                         /* More tab replaces the hamburger */
     .cpr-tb-sq{ display:none; }                             /* Square lives under More on mobile */
+    .cpr-tb-fb{ display:none; }                             /* feedback lives under More on mobile */
     .cpra-fab{ bottom:calc(var(--cpr-bb-h) + 12px) !important; }  /* assistant ✨ sits above the tab bar */
   }
   .cpr-bb-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; border:none; background:none;
@@ -528,15 +551,19 @@
     'house': '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
     'list-checks': '<path d="M13 5h8" /><path d="M13 12h8" /><path d="M13 19h8" /><path d="m3 17 2 2 4-4" /><path d="m3 7 2 2 4-4" />',
     'bell': '<path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />',
+    'bug': '<path d="m8 2 1.88 1.88" /><path d="M14.12 3.88 16 2" /><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1" /><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6Z" /><path d="M12 20v-9" /><path d="M6.53 9C4.6 8.8 3 7.1 3 5" /><path d="M6 13H2" /><path d="M3 21c0-2.1 1.7-3.9 3.8-4" /><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4" /><path d="M22 13h-4" /><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4" />',
+    'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5A6.14 6.14 0 0 0 18 7.5 6 6 0 0 0 6 7.5c0 1.5.5 2.9 1.5 4 .8.8 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" />',
     'star': '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />',
     'sunrise': '<path d="M12 2v8" /><path d="m4.93 10.93 1.41 1.41" /><path d="M2 18h2" /><path d="M20 18h2" /><path d="m19.07 10.93-1.41 1.41" /><path d="M22 22H2" /><path d="m8 6 4-4 4 4" /><path d="M16 18a4 4 0 0 0-8 0" />',
     'megaphone': '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" /><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" /><path d="M8 6v8" />',
     'chart-line': '<path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="m19 9-5 5-4-4-3 3" />',
     'calendar-days': '<path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" />',
     'book-open': '<path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />',
+    'graduation-cap': '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" />',
     'timer': '<line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" />',
     'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" />',
     'calendar-cog': '<path d="m15.228 16.852-.923-.383" /><path d="m15.228 19.148-.923.383" /><path d="M16 2v4" /><path d="m16.47 14.305.382.923" /><path d="m16.852 20.772-.383.924" /><path d="m19.148 15.228.383-.923" /><path d="m19.53 21.696-.382-.924" /><path d="m20.772 16.852.924-.383" /><path d="m20.772 19.148.924.383" /><path d="M21 10.592V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" /><path d="M3 10h18" /><path d="M8 2v4" /><circle cx="18" cy="18" r="3" />',
+    'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />',
     'folder-kanban': '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /><path d="M8 10v4" /><path d="M12 10v2" /><path d="M16 10v6" />',
     'clock-4': '<circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />',
     'palmtree': '<path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h2l1-1 1 1h4" /><path d="M13 7.14A5.82 5.82 0 0 1 16.5 6c3.04 0 5.5 2.24 5.5 5h-3l-1-1-1 1h-3" /><path d="M5.89 9.71c-2.15 2.15-2.3 5.47-.35 7.43l4.24-4.25.7-.7.71-.71 2.12-2.12c-1.95-1.96-5.27-1.8-7.42.35" /><path d="M11 15.5c.5 2.5-.17 4.5-1 6.5h4c2-5.5-.5-12-1-14" />',
@@ -554,6 +581,9 @@
     'shield': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />',
     'banknote': '<rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" />',
     'pen-line': '<path d="M13 21h8" /><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />',
+    'archive': '<rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" />',
+    'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />',
+    'search': '<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />',
     'monitor-smartphone': '<path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" /><path d="M10 19v-3.96 3.15" /><path d="M7 19h5" /><rect width="6" height="10" x="16" y="12" rx="2" />',
     'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2" /><path d="M12 18h.01" />',
     'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />',
@@ -595,7 +625,8 @@
     gear:  'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 12a7.4 7.4 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7.3 7.3 0 0 0-2-1.2L14.6 3h-3.9l-.4 2.5a7.3 7.3 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.3 7.3 0 0 0 2 1.2l.4 2.5h3.9l.4-2.5a7.3 7.3 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.07-.4.1-.8.1-1.2Z',
     chart: 'M3 21h18M6.5 21V11M12 21V5M17.5 21v-7',
     people: 'M9 11.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM2.5 19.5v-.3c0-2.7 2.6-4.3 6.5-4.3s6.5 1.6 6.5 4.3v.3M16 5.3a3.2 3.2 0 0 1 0 6.2M17.5 14.6c2.5.5 4 1.9 4 4v.3',
-    book:  'M3 5.5h5.2c1.6 0 3 .7 3.8 1.9.8-1.2 2.2-1.9 3.8-1.9H21v13h-5.2c-1.5 0-2.9.6-3.8 1.7-.9-1.1-2.3-1.7-3.8-1.7H3v-13ZM12 7.4V20.2'
+    book:  'M3 5.5h5.2c1.6 0 3 .7 3.8 1.9.8-1.2 2.2-1.9 3.8-1.9H21v13h-5.2c-1.5 0-2.9.6-3.8 1.7-.9-1.1-2.3-1.7-3.8-1.7H3v-13ZM12 7.4V20.2',
+    cap:   'M21.4 10.9 12.7 15.4a1.6 1.6 0 0 1-1.4 0L2.6 10.9a1 1 0 0 1 0-1.8l8.7-4.5a1.6 1.6 0 0 1 1.4 0l8.7 4.5a1 1 0 0 1 0 1.8ZM6 12.5v3.6c0 1.6 2.7 3 6 3s6-1.4 6-3v-3.6'
   };
   function railIcon(name){
     var d = RAIL_ICONS[name]; if (!d) return '';
@@ -707,17 +738,12 @@
       return '<div class="cpr-fly-hd">Settings</div>'
         + SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
-    // admin area
-    if (!NAV_ROLE){
-      return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
-        + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>Owner &amp; manager tools are locked. Unlock to access them.</div></div>'
-        + '<div style="padding:2px 12px 8px"><button class="cpr-btn red" data-act="flyout-unlock">Unlock</button></div>';
+    // admin area — the locked/no-tools states reuse the full pane card (PIN
+    // input included) since there's no desktop pane to expand any more
+    if (!NAV_ROLE || !PRIVILEGED.filter(canSee).length){
+      return '<div data-priv>' + privilegedHtml() + '</div>';
     }
     var vis = PRIVILEGED.filter(canSee);
-    if (!vis.length){
-      return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
-        + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>No owner or manager tools for your role.</div></div>';
-    }
     var links = vis.map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
     return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links;
   }
@@ -732,38 +758,8 @@
     var ico = '<span class="cpr-tb-ico"><svg viewBox="13 8 48 48" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
     return wm + ico;
   }
-  // Knowledge Base pane: the KB's Browse list lives in the nav (no in-page
-  // sidebar). knowledge.html publishes its categories/counts to localStorage
-  // (cprKbNav) on every load; before the first visit we fall back to the core
-  // rows. Rows are hash links, so clicks route inside the open KB page.
-  function kbPaneHtml(){
-    var items = null;
-    try{ items = JSON.parse(localStorage.getItem('cprKbNav')||'null'); }catch(e){}
-    if (!items || !items.length){
-      items = [ {h:'c=all', i:'📚', l:'All articles'}, {h:'c=req', i:'⭐', l:'Required reading'} ];
-      if (currentRole()==='admin'||currentRole()==='owner') items.push({grp:'Manage'},{h:'c=drafts',i:'✏️',l:'Drafts'},{h:'modules',i:'🧩',l:'Onboarding Setup'},{u:'kb-compliance.html',i:'📋',l:'Compliance'});
-    }
-    var here = currentFile==='knowledge.html' ? location.hash.replace('#','') : '';
-    var h = '<div class="cpr-grp">Knowledge Base</div>';
-    items.forEach(function(it){
-      if (it.grp){ h += '<div class="cpr-grp">'+esc(it.grp)+'</div>'; return; }
-      var href = it.u ? it.u : 'knowledge.html#'+it.h;
-      var active = it.u ? (currentFile===it.u) : (currentFile==='knowledge.html' && (here===it.h || (!here && it.h==='c=all')));
-      h += '<a class="cpr-link'+(active?' active':'')+'" href="'+esc(href)+'">'
-        + '<span class="ic" style="font-size:15px;line-height:1">'+esc(it.i||'📄')+'</span>'
-        + '<span style="flex:1">'+esc(it.l)+'</span>'
-        + (it.b?'<span style="min-width:18px;text-align:center;background:#DC282E;color:#fff;border-radius:999px;font-size:.62rem;font-weight:800;padding:1px 6px">'+esc(String(it.b))+'</span>':'')
-        + (it.c?'<span style="font-size:.68rem;font-weight:800;color:#B9BDCB">'+esc(String(it.c))+'</span>':'')
-        + '</a>';
-    });
-    return h;
-  }
   function paneInner(area){
     var hd = '';   // brand now lives in the top bar; the pane starts at its tool list
-    if (area === 'kb'){
-      return hd + kbPaneHtml()
-        + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
-    }
     if (area === 'admin'){
       return hd + '<div data-priv>' + privilegedHtml() + '</div>'
         + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
@@ -819,6 +815,7 @@
     var h = '<a class="cpr-mhd" href="profile.html" style="text-decoration:none;color:inherit"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></a>';
     h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'book-open' });
+    h += linkHtml({ label:'Training', url:'training.html', icon:'graduation-cap' });
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
     var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -838,7 +835,10 @@
       var st = SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       if (st) h += '<div class="cpr-grp">Settings</div>' + st;
     }
-    /* Square lives here on mobile (the top-bar button is hidden below 860px) */
+    /* feedback + Square live here on mobile (top-bar buttons hide below 860px) */
+    h += '<div class="cpr-grp">Feedback</div>'
+      + '<div class="cpr-link" data-fb="issue" role="button" tabindex="0"><span class="ic">'+navIcon('bug',15)+'</span> Report an Issue</div>'
+      + '<div class="cpr-link" data-fb="feature" role="button" tabindex="0"><span class="ic">'+navIcon('lightbulb',15)+'</span> Suggest a Feature</div>';
     h += '<div class="cpr-grp">Register</div>'
       + '<div class="cpr-link" data-sqrow role="button" tabindex="0">'
       + '<svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="flex:none"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
@@ -846,12 +846,6 @@
     return h + '<div class="cpr-spacer"></div><div class="cpr-foot">Internal tools · CPR Oregon</div>';
   }
   function paneContent(){ return isMobile() ? paneMobileInner() : paneInner(ACTIVE_AREA); }
-  // KB pane rows are hash links — keep their active state in sync as the open
-  // KB page routes, and let knowledge.html refresh counts after it loads data.
-  window.addEventListener('hashchange', function(){
-    if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); }
-  });
-  window.CPRKbNav = { refresh: function(){ if (ACTIVE_AREA === 'kb' && pane){ pane.innerHTML = paneContent(); wirePriv(); } } };
 
   var rail, pane, scrim, top, usermenu;
   function setArea(area){
@@ -927,25 +921,27 @@
     }
   }
 
-  function wirePriv(){
-    if (!pane) return;
-    pane.querySelectorAll('[data-act]').forEach(function(el){
+  function wirePriv(root){
+    root = root || pane;
+    if (!root) return;
+    root.querySelectorAll('[data-act]').forEach(function(el){
       var act = el.getAttribute('data-act');
       el.onclick = function(e){
-        if (act === 'show-pass'){ var w = pane.querySelector('[data-pass]'); if (w){ w.classList.add('show'); var i = w.querySelector('[data-passinput]'); if (i) i.focus(); } }
-        else if (act === 'do-unlock'){ doUnlock(); }
+        if (act === 'show-pass'){ var w = root.querySelector('[data-pass]'); if (w){ w.classList.add('show'); var i = w.querySelector('[data-passinput]'); if (i) i.focus(); } }
+        else if (act === 'do-unlock'){ doUnlock(root); }
         else if (act === 'lock'){ doSignOut(); }
         else if (act === 'settings'){ e.preventDefault(); window.location.href = 'settings.html'; }
       };
     });
-    var input = pane.querySelector('[data-passinput]');
-    if (input) input.onkeydown = function(e){ if (e.key === 'Enter') doUnlock(); };
+    var input = root.querySelector('[data-passinput]');
+    if (input) input.onkeydown = function(e){ if (e.key === 'Enter') doUnlock(root); };
   }
 
   // PIN login -> shared Supabase session (unlocks nav + every page)
-  function doUnlock(){
-    var input = pane.querySelector('[data-passinput]');
-    var err = pane.querySelector('[data-err]');
+  function doUnlock(root){
+    root = root || pane;
+    var input = root.querySelector('[data-passinput]');
+    var err = root.querySelector('[data-err]');
     var btn = pane.querySelector('[data-act="do-unlock"]');
     var pin = input ? input.value.trim() : '';
     if (!pin) return;
@@ -1010,20 +1006,21 @@
     rail = document.createElement('nav'); rail.className = 'cpr-rail';
     rail.innerHTML = ''
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
-      + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
-      + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'</a>'
+      + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'<span class="rlbl">Home</span></a>'
+      + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'<span class="rlbl">Knowledge Base</span></a>'
+      + '<a class="cpr-areabtn'+(currentFile==='training.html'?' active':'')+'" href="training.html" title="Training">'+railIcon('cap')+'<span class="rlbl">Training</span></a>'
       + '<span class="cpr-raildiv"></span>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'<span class="rlbl">My Hub</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'<span class="rlbl">Sales &amp; Pricing</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'<span class="rlbl">Ordering &amp; Inventory</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'<span class="rlbl">Operations</span></button>'
       + '<span class="cpr-raildiv cpr-admindiv" style="display:none"></span>'
-      + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'</button>'
-      + '<button class="cpr-areabtn cpr-reportsbtn'+(ACTIVE_AREA==='reports'?' active':'')+'" data-area="reports" title="Reports" style="display:none">'+railIcon('chart')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
+      + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'<span class="rlbl">Employees</span></button>'
+      + '<button class="cpr-areabtn cpr-reportsbtn'+(ACTIVE_AREA==='reports'?' active':'')+'" data-area="reports" title="Reports" style="display:none">'+railIcon('chart')+'<span class="rlbl">Reports</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'<span class="rlbl">Admin &amp; Owner</span></button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
-      + '<button class="cpr-railgear'+(ACTIVE_AREA==='settings'?' active':'')+'" data-area="settings" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'</button>';
+      + '<button class="cpr-railgear'+(ACTIVE_AREA==='settings'?' active':'')+'" data-area="settings" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'<span class="rlbl">Settings</span></button>';
     document.body.insertBefore(rail, document.body.firstChild);
 
     // ── top bar (persistent): page title · clock (soon) · bell · identity ─
@@ -1032,6 +1029,12 @@
       + '<button class="cpr-tb-burger" aria-label="Menu">☰</button>'
       + '<a class="cpr-tb-brand" href="'+esc(HOME)+'" title="myRepairTools — Home" aria-label="Home">'+navLogoTop()+'</a>'
       + '<span class="cpr-tb-sp"></span>'
+      + '<button class="cpr-tb-fb" data-fb="issue" title="Report an Issue" aria-label="Report an issue">'
+      +   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6ZM12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>'
+      + '</button>'
+      + '<button class="cpr-tb-fb" data-fb="feature" title="Suggest a Feature" aria-label="Suggest a feature">'
+      +   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5A6.14 6.14 0 0 0 18 7.5 6 6 0 0 0 6 7.5c0 1.5.5 2.9 1.5 4 .8.8 1.3 1.5 1.5 2.5M9 18h6M10 22h4"/></svg>'
+      + '</button>'
       + '<button class="cpr-tb-sq" data-square title="Square — take a payment (backup register)" aria-label="Square virtual terminal">'
       +   '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M4.01 0A4.01 4.01 0 0 0 0 4.01v15.98A4.01 4.01 0 0 0 4.01 24h15.98A4.01 4.01 0 0 0 24 19.99V4.01A4.01 4.01 0 0 0 19.99 0H4.01zm1.62 4.36h12.74c.7 0 1.27.57 1.27 1.27v12.74c0 .7-.57 1.27-1.27 1.27H5.63c-.7 0-1.27-.57-1.27-1.27V5.63c0-.7.57-1.27 1.27-1.27zm3.83 4.35a.73.73 0 0 0-.73.73v5.12c0 .4.33.73.73.73h5.12c.4 0 .73-.33.73-.73V9.44a.73.73 0 0 0-.73-.73H9.46z"/></svg>'
       + '</button>'
@@ -1142,20 +1145,19 @@
     var flyout = document.createElement('div'); flyout.className = 'cpr-flyout';
     document.body.appendChild(flyout);
     var flyHideT = null;
-    function wireFlyout(){
-      var ub = flyout.querySelector('[data-act="flyout-unlock"]');
-      if (ub) ub.onclick = function(){ flyout.classList.remove('show'); setCollapsed(false); setArea('admin'); };
-    }
+    function wireFlyout(){ /* unlock card wires itself via wirePriv(flyout) */ }
     function showFlyout(area, btn){
-      if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
+      if (window.innerWidth < 860) return;                   // desktop only (mobile has the drawer)
       if (['ops','hub','admin','order','pricing','employees','reports','settings'].indexOf(area) < 0) return;
       clearTimeout(flyHideT);
       flyout.innerHTML = flyoutLinksHtml(area);
       flyout.classList.add('show');
+      flyout.style.left = (rail.getBoundingClientRect().right + 6) + 'px';
       var rect = btn.getBoundingClientRect();
       var top = Math.max(8, Math.min(rect.top - 4, window.innerHeight - flyout.offsetHeight - 8));
       flyout.style.top = top + 'px';
       wireFlyout();
+      wirePriv(flyout);
     }
     function hideFlyoutSoon(){ clearTimeout(flyHideT); flyHideT = setTimeout(function(){ flyout.classList.remove('show'); }, 200); }
     flyout.addEventListener('mouseenter', function(){ clearTimeout(flyHideT); });
@@ -1163,10 +1165,8 @@
 
     rail.querySelectorAll('.cpr-areabtn, .cpr-railgear[data-area]').forEach(function(b){
       b.onclick = function(){
-        flyout.classList.remove('show');
-        setArea(b.getAttribute('data-area'));
-        if (window.innerWidth < 860){ pane.classList.add('open'); scrim.classList.add('show'); }
-        else if (collapsed){ setCollapsed(false); }   // expand to reveal the area's tools
+        if (window.innerWidth < 860){ setArea(b.getAttribute('data-area')); pane.classList.add('open'); scrim.classList.add('show'); }
+        else showFlyout(b.getAttribute('data-area'), b);   // desktop: flyout in either rail state
       };
       var area = b.getAttribute('data-area');
       if (area){
@@ -1182,6 +1182,58 @@
     function setMenu(open){ pane.classList.toggle('open', open); scrim.classList.toggle('show', open); if (tbBurger) tbBurger.innerHTML = open ? '✕' : '☰'; }
     function closeMenu(){ setMenu(false); }
     function toggleMenu(){ setMenu(!pane.classList.contains('open')); }
+
+    // ── Report an Issue / Suggest a Feature (top-bar + mobile drawer rows) ──
+    // Same pipeline as the extension's issue reporting (report-issue fn):
+    // issues land in extension_issues (source 'site'), feature requests in
+    // their own feature_requests list. Both text the owner.
+    function openFeedback(kind){
+      var isFeat = kind === 'feature';
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px';
+      ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px 22px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+        + '<div style="display:flex;align-items:center;gap:9px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;color:#2D2D3B;margin-bottom:4px">'
+        +   navIcon(isFeat ? 'lightbulb' : 'bug', 19) + (isFeat ? 'Suggest a Feature' : 'Report an Issue') + '</div>'
+        + '<div style="font-size:.76rem;font-weight:700;color:#8A8FA0;margin-bottom:10px">'
+        +   (isFeat ? 'What should myRepairTools do next? Goes straight to the owner\'s list.'
+                    : 'What went wrong? Your name and this page are attached automatically.') + '</div>'
+        + '<textarea data-fbmsg style="width:100%;box-sizing:border-box;min-height:110px;padding:10px 12px;border:1.5px solid #E0E2EA;border-radius:10px;font-family:\'Nunito Sans\',sans-serif;font-weight:600;font-size:.88rem;resize:vertical;color:#2D2D3B" placeholder="' + (isFeat ? 'It would be great if…' : 'Describe what happened — which page, what you expected…') + '"></textarea>'
+        + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">'
+        + '<button data-fbx style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1.5px solid #E0E2EA;background:#fff;color:#2D2D3B;border-radius:10px;cursor:pointer">Cancel</button>'
+        + '<button data-fbgo style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:none;background:#DC282E;color:#fff;border-radius:10px;cursor:pointer">Send</button>'
+        + '</div></div>';
+      document.body.appendChild(ov);
+      var ta = ov.querySelector('[data-fbmsg]'); ta.focus();
+      function close(){ ov.remove(); document.removeEventListener('keydown', onKey); }
+      function onKey(e){ if (e.key === 'Escape') close(); }
+      document.addEventListener('keydown', onKey);
+      ov.addEventListener('mousedown', function(e){ if (e.target === ov) close(); });
+      ov.querySelector('[data-fbx]').onclick = close;
+      ov.querySelector('[data-fbgo]').onclick = function(){
+        var msg = ta.value.trim();
+        if (!msg){ ta.focus(); return; }
+        var go = ov.querySelector('[data-fbgo]'); go.disabled = true; go.textContent = 'Sending…';
+        fetch(SB_URL + '/functions/v1/report-issue', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SB_ANON, 'apikey':SB_ANON },
+          body: JSON.stringify({
+            message: msg, kind: isFeat ? 'feature' : 'site',
+            reporter: NAV_NAME || null,
+            store: (NAV_STAFF && NAV_STAFF.home_store) || null,
+            url: location.href, user_agent: navigator.userAgent
+          })
+        }).then(function(r){ return r.json(); }).then(function(d){
+          if (d && d.ok){ close(); toastNav(isFeat ? 'Suggestion sent — thank you!' : 'Reported — thank you!'); }
+          else { go.disabled = false; go.textContent = 'Send'; toastNav((d && d.error) || 'Send failed — try again', true); }
+        }).catch(function(){ go.disabled = false; go.textContent = 'Send'; toastNav('Send failed — try again', true); });
+      };
+    }
+    document.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('[data-fb]');
+      if (!b) return;
+      closeMenu();
+      openFeedback(b.getAttribute('data-fb'));
+    });
     if (burger) burger.onclick = toggleMenu;
     if (tbBurger) tbBurger.onclick = toggleMenu;
     var bbMore = document.querySelector('.cpr-bottombar [data-bbmore]');

@@ -35,7 +35,7 @@
     if (!document.getElementById('cpr-navbox-css')) {
       var st = document.createElement('style'); st.id = 'cpr-navbox-css';
       st.textContent =
-        '.cpr-navbox{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--border,#E0E2EA);border-radius:10px;overflow:hidden}' +
+        '.cpr-navbox{display:inline-flex;align-items:center;flex:none;background:#fff;border:1px solid var(--border,#E0E2EA);border-radius:10px;overflow:hidden}' +
         '.cpr-navbox>button{font-family:\'Nunito\',sans-serif;font-weight:800;border:none;background:#fff;padding:8px 12px;cursor:pointer;font-size:.9rem;color:var(--dark,#2D2D3B);line-height:1.15}' +
         '.cpr-navbox>button:disabled{color:var(--grey,#B9BDCB);cursor:default}' +
         '.cpr-navbox>.lbl{font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.85rem;padding:8px 14px;border-left:1px solid var(--border,#E0E2EA);border-right:1px solid var(--border,#E0E2EA);white-space:nowrap}' +
