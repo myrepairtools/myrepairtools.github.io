@@ -504,7 +504,11 @@ function catHash(){ if(['all','req','drafts','archived'].indexOf(String(CAT))>-1
   if(tt)h+='&t='+slugify(tt.name);
   return h; }
 window.addEventListener('hashchange',()=>{ if(!AUTH)return;
-  if(!applyHash()&&!location.hash){ MODE='list'; OPEN=null; draw(); } });
+  if(!applyHash()&&!location.hash){
+    /* Back landed on the original no-hash entry = the portal home. Reset the
+       in-memory browse state or the old category just redraws itself. */
+    MODE='list'; OPEN=null; CAT='all'; FACET={s:null,t:null}; TQ=''; draw();
+  } });
 
 function boot(){
   if(!AUTH){ $('#page').innerHTML='<div class="gate">Sign in to read the Knowledge Base.</div>'; return; }
