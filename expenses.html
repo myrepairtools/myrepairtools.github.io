@@ -451,6 +451,7 @@ async function extractFromPhoto(blob){
       body:JSON.stringify({action:'extract_receipt',image_b64:b64,media_type:'image/jpeg'})});
     var d={};try{d=await res.json();}catch(e){}
     if(seq!==EXTRACT_SEQ)return;                 // user retook the photo — drop this result
+    if(authDead(res,d)){aiStat('⚠ '+AUTH_DEAD_MSG);return;}
     if(!res.ok||!d.ok)throw new Error(d.detail||d.error||('HTTP '+res.status));
     var used=[];
     /* fill only what the owner hasn't typed — never clobber a hand-entered value */
@@ -599,6 +600,16 @@ function showErr(html,receiptId){
 }
 function clearErr(){var el=$('#errCard');el.style.display='none';el.innerHTML='';}
 
+/* A 401/403 from the qbo function while DB writes still work = the auth SESSION
+   died server-side (revoked/rotated away) while the 1-hour JWT is still valid, so
+   the app LOOKS signed in. Say the truth, or the owner retries into a wall. */
+function authDead(res,d){
+  return !!res&&(res.status===401||res.status===403
+    ||d&&/unauthorized|invalid.*(jwt|token)|session/i.test(String(d.error||'')+String(d.detail||'')));
+}
+var AUTH_DEAD_MSG='Your sign-in has expired behind the scenes — open the menu, sign out, '
+  +'sign back in with your PIN, then tap the receipt under Recent to retry.';
+
 /* Map a create_expense failure to a readable message. */
 function postErrHtml(res,d){
   if((res&&res.status===503)||d.error==='not_connected')
@@ -671,6 +682,19 @@ $('#form').addEventListener('submit',async function(ev){
     split:split,receipt_path:receiptPath,
     status:'pending',created_by:window.CPRNavName||'owner'
   };
+  var dupQ=sb.from('expense_receipts').select('id,status,created_at')
+    .eq('amount',amount).gte('created_at',new Date(Date.now()-15*60*1000).toISOString());
+  dupQ=vtxt?dupQ.eq('vendor',vtxt):dupQ.is('vendor',null);
+  var dup=await dupQ.limit(1);
+  if(dup.data&&dup.data.length){
+    var d0=dup.data[0];
+    if(!confirm('Looks like you already saved this receipt ('+(vtxt||'no vendor')+' — '+money2(amount)+', '
+        +(d0.status==='posted'?'already booked in QBO':'still '+d0.status)+'). Save it AGAIN anyway?')){
+      BUSY=false;setBtn('Save Expense');
+      if(d0.status!=='posted')showErr('That earlier save is still un-booked — retry it from Recent below instead.',d0.id);
+      return;
+    }
+  }
   var ins=await sb.from('expense_receipts').insert(row).select('id').single();
   if(ins.error){
     BUSY=false;setBtn('Save Expense');
@@ -695,6 +719,12 @@ $('#form').addEventListener('submit',async function(ev){
     showDone(amount,out.d.warn);
     loadRecent();
   }else{
+    if(authDead(out.res,out.d)){
+      sb.from('expense_receipts').update({error:'sign-in expired during save'}).eq('id',RECEIPT_ID).then(function(){},function(){});
+      loadRecent();
+      showErr('Saved here, but not booked — '+esc(AUTH_DEAD_MSG),RECEIPT_ID);
+      return;
+    }
     loadRecent();
     showErr('Saved here, but QBO booking failed. '+postErrHtml(out.res,out.d),RECEIPT_ID);
   }
@@ -715,7 +745,7 @@ async function retryPost(receiptId){
     loadRecent();
   }else{
     if(btn){btn.disabled=false;btn.textContent='Retry Booking';}
-    showErr('QBO booking failed. '+postErrHtml(out.res,out.d),receiptId);
+    showErr(authDead(out.res,out.d)?esc(AUTH_DEAD_MSG):('QBO booking failed. '+postErrHtml(out.res,out.d)),receiptId);
     loadRecent();
   }
 }
