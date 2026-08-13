@@ -322,7 +322,7 @@
   var ACTIVE_AREA = inSettings ? 'settings' : inHub ? 'hub' : inAdmin ? 'admin' : inEmployees ? 'employees' : inOrder ? 'order' : inPricing ? 'pricing' : inReports ? 'reports' : 'ops';   // default ops (incl. home + KB + Training)
 
   // ── STYLES ───────────────────────────────────────────────────────────
-  var RAIL_W = 64, PANE_W = 248;
+  var RAIL_W = 64, PANE_W = 248, RAIL_EXP_W = 216;   // PANE_W = mobile drawer only now
   var css = `
   /* Smooth cross-document navigations (MPA) — cross-fade instead of a white flash.
      Both the leaving and entering page opt in via this rule; nav.js is on every page.
@@ -341,22 +341,32 @@
   ::view-transition-old(cpr-rail),::view-transition-new(cpr-rail),
   ::view-transition-old(cpr-pane),::view-transition-new(cpr-pane){ animation:none; }
 
-  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_W+PANE_W}px; --cpr-top-h:52px;
+  :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_EXP_W}px; --cpr-top-h:52px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }
   .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:'Nunito','Nunito Sans',sans-serif; }
 
-  /* icon rail — CPR Blue Dark, white icons. Starts below the top bar (app shell). */
-  .cpr-rail{ position:fixed; top:var(--cpr-top-h); left:0; bottom:0; width:var(--cpr-rail-w);
-    background:var(--cpr-blue-dark); z-index:1001; display:flex; flex-direction:column; align-items:center; padding-top:12px; gap:6px; }
+  /* the rail — CPR Blue Dark. EXPANDED (default): wide, icon left + section
+     name right; tools reach the page via the hover flyout (owner call
+     2026-08-12 — the white pane is desktop-retired). COLLAPSED: the classic
+     64px icon rail, unchanged. */
+  .cpr-rail{ position:fixed; top:var(--cpr-top-h); left:0; bottom:0; width:var(--cpr-nav-w);
+    background:var(--cpr-blue-dark); z-index:1001; display:flex; flex-direction:column; align-items:stretch; padding:12px 10px 0; gap:6px; }
   .cpr-rail .cpr-burger2{ display:none; width:40px; height:40px; border:none; background:none; color:#fff; font-size:1.3rem; cursor:pointer; border-radius:11px; }
   .cpr-rail .cpr-burger2:hover{ background:rgba(255,255,255,.12); }
-  .cpr-rail .cpr-areabtn{ width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
-    font-size:1.15rem; cursor:pointer; color:#fff; border:none; background:none; }
+  .cpr-rail .cpr-areabtn{ width:100%; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:flex-start; gap:12px; padding:0 11px;
+    font-size:1.15rem; cursor:pointer; color:#fff; border:none; background:none; text-decoration:none; }
+  .cpr-rail .cpr-areabtn svg{ flex:none; }
+  .cpr-rail .rlbl{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.84rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cpr-rail .cpr-areabtn:hover{ background:rgba(255,255,255,.12); }
   .cpr-rail .cpr-areabtn.active{ background:var(--cpr-blue); color:#fff; }
   .cpr-rail .cpr-railsp{ flex:1; }
-  .cpr-rail .cpr-raildiv{ width:28px; height:1px; background:rgba(255,255,255,.16); margin:3px 0; }
-  .cpr-rail .cpr-railgear{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:14px; text-decoration:none; opacity:.78; }
+  .cpr-rail .cpr-raildiv{ width:auto; height:1px; background:rgba(255,255,255,.16); margin:3px 6px; }
+  body.cpr-nav-collapsed .cpr-rail{ width:var(--cpr-rail-w); align-items:center; padding:12px 0 0; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-areabtn{ width:40px; justify-content:center; gap:0; padding:0; }
+  body.cpr-nav-collapsed .cpr-rail .rlbl{ display:none; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-raildiv{ width:28px; margin:3px 0; }
+  .cpr-rail .cpr-railgear{ width:100%; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:flex-start; gap:12px; padding:0 11px; margin-bottom:14px; text-decoration:none; opacity:.78; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-railgear{ width:40px; justify-content:center; gap:0; padding:0; }
   .cpr-rail .cpr-railgear:hover{ background:rgba(255,255,255,.12); opacity:1; }
   .cpr-rail .cpr-railgear.active{ background:var(--cpr-blue); opacity:1; }
   .cpr-usermenu{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
@@ -369,7 +379,8 @@
   .cpr-usermenu button .umic{ width:16px; text-align:center; flex:none; opacity:.85; }
   .cpr-usermenu button:hover{ background:#F3F2F2; color:#2D2D3B; }
   .cpr-usermenu button.danger:hover{ color:#DC282E; background:#FFF1F1; }
-  .cpr-rail .cpr-collapse{ width:40px; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-bottom:6px; opacity:.7; }
+  .cpr-rail .cpr-collapse{ width:100%; height:40px; border-radius:11px; border:none; background:none; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:flex-start; padding:0 11px; margin-bottom:6px; opacity:.7; }
+  body.cpr-nav-collapsed .cpr-rail .cpr-collapse{ width:40px; justify-content:center; padding:0; }
   .cpr-rail .cpr-collapse:hover{ background:rgba(255,255,255,.12); opacity:1; }
 
   /* collapsed flyout — hover an area icon to reach its tools without expanding */
@@ -482,7 +493,7 @@
   @media(min-width:860px){
     body{ margin-left:var(--cpr-nav-w) !important; }
     body.cpr-nav-collapsed{ margin-left:var(--cpr-rail-w) !important; }
-    body.cpr-nav-collapsed .cpr-pane{ transform:translateX(-100%); }
+    .cpr-pane{ display:none; }   /* desktop pane retired — tools live in the flyouts */
   }
 
   /* mobile — rail stays visible, pane slides */
@@ -722,17 +733,12 @@
       return '<div class="cpr-fly-hd">Settings</div>'
         + SETTINGS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     }
-    // admin area
-    if (!NAV_ROLE){
-      return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
-        + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>Owner &amp; manager tools are locked. Unlock to access them.</div></div>'
-        + '<div style="padding:2px 12px 8px"><button class="cpr-btn red" data-act="flyout-unlock">Unlock</button></div>';
+    // admin area — the locked/no-tools states reuse the full pane card (PIN
+    // input included) since there's no desktop pane to expand any more
+    if (!NAV_ROLE || !PRIVILEGED.filter(canSee).length){
+      return '<div data-priv>' + privilegedHtml() + '</div>';
     }
     var vis = PRIVILEGED.filter(canSee);
-    if (!vis.length){
-      return '<div class="cpr-fly-hd">Admin &amp; Owner</div>'
-        + '<div class="cpr-fly-lock"><span class="pad">🔒</span><div>No owner or manager tools for your role.</div></div>';
-    }
     var links = vis.map(function(t){ return linkHtml(t, t.minRole==='owner' ? 'Owner' : 'Admin'); }).join('');
     return '<div class="cpr-fly-hd">Admin &amp; Owner</div>' + links;
   }
@@ -910,25 +916,27 @@
     }
   }
 
-  function wirePriv(){
-    if (!pane) return;
-    pane.querySelectorAll('[data-act]').forEach(function(el){
+  function wirePriv(root){
+    root = root || pane;
+    if (!root) return;
+    root.querySelectorAll('[data-act]').forEach(function(el){
       var act = el.getAttribute('data-act');
       el.onclick = function(e){
-        if (act === 'show-pass'){ var w = pane.querySelector('[data-pass]'); if (w){ w.classList.add('show'); var i = w.querySelector('[data-passinput]'); if (i) i.focus(); } }
-        else if (act === 'do-unlock'){ doUnlock(); }
+        if (act === 'show-pass'){ var w = root.querySelector('[data-pass]'); if (w){ w.classList.add('show'); var i = w.querySelector('[data-passinput]'); if (i) i.focus(); } }
+        else if (act === 'do-unlock'){ doUnlock(root); }
         else if (act === 'lock'){ doSignOut(); }
         else if (act === 'settings'){ e.preventDefault(); window.location.href = 'settings.html'; }
       };
     });
-    var input = pane.querySelector('[data-passinput]');
-    if (input) input.onkeydown = function(e){ if (e.key === 'Enter') doUnlock(); };
+    var input = root.querySelector('[data-passinput]');
+    if (input) input.onkeydown = function(e){ if (e.key === 'Enter') doUnlock(root); };
   }
 
   // PIN login -> shared Supabase session (unlocks nav + every page)
-  function doUnlock(){
-    var input = pane.querySelector('[data-passinput]');
-    var err = pane.querySelector('[data-err]');
+  function doUnlock(root){
+    root = root || pane;
+    var input = root.querySelector('[data-passinput]');
+    var err = root.querySelector('[data-err]');
     var btn = pane.querySelector('[data-act="do-unlock"]');
     var pin = input ? input.value.trim() : '';
     if (!pin) return;
@@ -993,21 +1001,21 @@
     rail = document.createElement('nav'); rail.className = 'cpr-rail';
     rail.innerHTML = ''
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
-      + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'</a>'
-      + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'</a>'
-      + '<a class="cpr-areabtn'+(currentFile==='training.html'?' active':'')+'" href="training.html" title="Training">'+railIcon('cap')+'</a>'
+      + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'<span class="rlbl">Home</span></a>'
+      + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'<span class="rlbl">Knowledge Base</span></a>'
+      + '<a class="cpr-areabtn'+(currentFile==='training.html'?' active':'')+'" href="training.html" title="Training">'+railIcon('cap')+'<span class="rlbl">Training</span></a>'
       + '<span class="cpr-raildiv"></span>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'</button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'<span class="rlbl">My Hub</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'<span class="rlbl">Sales &amp; Pricing</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='order'?' active':'')+'" data-area="order" title="Ordering &amp; Inventory">'+railIcon('order')+'<span class="rlbl">Ordering &amp; Inventory</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='ops'?' active':'')+'" data-area="ops" title="Operations">'+railIcon('tools')+'<span class="rlbl">Operations</span></button>'
       + '<span class="cpr-raildiv cpr-admindiv" style="display:none"></span>'
-      + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'</button>'
-      + '<button class="cpr-areabtn cpr-reportsbtn'+(ACTIVE_AREA==='reports'?' active':'')+'" data-area="reports" title="Reports" style="display:none">'+railIcon('chart')+'</button>'
-      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'</button>'
+      + '<button class="cpr-areabtn cpr-employeesbtn'+(ACTIVE_AREA==='employees'?' active':'')+'" data-area="employees" title="Employees" style="display:none">'+railIcon('people')+'<span class="rlbl">Employees</span></button>'
+      + '<button class="cpr-areabtn cpr-reportsbtn'+(ACTIVE_AREA==='reports'?' active':'')+'" data-area="reports" title="Reports" style="display:none">'+railIcon('chart')+'<span class="rlbl">Reports</span></button>'
+      + '<button class="cpr-areabtn'+(ACTIVE_AREA==='admin'?' active':'')+'" data-area="admin" title="Admin & Owner" style="display:none">'+railIcon('lock')+'<span class="rlbl">Admin &amp; Owner</span></button>'
       + '<span class="cpr-railsp"></span>'
       + '<button class="cpr-collapse" aria-label="Collapse menu" title="Collapse menu">'+chevron('left')+'</button>'
-      + '<button class="cpr-railgear'+(ACTIVE_AREA==='settings'?' active':'')+'" data-area="settings" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'</button>';
+      + '<button class="cpr-railgear'+(ACTIVE_AREA==='settings'?' active':'')+'" data-area="settings" title="Settings" aria-label="Settings" style="display:none">'+railIcon('gear')+'<span class="rlbl">Settings</span></button>';
     document.body.insertBefore(rail, document.body.firstChild);
 
     // ── top bar (persistent): page title · clock (soon) · bell · identity ─
@@ -1132,20 +1140,19 @@
     var flyout = document.createElement('div'); flyout.className = 'cpr-flyout';
     document.body.appendChild(flyout);
     var flyHideT = null;
-    function wireFlyout(){
-      var ub = flyout.querySelector('[data-act="flyout-unlock"]');
-      if (ub) ub.onclick = function(){ flyout.classList.remove('show'); setCollapsed(false); setArea('admin'); };
-    }
+    function wireFlyout(){ /* unlock card wires itself via wirePriv(flyout) */ }
     function showFlyout(area, btn){
-      if (!collapsed || window.innerWidth < 860) return;     // collapsed desktop only
+      if (window.innerWidth < 860) return;                   // desktop only (mobile has the drawer)
       if (['ops','hub','admin','order','pricing','employees','reports','settings'].indexOf(area) < 0) return;
       clearTimeout(flyHideT);
       flyout.innerHTML = flyoutLinksHtml(area);
       flyout.classList.add('show');
+      flyout.style.left = (rail.getBoundingClientRect().right + 6) + 'px';
       var rect = btn.getBoundingClientRect();
       var top = Math.max(8, Math.min(rect.top - 4, window.innerHeight - flyout.offsetHeight - 8));
       flyout.style.top = top + 'px';
       wireFlyout();
+      wirePriv(flyout);
     }
     function hideFlyoutSoon(){ clearTimeout(flyHideT); flyHideT = setTimeout(function(){ flyout.classList.remove('show'); }, 200); }
     flyout.addEventListener('mouseenter', function(){ clearTimeout(flyHideT); });
@@ -1153,10 +1160,8 @@
 
     rail.querySelectorAll('.cpr-areabtn, .cpr-railgear[data-area]').forEach(function(b){
       b.onclick = function(){
-        flyout.classList.remove('show');
-        setArea(b.getAttribute('data-area'));
-        if (window.innerWidth < 860){ pane.classList.add('open'); scrim.classList.add('show'); }
-        else if (collapsed){ setCollapsed(false); }   // expand to reveal the area's tools
+        if (window.innerWidth < 860){ setArea(b.getAttribute('data-area')); pane.classList.add('open'); scrim.classList.add('show'); }
+        else showFlyout(b.getAttribute('data-area'), b);   // desktop: flyout in either rail state
       };
       var area = b.getAttribute('data-area');
       if (area){

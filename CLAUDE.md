@@ -88,8 +88,16 @@ these when adding UI so a new tool looks native.
 
 ## Shared assets (`assets/`)
 
-- **`nav.js`** — the navigation shell. Injects the fixed icon-rail + slide-out menu pane
-  into every page, defines the canonical tool lists (`OPERATIONS` + `TOOLS` — a
+- **`nav.js`** — the navigation shell. **Rail-only desktop nav (owner redesign
+  2026-08-12):** the fixed dark rail is the whole desktop nav — EXPANDED
+  (default, 216px) it shows icon + section name per row (Home · Knowledge
+  Base · Training · My Hub · Sales & Pricing · Ordering & Inventory ·
+  Operations · Employees · Reports · Admin & Owner · Settings); the chevron
+  collapses it to the classic 64px icon rail. Hovering (or clicking) an AREA
+  row opens the tools **flyout** in either state — the white menu pane is
+  `display:none` on desktop and survives only as the mobile (<860px) slide-in
+  drawer. The admin flyout carries the full PIN-unlock card
+  (wirePriv/doUnlock take a root element). nav.js still defines the canonical tool lists (`OPERATIONS` + `TOOLS` — a
   "Tools" sub-group rendered under Operations for single-purpose utilities like the
   Label Resizer — + `PRIVILEGED` + `SETTINGS` et al.), and owns role-based visibility. **When you add or rename a tool,
   update the right area array here** (and the tile in `index.html`) or it won't appear in
