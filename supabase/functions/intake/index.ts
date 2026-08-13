@@ -95,6 +95,25 @@ async function handbookArticles() {
   return (data || []).map((a) => ({ slug: a.slug, title: a.title, body: a.body }));
 }
 
+// KB light markup -> the PDF builder's plain markup: bullets normalize to
+// '• ', body headings demote under the section title, inline marks strip to
+// text, images drop (a print handbook reads as text).
+function kbToPdfMarkup(body: string): string {
+  return String(body || "").split("\n").map((ln) => {
+    let l = ln;
+    if (/^\s*!\[/.test(l)) return "";
+    if (/^#\s+/.test(l)) l = "## " + l.replace(/^#\s+/, "");
+    l = l.replace(/^(\s*)[-*]\s+/, "$1• ");
+    l = l.replace(/^!>\s+/, "Note: ");
+    l = l.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1");
+    l = l.replace(/(^|[\s(>])\*([^*\n]+)\*/g, "$1$2");
+    l = l.replace(/!\[[^\]]*\]\([^)]+\)/g, "");
+    l = l.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1");
+    l = l.replace(/`([^`]+)`/g, "$1");
+    return l;
+  }).join("\n");
+}
+
 function candName(it: Record<string, unknown>): string {
   return String(it.offer_signed_name || it.invited_name ||
     [it.legal_first, it.legal_last].filter(Boolean).join(" ") || "Candidate");
@@ -198,6 +217,7 @@ async function buildOfferPdf(opts: {
   }
   const para = (text: string, f = font, size = 10.5, color = dark, lh = 16) => {
     for (const raw of latin1ish(text).split("\n")) {
+      if (raw.trim() === "{pagebreak}") { newPage(); continue; }
       if (raw.trim() === "{signature}") {
         if (ownerImg) {
           const sw = 150, sh = sw * (ownerImg.height / ownerImg.width);
@@ -448,6 +468,26 @@ Deno.serve(async (req) => {
     }).eq("id", it.id).is("handbook_signed_at", null);
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true });
+  }
+
+  if (action === "handbook_pdf") {
+    // The whole Employee Handbook as ONE file, assembled live from the KB's
+    // handbook category (same source the candidate accordion signs) — any
+    // signed-in staff.
+    const auth = req.headers.get("Authorization")?.replace("Bearer ", "");
+    const u = auth ? await admin.auth.getUser(auth) : { data: null };
+    if (!u.data?.user) return json({ error: "forbidden" }, 403);
+    const arts = await handbookArticles();
+    if (!arts.length) return json({ error: "no_handbook" }, 404);
+    const ack = await handbookAck();
+    const body = "# Employee Handbook\n"
+      + (ack.version ? "Handbook Version: " + ack.version + "\n" : "")
+      + "iRepair Phone Shop, LLC — CPR Cell Phone Repair, Oregon\n"
+      + arts.map((a) => "\n{pagebreak}\n# "
+          + String(a.title).replace(/^Handbook\s*[—-]\s*/, "")
+          + "\n\n" + kbToPdfMarkup(String(a.body))).join("\n");
+    const pdf = await buildOfferPdf({ body });
+    return json({ ok: true, pdf: b64FromBytes(pdf), filename: "CPR Employee Handbook.pdf" });
   }
 
   if (action === "signed_pdf") {

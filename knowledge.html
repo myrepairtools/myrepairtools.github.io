@@ -736,6 +736,7 @@ function drawTopic(){
     +'<span class="bsum" id="tSum">'+esc(summary)+'</span>'
     +'<div class="tsearch"><span class="tsic">'+(window.CPRNavIcon?CPRNavIcon('search',14):'')+'</span>'
     +'<input id="tq" value="'+esc(TQ)+'" placeholder="Search '+esc(cat.name)+'…" autocomplete="off"></div>'
+    +(/handbook/i.test(cat.name)?'<button class="btn dk sm" id="hbFullPdf" style="border-color:rgba(255,255,255,.3)" title="The whole handbook, assembled as one PDF">⬇ Full PDF</button>':'')
     +plusMenu()
   +'</div>';
   if(subs.length){
@@ -777,6 +778,23 @@ function drawTopic(){
     FACET.t=el.dataset.tag?+el.dataset.tag:null; setHash(catHash()); draw(); }));
   wireGrid();
   if(canDrag)wireCardDnD();
+  const hp=$('#hbFullPdf'); if(hp)hp.addEventListener('click',async()=>{
+    hp.disabled=true;hp.textContent='Building…';
+    try{
+      const jwt=(await sb.auth.getSession()).data.session.access_token;
+      const r=await fetch(SB_URL+'/functions/v1/intake',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt,'apikey':ANON},
+        body:JSON.stringify({action:'handbook_pdf'})});
+      const j=await r.json().catch(()=>({}));
+      if(!(r.status===200&&j.ok&&j.pdf))throw new Error(j.error||'failed');
+      const bytes=Uint8Array.from(atob(j.pdf),c=>c.charCodeAt(0));
+      const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+      const a=document.createElement('a');a.href=url;a.download=j.filename||'CPR Employee Handbook.pdf';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+    }catch(e){toast('PDF failed — '+(e.message||'error'),true);}
+    hp.disabled=false;hp.textContent='⬇ Full PDF';
+  });
   function wireGrid(){ document.querySelectorAll('#tGrid [data-open]').forEach(el=>el.addEventListener('click',()=>openArticle(+el.dataset.open))); }
 }
 function wireCardDnD(){
