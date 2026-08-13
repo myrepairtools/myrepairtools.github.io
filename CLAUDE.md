@@ -1045,7 +1045,15 @@ pills** (facet 1), **tag chips** on the surface (facet 2) — labels over each r
 come from the category config (`kb_categories.subcat_label/tag_label`, e.g.
 Device/Component — nothing baked into code), facets combine freely with live
 filtered counts, cards carry sub-category badges when Device=All, and a category
-with no facets renders the same card grid with no filter rows. Data:
+with no facets renders the same card grid with no filter rows. Per-category
+**landing option** (`kb_categories.landing`, owner ask 2026-08-13): 'articles'
+(default, the pill view above) or 'subcats' — the category opens as
+**sub-category CARDS you click into** (drill-down; Equipment & Software uses it):
+no pills on the landing, articles without a sub-category render as normal cards
+below the folder cards, any refinement (picked sub / tag / search) leaves the
+landing, and in 'subcats' categories sub-category moves are pushState LEVELS
+(Back walks cards ↔ articles) while tag clicks stay replaceState. Set per
+category in the Categories settings ("Sub-category cards first"). Data:
 `kb_subcategories` (+ `kb_articles.subcategory_id`) and category-scoped
 `kb_tags` + `kb_article_tags` (docs/sql/kb-facets.sql; Repair Knowledge seeded
 Device/Component per the handoff). Managers configure it all in **Categories**

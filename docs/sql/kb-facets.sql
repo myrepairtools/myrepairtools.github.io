@@ -80,3 +80,11 @@ alter table public.kb_articles add column if not exists browse_order int;
 -- the editor forces min_role='manager' on any article saved into a gated
 -- category so content can never leak through a mislabeled article.
 alter table public.kb_categories add column if not exists min_role text not null default 'employee';
+
+-- Per-category landing (owner ask 2026-08-13): 'articles' (default — card grid
+-- with facet pills) or 'subcats' — the category opens as SUB-CATEGORY CARDS
+-- you click into (drill-down), with tag chips still live on the landing so
+-- cross-cutting browse ("everything tagged Screens") works without picking a
+-- sub-category first. Inside a sub-category the pills row appears for
+-- sideways jumps. Set per category in the Categories settings.
+alter table public.kb_categories add column if not exists landing text not null default 'articles';
