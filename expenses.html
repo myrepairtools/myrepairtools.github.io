@@ -61,10 +61,12 @@ select{cursor:pointer;-webkit-appearance:none;appearance:none;
 background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234E4E50' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
 background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
 
-/* 1 · receipt drop-zone */
-.shot{width:100%;min-height:96px;border:2px dashed var(--grey);border-radius:14px;background:#FAFAFB;
-display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
-font-family:'Nunito',sans-serif;font-weight:800;font-size:1rem;color:var(--dark-grey)}
+/* 1 · receipt intents — Camera / Photos / Files, three direct buttons */
+.shotrow{display:flex;gap:8px}
+.shot{flex:1;min-width:0;min-height:74px;border:2px dashed var(--grey);border-radius:14px;background:#FAFAFB;
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey)}
+.shot svg{width:22px;height:22px;display:block}
 .shot:active{border-color:var(--blue);color:var(--blue)}
 .thumbwrap{position:relative;display:none}
 .thumbwrap img{width:100%;max-height:240px;object-fit:contain;border:1.5px solid var(--border);border-radius:14px;background:#fff;display:block}
@@ -168,14 +170,28 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw
   <form id="form" autocomplete="off" style="display:none">
     <div class="card">
       <div class="fldl">Receipt <span class="opt">(optional)</span></div>
-      <button type="button" class="shot" id="shotBtn">📸 Add or Upload Receipt</button>
+      <!-- three direct intents instead of one box + OS action sheet:
+           Camera (capture= jumps straight to the camera), Photos (library),
+           Files (Files app — accepts PDFs; page 1 renders to JPEG client-side
+           via the vendored pdf.js, then rides the normal pipeline) -->
+      <div class="shotrow" id="shotRow">
+        <button type="button" class="shot" id="shotCam" aria-label="Take a photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+          <span>Camera</span></button>
+        <button type="button" class="shot" id="shotLib" aria-label="Pick from Photos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18"/><circle cx="12" cy="8" r="2"/><rect width="16" height="16" x="6" y="2" rx="2"/></svg>
+          <span>Photos</span></button>
+        <button type="button" class="shot" id="shotDoc" aria-label="Pick a file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
+          <span>Files</span></button>
+      </div>
       <div class="thumbwrap" id="thumbWrap">
         <img id="thumb" alt="Receipt preview">
         <button type="button" class="thumbx" id="thumbX" title="Retake">✕</button>
       </div>
-      <!-- no `capture` attribute: the OS picker then offers Photo Library /
-           Take Photo / Choose File, so a saved/emailed receipt uploads too -->
-      <input type="file" id="shotFile" accept="image/*" hidden>
+      <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="fileLib" accept="image/*" hidden>
+      <input type="file" id="fileDoc" accept="image/*,application/pdf,.pdf" hidden>
       <div class="aistat" id="aiStat"></div>
 
       <div class="row2">
@@ -390,7 +406,26 @@ function paintAccounts(){
 }
 
 /* ------------- receipt photo (downscale to ≤1600px JPEG q0.8) ------------- */
+/* Emailed receipts are PDFs — render page 1 to a white-filled canvas via the
+   vendored pdf.js (loaded lazily, only when a PDF is actually picked; same
+   approach as brand-assets.html's thumbnails) and enter the normal pipeline. */
+async function processPdf(file){
+  var lib=await import('/assets/pdfjs/pdf.min.mjs');
+  lib.GlobalWorkerOptions.workerSrc='/assets/pdfjs/pdf.worker.min.mjs';
+  var pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;
+  var page=await pdf.getPage(1);
+  var vp=page.getViewport({scale:1});
+  var sc=Math.min(4,1600/Math.max(vp.width,vp.height));
+  vp=page.getViewport({scale:sc});
+  var c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+  var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+  await page.render({canvasContext:ctx,viewport:vp}).promise;
+  var blob=await new Promise(function(ok){c.toBlob(ok,'image/jpeg',0.8);});
+  if(!blob)throw new Error('could not read the PDF');
+  return {blob:blob,url:c.toDataURL('image/jpeg',0.6)};
+}
 async function processPhoto(file){
+  if(file&&(file.type==='application/pdf'||/\.pdf$/i.test(file.name||'')))return processPdf(file);
   var img=null;
   try{img=await createImageBitmap(file);}catch(e){}
   if(!img){
@@ -411,22 +446,31 @@ async function processPhoto(file){
   if(!blob)throw new Error('could not encode the photo');
   return {blob:blob,url:c.toDataURL('image/jpeg',0.6)};
 }
+var SHOT_INPUTS=['fileCam','fileLib','fileDoc'];
 function setPhoto(p){
   PHOTO=p;
-  $('#shotBtn').style.display=p?'none':'';
+  $('#shotRow').style.display=p?'none':'flex';
   $('#thumbWrap').style.display=p?'block':'none';
   if(p)$('#thumb').src=p.url;else $('#thumb').removeAttribute('src');
 }
-$('#shotBtn').addEventListener('click',function(){$('#shotFile').click();});
-$('#thumbX').addEventListener('click',function(){setPhoto(null);$('#shotFile').value='';aiStat('');EXTRACT_SEQ++;});
-$('#shotFile').addEventListener('change',async function(){
-  var f=this.files&&this.files[0];if(!f)return;
-  try{
-    var p=await processPhoto(f);
-    setPhoto(p);
-    extractFromPhoto(p.blob);   // fire-and-forget — the form stays usable while it reads
-  }
-  catch(e){toast('Photo failed — '+(e&&e.message||'try again'),true);this.value='';}
+$('#shotCam').addEventListener('click',function(){$('#fileCam').click();});
+$('#shotLib').addEventListener('click',function(){$('#fileLib').click();});
+$('#shotDoc').addEventListener('click',function(){$('#fileDoc').click();});
+$('#thumbX').addEventListener('click',function(){
+  setPhoto(null);
+  SHOT_INPUTS.forEach(function(id){$('#'+id).value='';});
+  aiStat('');EXTRACT_SEQ++;
+});
+SHOT_INPUTS.forEach(function(id){
+  $('#'+id).addEventListener('change',async function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    try{
+      var p=await processPhoto(f);
+      setPhoto(p);
+      extractFromPhoto(p.blob);   // fire-and-forget — the form stays usable while it reads
+    }
+    catch(e){toast('Photo failed — '+(e&&e.message||'try again'),true);this.value='';}
+  });
 });
 
 /* ------------- ✨ receipt reader (Claude vision via the qbo function) ------------- */
@@ -760,7 +804,7 @@ function showDone(amount,warn){
 $('#newBtn').addEventListener('click',function(){
   $('#doneWrap').style.display='none';
   /* reset for the next receipt — payment account (and recents) stay put */
-  setPhoto(null);$('#shotFile').value='';aiStat('');EXTRACT_SEQ++;
+  setPhoto(null);SHOT_INPUTS.forEach(function(id){$('#'+id).value='';});aiStat('');EXTRACT_SEQ++;
   $('#amt').value='';$('#date').value=todayLocal();
   EXP=null;$('#accSearch').value='';
   $('#clsSel').value='';SPLITSEL=null;renderSplit();
