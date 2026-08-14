@@ -63,3 +63,14 @@ alter table public.stores add column if not exists manager_staff_id bigint
 alter table public.staff_intake add column if not exists mrt_role          text;
 alter table public.staff_intake add column if not exists authorized_stores text[];
 alter table public.staff_intake add column if not exists suggested_pin     text;
+
+-- Roles: there are exactly three permission sets (roles.key owner / admin /
+-- team_member). 'manager' and 'employee' are LEGACY staff.role spellings that
+-- my_permissions() and is_admin() fold onto admin / team_member — they never
+-- had a permission set of their own. The owner's vocabulary is Manager, so the
+-- admin role is LABELLED Manager (roles.name) and the key stays 'admin' so no
+-- RLS policy, RPC or page has to change. Staff rows normalized to the three
+-- canonical keys; the aliases stay accepted so an old row can't lock anyone out.
+update public.roles set name = 'Manager' where key = 'admin';
+update public.staff set role = 'team_member' where role = 'employee';
+update public.staff set role = 'admin'       where role = 'manager';

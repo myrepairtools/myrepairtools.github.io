@@ -166,6 +166,8 @@ function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String
 /* A QB Time sync may already have built this person's staff row; converting
    onto it is how we avoid a duplicate person. */
 const nameKey=s=>String(s||'').toLowerCase().replace(/[^a-z]+/g,'');
+/* 'manager'/'employee' are the legacy spellings of admin/team_member. */
+const roleName=r=>({owner:'Owner',admin:'Manager',manager:'Manager',team_member:'Team Member',employee:'Team Member'})[r]||r||'';
 const sameName=(a,b)=>!!nameKey(a)&&nameKey(a)===nameKey(b);
 function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
 function isNewHire(p){const s=p.start_date||String(p.created_at||'').slice(0,10);
@@ -206,7 +208,7 @@ function draw(){
     if(!ASSIGNS.some(a=>a.staff_id===p.id)){
       const setup0=(g0.gaps?g0.gaps+' gap'+(g0.gaps>1?'s':''):'')+(g0.gaps&&g0.todo?' · ':'')+(g0.todo?g0.todo+' to do':'')||'ready';
       rows.push('<tr><td><div class="pname">'+esc(p.display_name)+'</div><div class="psub">'
-        +esc(p.role==='employee'?'Tech':p.role)+' · CPR '+esc(shortStore(p.home_store||''))+'</div></td>'
+        +esc(roleName(p.role))+' · CPR '+esc(shortStore(p.home_store||''))+'</div></td>'
         +'<td><span class="stage review">Needs training assigned</span></td>'
         +'<td style="font-weight:700">'+esc(setup0)+'</td>'
         +'<td style="font-weight:700;color:var(--grey2)">No modules assigned</td>'
@@ -225,7 +227,7 @@ function draw(){
     const setup=(g.gaps?g.gaps+' gap'+(g.gaps>1?'s':''):'')+(g.gaps&&g.todo?' · ':'')+(g.todo?g.todo+' to do':'')||'ready';
     const pct=total?Math.round(done/total*100):0;
     rows.push('<tr><td><div class="pname">'+esc(p.display_name)+'</div><div class="psub">'
-      +esc(p.role==='employee'?'Tech':p.role)+' · CPR '+esc(shortStore(p.home_store||''))+'</div></td>'
+      +esc(roleName(p.role))+' · CPR '+esc(shortStore(p.home_store||''))+'</div></td>'
       +'<td><span class="stage train">In training</span></td>'
       +'<td style="font-weight:700">'+esc(setup)+'</td>'
       +'<td><span class="pbar"><i class="'+(pd.length?'red':'')+'" style="width:'+pct+'%"></i></span><span class="pcount">'+done+' / '+total+'</span>'
@@ -333,14 +335,14 @@ const WSTEPS=['Candidate','Pay','Access','Offer Letter','Preview','Send'];
    separate Manager tier would have been a third choice that granted nothing
    different from Admin. Permissions themselves are edited per ROLE in
    Settings -> Roles & Permissions; there is no per-person override anywhere. */
-const MRT_ROLES=[{v:'employee',t:'Team Member'},{v:'admin',t:'Admin'}];
+const MRT_ROLES=[{v:'team_member',t:'Team Member'},{v:'admin',t:'Manager'}];
 const EARN_LABELS={accessory:'Accessories',device:'Devices',services:'Services'};
 let CD=null;
 function openNewHire(){
   CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',start:'',
     payType:'hourly',payAmt:'',comm:false,earns:{accessory:true,device:true,services:true},
     phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null,
-    sendEmail:true,sendText:true,role:'employee',stores:[]};
+    sendEmail:true,sendText:true,role:'team_member',stores:[]};
   drawWiz();
   $('#mask').classList.add('show');
 }
