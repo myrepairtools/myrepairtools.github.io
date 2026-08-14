@@ -319,7 +319,8 @@ let CD=null;
 function openNewHire(){
   CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',start:'',
     payType:'hourly',payAmt:'',comm:false,earns:{accessory:true,device:true,services:true},
-    phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null};
+    phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null,
+    sendEmail:true,sendText:true};
   drawWiz();
   $('#mask').classList.add('show');
 }
@@ -344,8 +345,23 @@ function commLabel(){
   if(!on.length)return 'No commission';
   return 'Commission on '+on.map(k=>EARN_LABELS[k].toLowerCase()).join(', ');
 }
+/* What {commission} renders as IN THE LETTER — a full sentence naming only the
+   streams that were actually ticked, keeping the wording the template already
+   used. commLabel() stays the short form for the wizard's own screens. */
+const EARN_PHRASE={accessory:'accessory sales',device:'device sales',
+  services:'add-on services including malware removal, charging port cleanings, and express repairs'};
+function commSentence(){
+  const on=CD.comm?Object.keys(EARN_PHRASE).filter(k=>CD.earns[k]):[];
+  if(!on.length)return 'This position does not include commission.';
+  const list=on.map(k=>EARN_PHRASE[k]);
+  const joined=list.length===1?list[0]
+    :list.length===2?(list[0]+' and '+list[1])
+    :(list.slice(0,-1).join(', ')+', and '+list[list.length-1]);
+  return 'In addition to your base rate, you are eligible to earn commission on '+joined
+    +'. Commission is paid in accordance with the current commission schedule, which may be modified by the Company at its discretion.';
+}
 function buildOffer(){
-  const v={name:CD.name,position:CD.pos,pay:payLabel(),commission:commLabel(),
+  const v={name:CD.name,position:CD.pos,pay:payLabel(),commission:commSentence(),
     store:'CPR '+shortStore(CD.store),start:startLabel()};
   let b=OFFER_TPL||'';
   Object.keys(v).forEach(k=>{if(v[k])b=b.split('{'+k+'}').join(v[k]);});
@@ -413,7 +429,7 @@ function drawWiz(){
   }else if(CD.step===3){
     body='<label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;cursor:pointer;font-size:.82rem;font-weight:700">'
       +'<input type="checkbox" id="wDocs"'+(CD.docs?' checked':'')+' style="width:15px;height:15px;accent-color:var(--red)">'
-      +'Offer letter + handbook to sign before the new-hire form</label>'
+      +'Send an offer letter to sign</label>'
       +(CD.docs
         ?'<div class="f"><label>Offer letter</label>'
           +'<textarea id="wTpl" style="min-height:260px"></textarea>'
@@ -426,9 +442,10 @@ function drawWiz(){
   }else{
     const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],
       ['Base pay',payLabel()||'—'],['Commission',commLabel()],
-      ['Start',startLabel()||'—'],['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Docs',CD.docs?'Offer + handbook + form':'Form only']];
+      ['Start',startLabel()||'—'],['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Sending',CD.docs?'Offer letter':'New-hire form only']];
     body='<div style="border:1px solid #F0F1F4;border-radius:10px;padding:8px 12px;margin-bottom:12px">'
       +rows.map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')+'</div>'
+      +(CD.created?'':deliveryHtml())
       +(CD.created
         ?'<div class="linkbox"><input readonly value="'+esc(intakeUrl(CD.created.token))+'"><button class="ghost" id="wCopy" style="padding:8px 12px">Copy</button></div>'
           +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
@@ -492,6 +509,8 @@ function wireWiz(){
     if(CD.step===3&&!CD.tplDirty)CD.body=buildOffer();
     CD.step++;drawWiz();
   };
+  const se=$('#wSendEmail');if(se)se.onchange=()=>{CD.sendEmail=se.checked;drawWiz();};
+  const st=$('#wSendText'); if(st)st.onchange=()=>{CD.sendText=st.checked;drawWiz();};
   const cr=$('#wCreate');if(cr)cr.onclick=createCandidate;
   const cp=$('#wCopy');if(cp)cp.onclick=()=>copyLink(CD.created.token);
   const eg=$('#wEmailGo');if(eg)eg.onclick=emailOffer;
@@ -515,15 +534,36 @@ async function buildPdfPreview(){
 /* The step is called Send, so it sends. Creating used to be the whole action
    and the actual delivery needed a second click on a button below the fold —
    easy to miss, and a candidate never heard from us. */
+/* Which channels are POSSIBLE (we have an address / a number) versus which are
+   CHOSEN on the Send step. Both are ticked by default — the common case is
+   send it every way we can. */
+function sendable(){
+  return {email:!!(CD.docs&&CD.email), text:!!e164ish(CD.phone)};
+}
 function sendTargets(){
-  const t=[];
-  if(CD.docs&&CD.email)t.push('email');
-  if(e164ish(CD.phone))t.push('text');
+  const can=sendable(), t=[];
+  if(can.email&&CD.sendEmail)t.push('email');
+  if(can.text&&CD.sendText)t.push('text');
   return t;
+}
+function deliveryHtml(){
+  const can=sendable();
+  if(!can.email&&!can.text)
+    return '<div style="font-size:.78rem;font-weight:700;color:var(--grey2);padding:2px 0 10px">'
+      +'No email or mobile on file — you\u2019ll copy the link instead.</div>';
+  const row=(id,on,label,sub)=>'<label style="display:flex;gap:9px;align-items:flex-start;padding:9px 0;cursor:pointer">'
+    +'<input type="checkbox" id="'+id+'"'+(on?' checked':'')+' style="width:16px;height:16px;margin-top:1px;accent-color:var(--red)">'
+    +'<span><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.85rem">'+label+'</span>'
+    +'<span style="display:block;font-size:.74rem;font-weight:700;color:var(--grey2);margin-top:1px">'+sub+'</span></span></label>';
+  return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:4px 14px;margin-bottom:12px">'
+    +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding-top:10px">Send by</div>'
+    +(can.email?row('wSendEmail',CD.sendEmail,'Email','Offer letter as a PDF, with their signing link \u2014 '+esc(CD.email)):'')
+    +(can.text?row('wSendText',CD.sendText,'Text','Signing link from the store\u2019s number \u2014 '+esc(CD.phone)):'')
+    +'</div>';
 }
 function createLabel(){
   const t=sendTargets();
-  return t.length?('Create &amp; send offer ('+t.join(' + ')+')'):'Create candidate &amp; link';
+  return t.length?('Create &amp; send ('+t.join(' + ')+')'):'Create candidate &amp; link';
 }
 async function createCandidate(){
   const b=$('#wCreate');b.disabled=true;b.textContent='Creating…';
