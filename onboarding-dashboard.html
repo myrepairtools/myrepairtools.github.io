@@ -319,14 +319,18 @@ function e164ish(v){const d=String(v||'').replace(/\D/g,'');
 /* ---- New Candidate wizard (workflow-style, like the Checklist Template wizard) ---- */
 /* Pay sits BEFORE the offer letter on purpose — the letter interpolates
    {pay}/{commission}, so it can't be written until pay is settled. */
-const WSTEPS=[['Candidate','Who you\'re hiring'],['Pay','Rate & commission'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+const WSTEPS=[['Candidate','Who you\'re hiring'],['Pay','Rate & commission'],['Access','Role & stores'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+const MRT_ROLES=[
+  {v:'employee',t:'Team Member',n:'The shop tools \u2014 tickets, checklist, their own schedule and commission.'},
+  {v:'manager', t:'Manager',    n:'Adds scheduling, time off approvals, task admin and store reporting.'},
+  {v:'admin',   t:'Admin',      n:'Everything a manager has, plus cash admin, employee records and settings.'}];
 const EARN_LABELS={accessory:'Accessories',device:'Devices',services:'Services'};
 let CD=null;
 function openNewHire(){
   CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',start:'',
     payType:'hourly',payAmt:'',comm:false,earns:{accessory:true,device:true,services:true},
     phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null,
-    sendEmail:true,sendText:true};
+    sendEmail:true,sendText:true,role:'employee',stores:[]};
   drawWiz();
   $('#mask').classList.add('show');
 }
@@ -397,7 +401,7 @@ function grabWiz(){
     const cm=$('#wComm');if(cm)CD.comm=cm.value==='yes';
     Object.keys(EARN_LABELS).forEach(k=>{const b=$('#wEarn_'+k);if(b)CD.earns[k]=b.checked;});
   }
-  if(CD.step===3){
+  if(CD.step===4){
     const dc=$('#wDocs');if(dc)CD.docs=dc.checked;
     const ta=$('#wTpl');if(ta)CD.body=ta.value;
   }
@@ -442,6 +446,25 @@ function drawWiz(){
           +'</div>'
 :'');
   }else if(CD.step===3){
+    /* Access — everything convert needs to build the staff row, decided while
+       you're already deciding to hire them. */
+    body='<div class="f" style="max-width:320px"><label>MRT role</label><select id="wRole">'
+      +MRT_ROLES.map(r=>'<option value="'+r.v+'"'+(CD.role===r.v?' selected':'')+'>'+r.t+'</option>').join('')
+      +'</select></div>'
+      +'<div style="font-size:.74rem;font-weight:700;color:var(--grey2);margin:-4px 0 16px">'
+      +esc((MRT_ROLES.filter(r=>r.v===CD.role)[0]||MRT_ROLES[0]).n)+'</div>'
+      +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:6px">Also works at</div>'
+      +'<div style="border:1.5px solid var(--border);border-radius:10px;padding:4px 14px">'
+      +(window.CPRLocations?CPRLocations.names():[]).map(st=>{
+          const home=st===CD.store;
+          return '<label style="display:flex;gap:9px;align-items:center;padding:9px 0;cursor:'+(home?'default':'pointer')+'">'
+            +'<input type="checkbox" data-store="'+esc(st)+'"'+(home||CD.stores.indexOf(st)>-1?' checked':'')+(home?' disabled':'')
+            +' style="width:16px;height:16px;accent-color:var(--red)">'
+            +'<span style="font-weight:700;font-size:.85rem'+(home?';color:var(--grey2)':'')+'">CPR '+esc(shortStore(st))
+            +(home?' <span style="font-size:.72rem;font-weight:800;color:var(--grey)">— home store</span>':'')+'</span></label>';
+        }).join('')
+      +'</div>';
+  }else if(CD.step===4){
     body='<label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;cursor:pointer;font-size:.82rem;font-weight:700">'
       +'<input type="checkbox" id="wDocs"'+(CD.docs?' checked':'')+' style="width:15px;height:15px;accent-color:var(--red)">'
       +'Send an offer letter to sign</label>'
@@ -450,14 +473,17 @@ function drawWiz(){
           +'<textarea id="wTpl" style="min-height:260px"></textarea>'
           +'</div>'
 :'');
-  }else if(CD.step===4){
+  }else if(CD.step===5){
     body=CD.docs
       ?'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:440px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
       :'<div style="font-size:.85rem;font-weight:700;color:var(--grey2);padding:24px 0;text-align:center">No offer letter to preview.</div>';
   }else{
     const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],
       ['Base pay',payLabel()||'—'],['Commission',commLabel()],
-      ['Start',startLabel()||'—'],['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Sending',CD.docs?'Offer letter':'New-hire form only']];
+      ['Start',startLabel()||'—'],
+      ['Role',(MRT_ROLES.filter(r=>r.v===CD.role)[0]||{}).t||CD.role],
+      ['Stores',['CPR '+shortStore(CD.store)].concat(CD.stores.map(x=>'CPR '+shortStore(x))).join(', ')],
+      ['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Sending',CD.docs?'Offer letter':'New-hire form only']];
     body='<div style="border:1px solid #F0F1F4;border-radius:10px;padding:8px 12px;margin-bottom:12px">'
       +rows.map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')+'</div>'
       +(CD.created?'':deliveryHtml())
@@ -498,6 +524,15 @@ function wireWiz(){
     const pa=$('#wPayAmt');if(pa)pa.oninput=()=>{CD.payAmt=pa.value.trim();};
   }
   if(CD.step===3){
+    const rl=$('#wRole');
+    if(rl)rl.onchange=()=>{CD.role=rl.value;drawWiz();};
+    document.querySelectorAll('[data-store]').forEach(b=>b.onchange=()=>{
+      const st=b.getAttribute('data-store');
+      CD.stores=CD.stores.filter(x=>x!==st);
+      if(b.checked)CD.stores.push(st);
+    });
+  }
+  if(CD.step===4){
     $('#wDocs').onchange=e=>{grabWiz();CD.docs=e.target.checked;drawWiz();};
     const ta=$('#wTpl');
     if(ta){
@@ -506,7 +541,7 @@ function wireWiz(){
       ta.oninput=()=>{CD.tplDirty=true;CD.body=ta.value;};
     }
   }
-  if(CD.step===4&&CD.docs)buildPdfPreview();
+  if(CD.step===5&&CD.docs)buildPdfPreview();
   const bk=$('#wBack');if(bk)bk.onclick=()=>{grabWiz();CD.step--;drawWiz();};
   const cl=$('#wClose');if(cl)cl.onclick=async()=>{
     $('#mask').classList.remove('show');$('#mdl').style.maxWidth='';
@@ -520,8 +555,8 @@ function wireWiz(){
       if(CD.comm&&!Object.keys(EARN_LABELS).some(k=>CD.earns[k])){
         toast('Pick at least one thing they earn commission on — or set Commission to No.',true);return;}
     }
-    if(CD.step===3&&CD.docs&&!CD.body.trim()){toast('The offer letter is empty.',true);return;}
-    if(CD.step===3&&!CD.tplDirty)CD.body=buildOffer();
+    if(CD.step===4&&CD.docs&&!CD.body.trim()){toast('The offer letter is empty.',true);return;}
+    if(CD.step===4&&!CD.tplDirty)CD.body=buildOffer();
     CD.step++;drawWiz();
   };
   const se=$('#wSendEmail');if(se)se.onchange=()=>{CD.sendEmail=se.checked;drawWiz();};
@@ -587,6 +622,7 @@ async function createCandidate(){
       position:CD.pos,pay:payLabel(),start_hint:startLabel(),start_date:CD.start||null,
       pay_type:CD.payType,pay_amount:parseFloat(CD.payAmt)||null,
       commission:CD.comm,commission_earns:CD.comm?CD.earns:null,
+      mrt_role:CD.role,authorized_stores:CD.stores.filter(x=>x!==CD.store),
       offer_body:CD.docs?CD.body:null,
       phone:e164ish(CD.phone)||CD.phone||null,
       personal_email:CD.email||null})});

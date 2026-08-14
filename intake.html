@@ -231,7 +231,7 @@ let STEP=1, SUBMITTED=false, TRIED=false, OPENDAY=null, DECLINING=false;
 let ACCEPTING=false;     // they've chosen Accept — show the signature
 let JUSTSIGNED=false;    // stop at the signed card instead of running straight on
 const D={first:'',middle:'',last:'',preferred:'',dob:'',phone:'',email:'',
-  street:'',city:'',zip:'',shirt:'',i9:'',
+  street:'',city:'',zip:'',shirt:'',i9:'',pin:'',
   e1name:'',e1phone:'',e2name:'',e2phone:'',
   avail:DAYS.map((d,i)=>({day:i,mode:'all',from:'Open',to:'Close'}))};
 let INVITE=null,HANDBOOK=null,ACK=null,HBOPEN=0,OWNERSIG=null;
@@ -446,7 +446,13 @@ function stepBody(){
     return '<h2>What to bring on day one</h2>'
       +'<div class="hint">Federal law says we have to see your original documents in person before you start — copies and photos don\u2019t count. Pick what you\u2019ll bring so we know what to expect.</div>'
       +'<div class="picks">'+rows+'</div>'
+      +'<h2 style="margin-top:22px">Pick a 4-digit PIN</h2>'
+      +'<div class="hint">This is how you\u2019ll sign in to myRepairTools on the store computers and your phone. Choose something you\u2019ll remember \u2014 not your birthday.</div>'
+      +'<div class="fields"><div class="f"><label>Your PIN</label>'
+      +'<input id="f_pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="4 digits" value="'+esc(D.pin)+'"'
+      +(TRIED&&!/^\d{4}$/.test(D.pin)?' class="err"':'')+'></div></div>'
       +(TRIED&&!D.i9?'<div class="errline">Pick what you\u2019ll be bringing.</div>':'')
+      +(TRIED&&!/^\d{4}$/.test(D.pin)?'<div class="errline">Your PIN needs to be exactly 4 digits.</div>':'')
       +'<div class="ftr"><button class="btn alt" id="back">\u2039 Back</button><button class="btn pri" id="next">Next \u203a</button></div>';
   }
   if(STEP===5){
@@ -492,7 +498,7 @@ function stepBody(){
     +rv('Name',name)+rv('Preferred',D.preferred)+rv('DOB',D.dob)+rv('Phone',D.phone)+rv('Email',D.email)
     +rv('Address',[D.street,D.city,D.zip].filter(Boolean).join(', '))+rv('Shirt',D.shirt)+'</div>'
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Bringing on day one</span><a data-jump="4">Edit</a></div>'
-    +rv('Documents',D.i9)+'</div>'
+    +rv('Documents',D.i9)+rv('MRT PIN',D.pin?'••••':'')+'</div>'
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Emergency contacts</span><a data-jump="3">Edit</a></div>'
     +ec(D.e1name,D.e1phone)+ec(D.e2name,D.e2phone)+'</div>'
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Availability</span><a data-jump="5">Edit</a></div>'
@@ -530,7 +536,7 @@ function wireForm(){
       address:{street:D.street,city:D.city,zip:D.zip},
       emergency:D.e1name?{name:D.e1name,phone:D.e1phone}:null,
       emergency2:D.e2name?{name:D.e2name,phone:D.e2phone}:null,
-      shirt_size:D.shirt,i9_docs:D.i9,
+      shirt_size:D.shirt,i9_docs:D.i9,suggested_pin:D.pin,
       availability:D.avail.map(a=>({day:a.day,mode:modes[a.mode]||'all',from:a.mode==='hours'?a.from:null,to:a.mode==='hours'?a.to:null}))});
     if(r.status===200&&r.data.ok){SUBMITTED=true;PHASE='done';draw();}
     else{sub.disabled=false;sub.textContent='Submit';alert(r.data.error||'Something went wrong — try again.');}

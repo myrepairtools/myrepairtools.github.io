@@ -56,3 +56,10 @@ alter table public.staff_intake add column if not exists qbo_error text;
 -- one name; it resolves per store now via the {manager} placeholder.
 alter table public.stores add column if not exists manager_staff_id bigint
   references public.staff(id) on delete set null;
+
+-- One-and-done hiring: role and store access are chosen in the wizard, and the
+-- candidate picks their own MRT PIN on the new-hire form, so convert can build
+-- the whole staff row in one go instead of leaving it to be finished by hand.
+alter table public.staff_intake add column if not exists mrt_role          text;
+alter table public.staff_intake add column if not exists authorized_stores text[];
+alter table public.staff_intake add column if not exists suggested_pin     text;

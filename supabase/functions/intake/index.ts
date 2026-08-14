@@ -489,6 +489,33 @@ async function createQboEmployee(it: Record<string, unknown>): Promise<{ ok: boo
   }
 }
 
+/* Same PBKDF2 shape cpr-auth uses (salt:hash, 100k, SHA-256) — a PIN written
+   here has to verify there. */
+const toHex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+async function hashPin(pin: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256);
+  return toHex(salt) + ":" + toHex(new Uint8Array(bits));
+}
+async function verifyPin(pin: string, stored: string): Promise<boolean> {
+  const [saltHex] = stored.split(":");
+  const salt = new Uint8Array((saltHex.match(/.{2}/g) || []).map((x) => parseInt(x, 16)));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256);
+  return (toHex(salt) + ":" + toHex(new Uint8Array(bits))) === stored;
+}
+/* PIN-only login must resolve to exactly one person, so a duplicate can't be
+   allowed through. Returns the PIN to use, or null when it's taken. */
+async function pinFreeOrNull(pin: string): Promise<string | null> {
+  if (!/^\d{4}$/.test(pin)) return null;
+  const { data: all } = await admin.from("staff").select("pin_hash").eq("active", true);
+  for (const s of (all || [])) {
+    if (s.pin_hash && await verifyPin(pin, s.pin_hash)) return null;
+  }
+  return pin;
+}
+
 async function hiringReplyTo(): Promise<string | undefined> {
   const { data } = await admin.from("app_settings").select("value").eq("key", "hiring.reply_to").maybeSingle();
   const v = data?.value?.email;
@@ -702,6 +729,7 @@ Deno.serve(async (req) => {
       emergency: body.emergency && typeof body.emergency === "object" ? body.emergency : null,
       emergency2: body.emergency2 && typeof body.emergency2 === "object" ? body.emergency2 : null,
       shirt_size: f("shirt_size", 10), i9_docs: f("i9_docs"),
+      suggested_pin: /^\d{4}$/.test(String(body.suggested_pin || "")) ? String(body.suggested_pin) : null,
       availability: Array.isArray(body.availability) ? (body.availability as unknown[]).slice(0, 7) : null,
       status: "submitted", submitted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
@@ -770,6 +798,9 @@ Deno.serve(async (req) => {
       // structured pay; `pay` above stays the rendered line the offer letter shows
       pay_type: ["hourly", "salary"].includes(String(body.pay_type)) ? String(body.pay_type) : null,
       pay_amount: Number(body.pay_amount) > 0 ? Number(body.pay_amount) : null,
+      mrt_role: ["employee", "manager", "admin"].includes(String(body.mrt_role)) ? String(body.mrt_role) : "employee",
+      authorized_stores: Array.isArray(body.authorized_stores)
+        ? (body.authorized_stores as unknown[]).map(String).slice(0, 20) : null,
       commission: !!body.commission,
       commission_earns: body.commission && body.commission_earns
         ? {
@@ -802,11 +833,43 @@ Deno.serve(async (req) => {
     // staff row is created by the QB Time sync or Team Members first).
     // Doc gating lives in the UI (a paper-signed candidate can still be
     // converted) — but a declined offer is a hard no.
-    const intakeId = Number(body.intake_id), staffId = Number(body.staff_id);
-    if (!intakeId || !staffId) return json({ error: "intake_id and staff_id required" }, 400);
+    const intakeId = Number(body.intake_id);
+    let staffId = Number(body.staff_id) || 0;
+    if (!intakeId) return json({ error: "intake_id required" }, 400);
     const { data: it } = await admin.from("staff_intake").select("*").eq("id", intakeId).maybeSingle();
     if (!it) return json({ error: "not_found" }, 404);
     if (it.offer_declined_at) return json({ error: "declined" }, 409);
+
+    // No staff row yet? Build it. Everything needed was decided in the wizard
+    // (role, home + authorized stores, wage type) or on the form (name, PIN),
+    // so convert finishes the hire instead of handing back a half-made person.
+    let pinNote: string | null = null;
+    if (!staffId) {
+      const nm = [it.legal_first, it.legal_last].filter(Boolean).join(" ").trim()
+        || String(it.invited_name || "").trim();
+      if (!nm) return json({ error: "no_name" }, 400);
+      const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin)) : null;
+      if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
+      const { data: made, error: cerr } = await admin.from("staff").insert({
+        display_name: nm,
+        first_name: it.legal_first || null,
+        last_name: it.legal_last || null,
+        preferred_name: it.preferred_name || null,
+        birthday: it.dob || null,
+        role: ["employee", "manager", "admin"].includes(String(it.mrt_role)) ? it.mrt_role : "employee",
+        home_store: it.invited_store || null,
+        authorized_stores: Array.isArray(it.authorized_stores) && it.authorized_stores.length
+          ? it.authorized_stores : null,
+        wage_type: it.pay_type === "salary" ? "salary" : "hourly",
+        start_date: it.start_date || null,
+        active: true,
+        ...(pin ? { pin_hash: await hashPin(pin) } : {}),
+      }).select("id").single();
+      if (cerr) return json({ error: "staff_create_failed", detail: cerr.message }, 500);
+      staffId = made.id;
+      // the PIN has served its purpose; don't leave it sitting in plaintext
+      await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
+    }
     const { data: st } = await admin.from("staff").select("id, role, start_date, birthday, first_name, last_name, preferred_name").eq("id", staffId).maybeSingle();
     if (!st) return json({ error: "staff_not_found" }, 404);
     const patch: Record<string, unknown> = {};
@@ -859,7 +922,7 @@ Deno.serve(async (req) => {
         .upsert({ staff_id: staffId, module_id: m.id, assigned_by: mgr.id }, { onConflict: "staff_id,module_id", ignoreDuplicates: true });
       if (!error) assigned++;
     }
-    return json({ ok: true, assigned });
+    return json({ ok: true, assigned, staff_id: staffId, ...(pinNote ? { note: pinNote } : {}) });
   }
   return json({ error: "unknown action" }, 400);
 });
