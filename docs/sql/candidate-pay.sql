@@ -29,3 +29,7 @@ comment on column public.staff_intake.pay is
 -- RLS is unchanged: staff_intake stays admin-only (docs/sql/staff-intake-schema.sql),
 -- and the candidate-facing page reads through the intake edge function, whose
 -- PUBLIC_FIELDS list deliberately excludes pay.
+
+-- Proposed start became a day picker (same split as pay): start_date is the
+-- real date, start_hint stays the rendered line the offer letter shows.
+alter table public.staff_intake add column if not exists start_date date;

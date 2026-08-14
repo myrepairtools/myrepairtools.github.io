@@ -601,6 +601,7 @@ Deno.serve(async (req) => {
       invited_store: s("invited_store", 60),
       invited_by: mgr.id,
       position: s("position", 80), pay: s("pay", 120), start_hint: s("start_hint", 60),
+      start_date: /^\d{4}-\d{2}-\d{2}$/.test(String(body.start_date || "")) ? String(body.start_date) : null,
       // structured pay; `pay` above stays the rendered line the offer letter shows
       pay_type: ["hourly", "salary"].includes(String(body.pay_type)) ? String(body.pay_type) : null,
       pay_amount: Number(body.pay_amount) > 0 ? Number(body.pay_amount) : null,
