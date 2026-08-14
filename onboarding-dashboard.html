@@ -243,8 +243,12 @@ function draw(){
       +'<td style="text-align:right;white-space:nowrap">'
         +(submitted?'<button class="ghost" data-review="'+i.id+'">Review &amp; convert ›</button>'
           :declined?'<button class="ghost" data-review="'+i.id+'">View ›</button>'
-          :'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>'
-            +(docs?' <button class="ghost" data-review="'+i.id+'">View ›</button>':''))
+          /* a candidate created but never delivered had no way to be sent
+             afterwards — the only send button lived inside the wizard */
+          :((docs&&i.personal_email&&!i.offer_signed_at
+              ?'<button class="ghost" data-send="'+i.id+'">'+(i.offer_sent_at?'Resend offer':'Send offer')+'</button> ':'')
+            +'<button class="ghost" data-copy="'+esc(i.token)+'">Copy link</button>'
+            +(docs?' <button class="ghost" data-review="'+i.id+'">View ›</button>':'')))
         +' <button class="ghost" data-del="'+i.id+'" title="Delete this intake" style="color:var(--red);border-color:#F6C9CA">✕</button></td></tr>');
   });
   waitingItems+=Object.keys(
@@ -273,6 +277,16 @@ function draw(){
   $('#newHire').onclick=openNewHire;
   document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>{location.href='kb-compliance.html';});
   document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>copyLink(b.getAttribute('data-copy')));
+  document.querySelectorAll('[data-send]').forEach(b=>b.onclick=async()=>{
+    const id=+b.getAttribute('data-send'), i=INTAKES.find(x=>x.id===id); if(!i)return;
+    const t=b.textContent; b.disabled=true; b.textContent='Sending…';
+    const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+      body:JSON.stringify({action:'send_offer',intake_id:id})});
+    const j=await r.json().catch(()=>({}));
+    b.disabled=false; b.textContent=t;
+    if(r.status===200&&j.ok){ toast('Offer emailed to '+i.personal_email); await loadAll(); draw(); }
+    else toast('Email failed — '+(j.error||'error'),true);
+  });
   document.querySelectorAll('[data-review]').forEach(b=>b.onclick=()=>openReview(+b.getAttribute('data-review')));
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
     const i=INTAKES.find(x=>x.id===+b.getAttribute('data-del'));if(!i)return;
@@ -428,7 +442,7 @@ function drawWiz(){
     +'<div style="flex:1;font-size:.72rem;font-weight:800;color:var(--grey)">Step '+CD.step+' of '+WSTEPS.length+'</div>'
     +(canBack?'<button class="btn alt" id="wBack">Back</button>':'<button class="btn alt" id="wClose">'+(CD.created?'Done':'Cancel')+'</button>')
     +(CD.step<WSTEPS.length?'<button class="btn" id="wNext">Next</button>'
-      :(CD.created?'':'<button class="btn" id="wCreate">Create candidate &amp; link</button>'))
+      :(CD.created?'':'<button class="btn" id="wCreate">'+createLabel()+'</button>'))
     +'</div>';
   $('#mdl').style.maxWidth='640px';
   $('#mdl').innerHTML='<h2>New Candidate'+(CD.name?' — '+esc(CD.name):'')+'</h2>'+chips+body+footer;
@@ -498,6 +512,19 @@ async function buildPdfPreview(){
     box.innerHTML='<div style="padding:16px;text-align:center">Preview failed — '+esc(e.message||'error')+'.<br>You can still create and send; the letter renders on their signing page.</div>';
   }
 }
+/* The step is called Send, so it sends. Creating used to be the whole action
+   and the actual delivery needed a second click on a button below the fold —
+   easy to miss, and a candidate never heard from us. */
+function sendTargets(){
+  const t=[];
+  if(CD.docs&&CD.email)t.push('email');
+  if(e164ish(CD.phone))t.push('text');
+  return t;
+}
+function createLabel(){
+  const t=sendTargets();
+  return t.length?('Create &amp; send offer ('+t.join(' + ')+')'):'Create candidate &amp; link';
+}
 async function createCandidate(){
   const b=$('#wCreate');b.disabled=true;b.textContent='Creating…';
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
@@ -512,19 +539,24 @@ async function createCandidate(){
   if(!(r.status===200&&j.ok)){b.disabled=false;b.textContent='Create candidate & link';toast(j.error||'Failed',true);return;}
   CD.created={id:j.id,token:j.token};
   drawWiz();
+  const t=sendTargets();
+  if(t.indexOf('email')>-1)await emailOffer();
+  if(t.indexOf('text')>-1)await textLink();
 }
 async function emailOffer(){
-  const b=$('#wEmailGo'),out=$('#wSendOut');
+  const out=$('#wSendOut');
+  const b=$('#wEmailGo')||{style:{}};
   b.disabled=true;b.textContent='Emailing…';
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
     body:JSON.stringify({action:'send_offer',intake_id:CD.created.id})});
   const j=await r.json().catch(()=>({}));
-  if(r.status===200&&j.ok){b.textContent='Emailed ✓';out.textContent='Offer PDF emailed to '+CD.email+' with their signing link.';}
+  if(r.status===200&&j.ok){b.textContent='Emailed ✓';out.innerHTML+='<div>Offer PDF emailed to '+esc(CD.email)+'.</div>';}
   else{b.disabled=false;b.textContent='Email the offer — PDF attached';
-    out.innerHTML='<span style="color:var(--red)">Email failed — '+esc(j.error||'error')+'.</span> Text or copy the link instead; the letter renders on their signing page.';}
+    out.innerHTML+='<div style="color:var(--red)">Email failed — '+esc(j.error||'error')+'</div>';}
 }
 async function textLink(){
-  const b=$('#wTextGo'),out=$('#wSendOut');
+  const out=$('#wSendOut');
+  const b=$('#wTextGo')||{style:{}};
   b.disabled=true;b.textContent='Texting…';
   const first=(CD.name.split(/\s+/)[0])||'there';
   const msg='Hi '+first+', '+(CD.docs
@@ -536,7 +568,7 @@ async function textLink(){
       body:JSON.stringify({action:'send',to:e164ish(CD.phone),body:msg,store:CD.store,
         template_key:'candidate_link',agent_name:AUTH.name})});
     const md=await mr.json().catch(()=>({}));
-    if(mr.ok&&md.ok!==false){b.textContent='Texted ✓';out.textContent='Signing link texted to '+CD.phone+'.';}
+    if(mr.ok&&md.ok!==false){b.textContent='Texted ✓';out.innerHTML+='<div>Signing link texted to '+esc(CD.phone)+'.</div>';}
     else{b.disabled=false;b.textContent='Text the signing link';toast(md.error||'Text failed — copy the link instead',true);}
   }catch(e){b.disabled=false;b.textContent='Text the signing link';toast('Text failed — copy the link instead',true);}
 }
