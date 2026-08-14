@@ -36,6 +36,7 @@
     + '.callout.c-plain{background:#F8F8FA;border-color:#E0E2EA}.callout.c-plain .ct{color:#4E4E50}'
     + '.callout.c-dark{background:#2D2D3B;border-color:#2D2D3B}.callout.c-dark .ct{color:#fff}'
     + '.callout .ct h3,.callout .ct h4,.callout .ct h5,.callout .ct h6{margin:0;color:inherit;font-family:Nunito,sans-serif;font-weight:900}'
+    + '.kbp{margin:0 0 14px}.kbp:last-child{margin-bottom:0}'
     + '.callout .ct h3{font-size:1.05rem}.callout .ct h4{font-size:.95rem}'
     + '.callout .ct h5{font-size:.88rem}.callout .ct h6{font-size:.8rem}'
     /* tables scroll on their own rather than pushing the page sideways */
@@ -187,8 +188,12 @@
       else if ((m = /^###\s+(.*)$/.exec(ln))) { flush(); out += '<h5>' + m[1] + '</h5>'; }
       else if ((m = /^##\s+(.*)$/.exec(ln))) { flush(); out += '<h4>' + m[1] + '</h4>'; }
       else if ((m = /^#\s+(.*)$/.exec(ln))) { flush(); out += '<h3>' + m[1] + '</h3>'; }
-      else if (ln.trim() === '') { flush(); out += '<div style="height:8px"></div>'; }
-      else { flush(); out += ln + '<br>'; }
+      /* A blank line is a block separator, not extra air, and a text line is a
+         paragraph — the same structure the editor builds. It used to emit an
+         8px spacer div plus a bare <br>, which stacked ON TOP of the next
+         block's margin and made the saved article looser than the editor. */
+      else if (ln.trim() === '') { flush(); }
+      else { flush(); out += '<p class="kbp">' + ln + '</p>'; }
     }
     flush();
     return out;
