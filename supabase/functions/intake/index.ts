@@ -449,6 +449,12 @@ async function createQboEmployee(it: Record<string, unknown>): Promise<{ ok: boo
   // GivenName + FamilyName. No payroll OAuth scope needed.
   // Still unverified: whether creating this way sets is_self_onboarding and
   // sends the Workforce invite. Watch the first real hire.
+  //
+  // Kill switch. Nothing reaches QuickBooks unless this is explicitly true —
+  // test candidates must never turn into real employee records.
+  const { data: cfg } = await admin.from("app_settings")
+    .select("value").eq("key", "hiring.qbo_autocreate").maybeSingle();
+  if (cfg?.value !== true) return { ok: false, skipped: "disabled", error: "QBO auto-create is off" };
   if (it.qbo_employee_id) return { ok: true, id: String(it.qbo_employee_id) };
   const first = String(it.legal_first || "").trim();
   const last = String(it.legal_last || "").trim();
