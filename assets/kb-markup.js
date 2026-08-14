@@ -136,7 +136,9 @@
   var CALLOUTS = [
     { re: /^!r&gt;\s+(.*)$/, cls: 'c-red', icon: '⛔' },
     { re: /^!g&gt;\s+(.*)$/, cls: 'c-green', icon: '✅' },
-    { re: /^!b&gt;\s+(.*)$/, cls: 'c-blue', icon: 'ℹ️' },
+    /* blue is the section-header box (owner's house style), so it carries no
+       icon — an ℹ️ in front of every section title reads as a note, not a heading */
+    { re: /^!b&gt;\s+(.*)$/, cls: 'c-blue', icon: '' },
     { re: /^!n&gt;\s+(.*)$/, cls: 'c-plain', icon: '' },
     { re: /^!d&gt;\s+(.*)$/, cls: 'c-dark', icon: '' },
     { re: /^!&gt;\s+(.*)$/, cls: '', icon: '⚠️' }
