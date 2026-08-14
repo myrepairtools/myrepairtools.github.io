@@ -1494,6 +1494,17 @@ When changing a tool's data layer, check which generation it uses first — they
 
 ## Conventions when editing
 
+- **NO EXPLAINERS. EVER. (owner directive, restated 2026-08-14 — this is the rule
+  broken most often.)** A field gets a **label**; a step gets a **name**; a button gets a
+  **verb**. Nothing else. Never ship: a sentence under a page title, a description under
+  a dropdown or step chip, a parenthetical inside a label ("Name (as you know it)"),
+  a hint under a form field, or a caption under a button explaining what it will do.
+  If the UI needs a paragraph to be understood, the UI is wrong — fix the UI. Explaining
+  in the chat reply is fine; explaining in the interface is not. The one thing that may
+  carry prose is an **error or result message**, because it reports something that
+  happened. This applies to every page, modal, wizard and widget on the site, and it
+  applies to the code being written, not only to what the owner catches afterwards.
+
 - **Title Case for UI titles.** Panel/page/section/tab titles capitalize each word
   ("Square · Backup Register", "Payment Link") — owner preference. Sentence case is
   fine for body copy, hints, and toasts.

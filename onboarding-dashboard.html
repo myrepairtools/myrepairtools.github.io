@@ -66,6 +66,10 @@ background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:no
 .mask.show{display:flex}
 .mdl{background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:88vh;overflow:auto}
 .mdl h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.1rem;margin:0 0 12px}
+.mhead{display:flex;align-items:flex-start;gap:12px}
+.mhead h2{flex:1}
+.mx{border:none;background:none;font-size:1.5rem;line-height:1;color:var(--grey);cursor:pointer;padding:0 2px;margin-top:-2px}
+.mx:hover{color:var(--dark)}
 .f label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:10px 0 3px}
 .f input,.f select{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.88rem}
 /* a picker button that reads as one of the fields around it */
@@ -159,6 +163,10 @@ function dchips(i){
   return c('Offer',!!i.offer_signed_at)+c('Handbook',!!i.handbook_signed_at)+c('Form',!!i.submitted_at);
 }
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
+/* A QB Time sync may already have built this person's staff row; converting
+   onto it is how we avoid a duplicate person. */
+const nameKey=s=>String(s||'').toLowerCase().replace(/[^a-z]+/g,'');
+const sameName=(a,b)=>!!nameKey(a)&&nameKey(a)===nameKey(b);
 function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
 function isNewHire(p){const s=p.start_date||String(p.created_at||'').slice(0,10);
   return s&&(Date.parse(todayISO())-Date.parse(s))/864e5<=NEW_HIRE_DAYS;}
@@ -319,15 +327,13 @@ function e164ish(v){const d=String(v||'').replace(/\D/g,'');
 /* ---- New Candidate wizard (workflow-style, like the Checklist Template wizard) ---- */
 /* Pay sits BEFORE the offer letter on purpose — the letter interpolates
    {pay}/{commission}, so it can't be written until pay is settled. */
-const WSTEPS=[['Candidate','Who you\'re hiring'],['Pay','Rate & commission'],['Access','Role & stores'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+const WSTEPS=['Candidate','Pay','Access','Offer Letter','Preview','Send'];
 /* Exactly the two levels the permission system actually has. my_permissions()
    folds 'manager' into 'admin' and 'employee' into 'team_member', so offering a
    separate Manager tier would have been a third choice that granted nothing
    different from Admin. Permissions themselves are edited per ROLE in
    Settings -> Roles & Permissions; there is no per-person override anywhere. */
-const MRT_ROLES=[
-  {v:'employee',t:'Team Member',n:'Cash tracker, pricing, ordering, damage tracker, their own schedule, checklist and commission. Earns accessory and device commission.'},
-  {v:'admin',   t:'Admin',      n:'All of that plus cash admin, expenses, claim ledger, employee records, schedule and checklist admin, settings, and assigning people access.'}];
+const MRT_ROLES=[{v:'employee',t:'Team Member'},{v:'admin',t:'Admin'}];
 const EARN_LABELS={accessory:'Accessories',device:'Devices',services:'Services'};
 let CD=null;
 function openNewHire(){
@@ -414,18 +420,18 @@ function drawWiz(){
   const chips='<div style="display:flex;gap:6px;margin:2px 0 12px">'+WSTEPS.map((s,i)=>{
     const n=i+1,on=n===CD.step,done=n<CD.step;
     return '<div style="flex:1;text-align:center;font-family:Nunito,sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:7px 3px;border-radius:8px;'
-      +(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s[0]+'</div>';}).join('')+'</div>';
+      +(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s+'</div>';}).join('')+'</div>';
   let body='';
   if(CD.step===1){
     body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
-      +'<div class="f"><label>Name (as you know it)</label><input id="wName" placeholder="Devon Reyes" value="'+esc(CD.name)+'"></div>'
+      +'<div class="f"><label>Name</label><input id="wName" placeholder="Devon Reyes" value="'+esc(CD.name)+'"></div>'
       +'<div class="f"><label>Store</label><select id="wStore">'
       +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(CD.store===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
       +'<div class="f"><label>Position</label><input id="wPos" placeholder="Cell Phone Repair Technician…" value="'+esc(CD.pos)+'"></div>'
       +'<div class="f"><label>Proposed start</label><button type="button" id="wStart" class="daypick'+(CD.start?'':' none')+'">'
         +esc(startLabel()||'Pick a date')+'</button></div>'
       +'<div class="f"><label>Mobile</label><input id="wPhone" inputmode="tel" placeholder="(555) 555-5555" value="'+esc(CD.phone)+'"></div>'
-      +'<div class="f"><label>Email (for the offer PDF)</label><input id="wEmail" inputmode="email" placeholder="them@example.com" value="'+esc(CD.email)+'"></div>'
+      +'<div class="f"><label>Email</label><input id="wEmail" inputmode="email" placeholder="them@example.com" value="'+esc(CD.email)+'"></div>'
       +'</div>';
   }else if(CD.step===2){
     const sal=CD.payType==='salary';
@@ -455,9 +461,7 @@ function drawWiz(){
     body='<div class="f" style="max-width:320px"><label>MRT role</label><select id="wRole">'
       +MRT_ROLES.map(r=>'<option value="'+r.v+'"'+(CD.role===r.v?' selected':'')+'>'+r.t+'</option>').join('')
       +'</select></div>'
-      +'<div style="font-size:.74rem;font-weight:700;color:var(--grey2);margin:-4px 0 16px">'
-      +esc((MRT_ROLES.filter(r=>r.v===CD.role)[0]||MRT_ROLES[0]).n)+'</div>'
-      +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:6px">Also works at</div>'
+      +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin:10px 0 6px">Also works at</div>'
       +'<div style="border:1.5px solid var(--border);border-radius:10px;padding:4px 14px">'
       +(window.CPRLocations?CPRLocations.names():[]).map(st=>{
           const home=st===CD.store;
@@ -479,7 +483,8 @@ function drawWiz(){
 :'');
   }else if(CD.step===5){
     body=CD.docs
-      ?'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:440px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
+      ?'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:calc(88vh - 200px);min-height:420px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
+        +'<div style="margin-top:8px"><button class="ghost" id="wPdfFull">Open full size</button></div>'
       :'<div style="font-size:.85rem;font-weight:700;color:var(--grey2);padding:24px 0;text-align:center">No offer letter to preview.</div>';
   }else{
     const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],
@@ -506,8 +511,10 @@ function drawWiz(){
     +(CD.step<WSTEPS.length?'<button class="btn" id="wNext">Next</button>'
       :(CD.created?'':'<button class="btn" id="wCreate">'+createLabel()+'</button>'))
     +'</div>';
-  $('#mdl').style.maxWidth='640px';
-  $('#mdl').innerHTML='<h2>New Candidate'+(CD.name?' — '+esc(CD.name):'')+'</h2>'+chips+body+footer;
+  /* the PDF preview is only useful if you can read it */
+  $('#mdl').style.maxWidth=(CD.step===5&&CD.docs)?'1040px':'640px';
+  $('#mdl').innerHTML='<div class="mhead"><h2>New Candidate'+(CD.name?' — '+esc(CD.name):'')
+    +'</h2><button class="mx" id="wX" aria-label="Close">×</button></div>'+chips+body+footer;
   wireWiz();
 }
 function wireWiz(){
@@ -547,9 +554,14 @@ function wireWiz(){
   }
   if(CD.step===5&&CD.docs)buildPdfPreview();
   const bk=$('#wBack');if(bk)bk.onclick=()=>{grabWiz();CD.step--;drawWiz();};
-  const cl=$('#wClose');if(cl)cl.onclick=async()=>{
+  const closeWiz=async()=>{
     $('#mask').classList.remove('show');$('#mdl').style.maxWidth='';
     if(CD.created){await loadAll();draw();}
+  };
+  const cl=$('#wClose');if(cl)cl.onclick=closeWiz;
+  /* leave from any step, not only the first one */
+  const xb=$('#wX');if(xb)xb.onclick=()=>{
+    if(CD.created||!CD.name||confirm('Discard this candidate?'))closeWiz();
   };
   const nx=$('#wNext');if(nx)nx.onclick=()=>{
     grabWiz();
@@ -569,6 +581,7 @@ function wireWiz(){
   const cp=$('#wCopy');if(cp)cp.onclick=()=>copyLink(CD.created.token);
   const eg=$('#wEmailGo');if(eg)eg.onclick=emailOffer;
   const tg=$('#wTextGo');if(tg)tg.onclick=textLink;
+  const pf=$('#wPdfFull');if(pf)pf.onclick=()=>{if(CD.pdfUrl)window.open(CD.pdfUrl,'_blank');};
 }
 async function buildPdfPreview(){
   const box=$('#wPdfBox');if(!box)return;
@@ -604,20 +617,19 @@ function deliveryHtml(){
   const can=sendable();
   if(!can.email&&!can.text)
     return '<div style="font-size:.78rem;font-weight:700;color:var(--grey2);padding:2px 0 10px">'
-      +'No email or mobile on file — you\u2019ll copy the link instead.</div>';
-  const row=(id,on,label,sub)=>'<label style="display:flex;gap:9px;align-items:flex-start;padding:9px 0;cursor:pointer">'
-    +'<input type="checkbox" id="'+id+'"'+(on?' checked':'')+' style="width:16px;height:16px;margin-top:1px;accent-color:var(--red)">'
-    +'<span><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.85rem">'+label+'</span>'
-    +'<span style="display:block;font-size:.74rem;font-weight:700;color:var(--grey2);margin-top:1px">'+sub+'</span></span></label>';
+      +'No email or mobile on file.</div>';
+  const row=(id,on,label,dest)=>'<label style="display:flex;gap:9px;align-items:center;padding:9px 0;cursor:pointer">'
+    +'<input type="checkbox" id="'+id+'"'+(on?' checked':'')+' style="width:16px;height:16px;accent-color:var(--red)">'
+    +'<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.85rem">'+label
+    +' <span style="font-weight:700;color:var(--grey2)">'+esc(dest)+'</span></span></label>';
   return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:4px 14px;margin-bottom:12px">'
     +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding-top:10px">Send by</div>'
-    +(can.email?row('wSendEmail',CD.sendEmail,'Email','Offer letter as a PDF, with their signing link \u2014 '+esc(CD.email)):'')
-    +(can.text?row('wSendText',CD.sendText,'Text','Signing link from the store\u2019s number \u2014 '+esc(CD.phone)):'')
+    +(can.email?row('wSendEmail',CD.sendEmail,'Email',CD.email):'')
+    +(can.text?row('wSendText',CD.sendText,'Text',CD.phone):'')
     +'</div>';
 }
 function createLabel(){
-  const t=sendTargets();
-  return t.length?('Create &amp; send ('+t.join(' + ')+')'):'Create candidate &amp; link';
+  return sendTargets().length?'Create and Send':'Create Candidate';
 }
 async function createCandidate(){
   const b=$('#wCreate');b.disabled=true;b.textContent='Creating…';
@@ -697,11 +709,19 @@ function openReview(id){
     +(i.emergency?rv('Emergency',(i.emergency.name||'')+' '+(i.emergency.phone||'')):'')
     +(av?rv('Availability',av):'')
     +(declined?'<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>'
-      :'<div class="f"><label>Convert onto (their staff record — created by the QB Time sync)</label><select id="rvStaff">'
-      +'<option value="">Pick their staff row…</option>'
-      +cands.map(p=>'<option value="'+p.id+'">'+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div>'
-      +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Convert to New Employee ›</button></div>'
-      +'<div style="font-size:.68rem;font-weight:700;color:var(--grey);text-align:right;margin-top:6px">copies onto the staff row + auto-assigns their training</div>');
+      :'<div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;margin:14px 0 4px">'
+        +[['Role',(MRT_ROLES.filter(r=>r.v===i.mrt_role)[0]||{}).t||'Team Member'],
+          ['Stores',[i.invited_store].concat(i.authorized_stores||[]).filter((v,x,a)=>v&&a.indexOf(v)===x)
+            .map(s=>'CPR '+shortStore(s)).join(', ')],
+          ['PIN',i.suggested_pin?'Theirs from the form':'Set one on Team Members'],
+          ['Commission',i.commission?'On':'Off']]
+          .map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')
+        +'</div>'
+      +'<div class="f"><label>Staff record</label><select id="rvStaff">'
+      +'<option value="">Create a new one</option>'
+      +cands.map(p=>'<option value="'+p.id+'"'+(sameName(p.display_name,name||i.invited_name)?' selected':'')+'>'
+        +'Use '+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div>'
+      +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Convert to New Employee ›</button></div>');
   $('#mask').classList.add('show');
   $('#rvClose').onclick=()=>{$('#mask').classList.remove('show');};
   const pb=$('#rvPdf');if(pb)pb.onclick=async()=>{
@@ -720,8 +740,7 @@ function openReview(id){
     }catch(e){pb.disabled=false;pb.textContent='⬇ Signed offer (PDF)';toast('PDF failed — '+(e.message||'error'),true);}
   };
   const go=$('#rvGo');if(go)go.onclick=async()=>{
-    const sid=+$('#rvStaff').value;
-    if(!sid){toast('Pick their staff row first',true);return;}
+    const sid=+$('#rvStaff').value||0;
     const missing=[];
     if(docs&&!i.offer_signed_at)missing.push('offer signature');
     if(docs&&!i.handbook_signed_at)missing.push('handbook signature');
@@ -729,16 +748,15 @@ function openReview(id){
     if(missing.length&&!confirm('Still missing: '+missing.join(', ')+'. Convert anyway (e.g. done on paper)?'))return;
     go.disabled=true;
     const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
-      body:JSON.stringify({action:'promote',intake_id:i.id,staff_id:sid})});
+      body:JSON.stringify(sid?{action:'promote',intake_id:i.id,staff_id:sid}:{action:'promote',intake_id:i.id})});
     const j=await r.json().catch(()=>({}));
     go.disabled=false;
-    if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
+    if(!(r.status===200&&j.ok)){toast(j.detail||j.error||'Failed',true);return;}
     $('#mask').classList.remove('show');
-    toast('Converted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' auto-assigned');
+    toast(j.note||('Converted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' auto-assigned'),!!j.note);
     await loadAll();draw();
   };
 }
-$('#mask').addEventListener('mousedown',e=>{if(e.target===$('#mask'))$('#mask').classList.remove('show');});
 async function boot(){
   if(!isMgr(AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
   await loadAll();draw();
