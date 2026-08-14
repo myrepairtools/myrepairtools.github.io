@@ -114,14 +114,28 @@ these when adding UI so a new tool looks native.
   pinned, Active/Terminated segment, owner-only "↻ Sync employees" from QB Time — no
   "+ Add member" anywhere; hires auto-create on sync and carry a "Needs setup" chip)
   and a full-width per-person profile with tabs Profile · Log · PIPs & Reviews ·
-  Tech Damage · Time · PTO · Commission. Profile tab = 4 form cards + dirty-tracked
+  Tech Damage · Documents · Time · PTO · Commission. Profile tab = 4 form cards + dirty-tracked
   save bar (cpr-auth `update_staff` + `set_pin`; an admin PIN reset shows ONCE in a
   modal); phone/email live in `staff_profiles.phone/personal_email` (routed through
   update_staff — the SMS pipeline reads the same field, never duplicate onto `staff`);
   the QB Time link select is owner-only. Terminate is a modal writing a real record
   (`staff.terminated_at/termination_reason/termination_note/rehire_eligible/terminated_by`
   — docs/sql/team-members-consolidation.sql); terminated profiles stay fully browsable
-  (record box + Reinstate). Commission tab: Settings sub-view = the per-person overrides
+  (record box + Reinstate). **Documents tab = the HR file** (`staff_documents`
+  + the private `hr-private` bucket under `staff/<staff_id>/`;
+  docs/sql/staff-documents.sql): converting a candidate FREEZES their signed
+  paperwork to PDFs and files it against the person — offer letter, handbook
+  acknowledgment and new-hire form, three separate documents, built by the
+  intake fn's `archiveDocs()` inside `promote`. Frozen, never regenerated:
+  the acknowledgment renders from live KB articles, so a rebuilt copy would
+  show today's wording instead of what they signed. The intake row is a
+  HIRING record and leaves the Onboarding board on promote, so it must never
+  be the only home for a signed document. Managers can also file anything by
+  hand (kind 'upload'), and "Re-file signed paperwork" backfills anyone
+  converted before this existed (intake `archive_docs`, idempotent on
+  `(staff_id, kind, source)`). The page never holds a URL to a file — it mints
+  a 120-second signed one per download; storage policies open only the
+  `staff/` prefix, only to `is_admin()`. Commission tab: Settings sub-view = the per-person overrides
   editor over `commission_roster` (inherited placeholders via CommissionEngine —
   never re-implement the merge); History = `commission_snapshots` (total = commission
   only; tips separate) + a live current-month recompute mirroring
