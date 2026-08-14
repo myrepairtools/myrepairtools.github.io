@@ -667,6 +667,58 @@ Deno.serve(async (req) => {
   // Edge-warm cron ping — answered before auth so it stays free of DB work.
   if (action === "ping") return json({ ok: true });
 
+  // ---- machine caller: create an employee when a new hire finishes intake ----
+  // The candidate has no JWT (their page is token-auth), so this one action
+  // authenticates with the server secret instead of the owner gate below. All
+  // token handling still lives here — never duplicate the refresh, it is
+  // single-flight for a reason (see docs/sql/token-refresh-lock.sql).
+  if (action === "create_employee") {
+    const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
+    if (!NOTIFY || String(body.secret || "") !== NOTIFY) return json({ error: "forbidden" }, 403);
+    const first = String(body.first_name || "").trim();
+    const last = String(body.last_name || "").trim();
+    if (!first || !last) return json({ error: "name_required" }, 400);
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected" }, 503);
+
+    // The create endpoint is NOT idempotent, so look before leaping: a retry
+    // after a timeout must not leave two payroll records for one person.
+    const display = (first + " " + last).replace(/'/g, "''");
+    const q = `select Id, DisplayName from Employee where DisplayName = '${display}'`;
+    const fr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const fd = await fr.json().catch(() => ({}));
+    const existing = fd?.QueryResponse?.Employee?.[0];
+    if (existing?.Id) return json({ ok: true, id: String(existing.Id), existing: true });
+
+    // dry_run proves the secret, the token and the duplicate lookup without
+    // writing anything into the company file
+    if (body.dry_run) return json({ ok: true, dry_run: true, found: !!existing?.Id, would_create: !existing?.Id, display });
+    const addr = (body.address || {}) as Record<string, string>;
+    const payload: Record<string, unknown> = {
+      GivenName: first, FamilyName: last,
+      DisplayName: first + " " + last,
+      ...(body.email ? { PrimaryEmailAddr: { Address: String(body.email) } } : {}),
+      ...(body.phone ? { Mobile: { FreeFormNumber: String(body.phone) } } : {}),
+      ...(body.hire_date ? { HiredDate: String(body.hire_date) } : {}),
+      ...(addr.street || addr.city || addr.zip
+        ? { PrimaryAddr: {
+            ...(addr.street ? { Line1: addr.street } : {}),
+            ...(addr.city ? { City: addr.city } : {}),
+            ...(addr.state ? { CountrySubDivisionCode: addr.state } : { CountrySubDivisionCode: "OR" }),
+            ...(addr.zip ? { PostalCode: addr.zip } : {}),
+          } }
+        : {}),
+    };
+    const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/employee?minorversion=${MINORVERSION}`, {
+      method: "POST", headers: { ...qboHeaders(tok.access_token), "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+    return json({ ok: true, id: String(d?.Employee?.Id || ""), name: d?.Employee?.DisplayName || null });
+  }
+
   // ---- owner-only from here down ----
   const staff = await getStaff(req);
   if (!staff || staff.role !== "owner") return json({ error: "forbidden", detail: "Owner only." }, 403);

@@ -42,3 +42,10 @@ alter table public.staff_intake add column if not exists newhire_sent_at timesta
 -- RingCentral line (not the company alerts number), reminding them which I-9
 -- documents they told us they'd bring. Stamped so it can only fire once.
 alter table public.staff_intake add column if not exists dayone_sms_at timestamptz;
+
+-- QBO employee creation on submit. Tracking columns are live; the call itself
+-- is gated OFF (app_settings 'hiring.qbo_autocreate') until the payroll-vs-
+-- accounting question below is resolved.
+alter table public.staff_intake add column if not exists qbo_employee_id text;
+alter table public.staff_intake add column if not exists qbo_synced_at timestamptz;
+alter table public.staff_intake add column if not exists qbo_error text;

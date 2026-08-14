@@ -437,6 +437,56 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
   }
 }
 
+/* QuickBooks employee, created once the new-hire form is in. Intuit's create
+   endpoint is not idempotent, so the qbo function looks the person up first;
+   we also stamp the id here and skip anyone already synced. */
+async function createQboEmployee(it: Record<string, unknown>): Promise<{ ok: boolean; id?: string; error?: string; skipped?: string }> {
+  // OFF until the payroll question is settled. Verified 2026-08-14 against the
+  // live company (realm 1267613695): the Accounting API's Employee list and
+  // the Payroll employee list are NOT the same store — Britt Bay is an active
+  // PAYROLL employee there, and an Accounting query by that DisplayName finds
+  // nothing. So creating through /v3/company/{realm}/employee would add a
+  // second, unrelated accounting record: no payroll employee, no
+  // is_self_onboarding flag, and no Workforce invite. Self-onboarding is a
+  // payroll-side field, and reaching it needs Intuit's payroll API rather than
+  // the accounting scope this function holds today.
+  // Flip app_settings 'hiring.qbo_autocreate' to true only once that is sorted.
+  const { data: cfg } = await admin.from("app_settings").select("value").eq("key", "hiring.qbo_autocreate").maybeSingle();
+  if (cfg?.value !== true) return { ok: false, skipped: "disabled", error: "QBO auto-create is off" };
+  if (it.qbo_employee_id) return { ok: true, id: String(it.qbo_employee_id) };
+  const first = String(it.legal_first || "").trim();
+  const last = String(it.legal_last || "").trim();
+  if (!first || !last) return { ok: false, error: "no legal name on file" };
+  if (!NOTIFY_SECRET) return { ok: false, error: "NOTIFY_SECRET not configured" };
+  const addr = (it.address && typeof it.address === "object" ? it.address : {}) as Record<string, string>;
+  try {
+    const r = await fetch(SB_URL + "/functions/v1/qbo", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_employee", secret: NOTIFY_SECRET,
+        first_name: first, last_name: last,
+        email: it.personal_email || null, phone: it.phone || null,
+        hire_date: it.start_date || null,
+        address: { street: addr.street || "", city: addr.city || "", zip: addr.zip || "", state: "OR" },
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok && j.id) {
+      await admin.from("staff_intake")
+        .update({ qbo_employee_id: String(j.id), qbo_synced_at: new Date().toISOString(), qbo_error: null })
+        .eq("id", it.id as number);
+      return { ok: true, id: String(j.id) };
+    }
+    const err = String(j.detail || j.error || r.status);
+    await admin.from("staff_intake").update({ qbo_error: err.slice(0, 300) }).eq("id", it.id as number);
+    return { ok: false, error: err };
+  } catch (e) {
+    const err = String((e as Error).message || e);
+    await admin.from("staff_intake").update({ qbo_error: err.slice(0, 300) }).eq("id", it.id as number);
+    return { ok: false, error: err };
+  }
+}
+
 async function hiringReplyTo(): Promise<string | undefined> {
   const { data } = await admin.from("app_settings").select("value").eq("key", "hiring.reply_to").maybeSingle();
   const v = data?.value?.email;
@@ -656,9 +706,16 @@ Deno.serve(async (req) => {
     const { error } = await admin.from("staff_intake").update(patch).eq("id", row.id);
     if (error) return json({ error: error.message }, 500);
     const nm = [patch.legal_first, patch.legal_last].filter(Boolean).join(" ") || "A candidate";
+    // Everything QuickBooks needs is on the table now, so create the employee.
+    // Best-effort and stamped: a QBO outage must never cost a candidate their
+    // finished paperwork, and the error is kept so it can be retried by hand.
+    const qbo = await createQboEmployee({ ...row, ...patch });
     await alertMgr(row.invited_by, "New-hire form in — " + nm,
-      nm + " finished their paperwork" + (row.offer_body ? " (offer + handbook signed)" : "") + " — ready to convert to a New Employee.");
-    return json({ ok: true });
+      nm + " finished their paperwork" + (row.offer_body ? " (offer + handbook signed)" : "")
+      + (qbo.ok ? " — added to QuickBooks, ready to convert."
+         : qbo.skipped ? " — ready to convert."
+         : " — ready to convert. QuickBooks add failed: " + qbo.error));
+    return json({ ok: true, qbo });
   }
 
   // ---- manager side (JWT auth) ----
