@@ -408,6 +408,9 @@
   .cpr-link{ display:flex; align-items:center; gap:11px; padding:10px 18px; font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem; color:#4E4E50; border-left:3px solid transparent; cursor:pointer; }
   .cpr-link .ic{ width:21px; text-align:center; font-size:1rem; flex:none; }
   .cpr-link .ic img{ width:18px; height:18px; object-fit:contain; display:block; margin:0 auto; }
+  /* centring for the nav's own fixed-width icon slots (the inline style used to
+     do this, but it broke page headings — see navIcon) */
+  .cpr-link .ic svg, .cpr-rail .ic svg, .cpr-bb-tab .i svg, .cpr-usermenu .umic svg{ margin:0 auto; }
   .cpr-link:hover{ background:#F3F2F2; color:#2D2D3B; }
   .cpr-link.active{ background:#EAF6FD; border-left-color:var(--cpr-blue); color:#2D2D3B; font-weight:800; }
   .cpr-link .tag{ margin-left:auto; font-family:'Nunito',sans-serif; font-weight:800; font-size:.5rem; letter-spacing:.4px; text-transform:uppercase; color:#B9BDCB; border:1px solid #E0E2EA; border-radius:5px; padding:1px 5px; }
@@ -628,7 +631,11 @@
   function navIcon(name, size){
     if (!NAV_SVG[name]) return name || '';   // emoji / raw-text fallback for unmapped entries
     var s = size || 17;
-    return '<svg viewBox="0 0 24 24" width="'+s+'" height="'+s+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;margin:0 auto">'+NAV_SVG[name]+'</svg>';
+    /* No `margin:0 auto` here. As a FLEX ITEM those auto margins eat the free
+       space and shove everything after the icon to the right — which is what
+       bent every page h1 that puts an icon beside its title. The nav's own
+       fixed-width slots centre it with CSS instead (.ic svg / .i svg below). */
+    return '<svg viewBox="0 0 24 24" width="'+s+'" height="'+s+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block">'+NAV_SVG[name]+'</svg>';
   }
   // Shared glyph source for page chrome too (h1s, section titles) — pages call
   // window.CPRNavIcon('calendar-days', 22) instead of pasting emoji. Owner call
