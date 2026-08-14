@@ -228,6 +228,8 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/cash-summary.js"></script>
 <script src="assets/digest-summary.js"></script>
 <script src="assets/celebrations-summary.js"></script>
+<script src="assets/kb-markup.js"></script>
+<script src="assets/markup-editor.js"></script>
 <script src="assets/comms.js"></script>
 <script>
 (function(){
@@ -917,6 +919,7 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
   function openCmPost(onDone){
     var KINDS=['announcement','training','schedule','shoutout'];
     var kind='announcement';
+    var ED=null, BODY='';
     var back=document.createElement('div');
     back.style.cssText='position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px';
     function draw(){
@@ -927,20 +930,21 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
         +'<div style="font-size:.76rem;color:var(--grey);font-weight:600;margin:3px 0 12px">Goes to everyone’s dashboard · read receipts on the Communications page</div>'
         +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+chips+'</div>'
         +'<input data-pt placeholder="Title" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.9rem;margin-bottom:9px">'
-        +window.CPRComms.toolbarHtml()
-        +'<textarea data-pb rows="5" placeholder="Details (optional)" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-family:Nunito Sans,sans-serif;font-size:.86rem;resize:vertical"></textarea>'
+        +'<div data-ped style="border:1.5px solid var(--border);border-radius:9px;overflow:hidden"></div>'
         +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button data-px style="padding:9px 14px;border:1px solid var(--border);background:#fff;border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;color:var(--dark-grey)">Cancel</button>'
         +'<button data-pgo style="padding:9px 16px;border:none;background:var(--red);color:#fff;border-radius:9px;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer">Post</button></div></div>';
       back.querySelectorAll('[data-px]').forEach(function(b){ b.onclick=function(){ back.remove(); }; });
       back.querySelectorAll('[data-pk]').forEach(function(b){ b.onclick=function(){ kind=b.getAttribute('data-pk');
-        var t=back.querySelector('[data-pt]').value, bo=back.querySelector('[data-pb]').value; draw();
-        back.querySelector('[data-pt]').value=t; back.querySelector('[data-pb]').value=bo; }; });
-      window.CPRComms.wireToolbar(back,back.querySelector('[data-pb]'));
+        var t=back.querySelector('[data-pt]').value; BODY=ED?ED.getMarkup():BODY; draw();
+        back.querySelector('[data-pt]').value=t; }; });
+      /* same editor as the Knowledge Base, so a quick post can carry a list,
+         a note box or a heading without anyone learning markup */
+      ED=window.CPRMarkupEditor.mount(back.querySelector('[data-ped]'),
+        {value:BODY, minHeight:'150px', source:false, upload:function(f){ return window.CPRComms.uploadImage(f); }});
       back.querySelector('[data-pgo]').onclick=function(){
         var t=String(back.querySelector('[data-pt]').value||'').trim();
         if(!t){ back.querySelector('[data-pt]').style.borderColor='var(--red)'; return; }
-        var bo=back.querySelector('[data-pb]').value;
-        window.CPRComms.post({kind:kind,title:t,body:bo}).then(function(r){
+        window.CPRComms.post({kind:kind,title:t,body:ED.getMarkup()}).then(function(r){
           if(r&&r.error){ alert('Post failed: '+r.error); return; }
           back.remove(); if(onDone) onDone();
         });

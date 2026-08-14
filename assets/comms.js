@@ -19,10 +19,15 @@
   var SB_URL = 'https://' + SB_REF + '.supabase.co';
   var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
 
-  /* Body formatting: posts are stored as plain text with light markup —
-     **bold**, *italic*, __underline__, "- " bullets, bare URLs — and rendered
-     safely (HTML is escaped first). Shared by the widget and the page. */
+  /* Body formatting. Posts are the SAME light markup the Knowledge Base
+     stores, so when kb-markup.js is on the page we render through it and a
+     comms post gets headings, note boxes, tables and nested lists for free.
+     The local fallback below still covers pages that don't load it. */
   function fmtBody(text){
+    if(window.CPRMarkup&&window.CPRMarkup.render)return window.CPRMarkup.render(text,{autolink:true});
+    return fmtBodyBasic(text);
+  }
+  function fmtBodyBasic(text){
     var s=String(text==null?'':text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     s=s.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:#4FB0E3;font-weight:700;word-break:break-all">$1</a>');
     s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
@@ -36,6 +41,17 @@
     });
     if(inUl)out+='</ul>';
     return out.replace(/(<br>)+$/,'');
+  }
+  /* images in a post go to the same public bucket the KB uses */
+  function uploadImage(file){
+    var path='comms/'+Date.now()+'-'+String(file.name||'image').toLowerCase().replace(/[^a-z0-9.]+/g,'-');
+    return sb().then(function(client){
+      if(!client)throw new Error('offline');
+      return client.storage.from('kb-media').upload(path,file,{contentType:file.type});
+    }).then(function(r){
+      if(r&&r.error)throw r.error;
+      return SB_URL+'/storage/v1/object/public/kb-media/'+path;
+    });
   }
   /* textarea helpers for the compose toolbar */
   function wrapSel(ta,pre,post){
@@ -211,5 +227,6 @@
   }
 
   root.CPRComms = { list:list, post:post, markRead:markRead, addSeconds:addSeconds, dismiss:dismiss, undismiss:undismiss, receipts:receipts, kindMeta:kindMeta,
-    fmtBody:fmtBody, toolbarHtml:toolbarHtml, wireToolbar:wireToolbar, openReader:openReader };
+    fmtBody:fmtBody, toolbarHtml:toolbarHtml, wireToolbar:wireToolbar, openReader:openReader,
+    uploadImage:uploadImage };
 })(typeof window !== 'undefined' ? window : this);

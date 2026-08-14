@@ -66,6 +66,8 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.6rem;letter-spaci
 
 <script src="assets/pin-gate.js"></script>
 <script src="assets/locations.js"></script>
+<script src="assets/kb-markup.js"></script>
+<script src="assets/markup-editor.js"></script>
 <script src="assets/comms.js"></script>
 <script src="assets/celebrations-summary.js"></script>
 <script src="assets/nav.js"></script>
@@ -182,6 +184,7 @@ $('#newPost').onclick=function(){
   var KINDS=['announcement','training','schedule','shoutout'], kind='announcement';
   var back=document.createElement('div');
   back.style.cssText='position:fixed;inset:0;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px';
+  var ED=null, BODY='';
   function drawM(){
     var chips=KINDS.map(function(kk){ var m=CPRComms.kindMeta(kk), on=kk===kind;
       return '<button data-pk="'+kk+'" style="padding:7px 12px;border:1.5px solid '+(on?m.color:'var(--border)')+';border-radius:999px;background:'+(on?hexA(m.color,0.13):'#fff')+';color:'+(on?m.color:'var(--dark-grey)')+';font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;cursor:pointer">'+m.icon+' '+m.label+'</button>'; }).join(' ');
@@ -190,24 +193,21 @@ $('#newPost').onclick=function(){
       +'<div style="font-size:.78rem;color:var(--grey);font-weight:600;margin:3px 0 14px">Goes to everyone’s dashboard widget · read receipts tracked below</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'+chips+'</div>'
       +'<input data-pt placeholder="Title" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;margin-bottom:11px">'
-      +CPRComms.toolbarHtml()
-      +'<textarea data-pb rows="8" placeholder="Details — select text and use B / I / U, or start lines with “- ” for bullets" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;font-family:Nunito Sans,sans-serif;font-size:.9rem;line-height:1.55;resize:vertical"></textarea>'
-      +'<div style="margin-top:10px"><div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);margin-bottom:4px">Preview</div>'
-      +'<div data-pv style="border:1px dashed var(--border);border-radius:10px;padding:11px 13px;font-size:.88rem;color:var(--dark-grey);line-height:1.55;min-height:44px"><span style="color:var(--grey)">Start typing to see how it’ll look…</span></div></div>'
+      +'<div data-ped style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden"></div>'
       +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button data-px class="btn" style="padding:10px 16px;border:1px solid var(--border);background:#fff;font-size:.84rem;color:var(--dark-grey)">Cancel</button>'
       +'<button data-pgo class="btn btn-red" style="padding:10px 18px;font-size:.84rem">Post</button></div></div>';
     back.querySelectorAll('[data-px]').forEach(function(b){b.onclick=function(){back.remove();};});
     back.querySelectorAll('[data-pk]').forEach(function(b){b.onclick=function(){kind=b.getAttribute('data-pk');
-      var t=back.querySelector('[data-pt]').value,bo=back.querySelector('[data-pb]').value;drawM();
-      back.querySelector('[data-pt]').value=t;back.querySelector('[data-pb]').value=bo;
-      back.querySelector('[data-pb]').dispatchEvent(new Event('input'));};});
-    var ta=back.querySelector('[data-pb]'), pv=back.querySelector('[data-pv]');
-    CPRComms.wireToolbar(back,ta);
-    ta.addEventListener('input',function(){ pv.innerHTML=ta.value.trim()?CPRComms.fmtBody(ta.value):'<span style="color:var(--grey)">Start typing to see how it’ll look…</span>'; });
+      var t=back.querySelector('[data-pt]').value, bo=ED?ED.getMarkup():BODY;
+      BODY=bo; drawM(); back.querySelector('[data-pt]').value=t;};});
+    /* the same editor the Knowledge Base uses — what you type is what posts */
+    ED=CPRMarkupEditor.mount(back.querySelector('[data-ped]'),{
+      value:BODY, minHeight:'220px', source:false, toast:toast,
+      upload:function(f){ return CPRComms.uploadImage(f); }});
     back.querySelector('[data-pgo]').onclick=function(){
       var t=String(back.querySelector('[data-pt]').value||'').trim();
       if(!t){back.querySelector('[data-pt]').style.borderColor='var(--red)';return;}
-      CPRComms.post({kind:kind,title:t,body:back.querySelector('[data-pb]').value}).then(function(r){
+      CPRComms.post({kind:kind,title:t,body:ED.getMarkup()}).then(function(r){
         if(r&&r.error){toast('Post failed: '+r.error,true);return;}
         back.remove();toast('✓ Posted');refresh();
       });

@@ -186,6 +186,15 @@ these when adding UI so a new tool looks native.
   The editor's markup→editable-HTML pass stays in knowledge.html (it needs
   contenteditable-shaped output) but writes this same syntax, and the handbook
   PDF builder (intake fn `kbToPdfMarkup`) degrades tables to `cell — cell` rows.
+- **`markup-editor.js`** — the ONE light-markup WYSIWYG
+  (`CPRMarkupEditor.mount(host,{value,upload,source,minHeight,toast})` →
+  `{getMarkup,setMarkup,focus}`). Lifted out of knowledge.html so every surface
+  that stores this markup edits it identically — the KB article editor and both
+  Communications composers (page modal + dashboard widget ＋) today. It ships
+  its own CSS and borrows kb-markup.js's parsers, so **load kb-markup.js first**;
+  `source:false` hides the raw-markup toggle, omitting `upload` hides the image
+  button. Storage is unchanged: markup in, markup out. The toolbar is sticky only
+  where the PAGE says so (knowledge.html) — a modal composer must not stick.
 - **`commission-engine.js`** — shared commission math (`window.CommissionEngine`); single
   source of truth for the Commission Calculator (nav label "Payroll · Commission & Tips" —
   same tool, payroll-focused name; file stays commission-calculator.html) + Dashboard.
@@ -1257,7 +1266,10 @@ is covered by the dashboard's Review modal for now.
 
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
-seconds-on-post, dismissed_at). Client lib `assets/comms.js` (`window.CPRComms`);
+seconds-on-post, dismissed_at). Bodies are the SAME light markup the KB stores and render through
+`kb-markup.js` when it's loaded (headings, note boxes, tables, nested lists —
+`fmtBody` keeps a basic fallback for pages without it); both composers use
+`markup-editor.js`. Client lib `assets/comms.js` (`window.CPRComms`);
 surfaces: the dashboard Communications widget (unread badge, manager ＋ quick-post,
 expand = mark read + time tracking, per-user dismiss) and `communications.html` (My Hub
 nav) with full history + read receipts (managers see who read / seconds spent). Posting
