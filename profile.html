@@ -45,6 +45,13 @@ background-repeat:no-repeat;background-position:right 14px center;padding-right:
 display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
 .who .nm{font-family:'Nunito',sans-serif;font-weight:900;font-size:.98rem;line-height:1.2}
 .who .rl{font-size:.76rem;font-weight:800;color:var(--dark-grey)}
+.who img.av{object-fit:cover}
+.phbtns{display:flex;flex-direction:column;gap:4px;flex:none}
+.phbtn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;border:1.5px solid var(--border);
+background:#fff;color:var(--dark-grey);border-radius:8px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+.phbtn:hover{border-color:var(--blue);color:var(--blued,#1E7AA8)}
+.phbtn.del:hover{border-color:var(--red);color:var(--red)}
+@media(max-width:420px){.who{flex-wrap:wrap}.phbtns{flex-direction:row;width:100%}}
 
 /* onboarding checklist */
 .obcount{font-size:.78rem;font-weight:800;color:var(--dark-grey)}
@@ -215,6 +222,7 @@ var KIND_GROUPS=[
 var KINDS=KIND_GROUPS.reduce(function(a,g){return a.concat(g.kinds);},[]);
 
 var ME=null;      // staff row {id, display_name, role, home_store, birthday}
+var P={};         // staff_profiles row (contact, address, photo_path…)
 var OB={};        // staff_profiles.onboarding jsonb
 var PREFS={};     // alert_prefs.prefs jsonb {kind:{push,sms}}
 var pushOn=false; // this device has a live subscription
@@ -285,6 +293,71 @@ async function saveProfile(){
   if(r.error){toast('Could not save — check connection',true);return;}
   tick('#contactSaved');
   renderOb();
+}
+/* Profile photo — cropped square, shrunk to 256px, into the public avatars
+   bucket. staff_profiles.photo_path holds the path; the nav reads the same row
+   so the top bar updates everywhere. */
+function photoUrl(path){ return path?(SB_URL+'/storage/v1/object/public/avatars/'+path):''; }
+function avatarHtml(){
+  const initial=(ME&&ME.display_name?ME.display_name.trim()[0]:'?').toUpperCase();
+  return P.photo_path
+    ? '<img class="av" id="phImg" src="'+photoUrl(P.photo_path)+'" alt="">'
+    : '<span class="av">'+esc(initial)+'</span>';
+}
+/* centre-crop to a square, then down to 256px — a phone photo is ~4MB and we
+   only ever draw it at 42px */
+function squareJpeg(file){
+  return new Promise(function(res,rej){
+    var img=new Image();
+    img.onload=function(){
+      var side=Math.min(img.width,img.height), out=Math.min(256,side);
+      var c=document.createElement('canvas'); c.width=out; c.height=out;
+      c.getContext('2d').drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,out,out);
+      c.toBlob(function(b){ b?res(b):rej(new Error('could not read that image')); },'image/jpeg',.88);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror=function(){ rej(new Error('that file is not an image')); };
+    img.src=URL.createObjectURL(file);
+  });
+}
+function paintWho(){
+  if(!ME)return;
+  var disp=(window.CPRLocations&&ME.home_store)?window.CPRLocations.display(ME.home_store):(ME.home_store||'');
+  $('#whoStrip').innerHTML=avatarHtml()
+    +'<span style="flex:1;min-width:0"><span class="nm" style="display:block">'+esc(ME.display_name||'')+'</span>'
+    +'<span class="rl">'+esc((ME.role||'')+(disp?' · CPR '+disp:''))+'</span></span>'
+    +'<span class="phbtns"><button type="button" class="phbtn" id="phPick">'+(P.photo_path?'Change photo':'Add photo')+'</button>'
+    +(P.photo_path?'<button type="button" class="phbtn del" id="phDel">Remove</button>':'')+'</span>'
+    +'<input type="file" id="phFile" accept="image/*" hidden>';
+  wirePhoto();
+}
+function wirePhoto(){
+  var pick=$('#phPick'), file=$('#phFile'), del=$('#phDel');
+  if(pick)pick.onclick=function(){ file.click(); };
+  if(file)file.onchange=async function(){
+    var f=file.files[0]; if(!f)return;
+    pick.disabled=true; pick.textContent='Uploading…';
+    try{
+      var blob=await squareJpeg(f);
+      var path=ME.id+'-'+Date.now()+'.jpg';
+      var up=await sb.storage.from('avatars').upload(path,blob,{contentType:'image/jpeg',upsert:true});
+      if(up.error)throw up.error;
+      var old=P.photo_path;
+      var sv=await sb.from('staff_profiles').update({photo_path:path}).eq('staff_id',ME.id);
+      if(sv.error)throw sv.error;
+      if(old&&old!==path){ try{ await sb.storage.from('avatars').remove([old]); }catch(e){} }
+      P.photo_path=path; paintWho(); toast('Photo updated ✔');
+    }catch(e){ toast('Upload failed — '+(e.message||'try another photo'),true); pick.disabled=false; pick.textContent='Add photo'; }
+    file.value='';
+  };
+  if(del)del.onclick=async function(){
+    if(!confirm('Remove your profile photo?'))return;
+    var old=P.photo_path;
+    var sv=await sb.from('staff_profiles').update({photo_path:null}).eq('staff_id',ME.id);
+    if(sv.error){ toast('Could not remove it — '+sv.error.message,true); return; }
+    if(old){ try{ await sb.storage.from('avatars').remove([old]); }catch(e){} }
+    P.photo_path=null; paintWho(); toast('Photo removed.');
+  };
 }
 function wireContact(){
   ['phone','pemail','emName','emPhone','emRel','adStreet','adCity','adState','adZip'].forEach(function(id){
@@ -536,19 +609,14 @@ async function boot(){
   }
   ME=sr.data;
 
-  var pq=sb.from('staff_profiles').select('phone,personal_email,emergency,address,shirt_size,onboarding').eq('staff_id',ME.id).maybeSingle();
+  var pq=sb.from('staff_profiles').select('phone,personal_email,emergency,address,shirt_size,onboarding,photo_path').eq('staff_id',ME.id).maybeSingle();
   var aq=sb.from('alert_prefs').select('prefs').eq('staff_id',ME.id).maybeSingle();
   var pr=await pq, ar=await aq;
-  var P=(pr&&pr.data)||{};
+  P=(pr&&pr.data)||{};
   OB=(P.onboarding&&typeof P.onboarding==='object')?P.onboarding:{};
   PREFS=(ar&&ar.data&&ar.data.prefs&&typeof ar.data.prefs==='object')?ar.data.prefs:{};
 
-  /* header strip */
-  var disp=(window.CPRLocations&&ME.home_store)?window.CPRLocations.display(ME.home_store):(ME.home_store||'');
-  var initial=(ME.display_name||'?').trim().charAt(0).toUpperCase();
-  $('#whoStrip').innerHTML='<span class="av">'+esc(initial)+'</span>'
-    +'<span><span class="nm" style="display:block">'+esc(ME.display_name||'')+'</span>'
-    +'<span class="rl">'+esc((ME.role||'')+(disp?' · CPR '+disp:''))+'</span></span>';
+  paintWho();
 
   /* fill contact fields */
   $('#phone').value=P.phone?fmtPhone(P.phone):'';

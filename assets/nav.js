@@ -53,7 +53,7 @@
   var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
   var SB_FN   = SB_URL + '/functions/v1/cpr-auth';
   var sbClient = null, sbReady = null;
-  var NAV_ROLE = null, NAV_NAME = '', NAV_PERMS = null; // NAV_PERMS: Set of granted permission keys (null = not loaded yet)
+  var NAV_ROLE = null, NAV_NAME = '', NAV_PERMS = null, NAV_PHOTO = ''; // NAV_PERMS: Set of granted permission keys (null = not loaded yet)
   var NAV_STAFF = null;                                  // { id, home_store, authorized_stores } for the signed-in user
   var CLOCK = { on:false, id:null, start:null, busy:false, tick:null };  // top-rail time-clock state
   var HOME = 'index.html';
@@ -175,10 +175,13 @@
       sb.auth.getSession().then(function(res){
         var sess = res && res.data && res.data.session;
         if (!sess){ NAV_ROLE = null; NAV_NAME = ''; renderPriv(); return; }
-        sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
+        sb.from('staff').select('id,display_name,role,home_store,authorized_stores,staff_profiles(photo_path)').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
           if (sr && sr.data){ NAV_ROLE = normRole(sr.data.role); NAV_NAME = sr.data.display_name || '';
-            NAV_STAFF = { id:sr.data.id, home_store:sr.data.home_store, authorized_stores:sr.data.authorized_stores||[] }; loadClock(); }
-          else { NAV_ROLE = null; NAV_NAME = ''; NAV_STAFF = null; }
+            NAV_STAFF = { id:sr.data.id, home_store:sr.data.home_store, authorized_stores:sr.data.authorized_stores||[] }; loadClock();
+            var pp = sr.data.staff_profiles;
+            if (Array.isArray(pp)) pp = pp[0];
+            setPhoto(pp && pp.photo_path ? pp.photo_path : ''); }
+          else { NAV_ROLE = null; NAV_NAME = ''; NAV_STAFF = null; setPhoto(''); }
           // load the granted permission keys, then render once (so tools don't flash)
           sb.rpc('my_permissions').then(function(pr){
             NAV_PERMS = new Set((pr && pr.data) ? pr.data : []);
@@ -477,7 +480,9 @@
   .cpr-tb-role{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.78rem; color:#fff; white-space:nowrap; cursor:pointer; border:none; background:none; padding:6px 8px; border-radius:9px; }
   .cpr-tb-role:hover{ background:rgba(255,255,255,.10); }
   .cpr-tb-role .dot{ width:7px; height:7px; border-radius:50%; background:#2E9E5B; flex:none; }
-  .cpr-tb-role .nm-ini{ display:none; width:26px; height:26px; border-radius:50%; background:var(--cpr-red); color:#fff; font-size:.68rem; font-weight:900; align-items:center; justify-content:center; }
+  .cpr-tb-role .nm-ini{ display:none; width:26px; height:26px; border-radius:50%; background:var(--cpr-red); color:#fff; font-size:.68rem; font-weight:900; align-items:center; justify-content:center; flex:none; }
+  .cpr-tb-role img.nm-ini{ display:inline-block; object-fit:cover; }   /* a real photo is worth showing at every width */
+  .cpr-mhd img.cpr-mav{ object-fit:cover; }
   .cpr-belldd{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:300px; background:#fff; border:1px solid #E0E2EA; border-radius:13px; box-shadow:0 16px 44px rgba(45,45,59,.22); z-index:1004; display:none; overflow:hidden; }
   .cpr-belldd.show{ display:block; }
   .cpr-belldd .h{ padding:12px 14px; font-family:'Nunito',sans-serif; font-weight:900; font-size:.84rem; color:#2D2D3B; border-bottom:1px solid #EEF0F4; }
@@ -830,7 +835,7 @@
   // mobile has no rail to switch areas, so the slide-in menu shows every section
   // the user can see at once (profile · My Hub · Operations · Admin · Settings).
   function paneMobileInner(){
-    var h = '<a class="cpr-mhd" href="profile.html" style="text-decoration:none;color:inherit"><span class="cpr-mav">'+esc(avatarInitials())+'</span>'
+    var h = '<a class="cpr-mhd" href="profile.html" style="text-decoration:none;color:inherit">'+avatarHtml('cpr-mav')
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></a>';
     h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'book-open' });
     h += linkHtml({ label:'Training', url:'training.html', icon:'graduation-cap' });
@@ -991,7 +996,7 @@
   function roleSlotHtml(){
     if (!currentRole() && !NAV_NAME) return '<span class="nm-full" style="color:rgba(255,255,255,.5);font-weight:700">Not signed in</span>';
     return '<span class="dot"></span><span class="nm-full">'+(NAV_NAME?esc(NAV_NAME):'Signed in')+'</span>'
-      + '<span class="nm-ini">'+esc(avatarInitials())+'</span>';
+      + avatarHtml('nm-ini');
   }
   function wireTop(){
     if (!top) return;
@@ -1002,6 +1007,22 @@
     if (id && !id._wired){ id._wired = true; id.onclick = function(e){ e.stopPropagation(); if (usermenu){ updateAvatar(); usermenu.classList.toggle('show'); } }; }
   }
 
+  /* the profile photo (staff_profiles.photo_path, public avatars bucket).
+     Cached in localStorage so it paints immediately instead of popping in
+     after the staff query returns. */
+  function setPhoto(path){
+    var url = path ? (SB_URL + '/storage/v1/object/public/avatars/' + path) : '';
+    if (url === NAV_PHOTO) return;
+    NAV_PHOTO = url;
+    try { url ? localStorage.setItem('cprNavPhoto', url) : localStorage.removeItem('cprNavPhoto'); } catch(_){}
+    renderPriv();
+  }
+  try { NAV_PHOTO = localStorage.getItem('cprNavPhoto') || ''; } catch(_){}
+  function avatarHtml(cls){
+    return NAV_PHOTO
+      ? '<img class="'+cls+' has-photo" src="'+esc(NAV_PHOTO)+'" alt="">'
+      : '<span class="'+cls+'">'+esc(avatarInitials())+'</span>';
+  }
   function avatarInitials(){
     var name = NAV_NAME;
     if (!name) return 'CPR';

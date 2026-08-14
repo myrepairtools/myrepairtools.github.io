@@ -444,6 +444,13 @@ function fmt(iso){iso=isoOf(iso);if(!iso)return '';const p=iso.split('-');if(p.l
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function tenure(iso){iso=isoOf(iso);if(!iso)return '—';const s=new Date(iso+'T00:00:00'),n=new Date(todayISO()+'T00:00:00');if(isNaN(s))return '—';let m=(n.getFullYear()-s.getFullYear())*12+(n.getMonth()-s.getMonth());if(n.getDate()<s.getDate())m--;if(m<0)return '—';const y=Math.floor(m/12),mo=m%12;return (y?y+'y ':'')+mo+'m';}
 function inRange(iso,range){iso=isoOf(iso);if(!iso||range==='all')return true;const d=new Date(iso+'T00:00:00'),now=new Date(todayISO()+'T00:00:00');if(range==='90'){const c=new Date(now);c.setDate(c.getDate()-90);return d>=c;}if(range==='ytd')return d>=new Date(now.getFullYear()+'-01-01T00:00:00');return true;}
+/* a real profile photo beats initials wherever a person is listed */
+function photoUrl(p){ return p?(SB_URL+'/storage/v1/object/public/avatars/'+p):''; }
+function avTile(e,cls,style){
+  const u=photoUrl((PROFILES[e.id]||{}).photo_path);
+  return u?'<img class="'+cls+'" style="'+style+';object-fit:cover" src="'+u+'" alt="">'
+          :'<span class="'+cls+'" style="'+style+'">'+esc(initials(e.name))+'</span>';
+}
 function initials(name){return String(name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()||'—';}
 function stripStore(s){return String(s||'').replace(/^CPR\s+/i,'').trim();}
 function deviceId(){try{let d=localStorage.getItem('cpr_device_id');if(!d){d='dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('cpr_device_id',d);}return d;}catch(e){return 'dev-x';}}
@@ -536,7 +543,7 @@ async function load(){
     sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,off_seconds,on_the_clock').gte('biz_date',tsFrom),
     sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,note,submitted_at'),
     sb.from('stores').select('store,display_order,active').order('display_order'),
-    sb.from('staff_profiles').select('staff_id,phone,personal_email'),
+    sb.from('staff_profiles').select('staff_id,phone,personal_email,photo_path'),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
   QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row + PTO balances (raw)
@@ -544,7 +551,7 @@ async function load(){
   JOBCODES={}; ((jcRes&&jcRes.data)||[]).forEach(j=>{JOBCODES[String(j.qbt_id)]={name:j.name,type:j.type};});
   TSBYSTAFF={}; ((tsRes&&tsRes.data)||[]).forEach(t=>{ if(t.staff_id==null)return; (TSBYSTAFF[t.staff_id]||(TSBYSTAFF[t.staff_id]=[])).push(t); });
   STORES=(soRes&&soRes.data)||[];
-  PROFILES={}; ((spRes&&spRes.data)||[]).forEach(p=>{PROFILES[p.staff_id]={phone:p.phone||'',email:p.personal_email||''};});
+  PROFILES={}; ((spRes&&spRes.data)||[]).forEach(p=>{PROFILES[p.staff_id]={phone:p.phone||'',email:p.personal_email||'',photo_path:p.photo_path||''};});
   loadCommissionCfg();   // async, only the Commission tab needs it
   const byId={};
   (stRes.data||[]).forEach(s=>{byId[s.id]={
@@ -674,7 +681,7 @@ function landingRow(e,pinned){
   const sub=needsSetup
     ?[!e.username?'no username':'', 'no PIN', !e.homeStore?'no store yet':''].filter(Boolean).join(' · ')
     :(e.username?('@'+e.username):'—');
-  let tds='<td data-cell="emp"><div class="who"><span class="av avatar" style="'+avStyle+'">'+esc(initials(e.name))+'</span>'
+  let tds='<td data-cell="emp"><div class="who">'+avTile(e,'av avatar',avStyle)
     +'<span><span class="nm" style="'+nmStyle+'">'+esc(e.name)+pin+setup+'</span><span class="un">'+esc(sub)+'</span></span></div></td>'
     +'<td data-label="Role" style="color:var(--grey);font-weight:600">'+esc(roleLabel(e.roleLevel))+'</td>'
     +'<td data-label="Home store" style="font-weight:700">'+esc(e.store||'—')+'</td>';
@@ -810,7 +817,8 @@ function renderProfileHead(){
   $('#profile').innerHTML='<div class="prof">'
     +'<button class="backlink" data-act="back">← Team Members</button>'
     +'<div class="prof-top" style="padding:12px 0 0">'
-    +'<div class="prof-id" style="align-items:flex-start"><div class="av" style="width:64px;height:64px;font-size:1.3rem;background:'+e.avatarBg+(term?';opacity:.55':'')+'">'+esc(initials(e.name))+'</div>'
+    +'<div class="prof-id" style="align-items:flex-start">'
+    +avTile(e,'av','width:64px;height:64px;font-size:1.3rem;background:'+e.avatarBg+(term?';opacity:.55':''))
     +'<div style="min-width:0"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
     +'<span class="prof-name head" style="font-size:1.6rem'+(term?';color:var(--dark-grey)':'')+'">'+esc(e.name)+'</span>'+badge+'</div>'
     +'<div class="prof-sub">'+sub+'</div>'

@@ -1343,6 +1343,16 @@ kind; comms push locked), Enable Push flow (Notification.requestPermission →
 pushManager.subscribe with the VAPID public key → `push_subscriptions` upsert on
 endpoint), change PIN (cpr-auth `change_pin`: verifies current, enforces 4-8
 digits + uniqueness across active staff), Add-to-Home-Screen instructions.
+**Profile photo:** any employee sets their own from the contact card — the
+picked image is centre-cropped square and shrunk to 256px JPEG in the browser,
+uploaded to the **public `avatars` bucket**, and its path stored in
+`staff_profiles.photo_path` (docs/sql/avatars-schema.sql). It replaces the
+initials wherever a person renders: the top-bar identity (nav.js pulls it in
+its existing staff query via the new `staff_profiles` FK, caches the URL in
+`cprNavPhoto` so it paints without a flash, and shows a photo at every width
+while initials stay mobile-only), the mobile drawer header, and
+employee-records' roster + profile header. Replacing a photo deletes the old
+file; RLS keeps writes to the person's own row.
 
 **Service worker (`sw.js`, registered by nav.js):** NETWORK-FIRST — every request
 goes to the live site (navigations force revalidation), the cache is only an
