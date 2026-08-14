@@ -11,6 +11,7 @@
  *   !> text               callout box — amber by default
  *   !r> !g> !b> text      red / green / blue callouts
  *   !n> text              plain grey box · !d> solid dark-blue box
+ *   !#fff|#ddd|#333> text  custom box: fill | outline | text color
  *   | a | b |             tables; a |---|---| row under the first row makes it a header
  *   ---                   divider
  *   **bold** *italic* __underline__ `code` [text](url) ![alt](img)
@@ -156,6 +157,17 @@
       if ((m = LIST_RE.exec(ln))) {
         if (tbl.length) { out += tableBlock(tbl); tbl = []; }
         list.push({ indent: m[1].replace(/\t/g, '  ').length, tag: /^\d/.test(m[2]) ? 'ol' : 'ul', text: m[3] });
+        continue;
+      }
+      /* custom colors ride in the markup itself: !#fill|#outline|#text> */
+      var cm = /^!#([0-9a-fA-F]{6})\|#([0-9a-fA-F]{6})\|#([0-9a-fA-F]{6})&gt;\s+([\s\S]*)$/.exec(ln);
+      if (cm) {
+        flush();
+        var ctx = cm[4], chm = /^(#{1,4})\s+([\s\S]*)$/.exec(ctx), chtag = '';
+        if (chm) { chtag = { 1: 'h3', 2: 'h4', 3: 'h5', 4: 'h6' }[chm[1].length]; ctx = chm[2]; }
+        out += '<div class="callout c-custom" style="background:#' + cm[1] + ';border-color:#' + cm[2] + '">'
+          + '<div class="ct" style="color:#' + cm[3] + '">'
+          + (chtag ? '<' + chtag + '>' + ctx + '</' + chtag + '>' : ctx) + '</div></div>';
         continue;
       }
       for (var c = 0; c < CALLOUTS.length; c++) {

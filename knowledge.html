@@ -334,6 +334,15 @@ border:none;background:none;color:var(--dark);padding:7px 10px;border-radius:7px
 .edmenu .mic svg{display:block}
 .edmenu .lbl{flex:1;min-width:0;text-align:left}
 .edmenu .sw{width:15px;height:15px;border-radius:5px;border:1.5px solid}
+/* the custom-colour panel behind the + chip */
+.edmenu.cust{padding:11px;min-width:212px;display:flex;flex-direction:column;gap:8px}
+.edmenu.cust .curow{display:flex;align-items:center;gap:9px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey)}
+.edmenu.cust .curow span{flex:1}
+.edmenu.cust .curow.end{justify-content:space-between;gap:8px;margin-top:2px}
+.edmenu.cust input[type=color]{width:44px;height:26px;padding:0;border:1.5px solid var(--border);border-radius:7px;background:none;cursor:pointer}
+.edmenu.cust .cupv{border:1.5px solid;border-radius:10px;padding:10px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem}
+.edmenu.pal.more{flex-wrap:wrap;max-width:238px}
+.edmenu.pal button.plus{background:#fff;color:var(--dark-grey);font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;line-height:1;border-style:dashed}
 /* color picker: swatches only, no labels (the name rides in the tooltip) */
 .edmenu.pal{display:flex;gap:6px;padding:8px;min-width:0}
 .edmenu.pal button{width:28px;height:28px;padding:0;border:1.5px solid;border-radius:8px;flex:none}
@@ -1439,6 +1448,14 @@ function mdToEditor(md){
       if(tbl.length){ out+=edTableHtml(tbl); tbl=[]; }
       buf.push({indent:m[1].replace(/\t/g,'  ').length,tag:/^\d/.test(m[2])?'ol':'ul',text:m[3]}); continue; }
     if(/^\s*---+\s*$/.test(raw)){ close(); out+='<hr>'; continue; }
+    const cm=CO_CUSTOM_RE.exec(raw);
+    if(cm){ close();
+      let ctxt=cm[4], chm=/^(#{1,4})\s+([\s\S]*)$/.exec(ctxt), cht='';
+      if(chm){ cht={1:'h3',2:'h4',3:'h5',4:'h6'}[chm[1].length]; ctxt=chm[2]; }
+      const cinner=inlineToHtml(ctxt)||'<br>';
+      out+='<div class="ed-callout c-custom" data-bg="'+cm[1]+'" data-bd="'+cm[2]+'" data-fg="'+cm[3]+'"'
+        +' style="background:#'+cm[1]+';border-color:#'+cm[2]+';color:#'+cm[3]+'">'
+        +(cht?'<'+cht+'>'+cinner+'</'+cht+'>':cinner)+'</div>'; continue; }
     const co=CO_KINDS.map(k=>({k,m:k.re.exec(raw)})).find(x=>x.m);
     if(co){ close();
       /* a box can carry a heading: "!> ## Title" */
@@ -1486,10 +1503,40 @@ const CO_KINDS=[
   {key:'plain',cls:'c-plain',prefix:'!n> ',re:/^!n>\s+(.*)$/, label:'Grey — plain box',       bg:'#F8F8FA', bd:'#E0E2EA'},
   {key:'dark', cls:'c-dark', prefix:'!d> ',re:/^!d>\s+(.*)$/, label:'Dark blue',              bg:'#2D2D3B', bd:'#2D2D3B'}
 ];
+/* custom-coloured box: !#fill|#outline|#text> — the colours live in the stored
+   markup, so a custom box survives the PDF, search and every reading surface */
+/* the second shelf, behind "+": ready-made colours (brand + a broader set).
+   They store as custom colours, so they need no new markup of their own. */
+const CO_MORE=[
+  {label:'Purple',      bg:'f3edfb', bd:'d9c7f0', fg:'5b3a96'},
+  {label:'Indigo',      bg:'eceefb', bd:'c9cff2', fg:'3b45a3'},
+  {label:'Teal',        bg:'e4f5f3', bd:'b4e2dc', fg:'146b62'},
+  {label:'Sky',         bg:'e6f4fb', bd:'bbdff0', fg:'14657f'},
+  {label:'Lime',        bg:'eef7e1', bd:'d3e8b5', fg:'4e7a15'},
+  {label:'Orange',      bg:'fdf0e4', bd:'f5d6b5', fg:'9a5416'},
+  {label:'Rose',        bg:'fdecf3', bd:'f5c8dc', fg:'9c2f63'},
+  {label:'Light grey',  bg:'f0f1f4', bd:'dddfe6', fg:'4e4e50'},
+  {label:'Slate',       bg:'e9edf2', bd:'c8d2de', fg:'3a4a5c'},
+  {label:'Forest — solid', bg:'1f5e45', bd:'1f5e45', fg:'ffffff'},
+  {label:'CPR red — solid',  bg:'dc282e', bd:'dc282e', fg:'ffffff'},
+  {label:'CPR blue — solid', bg:'4fb0e3', bd:'4fb0e3', fg:'ffffff'}
+];
+const CO_CUSTOM_RE=/^!#([0-9a-fA-F]{6})\|#([0-9a-fA-F]{6})\|#([0-9a-fA-F]{6})>\s+([\s\S]*)$/;
 function calloutPrefix(el){
+  if(el.classList&&el.classList.contains('c-custom')&&el.dataset.bg)
+    return '!#'+el.dataset.bg+'|#'+el.dataset.bd+'|#'+el.dataset.fg+'> ';
   const k=CO_KINDS.find(x=>x.cls&&el.classList.contains(x.cls));
   return k?k.prefix:'!> ';
 }
+const hex6=v=>String(v||'').replace('#','').slice(0,6).toLowerCase();
+/* a readable text colour for a given fill, and a slightly deeper outline */
+function lum(h){ h=hex6(h); const r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;
+  const f=c=>c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4);
+  return .2126*f(r)+.7152*f(g)+.0722*f(b); }
+function readableOn(bg){ return lum(bg)>.5?'2d2d3b':'ffffff'; }
+function deepen(h,pct){ h=hex6(h); const p=pct==null?.18:pct;
+  const ch=i=>{ const v=parseInt(h.slice(i,i+2),16); return ('0'+Math.max(0,Math.round(v*(1-p))).toString(16)).slice(-2); };
+  return ch(0)+ch(2)+ch(4); }
 function editorToMd(root){
   const out=[];
   const push=t=>{ out.push(t); };
@@ -1839,6 +1886,8 @@ function drawEditor(){
     const k=CO_KINDS.find(x=>x.key===kind)||CO_KINDS[0];
     if(blk&&blk.classList&&blk.classList.contains('ed-callout')){
       blk.className='ed-callout'+(k.cls?' '+k.cls:'');   // recolor in place
+      blk.removeAttribute('style');                       // drop any custom colours
+      delete blk.dataset.bg; delete blk.dataset.bd; delete blk.dataset.fg;
     }else if(blk){
       const d=document.createElement('div');
       d.className='ed-callout'+(k.cls?' '+k.cls:'');
@@ -1874,12 +1923,26 @@ function drawEditor(){
       if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown',off); }
     }),0);
   }
+  function setCustomCallout(bg,bd,fg){
+    rich.focus();
+    const blk=currentBlock();
+    const style='background:#'+bg+';border-color:#'+bd+';color:#'+fg;
+    const stamp=d=>{ d.className='ed-callout c-custom'; d.dataset.bg=bg; d.dataset.bd=bd; d.dataset.fg=fg;
+      d.setAttribute('style',style); };
+    if(blk&&blk.classList&&blk.classList.contains('ed-callout')){ stamp(blk); }
+    else if(blk){ const d=document.createElement('div'); d.innerHTML=blk.innerHTML||'<br>'; stamp(d);
+      blk.replaceWith(d); placeCaret(d); }
+    else{ document.execCommand('insertHTML',false,
+      '<div class="ed-callout c-custom" data-bg="'+bg+'" data-bd="'+bd+'" data-fg="'+fg+'" style="'+style+'">Note</div><p><br></p>'); }
+    syncTools();
+  }
   /* colors pop down as swatches — no labels, like Word's color picker */
-  function openPalette(btn,items){
+  function openPalette(btn,items,extra){
     document.querySelectorAll('.edmenu').forEach(m=>m.remove());
-    const m=document.createElement('div'); m.className='edmenu pal';
+    const m=document.createElement('div'); m.className='edmenu pal'+(extra?' '+extra:'');
     m.innerHTML=items.map((it,i)=>'<button type="button" data-i="'+i+'" title="'+escAttr(it.label)+'"'
-      +(it.none?' class="none"':'')+' style="background:'+it.bg+';border-color:'+it.bd+'"></button>').join('');
+      +(it.none?' class="none"':it.plus?' class="plus"':'')+' style="background:'+it.bg+';border-color:'+it.bd+'">'
+      +(it.plus?'+':'')+'</button>').join('');
     document.body.appendChild(m);
     const r=btn.getBoundingClientRect();
     m.style.top=(r.bottom+window.scrollY+5)+'px';
@@ -1890,10 +1953,55 @@ function drawEditor(){
       if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown',off); }
     }),0);
   }
-  $('#edCoBtn').addEventListener('mousedown',e=>{ e.preventDefault();
+  /* the presets, then "+" for any colour you like */
+  function openCustomPanel(btn){
+    document.querySelectorAll('.edmenu').forEach(m=>m.remove());
+    const cur=currentBlock();
+    const inBox=cur&&cur.classList&&cur.classList.contains('ed-callout');
+    const isCust=inBox&&cur.classList.contains('c-custom')&&cur.dataset.bg;
+    let bg=isCust?cur.dataset.bg:'eaf6fd', bd=isCust?cur.dataset.bd:'bfe2f5', fg=isCust?cur.dataset.fg:'175e82';
+    const m=document.createElement('div'); m.className='edmenu cust';
+    m.innerHTML='<div class="curow"><span>Fill</span><input type="color" id="cuBg" value="#'+bg+'"></div>'
+      +'<div class="curow"><span>Outline</span><input type="color" id="cuBd" value="#'+bd+'"></div>'
+      +'<div class="curow"><span>Text</span><input type="color" id="cuFg" value="#'+fg+'"></div>'
+      +'<div class="cupv" id="cuPv">Sample text</div>'
+      +'<div class="curow end"><button type="button" class="btn sm" id="cuBack">‹ Colors</button>'
+      +'<button type="button" class="btn pri sm" id="cuGo">Apply</button></div>';
+    document.body.appendChild(m);
+    const r=btn.getBoundingClientRect();
+    m.style.top=(r.bottom+window.scrollY+5)+'px';
+    m.style.left=Math.min(r.left+window.scrollX,window.innerWidth-m.offsetWidth-12)+'px';
+    const $$=id=>m.querySelector('#'+id);
+    let fgTouched=!!isCust, bdTouched=!!isCust;
+    const paint=()=>{ const pv=$$('cuPv');
+      pv.style.background=$$('cuBg').value; pv.style.borderColor=$$('cuBd').value; pv.style.color=$$('cuFg').value; };
+    $$('cuBg').addEventListener('input',()=>{
+      /* until you pick your own, outline and text follow the fill so it stays readable */
+      if(!bdTouched)$$('cuBd').value='#'+deepen(hex6($$('cuBg').value),.18);
+      if(!fgTouched)$$('cuFg').value='#'+readableOn($$('cuBg').value);
+      paint(); });
+    $$('cuBd').addEventListener('input',()=>{ bdTouched=true; paint(); });
+    $$('cuFg').addEventListener('input',()=>{ fgTouched=true; paint(); });
+    paint();
+    $$('cuGo').addEventListener('click',()=>{ const b=hex6($$('cuBg').value),o=hex6($$('cuBd').value),f=hex6($$('cuFg').value);
+      m.remove(); setCustomCallout(b,o,f); });
+    $$('cuBack').addEventListener('click',()=>{ m.remove(); openMoreColors(); });
+    setTimeout(()=>document.addEventListener('mousedown',function off(e){
+      if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown',off); }
+    }),0);
+  }
+  function openMoreColors(){
+    openPalette($('#edCoBtn'),CO_MORE.map(c=>({label:c.label,bg:'#'+c.bg,bd:'#'+c.bd,
+        run:()=>setCustomCallout(c.bg,c.bd,c.fg)}))
+      .concat([{label:'Pick your own…',bg:'#fff',bd:'#C7CAD4',plus:true,run:()=>openCustomPanel($('#edCoBtn'))}]),
+      'more');
+  }
+  function openCoMenu(){
     openPalette($('#edCoBtn'),CO_KINDS.map(k=>({label:k.label,bg:k.bg,bd:k.bd,run:()=>setCallout(k.key)}))
-      .concat([{label:'Remove box',bg:'#fff',bd:'#E0E2EA',none:true,run:()=>setCallout(null)}]));
-  });
+      .concat([{label:'More colors…',bg:'#fff',bd:'#C7CAD4',plus:true,run:()=>openMoreColors()},
+               {label:'Remove box',bg:'#fff',bd:'#E0E2EA',none:true,run:()=>setCallout(null)}]));
+  }
+  $('#edCoBtn').addEventListener('mousedown',e=>{ e.preventDefault(); openCoMenu(); });
   /* ---- tables ---- */
   function caretCell(){
     const sel=window.getSelection(); if(!sel.rangeCount)return null;

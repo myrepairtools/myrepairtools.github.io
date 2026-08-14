@@ -171,7 +171,12 @@ these when adding UI so a new tool looks native.
   (sub-numbers render a./i.) · `!>` amber callout with `!r>`/`!g>`/`!b>` red /
   green / blue variants `!n>` a plain grey box and `!d>` a solid
   dark-blue (nav `--dark`) box with white text; the editor picks these from a
-  **swatch palette** (colors only, names in tooltips — no labels); a box may
+  **swatch palette** (colors only, names in tooltips — no labels); its ＋ chip
+  opens a second shelf of 12 ready-made colors (purple/indigo/teal/sky/lime/
+  orange/rose/greys/slate + solid forest, CPR red, CPR blue) plus a
+  fill/outline/text color picker. Those all store as
+  `!#fill|#outline|#text>` — colors live IN the markup, so a custom box
+  survives the PDF, search and every reading surface without new syntax per color; a box may
   carry a heading — `!> ## Title` — which the size dropdown edits in place
   (formatBlock on the box itself would delete the box) · **pipe tables**
   (`| a | b |`, a `|---|---|` row under the first makes it a header) · `---`

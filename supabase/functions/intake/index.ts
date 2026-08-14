@@ -117,7 +117,7 @@ function kbToPdfMarkup(body: string): string {
     else if (/^###\s+/.test(l)) l = "## " + l.replace(/^###\s+/, "");
     else if (/^#\s+/.test(l)) l = "## " + l.replace(/^#\s+/, "");
     l = l.replace(/^(\s*)[-*]\s+/, "$1• ");
-    l = l.replace(/^!([rgbnd])?>\s+/, "Note: ");
+    l = l.replace(/^!(#[0-9a-fA-F]{6}\|#[0-9a-fA-F]{6}\|#[0-9a-fA-F]{6}|[rgbnd])?>\s+/, "Note: ");
     l = l.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1");
     l = l.replace(/(^|[\s(>])\*([^*\n]+)\*/g, "$1$2");
     l = l.replace(/!\[[^\]]*\]\([^)]+\)/g, "");
