@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cash Admin — CPR</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='52' font-size='86' text-anchor='middle' dominant-baseline='central'>💵</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/fonts.css">
 <style>
 :root{--red:#DC282E;--dark:#2D2D3B;--dark-grey:#4E4E50;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;--white:#FFFFFF;--border:#E0E2EA;--accent:var(--red);--green:#2E9E5B;--purple:#8b5cf6;}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -238,7 +238,7 @@ tr.aurow-clk:hover td{background:#f8fafd}
     <div class="card" style="border-top-color:var(--purple)">
       <div class="count-head" id="smallHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
         <h2 style="margin:0"><span class="exp-btn" id="smallChev" style="color:var(--purple)">−</span> Small Safe — bill count</h2>
-        <span class="muted">Total counted: <b id="smallTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
+        <span class="muted">Total counted: <b id="smallTotal" style="color:var(--dark);font-family:Nunito,sans-serif;font-weight:900">$0.00</b></span>
       </div>
       <div id="smallCollapsed" class="hide" style="margin-top:8px"></div>
       <div id="smallBody">
@@ -260,7 +260,7 @@ tr.aurow-clk:hover td{background:#f8fafd}
     <div class="card" style="border-top-color:#b45309">
       <div class="count-head" id="largeHead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer">
         <h2 style="margin:0"><span class="exp-btn" id="largeChev" style="color:#b45309">−</span> Large Safe — daily envelope counts</h2>
-        <span class="muted">Total counted: <b id="envTotal" style="color:var(--dark);font-family:Nunito;font-weight:900">$0.00</b></span>
+        <span class="muted">Total counted: <b id="envTotal" style="color:var(--dark);font-family:Nunito,sans-serif;font-weight:900">$0.00</b></span>
       </div>
       <div id="largeCollapsed" class="hide" style="margin-top:8px"></div>
       <div id="largeBody">
@@ -620,12 +620,12 @@ var AU_SHOW_DELETED=false;
 function auLogRow(a,osBy){
   var closed=a.status==='closed', del=a.status==='deleted';
   var os=(closed||del)?(a.over_short!=null?num(a.over_short):(osBy[a.id]||0)):null;
-  var osHtml=(os!=null)?('<span style="font-family:Nunito;font-weight:800;color:'+osColor(os)+'">'+money(os)+'</span>'):'—';
+  var osHtml=(os!=null)?('<span style="font-family:Nunito,sans-serif;font-weight:800;color:'+osColor(os)+'">'+money(os)+'</span>'):'—';
   var dep=(closed||del)?money(num(a.bank_deposit)+num(a.small_to_bank)):'—';
   var pill=del?('<span class="aupill" style="color:#8a909e;background:var(--light-grey)">Deleted '+String(a.deleted_at||'').slice(0,10)+'</span>')
     :(closed?('<span class="aupill closed">Closed '+String(a.closed_at||'').slice(0,10)+'</span>'):'<span class="aupill draft">Draft</span>');
   return '<tr class="aurow-clk" data-aid="'+a.id+'"'+(del?' style="opacity:.55"':'')+'>'
-    +'<td><b style="font-family:Nunito">'+fmtRange(a.period_start,a.period_end)+'</b></td>'
+    +'<td><b style="font-family:Nunito,sans-serif">'+fmtRange(a.period_start,a.period_end)+'</b></td>'
     +'<td>'+pill+'</td>'
     +'<td>'+ (del?((a.deleted_by||'—')+' <span class="muted" style="font-weight:600">deleted it</span>'):(closed?(a.confirmed_by||a.auditor||'—'):(a.auditor||'—'))) +'</td>'
     +'<td class="num">'+osHtml+'</td>'
@@ -639,7 +639,7 @@ function renderAuditLog(osBy){
   if(!live.length&&!dels.length)html='<tr><td colspan="6" class="muted" style="padding:14px">No audits yet — hit ＋ New Audit to run the first one.</td></tr>';
   else html=live.map(function(a){return auLogRow(a,osBy);}).join('');
   if(dels.length){
-    html+='<tr><td colspan="6" style="padding:8px 10px"><button id="auShowDel" style="border:none;background:none;cursor:pointer;font-family:Nunito;font-weight:800;font-size:.72rem;color:var(--grey)">'+(AU_SHOW_DELETED?'▾ Hide':'▸ Show')+' '+dels.length+' deleted audit'+(dels.length===1?'':'s')+'</button></td></tr>';
+    html+='<tr><td colspan="6" style="padding:8px 10px"><button id="auShowDel" style="border:none;background:none;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;color:var(--grey)">'+(AU_SHOW_DELETED?'▾ Hide':'▸ Show')+' '+dels.length+' deleted audit'+(dels.length===1?'':'s')+'</button></td></tr>';
     if(AU_SHOW_DELETED)html+=dels.map(function(a){return auLogRow(a,osBy);}).join('');
   }
   $('#auLogBody').innerHTML=html;
@@ -1003,14 +1003,14 @@ function openFinalizeWizard(counts){
       var trs=rows.map(function(r){
         var adj=(r.location==='Large Safe'&&(depBank||depSL))?(' <span class="muted" style="font-weight:600">('+(depBank?'−'+money(depBank)+' bank':'')+(depBank&&depSL?', ':'')+(depSL?'+'+money(depSL)+' from small':'')+')</span>')
           :(r.location==='Small Safe'&&(depSB||depSL))?(' <span class="muted" style="font-weight:600">(−'+money(depSB+depSL)+' out)</span>'):'';
-        return '<tr><td>'+r.location+adj+'</td><td class="num">'+money(r.counted)+'</td><td class="num"><b style="font-family:Nunito">'+money(r.carry)+'</b></td></tr>';
+        return '<tr><td>'+r.location+adj+'</td><td class="num">'+money(r.counted)+'</td><td class="num"><b style="font-family:Nunito,sans-serif">'+money(r.carry)+'</b></td></tr>';
       }).join('');
       back.innerHTML='<div class="auwiz">'
         +'<div class="step">Finalize · step 2 of 2</div><h3>✅ Confirm the new starting balances</h3>'
         +'<p class="hint" style="margin:6px 0 4px">These carry forward as the <b>opening balances for the next audit</b>. Your confirmation is logged with your name.</p>'
         +'<table><thead><tr><th>Location</th><th class="num">Counted</th><th class="num">Starts next period at</th></tr></thead><tbody>'+trs+'</tbody></table>'
-        +'<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem"><span>Audit over / short <span class="muted" style="font-weight:600">(counted vs sales)</span></span><b style="font-family:Nunito;color:'+osColor(os)+'">'+money(os)+'</b></div>'
-        +(num(depBank)+num(depSB)>0?'<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:.9rem"><span>Going to the bank</span><b style="font-family:Nunito">'+money(num(depBank)+num(depSB))+'</b></div>':'')
+        +'<div style="display:flex;justify-content:space-between;margin-top:12px;font-size:.9rem"><span>Audit over / short <span class="muted" style="font-weight:600">(counted vs sales)</span></span><b style="font-family:Nunito,sans-serif;color:'+osColor(os)+'">'+money(os)+'</b></div>'
+        +(num(depBank)+num(depSB)>0?'<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:.9rem"><span>Going to the bank</span><b style="font-family:Nunito,sans-serif">'+money(num(depBank)+num(depSB))+'</b></div>':'')
         +'<div class="save-row" style="justify-content:space-between;gap:8px;margin-top:16px"><button class="btn alt sm" data-wb>‹ Back</button><span style="display:flex;gap:8px"><button class="btn alt sm" data-wx>Cancel</button><button class="btn" id="wzGo">Confirm as '+(AUTH?AUTH.name:'')+' &amp; close audit</button></span></div></div>';
       back.querySelector('[data-wb]').onclick=function(){step=1;draw();};
       back.querySelector('#wzGo').onclick=function(){
@@ -1075,7 +1075,7 @@ async function openDetail(row){
   var trs=locs.map(function(r){
     return '<tr><td>'+r.location+'</td><td class="num">'+money(r.tracked)+'</td><td class="num">'+money(r.counted)+'</td>'
       +'<td class="num" style="color:'+osColor(num(r.over_short))+'">'+money(r.over_short)+'</td>'
-      +'<td class="num"><b style="font-family:Nunito">'+money(r.carry_forward!=null?r.carry_forward:r.counted)+'</b></td></tr>';
+      +'<td class="num"><b style="font-family:Nunito,sans-serif">'+money(r.carry_forward!=null?r.carry_forward:r.counted)+'</b></td></tr>';
   }).join('');
   var envRows=days.filter(function(r){return r.day!=null;});
   var envTotal=0;envRows.forEach(function(r){envTotal+=num(r.total);});

@@ -11,7 +11,7 @@
  * This is also the future home of push (self.addEventListener('push', …))
  * for the notifications project.
  */
-const VERSION = 'mrt-v1';
+const VERSION = 'mrt-v2';   // v2: self-hosted fonts — drop caches holding the Google Fonts pages
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 

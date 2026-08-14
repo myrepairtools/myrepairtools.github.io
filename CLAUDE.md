@@ -151,6 +151,15 @@ these when adding UI so a new tool looks native.
   `sort`, `options`, `find`). Store `name` must match RepairQ/sheet exports exactly;
   `aliases` resolve older spellings. Add/rename/remove stores **only here**.
 - **`hyla/rq-device-catalog.json`** — RepairQ device catalog consumed by `hyla-orders.html`.
+- **`fonts.css` + `fonts/`** — **self-hosted Nunito / Nunito Sans** (SIL OFL,
+  variable woff2, latin + latin-ext, ~140KB total). The Google Fonts CDN was a
+  third-party request that could be slow or blocked; when it failed, pages fell
+  back to the browser default — which is why an iPhone showed **Times** on some
+  screens while the Mac showed Nunito (owner report 2026-08-14). Every page now
+  links `assets/fonts.css` instead. Belt and braces: every `font-family` on the
+  site carries a `sans-serif` fallback (332 declarations were missing one, so a
+  failed font meant serif). **New CSS must end its font stack with a generic
+  family** — and never reference fonts.googleapis.com again.
 - **`qrcode.js`** — vendored qrcode-generator (MIT); global `qrcode(type, ecc)`. Used by
   `lcd-buyback.html` for send-display labels; the extension carries its own copy.
 - **`pdfjs/`** — vendored pdf.js (pdfjs-dist 4.10.38, Apache-2.0; `pdf.min.mjs` +
