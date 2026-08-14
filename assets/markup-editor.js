@@ -78,6 +78,8 @@
     + '.ed-rich .ed-callout.c-plain{background:#F8F8FA;border-color:#E0E2EA;color:#4E4E50}'
     + '.ed-rich .ed-callout.c-dark{background:#2D2D3B;border-color:#2D2D3B;color:#fff}'
     + '.ed-rich .ed-callout h3,.ed-rich .ed-callout h4,.ed-rich .ed-callout h5,.ed-rich .ed-callout h6{margin:0;color:inherit}'
+    + '.ed-rich .ed-callout h3{font-size:1.05rem}.ed-rich .ed-callout h4{font-size:.95rem}'
+    + '.ed-rich .ed-callout h5{font-size:.88rem}.ed-rich .ed-callout h6{font-size:.8rem}'
     + '.ed-rich h5{font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.86rem;color:var(--dark);margin:12px 0 4px}'
     + '.ed-rich h6{font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.79rem;color:var(--dark-grey);margin:10px 0 4px}'
     + '.edtools .edsep{width:1px;height:20px;background:var(--border);margin:0 4px}'
@@ -387,6 +389,13 @@
       rich.querySelectorAll('ul > ul, ul > ol, ol > ul, ol > ol').forEach(sub=>{
         const prev=sub.previousElementSibling;
         if(prev&&prev.tagName==='LI')prev.appendChild(sub);
+      });
+      /* A table (or list) pasted while the caret sits in a heading lands INSIDE
+         that heading, and a heading serializes to a single line — so the
+         table's text gets concatenated onto the title and the grid is lost.
+         Lift any block back out to sit after the heading. */
+      rich.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h=>{
+        [...h.children].forEach(c=>{ if(/^(TABLE|UL|OL|HR)$/.test(c.tagName))h.after(c); });
       });
       /* Indenting into an existing group leaves a SECOND list next to the first,
          so the numbering restarts at 1. Same kind + adjacent = one list. */
