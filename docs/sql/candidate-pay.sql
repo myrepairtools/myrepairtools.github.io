@@ -51,3 +51,8 @@ alter table public.staff_intake add column if not exists dayone_sms_at timestamp
 alter table public.staff_intake add column if not exists qbo_employee_id text;
 alter table public.staff_intake add column if not exists qbo_synced_at timestamptz;
 alter table public.staff_intake add column if not exists qbo_error text;
+
+-- Store manager / lead. The offer letter's "Reports To" line was hardcoded to
+-- one name; it resolves per store now via the {manager} placeholder.
+alter table public.stores add column if not exists manager_staff_id bigint
+  references public.staff(id) on delete set null;

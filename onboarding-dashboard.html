@@ -113,7 +113,7 @@ const ic=(n,s)=>LI[n].replace(/\{s\}/g,s||14);
 const NEW_HIRE_DAYS=60;
 
 let AUTH=null,BOOTED=false,STORE='all';
-let STAFF=[],INTAKES=[],MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={};
+let STAFF=[],ALLSTAFF=[],OWNER=null,STORES=[],INTAKES=[],MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={};
 let OFFER_TPL='';
 async function resolveMe(sess){
   if(!sess||BOOTED)return;
@@ -125,7 +125,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 async function jwt(){return (await sb.auth.getSession()).data.session.access_token;}
 
 async function loadAll(){
-  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl]=await Promise.all([
+  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl,sr]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,active,start_date,created_at,pin_hash,birthday').eq('active',true),
     sb.from('staff_intake').select('*').neq('status','promoted').order('created_at',{ascending:false}),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
@@ -139,8 +139,14 @@ async function loadAll(){
     sb.from('kb_quizzes').select('id,article_id,active,kb_quiz_questions(id)').eq('active',true),
     sb.from('staff_setup_checklist').select('*'),
     sb.from('app_settings').select('value').eq('key','hiring.offer_template').maybeSingle(),
+    sb.from('stores').select('store,manager_staff_id,active'),
   ]);
   OFFER_TPL=(tpl.data&&tpl.data.value&&tpl.data.value.body)||'';
+  STORES=sr.data||[];
+  /* the roster deliberately hides the owner, so keep them aside for the
+     offer letter's Reports To line */
+  OWNER=(st.data||[]).filter(s=>s.role==='owner')[0]||null;
+  ALLSTAFF=st.data||[];
   STAFF=(st.data||[]).filter(s=>s.role!=='owner');
   INTAKES=ik.data||[];MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=sp.data||[];
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
@@ -339,6 +345,15 @@ function payLabel(){
   if(!(n>0))return '';
   return money(n)+(CD.payType==='salary'?' per month':' per hour');
 }
+/* Who the hire reports to, from the store they're being hired into. The letter
+   used to name one person for every store — see stores.manager_staff_id. */
+function managerLine(){
+  const st=(STORES||[]).filter(x=>x.store===CD.store)[0];
+  const mgr=st&&st.manager_staff_id
+    ? (ALLSTAFF||[]).filter(p=>String(p.id)===String(st.manager_staff_id))[0] : null;
+  const ownerLine=OWNER?(OWNER.display_name+' (Owner)'):'the Owner';
+  return mgr ? (mgr.display_name+' (Store Manager) and '+ownerLine) : ownerLine;
+}
 function commLabel(){
   if(!CD.comm)return 'No commission';
   const on=Object.keys(EARN_LABELS).filter(k=>CD.earns[k]);
@@ -362,7 +377,7 @@ function commSentence(){
 }
 function buildOffer(){
   const v={name:CD.name,position:CD.pos,pay:payLabel(),commission:commSentence(),
-    store:'CPR '+shortStore(CD.store),start:startLabel()};
+    store:'CPR '+shortStore(CD.store),start:startLabel(),manager:managerLine()};
   let b=OFFER_TPL||'';
   Object.keys(v).forEach(k=>{if(v[k])b=b.split('{'+k+'}').join(v[k]);});
   return b;
