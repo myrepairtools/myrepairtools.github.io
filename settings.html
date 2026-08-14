@@ -590,6 +590,23 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div id="qboHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
         </div>
 
+        <!-- New-hire automation -->
+        <div id="qboHire" class="hide" style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="display:flex;align-items:flex-start;gap:16px">
+            <div style="flex:1">
+              <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Add New Hires to QuickBooks</div>
+              <div style="color:var(--grey);font-weight:700;font-size:.82rem;margin-top:3px;line-height:1.45">
+                When a new hire finishes their onboarding form, create them in QuickBooks automatically &mdash;
+                legal name, address, email, mobile and hire date. Existing employees are matched on first and
+                last name, so re-running never creates a duplicate.
+                <b style="color:var(--dark-grey)">Leave this off while testing</b> &mdash; a test candidate would
+                become a real employee record.</div>
+              <div id="qboHireNote" style="color:var(--grey);font-weight:700;font-size:.76rem;margin-top:8px"></div>
+            </div>
+            <button class="toggle" id="qboHireToggle" aria-label="Add new hires to QuickBooks"></button>
+          </div>
+        </div>
+
         <!-- Account Mapping (only when connected) -->
         <div id="qboMap" class="hide" style="max-width:760px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
           <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">Account Mapping</div>
@@ -850,6 +867,24 @@ async function loadAppSettings(){
   var r=await sb.from('app_settings').select('key,value');
   APPSET={};(r.error?[]:(r.data||[])).forEach(function(row){APPSET[row.key]=row.value;});
   APPSCOPE=APPSET['schedule.store_scoping']===true;
+}
+/* QBO new-hire auto-create. The edge function reads this same app_settings key
+   on every submit, so flipping it here takes effect immediately — no deploy. */
+function qboHirePaint(){
+  var on=APPSET['hiring.qbo_autocreate']===true;
+  var t=$('#qboHireToggle'); if(t)t.classList.toggle('on',on);
+  var n=$('#qboHireNote');
+  if(n)n.textContent=on
+    ? 'On — the next completed onboarding form creates a QuickBooks employee.'
+    : 'Off — onboarding forms are saved here only. Nothing is sent to QuickBooks.';
+}
+async function toggleQboHire(){
+  if(!(AUTH&&AUTH.role==='owner'))return;
+  var next=!(APPSET['hiring.qbo_autocreate']===true);
+  var r=await sb.from('app_settings').upsert({key:'hiring.qbo_autocreate',value:next,updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(r.error){toast(r.error.message||'Could not save',true);return;}
+  APPSET['hiring.qbo_autocreate']=next; qboHirePaint();
+  toast(next?'New hires will be added to QuickBooks':'New hires will not be sent to QuickBooks');
 }
 async function toggleScope(){
   if(!(AUTH&&AUTH.role==='owner'))return;
@@ -1289,7 +1324,7 @@ function qboCardPill(state){ /* library card badge: 'on' | 'off' | 'setup' | 'wa
 }
 async function qboRenderStatus(){
   var st=$('#qboStatus'),pill=$('#qboPill'),conn=$('#qboConnect'),disc=$('#qboDisconnect'),
-      hint=$('#qboHint'),setup=$('#qboSetup'),map=$('#qboMap');
+      hint=$('#qboHint'),setup=$('#qboSetup'),map=$('#qboMap'),hire=$('#qboHire');
   var detailOpen=(INTEG_OPEN==='qbo');
   if(hint)hint.textContent=QBO_RETURN_MSG||'';
   if(st)st.textContent='Checking…'; if(pill)pill.classList.add('hide');
@@ -1299,6 +1334,7 @@ async function qboRenderStatus(){
     if(st)st.textContent='Owner sign-in required.';
     if(conn)conn.classList.add('hide'); if(disc)disc.classList.add('hide');
     if(setup)setup.classList.add('hide'); if(map)map.classList.add('hide');
+    if(hire)hire.classList.add('hide');
     return;
   }
   if(d.connected){
@@ -1310,6 +1346,14 @@ async function qboRenderStatus(){
     if(disc)disc.classList.remove('hide');
     if(setup)setup.classList.add('hide');
     if(map){map.classList.toggle('hide',!detailOpen); if(detailOpen)qboRenderMap();}
+    if(hire){
+      hire.classList.toggle('hide',!detailOpen);
+      if(detailOpen){
+        qboHirePaint();
+        var ht=$('#qboHireToggle');
+        if(ht)ht.onclick=(AUTH&&AUTH.role==='owner')?toggleQboHire:null;
+      }
+    }
   }else if(d.configured===false){
     qboCardPill('setup');
     if(st)st.textContent='Secrets not set — finish the one-time setup below.';
@@ -1318,6 +1362,7 @@ async function qboRenderStatus(){
     if(disc)disc.classList.add('hide');
     if(setup)setup.classList.remove('hide');
     if(map)map.classList.add('hide');
+    if(hire)hire.classList.add('hide');
   }else{
     qboCardPill('off');
     if(st)st.textContent='Not connected';
