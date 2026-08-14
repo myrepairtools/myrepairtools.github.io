@@ -44,6 +44,11 @@ const WEBHOOK_SECRET = Deno.env.get("RINGCENTRAL_WEBHOOK_SECRET") || "";
 // Must be SMS-capable on the main RC account (toll-free numbers need TF verification).
 const ALERTS_FROM = Deno.env.get("ALERTS_FROM_NUMBER") || "";
 const SYSTEM_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
+// Sending SMS costs money and rides our numbers' reputation, so the write
+// actions need a caller we can name. The anon key does not count — it ships
+// in every page's source. Signed-in staff authenticate with their own JWT;
+// the extension and server-to-server callers carry this shared secret.
+const MESSAGING_SECRET = Deno.env.get("MESSAGING_SECRET") || "";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -888,8 +893,17 @@ Deno.serve(async (req) => {
     } catch { /* leave anonymous */ }
   }
 
+  // write actions: a real staff member, or a known machine caller
+  const callerSecret = String(payload?.secret || req.headers.get("x-cpr-secret") || "");
+  const machineOk = (!!MESSAGING_SECRET && callerSecret === MESSAGING_SECRET)
+    || (!!SYSTEM_SECRET && callerSecret === SYSTEM_SECRET);
+  const WRITE = ["send", "contact_set", "contact_delete"];
+
   try {
     if (payload?.action === "test") return await actionTest();
+    if (WRITE.includes(String(payload?.action)) && !sentBy.id && !machineOk) {
+      return json({ ok: false, error: "forbidden" }, 403);
+    }
     if (payload?.action === "send") return await actionSend(payload, sentBy);
     // server-to-server: the alerts function texts employees from the official line
     if (payload?.action === "system_send") {

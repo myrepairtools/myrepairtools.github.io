@@ -25,6 +25,10 @@
 
 var LCD_FN = 'https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/lcd-buyback';
 var LCD_SECRET = '77a715da8c43ebc3bf59b5f41ac9f7c80a71c6063be4530a';
+// The messaging function's write actions no longer accept the anon key alone —
+// it's public in every page's source, so anyone could have sent SMS from our
+// store lines. Same deterrent-level shared secret as LCD_SECRET above.
+var MESSAGING_SECRET = 'af68b18b10ddddf3c8f5328dff22ea9d6218796327d99a5d';
 
 // Supabase anon key (public — same one committed across the site) for the
 // messaging function gateway. RingCentral creds stay server-side only.
@@ -94,7 +98,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + SB_ANON,
-            'apikey': SB_ANON
+            'apikey': SB_ANON,
+            'x-cpr-secret': MESSAGING_SECRET
         },
         body: JSON.stringify(Object.assign({ action: action }, msg.payload || {}))
     }).then(function (r) { return r.json(); })

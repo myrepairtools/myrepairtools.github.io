@@ -487,7 +487,7 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "send", to: it.phone, body: msg,
+            action: "send", secret: NOTIFY_SECRET, to: it.phone, body: msg,
             store: it.invited_store, template_key: "day_one",
             agent_name: "MRT Onboarding",
           }),
