@@ -43,9 +43,11 @@ alter table public.staff_intake add column if not exists newhire_sent_at timesta
 -- documents they told us they'd bring. Stamped so it can only fire once.
 alter table public.staff_intake add column if not exists dayone_sms_at timestamptz;
 
--- QBO employee creation on submit. Tracking columns are live; the call itself
--- is gated OFF (app_settings 'hiring.qbo_autocreate') until the payroll-vs-
--- accounting question below is resolved.
+-- QBO employee creation on submit. Verified against the live company: the
+-- Accounting API's Employee list IS the payroll employee list (64 = 64; Britt
+-- Bay is Id 575 in both). No payroll OAuth scope needed. Duplicate guard
+-- matches GivenName + FamilyName because QBO stores DisplayName as
+-- "First M. Last". Enabled via app_settings 'hiring.qbo_autocreate' = true.
 alter table public.staff_intake add column if not exists qbo_employee_id text;
 alter table public.staff_intake add column if not exists qbo_synced_at timestamptz;
 alter table public.staff_intake add column if not exists qbo_error text;

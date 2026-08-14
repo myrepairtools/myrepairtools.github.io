@@ -682,9 +682,13 @@ Deno.serve(async (req) => {
     if (!tok) return json({ error: "not_connected" }, 503);
 
     // The create endpoint is NOT idempotent, so look before leaping: a retry
-    // after a timeout must not leave two payroll records for one person.
-    const display = (first + " " + last).replace(/'/g, "''");
-    const q = `select Id, DisplayName from Employee where DisplayName = '${display}'`;
+    // after a timeout must not leave two records for one person.
+    // Match on GivenName + FamilyName, NOT DisplayName — QBO writes DisplayName
+    // as "First M. Last" (Britt A. Bay) and prefixes some with "*", so an exact
+    // "First Last" match misses almost everyone who has a middle initial.
+    const esc = (x: string) => x.replace(/'/g, "''");
+    const display = first + " " + last;
+    const q = `select Id, DisplayName, GivenName, FamilyName from Employee where GivenName = '${esc(first)}' and FamilyName = '${esc(last)}'`;
     const fr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
       { headers: qboHeaders(tok.access_token) });
     const fd = await fr.json().catch(() => ({}));
@@ -693,7 +697,16 @@ Deno.serve(async (req) => {
 
     // dry_run proves the secret, the token and the duplicate lookup without
     // writing anything into the company file
-    if (body.dry_run) return json({ ok: true, dry_run: true, found: !!existing?.Id, would_create: !existing?.Id, display });
+    if (body.dry_run) {
+      // also list what IS in the accounting Employee list, so a DisplayName
+      // that differs from "First Last" can't be mistaken for "not there"
+      const lr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent("select Id, DisplayName, GivenName, FamilyName, Active from Employee maxresults 100")}&minorversion=${MINORVERSION}`,
+        { headers: qboHeaders(tok.access_token) });
+      const ld = await lr.json().catch(() => ({}));
+      const all = ((ld?.QueryResponse?.Employee || []) as Array<Record<string, any>>)
+        .map((e) => ({ id: String(e.Id), display: e.DisplayName, given: e.GivenName, family: e.FamilyName, active: e.Active }));
+      return json({ ok: true, dry_run: true, found: !!existing?.Id, would_create: !existing?.Id, display, employee_count: all.length, employees: all });
+    }
     const addr = (body.address || {}) as Record<string, string>;
     const payload: Record<string, unknown> = {
       GivenName: first, FamilyName: last,

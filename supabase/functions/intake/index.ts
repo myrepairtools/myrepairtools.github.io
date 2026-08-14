@@ -441,18 +441,14 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
    endpoint is not idempotent, so the qbo function looks the person up first;
    we also stamp the id here and skip anyone already synced. */
 async function createQboEmployee(it: Record<string, unknown>): Promise<{ ok: boolean; id?: string; error?: string; skipped?: string }> {
-  // OFF until the payroll question is settled. Verified 2026-08-14 against the
-  // live company (realm 1267613695): the Accounting API's Employee list and
-  // the Payroll employee list are NOT the same store — Britt Bay is an active
-  // PAYROLL employee there, and an Accounting query by that DisplayName finds
-  // nothing. So creating through /v3/company/{realm}/employee would add a
-  // second, unrelated accounting record: no payroll employee, no
-  // is_self_onboarding flag, and no Workforce invite. Self-onboarding is a
-  // payroll-side field, and reaching it needs Intuit's payroll API rather than
-  // the accounting scope this function holds today.
-  // Flip app_settings 'hiring.qbo_autocreate' to true only once that is sorted.
-  const { data: cfg } = await admin.from("app_settings").select("value").eq("key", "hiring.qbo_autocreate").maybeSingle();
-  if (cfg?.value !== true) return { ok: false, skipped: "disabled", error: "QBO auto-create is off" };
+  // Verified 2026-08-14 against the live company (realm 1267613695): the
+  // Accounting API's Employee list IS the payroll employee list — 64 records
+  // either way, and Britt Bay is Id 575 in both (the payroll record carries
+  // intuit.qbo.name.id = 575). An earlier exact-DisplayName probe missed her
+  // because QBO stores "Britt A. Bay", which is why the lookup now matches on
+  // GivenName + FamilyName. No payroll OAuth scope needed.
+  // Still unverified: whether creating this way sets is_self_onboarding and
+  // sends the Workforce invite. Watch the first real hire.
   if (it.qbo_employee_id) return { ok: true, id: String(it.qbo_employee_id) };
   const first = String(it.legal_first || "").trim();
   const last = String(it.legal_last || "").trim();
