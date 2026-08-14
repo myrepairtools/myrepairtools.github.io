@@ -53,7 +53,7 @@ async function manager(req: Request) {
   return s && ["owner", "admin", "manager"].includes(s.role) ? s : null;
 }
 const PUBLIC_FIELDS = "token, status, invited_name, invited_store, position, start_hint, " +
-  "offer_body, offer_signed_at, offer_signed_name, offer_declined_at, " +
+  "offer_body, offer_signed_at, offer_signed_name, offer_signature, offer_declined_at, " +
   "handbook_signed_at, handbook_signed_name, " +
   "legal_first, legal_middle, legal_last, preferred_name, dob, phone, personal_email, " +
   "address, emergency, emergency2, shirt_size, availability, i9_docs, submitted_at";
@@ -407,7 +407,7 @@ async function storeLetterhead(store: unknown): Promise<string | undefined> {
 async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
   const email = String(it.personal_email || "");
   if (!/@/.test(email) || it.newhire_sent_at) return;
-  const link = SITE + "/intake.html?t=" + String(it.token);
+  const link = SITE + "/intake.html?t=" + String(it.token) + "&s=hire";
   const first = String(it.invited_name || it.offer_signed_name || "").trim().split(/\s+/)[0] || "there";
   const text = "Hi " + first + ",\n\n"
     + "Your signed offer letter is attached — that copy is yours to keep, so there's nothing to print or bring in.\n\n"
@@ -463,7 +463,15 @@ Deno.serve(async (req) => {
       handbook = await handbookArticles();
       ack = await handbookAck();
     }
-    return json({ ok: true, intake: data, ...(handbook ? { handbook, ack } : {}) });
+    // The letter's "{signature}" line is the owner's countersignature. The PDF
+    // already renders it for this same token holder, so hand the page the same
+    // image rather than letting the placeholder show through as raw text.
+    let owner_sig: string | undefined;
+    if (data.offer_body && String(data.offer_body).includes("{signature}")) {
+      const b = await ownerSigBytes();
+      if (b) owner_sig = "data:image/png;base64," + b64FromBytes(b);
+    }
+    return json({ ok: true, intake: data, ...(owner_sig ? { owner_sig } : {}), ...(handbook ? { handbook, ack } : {}) });
   }
 
   if (action === "sign_offer" || action === "decline_offer" || action === "sign_handbook") {

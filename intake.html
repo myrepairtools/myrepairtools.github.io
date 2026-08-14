@@ -80,6 +80,14 @@ border-radius:10px;padding:9px 12px;margin-bottom:12px}
 .pdfbar button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1px solid #BFE6CE;
 background:#fff;color:#1C6B41;border-radius:8px;padding:6px 11px;cursor:pointer}
 .pdfbar button:hover{filter:brightness(.98)}
+/* their signature, shown back to them under the letter they signed */
+.offerbox .acc{margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+.offerbox .acch{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;margin-bottom:6px}
+.offerbox .sigimg{display:block;max-width:230px;max-height:78px;margin:2px 0 2px -4px}
+.offerbox .ownersig{display:block;max-width:210px;max-height:70px;margin:4px 0 2px -4px}
+.offerbox .accn{border-top:1px solid var(--dark);display:inline-block;padding-top:4px;
+font-size:.78rem;font-weight:700;color:var(--grey2)}
+.tail{font-size:.82rem;font-weight:700;color:var(--grey2);margin:14px 0 0;text-align:center}
 .declink{display:block;text-align:center;margin-top:12px;font-family:'Nunito',sans-serif;font-weight:800;
 font-size:.76rem;color:var(--grey2);background:none;border:none;cursor:pointer;width:100%;text-decoration:underline}
 .decbox{border:1.5px solid #F6C9CA;background:#FDEBEC;border-radius:12px;padding:12px 14px;margin-top:12px}
@@ -184,7 +192,12 @@ const CHEV='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="
 const CHEVD='<svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 const CHECK='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 
-const TOKEN=new URLSearchParams(location.search).get('t')||'';
+const Q=new URLSearchParams(location.search);
+const TOKEN=Q.get('t')||'';
+/* The offer link does the offer and nothing else. The handbook and the
+   new-hire form live behind the welcome email's link (&s=hire), so a
+   candidate deciding on an offer is never handed HR paperwork. */
+const STAGE=Q.get('s')||'offer';
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
 let PHASE='form';        // offer | signed | handbook | form | done | declined
@@ -195,7 +208,7 @@ const D={first:'',middle:'',last:'',preferred:'',dob:'',phone:'',email:'',
   street:'',city:'',zip:'',shirt:'',i9:'',
   e1name:'',e1phone:'',e2name:'',e2phone:'',
   avail:DAYS.map((d,i)=>({day:i,mode:'all',from:'Open',to:'Close'}))};
-let INVITE=null,HANDBOOK=null,ACK=null,HBOPEN=0;
+let INVITE=null,HANDBOOK=null,ACK=null,HBOPEN=0,OWNERSIG=null;
 
 async function call(body){
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -204,14 +217,24 @@ async function call(body){
 /* light markup → safe HTML — the shared KB renderer (assets/kb-markup.js), so
    the handbook a candidate signs looks exactly like the KB article it came from */
 function render(text){ return window.CPRMarkup.render(text); }
+/* the offer letter carries a '{signature}' line for the owner's
+   countersignature — resolve it like the PDF does, and drop the line
+   entirely when there's no image rather than printing the placeholder */
+function renderOffer(md){
+  const marker='@@OWNERSIG@@';
+  const src=String(md||'').replace(/^[ \t]*\{signature\}[ \t]*$/gm, OWNERSIG?marker:'');
+  let h=render(src);
+  return h.split(marker).join(OWNERSIG?'<img src="'+esc(OWNERSIG)+'" alt="" class="ownersig">':'');
+}
+function fmtDate(x){ if(!x)return ''; const d=new Date(x);
+  return isNaN(d)?'':d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); }
 function firstName(){return D.preferred||D.first||(INVITE&&INVITE.invited_name?INVITE.invited_name.split(' ')[0]:'');}
 function derivePhase(){
   if(INVITE.status==='promoted'||INVITE.submitted_at){PHASE='done';SUBMITTED=true;return;}
   if(INVITE.offer_declined_at){PHASE='declined';return;}
   if(INVITE.offer_body&&!INVITE.offer_signed_at){PHASE='offer';return;}
-  /* the offer link's job ends at the signature — the handbook and the form
-     arrive as their own email, so we stop here rather than running on */
-  if(JUSTSIGNED){PHASE='signed';return;}
+  /* signed, and this is the offer link — show them the signed letter and stop */
+  if(INVITE.offer_body&&STAGE!=='hire'){PHASE='signed';return;}
   if(INVITE.offer_body&&!INVITE.handbook_signed_at){PHASE='handbook';return;}
   PHASE='form';
 }
@@ -268,7 +291,7 @@ function wireSig(){
    still deciding. */
 function offerBody(){
   const doc='<h2>Your offer'+(INVITE.position?' — '+esc(INVITE.position):'')+'</h2>'
-    +'<div class="offerbox">'+render(INVITE.offer_body)+'</div>';
+    +'<div class="offerbox">'+renderOffer(INVITE.offer_body)+'</div>';
   if(DECLINING){
     return doc
       +'<div class="decbox"><div class="t">Decline this offer?</div>'
@@ -512,20 +535,23 @@ function draw(){
     return;
   }
   if(PHASE==='signed'){
-    card.classList.remove('wide','read');
-    card.innerHTML='<div class="chd"><div class="logo"><b>my</b>Repair<b>Tools</b></div></div>'
-      +'<div class="done"><span class="ck">'+CHECK+'</span><h2>Signed'+(firstName()?', thank you '+esc(firstName()):', thank you')+'!</h2>'
-      +'<p>Welcome to the team. '
-      +((INVITE&&INVITE.personal_email)
-        ? 'We\u2019ve emailed your signed offer along with your next steps \u2014 the Employee Handbook and your new-hire form.'
-        : 'Your signed offer is below, and your next steps are the Employee Handbook and your new-hire form.')
-      +'</p>'
-      +'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">\u2B07 Download your signed offer (PDF)</button>'
-      +'<button class="btn pri" id="goNext" style="margin-top:8px;width:100%">Continue to next steps</button>'
-      +'</div>';
-    const dl=$('#dlPdf');
-    if(dl)dl.onclick=()=>downloadSigned(dl,'\u2B07 Download your signed offer (PDF)');
-    $('#goNext').onclick=()=>{JUSTSIGNED=false;derivePhase();draw();window.scrollTo(0,0);};
+    card.classList.add('read');card.classList.remove('wide');
+    const sig=INVITE.offer_signature
+      ?'<img src="'+esc(INVITE.offer_signature)+'" alt="Your signature" class="sigimg">':'';
+    card.innerHTML='<div class="chd"><div class="logo"><b>my</b>Repair<b>Tools</b></div><h1>Your signed offer</h1></div>'
+      +'<div class="cbd">'
+      +'<div class="pdfbar"><span class="t">Accepted '+esc(fmtDate(INVITE.offer_signed_at))+'</span>'
+      +'<button type="button" id="dlPdfBar">Download PDF</button></div>'
+      +'<div class="offerbox">'+renderOffer(INVITE.offer_body)
+        +'<div class="acc"><div class="acch">Accepted and agreed</div>'+sig
+        +'<div class="accn">'+esc(INVITE.offer_signed_name||'')
+        +' &nbsp;·&nbsp; '+esc(fmtDate(INVITE.offer_signed_at))+'</div></div>'
+      +'</div>'
+      +'<p class="tail">'+((INVITE&&INVITE.personal_email)
+        ? 'Your next steps \u2014 the Employee Handbook and your new-hire form \u2014 are in your email.'
+        : 'Your manager will send your next steps: the Employee Handbook and your new-hire form.')
+      +'</p></div>';
+    wirePdfBar();
     return;
   }
   if(PHASE==='declined'){
@@ -549,6 +575,7 @@ async function refresh(){
     INVITE=r.data.intake;
     if(r.data.handbook)HANDBOOK=r.data.handbook;
     if(r.data.ack)ACK=r.data.ack;
+    OWNERSIG=r.data.owner_sig||OWNERSIG;
     DECLINING=false;ACCEPTING=false;derivePhase();
   }
   draw();window.scrollTo(0,0);
@@ -560,6 +587,7 @@ async function refresh(){
   INVITE=r.data.intake;
   if(r.data.handbook)HANDBOOK=r.data.handbook;
   if(r.data.ack)ACK=r.data.ack;
+  OWNERSIG=r.data.owner_sig||null;
   derivePhase();
   if(INVITE.invited_name&&!D.first){const p=INVITE.invited_name.split(' ');D.first=p[0]||'';D.last=p.slice(1).join(' ');}
   draw();
