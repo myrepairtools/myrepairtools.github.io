@@ -452,6 +452,61 @@ Deno.serve(async (req) => {
   const action = String(body.action || "");
 
   // ---- candidate side (token auth) ----
+  if (action === "day_one") {
+    // 7:30am store-local on someone's first day. Sent from the STORE's own
+    // RingCentral line (messaging's `send` resolves the line from `store`) —
+    // never the company alerts number, which is for staff notifications.
+    // Secret-gated: this is a cron, there's no staff JWT to check.
+    const secret = String(body.secret || new URL(req.url).searchParams.get("secret") || "");
+    if (!NOTIFY_SECRET || secret !== NOTIFY_SECRET) return json({ error: "forbidden" }, 403);
+    // "today" is Pacific — a UTC date would fire a day early all evening.
+    const today = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const { data: due } = await admin.from("staff_intake")
+      .select("id, token, invited_name, invited_store, legal_first, preferred_name, phone, i9_docs, start_date")
+      .eq("start_date", today)
+      .is("dayone_sms_at", null)
+      .is("offer_declined_at", null)
+      .not("offer_signed_at", "is", null)
+      .not("phone", "is", null);
+    const results: Record<string, unknown>[] = [];
+    for (const it of (due || [])) {
+      const first = String(it.preferred_name || it.legal_first || it.invited_name || "").trim().split(/\s+/)[0];
+      // "Something else" reads badly inside "bring your ___"
+      const docs = it.i9_docs && !/^something else/i.test(String(it.i9_docs))
+        ? String(it.i9_docs)
+        : "ID and work-authorization documents";
+      const msg = "Good morning" + (first ? " " + first : "")
+        + ", we are excited to have you start today! Please remember to bring your "
+        + docs + " so we can complete your Form I-9 paperwork today.";
+      // dry_run composes and reports without sending — safe to exercise against
+      // real rows, and how the cron gets verified without texting anyone
+      if (body.dry_run) { results.push({ id: it.id, name: first, to: it.phone, store: it.invited_store, message: msg }); continue; }
+      let ok = false, err = "";
+      try {
+        const r = await fetch(SB_URL + "/functions/v1/messaging", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "send", to: it.phone, body: msg,
+            store: it.invited_store, template_key: "day_one",
+            agent_name: "MRT Onboarding",
+          }),
+        });
+        const j = await r.json().catch(() => ({}));
+        ok = r.ok && j.ok !== false;
+        if (!ok) err = String(j.error || r.status);
+      } catch (e) { err = String((e as Error).message || e); }
+      // stamp only on success, so a failure retries on the next run
+      if (ok) {
+        await admin.from("staff_intake")
+          .update({ dayone_sms_at: new Date().toISOString() })
+          .eq("id", it.id).is("dayone_sms_at", null);
+      }
+      results.push({ id: it.id, name: first, ok, ...(err ? { error: err } : {}) });
+    }
+    return json({ ok: true, date: today, considered: (due || []).length, results });
+  }
+
   if (action === "get") {
     const token = String(body.token || "");
     if (!token) return json({ error: "token required" }, 400);

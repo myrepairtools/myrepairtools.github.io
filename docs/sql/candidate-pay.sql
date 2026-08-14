@@ -37,3 +37,8 @@ alter table public.staff_intake add column if not exists start_date date;
 -- Two-stage hiring flow: the offer link ends at the signature, and signing
 -- fires a separate new-hire email (handbook + intake form + their signed PDF).
 alter table public.staff_intake add column if not exists newhire_sent_at timestamptz;
+
+-- Day-one SMS: 7:30am store-local on their start date, from the STORE's own
+-- RingCentral line (not the company alerts number), reminding them which I-9
+-- documents they told us they'd bring. Stamped so it can only fire once.
+alter table public.staff_intake add column if not exists dayone_sms_at timestamptz;
