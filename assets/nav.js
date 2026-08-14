@@ -741,8 +741,13 @@
   // build the contents of the collapsed-rail hover flyout for an area
   function flyoutLinksHtml(area){
     if (area === 'ops'){
+      /* the Tools sub-group lives under Operations (Label Resizer, Inventory
+         Editor, Get the Extension) — the retired white pane rendered it and the
+         flyout that replaced it did not, so those three vanished on desktop */
+      var opsTls = TOOLS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
       return '<div class="cpr-fly-hd">Operations</div>'
-        + OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
+        + OPERATIONS.filter(canSee).map(function(t){ return linkHtml(t); }).join('')
+        + (opsTls ? '<div class="cpr-fly-hd" style="margin-top:6px">Tools</div>' + opsTls : '');
     }
     if (area === 'order'){
       return '<div class="cpr-fly-hd">Ordering &amp; Inventory</div>'
