@@ -258,7 +258,7 @@ function draw(){
     +'</select><button class="ghost" onclick="location.href=\'onboarding-setup.html\'" style="padding:8px 12px">Module Setup ›</button>'
     +'<button class="ghost" onclick="location.href=\'kb-compliance.html\'" style="padding:8px 12px">Compliance ›</button>'
     +'<button class="btn" id="newHire">'+ic('plus',11)+' New candidate</button></div>'
-    +'<div style="font-size:.82rem;font-weight:700;color:var(--dark-grey);margin:-8px 0 14px">The hiring pipeline: send a candidate their offer — they sign it, sign the handbook, and fill out the new-hire form on one link → when it\'s all back, convert them to a New Employee (kicks off your back-office steps + their training). Day-to-day tracking after that lives on <a href="kb-compliance.html" style="color:var(--blued)">Compliance</a>.</div>';
+;
   const cands=intakes.filter(i=>!i.offer_declined_at);
   h+='<div class="stats">'
     +'<div class="stat"><div class="l">Candidates &amp; new hires</div><div class="v">'+(hires.length+cands.length)+'</div></div>'
@@ -383,10 +383,6 @@ function drawWiz(){
       +'<div class="f"><label>'+(sal?'Amount per month':'Amount per hour')+'</label>'
         +'<input id="wPayAmt" inputmode="decimal" placeholder="'+(sal?'3500.00':'16.00')+'" value="'+esc(CD.payAmt)+'"></div>'
       +'</div>'
-      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin:-6px 0 14px">'
-        +(sal?'Salary is always entered per month — the offer letter says “per month”.'
-             :'The offer letter says “per hour”.')
-        +(payLabel()?' The letter will read <b>'+esc(payLabel())+'</b>.':'')+'</div>'
       +'<div class="f" style="max-width:220px"><label>Commission</label><select id="wComm">'
         +'<option value="no"'+(CD.comm?'':' selected')+'>No</option>'
         +'<option value="yes"'+(CD.comm?' selected':'')+'>Yes</option></select></div>'
@@ -398,23 +394,21 @@ function drawWiz(){
             +'<input type="checkbox" id="wEarn_'+k+'"'+(CD.earns[k]?' checked':'')
             +' style="width:15px;height:15px;accent-color:var(--red)">'+EARN_LABELS[k]+'</label>').join('')
           +'</div>'
-          +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-top:9px">Sets their commission profile when you convert them — editable later on their Team Members page.</div>'
           +'</div>'
-        :'<div style="font-size:.78rem;font-weight:700;color:var(--grey2);padding:2px 0 8px">Base pay only — no commission profile is created.</div>');
+:'');
   }else if(CD.step===3){
     body='<label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;cursor:pointer;font-size:.82rem;font-weight:700">'
       +'<input type="checkbox" id="wDocs"'+(CD.docs?' checked':'')+' style="width:15px;height:15px;accent-color:var(--red)">'
       +'Offer letter + handbook to sign before the new-hire form</label>'
       +(CD.docs
-        ?'<div class="f"><label>Offer letter — this exact wording is what they sign ("# " and "## " make headings, "• " bullets)</label>'
+        ?'<div class="f"><label>Offer letter</label>'
           +'<textarea id="wTpl" style="min-height:260px"></textarea>'
-          +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-top:4px">Prefilled from your template with this candidate\'s details — edit anything. Step-1 fields update it until you type in here.</div></div>'
-        :'<div style="font-size:.8rem;font-weight:700;color:var(--grey2);padding:10px 0">No offer letter — their link goes straight to the new-hire form.</div>');
+          +'</div>'
+:'');
   }else if(CD.step===4){
     body=CD.docs
-      ?'<div style="font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-bottom:8px">This is the PDF they\'ll get — their personal signing link is added when it sends.</div>'
-        +'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:440px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
-      :'<div style="font-size:.85rem;font-weight:700;color:var(--grey2);padding:24px 0;text-align:center">No offer letter to preview — this link is form-only.</div>';
+      ?'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:440px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
+      :'<div style="font-size:.85rem;font-weight:700;color:var(--grey2);padding:24px 0;text-align:center">No offer letter to preview.</div>';
   }else{
     const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],
       ['Base pay',payLabel()||'—'],['Commission',commLabel()],
@@ -427,8 +421,7 @@ function drawWiz(){
           +(CD.docs&&CD.email?'<button class="btn" id="wEmailGo" style="background:var(--blued)">Email the offer — PDF attached</button>':'')
           +(e164ish(CD.phone)?'<button class="btn" id="wTextGo">Text the signing link</button>':'')
           +'</div><div id="wSendOut" style="font-size:.76rem;font-weight:700;color:var(--grey2);margin-top:8px"></div>'
-          +(CD.docs&&!CD.email?'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin-top:6px">No email on file — text or copy the link instead; the offer renders on their signing page.</div>':'')
-        :'<div style="font-size:.78rem;font-weight:700;color:var(--dark-grey)">Creating the candidate makes their personal link — then email the offer PDF, text the link, or copy it.</div>');
+:'');
   }
   const canBack=CD.step>1&&!CD.created;
   const footer='<div class="mact" style="align-items:center">'
