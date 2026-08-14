@@ -320,10 +320,14 @@ function e164ish(v){const d=String(v||'').replace(/\D/g,'');
 /* Pay sits BEFORE the offer letter on purpose — the letter interpolates
    {pay}/{commission}, so it can't be written until pay is settled. */
 const WSTEPS=[['Candidate','Who you\'re hiring'],['Pay','Rate & commission'],['Access','Role & stores'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+/* Exactly the two levels the permission system actually has. my_permissions()
+   folds 'manager' into 'admin' and 'employee' into 'team_member', so offering a
+   separate Manager tier would have been a third choice that granted nothing
+   different from Admin. Permissions themselves are edited per ROLE in
+   Settings -> Roles & Permissions; there is no per-person override anywhere. */
 const MRT_ROLES=[
-  {v:'employee',t:'Team Member',n:'The shop tools \u2014 tickets, checklist, their own schedule and commission.'},
-  {v:'manager', t:'Manager',    n:'Adds scheduling, time off approvals, task admin and store reporting.'},
-  {v:'admin',   t:'Admin',      n:'Everything a manager has, plus cash admin, employee records and settings.'}];
+  {v:'employee',t:'Team Member',n:'Cash tracker, pricing, ordering, damage tracker, their own schedule, checklist and commission. Earns accessory and device commission.'},
+  {v:'admin',   t:'Admin',      n:'All of that plus cash admin, expenses, claim ledger, employee records, schedule and checklist admin, settings, and assigning people access.'}];
 const EARN_LABELS={accessory:'Accessories',device:'Devices',services:'Services'};
 let CD=null;
 function openNewHire(){
@@ -481,7 +485,7 @@ function drawWiz(){
     const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],
       ['Base pay',payLabel()||'—'],['Commission',commLabel()],
       ['Start',startLabel()||'—'],
-      ['Role',(MRT_ROLES.filter(r=>r.v===CD.role)[0]||{}).t||CD.role],
+      ['Role',((MRT_ROLES.filter(r=>r.v===CD.role)[0]||{}).t||CD.role)],
       ['Stores',['CPR '+shortStore(CD.store)].concat(CD.stores.map(x=>'CPR '+shortStore(x))).join(', ')],
       ['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Sending',CD.docs?'Offer letter':'New-hire form only']];
     body='<div style="border:1px solid #F0F1F4;border-radius:10px;padding:8px 12px;margin-bottom:12px">'

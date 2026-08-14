@@ -798,7 +798,7 @@ Deno.serve(async (req) => {
       // structured pay; `pay` above stays the rendered line the offer letter shows
       pay_type: ["hourly", "salary"].includes(String(body.pay_type)) ? String(body.pay_type) : null,
       pay_amount: Number(body.pay_amount) > 0 ? Number(body.pay_amount) : null,
-      mrt_role: ["employee", "manager", "admin"].includes(String(body.mrt_role)) ? String(body.mrt_role) : "employee",
+      mrt_role: ["employee", "admin"].includes(String(body.mrt_role)) ? String(body.mrt_role) : "employee",
       authorized_stores: Array.isArray(body.authorized_stores)
         ? (body.authorized_stores as unknown[]).map(String).slice(0, 20) : null,
       commission: !!body.commission,
@@ -856,7 +856,7 @@ Deno.serve(async (req) => {
         last_name: it.legal_last || null,
         preferred_name: it.preferred_name || null,
         birthday: it.dob || null,
-        role: ["employee", "manager", "admin"].includes(String(it.mrt_role)) ? it.mrt_role : "employee",
+        role: ["employee", "admin"].includes(String(it.mrt_role)) ? it.mrt_role : "employee",
         home_store: it.invited_store || null,
         authorized_stores: Array.isArray(it.authorized_stores) && it.authorized_stores.length
           ? it.authorized_stores : null,
