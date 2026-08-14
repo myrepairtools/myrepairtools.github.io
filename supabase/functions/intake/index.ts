@@ -440,6 +440,21 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
   }
 }
 
+/* House convention: first initial + last name, lowercase (bbay, kfarnworth).
+   Cash Admin still identifies people by username, so a hire without one lands
+   in Team Members wearing a "Needs setup" chip — convert fills it instead. */
+async function freeUsername(first: string, last: string): Promise<string | null> {
+  const clean = (x: string) => x.toLowerCase().replace(/[^a-z]/g, "");
+  const base = (clean(first).slice(0, 1) + clean(last)) || clean(first);
+  if (!base) return null;
+  for (let i = 0; i < 20; i++) {
+    const tryName = i ? base + (i + 1) : base;
+    const { data } = await admin.from("staff").select("id").ilike("username", tryName).limit(1).maybeSingle();
+    if (!data) return tryName;
+  }
+  return null;
+}
+
 /* Archive the signed paperwork onto the PERSON.
 
    The intake row is a hiring record — it disappears from the Onboarding board
@@ -975,9 +990,11 @@ Deno.serve(async (req) => {
         || String(it.invited_name || "").trim();
       if (!nm) return json({ error: "no_name" }, 400);
       const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin)) : null;
+      const username = await freeUsername(String(it.legal_first || nm), String(it.legal_last || ""));
       if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
       const { data: made, error: cerr } = await admin.from("staff").insert({
         display_name: nm,
+        username,
         first_name: it.legal_first || null,
         last_name: it.legal_last || null,
         preferred_name: it.preferred_name || null,

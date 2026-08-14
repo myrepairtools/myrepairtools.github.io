@@ -540,7 +540,7 @@ function discussedLine(x){
 async function load(){
   const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
   const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes,soRes,spRes,dcRes]=await Promise.all([
-    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records,wage_type,birthday,terminated_at,termination_reason,termination_note,rehire_eligible,terminated_by'),
+    sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records,wage_type,birthday,has_pin,terminated_at,termination_reason,termination_note,rehire_eligible,terminated_by'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
     sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active,raw,last_synced'),
@@ -564,7 +564,7 @@ async function load(){
   (stRes.data||[]).forEach(s=>{byId[s.id]={
     id:s.id,name:s.display_name,preferred:s.preferred_name||'',role:s.title||roleLabel(s.role),store:stripStore(s.home_store),
     title:s.title||'',roleLevel:s.role,homeStore:s.home_store,first:s.first_name||'',last:s.last_name||'',
-    username:s.username||'',hrStatus:s.hr_status||'active',notes:s.notes||'',hideFromRecords:!!s.hide_from_records,wageType:s.wage_type||'hourly',
+    username:s.username||'',hasPin:s.has_pin!==false,hrStatus:s.hr_status||'active',notes:s.notes||'',hideFromRecords:!!s.hide_from_records,wageType:s.wage_type||'hourly',
     start:isoOf(s.start_date),birthday:isoOf(s.birthday),authorizedStores:(s.authorized_stores||[]).slice(),
     terminatedAt:isoOf(s.terminated_at),terminationReason:s.termination_reason||'',terminationNote:s.termination_note||'',
     rehireEligible:s.rehire_eligible!==false,terminatedBy:s.terminated_by||null,
@@ -679,15 +679,16 @@ function relTime(ts){
 /* ----- landing (1a active · 3a terminated · 3b sync states · 3e mobile) ----- */
 function landingRow(e,pinned){
   const term=S.seg==='terminated';
-  const needsSetup=!term&&(!e.username||!e.homeStore);
+  /* what actually stops someone working: no store, no PIN (can't sign in), or
+     no username (cash-admin still identifies people by it) */
+  const missing=[!e.homeStore?'no store yet':'',!e.hasPin?'no PIN':'',!e.username?'no username':''].filter(Boolean);
+  const needsSetup=!term&&missing.length>0;
   const avStyle='background:'+e.avatarBg+(term?';opacity:.55':'');
   const nmStyle=term?'color:var(--dark-grey)':'';
   const chips=(e.authorizedStores||[]).map(s=>'<span class="tm-chip">'+esc(stripStore(s))+'</span>').join('');
   const pin=pinned?'<span class="pinchip" title="Pinned to top">Pinned</span>':'';
   const setup=needsSetup?'<span class="setupchip">Needs setup</span>':'';
-  const sub=needsSetup
-    ?[!e.username?'no username':'', 'no PIN', !e.homeStore?'no store yet':''].filter(Boolean).join(' · ')
-    :(e.username?('@'+e.username):'—');
+  const sub=needsSetup?missing.join(' · '):(e.username?('@'+e.username):'—');
   let tds='<td data-cell="emp"><div class="who">'+avTile(e,'av avatar',avStyle)
     +'<span><span class="nm" style="'+nmStyle+'">'+esc(e.name)+pin+setup+'</span><span class="un">'+esc(sub)+'</span></span></div></td>'
     +'<td data-label="Role" style="color:var(--grey);font-weight:600">'+esc(roleLabel(e.roleLevel))+'</td>'

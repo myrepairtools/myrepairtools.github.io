@@ -82,3 +82,9 @@ create policy hr_staff_docs_update on storage.objects for update to authenticate
 drop policy if exists hr_staff_docs_delete on storage.objects;
 create policy hr_staff_docs_delete on storage.objects for delete to authenticated
   using (bucket_id = 'hr-private' and (storage.foldername(name))[1] = 'staff' and is_owner());
+
+-- "Needs setup" on the Team Members roster used to hard-code "no PIN" in its
+-- sub-line whether or not a PIN existed. It reads the real state now, which
+-- needs a safe way to ask — the hash itself must never leave the server.
+alter table public.staff
+  add column if not exists has_pin boolean generated always as (pin_hash is not null) stored;
