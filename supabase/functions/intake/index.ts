@@ -587,6 +587,17 @@ Deno.serve(async (req) => {
       invited_store: s("invited_store", 60),
       invited_by: mgr.id,
       position: s("position", 80), pay: s("pay", 120), start_hint: s("start_hint", 60),
+      // structured pay; `pay` above stays the rendered line the offer letter shows
+      pay_type: ["hourly", "salary"].includes(String(body.pay_type)) ? String(body.pay_type) : null,
+      pay_amount: Number(body.pay_amount) > 0 ? Number(body.pay_amount) : null,
+      commission: !!body.commission,
+      commission_earns: body.commission && body.commission_earns
+        ? {
+          accessory: !!body.commission_earns.accessory,
+          device: !!body.commission_earns.device,
+          services: !!body.commission_earns.services,
+        }
+        : null,
       offer_body: body.offer_body == null ? null : String(body.offer_body).slice(0, 8000) || null,
       phone: s("phone", 30), personal_email: s("personal_email"),
     }).select("id, token").single();
@@ -633,6 +644,24 @@ Deno.serve(async (req) => {
       emergency: prof?.emergency || it.emergency || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "staff_id" });
+    // commission profile from the wizard's Pay step. earns_override is exactly
+    // {accessory,device,services} (assets/commission-engine.js), so it carries
+    // over as-is. Only written when the row doesn't already have a profile —
+    // a roster row edited by hand on Team Members always wins.
+    if (it.pay_type || it.commission) {
+      const { data: existing } = await admin.from("commission_roster")
+        .select("staff_id").eq("staff_id", staffId).maybeSingle();
+      if (!existing) {
+        const earns = it.commission
+          ? (it.commission_earns || { accessory: true, device: true, services: true })
+          : { accessory: false, device: false, services: false };
+        await admin.from("commission_roster").insert({
+          staff_id: staffId,
+          commission_active: !!it.commission,
+          earns_override: earns,
+        });
+      }
+    }
     await admin.from("staff_intake").update({
       status: "promoted", promoted_staff_id: staffId, promoted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq("id", intakeId);

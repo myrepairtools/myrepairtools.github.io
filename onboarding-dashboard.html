@@ -176,10 +176,24 @@ function gapsFor(p){
 function draw(){
   const hires=STAFF.filter(p=>isNewHire(p)).filter(p=>STORE==='all'||p.home_store===STORE);
   const intakes=INTAKES.filter(i=>STORE==='all'||!i.invited_store||i.invited_store===STORE);
-  const inTraining=hires.filter(p=>ASSIGNS.some(a=>a.staff_id===p.id));
   let waitingItems=0,pastDueN=0;
   const rows=[];
-  inTraining.forEach(p=>{
+  /* EVERY new hire gets a row — including one with no module assigned yet.
+     They used to be filtered out here while still counting toward the tiles,
+     so a hire nobody had assigned training to showed up as a number with no
+     one in the list, which is exactly the person you most need to see. */
+  hires.forEach(p=>{
+    const g0=gapsFor(p);
+    if(!ASSIGNS.some(a=>a.staff_id===p.id)){
+      const setup0=(g0.gaps?g0.gaps+' gap'+(g0.gaps>1?'s':''):'')+(g0.gaps&&g0.todo?' · ':'')+(g0.todo?g0.todo+' to do':'')||'ready';
+      rows.push('<tr><td><div class="pname">'+esc(p.display_name)+'</div><div class="psub">'
+        +esc(p.role==='employee'?'Tech':p.role)+' · CPR '+esc(shortStore(p.home_store||''))+'</div></td>'
+        +'<td><span class="stage review">Needs training assigned</span></td>'
+        +'<td style="font-weight:700">'+esc(setup0)+'</td>'
+        +'<td style="font-weight:700;color:var(--grey2)">No modules assigned</td>'
+        +'<td style="text-align:right"><button class="ghost" data-panel="'+p.id+'">Assign training ›</button></td></tr>');
+      return;
+    }
     const mods=personTrack(p);
     const total=mods.reduce((n,m)=>n+m.total,0),done=mods.reduce((n,m)=>n+m.done,0);
     const pd=mods.filter(m=>m.pastDue);
@@ -246,7 +260,7 @@ function draw(){
     +'<div class="stat"><div class="l">Waiting on a manager</div><div class="v">'+waitingItems+' item'+(waitingItems===1?'':'s')+'</div></div>'
     +'<div class="stat'+(pastDueN?' red':'')+'"><div class="l">Past due</div><div class="v">'+pastDueN+' module'+(pastDueN===1?'':'s')+'</div></div></div>';
   h+='<div class="tcard"><table><thead><tr><th>New hire</th><th>Stage</th><th>Setup</th><th>Training</th><th></th></tr></thead><tbody>'
-    +(rows.length?rows.join(''):'<tr><td colspan="5"><div class="empty">No active new hires — send an intake link to start one.</div></td></tr>')
+    +(rows.length?rows.join(''):'<tr><td colspan="5"><div class="empty">No candidates or new hires right now — “New candidate” starts one.</div></td></tr>')
     +'</tbody></table></div>';
   h+='<div class="caption">People drop off this list when setup is complete and all modules finish — ongoing compliance stays on the Compliance page.</div>';
   $('#page').innerHTML=h;
@@ -278,16 +292,35 @@ function e164ish(v){const d=String(v||'').replace(/\D/g,'');
   if(d.length===10)return '+1'+d;if(d.length===11&&d[0]==='1')return '+'+d;
   const t=String(v||'').trim();return t.startsWith('+')&&d.length>=11?t:null;}
 /* ---- New Candidate wizard (workflow-style, like the Checklist Template wizard) ---- */
-const WSTEPS=[['Candidate','Who you\'re hiring'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+/* Pay sits BEFORE the offer letter on purpose — the letter interpolates
+   {pay}/{commission}, so it can't be written until pay is settled. */
+const WSTEPS=[['Candidate','Who you\'re hiring'],['Pay','Rate & commission'],['Offer Letter','What they sign'],['Preview','The PDF they get'],['Send','Create & deliver']];
+const EARN_LABELS={accessory:'Accessories',device:'Devices',services:'Services'};
 let CD=null;
 function openNewHire(){
-  CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',pay:'',start:'',
+  CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',start:'',
+    payType:'hourly',payAmt:'',comm:false,earns:{accessory:true,device:true,services:true},
     phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null};
   drawWiz();
   $('#mask').classList.add('show');
 }
+function money(n){ return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+/* The rendered pay line. This string is what lands in the offer letter and is
+   frozen into offer_body — the structured columns are for us, not the PDF. */
+function payLabel(){
+  const n=parseFloat(CD.payAmt);
+  if(!(n>0))return '';
+  return money(n)+(CD.payType==='salary'?' per month':' per hour');
+}
+function commLabel(){
+  if(!CD.comm)return 'No commission';
+  const on=Object.keys(EARN_LABELS).filter(k=>CD.earns[k]);
+  if(!on.length)return 'No commission';
+  return 'Commission on '+on.map(k=>EARN_LABELS[k].toLowerCase()).join(', ');
+}
 function buildOffer(){
-  const v={name:CD.name,position:CD.pos,pay:CD.pay,store:'CPR '+shortStore(CD.store),start:CD.start};
+  const v={name:CD.name,position:CD.pos,pay:payLabel(),commission:commLabel(),
+    store:'CPR '+shortStore(CD.store),start:CD.start};
   let b=OFFER_TPL||'';
   Object.keys(v).forEach(k=>{if(v[k])b=b.split('{'+k+'}').join(v[k]);});
   return b;
@@ -297,12 +330,17 @@ function grabWiz(){
     CD.name=($('#wName')||{value:CD.name}).value.trim();
     CD.store=($('#wStore')||{value:CD.store}).value;
     CD.pos=($('#wPos')||{value:CD.pos}).value.trim();
-    CD.pay=($('#wPay')||{value:CD.pay}).value.trim();
     CD.start=($('#wStart')||{value:CD.start}).value.trim();
     CD.phone=($('#wPhone')||{value:CD.phone}).value.trim();
     CD.email=($('#wEmail')||{value:CD.email}).value.trim();
   }
   if(CD.step===2){
+    const pt=$('#wPayType');if(pt)CD.payType=pt.value;
+    const pa=$('#wPayAmt');if(pa)CD.payAmt=pa.value.trim();
+    const cm=$('#wComm');if(cm)CD.comm=cm.value==='yes';
+    Object.keys(EARN_LABELS).forEach(k=>{const b=$('#wEarn_'+k);if(b)CD.earns[k]=b.checked;});
+  }
+  if(CD.step===3){
     const dc=$('#wDocs');if(dc)CD.docs=dc.checked;
     const ta=$('#wTpl');if(ta)CD.body=ta.value;
   }
@@ -319,12 +357,38 @@ function drawWiz(){
       +'<div class="f"><label>Store</label><select id="wStore">'
       +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(CD.store===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
       +'<div class="f"><label>Position</label><input id="wPos" placeholder="Cell Phone Repair Technician…" value="'+esc(CD.pos)+'"></div>'
-      +'<div class="f"><label>Base pay</label><input id="wPay" placeholder="$16.00 per hour" value="'+esc(CD.pay)+'"></div>'
       +'<div class="f"><label>Proposed start</label><input id="wStart" placeholder="Monday, August 24" value="'+esc(CD.start)+'"></div>'
       +'<div class="f"><label>Mobile</label><input id="wPhone" inputmode="tel" placeholder="(555) 555-5555" value="'+esc(CD.phone)+'"></div>'
-      +'</div>'
-      +'<div class="f"><label>Email (for the offer PDF)</label><input id="wEmail" inputmode="email" placeholder="them@example.com" value="'+esc(CD.email)+'"></div>';
+      +'<div class="f"><label>Email (for the offer PDF)</label><input id="wEmail" inputmode="email" placeholder="them@example.com" value="'+esc(CD.email)+'"></div>'
+      +'</div>';
   }else if(CD.step===2){
+    const sal=CD.payType==='salary';
+    body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+      +'<div class="f"><label>Pay type</label><select id="wPayType">'
+        +'<option value="hourly"'+(sal?'':' selected')+'>Hourly</option>'
+        +'<option value="salary"'+(sal?' selected':'')+'>Salary</option></select></div>'
+      +'<div class="f"><label>'+(sal?'Amount per month':'Amount per hour')+'</label>'
+        +'<input id="wPayAmt" inputmode="decimal" placeholder="'+(sal?'3500.00':'16.00')+'" value="'+esc(CD.payAmt)+'"></div>'
+      +'</div>'
+      +'<div style="font-size:.72rem;font-weight:700;color:var(--grey);margin:-6px 0 14px">'
+        +(sal?'Salary is always entered per month — the offer letter says “per month”.'
+             :'The offer letter says “per hour”.')
+        +(payLabel()?' The letter will read <b>'+esc(payLabel())+'</b>.':'')+'</div>'
+      +'<div class="f" style="max-width:220px"><label>Commission</label><select id="wComm">'
+        +'<option value="no"'+(CD.comm?'':' selected')+'>No</option>'
+        +'<option value="yes"'+(CD.comm?' selected':'')+'>Yes</option></select></div>'
+      +(CD.comm
+        ?'<div style="border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:2px">'
+          +'<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--grey);margin-bottom:8px">Earns commission on</div>'
+          +'<div style="display:flex;gap:18px;flex-wrap:wrap">'
+          +Object.keys(EARN_LABELS).map(k=>'<label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:.84rem;font-weight:700">'
+            +'<input type="checkbox" id="wEarn_'+k+'"'+(CD.earns[k]?' checked':'')
+            +' style="width:15px;height:15px;accent-color:var(--red)">'+EARN_LABELS[k]+'</label>').join('')
+          +'</div>'
+          +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-top:9px">Sets their commission profile when you convert them — editable later on their Team Members page.</div>'
+          +'</div>'
+        :'<div style="font-size:.78rem;font-weight:700;color:var(--grey2);padding:2px 0 8px">Base pay only — no commission profile is created.</div>');
+  }else if(CD.step===3){
     body='<label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;cursor:pointer;font-size:.82rem;font-weight:700">'
       +'<input type="checkbox" id="wDocs"'+(CD.docs?' checked':'')+' style="width:15px;height:15px;accent-color:var(--red)">'
       +'Offer letter + handbook to sign before the new-hire form</label>'
@@ -333,13 +397,14 @@ function drawWiz(){
           +'<textarea id="wTpl" style="min-height:260px"></textarea>'
           +'<div style="font-size:.7rem;font-weight:700;color:var(--grey);margin-top:4px">Prefilled from your template with this candidate\'s details — edit anything. Step-1 fields update it until you type in here.</div></div>'
         :'<div style="font-size:.8rem;font-weight:700;color:var(--grey2);padding:10px 0">No offer letter — their link goes straight to the new-hire form.</div>');
-  }else if(CD.step===3){
+  }else if(CD.step===4){
     body=CD.docs
       ?'<div style="font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-bottom:8px">This is the PDF they\'ll get — their personal signing link is added when it sends.</div>'
         +'<div id="wPdfBox" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;height:440px;background:#F7F7F9;display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800">Building preview…</div>'
       :'<div style="font-size:.85rem;font-weight:700;color:var(--grey2);padding:24px 0;text-align:center">No offer letter to preview — this link is form-only.</div>';
   }else{
-    const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],['Base pay',CD.pay||'—'],
+    const rows=[['Candidate',CD.name||'—'],['Store','CPR '+shortStore(CD.store)],['Position',CD.pos||'—'],
+      ['Base pay',payLabel()||'—'],['Commission',commLabel()],
       ['Start',CD.start||'—'],['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Docs',CD.docs?'Offer + handbook + form':'Form only']];
     body='<div style="border:1px solid #F0F1F4;border-radius:10px;padding:8px 12px;margin-bottom:12px">'
       +rows.map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')+'</div>'
@@ -354,9 +419,9 @@ function drawWiz(){
   }
   const canBack=CD.step>1&&!CD.created;
   const footer='<div class="mact" style="align-items:center">'
-    +'<div style="flex:1;font-size:.72rem;font-weight:800;color:var(--grey)">Step '+CD.step+' of 4</div>'
+    +'<div style="flex:1;font-size:.72rem;font-weight:800;color:var(--grey)">Step '+CD.step+' of '+WSTEPS.length+'</div>'
     +(canBack?'<button class="btn alt" id="wBack">Back</button>':'<button class="btn alt" id="wClose">'+(CD.created?'Done':'Cancel')+'</button>')
-    +(CD.step<4?'<button class="btn" id="wNext">Next</button>'
+    +(CD.step<WSTEPS.length?'<button class="btn" id="wNext">Next</button>'
       :(CD.created?'':'<button class="btn" id="wCreate">Create candidate &amp; link</button>'))
     +'</div>';
   $('#mdl').style.maxWidth='640px';
@@ -365,6 +430,13 @@ function drawWiz(){
 }
 function wireWiz(){
   if(CD.step===2){
+    /* pay type and the commission Yes/No both change what the step shows, so
+       they redraw; grabWiz() first so nothing typed above is lost */
+    $('#wPayType').onchange=()=>{grabWiz();drawWiz();};
+    $('#wComm').onchange=()=>{grabWiz();drawWiz();};
+    const pa=$('#wPayAmt');if(pa)pa.oninput=()=>{CD.payAmt=pa.value.trim();};
+  }
+  if(CD.step===3){
     $('#wDocs').onchange=e=>{grabWiz();CD.docs=e.target.checked;drawWiz();};
     const ta=$('#wTpl');
     if(ta){
@@ -373,7 +445,7 @@ function wireWiz(){
       ta.oninput=()=>{CD.tplDirty=true;CD.body=ta.value;};
     }
   }
-  if(CD.step===3&&CD.docs)buildPdfPreview();
+  if(CD.step===4&&CD.docs)buildPdfPreview();
   const bk=$('#wBack');if(bk)bk.onclick=()=>{grabWiz();CD.step--;drawWiz();};
   const cl=$('#wClose');if(cl)cl.onclick=async()=>{
     $('#mask').classList.remove('show');$('#mdl').style.maxWidth='';
@@ -382,8 +454,13 @@ function wireWiz(){
   const nx=$('#wNext');if(nx)nx.onclick=()=>{
     grabWiz();
     if(CD.step===1&&!CD.name){toast('Give the candidate a name.',true);return;}
-    if(CD.step===2&&CD.docs&&!CD.body.trim()){toast('The offer letter is empty.',true);return;}
-    if(CD.step===2&&!CD.tplDirty)CD.body=buildOffer();
+    if(CD.step===2){
+      if(!(parseFloat(CD.payAmt)>0)){toast('Enter the pay amount.',true);return;}
+      if(CD.comm&&!Object.keys(EARN_LABELS).some(k=>CD.earns[k])){
+        toast('Pick at least one thing they earn commission on — or set Commission to No.',true);return;}
+    }
+    if(CD.step===3&&CD.docs&&!CD.body.trim()){toast('The offer letter is empty.',true);return;}
+    if(CD.step===3&&!CD.tplDirty)CD.body=buildOffer();
     CD.step++;drawWiz();
   };
   const cr=$('#wCreate');if(cr)cr.onclick=createCandidate;
@@ -410,7 +487,9 @@ async function createCandidate(){
   const b=$('#wCreate');b.disabled=true;b.textContent='Creating…';
   const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
     body:JSON.stringify({action:'create',invited_name:CD.name,invited_store:CD.store,
-      position:CD.pos,pay:CD.pay,start_hint:CD.start,
+      position:CD.pos,pay:payLabel(),start_hint:CD.start,
+      pay_type:CD.payType,pay_amount:parseFloat(CD.payAmt)||null,
+      commission:CD.comm,commission_earns:CD.comm?CD.earns:null,
       offer_body:CD.docs?CD.body:null,
       phone:e164ish(CD.phone)||CD.phone||null,
       personal_email:CD.email||null})});
@@ -463,7 +542,11 @@ function openReview(id){
   $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+(declined?' — declined':' — candidate')+'</h2>'
     +(declined?'<div style="background:var(--redbg);border-radius:9px;padding:9px 12px;font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:10px">'
       +'Declined the offer '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' — “'+esc(i.decline_note)+'”':'')+'</div>':'')
-    +rv('Position',i.position)+rv('Pay',i.pay)+rv('Start',i.start_hint)
+    +rv('Position',i.position)+rv('Pay',i.pay)
+    +rv('Commission',i.commission
+      ?('Yes — '+Object.keys(EARN_LABELS).filter(k=>(i.commission_earns||{})[k]).map(k=>EARN_LABELS[k].toLowerCase()).join(', ')||'Yes')
+      :(i.pay_type?'No':''))
+    +rv('Start',i.start_hint)
     +(docs?sig('Offer',i.offer_signature,i.offer_signed_name,i.offer_signed_at)
       +sig('Handbook',i.handbook_signature,i.handbook_signed_name,i.handbook_signed_at)
       +(i.offer_signed_at?'<div style="margin:8px 0 4px"><button class="ghost" id="rvPdf">⬇ Signed offer (PDF)</button></div>':''):'')
