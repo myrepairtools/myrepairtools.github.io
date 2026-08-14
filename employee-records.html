@@ -246,6 +246,9 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .dwrap{max-width:760px;margin:0 auto;padding:22px 26px 60px}
 .dcard{background:#fff;border:1px solid var(--border);border-radius:11px;box-shadow:0 1px 3px rgba(45,45,59,.05);padding:22px 24px}
 .dcard.stripe{border-top-width:3px;border-top-style:solid}
+.drow{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--border)}
+.drow:last-of-type{border-bottom:none}
+@media(max-width:560px){.drow{flex-wrap:wrap}.drow>div:first-child{flex:1 0 100%}}
 .dbadges{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px}
 .dcatchip{display:inline-flex;align-items:center;gap:5px;font-family:'Nunito';font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.4px;border-radius:5px;padding:3px 8px}
 .dtitle{font-family:'Nunito';font-weight:900;font-size:1.4rem;letter-spacing:-.3px;line-height:1.2;margin:0 0 8px}
@@ -382,6 +385,7 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
       <button class="tab" data-tab="log">Log <span class="badge" data-logbadge style="color:var(--dark-grey);background:var(--light-grey)" hidden></span></button>
       <button class="tab" data-tab="pips">PIPs &amp; Reviews <span class="badge amber" data-pipbadge hidden></span></button>
       <button class="tab" data-tab="damage">Tech Damage <span class="badge blue" data-dmgbadge hidden></span></button>
+      <button class="tab" data-tab="docs">Documents <span class="badge" data-docbadge style="color:var(--dark-grey);background:var(--light-grey)" hidden></span></button>
       <span class="tabdiv"></span>
       <button class="tab" data-tab="time">Time</button>
       <button class="tab" data-tab="pto">PTO</button>
@@ -464,6 +468,7 @@ let JOBCODES={};   // qbt jobcode id -> {name,type} (for labeling PTO balances)
 let TSBYSTAFF={};  // staff_id -> [{biz_date,seconds,on_the_clock}] (recent time entries)
 let STORES=[];     // stores table rows (display_order drives grouping)
 let PROFILES={};   // staff_id -> {phone, personal_email} (staff_profiles — the SMS source of truth)
+let DOCS=[];       // staff_documents rows (the HR file — signed paperwork + hand-filed uploads)
 let SYNCED_AT=null; // newest qbtime_users.last_synced (the "✓ Synced Xm ago" pill)
 /* commission config (mirrors settings.html's member editor + commission-summary.js) */
 let CRATES=[], CRULES={}, CSTORERATES={}, CROSTER={}, CROLEOVER={};
@@ -534,7 +539,7 @@ function discussedLine(x){
 }
 async function load(){
   const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
-  const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes,soRes,spRes]=await Promise.all([
+  const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes,soRes,spRes,dcRes]=await Promise.all([
     sb.from('staff').select('id,display_name,preferred_name,first_name,last_name,username,title,role,home_store,authorized_stores,start_date,hr_status,notes,archived,active,hide_from_records,wage_type,birthday,terminated_at,termination_reason,termination_note,rehire_eligible,terminated_by'),
     sb.from('staff_entries').select('*'),
     sb.from('staff_pips').select('*'),
@@ -544,6 +549,7 @@ async function load(){
     sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,note,submitted_at'),
     sb.from('stores').select('store,display_order,active').order('display_order'),
     sb.from('staff_profiles').select('staff_id,phone,personal_email,photo_path'),
+    sb.from('staff_documents').select('*').eq('deleted',false).order('created_at',{ascending:false}),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
   QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row + PTO balances (raw)
@@ -552,6 +558,7 @@ async function load(){
   TSBYSTAFF={}; ((tsRes&&tsRes.data)||[]).forEach(t=>{ if(t.staff_id==null)return; (TSBYSTAFF[t.staff_id]||(TSBYSTAFF[t.staff_id]=[])).push(t); });
   STORES=(soRes&&soRes.data)||[];
   PROFILES={}; ((spRes&&spRes.data)||[]).forEach(p=>{PROFILES[p.staff_id]={phone:p.phone||'',email:p.personal_email||'',photo_path:p.photo_path||''};});
+  DOCS=(dcRes&&dcRes.data)||[];
   loadCommissionCfg();   // async, only the Commission tab needs it
   const byId={};
   (stRes.data||[]).forEach(s=>{byId[s.id]={
@@ -652,7 +659,7 @@ function writeHash(){
 }
 function parseHash(){
   const h=location.hash.replace('#','');
-  const TABS=['profile','log','pips','damage','time','pto','commission'];
+  const TABS=['profile','log','pips','damage','docs','time','pto','commission'];
   if(h.slice(0,2)==='e='){
     const parts=h.slice(2).split('/');
     const raw=parts[0],id=(raw!==''&&!isNaN(+raw))?+raw:raw;
@@ -838,8 +845,9 @@ function renderProfileHead(){
 function renderTabs(){
   const e=selEmp();
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===S.tab));
-  const lb=$('[data-logbadge]'),pb=$('[data-pipbadge]'),db=$('[data-dmgbadge]');
-  const nl=e?e.entries.length:0,np=e?e.pips.length:0,nd=e?dmgFor(e).length:0;
+  const lb=$('[data-logbadge]'),pb=$('[data-pipbadge]'),db=$('[data-dmgbadge]'),ob=$('[data-docbadge]');
+  const nl=e?e.entries.length:0,np=e?e.pips.length:0,nd=e?dmgFor(e).length:0,no=e?docsFor(e.id).length:0;
+  if(no>0){ob.textContent=no;ob.hidden=false;}else ob.hidden=true;
   if(nl>0){lb.textContent=nl;lb.hidden=false;}else lb.hidden=true;
   if(np>0){pb.textContent=np;pb.hidden=false;}else pb.hidden=true;
   if(nd>0){db.textContent=nd;db.hidden=false;}else db.hidden=true;
@@ -855,6 +863,7 @@ function renderWork(){
   else if(S.tab==='time')w.innerHTML=timeHtml(e);
   else if(S.tab==='pto')w.innerHTML=ptoHtml(e);
   else if(S.tab==='pips')w.innerHTML=pipHtml(e);
+  else if(S.tab==='docs'){w.innerHTML=docsHtml(e);wireDocsTab(e);}
   else w.innerHTML=dmgHtml(e);
   const dp=w.querySelector('.detail-pane');if(dp)dp.classList.toggle('show',S.mDetail);
 }
@@ -1439,6 +1448,92 @@ function richText(v){
   const s=String(v==null?'':v);
   if(/<[a-z][\s\S]*>/i.test(s))return s;            // already HTML
   return esc(s).replace(/\n/g,'<br>');
+}
+
+
+/* ----- Documents: the HR file (docs/sql/staff-documents.sql) -----
+   Signed paperwork is frozen to a PDF at conversion and filed against the
+   PERSON, so it survives the hiring record it came from. Files live in the
+   private hr-private bucket; the page never holds a public URL — it mints a
+   short-lived signed one per download. */
+const DOC_KIND={offer:'Offer letter',handbook:'Handbook',intake_form:'New-hire form',upload:'Filed'};
+function docsFor(id){return DOCS.filter(d=>String(d.staff_id)===String(id));}
+function docRow(d){
+  const kind=DOC_KIND[d.kind]||d.kind;
+  const when=d.signed_at?('Signed '+fmt(isoOf(d.signed_at))):('Added '+fmt(isoOf(d.created_at)));
+  const by=d.kind==='upload'&&d.uploaded_by_name?(' · '+esc(d.uploaded_by_name)):'';
+  return '<div class="drow" data-doc="'+esc(d.id)+'">'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.9rem">'+esc(d.title)+'</div>'
+      +'<div class="rl" style="margin-top:2px">'+esc(when)+by+'</div></div>'
+    +'<span class="tbadge" style="background:var(--light-grey);color:var(--dark-grey)">'+esc(kind)+'</span>'
+    +'<button class="btn-o" data-docact="open">Open</button>'
+    +(AUTH&&AUTH.role==='owner'?'<button class="btn-o del" data-docact="del">Remove</button>':'')
+    +'</div>';
+}
+function docsHtml(e){
+  const rows=docsFor(e.id).map(docRow).join('');
+  return '<div class="dwrap"><div class="dcard">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      +'<div class="sect-lbl" style="margin:0">Documents</div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button class="btn-o" data-act="doc-refile">Re-file signed paperwork</button>'
+      +'<button class="btn-red" style="padding:7px 13px;font-size:.74rem" data-act="doc-upload">+ Add a document</button></div></div>'
+    +(rows||'<div class="empty-sm">Nothing on file yet.</div>')
+    +'<input type="file" id="docFile" accept="application/pdf,image/*" hidden></div></div>';
+}
+function wireDocsTab(e){
+  const w=$('#work');
+  const inp=w.querySelector('#docFile');
+  w.querySelectorAll('[data-act="doc-upload"]').forEach(b=>b.onclick=()=>inp.click());
+  w.querySelectorAll('[data-act="doc-refile"]').forEach(b=>b.onclick=()=>refileDocs(e,b));
+  if(inp)inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)uploadDoc(e,f);inp.value='';};
+  w.querySelectorAll('.drow').forEach(r=>{
+    const d=DOCS.find(x=>String(x.id)===r.dataset.doc);if(!d)return;
+    const op=r.querySelector('[data-docact="open"]');if(op)op.onclick=()=>openDoc(d,op);
+    const dl=r.querySelector('[data-docact="del"]');if(dl)dl.onclick=()=>removeDoc(d);
+  });
+}
+async function openDoc(d,btn){
+  btn.disabled=true;
+  const r=await sb.storage.from('hr-private').createSignedUrl(d.file_path,120);
+  btn.disabled=false;
+  if(r.error||!r.data){toast('Could not open that file: '+((r.error&&r.error.message)||'missing'),true);return;}
+  window.open(r.data.signedUrl,'_blank');
+}
+async function uploadDoc(e,file){
+  if(file.size>20*1024*1024){toast('That file is over 20 MB.',true);return;}
+  const ext=(file.name.split('.').pop()||'pdf').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,5);
+  const path='staff/'+e.id+'/'+(crypto.randomUUID?crypto.randomUUID():String(Date.now()))+'.'+ext;
+  toast('Uploading…');
+  const up=await sb.storage.from('hr-private').upload(path,file,{contentType:file.type||'application/octet-stream'});
+  if(up.error){toast('Upload failed: '+up.error.message,true);return;}
+  const ins=await sb.from('staff_documents').insert({
+    staff_id:e.id,kind:'upload',title:file.name.replace(/\.[^.]+$/,''),file_path:path,
+    file_name:file.name,mime:file.type||null,file_size:file.size,
+    uploaded_by:(AUTH&&AUTH.id)||null,uploaded_by_name:(AUTH&&AUTH.name)||null});
+  if(ins.error){await sb.storage.from('hr-private').remove([path]);toast('Could not file that: '+ins.error.message,true);return;}
+  toast('Filed');await load();
+}
+async function removeDoc(d){
+  if(!confirm('Remove "'+d.title+'" from this employee\'s file?'))return;
+  const r=await sb.from('staff_documents').update({deleted:true}).eq('id',d.id);
+  if(r.error){toast(r.error.message,true);return;}
+  toast('Removed');await load();
+}
+/* Backfill for anyone converted before documents were filed automatically. */
+async function refileDocs(e,btn){
+  btn.disabled=true;btn.textContent='Filing…';
+  try{
+    const r=await fetch(SB_URL+'/functions/v1/intake',{method:'POST',
+      headers:{'Content-Type':'application/json','apikey':ANON,'Authorization':'Bearer '+(await sb.auth.getSession()).data.session.access_token},
+      body:JSON.stringify({action:'archive_docs',staff_id:e.id})});
+    const j=await r.json().catch(()=>({}));
+    if(!(r.status===200&&j.ok)){toast(j.error==='not_found'?'No signed paperwork on file for them.':(j.error||'Failed'),true);return;}
+    toast(j.filed?('Filed '+j.filed+' document'+(j.filed===1?'':'s')):'Nothing new to file'+(j.errors&&j.errors.length?' — '+j.errors[0]:''));
+    await load();
+  }catch(err){toast('Failed — '+(err.message||'error'),true);}
+  finally{btn.disabled=false;btn.textContent='Re-file signed paperwork';}
 }
 
 function pipHtml(e){

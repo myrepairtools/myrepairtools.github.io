@@ -305,7 +305,10 @@ async function buildOfferPdf(opts: {
   y -= 14;
   page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: rule });
   y -= 26;
-  para(opts.body);
+  // an acknowledgment archived on its own has no letter body — start it on
+  // page 1 instead of leaving a blank sheet in front of it
+  const hasBody = !!String(opts.body || "").trim();
+  if (hasBody) para(opts.body);
   if (opts.offerSig) {
     await drawSig("Accepted and agreed", opts.offerSig);
   } else if (opts.link) {
@@ -320,7 +323,7 @@ async function buildOfferPdf(opts: {
   }
   if (opts.handbookSig) {
     const ack = opts.ack || ACK_FALLBACK;
-    newPage();
+    if (hasBody) newPage();
     for (const ln of wrapW(latin1ish(String(ack.title || "Employee Handbook Acknowledgment")), bold, 13, CW)) {
       page.drawText(ln, { x: M, y: y - 13, size: 13, font: bold, color: dark });
       y -= 19;
@@ -435,6 +438,115 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
       .update({ newhire_sent_at: new Date().toISOString() })
       .eq("id", it.id as number).is("newhire_sent_at", null);
   }
+}
+
+/* Archive the signed paperwork onto the PERSON.
+
+   The intake row is a hiring record — it disappears from the Onboarding board
+   the moment someone is promoted — so their signed documents get frozen to
+   PDFs in the private hr-private bucket and filed in staff_documents, where
+   Team Members can reach them for as long as the employee exists. Frozen, not
+   regenerated: the handbook acknowledgment renders from live KB articles, and
+   a rebuilt copy would show today's wording rather than what they signed.
+
+   Best-effort by design — a storage hiccup must never block a conversion. */
+async function archiveDocs(
+  it: Record<string, unknown>,
+  staffId: number,
+  by: { id?: number; display_name?: string } | null,
+): Promise<{ filed: number; errors: string[] }> {
+  const errors: string[] = [];
+  let filed = 0;
+  const source = "intake:" + it.id;
+  const who = candName(it);
+  const storeLine = await storeLetterhead(it.invited_store);
+
+  const file = async (kind: string, title: string, pdf: Uint8Array, signedAt: unknown) => {
+    const path = "staff/" + staffId + "/" + crypto.randomUUID() + ".pdf";
+    const up = await admin.storage.from("hr-private")
+      .upload(path, pdf, { contentType: "application/pdf", upsert: false });
+    if (up.error) { errors.push(kind + ": " + up.error.message); return; }
+    const { error } = await admin.from("staff_documents").upsert({
+      staff_id: staffId, kind, title, file_path: path,
+      file_name: title.replace(/[\\/:*?"<>|]/g, "") + ".pdf",
+      mime: "application/pdf", file_size: pdf.length,
+      signed_at: signedAt || null, source,
+      uploaded_by: by?.id || null, uploaded_by_name: by?.display_name || null,
+    }, { onConflict: "staff_id,kind,source" });
+    if (error) {
+      // the row failed, so don't leave an orphan file behind
+      await admin.storage.from("hr-private").remove([path]).catch(() => {});
+      errors.push(kind + ": " + error.message);
+      return;
+    }
+    filed++;
+  };
+
+  if (it.offer_body && it.offer_signed_at) {
+    try {
+      const pdf = await buildOfferPdf({
+        body: String(it.offer_body), storeLine,
+        offerSig: { png: String(it.offer_signature || ""), name: String(it.offer_signed_name || who), at: String(it.offer_signed_at) },
+      });
+      await file("offer", "Offer letter — signed", pdf, it.offer_signed_at);
+    } catch (e) { errors.push("offer: " + (e instanceof Error ? e.message : String(e))); }
+  }
+
+  if (it.handbook_signed_at) {
+    try {
+      const pdf = await buildOfferPdf({
+        body: "", storeLine,
+        handbookSig: { png: String(it.handbook_signature || ""), name: String(it.handbook_signed_name || who), at: String(it.handbook_signed_at) },
+        ack: await handbookAck(),
+      });
+      await file("handbook", "Employee handbook acknowledgment", pdf, it.handbook_signed_at);
+    } catch (e) { errors.push("handbook: " + (e instanceof Error ? e.message : String(e))); }
+  }
+
+  if (it.submitted_at) {
+    try {
+      const pdf = await buildOfferPdf({ body: intakeFormMarkup(it), storeLine });
+      await file("intake_form", "New-hire form", pdf, it.submitted_at);
+    } catch (e) { errors.push("intake_form: " + (e instanceof Error ? e.message : String(e))); }
+  }
+
+  return { filed, errors };
+}
+
+/* What they filled in, laid out for the HR file. */
+function intakeFormMarkup(it: Record<string, unknown>): string {
+  const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const addr = (it.address || {}) as Record<string, string>;
+  const em = (it.emergency || {}) as Record<string, string>;
+  const em2 = (it.emergency2 || {}) as Record<string, string>;
+  const row = (k: string, v: unknown) => (v ? "• " + k + ": " + v + "\n" : "");
+  const person = (e: Record<string, string>) =>
+    [e.name, e.relationship, e.phone].filter(Boolean).join("  ·  ");
+  const av = Array.isArray(it.availability)
+    ? (it.availability as Array<Record<string, unknown>>).map((a) =>
+      "• " + (DAYS[Number(a.day)] || "") + ": "
+      + (a.mode === "all" ? "All day" : a.mode === "off" ? "Off" : [a.from, a.to].filter(Boolean).join(" - "))).join("\n")
+    : "";
+  return "# New-Hire Form\n"
+    + [it.legal_first, it.legal_middle, it.legal_last].filter(Boolean).join(" ")
+    + (it.preferred_name ? '  (goes by "' + it.preferred_name + '")' : "") + "\n\n"
+    + "## Personal\n"
+    + row("Date of birth", it.dob)
+    + row("Mobile", it.phone)
+    + row("Email", it.personal_email)
+    + row("Address", [addr.street, addr.city, addr.zip].filter(Boolean).join(", "))
+    + row("Shirt size", it.shirt_size)
+    + "\n## Employment\n"
+    + row("Position", it.position)
+    + row("Store", it.invited_store)
+    + row("Start date", it.start_hint || it.start_date)
+    + row("I-9 documents", it.i9_docs)
+    + "\n## Emergency contacts\n"
+    + row("Primary", person(em))
+    + row("Secondary", person(em2))
+    + (av ? "\n## Availability\n" + av + "\n" : "")
+    + "\nSubmitted " + new Date(String(it.submitted_at || Date.now())).toLocaleDateString("en-US",
+      { timeZone: "America/Los_Angeles", year: "numeric", month: "long", day: "numeric" }) + ".";
 }
 
 /* QuickBooks employee, created once the new-hire form is in. Intuit's create
@@ -827,6 +939,20 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true });
   }
+  if (action === "archive_docs") {
+    // Backfill: file (or re-file) a promoted hire's paperwork. Idempotent —
+    // staff_documents is unique on (staff_id, kind, source).
+    const intakeId = Number(body.intake_id);
+    const { data: it } = intakeId
+      ? await admin.from("staff_intake").select("*").eq("id", intakeId).maybeSingle()
+      : await admin.from("staff_intake").select("*").eq("promoted_staff_id", Number(body.staff_id) || 0)
+        .order("promoted_at", { ascending: false }).limit(1).maybeSingle();
+    if (!it) return json({ error: "not_found" }, 404);
+    const staffId = Number(body.staff_id) || Number(it.promoted_staff_id) || 0;
+    if (!staffId) return json({ error: "not_promoted" }, 409);
+    const docs = await archiveDocs(it, staffId, mgr);
+    return json({ ok: true, ...docs });
+  }
   if (action === "promote") {
     // copy the intake onto an existing staff row + staff_profiles, stamp the
     // link, and fire module auto-assign for the hire. staff_id required (the
@@ -909,6 +1035,9 @@ Deno.serve(async (req) => {
     await admin.from("staff_intake").update({
       status: "promoted", promoted_staff_id: staffId, promoted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq("id", intakeId);
+    // file the signed paperwork onto the person before the intake row leaves
+    // the board — this is the only moment it's guaranteed to still be visible
+    const docs = await archiveDocs(it, staffId, mgr).catch(() => ({ filed: 0, errors: ["archive failed"] }));
     // fire auto-assign: modules whose rule matches this hire
     const { data: mods } = await admin.from("onboarding_modules").select("id, auto_assign_role, auto_assign_from").eq("active", true);
     const hired = String(st.start_date || new Date().toISOString().slice(0, 10));
@@ -923,7 +1052,7 @@ Deno.serve(async (req) => {
         .upsert({ staff_id: staffId, module_id: m.id, assigned_by: mgr.id }, { onConflict: "staff_id,module_id", ignoreDuplicates: true });
       if (!error) assigned++;
     }
-    return json({ ok: true, assigned, staff_id: staffId, ...(pinNote ? { note: pinNote } : {}) });
+    return json({ ok: true, assigned, staff_id: staffId, docs, ...(pinNote ? { note: pinNote } : {}) });
   }
   return json({ error: "unknown action" }, 400);
 });
