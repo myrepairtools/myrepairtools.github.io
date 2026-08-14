@@ -401,6 +401,42 @@ async function storeLetterhead(store: unknown): Promise<string | undefined> {
   if (!row) return undefined;
   return [row.address, row.phone].filter(Boolean).join("  \u2022  ") || undefined;
 }
+/* Stage two. Fires once, when the offer is signed: their signed copy attached,
+   and the link to the handbook + new-hire form. Stamped so a re-signed or
+   replayed request can't email twice. */
+async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
+  const email = String(it.personal_email || "");
+  if (!/@/.test(email) || it.newhire_sent_at) return;
+  const link = SITE + "/intake.html?t=" + String(it.token);
+  const first = String(it.invited_name || it.offer_signed_name || "").trim().split(/\s+/)[0] || "there";
+  const text = "Hi " + first + ",\n\n"
+    + "Your signed offer letter is attached — that copy is yours to keep, so there's nothing to print or bring in.\n\n"
+    + "Next, two things to finish online (about 10 minutes):\n"
+    + "  1. Read and acknowledge the Employee Handbook\n"
+    + "  2. Fill out your new-hire form — contact details, emergency contacts, and your availability\n\n"
+    + link + "\n\n"
+    + "Questions? Just reply to this email.\n\n— CPR Cell Phone Repair, Oregon";
+  let pdf: Uint8Array;
+  try {
+    pdf = await buildOfferPdf({
+      body: String(it.offer_body || ""),
+      storeLine: await storeLetterhead(String(it.invited_store || "")),
+      offerSig: {
+        png: String(it.offer_signature || ""),
+        name: String(it.offer_signed_name || ""),
+        at: String(it.offer_signed_at || ""),
+      },
+    });
+  } catch { return; }
+  const r = await sendOfferEmail(email, "Welcome to CPR — your next steps", text,
+    pdf, "CPR Offer — signed.pdf", await hiringReplyTo());
+  if (r.ok) {
+    await admin.from("staff_intake")
+      .update({ newhire_sent_at: new Date().toISOString() })
+      .eq("id", it.id as number).is("newhire_sent_at", null);
+  }
+}
+
 async function hiringReplyTo(): Promise<string | undefined> {
   const { data } = await admin.from("app_settings").select("value").eq("key", "hiring.reply_to").maybeSingle();
   const v = data?.value?.email;
@@ -454,6 +490,12 @@ Deno.serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
       await alertMgr(it.invited_by, "Offer signed — " + name,
         name + " accepted and signed their offer" + (it.position ? " (" + it.position + ")" : "") + ". Handbook + new-hire form are next.");
+      // Signing ends the offer stage. The new-hire stage arrives as its own
+      // email carrying their signed copy — so nothing has to be printed,
+      // signed on paper, or brought back to the store. Best-effort: an email
+      // failure must never cost them a signature they already gave.
+      await sendNewHireEmail({ ...it, offer_signature: sig, offer_signed_name: name, offer_signed_at: now })
+        .catch(() => {});
       return json({ ok: true });
     }
 
@@ -580,8 +622,9 @@ Deno.serve(async (req) => {
     const first = String(it.invited_name || "").trim().split(/\s+/)[0] || "there";
     const text = "Hi " + first + ",\n\n"
       + "Your offer letter from CPR Cell Phone Repair is attached as a PDF.\n\n"
-      + "When you're ready, review and sign it online — the same link walks you through the Employee Handbook and your new-hire form (about 10 minutes total):\n"
+      + "When you're ready, open the link below to read it and either accept or decline. Accepting takes a signature on the page — no printing, and nothing to bring in:\n"
       + link + "\n\n"
+      + "Once it's signed we'll email you the next steps.\n\n"
       + "Questions? Just reply to this email.\n\n— CPR Cell Phone Repair, Oregon";
     const r = await sendOfferEmail(String(it.personal_email), "Your offer from CPR Cell Phone Repair", text,
       pdf, "CPR Offer Letter.pdf", await hiringReplyTo());

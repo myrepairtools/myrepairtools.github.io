@@ -16,6 +16,23 @@ display:flex;justify-content:center;padding:18px 12px 40px;min-height:100vh}
 .card{width:100%;max-width:420px;background:#fff;border:1px solid var(--border);border-radius:16px;
 box-shadow:0 8px 28px rgba(45,45,59,.1);overflow:hidden;height:fit-content}
 .card.wide{max-width:560px}
+/* phones get the 420px card as-is (this page was built mobile-first); a
+   desktop reader gets a wider measure and slightly larger type for the
+   documents they actually have to read */
+@media(min-width:720px){
+  body{padding:36px 20px 60px}
+  .card.wide{max-width:680px}
+  .card.read{max-width:640px}
+  .card.read .offerbox,.card.wide .hbbody{font-size:.94rem;line-height:1.72}
+  .cbd{padding:18px 26px 24px}
+  .chd{padding:16px 26px}
+}
+@media(max-width:400px){
+  body{padding:10px 8px 32px}
+  .cbd{padding:12px 14px 16px}
+  .chd{padding:12px 14px}
+  .f{flex:1 1 100%}
+}
 .chd{background:var(--dark);padding:14px 18px}
 .logo{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;color:#fff}
 .logo b{color:var(--red)}
@@ -43,8 +60,26 @@ font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.85rem;color:var(
 .btn.pri:disabled{opacity:.6;cursor:default}
 .btn.alt{flex:1;background:#fff;color:var(--dark);border:1.5px solid var(--border)}
 /* offer letter */
-.offerbox{border:1.5px solid var(--border);border-radius:12px;background:#FDFDFE;padding:14px 16px;
-font-size:.86rem;font-weight:600;line-height:1.6;white-space:pre-line;margin-bottom:14px}
+.offerbox{border:1.5px solid var(--border);border-radius:12px;background:#FDFDFE;padding:16px 18px;
+font-size:.88rem;font-weight:400;line-height:1.65;margin-bottom:14px}
+.offerbox b,.offerbox strong{font-weight:800}
+/* the letter is written in the same light markup as the PDF — render it, don't
+   dump it, or the candidate reads '# Offer of Employment' literally */
+.offerbox h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;margin:14px 0 6px;color:var(--dark)}
+.offerbox h4{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;margin:12px 0 4px;color:var(--dark)}
+.offerbox>h3:first-child,.offerbox>h4:first-child{margin-top:0}
+.offerbox ul,.offerbox ol{margin:6px 0;padding-left:20px}
+.offerbox li{margin:3px 0}
+.offerbox hr{border:none;border-top:1px solid var(--border);margin:12px 0}
+.offerbox a{color:var(--blued)}
+/* signed-offer bar: their copy is downloadable the moment they sign, not
+   only after the whole form is done */
+.pdfbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#F1FAF4;border:1px solid #BFE6CE;
+border-radius:10px;padding:9px 12px;margin-bottom:12px}
+.pdfbar .t{flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:#1C6B41}
+.pdfbar button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;border:1px solid #BFE6CE;
+background:#fff;color:#1C6B41;border-radius:8px;padding:6px 11px;cursor:pointer}
+.pdfbar button:hover{filter:brightness(.98)}
 .declink{display:block;text-align:center;margin-top:12px;font-family:'Nunito',sans-serif;font-weight:800;
 font-size:.76rem;color:var(--grey2);background:none;border:none;cursor:pointer;width:100%;text-decoration:underline}
 .decbox{border:1.5px solid #F6C9CA;background:#FDEBEC;border-radius:12px;padding:12px 14px;margin-top:12px}
@@ -152,8 +187,10 @@ const CHECK='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke=
 const TOKEN=new URLSearchParams(location.search).get('t')||'';
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
-let PHASE='form';        // offer | handbook | form | done | declined
+let PHASE='form';        // offer | signed | handbook | form | done | declined
 let STEP=1, SUBMITTED=false, TRIED=false, OPENDAY=null, DECLINING=false;
+let ACCEPTING=false;     // they've chosen Accept — show the signature
+let JUSTSIGNED=false;    // stop at the signed card instead of running straight on
 const D={first:'',middle:'',last:'',preferred:'',dob:'',phone:'',email:'',
   street:'',city:'',zip:'',shirt:'',i9:'',
   e1name:'',e1phone:'',e2name:'',e2phone:'',
@@ -172,6 +209,9 @@ function derivePhase(){
   if(INVITE.status==='promoted'||INVITE.submitted_at){PHASE='done';SUBMITTED=true;return;}
   if(INVITE.offer_declined_at){PHASE='declined';return;}
   if(INVITE.offer_body&&!INVITE.offer_signed_at){PHASE='offer';return;}
+  /* the offer link's job ends at the signature — the handbook and the form
+     arrive as their own email, so we stop here rather than running on */
+  if(JUSTSIGNED){PHASE='signed';return;}
   if(INVITE.offer_body&&!INVITE.handbook_signed_at){PHASE='handbook';return;}
   PHASE='form';
 }
@@ -223,21 +263,39 @@ function wireSig(){
   $('#sigClear').onclick=()=>{ctx.clearRect(0,0,sigCanvas.width,sigCanvas.height);sigStrokes=false;$('#sigHint').style.display='flex';};
 }
 /* ---------- offer phase ---------- */
+/* Read the whole letter, THEN choose. The signature only appears once they've
+   accepted — signing is the act of accepting, not a field to fill in while
+   still deciding. */
 function offerBody(){
-  return '<h2>Your offer'+(INVITE.position?' — '+esc(INVITE.position):'')+'</h2>'
-    +'<div class="offerbox">'+esc(INVITE.offer_body)+'</div>'
+  const doc='<h2>Your offer'+(INVITE.position?' — '+esc(INVITE.position):'')+'</h2>'
+    +'<div class="offerbox">'+render(INVITE.offer_body)+'</div>';
+  if(DECLINING){
+    return doc
+      +'<div class="decbox"><div class="t">Decline this offer?</div>'
+      +'<textarea id="decNote" placeholder="Anything you want us to know? (optional)"></textarea>'
+      +'<div class="errline" id="err"></div>'
+      +'<div class="ftr" style="margin-top:10px"><button class="btn alt" id="decBack">Go back</button>'
+      +'<button class="btn pri" id="decGo" style="background:#8A8FA0">Yes, decline</button></div></div>';
+  }
+  if(!ACCEPTING){
+    return doc
+      +'<div class="ftr"><button class="btn alt" id="decOpen">Decline</button>'
+      +'<button class="btn pri" id="accOpen">Accept this offer</button></div>';
+  }
+  return doc
     +'<div class="f full"><label>Your full legal name</label><input id="sigName" autocomplete="name" placeholder="Type your full name" value="'+esc(INVITE.invited_name||'')+'"></div>'
     +sigHtml()
     +'<div class="errline" id="err"></div>'
-    +'<div class="ftr"><button class="btn pri" id="acceptGo" style="flex:1">Accept &amp; sign</button></div>'
-    +(DECLINING
-      ?'<div class="decbox"><div class="t">Decline this offer?</div>'
-        +'<textarea id="decNote" placeholder="Anything you want us to know? (optional)"></textarea>'
-        +'<div class="ftr" style="margin-top:10px"><button class="btn alt" id="decBack">Keep looking at it</button>'
-        +'<button class="btn pri" id="decGo" style="background:#8A8FA0">Yes, decline</button></div></div>'
-      :'<button class="declink" id="decOpen">I need to decline this offer</button>');
+    +'<div class="ftr"><button class="btn alt" id="accBack">Back</button>'
+    +'<button class="btn pri" id="acceptGo">Sign &amp; accept</button></div>';
 }
 function wireOffer(){
+  const aO=$('#accOpen');  if(aO)aO.onclick=()=>{ACCEPTING=true;draw();};
+  const aB=$('#accBack');  if(aB)aB.onclick=()=>{ACCEPTING=false;draw();};
+  const dO=$('#decOpen');  if(dO)dO.onclick=()=>{DECLINING=true;draw();};
+  const dB=$('#decBack');  if(dB)dB.onclick=()=>{DECLINING=false;draw();};
+  const dG=$('#decGo');    if(dG)dG.onclick=declineNow;
+  if(!ACCEPTING)return;
   wireSig();
   const err=$('#err');
   $('#acceptGo').onclick=async()=>{
@@ -247,19 +305,19 @@ function wireOffer(){
     if(!sigStrokes){err.textContent='Sign in the signature box.';return;}
     const b=$('#acceptGo');b.disabled=true;b.textContent='Saving…';
     const r=await call({action:'sign_offer',token:TOKEN,signed_name:nm,signature:sigCanvas.toDataURL('image/png')});
-    if(!(r.status===200&&r.data.ok)){b.disabled=false;b.textContent='Accept & sign';
+    if(!(r.status===200&&r.data.ok)){b.disabled=false;b.textContent='Sign & accept';
       err.textContent=r.data.error==='already_signed'?'Already signed — refresh the page.':'Could not save ('+(r.data.error||'error')+'). Try again.';return;}
+    JUSTSIGNED=true;
     await refresh();
   };
-  const dOpen=$('#decOpen');if(dOpen)dOpen.onclick=()=>{DECLINING=true;draw();};
-  const dBack=$('#decBack');if(dBack)dBack.onclick=()=>{DECLINING=false;draw();};
-  const dGo=$('#decGo');if(dGo)dGo.onclick=async()=>{
-    dGo.disabled=true;dGo.textContent='Sending…';
-    const r=await call({action:'decline_offer',token:TOKEN,note:($('#decNote').value||'').trim()||null});
-    if(!(r.status===200&&r.data.ok)){dGo.disabled=false;dGo.textContent='Yes, decline';
-      $('#err').textContent='Could not save ('+(r.data.error||'error')+'). Try again.';return;}
-    await refresh();
-  };
+}
+async function declineNow(){
+  const dGo=$('#decGo');
+  dGo.disabled=true;dGo.textContent='Sending…';
+  const r=await call({action:'decline_offer',token:TOKEN,note:($('#decNote').value||'').trim()||null});
+  if(!(r.status===200&&r.data.ok)){dGo.disabled=false;dGo.textContent='Yes, decline';
+    $('#err').textContent='Could not save ('+(r.data.error||'error')+'). Try again.';return;}
+  await refresh();
 }
 /* ---------- handbook phase ---------- */
 function handbookBody(){
@@ -414,38 +472,73 @@ function wireForm(){
   };
 }
 /* ---------- draw ---------- */
+/* Their signed copy — offered as soon as offer_signed_at exists, so nobody has
+   to finish the whole new-hire form (or bring paper back) to get it. */
+function pdfBarHtml(){
+  return (INVITE&&INVITE.offer_signed_at)
+    ? '<div class="pdfbar"><span class="t">Offer signed \u2713</span>'
+      +'<button type="button" id="dlPdfBar">Download PDF</button></div>'
+    : '';
+}
+async function downloadSigned(btn,label){
+  const t=btn.textContent; btn.disabled=true; btn.textContent='Building\u2026';
+  try{
+    const r=await call({action:'signed_pdf',token:TOKEN});
+    if(!(r.status===200&&r.data.ok&&r.data.pdf))throw new Error(r.data.error||'failed');
+    const bytes=Uint8Array.from(atob(r.data.pdf),c=>c.charCodeAt(0));
+    const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+    const a=document.createElement('a');a.href=url;a.download=r.data.filename||'CPR Offer \u2014 signed.pdf';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }catch(e){ alert('Download failed \u2014 try again.'); }
+  btn.disabled=false; btn.textContent=label||t;
+}
+function wirePdfBar(){
+  const b=$('#dlPdfBar');
+  if(b)b.onclick=()=>downloadSigned(b,'Download PDF');
+}
 function draw(){
   const card=$('#card');
   card.classList.toggle('wide',PHASE==='handbook');
+  card.classList.toggle('read',PHASE==='offer');
   if(PHASE==='done'){
     card.innerHTML='<div class="chd"><div class="logo"><b>my</b>Repair<b>Tools</b></div></div>'
       +'<div class="done"><span class="ck">'+CHECK+'</span><h2>All set'+(firstName()?', '+esc(firstName()):'')+'!</h2>'
       +'<p>Your manager has everything they need.<br>See you on your first day.</p>'
       +(INVITE&&INVITE.offer_signed_at?'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">⬇ Download your signed offer (PDF)</button>':'')
       +'</div>';
-    const dl=$('#dlPdf');if(dl)dl.onclick=async()=>{
-      dl.disabled=true;dl.textContent='Building…';
-      try{
-        const r=await call({action:'signed_pdf',token:TOKEN});
-        if(!(r.status===200&&r.data.ok&&r.data.pdf))throw new Error(r.data.error||'failed');
-        const bytes=Uint8Array.from(atob(r.data.pdf),c=>c.charCodeAt(0));
-        const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
-        const a=document.createElement('a');a.href=url;a.download=r.data.filename||'CPR Offer — signed.pdf';
-        document.body.appendChild(a);a.click();a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url),4000);
-      }catch(e){alert('Download failed — try again.');}
-      dl.disabled=false;dl.textContent='⬇ Download your signed offer (PDF)';
-    };
+    const dl=$('#dlPdf');
+    if(dl)dl.onclick=()=>downloadSigned(dl,'\u2B07 Download your signed offer (PDF)');
+    return;
+  }
+  if(PHASE==='signed'){
+    card.classList.remove('wide','read');
+    card.innerHTML='<div class="chd"><div class="logo"><b>my</b>Repair<b>Tools</b></div></div>'
+      +'<div class="done"><span class="ck">'+CHECK+'</span><h2>Signed'+(firstName()?', thank you '+esc(firstName()):', thank you')+'!</h2>'
+      +'<p>Welcome to the team. '
+      +((INVITE&&INVITE.personal_email)
+        ? 'We\u2019ve emailed your signed offer along with your next steps \u2014 the Employee Handbook and your new-hire form.'
+        : 'Your signed offer is below, and your next steps are the Employee Handbook and your new-hire form.')
+      +'</p>'
+      +'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">\u2B07 Download your signed offer (PDF)</button>'
+      +'<button class="btn pri" id="goNext" style="margin-top:8px;width:100%">Continue to next steps</button>'
+      +'</div>';
+    const dl=$('#dlPdf');
+    if(dl)dl.onclick=()=>downloadSigned(dl,'\u2B07 Download your signed offer (PDF)');
+    $('#goNext').onclick=()=>{JUSTSIGNED=false;derivePhase();draw();window.scrollTo(0,0);};
     return;
   }
   if(PHASE==='declined'){
+    card.classList.remove('wide','read');
     card.innerHTML='<div class="chd"><div class="logo"><b>my</b>Repair<b>Tools</b></div></div>'
-      +'<div class="done"><span class="ck grey">'+CHECK+'</span><h2>Offer declined</h2>'
-      +'<p>Thanks for letting us know — we appreciate you considering us.<br>If anything changes, reach out any time.</p></div>';
+      +'<div class="done"><span class="ck grey">'+CHECK+'</span><h2>Thanks for your time</h2>'
+      +'<p>We appreciate you considering CPR, and for letting us know either way.<br>'
+      +'If anything changes down the road, we\u2019d be glad to hear from you.</p></div>';
     return;
   }
   const body=PHASE==='offer'?offerBody():PHASE==='handbook'?handbookBody():stepBody();
-  card.innerHTML=head()+'<div class="cbd">'+prog()+body+'</div>';
+  card.innerHTML=head()+'<div class="cbd">'+prog()+pdfBarHtml()+body+'</div>';
+  wirePdfBar();
   if(PHASE==='offer')wireOffer();
   else if(PHASE==='handbook')wireHandbook();
   else wireForm();
@@ -456,7 +549,7 @@ async function refresh(){
     INVITE=r.data.intake;
     if(r.data.handbook)HANDBOOK=r.data.handbook;
     if(r.data.ack)ACK=r.data.ack;
-    DECLINING=false;derivePhase();
+    DECLINING=false;ACCEPTING=false;derivePhase();
   }
   draw();window.scrollTo(0,0);
 }

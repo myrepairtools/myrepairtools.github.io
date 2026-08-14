@@ -33,3 +33,7 @@ comment on column public.staff_intake.pay is
 -- Proposed start became a day picker (same split as pay): start_date is the
 -- real date, start_hint stays the rendered line the offer letter shows.
 alter table public.staff_intake add column if not exists start_date date;
+
+-- Two-stage hiring flow: the offer link ends at the signature, and signing
+-- fires a separate new-hire email (handbook + intake form + their signed PDF).
+alter table public.staff_intake add column if not exists newhire_sent_at timestamptz;
