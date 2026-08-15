@@ -53,6 +53,9 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;letter-spac
 .atitle.unread{font-weight:900}
 .achip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.3px;padding:2px 8px;border-radius:999px;white-space:nowrap;flex:none}
 .achip.req{background:#FDEBEC;color:var(--red)}
+/* signature sits a tier above "required" — its own colour so the two obligations
+   never read as the same thing at a glance */
+.achip.sig{background:#2D2D3B;color:#fff}
 .achip.ack{background:var(--greenbg);color:var(--greend)}
 .achip.new{background:#EAF6FD;color:#1E7AA8}
 .achip.draft{background:#FBF1DC;color:#7A5B10}
@@ -246,6 +249,17 @@ background:rgba(255,255,255,.92);color:var(--red);border-radius:999px;padding:3p
 .callout .ct{font-size:.85rem;font-weight:700;color:#7A5A08;line-height:1.55}
 .artfoot{display:flex;align-items:center;gap:12px;padding:16px 38px;background:#F8FAFD;border-top:1.5px solid var(--border);flex-wrap:wrap}
 @media(max-width:700px){.artfoot{padding:14px 20px}}
+/* signature footer — replaces the read bar on require_signature articles */
+.sigfoot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 38px;background:#F8FAFD;border-top:1.5px solid var(--border)}
+.sigfoot.done{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 38px}
+@media(max-width:700px){.sigfoot,.sigfoot.done{padding:16px 20px}}
+.sigpadwrap{position:relative}
+.sigpad{display:block;width:100%;height:130px;background:#fff;border:1.5px dashed var(--border);border-radius:10px;touch-action:none;cursor:crosshair}
+.sigclear{position:absolute;right:8px;top:8px;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.7rem;color:var(--dark-grey);background:transparent;border:0;cursor:pointer}
+.sigclear:hover{color:var(--red)}
+.signame{font-family:'Nunito Sans',sans-serif;font-size:.9rem;color:var(--dark);border:1.5px solid var(--border);border-radius:9px;padding:9px 12px;background:#fff}
+.signame:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
+.sigdone{display:inline-flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--greend);background:var(--greenbg);border:1.5px solid #BFE8D0;border-radius:9px;padding:8px 14px}
 .readbtn{display:inline-flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;border:1.5px solid var(--border);border-radius:9px;background:#fff;color:var(--dark);padding:8px 14px;cursor:pointer}
 .readbtn:hover{border-color:var(--green);color:var(--green)}
 .readbtn.done{border-color:#BFE8D0;background:var(--greenbg);color:var(--greend);cursor:default}
@@ -388,7 +402,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 (async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 
 /* ---------- state ---------- */
-let CATS=[],ARTS=[],READS={},MODULES=[],SECTIONS=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
+let CATS=[],ARTS=[],READS={},SIGS={},MODULES=[],SECTIONS=[],ASSIGN=null,QUIZ={},MYATT={},STAFF=[],SBN={},STEPS=[],SDONE={};
 let SUBCATS=[],TAGS=[],ARTTAGS={},MOSTREAD=[];   // facet data + portal most-read
 let MODE='list';                 // list | article | onboarding | quiz | quizresult | edit | cats
 let CAT='all';   // fresh visits land on the portal home; deep links + browser
@@ -404,7 +418,7 @@ let PREVIEW=(function(){try{return localStorage.getItem('cprKbPreview')==='1';}c
 let GRIDEDIT=false;   // drag-to-organize is an explicit mode (+ menu → Edit grid)
 
 async function loadAll(){
-  const [c,a,r,m,asn,qz,att,st,sp,sd,sec,sub,tg,atg,mr]=await Promise.all([
+  const [c,a,r,m,asn,qz,att,st,sp,sd,sec,sub,tg,atg,mr,sg]=await Promise.all([
     sb.from('kb_categories').select('*').order('sort'),
     sb.from('kb_articles').select('*').order('updated_at',{ascending:false}),
     sb.from('kb_reads').select('article_id,first_read_at,acknowledged_at,last_viewed_at').eq('staff_id',AUTH.id),
@@ -419,8 +433,15 @@ async function loadAll(){
     sb.from('kb_subcategories').select('*').order('sort'),
     sb.from('kb_tags').select('*').order('sort'),
     sb.from('kb_article_tags').select('article_id,tag_id'),
-    sb.rpc('kb_most_read',{days:30})
+    sb.rpc('kb_most_read',{days:30}),
+    sb.from('kb_signatures').select('id,article_id,article_version,signature_epoch,signed_at,signed_name').eq('staff_id',AUTH.id)
   ]);
+  /* my signatures, keyed by article — a signature counts only when it matches
+     the article's CURRENT version, so a revised policy comes back around */
+  SIGS={}; (sg&&sg.data||[]).forEach(x=>{
+    const cur=SIGS[x.article_id];
+    if(!cur||x.signature_epoch>cur.signature_epoch)SIGS[x.article_id]=x;
+  });
   SUBCATS=sub.data||[]; TAGS=tg.data||[];
   ARTTAGS={}; (atg.data||[]).forEach(x=>{(ARTTAGS[x.article_id]=ARTTAGS[x.article_id]||[]).push(x.tag_id);});
   MOSTREAD=mr.data||[];
@@ -450,13 +471,26 @@ function artIconHtml(a,size){
   return esc(a?artIcon(a):'📄');
 }
 function acked(a){ const r=READS[a.id]; return r&&r.acknowledged_at; }
+/* require_signature is the tier above require_ack: a click isn't enough, the
+   employee signs and the signed PDF is filed to their HR record. The signature
+   is bound to the article VERSION, so publishing a revised policy makes the
+   old signature stale and the document comes back around to be re-signed. */
+function needsSig(a){ return !!(a&&a.require_signature); }
+/* two version numbers: kb_articles.version bumps on every edit (the wording,
+   printed on the PDF), signature_version is the EPOCH — the obligation, moved
+   only when a manager marks a revision material. Comparing the epoch is why a
+   typo fix doesn't make the whole team re-sign. */
+function signedRow(a){ const s=SIGS[a.id]; return (s&&s.signature_epoch===(+a.signature_version||1))?s:null; }
+function signed(a){ return !!signedRow(a); }
+/* outstanding = unsigned if it needs a signature, else unacknowledged */
+function artOutstanding(a){ return needsSig(a)?!signed(a):(a.require_ack&&!acked(a)); }
 function viewedAt(a){ const r=READS[a.id]; return r?(r.last_viewed_at||r.first_read_at):null; }
 /* preview mode: managers see drafts placed exactly where they'll publish —
    the sandbox. Every browse surface flows from here; draft cards keep their
    amber chip so live vs not-yet is always visible. */
 function previewOn(){ return PREVIEW&&isMgr(AUTH.role); }
 function pubArts(){ return ARTS.filter(a=>a.status==='published'||(previewOn()&&a.status==='draft')); }
-function reqOutstanding(){ return pubArts().filter(a=>a.require_ack&&!acked(a)); }
+function reqOutstanding(){ return pubArts().filter(a=>a.require_ack&&artOutstanding(a)); }
 /* onboarding items: a module's track = its ARTICLES (kb_articles.module_id)
    merged with its TASK STEPS (onboarding_steps — HR paperwork, account setups),
    ordered together by sort_order. */
@@ -589,6 +623,7 @@ function listRows(){
 function chipFor(a){
   if(a.status==='draft')return '<span class="achip draft">Draft</span>';
   if(a.status==='archived')return '<span class="achip">Archived</span>';
+  if(needsSig(a))return signed(a)?'<span class="achip ack">✓ Signed</span>':'<span class="achip sig">Signature required</span>';
   if(a.require_ack)return acked(a)?'<span class="achip ack">✓ Acknowledged</span>':'<span class="achip req">Required</span>';
   const fresh=a.published_at&&(Date.now()-new Date(a.published_at))<10*86400000;
   return (fresh&&!viewedAt(a))?'<span class="achip new">New</span>':'';
@@ -931,7 +966,7 @@ function topicGrid(list,cat,subs,canDrag){
   }
   return '<div class="cardgrid'+(canDrag?' mgr':'')+'">'+list.map(a=>{
     const v=viewedAt(a), never=!v;
-    const vCol=never?(a.require_ack&&!acked(a)?'var(--red)':'var(--amber)'):'#8A8FA0';
+    const vCol=never?(a.require_ack&&artOutstanding(a)?'var(--red)':'var(--amber)'):'#8A8FA0';
     let badge='';
     if(subs.length&&!FACET.s){
       const s=a.subcategory_id?subs.find(x=>x.id===a.subcategory_id):null;
@@ -968,7 +1003,7 @@ function drawSimpleList(){
   inner+=rows.length?'<div class="listcard">'+rows.map(a=>{
     const v=viewedAt(a);
     const never=!v;
-    const vCol=never?(a.require_ack&&!acked(a)?'var(--red)':'var(--amber)'):'#8A8FA0';
+    const vCol=never?(a.require_ack&&artOutstanding(a)?'var(--red)':'var(--amber)'):'#8A8FA0';
     return '<div class="arow" data-open="'+a.id+'">'
       +'<div class="atile">'+artIconHtml(a,24)+'</div>'
       +'<div class="amain"><div class="atitlerow">'
@@ -1142,6 +1177,97 @@ async function openArticle(id){
 }
 function moduleOf(a){ return MODULES.find(m=>m.id===a.module_id)||null; }
 function weekLabel(mod){ if(!mod)return ''; const m=/week\s*(\d+)/i.exec(mod.name); return m?('Week '+m[1]):mod.name; }
+/* ---------- signature footer (require_signature articles) ----------
+   Replaces the "✓ Mark as read" bar. Signing goes through the kb-sign edge
+   function, which freezes the article to a PDF and files it in the employee's
+   HR record — the browser never writes kb_signatures itself. */
+function sigFootHtml(a,q){
+  const s=signedRow(a);
+  if(s){
+    return '<div class="sigfoot done">'
+      +'<div class="sigdone">'+(window.CPRNavIcon?CPRNavIcon('check',15):'✓')+'<span>Signed '+fmtD(s.signed_at)+' as '+esc(s.signed_name)+'</span></div>'
+      +'<button class="linkbtn" id="sigDl" data-sig="'+s.id+'">Download signed copy</button>'
+      +'<span style="flex:1"></span>'
+      +(q&&q.nq?'<button class="btn pri sm" id="takeQuiz">Take the quiz · '+q.nq+' question'+(q.nq===1?'':'s')+' ›</button>':'')
+    +'</div>';
+  }
+  /* a stale signature (they signed an earlier version) says so, so re-signing
+     never looks like a bug */
+  const old=SIGS[a.id];
+  return '<div class="sigfoot">'
+    +'<button class="btn pri" id="sigOpen">Sign this document</button>'
+    +(old?'<span class="footnote">You signed an earlier version on '+fmtD(old.signed_at)+'. This one has been revised.</span>':'')
+    +'<span style="flex:1"></span>'
+    +(q&&q.nq?'<button class="btn pri sm" id="takeQuiz">Take the quiz · '+q.nq+' question'+(q.nq===1?'':'s')+' \u203a</button>':'')
+  +'</div>';
+}
+/* The pad lives in a modal: on a phone the article is long, and a canvas
+   sitting inline gets scrolled past or drawn on by accident while scrolling. */
+function openSigModal(a,onDone){
+  const w=document.createElement('div');
+  w.innerHTML='<div class="ovl"><div class="mdl" style="width:520px">'
+    +'<div class="mdl-hd"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1rem">Sign — '+esc(a.title)+'</div>'
+      +'<button class="mdl-x" id="sigX">&times;</button></div>'
+    +'<div class="mdl-bd">'
+      +'<div class="sigpadwrap"><canvas id="sigPad" class="sigpad"></canvas>'
+        +'<button type="button" class="sigclear" id="sigClear">Clear</button></div>'
+      +'<input type="text" id="sigName" class="signame" style="width:100%;margin-top:12px" placeholder="Full name" value="'+escAttr(AUTH.name||'')+'" autocomplete="name">'
+    +'</div>'
+    +'<div class="mdl-ft"><button class="btn" id="sigCancel">Cancel</button>'
+      +'<button class="btn pri" id="sigSave">Sign</button></div>'
+  +'</div></div>';
+  document.body.appendChild(w);
+  const close=()=>{ w.remove(); };
+  $('#sigX').addEventListener('click',close);
+  $('#sigCancel').addEventListener('click',close);
+  w.querySelector('.ovl').addEventListener('click',e=>{ if(e.target===w.querySelector('.ovl'))close(); });
+  const PAD=wireSigPad();
+  const ss=$('#sigSave');
+  ss.addEventListener('click',async()=>{
+    const name=($('#sigName').value||'').trim();
+    if(PAD.empty()){ toast('Draw your signature first',true); return; }
+    if(name.length<2){ toast('Enter your full name',true); return; }
+    ss.disabled=true; ss.textContent='Signing\u2026';
+    const r=await signCall({action:'sign',article_id:a.id,signature:PAD.png(),name});
+    if(!r.ok){ ss.disabled=false; ss.textContent='Sign';
+      toast('Could not sign: '+(r.error||'unknown'),true); return; }
+    close(); onDone();
+  });
+}
+/* canvas signature pad — pointer events cover mouse, touch and Apple Pencil.
+   Backing store is sized to devicePixelRatio so the drawn line isn't fuzzy on
+   a phone, which is where most of these get signed. */
+function wireSigPad(){
+  const cv=$('#sigPad'); if(!cv)return null;
+  const ctx=cv.getContext('2d');
+  let drawn=false,down=false,lastX=0,lastY=0;
+  const fit=()=>{
+    const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+    if(!r.width)return;
+    const keep=drawn?cv.toDataURL():null;
+    cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#2D2D3B';
+    if(keep){ const im=new Image(); im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height); im.src=keep; }
+  };
+  fit(); window.addEventListener('resize',fit);
+  const pos=e=>{ const r=cv.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; };
+  cv.addEventListener('pointerdown',e=>{ down=true; drawn=true; cv.setPointerCapture(e.pointerId);
+    [lastX,lastY]=pos(e); ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(lastX+.1,lastY); ctx.stroke(); });
+  cv.addEventListener('pointermove',e=>{ if(!down)return; e.preventDefault();
+    const [x,y]=pos(e); ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke(); lastX=x; lastY=y; });
+  const up=()=>{ down=false; };
+  cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up); cv.addEventListener('pointerleave',up);
+  const cl=$('#sigClear'); if(cl)cl.addEventListener('click',()=>{ ctx.clearRect(0,0,cv.width,cv.height); drawn=false; });
+  return { empty:()=>!drawn, png:()=>cv.toDataURL('image/png') };
+}
+async function signCall(body){
+  const { data:{ session } }=await sb.auth.getSession();
+  const r=await fetch(SB_URL+'/functions/v1/kb-sign',{method:'POST',
+    headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+(session?session.access_token:ANON)},
+    body:JSON.stringify(body)});
+  return r.json().catch(()=>({ok:false,error:'bad_response'}));
+}
 function drawArticle(){
   const a=OPEN;
   const mod=moduleOf(a);
@@ -1156,7 +1282,9 @@ function drawArticle(){
   +'<div class="crumb"><a data-nav="list">‹ Knowledge Base</a><span class="sep">/</span><span class="cat">'+esc(catName(a.category_id))+'</span>'
     +'<span style="flex:1"></span>'
     +(isMgr(AUTH.role)?'<a data-nav="edit" style="color:var(--blue)"'+(window.CPRNavIcon?CPRNavIcon('pen-line',12):'')+' Edit</a>':'')
-    +(a.require_ack?'<span class="achip req">Required'+(mod?' · '+esc(weekLabel(mod)):'')+'</span>':'')
+    +(needsSig(a)
+      ?'<span class="achip sig">Signature required'+(mod?' · '+esc(weekLabel(mod)):'')+'</span>'
+      :(a.require_ack?'<span class="achip req">Required'+(mod?' · '+esc(weekLabel(mod)):'')+'</span>':''))
   +'</div>'
   +'<div class="artcard">'
     +'<div class="ahd"><h2>'+artIconHtml(a,26)+' '+esc(a.title)+'</h2>'
@@ -1164,14 +1292,15 @@ function drawArticle(){
       +(author?'<span>·</span><span>by '+esc(author)+'</span>':'')+'<span>·</span><span style="color:#8A8FA0">Applies to: all stores</span></div>'
     +'<div style="height:1px;background:var(--row);margin:20px 0 0"></div></div>'
     +'<div class="artbody">'+render(a.body)+'</div>'
-    +'<div class="artfoot">'
+    +(needsSig(a)?sigFootHtml(a,q):''
+      +'<div class="artfoot">'
       +(isAcked
         ?'<button class="readbtn done">✓ Read '+fmtD(READS[a.id].acknowledged_at)+'</button>'
         :'<button class="readbtn" id="markRead">✓ Mark as read</button>')
       +'<span class="footnote">logs your read receipt — required for onboarding</span>'
       +'<span style="flex:1"></span>'
       +(q&&q.nq?'<button class="btn pri sm" id="takeQuiz">Take the quiz · '+q.nq+' question'+(q.nq===1?'':'s')+' ›</button>':'')
-    +'</div>'
+    +'</div>')
   +'</div>'
   +(next?'<div class="nextrow"><span class="footnote">Next in '+esc(weekLabel(mod))+':</span><a data-nav="next">'+esc(next.title)+' ›</a></div>':'');
   $('#page').innerHTML=inner;
@@ -1188,6 +1317,24 @@ function drawArticle(){
     READS[a.id]=r.data; toast('Read receipt logged ✓'); draw();
   });
   const tq=$('#takeQuiz'); if(tq)tq.addEventListener('click',()=>startQuiz(a));
+  // ---- signature ----
+  const so=$('#sigOpen'); if(so)so.addEventListener('click',()=>openSigModal(a,async()=>{
+    /* re-read my signatures so every surface (chips, queue, Training) agrees
+       without a page reload */
+    const sg=await sb.from('kb_signatures').select('id,article_id,article_version,signature_epoch,signed_at,signed_name').eq('staff_id',AUTH.id);
+    SIGS={}; (sg.data||[]).forEach(x=>{ const cur=SIGS[x.article_id];
+      if(!cur||x.signature_epoch>cur.signature_epoch)SIGS[x.article_id]=x; });
+    const rd=await sb.from('kb_reads').select('article_id,first_read_at,acknowledged_at,last_viewed_at').eq('staff_id',AUTH.id);
+    READS={}; (rd.data||[]).forEach(x=>READS[x.article_id]=x);
+    toast('Signed ✓ — filed in your employee record'); draw();
+  }));
+  const sd=$('#sigDl'); if(sd)sd.addEventListener('click',async()=>{
+    sd.disabled=true;
+    const r=await signCall({action:'my_doc',signature_id:+sd.dataset.sig});
+    sd.disabled=false;
+    if(!r.ok||!r.url){ toast('Could not open the document',true); return; }
+    window.open(r.url,'_blank');
+  });
 }
 
 /* ---------- onboarding ---------- */
@@ -1351,7 +1498,7 @@ function escAttr(v){ return String(v==null?'':v).replace(/"/g,'&quot;'); }
 function drawEditor(){
   const a=OPEN;
   if(!ED)ED={title:a?a.title:'',summary:a?a.summary||'':'',category_id:a?a.category_id:(CATS[0]||{}).id,
-    min_role:a?a.min_role:'employee',require_ack:a?!!a.require_ack:false,emoji:a?a.emoji||'':'',
+    min_role:a?a.min_role:'employee',require_ack:a?!!a.require_ack:false,require_signature:a?!!a.require_signature:false,emoji:a?a.emoji||'':'',
     icon_url:a?a.icon_url||null:null,
     module_id:a?a.module_id:null,sort_order:a?a.sort_order||0:0,body:a?a.body:'',announce:true,
     subcategory_id:a?a.subcategory_id||null:null,tag_ids:a?(ARTTAGS[a.id]||[]).slice():[]};
@@ -1362,6 +1509,7 @@ function drawEditor(){
     +'<span style="flex:1"></span>'
     +'<span class="statuschip '+(status==='published'?'pub':'draft')+'">'+(status==='published'?'Published':'Draft — unpublished'+(a?' edits':''))+'</span>'
     +(a&&status==='published'&&ED.require_ack?'<label style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);cursor:pointer"><input type="checkbox" id="edReread"'+(ED.reread?' checked':'')+' style="accent-color:var(--red)"> Require re-read</label>':'')
+    +(a&&status==='published'&&ED.require_signature?'<label style="display:inline-flex;align-items:center;gap:6px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;color:var(--dark-grey);cursor:pointer"><input type="checkbox" id="edResign" style="accent-color:var(--red)"> Require new signatures</label>':'')
     +'<button class="btn sm" id="edPrev">Preview</button>'
     +'<button class="btn sm" id="edDraft">Save draft</button>'
     +'<button class="btn pri sm" id="edPub">'+(status==='published'?'Save &amp; publish':'Publish')+'</button>'
@@ -1403,6 +1551,10 @@ function drawEditor(){
           +'<button class="switch'+(ED.require_ack?' on':'')+'" id="eReq" type="button"><i></i></button>'
           +'<span style="font-size:.82rem;font-weight:700">Required read</span>'
         +'</div>'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+          +'<button class="switch'+(ED.require_signature?' on':'')+'" id="eSig" type="button"><i></i></button>'
+          +'<span style="font-size:.82rem;font-weight:700">Signature required</span>'
+        +'</div>'
         +'<label class="fl">Assigned module</label><select id="eMod"><option value="">— none —</option>'+MODULES.map(m=>'<option value="'+m.id+'"'+(ED.module_id===m.id?' selected':'')+'>'+esc(m.name)+'</option>').join('')+'</select>'
         +'<label class="fl">Order in module</label><input type="number" id="eSort" value="'+(+ED.sort_order||0)+'" min="0" step="1">'
         +(a
@@ -1434,7 +1586,12 @@ function drawEditor(){
     if(i>-1)ED.tag_ids.splice(i,1); else ED.tag_ids.push(id);
     drawEditor(); }));
   document.querySelector('[data-nav="back"]').addEventListener('click',()=>{ ED=null; MODE=a?'article':'list'; goHash(a?'a='+a.slug:catHash()); draw(); });
-  $('#eReq').addEventListener('click',()=>{ ED.require_ack=!ED.require_ack; grab(); drawEditor(); });
+  $('#eReq').addEventListener('click',()=>{ ED.require_ack=!ED.require_ack;
+    if(!ED.require_ack)ED.require_signature=false; grab(); drawEditor(); });
+  /* signature is the tier above acknowledgment — it implies it, and clearing
+     "Required read" can't leave a signature obligation stranded behind it */
+  $('#eSig').addEventListener('click',()=>{ ED.require_signature=!ED.require_signature;
+    if(ED.require_signature)ED.require_ack=true; grab(); drawEditor(); });
   /* the editor itself is shared (assets/markup-editor.js) — knowledge.html
      keeps the article shell around it */
   const EDIT=CPRMarkupEditor.mount($('#edHost'),{
@@ -1491,7 +1648,7 @@ function drawEditor(){
        employee-visible — the category gate is UI, this is the enforcement */
     const catGated=(catById(ED.category_id)||{}).min_role==='manager';
     const row={title:ED.title.trim(),summary:ED.summary.trim()||null,category_id:ED.category_id,
-      body:ED.body,status,min_role:catGated?'manager':ED.min_role,require_ack:ED.require_ack,emoji:ED.emoji||null,
+      body:ED.body,status,min_role:catGated?'manager':ED.min_role,require_ack:ED.require_ack,require_signature:ED.require_signature,emoji:ED.emoji||null,
       icon_url:ED.icon_url||null,
       module_id:ED.module_id,sort_order:ED.sort_order,updated_by:AUTH.id,
       subcategory_id:ED.subcategory_id};
@@ -1519,6 +1676,16 @@ function drawEditor(){
     /* "Require re-read" on publish: reset receipts so the article resurfaces in
        Training → Assigned training for everyone. Never fires on ordinary edits —
        only when the author checks the box. */
+    /* "Require new signatures": advance the signature epoch so every existing
+       signature goes stale and the document comes back around. Deliberately
+       separate from the version bump, which happens on every save. */
+    const rsEl=$('#edResign');
+    if(status==='published'&&rsEl&&rsEl.checked){
+      const ep=(+saved.signature_version||1)+1;
+      const rs=await sb.from('kb_articles').update({signature_version:ep}).eq('id',saved.id).select().single();
+      if(rs.error)toast('Saved, but the signature reset failed: '+rs.error.message,true);
+      else{ saved=rs.data; announcePublish(saved,false); }
+    }
     const rrEl=$('#edReread');
     if(status==='published'&&rrEl&&rrEl.checked){
       const rr=await sb.from('kb_reads').update({acknowledged_at:null}).eq('article_id',saved.id);

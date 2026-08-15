@@ -147,6 +147,7 @@ function toast(m,err){ const t=$('#toast'); t.textContent=m; t.classList.toggle(
 /* Lucide chrome icons (inline; stroke = currentColor) */
 const LI={
  grad:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>',
+ pen:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>',
  book:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>',
  task:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5"/><path d="m9 11 3 3L22 4"/></svg>',
  user:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
@@ -166,7 +167,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 (async()=>{ try{ const s=(await sb.auth.getSession()).data.session; if(s) resolveMe(s); }catch(e){} })();
 
 /* ---------- state ---------- */
-let MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS={},QUIZ={},MYATT={},SDONE={};
+let MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS={},QUIZ={},MYATT={},SDONE={},SIGS={};
 let VIEW='home',READSLUG=null,BACKVIEW='home';
 function parseHashView(){
   const h=location.hash.replace('#','');
@@ -185,16 +186,17 @@ function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';ret
 function readMins(body){const w=String(body||'').split(/\s+/).length;return Math.max(1,Math.round(w/200));}
 
 async function loadAll(){
-  const [mo,se,ar,st,as,rd,qz,at,sd]=await Promise.all([
+  const [mo,se,ar,st,as,rd,qz,at,sd,sg]=await Promise.all([
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('onboarding_sections').select('*'),
-    sb.from('kb_articles').select('id,slug,title,summary,body,status,min_role,require_ack,emoji,icon_url,module_id,section_id,sort_order,category_id,updated_at,version').eq('status','published'),
+    sb.from('kb_articles').select('id,slug,title,summary,body,status,min_role,require_ack,require_signature,signature_version,emoji,icon_url,module_id,section_id,sort_order,category_id,updated_at,version').eq('status','published'),
     sb.from('onboarding_steps').select('*').eq('active',true),
     sb.from('onboarding_assignments').select('*').eq('staff_id',AUTH.id),
     sb.from('kb_reads').select('*').eq('staff_id',AUTH.id),
     sb.from('kb_quizzes').select('id,article_id,pass_pct,active,kb_quiz_questions(id)').eq('active',true),
     sb.from('kb_quiz_attempts').select('quiz_id,score_pct,passed').eq('staff_id',AUTH.id),
     sb.from('onboarding_step_done').select('*').eq('staff_id',AUTH.id),
+    sb.from('kb_signatures').select('article_id,signature_epoch,signed_at').eq('staff_id',AUTH.id),
   ]);
   MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=st.data||[];
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
@@ -202,20 +204,32 @@ async function loadAll(){
   QUIZ={};(qz.data||[]).forEach(q=>{QUIZ[q.article_id]={id:q.id,pass_pct:q.pass_pct,nq:(q.kb_quiz_questions||[]).length};});
   MYATT={};(at.data||[]).forEach(a=>{const c=MYATT[a.quiz_id]||{best:0,passed:false};c.best=Math.max(c.best,a.score_pct||0);c.passed=c.passed||!!a.passed;MYATT[a.quiz_id]=c;});
   SDONE={};(sd.data||[]).forEach(r=>{SDONE[r.step_id]=r;});
+  /* newest signature per article — the track compares its epoch against the
+     article's signature_version, so a revised policy reopens the item */
+  SIGS={};(sg.data||[]).forEach(r=>{const c=SIGS[r.article_id];
+    if(!c||r.signature_epoch>c.signature_epoch)SIGS[r.article_id]=r;});
 }
 function buildTrack(){
   /* back-office steps are manager-only — the employee never sees them and
      they never block the employee's sequential unlock */
   return CPRTrack.build({modules:MODULES,sections:SECTIONS,articles:ARTS,
     steps:STEPS.filter(s=>s.who!=='backoffice'),
-    assignments:ASSIGNS,reads:READS,quizzes:QUIZ,attempts:MYATT,stepDone:SDONE,today:todayISO()});
+    assignments:ASSIGNS,reads:READS,quizzes:QUIZ,attempts:MYATT,stepDone:SDONE,signatures:SIGS,today:todayISO()});
 }
-/* assigned training = required published reads outside any module, not acked */
+/* assigned training = required published reads outside any module, still open.
+   A signature article is only closed once SIGNED for the current epoch — an
+   acknowledgment alone leaves it on the list. */
+function sigCurrent(a){
+  const g=SIGS[a.id];
+  return !!(g&&Number(g.signature_epoch)===Number(a.signature_version||1));
+}
 function assignedTraining(){
   return ARTS.filter(a=>a.require_ack&&!a.module_id).map(a=>{
     const r=READS[a.id];
-    return {a,read:!!(r&&r.first_read_at),acked:!!(r&&r.acknowledged_at)};
-  }).filter(x=>!x.acked);
+    const acked=!!(r&&r.acknowledged_at);
+    return {a,read:!!(r&&r.first_read_at),acked,needsSig:!!a.require_signature,signed:sigCurrent(a),
+      done:a.require_signature?sigCurrent(a):acked};
+  }).filter(x=>!x.done);
 }
 function completedItems(){
   const out=[];
@@ -267,11 +281,14 @@ function drawHome(){
   }else{
     h+='<div class="alist">'+at.map(x=>{
       const reread=x.read&&!x.acked&&(x.a.version||1)>1;
-      const sub=reread?('updated article · re-read required')
+      /* a signature article says so on the row and on the button — reading it
+         is not what closes it out */
+      const sub=x.needsSig?(readMins(x.a.body)+' min · signature required')
+        :reread?('updated article · re-read required')
         :(readMins(x.a.body)+' min · required reading');
-      return '<div class="arow" data-art="'+esc(x.a.slug)+'"><span class="tile">'+ic('book',14)+'</span>'
+      return '<div class="arow" data-art="'+esc(x.a.slug)+'"><span class="tile">'+ic(x.needsSig?'pen':'book',14)+'</span>'
         +'<div class="t"><div class="ttl">'+(reread?'New: ':'')+esc(x.a.title)+'</div><div class="sub2">'+esc(sub)+'</div></div>'
-        +'<button class="btn alt" data-art="'+esc(x.a.slug)+'">Read ›</button></div>';
+        +'<button class="btn alt" data-art="'+esc(x.a.slug)+'">'+(x.needsSig?'Read &amp; sign ›':'Read ›')+'</button></div>';
     }).join('')+'</div>';
   }
   h+='</div>';
@@ -284,7 +301,12 @@ function drawHome(){
 
   $('#page').innerHTML=h;
   document.querySelectorAll('[data-continue]').forEach(b=>b.onclick=()=>{VIEW='track';setHash('track');draw();});
-  document.querySelectorAll('[data-art]').forEach(el=>el.onclick=e=>{e.stopPropagation();openRead(el.getAttribute('data-art'),'home');});
+  document.querySelectorAll('[data-art]').forEach(el=>el.onclick=e=>{e.stopPropagation();
+    const slug=el.getAttribute('data-art'),art=ARTS.find(x=>x.slug===slug);
+    /* signing lives in knowledge.html — the same hop quiz-taking already makes.
+       The in-page reader can only mark-as-read, which never closes a signature. */
+    if(art&&art.require_signature){location.href='knowledge.html#a='+encodeURIComponent(slug);return;}
+    openRead(slug,'home');});
 }
 function drawTrack(){
   const mods=buildTrack();
@@ -310,12 +332,13 @@ function drawTrack(){
         return;
       }
       const it=r.it,st=r.state;
-      const kindIc=it.kind==='a'?'book':(it.s.who==='manager'?'user':'task');
+      const sig=it.kind==='a'&&it.a.require_signature;
+      const kindIc=it.kind==='a'?(sig?'pen':'book'):(it.s.who==='manager'?'user':'task');
       const icon=st==='done'?ic('check',12):(st==='lock'?ic('lock',12):ic(kindIc,13));
       let title,meta,chips='',act='';
       if(it.kind==='a'){
-        title=it.a.title;meta=readMins(it.a.body)+' min · article';
-        if(st==='next')act='<button class="btn" data-open="'+esc(it.a.slug)+'">Start reading</button>';
+        title=it.a.title;meta=readMins(it.a.body)+' min · '+(sig?'signature required':'article');
+        if(st==='next')act='<button class="btn" data-open="'+esc(it.a.slug)+'"'+(sig?' data-sig="1"':'')+'>'+(sig?'Read &amp; sign':'Start reading')+'</button>';
       }else{
         title=it.s.title;
         meta='task · '+(it.s.who==='manager'?'with your manager':'you');
@@ -332,7 +355,10 @@ function drawTrack(){
   if(mods.length)h+='<div class="foot">Sections are presentation only — unlock stays sequential through them. Past-due turns the chip and bar red; nothing locks.</div>';
   $('#page').innerHTML=h;
   $('#backHome').onclick=()=>{VIEW='home';setHash('');draw();};
-  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{openRead(b.getAttribute('data-open'),'track');});
+  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{
+    const slug=b.getAttribute('data-open');
+    if(b.getAttribute('data-sig')){location.href='knowledge.html#a='+encodeURIComponent(slug);return;}
+    openRead(slug,'track');});
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{location.href=b.getAttribute('data-go');});
   document.querySelectorAll('[data-step]').forEach(b=>b.onclick=async()=>{
     b.disabled=true;

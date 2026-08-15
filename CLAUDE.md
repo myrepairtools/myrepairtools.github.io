@@ -1287,6 +1287,42 @@ Training → Assigned training; ordinary edits never auto-reset. Quiz authoring 
 the modal (11b full-page treatment deferred); the 9d Team Members intake review card
 is covered by the dashboard's Review modal for now.
 
+**Signature-required articles (policies employees SIGN):** `require_ack` is a
+click; some documents need a real signature. `kb_articles.require_signature`
+(implies require_ack, so every existing compliance surface keeps working
+untouched) turns the article's read bar into a **Sign this document** button
+that opens a signature modal (canvas pad + typed name — pointer events, DPR-
+scaled backing store; the pad is deliberately NOT inline, since a canvas in a
+long article gets scrolled past or drawn on by accident on a phone). Signing
+goes through the **`kb-sign` edge function** — the browser NEVER writes
+`kb_signatures` itself, because a signature record with no document behind it
+is worthless. The function renders the article to a **frozen PDF** (own leaner
+pdf-lib builder, CPR letterhead pulled from `hr-private/letterhead-logo.png`
+rather than duplicating intake's base64 constant; light markup via its own copy
+of `kbToPdfMarkup` — keep the two in sync), files it in `hr-private` under
+`staff/<id>/` + `staff_documents` (kind `policy`, source `kb:<slug>:e<epoch>`),
+writes `kb_signatures`, and stamps `kb_reads.acknowledged_at`. Frozen, never
+regenerated — same rule as the handbook acknowledgment. `my_doc` mints a
+120-second signed URL so an employee can download their OWN copy (storage
+policies open `staff/` only to `is_admin()`).
+**TWO version numbers, deliberately:** `kb_articles.version` bumps on every
+save and is the audit record of the exact wording signed (it prints on the
+PDF); **`signature_version` is the EPOCH — the obligation**, advanced only by
+the author ticking **"Require new signatures"** at publish (the same shape as
+"Require re-read"). Binding staleness to `version` would make a typo fix force
+the whole team to re-sign. A new epoch files a SECOND document and keeps the
+first, so the history of what someone agreed to stays intact;
+`kb_signatures` is unique on `(staff_id, article_id, signature_epoch)`.
+**Enforcement is two independent paths** — `assets/onboarding-track.js` treats a
+signature article as not-done until signed for the current epoch (identical rule
+to a quiz), so the track refuses to unlock past it and a new hire cannot walk
+around it; and require_ack inheritance puts it in Training → Assigned training
+for everyone else (a policy added today must reach people hired last year).
+Signing always happens in knowledge.html — training.html's in-page reader can
+only mark-as-read, so signature rows deep-link there, the same hop quiz-taking
+already makes. Nothing hard-blocks clock-in; the levers are the track, the
+compliance roster and alerts. Schema: docs/sql/kb-signatures.sql.
+
 **Communications (team feed):** `communications` (kind, title, body, source_key for
 automated idempotency, created_by) + `communication_reads` (per-user first_read_at,
 seconds-on-post, dismissed_at). Bodies are the SAME light markup the KB stores and render through

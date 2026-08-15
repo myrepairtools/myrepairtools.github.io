@@ -19,6 +19,9 @@
  *   quizzes:      {articleId: {id, pass_pct, nq}} active quizzes,
  *   attempts:     {quizId: {best, passed}} that person's attempts,
  *   stepDone:     {stepId: onboarding_step_done row} for that person,
+ *   signatures:   {articleId: newest kb_signatures row} for that person — a
+ *                 require_signature article stays open until it is signed for
+ *                 the article's current signature_version,
  *   today:        'YYYY-MM-DD' (optional; for pastDue),
  * }
  *
@@ -49,6 +52,7 @@
     var quizzes = d.quizzes || {};
     var attempts = d.attempts || {};
     var stepDone = d.stepDone || {};
+    var signatures = d.signatures || {};   // {articleId: newest kb_signatures row}
     var assigned = null, dueBy = {};
     if (Array.isArray(d.assignments)) {
       assigned = {};
@@ -58,9 +62,17 @@
     }
     var today = d.today || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
+    /* A signature-required article is not done until it is SIGNED for the
+       article's current signature epoch — exactly the rule a quiz already
+       follows. That is what makes the track refuse to unlock past an unsigned
+       policy, so a new hire cannot walk around a document they must sign. */
     function articleDone(a) {
       var r = reads[a.id], q = quizzes[a.id];
       var ok = !!(r && r.acknowledged_at);
+      if (ok && a.require_signature) {
+        var sg = signatures[a.id];
+        ok = !!(sg && Number(sg.signature_epoch) === Number(a.signature_version || 1));
+      }
       return ok && (!q || !q.nq || (attempts[q.id] && attempts[q.id].passed));
     }
     function itemDone(it) { return it.kind === 'a' ? articleDone(it.a) : !!stepDone[it.s.id]; }

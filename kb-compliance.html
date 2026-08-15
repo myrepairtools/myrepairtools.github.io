@@ -156,7 +156,7 @@ const MANUAL_ITEMS=[
 ];
 
 let AUTH=null,BOOTED=false;
-let STAFF=[],PROFILES={},SCHEDROWS={},ROSTERROWS={},TICKS={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],EARNPERMS={};
+let STAFF=[],PROFILES={},SCHEDROWS={},ROSTERROWS={},TICKS={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],EARNPERMS={};
 let STORE='all',SEL=null;
 
 async function resolveMe(sess){
@@ -168,7 +168,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 (async()=>{try{const s=(await sb.auth.getSession()).data.session;if(s)resolveMe(s);}catch(e){}})();
 
 async function loadAll(){
-  const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp]=await Promise.all([
+  const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp,sg]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,authorized_stores,active,birthday,start_date,pin_hash,created_at').eq('active',true),
     sb.from('staff_profiles').select('staff_id,phone,emergency,shirt_size'),
     sb.from('staff_schedule').select('staff_id'),
@@ -176,7 +176,7 @@ async function loadAll(){
     sb.from('staff_setup_checklist').select('*'),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('onboarding_sections').select('*'),
-    sb.from('kb_articles').select('id,slug,title,body,status,require_ack,min_role,module_id,section_id,sort_order,published_at,version').eq('status','published'),
+    sb.from('kb_articles').select('id,slug,title,body,status,require_ack,require_signature,signature_version,min_role,module_id,section_id,sort_order,published_at,version').eq('status','published'),
     sb.from('onboarding_steps').select('*').eq('active',true),
     sb.from('onboarding_assignments').select('*'),
     sb.from('kb_reads').select('article_id,staff_id,first_read_at,acknowledged_at'),
@@ -186,6 +186,7 @@ async function loadAll(){
     sb.from('roles').select('id,key'),
     sb.from('permissions').select('id,key').like('key','commission.earn.%'),
     sb.from('role_permissions').select('role_id,permission_id'),
+    sb.from('kb_signatures').select('article_id,staff_id,signature_epoch,signed_at'),
   ]);
   STAFF=(st.data||[]).filter(s=>s.role!=='owner');
   PROFILES={};(pf.data||[]).forEach(p=>{PROFILES[p.staff_id]=p;});
@@ -194,7 +195,7 @@ async function loadAll(){
   TICKS={};(tk.data||[]).forEach(r=>{TICKS[r.staff_id+':'+r.item]=r;});
   MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=sp.data||[];
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
-  READS=rd.data||[];ATTEMPTS=at.data||[];SDONE=sd.data||[];QUIZROWS=qz.data||[];
+  READS=rd.data||[];SIGROWS=sg.data||[];ATTEMPTS=at.data||[];SDONE=sd.data||[];QUIZROWS=qz.data||[];
   /* which roles earn accessory / device commission (for the n/a rows) */
   EARNPERMS={};
   const permById={};(pe.data||[]).forEach(p=>{permById[p.id]=p.key;});
@@ -222,9 +223,15 @@ function personTrack(p){
   const quiz={};QUIZROWS.forEach(q=>{quiz[q.article_id]={id:q.id,nq:(q.kb_quiz_questions||[]).length};});
   ATTEMPTS.filter(a=>a.staff_id===p.id).forEach(a=>{const c=att[a.quiz_id]||{passed:false};c.passed=c.passed||!!a.passed;att[a.quiz_id]=c;});
   SDONE.filter(r=>r.staff_id===p.id).forEach(r=>{sdn[r.step_id]=r;});
+  /* newest signature per article for this person — the track holds a
+     require_signature item open until its epoch matches the article's */
+  const sgs={};
+  SIGROWS.filter(r=>r.staff_id===p.id).forEach(r=>{const c=sgs[r.article_id];
+    if(!c||r.signature_epoch>c.signature_epoch)sgs[r.article_id]=r;});
   const arts=ARTS.filter(a=>a.min_role!=='manager'||isMgr(p.role));
   return CPRTrack.build({modules:MODULES,sections:SECTIONS,articles:arts,steps:STEPS,
-    assignments:ASSIGNS.filter(a=>a.staff_id===p.id),reads,quizzes:quiz,attempts:att,stepDone:sdn,today:todayISO()});
+    assignments:ASSIGNS.filter(a=>a.staff_id===p.id),reads,quizzes:quiz,attempts:att,stepDone:sdn,
+    signatures:sgs,today:todayISO()});
 }
 /* ---- new-hire setup checklist rows ---- */
 function setupRows(p){
