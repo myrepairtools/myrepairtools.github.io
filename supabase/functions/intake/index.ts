@@ -353,11 +353,86 @@ async function buildOfferPdf(opts: {
 }
 
 /* ---------- email with PDF attachment (Resend first, Gmail fallback) ---------- */
-function emailHtml(text: string): string {
-  return '<div style="font-family:Arial,sans-serif;font-size:14px;color:#2D2D3B;line-height:1.55;white-space:pre-line">' +
-    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/(https:\/\/[^\s]+)/g, '<a href="$1">$1</a>') + "</div>";
+/* Candidate-facing email.
+
+   The first version leaned on `white-space:pre-line` to turn a plain-text
+   body into paragraphs. Outlook mobile drops that property, so an offer
+   letter arrived as one unbroken wall of text — the first thing a candidate
+   ever sees from us. Real markup instead: table layout, explicit <p> spacing,
+   a bulletproof (table-based) button, and inline styles only, because email
+   clients strip <style> blocks. */
+const MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+const esch = (x: string) =>
+  String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function mailHtml(o: {
+  greeting: string;
+  paras: string[];
+  steps?: string[];
+  cta?: { label: string; url: string };
+  ctaNote?: string;
+}): string {
+  const p = (t: string) =>
+    '<p style="margin:0 0 16px;font-family:' + MAIL_FONT +
+    ';font-size:15px;line-height:1.6;color:#2D2D3B">' + t + "</p>";
+  const steps = (o.steps || []).map((t, i) =>
+    '<tr><td valign="top" style="padding:0 12px 10px 0;font-family:' + MAIL_FONT +
+    ';font-size:15px;font-weight:700;color:#DC282E;line-height:1.6">' + (i + 1) + "." +
+    '</td><td style="padding:0 0 10px;font-family:' + MAIL_FONT +
+    ';font-size:15px;line-height:1.6;color:#2D2D3B">' + t + "</td></tr>").join("");
+  const cta = o.cta
+    ? '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 18px">'
+      + '<tr><td align="center" bgcolor="#DC282E" style="border-radius:8px">'
+      + '<a href="' + o.cta.url + '" style="display:inline-block;padding:13px 26px;font-family:' + MAIL_FONT
+      + ';font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px">'
+      + esch(o.cta.label) + "</a></td></tr></table>"
+      + (o.ctaNote ? '<p style="margin:0 0 16px;font-family:' + MAIL_FONT
+        + ";font-size:12px;line-height:1.5;color:#8A8FA0;word-break:break-word\">" + o.ctaNote
+        + ' <a href="' + o.cta.url + '" style="color:#1E7AA8;word-break:break-all">' + esch(o.cta.url) + "</a></p>" : "")
+    : "";
+  return '<!doctype html><html><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<meta name="color-scheme" content="light only"></head>'
+    + '<body style="margin:0;padding:0;background:#F3F2F2">'
+    + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F2F2">'
+    + '<tr><td align="center" style="padding:24px 12px">'
+    // no width="600" attribute — it wins over max-width in mobile webmail and
+    // pushes the card off the side of a phone. Outlook desktop, which ignores
+    // max-width, gets the width from the MSO ghost table above.
+    + '<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->'
+    + '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">'
+    + '<tr><td style="padding:26px 32px 0"><img src="' + SITE + '/assets/images/cpr-logo-letterhead.png"'
+    + ' width="190" alt="CPR Cell Phone Repair" style="display:block;width:190px;max-width:60%;height:auto;border:0"></td></tr>'
+    + '<tr><td style="padding:18px 32px 0"><div style="height:3px;background:#DC282E;border-radius:2px"></div></td></tr>'
+    + '<tr><td style="padding:22px 32px 8px">'
+    + p("<strong>" + esch(o.greeting) + "</strong>")
+    + o.paras.map(p).join("")
+    + (steps ? '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px">' + steps + "</table>" : "")
+    + cta
+    + "</td></tr>"
+    + '<tr><td style="padding:0 32px 28px">'
+    + '<div style="height:1px;background:#E0E2EA;margin-bottom:14px"></div>'
+    + '<p style="margin:0;font-family:' + MAIL_FONT + ';font-size:12px;line-height:1.6;color:#8A8FA0">'
+    + "CPR Cell Phone Repair &nbsp;&bull;&nbsp; Oregon<br>iRepair Phone Shop, LLC</p>"
+    + "</td></tr></table>"
+    + "<!--[if mso]></td></tr></table><![endif]-->"
+    + "</td></tr></table></body></html>";
 }
-async function sendOfferEmail(to: string, subject: string, text: string,
+
+/* The text/plain half of the same message — every client that shows it. */
+function mailText(o: { greeting: string; paras: string[]; steps?: string[]; cta?: { label: string; url: string } }): string {
+  const strip = (x: string) => x.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
+  return [
+    o.greeting,
+    "",
+    ...o.paras.map(strip).flatMap((t) => [t, ""]),
+    ...(o.steps || []).map((t, i) => "  " + (i + 1) + ". " + strip(t)),
+    ...(o.steps && o.steps.length ? [""] : []),
+    ...(o.cta ? [o.cta.url, ""] : []),
+    "— CPR Cell Phone Repair, Oregon",
+  ].join("\n");
+}
+async function sendOfferEmail(to: string, subject: string, text: string, html: string,
   pdf: Uint8Array, filename: string, replyTo?: string): Promise<{ ok: boolean; error?: string }> {
   const b64 = b64FromBytes(pdf);
   if (RESEND_API_KEY) {
@@ -365,7 +440,7 @@ async function sendOfferEmail(to: string, subject: string, text: string,
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: HIRING_FROM, to: [to], subject, text, html: emailHtml(text),
+        from: HIRING_FROM, to: [to], subject, text, html,
         ...(replyTo ? { reply_to: replyTo } : {}),
         attachments: [{ filename, content: b64 }],
       }),
@@ -382,7 +457,7 @@ async function sendOfferEmail(to: string, subject: string, text: string,
       });
       await client.send({
         from: `CPR Cell Phone Repair <${GMAIL_USER}>`, to, subject,
-        content: text, html: emailHtml(text),
+        content: text, html,
         ...(replyTo ? { replyTo } : {}),
         attachments: [{ filename, content: b64, encoding: "base64", contentType: "application/pdf" }],
       });
@@ -412,13 +487,19 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
   if (!/@/.test(email) || it.newhire_sent_at) return;
   const link = SITE + "/intake.html?t=" + String(it.token) + "&s=hire";
   const first = String(it.invited_name || it.offer_signed_name || "").trim().split(/\s+/)[0] || "there";
-  const text = "Hi " + first + ",\n\n"
-    + "Your signed offer letter is attached — that copy is yours to keep, so there's nothing to print or bring in.\n\n"
-    + "Next, two things to finish online (about 10 minutes):\n"
-    + "  1. Read and acknowledge the Employee Handbook\n"
-    + "  2. Fill out your new-hire form — contact details, emergency contacts, and your availability\n\n"
-    + link + "\n\n"
-    + "Questions? Just reply to this email.\n\n— CPR Cell Phone Repair, Oregon";
+  const msg = {
+    greeting: "Hi " + first + ",",
+    paras: [
+      "Welcome to the team. Your signed offer letter is attached — that copy is yours to keep.",
+      "There are two things left to finish online, about ten minutes in all:",
+    ],
+    steps: [
+      "Read and acknowledge the Employee Handbook",
+      "Fill out your new-hire form — contact details, emergency contacts, and your availability",
+    ],
+    cta: { label: "Finish your paperwork", url: link },
+    ctaNote: "Or paste this into your browser:",
+  };
   let pdf: Uint8Array;
   try {
     pdf = await buildOfferPdf({
@@ -431,8 +512,8 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
       },
     });
   } catch { return; }
-  const r = await sendOfferEmail(email, "Welcome to CPR — your next steps", text,
-    pdf, "CPR Offer — signed.pdf", await hiringReplyTo());
+  const r = await sendOfferEmail(email, "Welcome to CPR — your next steps",
+    mailText(msg), mailHtml(msg), pdf, "CPR Offer — signed.pdf", await hiringReplyTo());
   if (r.ok) {
     await admin.from("staff_intake")
       .update({ newhire_sent_at: new Date().toISOString() })
@@ -912,14 +993,20 @@ Deno.serve(async (req) => {
     const link = SITE + "/intake.html?t=" + it.token;
     const pdf = await buildOfferPdf({ body: it.offer_body, link, storeLine: await storeLetterhead(it.invited_store) });
     const first = String(it.invited_name || "").trim().split(/\s+/)[0] || "there";
-    const text = "Hi " + first + ",\n\n"
-      + "Your offer letter from CPR Cell Phone Repair is attached as a PDF.\n\n"
-      + "When you're ready, open the link below to read it and either accept or decline. Accepting takes a signature on the page — no printing, and nothing to bring in:\n"
-      + link + "\n\n"
-      + "Once it's signed we'll email you the next steps.\n\n"
-      + "Questions? Just reply to this email.\n\n— CPR Cell Phone Repair, Oregon";
-    const r = await sendOfferEmail(String(it.personal_email), "Your offer from CPR Cell Phone Repair", text,
-      pdf, "CPR Offer Letter.pdf", await hiringReplyTo());
+    const msg = {
+      greeting: "Hi " + first + ",",
+      paras: [
+        "We're glad to offer you a position with CPR Cell Phone Repair" +
+        (it.position ? " as <strong>" + esch(String(it.position)) + "</strong>" : "") + "."
+        + " Your offer letter is attached to this email as a PDF.",
+        "When you're ready, open your offer to read it and either accept or decline."
+        + " Accepting takes a signature right on the page — nothing to print, and nothing to bring in.",
+      ],
+      cta: { label: "Review your offer", url: link },
+      ctaNote: "Or paste this into your browser:",
+    };
+    const r = await sendOfferEmail(String(it.personal_email), "Your offer from CPR Cell Phone Repair",
+      mailText(msg), mailHtml(msg), pdf, "CPR Offer Letter.pdf", await hiringReplyTo());
     if (r.ok) {
       await admin.from("staff_intake").update({
         offer_sent_at: new Date().toISOString(), offer_sent_via: "email", updated_at: new Date().toISOString(),
