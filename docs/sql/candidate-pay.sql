@@ -74,3 +74,13 @@ alter table public.staff_intake add column if not exists suggested_pin     text;
 update public.roles set name = 'Manager' where key = 'admin';
 update public.staff set role = 'team_member' where role = 'employee';
 update public.staff set role = 'admin'       where role = 'manager';
+
+-- Training picked while you're already deciding to hire them. Convert assigns
+-- these on top of whatever the modules' own auto-assign rules match, so a
+-- one-pass hire lands with their track already waiting.
+alter table public.staff_intake add column if not exists modules bigint[];
+
+-- The wizard has always asked for a Position and printed it on the offer
+-- letter; it never landed on the staff row. Convert writes it to staff.title,
+-- and generates a username (first initial + last name, deduped) — the two
+-- fields that used to leave a brand-new hire wearing a "Needs setup" chip.

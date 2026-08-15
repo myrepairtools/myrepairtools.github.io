@@ -443,9 +443,17 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
 /* House convention: first initial + last name, lowercase (bbay, kfarnworth).
    Cash Admin still identifies people by username, so a hire without one lands
    in Team Members wearing a "Needs setup" chip — convert fills it instead. */
-async function freeUsername(first: string, last: string): Promise<string | null> {
+async function freeUsername(first: string, last: string, full: string): Promise<string | null> {
   const clean = (x: string) => x.toLowerCase().replace(/[^a-z]/g, "");
-  const base = (clean(first).slice(0, 1) + clean(last)) || clean(first);
+  // the new-hire form gives us legal first/last; before that (a convert with
+  // no form) the only name we have is one string, so split it
+  let f = clean(first), l = clean(last);
+  if (!f || !l) {
+    const parts = String(full || "").trim().split(/\s+/).map(clean).filter(Boolean);
+    if (parts.length > 1) { f = parts[0]; l = parts[parts.length - 1]; }
+    else { f = parts[0] || f; l = ""; }
+  }
+  const base = (l ? f.slice(0, 1) + l : f);
   if (!base) return null;
   for (let i = 0; i < 20; i++) {
     const tryName = i ? base + (i + 1) : base;
@@ -478,6 +486,10 @@ async function archiveDocs(
 
   const file = async (kind: string, title: string, pdf: Uint8Array, signedAt: unknown) => {
     const path = "staff/" + staffId + "/" + crypto.randomUUID() + ".pdf";
+    // re-filing REPLACES the row, so the file it used to point at has to go
+    // with it or the bucket collects orphans nobody can see
+    const { data: prev } = await admin.from("staff_documents")
+      .select("file_path").eq("staff_id", staffId).eq("kind", kind).eq("source", source).maybeSingle();
     const up = await admin.storage.from("hr-private")
       .upload(path, pdf, { contentType: "application/pdf", upsert: false });
     if (up.error) { errors.push(kind + ": " + up.error.message); return; }
@@ -493,6 +505,9 @@ async function archiveDocs(
       await admin.storage.from("hr-private").remove([path]).catch(() => {});
       errors.push(kind + ": " + error.message);
       return;
+    }
+    if (prev?.file_path && prev.file_path !== path) {
+      await admin.storage.from("hr-private").remove([prev.file_path]).catch(() => {});
     }
     filed++;
   };
@@ -928,6 +943,8 @@ Deno.serve(async (req) => {
       mrt_role: ["team_member", "admin"].includes(String(body.mrt_role)) ? String(body.mrt_role) : "team_member",
       authorized_stores: Array.isArray(body.authorized_stores)
         ? (body.authorized_stores as unknown[]).map(String).slice(0, 20) : null,
+      modules: Array.isArray(body.modules)
+        ? (body.modules as unknown[]).map(Number).filter((n) => n > 0).slice(0, 40) : null,
       commission: !!body.commission,
       commission_earns: body.commission && body.commission_earns
         ? {
@@ -990,7 +1007,7 @@ Deno.serve(async (req) => {
         || String(it.invited_name || "").trim();
       if (!nm) return json({ error: "no_name" }, 400);
       const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin)) : null;
-      const username = await freeUsername(String(it.legal_first || nm), String(it.legal_last || ""));
+      const username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), nm);
       if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
       const { data: made, error: cerr } = await admin.from("staff").insert({
         display_name: nm,
@@ -1004,6 +1021,7 @@ Deno.serve(async (req) => {
         home_store: it.invited_store || null,
         authorized_stores: Array.isArray(it.authorized_stores) && it.authorized_stores.length
           ? it.authorized_stores : null,
+        title: it.position || null,
         wage_type: it.pay_type === "salary" ? "salary" : "hourly",
         start_date: it.start_date || null,
         active: true,
@@ -1014,13 +1032,14 @@ Deno.serve(async (req) => {
       // the PIN has served its purpose; don't leave it sitting in plaintext
       await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
     }
-    const { data: st } = await admin.from("staff").select("id, role, start_date, birthday, first_name, last_name, preferred_name").eq("id", staffId).maybeSingle();
+    const { data: st } = await admin.from("staff").select("id, role, start_date, birthday, title, first_name, last_name, preferred_name").eq("id", staffId).maybeSingle();
     if (!st) return json({ error: "staff_not_found" }, 404);
     const patch: Record<string, unknown> = {};
     if (it.legal_first && !st.first_name) patch.first_name = it.legal_first;
     if (it.legal_last && !st.last_name) patch.last_name = it.legal_last;
     if (it.preferred_name && !st.preferred_name) patch.preferred_name = it.preferred_name;
     if (it.dob && !st.birthday) patch.birthday = it.dob;
+    if (it.position && !st.title) patch.title = it.position;
     if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
     // contact + emergency onto staff_profiles (never overwrite non-empty)
     const { data: prof } = await admin.from("staff_profiles").select("staff_id, phone, personal_email, emergency").eq("staff_id", staffId).maybeSingle();
@@ -1055,16 +1074,21 @@ Deno.serve(async (req) => {
     // file the signed paperwork onto the person before the intake row leaves
     // the board — this is the only moment it's guaranteed to still be visible
     const docs = await archiveDocs(it, staffId, mgr).catch(() => ({ filed: 0, errors: ["archive failed"] }));
-    // fire auto-assign: modules whose rule matches this hire
+    // training: what the wizard picked, plus whatever the modules' own
+    // auto-assign rules match. A hire should never land with an empty track
+    // just because nobody has configured a rule yet.
     const { data: mods } = await admin.from("onboarding_modules").select("id, auto_assign_role, auto_assign_from").eq("active", true);
     const hired = String(st.start_date || new Date().toISOString().slice(0, 10));
+    const picked = Array.isArray(it.modules) ? (it.modules as unknown[]).map(Number) : [];
     let assigned = 0;
     for (const m of (mods || [])) {
-      if (!m.auto_assign_role) continue;
-      const roleOk = m.auto_assign_role === "any" || m.auto_assign_role === st.role
-        || (m.auto_assign_role === "team_member" && ["employee", "team_member"].includes(st.role));
-      const dateOk = !m.auto_assign_from || hired >= String(m.auto_assign_from);
-      if (!roleOk || !dateOk) continue;
+      if (!picked.includes(Number(m.id))) {
+        if (!m.auto_assign_role) continue;
+        const roleOk = m.auto_assign_role === "any" || m.auto_assign_role === st.role
+          || (m.auto_assign_role === "team_member" && ["employee", "team_member"].includes(st.role));
+        const dateOk = !m.auto_assign_from || hired >= String(m.auto_assign_from);
+        if (!roleOk || !dateOk) continue;
+      }
       const { error } = await admin.from("onboarding_assignments")
         .upsert({ staff_id: staffId, module_id: m.id, assigned_by: mgr.id }, { onConflict: "staff_id,module_id", ignoreDuplicates: true });
       if (!error) assigned++;

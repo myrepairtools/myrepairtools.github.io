@@ -342,7 +342,8 @@ function openNewHire(){
   CD={step:1,name:'',store:(window.CPRLocations?CPRLocations.names():[''])[0]||'',pos:'',start:'',
     payType:'hourly',payAmt:'',comm:false,earns:{accessory:true,device:true,services:true},
     phone:'',email:'',docs:true,body:'',tplDirty:false,created:null,pdfUrl:null,
-    sendEmail:true,sendText:true,role:'team_member',stores:[]};
+    sendEmail:true,sendText:true,role:'team_member',stores:[],
+    modules:MODULES.map(m=>m.id)};
   drawWiz();
   $('#mask').classList.add('show');
 }
@@ -473,7 +474,16 @@ function drawWiz(){
             +'<span style="font-weight:700;font-size:.85rem'+(home?';color:var(--grey2)':'')+'">CPR '+esc(shortStore(st))
             +(home?' <span style="font-size:.72rem;font-weight:800;color:var(--grey)">— home store</span>':'')+'</span></label>';
         }).join('')
-      +'</div>';
+      +'</div>'
+      +'<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin:16px 0 6px">Training</div>'
+      +(MODULES.length
+        ?'<div style="border:1.5px solid var(--border);border-radius:10px;padding:4px 14px">'
+          +MODULES.map(m=>'<label style="display:flex;gap:9px;align-items:center;padding:9px 0;cursor:pointer">'
+            +'<input type="checkbox" data-mod="'+esc(m.id)+'"'+(CD.modules.indexOf(m.id)>-1?' checked':'')
+            +' style="width:16px;height:16px;accent-color:var(--red)">'
+            +'<span style="font-weight:700;font-size:.85rem">'+esc(m.name)+'</span></label>').join('')
+          +'</div>'
+        :'<div style="font-size:.8rem;font-weight:700;color:var(--grey2)">No modules built yet.</div>');
   }else if(CD.step===4){
     body='<label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;cursor:pointer;font-size:.82rem;font-weight:700">'
       +'<input type="checkbox" id="wDocs"'+(CD.docs?' checked':'')+' style="width:15px;height:15px;accent-color:var(--red)">'
@@ -494,6 +504,8 @@ function drawWiz(){
       ['Start',startLabel()||'—'],
       ['Role',((MRT_ROLES.filter(r=>r.v===CD.role)[0]||{}).t||CD.role)],
       ['Stores',['CPR '+shortStore(CD.store)].concat(CD.stores.map(x=>'CPR '+shortStore(x))).join(', ')],
+      ['Training',CD.modules.length
+        ?MODULES.filter(m=>CD.modules.indexOf(m.id)>-1).map(m=>m.name).join(', '):'None'],
       ['Mobile',CD.phone||'—'],['Email',CD.email||'—'],['Sending',CD.docs?'Offer letter':'New-hire form only']];
     body='<div style="border:1px solid #F0F1F4;border-radius:10px;padding:8px 12px;margin-bottom:12px">'
       +rows.map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')+'</div>'
@@ -543,6 +555,11 @@ function wireWiz(){
       const st=b.getAttribute('data-store');
       CD.stores=CD.stores.filter(x=>x!==st);
       if(b.checked)CD.stores.push(st);
+    });
+    document.querySelectorAll('[data-mod]').forEach(b=>b.onchange=()=>{
+      const id=+b.getAttribute('data-mod');
+      CD.modules=CD.modules.filter(x=>x!==id);
+      if(b.checked)CD.modules.push(id);
     });
   }
   if(CD.step===4){
@@ -640,12 +657,12 @@ async function createCandidate(){
       position:CD.pos,pay:payLabel(),start_hint:startLabel(),start_date:CD.start||null,
       pay_type:CD.payType,pay_amount:parseFloat(CD.payAmt)||null,
       commission:CD.comm,commission_earns:CD.comm?CD.earns:null,
-      mrt_role:CD.role,authorized_stores:CD.stores.filter(x=>x!==CD.store),
+      mrt_role:CD.role,authorized_stores:CD.stores.filter(x=>x!==CD.store),modules:CD.modules,
       offer_body:CD.docs?CD.body:null,
       phone:e164ish(CD.phone)||CD.phone||null,
       personal_email:CD.email||null})});
   const j=await r.json().catch(()=>({}));
-  if(!(r.status===200&&j.ok)){b.disabled=false;b.textContent='Create candidate & link';toast(j.error||'Failed',true);return;}
+  if(!(r.status===200&&j.ok)){b.disabled=false;b.textContent=createLabel();toast(j.error||'Failed',true);return;}
   CD.created={id:j.id,token:j.token};
   drawWiz();
   const t=sendTargets();
