@@ -77,6 +77,23 @@ background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:no
 .f .daypick:hover{border-color:var(--blue)}
 .f .daypick.none{color:var(--grey)}
 .mact{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.wgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.wchips{display:flex;gap:6px;margin:2px 0 12px}
+.wchip{flex:1;text-align:center;font-family:'Nunito',sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;
+letter-spacing:.4px;padding:7px 3px;border-radius:8px;color:var(--grey);background:#fafafa}
+.wchip.done{background:var(--light-grey);color:var(--dark)}
+.wchip.on{background:var(--dark);color:#fff}
+/* seven chips don't fit a phone — the candidate page's track reads better */
+.wbar{display:none;align-items:center;gap:10px;margin:2px 0 14px}
+.wbar .ptrack{flex:1;height:5px;border-radius:999px;background:#ECEDF1;overflow:hidden}
+.wbar .ptrack>i{display:block;height:100%;border-radius:999px;background:var(--red);transition:width .2s}
+.wbar .plabel{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;color:var(--dark);white-space:nowrap}
+@media(max-width:620px){
+  .wgrid{grid-template-columns:1fr}
+  .wchips{display:none}
+  .wbar{display:flex}
+  .mdl{padding:18px 16px}
+}
 .btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
 .linkbox{display:flex;gap:8px;margin-top:10px}
 .linkbox input{flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;font-family:ui-monospace,monospace}
@@ -423,13 +440,15 @@ function grabWiz(){
   }
 }
 function drawWiz(){
-  const chips='<div style="display:flex;gap:6px;margin:2px 0 12px">'+WSTEPS.map((s,i)=>{
-    const n=i+1,on=n===CD.step,done=n<CD.step;
-    return '<div style="flex:1;text-align:center;font-family:Nunito,sans-serif;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:7px 3px;border-radius:8px;'
-      +(on?'background:var(--dark);color:#fff':done?'background:var(--light-grey);color:var(--dark)':'color:var(--grey);background:#fafafa')+'">'+n+'. '+s+'</div>';}).join('')+'</div>';
+  const chips='<div class="wchips">'+WSTEPS.map((s,i)=>{
+      const n=i+1;
+      return '<div class="wchip'+(n===CD.step?' on':n<CD.step?' done':'')+'">'+n+'. '+s+'</div>';
+    }).join('')+'</div>'
+    +'<div class="wbar"><span class="ptrack"><i style="width:'+Math.round(CD.step/WSTEPS.length*100)+'%"></i></span>'
+    +'<span class="plabel">'+esc(ST())+'</span></div>';
   let body='';
   if(ST()==='Candidate'){
-    body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+    body='<div class="wgrid">'
       +'<div class="f"><label>Name</label><input id="wName" placeholder="Devon Reyes" value="'+esc(CD.name)+'"></div>'
       +'<div class="f"><label>Store</label><select id="wStore">'
       +(window.CPRLocations?CPRLocations.names():[]).map(s=>'<option value="'+esc(s)+'"'+(CD.store===s?' selected':'')+'>CPR '+esc(shortStore(s))+'</option>').join('')+'</select></div>'
@@ -441,7 +460,7 @@ function drawWiz(){
       +'</div>';
   }else if(ST()==='Pay'){
     const sal=CD.payType==='salary';
-    body='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+    body='<div class="wgrid">'
       +'<div class="f"><label>Pay type</label><select id="wPayType">'
         +'<option value="hourly"'+(sal?'':' selected')+'>Hourly</option>'
         +'<option value="salary"'+(sal?' selected':'')+'>Salary</option></select></div>'
