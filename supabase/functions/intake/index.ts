@@ -70,17 +70,37 @@ function sigMeta(req: Request) {
   };
 }
 
-// Best-effort 'hiring' alert to the manager who created the link — a
-// notification problem must never break the candidate's flow.
-async function alertMgr(staffId: unknown, title: string, body: string) {
-  const id = Number(staffId);
-  if (!id || !NOTIFY_SECRET) return;
+// Who hears about a candidate: the OWNER, the manager of the store they're
+// being hired into (stores.manager_staff_id, set in Settings -> Locations),
+// and whoever created the link. Hiring is the owner's business at every store
+// and the store manager's at theirs — routing it to the link's creator alone
+// meant a hire could be signed and formed without the people who have to plan
+// around them hearing a thing.
+async function hiringAudience(store: unknown, creatorId: unknown): Promise<number[]> {
+  const ids = new Set<number>();
+  if (Number(creatorId)) ids.add(Number(creatorId));
+  const { data: owners } = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
+  (owners || []).forEach((o) => ids.add(Number(o.id)));
+  if (store) {
+    const { data: st } = await admin.from("stores").select("store, rq_name, manager_staff_id");
+    const row = (st || []).find((r) => r.store === String(store) || r.rq_name === String(store));
+    if (row?.manager_staff_id) ids.add(Number(row.manager_staff_id));
+  }
+  return [...ids].filter((n) => n > 0);
+}
+
+// Best-effort 'hiring' alert — a notification problem must never break the
+// candidate's flow.
+async function alertMgr(staffId: unknown, title: string, body: string, store?: unknown) {
+  if (!NOTIFY_SECRET) return;
+  const staff_ids = await hiringAudience(store, staffId).catch(() => []);
+  if (!staff_ids.length) return;
   try {
     await fetch(SB_URL + "/functions/v1/alerts", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "send", secret: NOTIFY_SECRET, kind: "hiring",
-        title, body, link: "onboarding-dashboard.html", staff_ids: [id],
+        title, body, link: "onboarding-dashboard.html", staff_ids,
       }),
     });
   } catch { /* best-effort */ }
@@ -854,7 +874,8 @@ Deno.serve(async (req) => {
       }).eq("id", it.id).is("offer_signed_at", null);
       if (error) return json({ error: error.message }, 500);
       await alertMgr(it.invited_by, "Offer signed — " + name,
-        name + " accepted and signed their offer" + (it.position ? " (" + it.position + ")" : "") + ". Handbook + new-hire form are next.");
+        name + " accepted and signed their offer" + (it.position ? " (" + it.position + ")" : "") + ". Handbook + new-hire form are next.",
+        it.invited_store);
       // Signing ends the offer stage. The new-hire stage arrives as its own
       // email carrying their signed copy — so nothing has to be printed,
       // signed on paper, or brought back to the store. Best-effort: an email
@@ -872,7 +893,8 @@ Deno.serve(async (req) => {
       }).eq("id", it.id).is("offer_declined_at", null);
       if (error) return json({ error: error.message }, 500);
       await alertMgr(it.invited_by, "Offer declined — " + candName(it),
-        candName(it) + " declined the offer" + (it.position ? " (" + it.position + ")" : "") + (note ? '. "' + note + '"' : "."));
+        candName(it) + " declined the offer" + (it.position ? " (" + it.position + ")" : "") + (note ? '. "' + note + '"' : "."),
+        it.invited_store);
       return json({ ok: true });
     }
 
@@ -936,7 +958,7 @@ Deno.serve(async (req) => {
     const token = String(body.token || "");
     if (!token) return json({ error: "token required" }, 400);
     const { data: row } = await admin.from("staff_intake")
-      .select("id, status, invited_by, position, offer_body, offer_signed_at, offer_declined_at, handbook_signed_at")
+      .select("id, status, invited_by, invited_store, position, offer_body, offer_signed_at, offer_declined_at, handbook_signed_at")
       .eq("token", token).maybeSingle();
     if (!row) return json({ error: "not_found" }, 404);
     if (row.status === "promoted") return json({ error: "already_promoted" }, 409);
@@ -967,7 +989,8 @@ Deno.serve(async (req) => {
       nm + " finished their paperwork" + (row.offer_body ? " (offer + handbook signed)" : "")
       + (qbo.ok ? " — added to QuickBooks, ready to convert."
          : qbo.skipped ? " — ready to convert."
-         : " — ready to convert. QuickBooks add failed: " + qbo.error));
+         : " — ready to convert. QuickBooks add failed: " + qbo.error),
+      row.invited_store);
     return json({ ok: true, qbo });
   }
 

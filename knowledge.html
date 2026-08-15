@@ -1496,7 +1496,7 @@ let ED=null;   // draft state while editing
 function ic(name,size){ return window.CPRNavIcon?CPRNavIcon(name,size||16):''; }
 function escAttr(v){ return String(v==null?'':v).replace(/"/g,'&quot;'); }
 function drawEditor(){
-  const a=OPEN;
+  let a=OPEN;
   if(!ED)ED={title:a?a.title:'',summary:a?a.summary||'':'',category_id:a?a.category_id:(CATS[0]||{}).id,
     min_role:a?a.min_role:'employee',require_ack:a?!!a.require_ack:false,require_signature:a?!!a.require_signature:false,emoji:a?a.emoji||'':'',
     icon_url:a?a.icon_url||null:null,
@@ -1641,7 +1641,21 @@ function drawEditor(){
       +'</style><div class="artwrap"><div class="artbody">'+render(ED.body)+'</div></div>');
     w.document.close();
   });
+  /* One save at a time. Without this, a second click while the first insert
+     is still in flight creates a SECOND article — and the duplicate-slug
+     fallback below quietly makes that succeed by suffixing the slug, so an
+     impatient double-click on a new article silently forked it (Kade saw
+     eight copies of one policy in Training, issue #2713). */
+  let SAVING=false;
   async function save(status){
+    if(SAVING)return;
+    SAVING=true;
+    const btns=[$('#edDraft'),$('#edPub'),$('#eUnpub')].filter(Boolean);
+    btns.forEach(b=>{b.disabled=true;});
+    try{ await doSave(status); }
+    finally{ SAVING=false; btns.forEach(b=>{b.disabled=false;}); }
+  }
+  async function doSave(status){
     grab();
     if(!ED.title.trim()){ toast('Give it a title.',true); return; }
     /* an article filed into a managers-only category can never be
@@ -1666,6 +1680,7 @@ function drawEditor(){
         res=await sb.from('kb_articles').insert(row).select().single(); }
       if(res.error){ toast('Save failed: '+res.error.message,true); return; }
       saved=res.data;
+      a=saved;   // it exists now — any further save UPDATES it
     }
     await sb.from('kb_article_versions').insert({article_id:saved.id,version:saved.version,
       title:saved.title,summary:saved.summary,body:saved.body,tags:saved.tags,edited_by:AUTH.id});
