@@ -1490,6 +1490,21 @@ where the table reflows to cards). An **owner's own** request auto-approves at c
 (they're the top approver) and owners may decide their own; everyone else's own request
 stays pending and no one can self-approve.
 
+**Candidate role (hired, not started):** convert has to run BEFORE the start
+date — Schedule Admin only lists real `staff` rows, so waiting until day one
+means a new hire's first week can't be built in advance. Converting someone
+with a future `start_date` lands them on the **`candidate`** role
+(docs/sql/candidate-role.sql): `schedule.view` and nothing else, so they can
+sign in, see their own schedule and do their training, but none of the store's
+tools. `staff.role_on_start` carries the role the wizard actually picked, and
+the **day-one cron** (`hiring-day-one-sms`, 14:30 UTC — the same run that sends
+the 7:30am SMS) promotes every candidate whose `start_date` has arrived, then
+fires a `hiring` alert to the owner + store manager. Converting someone whose
+start date is today or past skips `candidate` entirely. Five tools that were
+reachable by any signed-in person (Contracts, LCD Buyback, Brand Assets, Label
+Resizer, Get the Extension) gained permission keys so the ROLE decides
+visibility — never hard-code a page allowlist per role; add the `acc:` key.
+
 **Store scoping (`app_settings`):** a general owner-managed key-value settings table
 (`app_settings` — key text pk, value jsonb, RLS read-all / write `is_owner()`;
 docs/sql/app-settings-schema.sql). First key **`schedule.store_scoping`** (default

@@ -833,7 +833,25 @@ Deno.serve(async (req) => {
       }
       results.push({ id: it.id, name: first, ok, ...(err ? { error: err } : {}) });
     }
-    return json({ ok: true, date: today, considered: (due || []).length, results });
+    // Same run promotes anyone who was converted early: they've been on the
+    // `candidate` role (their schedule + training only) since conversion, and
+    // today is the day they actually become what the wizard picked.
+    const promoted: Record<string, unknown>[] = [];
+    const { data: starting } = await admin.from("staff")
+      .select("id, display_name, home_store, role_on_start")
+      .eq("role", "candidate").eq("active", true).lte("start_date", today);
+    for (const p of (starting || [])) {
+      const to = ["team_member", "admin"].includes(String(p.role_on_start)) ? String(p.role_on_start) : "team_member";
+      const { error } = await admin.from("staff")
+        .update({ role: to, role_on_start: null }).eq("id", p.id).eq("role", "candidate");
+      if (error) { promoted.push({ id: p.id, name: p.display_name, ok: false, error: error.message }); continue; }
+      promoted.push({ id: p.id, name: p.display_name, ok: true, role: to });
+      await alertMgr(null, "First day — " + p.display_name,
+        p.display_name + " starts today and now has full "
+        + (to === "admin" ? "Manager" : "Team Member") + " access.",
+        p.home_store);
+    }
+    return json({ ok: true, date: today, considered: (due || []).length, results, promoted });
   }
 
   if (action === "get") {
@@ -1142,6 +1160,10 @@ Deno.serve(async (req) => {
       if (!nm) return json({ error: "no_name" }, 400);
       const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin), Number(it.id)) : null;
       const username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), nm);
+      const wantRole = ["team_member", "employee", "admin"].includes(String(it.mrt_role))
+        ? (it.mrt_role === "employee" ? "team_member" : String(it.mrt_role)) : "team_member";
+      const todayPT = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+      const startsLater = !!it.start_date && String(it.start_date) > todayPT;
       if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
       const { data: made, error: cerr } = await admin.from("staff").insert({
         display_name: nm,
@@ -1150,8 +1172,12 @@ Deno.serve(async (req) => {
         last_name: it.legal_last || null,
         preferred_name: it.preferred_name || null,
         birthday: it.dob || null,
-        role: ["team_member", "employee", "admin"].includes(String(it.mrt_role))
-          ? (it.mrt_role === "employee" ? "team_member" : it.mrt_role) : "team_member",
+        // Converting before day one is what lets you build their first
+        // schedule — Schedule Admin only lists real staff rows. They land on
+        // `candidate` until then: their own schedule and training, none of the
+        // store's tools. The day-one cron promotes them to the real role.
+        role: startsLater ? "candidate" : wantRole,
+        role_on_start: startsLater ? wantRole : null,
         home_store: it.invited_store || null,
         authorized_stores: Array.isArray(it.authorized_stores) && it.authorized_stores.length
           ? it.authorized_stores : null,

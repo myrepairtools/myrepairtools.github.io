@@ -74,22 +74,22 @@
   // Operations — store-floor / daily ops.
   var OPERATIONS = [
     { label:'Cash Tracker',        url:'cash-tracker.html',        icon:'banknote', acc:'cash.view' },
-    { label:'Contracts',            url:'contracts.html',           icon:'pen-line' },
-    { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'monitor-smartphone' },
+    { label:'Contracts',            url:'contracts.html',           icon:'pen-line' , acc:'contracts.view'},
+    { label:'LCD Buyback',         url:'lcd-buyback.html',         icon:'monitor-smartphone' , acc:'lcd.view'},
     { label:'Tech Damage Tracker', url:'damage-tracker.html',      icon:'wrench', acc:'damage.view' },
-    { label:'Brand Assets',        url:'brand-assets.html',        icon:'images' }
+    { label:'Brand Assets',        url:'brand-assets.html',        icon:'images' , acc:'brand.view'}
   ];
   // Utilities that live under Operations as their own "Tools" sub-group —
   // single-purpose gadgets rather than day-to-day trackers.
   var TOOLS = [
     { label:'Inventory Editor',    url:'inventory-editor.html',    icon:'package', minRole:'admin' },
-    { label:'Label Resizer',       url:'label-resizer.html',       icon:'printer' },
-    { label:'Get the Extension',   url:'extension.html',           icon:'download' }
+    { label:'Label Resizer',       url:'label-resizer.html',       icon:'printer' , acc:'tools.label_resizer'},
+    { label:'Get the Extension',   url:'extension.html',           icon:'download' , acc:'tools.extension'}
   ];
   // Employee-facing self-service area ("My Hub"): a tech's own stuff.
   var HUB = [
     { label:'Dashboard',           url:'index.html',                icon:'house' },
-    { label:'Checklist',           url:'checklist.html',            icon:'list-checks' },
+    { label:'Checklist',           url:'checklist.html',            icon:'list-checks' , acc:'checklist.view'},
     { label:'Alerts',              url:'alerts.html',               icon:'bell' },
     { label:'Communications',      url:'communications.html',       icon:'megaphone' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'chart-line', acc:'commission.dashboard' },
@@ -1095,12 +1095,14 @@
     document.body.insertBefore(top, document.body.firstChild);
 
     // ── bottom tab bar (mobile app shell): Home / Tasks / My Time / Commission / More ──
+    // gated like their menu rows — a candidate (schedule + training only)
+    // must not get Tasks and Commission handed to them on the tab bar
     var BB_TABS = [
       { label:'Home',       url:'index.html',                icon:'house' },
-      { label:'Tasks',      url:'checklist.html',            icon:'list-checks' },
-      { label:'My Time',    url:'my-schedule.html',          icon:'calendar-days' },
-      { label:'Commission', url:'commission-dashboard.html', icon:'circle-dollar-sign' }
-    ];
+      { label:'Tasks',      url:'checklist.html',            icon:'list-checks', acc:'checklist.view' },
+      { label:'My Time',    url:'my-schedule.html',          icon:'calendar-days', acc:'schedule.view' },
+      { label:'Commission', url:'commission-dashboard.html', icon:'circle-dollar-sign', acc:'commission.dashboard' }
+    ].filter(canSee);
     var curFile = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
     var bb = document.createElement('nav'); bb.className = 'cpr-bottombar';
     bb.innerHTML = BB_TABS.map(function(t){
