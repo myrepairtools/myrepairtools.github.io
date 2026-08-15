@@ -71,7 +71,10 @@ async function caller(req, body) {
 }
 function canManageRole(callerRole, targetRole) {
   if (callerRole === "owner") return true;
-  return targetRole === "employee" || targetRole === "team_member";
+  // 'candidate' is a hire who hasn't started — a store manager has to be able
+  // to set them up (that's the whole point of converting before day one), and
+  // it carries strictly less access than team_member.
+  return targetRole === "employee" || targetRole === "team_member" || targetRole === "candidate";
 }
 const displayFrom = (first, last, username)=>[
     first,

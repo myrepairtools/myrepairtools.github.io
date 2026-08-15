@@ -908,7 +908,11 @@ function profileTabHtml(e){
   const qbox='<div class="qbtbox"><div class="qtop"><span style="font-size:1rem">🕐</span><span class="qttl">QuickBooks Time</span><span class="qstate">'+esc(qstate)+'</span></div>'
     +(owner&&!term?'<select data-pk="qbt">'+qopts+'</select>':'<div class="ro">'+esc(linked?qbtName(linked):'Not linked')+'</div>')+'</div>';
   /* access level: owners assign anything; admins only Team Member */
-  const roleSet=owner?[['team_member','Team Member'],['admin','Manager'],['owner','Owner']]:[['team_member','Team Member']];
+  /* A candidate isn't in the assignable set — the day-one cron owns that
+     change — but it has to stay in the dropdown or opening their profile and
+     saving would quietly promote them early. */
+  const roleSet=(owner?[['team_member','Team Member'],['admin','Manager'],['owner','Owner']]:[['team_member','Team Member']])
+    .concat(e.roleLevel==='candidate'?[['candidate','Candidate']]:[]);
   const curRole=({employee:'team_member',manager:'admin'})[d.role]||d.role;
   if(!roleSet.some(r=>r[0]===curRole))roleSet.unshift([curRole,roleLabel(curRole)]);
   const roleOpts=roleSet.map(r=>'<option value="'+r[0]+'"'+(r[0]===curRole?' selected':'')+'>'+r[1]+'</option>').join('');

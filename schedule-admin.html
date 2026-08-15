@@ -74,6 +74,9 @@ table.bt td.cell.clk{cursor:pointer}
 .chip .ct{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.66rem;color:#6b7180;margin-top:1px}
 .offc{text-align:center;font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;color:#cfd2dd;letter-spacing:.5px}
 .blankc{text-align:center;color:#E0E2EA;font-size:15px}
+/* stated availability, shown only where nothing is scheduled yet */
+.blankc.av{color:#9FB8C9;font-size:.62rem;font-weight:800;letter-spacing:.2px}
+.blankc.av.no{color:#E3A6A8}
 .note{font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);font-weight:600;margin-top:14px;line-height:1.5;max-width:740px}
 /* monthly */
 .cal{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(45,45,59,.05);overflow:hidden;min-width:760px}
@@ -284,13 +287,30 @@ function resolve(shiftId,store,wd){
 function storeColor(store){var s=STORES.filter(function(x){return x.store===store;})[0];return (s&&s.color)||'#4FB0E3';}
 function empById(id){return STAFF.filter(function(e){return e.id===id;})[0];}
 function shiftById(id){return SHIFT_BY_ID[id];}
+var AVAIL={};
+/* 'Sep 10' — a candidate's first day, for the board chip */
+function startsWhen(e){
+  var d=String(e.start_date||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return 'SOON';
+  var M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return M[+d.slice(5,7)-1]+' '+(+d.slice(8,10));
+}
+/* one weekday of stated availability, short enough for an empty cell */
+function availFor(empId,wd){
+  var rows=AVAIL[empId];if(!rows)return null;
+  var a=rows.filter(function(x){return Number(x.day)===wd;})[0];
+  if(!a)return null;
+  if(a.mode==='off')return {off:true,text:'Unavailable'};
+  if(a.mode==='all')return {off:false,text:'Any time'};
+  return {off:false,text:[a.from,a.to].filter(Boolean).join('–')};
+}
 async function load(){
-  var [st,so,sh,hr,sc,rq,mm,ov,hol,holh,hc]=await Promise.all([
-    sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,avatar,avatar_color,hide_from_recurring').eq('active',true),
+  var [st,so,sh,hr,sc,pf,rq,mm,ov,hol,holh,hc]=await Promise.all([
+    sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,start_date,avatar,avatar_color,hide_from_recurring').eq('active',true),
     sb.from('stores').select('store,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
+    sb.from('staff_profiles').select('staff_id,availability'),
     sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,submitted_at,hours,day_hours,partial_days'),
     sb.from('schedule_membership').select('store,staff_id'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
@@ -299,6 +319,11 @@ async function load(){
     sb.from('holiday_catalog').select('id,observed,is_federal,active')
   ]);
   STAFF=(st.data||[]);   // everyone is selectable; hide_from_recurring keeps flex staff (e.g. owner) off the auto boards
+  /* What they told us they can work on their new-hire form. It rides on the
+     person (staff_profiles.availability) so it's still here long after the
+     hiring record has left the Onboarding board. */
+  AVAIL={};(pf.data||[]).forEach(function(r){
+    if(Array.isArray(r.availability)&&r.availability.length)AVAIL[r.staff_id]=r.availability;});
   STORES=(so.data||[]).filter(function(s){return s.active!==false;});
   SHIFTS=(sh.data||[]);SHIFT_BY_ID={};SHIFTS.forEach(function(s){SHIFT_BY_ID[s.id]=s;});
   HOURS={};(hr.data||[]).forEach(function(r){var k=r.shift_id+'|'+r.store,h=HOURS[k]||(HOURS[k]={def:null,days:{}});var row={closed:!!r.closed,start:r.start_min,end:r.end_min,enabled:r.enabled!==false};if(r.weekday==null)h.def=row;else h.days[r.weekday]=row;});
@@ -666,6 +691,7 @@ function empCell(e,store){
   var tags='';
   if(visiting)tags='<span class="tag" style="color:#4E4E50;background:#F3F2F2">VISITING · '+esc(shortStore(e.home_store))+'</span> '+rm;
   else if(isMember)tags='<span class="tag" style="color:#8a5a00;background:#FFF1DC">ADDED</span> '+rm;   // hidden-from-recurring staff popped into their own store
+  else if(e.role==='candidate')tags='<span class="tag" style="color:#8a5a00;background:#FFF1DC">STARTS '+esc(startsWhen(e))+'</span>';
   else if(isMgr(e.role))tags='<span class="tag" style="color:#4b4b6b;background:#EAEAF2">MANAGER</span>';
   return '<div class="empname">'+av+'<div><div class="nmline">'+esc(e.display_name)+'</div>'+tags+'</div></div>';
 }
@@ -678,7 +704,8 @@ function renderWeekly(){
     var rows=emps.map(function(e){
       var total=0;
       var cells=DAYS.map(function(d,wd){var a=SCHED[e.id].arr[wd];var inner;
-        if(a==null)inner='<div class="blankc">+</div>';
+        if(a==null){var av=availFor(e.id,wd);
+          inner=av?'<div class="blankc av'+(av.off?' no':'')+'">'+esc(av.text)+'</div>':'<div class="blankc">+</div>';}
         else if(a==='off')inner='<div class="offc">OFF</div>';
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
         else inner=cellShift(a,s.store,wd);
@@ -1065,7 +1092,9 @@ function openPicker(td,ev){
   var back=document.createElement('div');back.className='pop-back';back.onclick=closePop;
   var pop=document.createElement('div');pop.className='pop';
   var shifts=SHIFTS.filter(function(sh){if(!sh.active)return false;var h=HOURS[sh.id+'|'+store];return h&&h.def&&h.def.enabled;}).sort(function(a,b){return (a.sort||0)-(b.sort||0);});
-  var html='<div class="pop-hd"><div class="n">'+esc(e.display_name)+'</div><div class="d">'+DAYL[wd]+'</div></div>'
+  var pav=availFor(emp,wd);
+  var html='<div class="pop-hd"><div class="n">'+esc(e.display_name)+'</div><div class="d">'+DAYL[wd]
+    +(pav?' <span style="color:'+(pav.off?'var(--red)':'var(--blue)')+'">· '+esc(pav.text)+'</span>':'')+'</div></div>'
     +'<button class="pop-item" data-act="off">Off</button><button class="pop-item muted" data-act="clear">Not scheduled</button>'
     +'<div class="pop-grp"><span style="width:8px;height:8px;border-radius:50%;background:'+esc(storeColor(store))+'"></span>'+esc(shortStore(store))+' shifts</div>';
   shifts.forEach(function(sh){var rd=resolve(sh.id,store,wd),closed=!!rd.closed;var t=closed?'closed':(rd.offered===false?'—':rangeMin(rd.start,rd.end));

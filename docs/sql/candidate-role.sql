@@ -52,3 +52,38 @@ on conflict do nothing;
 alter table public.staff add column if not exists role_on_start text;
 comment on column public.staff.role_on_start is
   'Role the day-one cron promotes a candidate into (chosen in the hiring wizard).';
+
+-- 5. A candidate is a REAL employee, just limited — so every surface that
+--    works on "my people" has to include them. can_see_staff() gated a
+--    manager's visibility to team_member/employee, which made a candidate
+--    invisible to the manager who has to set them up (and to Team Members,
+--    schedule overrides, and the compliance roster).
+create or replace function public.can_see_staff(target bigint)
+ returns boolean language sql stable security definer set search_path to 'public'
+as $function$
+  select exists (
+    select 1 from staff me
+    where me.auth_uid = auth.uid() and me.active and (
+      me.role = 'owner'
+      or ( me.role in ('admin','manager')
+           and exists (
+             select 1 from staff tgt
+             where tgt.id = target
+               and tgt.role in ('team_member','employee','candidate')
+               and ( tgt.home_store = any(me.authorized_stores)
+                     or tgt.authorized_stores && me.authorized_stores )
+           ) )
+    )
+  );
+$function$;
+
+-- 6. Availability follows the PERSON. It was captured on the new-hire form and
+--    left on the intake row, which leaves the Onboarding board at promote —
+--    so the one place it's needed (building their first schedule) couldn't
+--    see it. Schedule Admin reads it from here.
+alter table public.staff_profiles add column if not exists availability jsonb;
+comment on column public.staff_profiles.availability is
+  'What they told us on the new-hire form: [{day,mode,from,to}] per weekday.';
+update public.staff_profiles p set availability = i.availability
+from public.staff_intake i
+where i.promoted_staff_id = p.staff_id and i.availability is not null and p.availability is null;

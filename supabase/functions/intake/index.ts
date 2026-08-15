@@ -1203,7 +1203,7 @@ Deno.serve(async (req) => {
     if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
     // contact + emergency onto staff_profiles (never overwrite non-empty)
     const { data: prof } = await admin.from("staff_profiles")
-      .select("staff_id, phone, personal_email, emergency, address, shirt_size").eq("staff_id", staffId).maybeSingle();
+      .select("staff_id, phone, personal_email, emergency, address, shirt_size, availability").eq("staff_id", staffId).maybeSingle();
     await admin.from("staff_profiles").upsert({
       staff_id: staffId,
       phone: prof?.phone || it.phone || null,
@@ -1213,6 +1213,9 @@ Deno.serve(async (req) => {
       // order someone a shirt from a size that never left the intake row
       address: prof?.address || it.address || null,
       shirt_size: prof?.shirt_size || it.shirt_size || null,
+      // what they said they can work — Schedule Admin needs it to build their
+      // first week, and the intake row leaves the board the moment we promote
+      availability: prof?.availability || it.availability || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "staff_id" });
     // commission profile from the wizard's Pay step. earns_override is exactly

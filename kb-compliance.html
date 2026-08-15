@@ -169,7 +169,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 
 async function loadAll(){
   const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp,sg]=await Promise.all([
-    sb.from('staff').select('id,display_name,role,home_store,authorized_stores,active,birthday,start_date,pin_hash,created_at').eq('active',true),
+    sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,birthday,start_date,pin_hash,created_at').eq('active',true),
     sb.from('staff_profiles').select('staff_id,phone,emergency,shirt_size'),
     sb.from('staff_schedule').select('staff_id'),
     sb.from('commission_roster').select('staff_id,accy_goal'),
@@ -207,7 +207,11 @@ async function loadAll(){
   });
 }
 const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
+/* A candidate earns whatever the role they start on earns — asking the
+   candidate role itself would say "n/a" and hide a commission row that has to
+   be set up before their first sale. */
 function roleEarns(role,what){const k=ROLE_ALIAS[role]||role;return !!(EARNPERMS[k]&&EARNPERMS[k][what]);}
+function effRole(p){return p.role==='candidate'&&p.role_on_start?p.role_on_start:p.role;}
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';return ('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2);}
@@ -246,7 +250,7 @@ function setupRows(p){
   auto(!!prof.phone,'Phone on file',(prof.phone||'')+' · feeds SMS','nothing on file');
   auto(!!prof.emergency,'Emergency contact','on file','nothing on file');
   auto(!!p.birthday,'Birthday','on file — milestones post','nothing on file — milestones post');
-  const earnsA=roleEarns(p.role,'accessories'),earnsD=roleEarns(p.role,'devices');
+  const earnsA=roleEarns(effRole(p),'accessories'),earnsD=roleEarns(effRole(p),'devices');
   if(earnsA)auto(!!ROSTERROWS[p.id],'Accessory commission plan','commission_roster · verified','no commission_roster row');
   else rows.push({kind:'na',label:'Accessory commission plan',sub:'n/a — role doesn’t earn accessory'});
   if(earnsD)auto(!!ROSTERROWS[p.id],'Device commission plan','commission_roster · verified','no commission_roster row');
