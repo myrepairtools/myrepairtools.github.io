@@ -749,7 +749,9 @@ function openReview(id){
       +(i.offer_signed_at?'<div style="margin:8px 0 4px"><button class="ghost" id="rvPdf">⬇ Signed offer (PDF)</button></div>':''):'')
     +rv('Name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)+rv('Email',i.personal_email)
     +rv('Address',addr)+rv('Shirt',i.shirt_size)+rv('I-9 plan',i.i9_docs)
-    +(i.emergency?rv('Emergency',(i.emergency.name||'')+' '+(i.emergency.phone||'')):'')
+    +[i.emergency,i.emergency2].filter(e=>e&&e.name).map((e,n)=>
+        rv('Emergency'+(i.emergency2&&i.emergency2.name?' '+(n+1):''),
+           [e.name,e.relationship,e.phone].filter(Boolean).join(' · '))).join('')
     +(av?rv('Availability',av):'')
     +(declined?'<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>'
       :'<div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;margin:14px 0 4px">'

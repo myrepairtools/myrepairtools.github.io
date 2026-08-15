@@ -64,6 +64,14 @@ border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:600;font-size
 .f input:focus,.f select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,176,227,.15)}
 .f .err{border-color:var(--red)!important}
 .ftr{display:flex;gap:8px;margin-top:14px}
+.ecsec{display:flex;align-items:center;justify-content:space-between;margin:14px 0 2px}
+.ecsec .ey{font-family:'Nunito',sans-serif;font-weight:900;font-size:.66rem;text-transform:uppercase;
+letter-spacing:.5px;color:var(--grey2)}
+.ecsec .rm{border:none;background:none;padding:2px;cursor:pointer;font-family:'Nunito',sans-serif;
+font-weight:800;font-size:.72rem;color:var(--grey2);text-decoration:underline}
+.addbtn{display:block;width:100%;margin-top:12px;padding:11px;border:1.5px dashed var(--border);border-radius:9px;
+background:#fff;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--blued)}
+.addbtn:hover{border-color:var(--blue)}
 .btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;padding:12px;border:none;border-radius:9px;cursor:pointer}
 .btn.pri{flex:2;background:var(--red);color:#fff}
 .btn.pri:hover{filter:brightness(1.07)}
@@ -237,11 +245,12 @@ const HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','
 let PHASE='form';        // offer | signed | handbook | form | done | declined
 let SHOWOFFER=false;     // the signed letter, expanded from the confirmation card
 let STEP=1, SUBMITTED=false, TRIED=false, OPENDAY=null, DECLINING=false;
+let EC2=false;           // the second emergency contact, added on request
 let ACCEPTING=false;     // they've chosen Accept — show the signature
 let JUSTSIGNED=false;    // stop at the signed card instead of running straight on
 const D={first:'',middle:'',last:'',preferred:'',dob:'',phone:'',email:'',
   street:'',city:'',zip:'',shirt:'',i9:'',pin:'',
-  e1name:'',e1phone:'',e2name:'',e2phone:'',
+  e1name:'',e1rel:'',e1phone:'',e2name:'',e2rel:'',e2phone:'',
   avail:DAYS.map((d,i)=>({day:i,mode:'all',from:'Open',to:'Close'}))};
 let INVITE=null,HANDBOOK=null,ACK=null,HBOPEN=0,OWNERSIG=null;
 
@@ -443,12 +452,21 @@ function stepBody(){
     +fld('city','City','Eugene',{req:1})+fld('zip','ZIP','97401',{req:1,mode:'numeric'})
     +'<div class="f"><label>Shirt size</label><select id="f_shirt">'+['','S','M','L','XL','2XL'].map(s=>'<option value="'+s+'"'+(D.shirt===s?' selected':'')+'>'+(s||'Pick one')+'</option>').join('')+'</select></div>'
     +'</div><div class="ftr"><button class="btn alt" id="back">‹ Back</button><button class="btn pri" id="next">Next ›</button></div>';
-  if(STEP===3)return '<h2>Emergency contacts</h2><div class="fields">'
-    +fld('e1name','Contact 1 — name & relation','e.g. Sam Reyes, parent',{req:1})
-    +fld('e1phone','Contact 1 — phone','(555) 555-5555',{req:1,mode:'tel'})
-    +fld('e2name','Contact 2 — name & relation','optional')
-    +fld('e2phone','Contact 2 — phone','optional',{mode:'tel'})
-    +'</div><div class="ftr"><button class="btn alt" id="back">‹ Back</button><button class="btn pri" id="next">Next ›</button></div>';
+  if(STEP===3)return '<h2>Emergency contacts</h2>'
+    +(EC2?'<div class="ecsec"><span class="ey">Contact 1</span></div>':'')
+    +'<div class="fields">'
+    +fld('e1name','Name','Sam Reyes',{req:1})
+    +fld('e1rel','Relationship','Parent')
+    +fld('e1phone','Phone','(555) 555-5555',{req:1,mode:'tel',full:1})
+    +'</div>'
+    +(EC2
+      ?'<div class="ecsec"><span class="ey">Contact 2</span><button type="button" class="rm" id="rmEc">Remove</button></div>'
+       +'<div class="fields">'
+       +fld('e2name','Name','')+fld('e2rel','Relationship','')
+       +fld('e2phone','Phone','(555) 555-5555',{mode:'tel',full:1})
+       +'</div>'
+      :'<button type="button" class="addbtn" id="addEc">＋ Add emergency contact</button>')
+    +'<div class="ftr"><button class="btn alt" id="back">‹ Back</button><button class="btn pri" id="next">Next ›</button></div>';
   if(STEP===4){
     const rows=I9_OPTIONS.map((o,i)=>'<button type="button" class="pick'+(D.i9===o.v?' on':'')+'" data-i9="'+i+'">'
       +'<span class="pt">'+esc(o.v)+'</span>'+(o.n?'<span class="pn">'+esc(o.n)+'</span>':'')+'</button>').join('');
@@ -498,9 +516,9 @@ function stepBody(){
     const col=a.mode==='hours'?'#1E7AA8':a.mode==='off'?'#B9BDCB':'#8A8FA0';
     av+='<div class="c"><span class="d">'+DAYS[i].slice(0,3)+'</span><span class="v" style="color:'+col+'">'+esc(val)+'</span></div>';
   });
-  const ec=(n,p)=>{if(!n)return'';const parts=n.split(',');
-    return '<div class="ecrow"><span class="n">'+esc(parts[0].trim())+'</span>'
-      +(parts[1]?'<span class="rel">'+esc(parts.slice(1).join(',').trim())+'</span>':'')
+  const ec=(n,r,p)=>{if(!n)return'';
+    return '<div class="ecrow"><span class="n">'+esc(n)+'</span>'
+      +(r?'<span class="rel">'+esc(r)+'</span>':'')
       +'<span class="ph">'+esc(p||'')+'</span></div>';};
   return '<h2>Review &amp; submit</h2>'
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Your info</span><a data-jump="1">Edit</a></div>'
@@ -509,13 +527,16 @@ function stepBody(){
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Bringing on day one</span><a data-jump="4">Edit</a></div>'
     +rv('Documents',D.i9)+rv('MRT PIN',D.pin?'••••':'')+'</div>'
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Emergency contacts</span><a data-jump="3">Edit</a></div>'
-    +ec(D.e1name,D.e1phone)+ec(D.e2name,D.e2phone)+'</div>'
+    +ec(D.e1name,D.e1rel,D.e1phone)+ec(D.e2name,D.e2rel,D.e2phone)+'</div>'
     +'<div class="rvblock"><div class="rvhd"><span class="ey">Availability</span><a data-jump="5">Edit</a></div>'
     +'<div class="avgrid">'+av+'</div></div>'
     +'<div class="shield">'+SHIELD+'<span class="t">We’ll never ask for your SSN or bank details here — those go directly into QuickBooks Workforce after your first day.</span></div>'
     +'<div class="ftr"><button class="btn alt" id="back">‹ Back</button><button class="btn pri" id="submit">Submit</button></div>';
 }
 function wireForm(){
+  const add=$('#addEc');if(add)add.onclick=()=>{grab();EC2=true;draw();};
+  const rm=$('#rmEc');if(rm)rm.onclick=()=>{
+    grab();EC2=false;D.e2name='';D.e2rel='';D.e2phone='';draw();};
   const nx=$('#next');if(nx)nx.onclick=()=>{
     grab();TRIED=true;
     const need=STEP===1?['first','last','dob','phone','email']:STEP===2?['street','city','zip']
@@ -543,8 +564,8 @@ function wireForm(){
       legal_first:D.first,legal_middle:D.middle,legal_last:D.last,preferred_name:D.preferred,
       dob:D.dob,phone:D.phone,personal_email:D.email,
       address:{street:D.street,city:D.city,zip:D.zip},
-      emergency:D.e1name?{name:D.e1name,phone:D.e1phone}:null,
-      emergency2:D.e2name?{name:D.e2name,phone:D.e2phone}:null,
+      emergency:D.e1name?{name:D.e1name,relationship:D.e1rel||null,phone:D.e1phone}:null,
+      emergency2:D.e2name?{name:D.e2name,relationship:D.e2rel||null,phone:D.e2phone}:null,
       shirt_size:D.shirt,i9_docs:D.i9,suggested_pin:D.pin,
       availability:D.avail.map(a=>({day:a.day,mode:modes[a.mode]||'all',from:a.mode==='hours'?a.from:null,to:a.mode==='hours'?a.to:null}))});
     if(r.status===200&&r.data.ok){SUBMITTED=true;PHASE='done';draw();}
