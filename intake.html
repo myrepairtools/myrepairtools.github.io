@@ -190,6 +190,8 @@ letter-spacing:.4px;color:var(--grey);padding-top:2px}
 .done .ck{width:52px;height:52px;border-radius:50%;background:#E1F5EE;color:#0f6e56;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px}
 .done .ck.grey{background:#F0F1F4;color:var(--grey2)}
 .done h2{margin-bottom:6px}
+.done .linkbtn{display:block;margin:12px auto 0;border:none;background:none;padding:4px;cursor:pointer;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--blued);text-decoration:underline}
 .done p{font-size:.85rem;font-weight:700;color:var(--grey2);margin:0}
 .gone{padding:40px 20px;text-align:center;font-weight:700;color:var(--grey2)}
 </style>
@@ -227,6 +229,7 @@ const I9_OPTIONS=[
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
 let PHASE='form';        // offer | signed | handbook | form | done | declined
+let SHOWOFFER=false;     // the signed letter, expanded from the confirmation card
 let STEP=1, SUBMITTED=false, TRIED=false, OPENDAY=null, DECLINING=false;
 let ACCEPTING=false;     // they've chosen Accept — show the signature
 let JUSTSIGNED=false;    // stop at the signed card instead of running straight on
@@ -583,23 +586,33 @@ function draw(){
     return;
   }
   if(PHASE==='signed'){
-    card.classList.add('read');card.classList.remove('wide');
+    /* Signing is a milestone, so it gets a confirmation card — the same shape
+       the finished-form card uses — rather than dropping them back onto the
+       full letter. The letter is still one tap away. */
+    card.classList.remove('wide');
+    card.classList.toggle('read',SHOWOFFER);
     const sig=INVITE.offer_signature
       ?'<img src="'+esc(INVITE.offer_signature)+'" alt="Your signature" class="sigimg">':'';
-    card.innerHTML='<div class="chd">'+LOGO+'<h1>Your signed offer</h1></div>'
-      +'<div class="cbd">'
-      +'<div class="pdfbar"><span class="t">Accepted '+esc(fmtDate(INVITE.offer_signed_at))+'</span>'
-      +'<button type="button" id="dlPdfBar">Download PDF</button></div>'
-      +'<div class="offerbox">'+renderOffer(INVITE.offer_body)
-        +'<div class="acc"><div class="acch">Accepted and agreed</div>'+sig
-        +'<div class="accn">'+esc(INVITE.offer_signed_name||'')
-        +' &nbsp;·&nbsp; '+esc(fmtDate(INVITE.offer_signed_at))+'</div></div>'
+    card.innerHTML='<div class="chd">'+LOGO+'</div>'
+      +'<div class="done"><span class="ck">'+CHECK+'</span>'
+      +'<h2>Offer signed'+(firstName()?', '+esc(firstName()):'')+'!</h2>'
+      +'<p>'+((INVITE&&INVITE.personal_email)
+        ? 'Keep an eye on your email \u2014 the Employee Handbook and your new-hire form are on their way.'
+        : 'Your manager will send the Employee Handbook and your new-hire form.')
+      +'</p>'
+      +'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">\u2B07 Download your signed offer (PDF)</button>'
+      +'<button class="linkbtn" id="seeOffer">'+(SHOWOFFER?'Hide':'View')+' your signed offer</button>'
       +'</div>'
-      +'<p class="tail">'+((INVITE&&INVITE.personal_email)
-        ? 'Your next steps \u2014 the Employee Handbook and your new-hire form \u2014 are in your email.'
-        : 'Your manager will send your next steps: the Employee Handbook and your new-hire form.')
-      +'</p></div>';
-    wirePdfBar();
+      +(SHOWOFFER
+        ?'<div class="cbd" style="padding-top:0"><div class="offerbox">'+renderOffer(INVITE.offer_body)
+          +'<div class="acc"><div class="acch">Accepted and agreed</div>'+sig
+          +'<div class="accn">'+esc(INVITE.offer_signed_name||'')
+          +' &nbsp;\u00b7&nbsp; '+esc(fmtDate(INVITE.offer_signed_at))+'</div></div>'
+          +'</div></div>'
+        :'');
+    const dl=$('#dlPdf');
+    if(dl)dl.onclick=()=>downloadSigned(dl,'\u2B07 Download your signed offer (PDF)');
+    $('#seeOffer').onclick=()=>{SHOWOFFER=!SHOWOFFER;draw();};
     return;
   }
   if(PHASE==='declined'){
