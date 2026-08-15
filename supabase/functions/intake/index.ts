@@ -1042,12 +1042,17 @@ Deno.serve(async (req) => {
     if (it.position && !st.title) patch.title = it.position;
     if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
     // contact + emergency onto staff_profiles (never overwrite non-empty)
-    const { data: prof } = await admin.from("staff_profiles").select("staff_id, phone, personal_email, emergency").eq("staff_id", staffId).maybeSingle();
+    const { data: prof } = await admin.from("staff_profiles")
+      .select("staff_id, phone, personal_email, emergency, address, shirt_size").eq("staff_id", staffId).maybeSingle();
     await admin.from("staff_profiles").upsert({
       staff_id: staffId,
       phone: prof?.phone || it.phone || null,
       personal_email: prof?.personal_email || it.personal_email || null,
       emergency: prof?.emergency || it.emergency || null,
+      // asked for on the new-hire form and then stranded there: you can't
+      // order someone a shirt from a size that never left the intake row
+      address: prof?.address || it.address || null,
+      shirt_size: prof?.shirt_size || it.shirt_size || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "staff_id" });
     // commission profile from the wizard's Pay step. earns_override is exactly

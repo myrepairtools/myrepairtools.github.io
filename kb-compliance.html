@@ -151,6 +151,7 @@ const MANUAL_ITEMS=[
   {key:'qbw_invite',label:'QB Workforce invite sent'},
   {key:'rq_creds',  label:'RepairQ credentials requested'},
   {key:'shirt',     label:'Shirt ordered'},
+  {key:'shirt_issued',label:'Shirt issued'},
   {key:'team_chat', label:'Added to team chat'},
 ];
 
@@ -169,7 +170,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 async function loadAll(){
   const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp]=await Promise.all([
     sb.from('staff').select('id,display_name,role,home_store,authorized_stores,active,birthday,start_date,pin_hash,created_at').eq('active',true),
-    sb.from('staff_profiles').select('staff_id,phone,emergency'),
+    sb.from('staff_profiles').select('staff_id,phone,emergency,shirt_size'),
     sb.from('staff_schedule').select('staff_id'),
     sb.from('commission_roster').select('staff_id,accy_goal'),
     sb.from('staff_setup_checklist').select('*'),
@@ -245,7 +246,8 @@ function setupRows(p){
   else rows.push({kind:'na',label:'Device commission plan',sub:'n/a — role earns '+(earnsA?'accessory only':'neither')});
   MANUAL_ITEMS.forEach(mi=>{
     const t=TICKS[p.id+':'+mi.key];
-    rows.push({kind:'manual',key:mi.key,label:mi.label,tick:t||null});
+    const sub=/^shirt/.test(mi.key)?(prof.shirt_size?('size '+prof.shirt_size):'no size on file'):'';
+    rows.push({kind:'manual',key:mi.key,label:mi.label,sub,tick:t||null});
   });
   return rows;
 }
@@ -325,7 +327,8 @@ function openPanel(sid){
           const on=!!r.tick;
           const audit=on?esc((r.tick.by_name||'')+(r.tick.by_name?' · ':'')+fmtShort(r.tick.checked_at)):'';
           return '<div class="ckrow"><button class="ckbox'+(on?' on':'')+'" data-tick="'+esc(r.key)+'">'+(on?ic('check',10):'')+'</button>'
-            +'<div class="ckt"><div class="cklbl">'+esc(r.label)+'</div></div>'
+            +'<div class="ckt"><div class="cklbl">'+esc(r.label)+'</div>'
+            +(r.sub?'<div class="cksub">'+esc(r.sub)+'</div>':'')+'</div>'
             +(on?'<span class="ckaudit">'+audit+'</span>':'');
         }
         const icn=r.kind==='ok'?'<span class="ckic ok">'+ic('check',11)+'</span>'

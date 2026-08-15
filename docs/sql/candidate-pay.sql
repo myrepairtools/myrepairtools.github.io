@@ -84,3 +84,9 @@ alter table public.staff_intake add column if not exists modules bigint[];
 -- letter; it never landed on the staff row. Convert writes it to staff.title,
 -- and generates a username (first initial + last name, deduped) — the two
 -- fields that used to leave a brand-new hire wearing a "Needs setup" chip.
+
+-- Shirt size and address were asked for on the new-hire form and then left
+-- there: promote only carried phone, email and emergency onto staff_profiles.
+-- You can't order someone a shirt from a size that never left the intake row,
+-- so convert copies both (fill-empty-only, like every other profile field).
+-- No schema change — the columns already existed.
