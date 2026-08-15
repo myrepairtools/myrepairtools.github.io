@@ -246,6 +246,7 @@ let PHASE='form';        // offer | signed | handbook | form | done | declined
 let SHOWOFFER=false;     // the signed letter, expanded from the confirmation card
 let STEP=1, SUBMITTED=false, TRIED=false, OPENDAY=null, DECLINING=false;
 let EC2=false;           // the second emergency contact, added on request
+let PINTAKEN=false;      // server says someone already signs in with it
 let ACCEPTING=false;     // they've chosen Accept — show the signature
 let JUSTSIGNED=false;    // stop at the signed card instead of running straight on
 const D={first:'',middle:'',last:'',preferred:'',dob:'',phone:'',email:'',
@@ -477,9 +478,10 @@ function stepBody(){
       +'<div class="hint">This is how you\u2019ll sign in to myRepairTools on the store computers and your phone. Choose something you\u2019ll remember \u2014 not your birthday.</div>'
       +'<div class="fields"><div class="f"><label>Your PIN</label>'
       +'<input id="f_pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="4 digits" value="'+esc(D.pin)+'"'
-      +(TRIED&&!/^\d{4}$/.test(D.pin)?' class="err"':'')+'></div></div>'
+      +((TRIED&&!/^\d{4}$/.test(D.pin))||PINTAKEN?' class="err"':'')+'></div></div>'
       +(TRIED&&!D.i9?'<div class="errline">Pick what you\u2019ll be bringing.</div>':'')
       +(TRIED&&!/^\d{4}$/.test(D.pin)?'<div class="errline">Your PIN needs to be exactly 4 digits.</div>':'')
+      +(PINTAKEN?'<div class="errline">Someone already uses that PIN. Pick another.</div>':'')
       +'<div class="ftr"><button class="btn alt" id="back">\u2039 Back</button><button class="btn pri" id="next">Next \u203a</button></div>';
   }
   if(STEP===5){
@@ -535,13 +537,25 @@ function stepBody(){
 }
 function wireForm(){
   const add=$('#addEc');if(add)add.onclick=()=>{grab();EC2=true;draw();};
+  /* PINs are salted per person, so only the server can tell them a PIN is
+     taken — checking here means they find out now instead of at conversion,
+     when a manager would have had to hand them a different one. */
+  const pinEl=$('#f_pin');
+  if(pinEl)pinEl.oninput=()=>{if(PINTAKEN){PINTAKEN=false;draw();$('#f_pin').focus();}};
   const rm=$('#rmEc');if(rm)rm.onclick=()=>{
     grab();EC2=false;D.e2name='';D.e2rel='';D.e2phone='';draw();};
-  const nx=$('#next');if(nx)nx.onclick=()=>{
+  const nx=$('#next');if(nx)nx.onclick=async()=>{
     grab();TRIED=true;
     const need=STEP===1?['first','last','dob','phone','email']:STEP===2?['street','city','zip']
       :STEP===3?['e1name','e1phone']:STEP===4?['i9']:[];
     if(need.some(k=>!D[k])){draw();return;}
+    if(STEP===4){
+      if(!/^\d{4}$/.test(D.pin)){draw();return;}
+      nx.disabled=true;
+      const r=await call({action:'check_pin',token:TOKEN,pin:D.pin});
+      nx.disabled=false;
+      if(r.status===200&&r.data.ok&&r.data.free===false){PINTAKEN=true;draw();return;}
+    }
     TRIED=false;OPENDAY=null;STEP++;draw();window.scrollTo(0,0);
   };
   const bk=$('#back');if(bk)bk.onclick=()=>{grab();TRIED=false;OPENDAY=null;STEP--;draw();window.scrollTo(0,0);};
@@ -569,7 +583,10 @@ function wireForm(){
       shirt_size:D.shirt,i9_docs:D.i9,suggested_pin:D.pin,
       availability:D.avail.map(a=>({day:a.day,mode:modes[a.mode]||'all',from:a.mode==='hours'?a.from:null,to:a.mode==='hours'?a.to:null}))});
     if(r.status===200&&r.data.ok){SUBMITTED=true;PHASE='done';draw();}
-    else{sub.disabled=false;sub.textContent='Submit';alert(r.data.error||'Something went wrong — try again.');}
+    else if(r.data&&r.data.error==='pin_taken'){
+      /* someone claimed it between their check and this submit */
+      sub.disabled=false;sub.textContent='Submit';PINTAKEN=true;TRIED=true;STEP=4;draw();window.scrollTo(0,0);}
+    else{sub.disabled=false;sub.textContent='Submit';alert((r.data&&r.data.error)||'Something went wrong — try again.');}
   };
 }
 /* ---------- draw ---------- */

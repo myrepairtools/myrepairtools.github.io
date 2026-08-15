@@ -750,11 +750,18 @@ async function verifyPin(pin: string, stored: string): Promise<boolean> {
 }
 /* PIN-only login must resolve to exactly one person, so a duplicate can't be
    allowed through. Returns the PIN to use, or null when it's taken. */
-async function pinFreeOrNull(pin: string): Promise<string | null> {
+async function pinFreeOrNull(pin: string, exceptIntake?: number): Promise<string | null> {
   if (!/^\d{4}$/.test(pin)) return null;
   const { data: all } = await admin.from("staff").select("pin_hash").eq("active", true);
   for (const s of (all || [])) {
     if (s.pin_hash && await verifyPin(pin, s.pin_hash)) return null;
+  }
+  // another candidate who hasn't been converted yet has claimed it — two people
+  // picking 1234 the same week would collide the moment the second converts
+  const { data: pending } = await admin.from("staff_intake")
+    .select("id, suggested_pin").neq("status", "promoted").not("suggested_pin", "is", null);
+  for (const r of (pending || [])) {
+    if (Number(r.id) !== Number(exceptIntake) && String(r.suggested_pin) === pin) return null;
   }
   return pin;
 }
@@ -954,6 +961,19 @@ Deno.serve(async (req) => {
     return json({ ok: true, pdf: b64FromBytes(pdf), filename: "CPR Offer — " + (it.offer_signed_name || "signed") + ".pdf" });
   }
 
+  if (action === "check_pin") {
+    // The candidate can't test a PIN from the browser — hashes are salted per
+    // row, so only the server can answer "is this one taken?".
+    const token = String(body.token || "");
+    const pin = String(body.pin || "");
+    if (!token) return json({ error: "token required" }, 400);
+    const { data: row } = await admin.from("staff_intake").select("id").eq("token", token).maybeSingle();
+    if (!row) return json({ error: "not_found" }, 404);
+    if (!/^\d{4}$/.test(pin)) return json({ ok: true, free: false, reason: "format" });
+    const free = !!(await pinFreeOrNull(pin, row.id));
+    return json({ ok: true, free });
+  }
+
   if (action === "submit") {
     const token = String(body.token || "");
     if (!token) return json({ error: "token required" }, 400);
@@ -965,6 +985,10 @@ Deno.serve(async (req) => {
     if (row.offer_declined_at) return json({ error: "declined" }, 409);
     // Docs flow: the form only opens after both signatures.
     if (row.offer_body && (!row.offer_signed_at || !row.handbook_signed_at)) return json({ error: "docs_first" }, 409);
+    const wantPin = String(body.suggested_pin || "");
+    if (/^\d{4}$/.test(wantPin) && !(await pinFreeOrNull(wantPin, row.id))) {
+      return json({ error: "pin_taken" }, 409);
+    }
     const f = (k: string, max = 200) => body[k] == null ? null : String(body[k]).slice(0, max) || null;
     const patch: Record<string, unknown> = {
       legal_first: f("legal_first"), legal_middle: f("legal_middle"), legal_last: f("legal_last"),
@@ -1116,7 +1140,7 @@ Deno.serve(async (req) => {
       const nm = [it.legal_first, it.legal_last].filter(Boolean).join(" ").trim()
         || String(it.invited_name || "").trim();
       if (!nm) return json({ error: "no_name" }, 400);
-      const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin)) : null;
+      const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin), Number(it.id)) : null;
       const username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), nm);
       if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
       const { data: made, error: cerr } = await admin.from("staff").insert({
