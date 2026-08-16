@@ -1192,15 +1192,39 @@ Deno.serve(async (req) => {
       // the PIN has served its purpose; don't leave it sitting in plaintext
       await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
     }
-    const { data: st } = await admin.from("staff").select("id, role, start_date, birthday, title, first_name, last_name, preferred_name").eq("id", staffId).maybeSingle();
+    const { data: st } = await admin.from("staff").select(
+      "id, role, start_date, birthday, title, first_name, last_name, preferred_name, " +
+      "home_store, authorized_stores, wage_type, pin_hash, username").eq("id", staffId).maybeSingle();
     if (!st) return json({ error: "staff_not_found" }, 404);
+    // FILL EMPTY ONLY, never overwrite — a value already on the staff row was put
+    // there by a manager and outranks the form. The stub the QB Time sync creates
+    // carries name and (sometimes) hire date and nothing else, so without this the
+    // wizard's store / pay / start date and the PIN they chose would be stranded on
+    // the intake row and the converted person would land half-made.
     const patch: Record<string, unknown> = {};
     if (it.legal_first && !st.first_name) patch.first_name = it.legal_first;
     if (it.legal_last && !st.last_name) patch.last_name = it.legal_last;
     if (it.preferred_name && !st.preferred_name) patch.preferred_name = it.preferred_name;
     if (it.dob && !st.birthday) patch.birthday = it.dob;
     if (it.position && !st.title) patch.title = it.position;
+    if (it.invited_store && !st.home_store) patch.home_store = it.invited_store;
+    if (Array.isArray(it.authorized_stores) && it.authorized_stores.length
+      && !(Array.isArray(st.authorized_stores) && st.authorized_stores.length)) {
+      patch.authorized_stores = it.authorized_stores;
+    }
+    if (it.start_date && !st.start_date) patch.start_date = it.start_date;
+    if (it.pay_type && !st.wage_type) patch.wage_type = it.pay_type === "salary" ? "salary" : "hourly";
+    if (!st.username) patch.username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), String(it.invited_name || ""));
+    // the PIN they picked on the form is useless sitting on the intake row — but
+    // it can only be taken if nobody else already answers to it
+    if (it.suggested_pin && !st.pin_hash) {
+      // exclude THIS intake row, or their own claim reads as a collision
+      const pin = await pinFreeOrNull(String(it.suggested_pin), Number(it.id));
+      if (pin) patch.pin_hash = await hashPin(pin);
+      else pinNote = "their chosen PIN was already taken — set a new one";
+    }
     if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
+    if (patch.pin_hash) await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
     // contact + emergency onto staff_profiles (never overwrite non-empty)
     const { data: prof } = await admin.from("staff_profiles")
       .select("staff_id, phone, personal_email, emergency, address, shirt_size, availability").eq("staff_id", staffId).maybeSingle();
