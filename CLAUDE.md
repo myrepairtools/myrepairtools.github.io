@@ -1490,6 +1490,25 @@ where the table reflows to cards). An **owner's own** request auto-approves at c
 (they're the top approver) and owners may decide their own; everyone else's own request
 stays pending and no one can self-approve.
 
+**QuickBooks employees are NOT created by us (verified 2026-08-16).** Our QBO
+OAuth app is granted `com.intuit.quickbooks.accounting` and nothing else — a
+reconnect explicitly requesting `com.intuit.quickbooks.payroll` came back
+accounting-only, with no error and no consent prompt (Intuit validates scope
+after sign-in, so a server-side probe of the authorize endpoint can't tell you
+this — both scopes return the same sign-in redirect). The Accounting API's
+Employee entity is a CONTACT record: payroll reports it `NOT_ON_PAYROLL`, it
+carries no hire date even when one is sent, it never triggers a Workforce
+self-setup invite, and it shows in the inactive list. Real payroll employees
+come from Intuit's first-party payroll API (id family `4000000xx`, vs the
+small sequential ids Accounting hands out). So `hiring.qbo_autocreate` is OFF
+and the intake fn's `createQboEmployee` is dormant — putting someone on
+payroll is the **"Add to QuickBooks Payroll"** onboarding step
+(`onboarding_steps` id 3, `who:'backoffice'`, first in "Getting Set Up — HR &
+Accounts"). Don't rebuild this as an automation without new evidence that
+Intuit will grant the scope; `qbo`'s `start` action takes an optional `scope`
+(unioned with accounting, so testing can never cost the access we have) if you
+want to re-test.
+
 **Candidate role (hired, not started):** convert has to run BEFORE the start
 date — Schedule Admin only lists real `staff` rows, so waiting until day one
 means a new hire's first week can't be built in advance. Converting someone
