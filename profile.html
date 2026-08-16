@@ -147,6 +147,9 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw
         <div></div>
       </div>
 
+      <div class="fldl">Birthday</div>
+      <input type="date" id="bday" autocomplete="bday">
+
       <div class="fldl">Shirt Size</div>
       <select id="shirt">
         <option value="">Pick a size…</option>
@@ -369,6 +372,9 @@ function wireContact(){
     });
   });
   $('#shirt').addEventListener('change',saveProfile);
+  /* birthday writes to a different table through the edge function */
+  $('#bday').addEventListener('change',saveBirthday);
+  $('#bday').addEventListener('input',queueBirthdaySave);
 }
 
 /* ---------- onboarding checklist ---------- */
@@ -550,6 +556,34 @@ async function enablePush(){
   }finally{btn.disabled=false;}
 }
 
+/* ---------- birthday (cpr-auth set_birthday) ----------
+   Birthday lives on staff.birthday because that is where milestones and the
+   new-hire setup checklist read it. staff has no UPDATE policy for browsers,
+   so this goes through the edge function rather than a direct write. */
+var bdayT=null;
+function queueBirthdaySave(){clearTimeout(bdayT);bdayT=setTimeout(saveBirthday,700);}
+async function saveBirthday(){
+  clearTimeout(bdayT);
+  var v=String($('#bday').value||'').trim();
+  if(v===String(ME.birthday||''))return;
+  var sess=(await sb.auth.getSession()).data.session;
+  if(!sess)return;
+  try{
+    var r=await fetch(SB_URL+'/functions/v1/cpr-auth',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+sess.access_token},
+      body:JSON.stringify({action:'set_birthday',birthday:v})
+    });
+    var d=await r.json().catch(function(){return {};});
+    if(!r.ok||!d.ok){
+      toast(d.error==='bad_year'?'Check the year on that date':'Could not save your birthday',true);
+      return;
+    }
+    ME.birthday=d.birthday;
+    tick('#contactSaved');
+  }catch(e){ toast('Could not save — check connection',true); }
+}
+
 /* ---------- change PIN (cpr-auth) ---------- */
 function pinErr(m){var e=$('#pinErr');if(!m){e.style.display='none';return;}e.textContent=m;e.style.display='block';}
 async function changePin(){
@@ -629,6 +663,7 @@ async function boot(){
   $('#adStreet').value=ad.street||'';$('#adCity').value=ad.city||'';
   $('#adState').value=ad.state||'';$('#adZip').value=ad.zip||'';
   $('#shirt').value=P.shirt_size||'';
+  $('#bday').value=ME.birthday||'';
 
   $('#gate').style.display='none';
   $('#content').style.display='block';

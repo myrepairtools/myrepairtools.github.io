@@ -243,6 +243,34 @@ Deno.serve(async (req)=>{
     if (werr) return json({ error: "db_error", detail: werr.message }, 500);
     return json({ ok: true });
   }
+  // ---------- SELF: set my birthday ----------
+  // Birthday lives on staff.birthday (milestones and the new-hire setup
+  // checklist read it there) and staff has no UPDATE policy, so a self-service
+  // write has to come through here — same shape as change_pin.
+  // Only reachable for the caller's OWN row, and only this one column.
+  if (action === "set_birthday") {
+    const auth = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!auth) return json({ error: "forbidden" }, 403);
+    const { data: u } = await admin.auth.getUser(auth);
+    if (!u?.user) return json({ error: "forbidden" }, 403);
+    const { data: me } = await admin.from("staff").select("id").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    if (!me) return json({ error: "forbidden" }, 403);
+    const raw = String(body.birthday || "").trim();
+    // clearing it is allowed; anything else must be a real, sane date
+    let value: string | null = null;
+    if (raw) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return json({ error: "bad_date" }, 400);
+      const d = new Date(raw + "T00:00:00Z");
+      if (isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw) return json({ error: "bad_date" }, 400);
+      const year = Number(raw.slice(0, 4));
+      const nowYear = new Date().getUTCFullYear();
+      if (year < nowYear - 100 || year > nowYear - 13) return json({ error: "bad_year" }, 400);
+      value = raw;
+    }
+    const { error: werr } = await admin.from("staff").update({ birthday: value }).eq("id", me.id);
+    if (werr) return json({ error: "db_error", detail: werr.message }, 500);
+    return json({ ok: true, birthday: value });
+  }
   // ---------- ADMIN: list full staff ----------
   if (action === "list_staff_admin") {
     const c = await caller(req, body);

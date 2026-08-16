@@ -1409,7 +1409,12 @@ My Profile; the mobile drawer header also links here). Onboarding-ready: a
 progress checklist (contact → emergency → notifications → app install → PIN)
 drives `staff_profiles.onboarding` jsonb. Sections: contact/emergency/address/
 shirt size (autosaved to `staff_profiles` — self-RLS, admins read; phone is
-E.164 and feeds the SMS channel), notification preferences matrix (Push/Text per
+E.164 and feeds the SMS channel) · **birthday** (writes to `staff.birthday`, not
+`staff_profiles` — that is where milestones and the new-hire setup checklist
+read it; `staff` has no browser UPDATE policy, so it routes through cpr-auth's
+self-service `set_birthday` action, same shape as `change_pin`. QB Time carries
+NO date of birth, so a hire auto-created by the qbtime sync has none until the
+intake form supplies it or they fill this in), notification preferences matrix (Push/Text per
 kind; comms push locked), Enable Push flow (Notification.requestPermission →
 pushManager.subscribe with the VAPID public key → `push_subscriptions` upsert on
 endpoint), change PIN (cpr-auth `change_pin`: verifies current, enforces 4-8
