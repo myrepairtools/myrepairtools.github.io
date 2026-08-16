@@ -354,9 +354,13 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
   .tab{flex:none;white-space:nowrap}
   .pf-grid{padding:14px 16px 0;gap:12px}
   .comm-wrap{padding:14px 16px calc(68px + var(--cpr-bb-h,0px))}
-  .pf-scroll{padding-bottom:calc(var(--cpr-bb-h,0px) + 68px)}
+  .pf-grid{padding-bottom:calc(var(--cpr-bb-h,0px) + 68px)}
   .work-pad{padding-bottom:calc(68px + var(--cpr-bb-h,0px))}
   .savebar{position:sticky;bottom:var(--cpr-bb-h,0px);padding:11px 16px;z-index:5}
+  /* the assistant FAB is fixed to the bottom-right corner and landed on top of
+     Save changes. Lifting it just moved the collision onto Reset PIN, so it steps
+     out entirely while there are unsaved changes and returns on save or discard. */
+  body.erec-dirty .cpra-fab{display:none!important}
 }
 </style>
 </head>
@@ -888,7 +892,10 @@ function initPD(e){
   PD_BASE=JSON.stringify(PD);
 }
 function pfDirty(){return PD&&JSON.stringify(PD)!==PD_BASE;}
-function pfSyncBar(){const b=$('#pfSave');if(b)b.hidden=!pfDirty();}
+function pfSyncBar(){const b=$('#pfSave');if(!b)return;const d=pfDirty();b.hidden=!d;
+  /* the assistant FAB sits in the same corner as Save changes — flag the body so
+     it lifts out of the way while the bar is up */
+  document.body.classList.toggle('erec-dirty',d);}
 function storeOptsFor(sel){
   const act=STORES.filter(s=>s.active!==false).map(s=>s.store);
   const list=act.length?act:[...new Set(ALL.map(e=>e.homeStore).filter(Boolean))];
