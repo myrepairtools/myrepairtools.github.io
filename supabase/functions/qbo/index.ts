@@ -739,7 +739,15 @@ Deno.serve(async (req) => {
   if (action === "start") {
     if (!CLIENT_ID) return json({ error: "not_configured", detail: "QBO_CLIENT_ID secret is not set." }, 503);
     const state = await makeState(staff.id);
-    const u = `${AUTHORIZE}?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=code&scope=${encodeURIComponent(SCOPE)}` +
+    // Payroll lives behind a scope our app has never asked for. Intuit only
+    // validates scope after sign-in, so the only way to find out is to try it
+    // in a browser. `scope` lets that be tested without a redeploy; it always
+    // INCLUDES accounting, so a successful reconnect can never cost us the
+    // access we already have.
+    const wantScope = body.scope
+      ? [...new Set((SCOPE + " " + String(body.scope)).split(/\s+/).filter(Boolean))].join(" ")
+      : SCOPE;
+    const u = `${AUTHORIZE}?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=code&scope=${encodeURIComponent(wantScope)}` +
       `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(state)}`;
     return json({ url: u });
   }
