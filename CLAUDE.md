@@ -1678,6 +1678,22 @@ moment its value parses, so the old re-render-on-change blew the field away
 after one digit. `sedSetDef`/`sedDayTime` now repaint just the hour pills
 (`sedRefreshHrs`) and leave the DOM — and the caret — alone.
 
+**Handing over CPR credentials:** corporate answers the credentials ticket with
+RepairQ / Outlook / GSX logins, and before `staff_credentials` there was nowhere
+to put them — a text or an email leaves them in a phone and a sent folder
+forever, and `staff_documents` is admin-only in storage so it isn't a delivery
+path. One row per person (staff_id PK, `body` text, updated_by/at;
+docs/sql/staff-credentials.sql), read by exactly two parties — that person, and
+the managers `can_see_staff()` already covers — and written only by managers.
+Deliberately NOT encrypted: the employee has to be able to read it, and a key
+the browser can use is not a key; what makes it safe enough is scope and
+lifetime. Surfaces: the onboarding profile's **Give credentials to the
+employee** step (`onboarding_steps.action='credentials'`) carries an
+Add/Edit-credentials action that opens a paste box and **ticks the step on save**
+— handing them over and recording it are one action — plus a Clear button for
+once they've changed their passwords; the employee reads them on **profile.html**
+("CPR Credentials" card, copy button) and via View on their own onboarding board.
+
 **Store scoping (`app_settings`):** a general owner-managed key-value settings table
 (`app_settings` — key text pk, value jsonb, RLS read-all / write `is_owner()`;
 docs/sql/app-settings-schema.sql). First key **`schedule.store_scoping`** (default
