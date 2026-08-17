@@ -2224,7 +2224,9 @@ function renderRoles(){
   /* roles table */
   var tb=$('#roleRows'); tb.innerHTML='';
   $('#roleEmpty').classList.toggle('hide',RBROLES.length>0);
-  RBROLES.forEach(function(r){
+  RBROLES.slice().sort(function(a,b){
+    return String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'});
+  }).forEach(function(r){
     var pc=permIdsForRole(r.id).length, used=usedByCount(r.key);
     var tag=r.is_system?'<span class="tag-sys">Built-in</span>':'<span class="tag-custom">Custom</span>';
     var tr=document.createElement('tr');
@@ -2238,7 +2240,10 @@ function renderRoles(){
   tb.querySelectorAll('[data-erole]').forEach(function(b){b.onclick=function(){openRole(b.getAttribute('data-erole'));};});
   /* permissions catalog */
   var pt=$('#permRows'); pt.innerHTML='';
-  RBPERMS.forEach(function(p){
+  RBPERMS.slice().sort(function(a,b){
+    return String(a.page||a.category||'').localeCompare(String(b.page||b.category||''),undefined,{sensitivity:'base'})
+      || String(a.label||'').localeCompare(String(b.label||''),undefined,{sensitivity:'base'});
+  }).forEach(function(p){
     var inRoles=rolesForPerm(p.id);
     var tr=document.createElement('tr');
     tr.innerHTML='<td><span style="font-weight:700;color:var(--dark)">'+esc(p.label)+'</span><span style="display:block;font-size:.72rem;color:var(--grey);font-weight:600">'+esc(p.description||'')+'</span></td>'
@@ -2250,18 +2255,36 @@ function renderRoles(){
 }
 function openRole(id){
   var r=RBROLES.filter(function(x){return String(x.id)===String(id);})[0]; if(!r)return;
-  MOPEN={type:'role',isNew:false,draft:{id:r.id,key:r.key,name:r.name,description:r.description||'',is_system:r.is_system,perms:permIdsForRole(r.id).slice()}};
+  MOPEN={type:'role',isNew:false,q:'',draft:{id:r.id,key:r.key,name:r.name,description:r.description||'',is_system:r.is_system,perms:permIdsForRole(r.id).slice()}};
   renderModal();
 }
-function openAddRole(){MOPEN={type:'role',isNew:true,draft:{name:'',description:'',is_system:false,perms:[]}};renderModal();}
+function openAddRole(){MOPEN={type:'role',isNew:true,q:'',draft:{name:'',description:'',is_system:false,perms:[]}};renderModal();}
 function roleModalHtml(){
   var d=MOPEN.draft, sel=d.perms;
+  var q=String(MOPEN.q||'').trim().toLowerCase();
+  /* the catalog is long enough to scroll past what you came for, so the groups
+     and the rows inside them read A–Z and a search narrows both. A group whose
+     NAME matches keeps all its rows — you searched for the page. */
+  function hit(p,pg){
+    if(!q)return true;
+    return String(pg||'').toLowerCase().indexOf(q)>-1
+      || String(p.label||'').toLowerCase().indexOf(q)>-1
+      || String(p.key||'').toLowerCase().indexOf(q)>-1
+      || String(p.description||'').toLowerCase().indexOf(q)>-1;
+  }
   var pages={}, order=[];
   RBPERMS.forEach(function(p){ var pg=p.page||'Other'; if(!pages[pg]){pages[pg]=[];order.push(pg);} pages[pg].push(p); });
+  order.sort(function(a,b){return a.localeCompare(b,undefined,{sensitivity:'base'});});
+  var shown=0;
   var body=order.map(function(pg){
     var list=pages[pg];
     var access=list.filter(function(p){return p.is_access;})[0];
-    var subs=list.filter(function(p){return !p.is_access;});
+    var pageHit=!q||String(pg).toLowerCase().indexOf(q)>-1;
+    var subs=list.filter(function(p){return !p.is_access;})
+      .filter(function(p){return pageHit||hit(p,pg);})
+      .sort(function(a,b){return String(a.label||'').localeCompare(String(b.label||''),undefined,{sensitivity:'base'});});
+    if(!pageHit&&!subs.length&&!(access&&hit(access,pg)))return '';
+    shown+=subs.length+(access?1:0);
     var accessOn=access?(sel.indexOf(access.id)>-1):true;
     var hd='<div class="permcat-h"><span>'+esc(pg)+'</span>'
       +(access?'<button class="toggle'+(accessOn?' on':'')+'" data-perm="'+access.id+'" aria-label="access '+esc(pg)+'"></button>':'')+'</div>';
@@ -2272,6 +2295,11 @@ function roleModalHtml(){
     }).join('');
     return '<div class="permcat">'+hd+rows+'</div>';
   }).join('');
+  if(q&&!shown)body='<div class="note" style="margin:0">No permission matches “'+esc(MOPEN.q)+'”.</div>';
+  var search='<input id="permSearch" type="text" value="'+esc(MOPEN.q||'')+'" placeholder="Search permissions…" '
+    +'style="width:100%;margin:16px 0 10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;'
+    +'font-family:\'Nunito Sans\',sans-serif;font-size:16px;font-weight:700;color:var(--dark);outline:none">';
+  body=search+body;
   var title=MOPEN.isNew?'New role':('Edit role: '+esc(d.name||''));
   var sysNote=d.is_system?'<div class="note" style="margin:0 0 12px">Built-in role — you can rename it and change its permissions, but it can\'t be deleted.</div>':'';
   return '<div class="modal-back" data-close></div><div class="modal"><div class="modal-hd">'
@@ -2280,7 +2308,7 @@ function roleModalHtml(){
     +'<div class="modal-body">'+sysNote
       +'<div class="grid2"><div class="f"><label>Role name</label><input data-k="name" value="'+esc(d.name)+'" placeholder="e.g. Shift Lead"></div>'
       +'<div class="f"><label>Description</label><input data-k="description" value="'+esc(d.description)+'" placeholder="Short summary"></div></div>'
-      +'<div style="margin-top:16px">'+body+'</div>'
+      +'<div>'+body+'</div>'
     +'</div>'
     +'<div class="modal-ft">'
       +((d.is_system||MOPEN.isNew)?'<span></span>':'<button class="btn alt sm" data-delrole style="color:var(--red);border-color:#F3C7C9">Delete role</button>')
@@ -2289,6 +2317,16 @@ function roleModalHtml(){
 function wireRole(host){
   var d=MOPEN.draft;
   host.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal;});
+  /* every toggle re-renders the modal, so the box has to be put back exactly as
+     it was — value, focus and caret — or typing a second letter loses the field */
+  var ps=host.querySelector('#permSearch');
+  if(ps){
+    ps.oninput=function(){
+      MOPEN.q=ps.value; var at=ps.selectionStart;
+      renderModal();
+      var n=$('#permSearch'); if(n){n.focus();try{n.setSelectionRange(at,at);}catch(e){}}
+    };
+  }
   host.querySelectorAll('[data-k]').forEach(function(el){el.oninput=function(){d[el.getAttribute('data-k')]=el.value;};});
   host.querySelectorAll('[data-perm]').forEach(function(b){b.onclick=function(){
     var id=parseInt(b.getAttribute('data-perm'),10), i=d.perms.indexOf(id);
