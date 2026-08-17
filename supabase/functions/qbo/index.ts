@@ -14,7 +14,7 @@
 //   GET  ?action=classes        (owner JWT)  -> { classes:[{id,name}] } — active classes (P&L by store)
 //   GET  ?action=vendors        (owner JWT)  -> { vendors:[{id,name}] } — active QBO vendors (Expenses vendor link)
 //   POST { action:'extract_receipt', image_b64, media_type }  (owner JWT)
-//        -> Claude vision reads the receipt photo -> { ok, vendor, date, amount }
+//        -> Claude vision reads the receipt photo -> { ok, vendor, date, amount, card_last4 }
 //           (nulls where unreadable). Powers the Expenses page's auto-fill.
 //   POST { action:'post_je', store, month, force }  (owner JWT)
 //        -> post the month-end cash journal entry (debit cash / credit revenue) for
@@ -399,10 +399,14 @@ async function extractReceipt(body: Record<string, unknown>) {
     model: "claude-haiku-4-5-20251001",   // receipts are easy reads — the fast tier keeps this ~1s
     max_tokens: 300,
     system: 'You extract fields from a photo of a purchase receipt. Reply with ONLY a JSON object, no prose: ' +
-      '{"vendor": string|null, "date": "YYYY-MM-DD"|null, "amount": number|null}. ' +
+      '{"vendor": string|null, "date": "YYYY-MM-DD"|null, "amount": number|null, "card_last4": string|null}. ' +
       'vendor = the merchant name as printed, short (e.g. "Costco", "Shell", "Home Depot"). ' +
       'date = the transaction date printed on the receipt. ' +
       'amount = the final grand total actually charged, after tax and tip. ' +
+      'card_last4 = the LAST FOUR DIGITS of the card used, exactly as printed — receipts write it as ' +
+      '"VISA ****1234", "XXXXXXXXXXXX1234", "Card #: 1234", "ACCT 1234" or similar. Four digits only, ' +
+      'no masking characters. If the receipt shows an Apple Pay / contactless device account number, ' +
+      'give THAT number — it is what is printed. Null if the receipt was paid in cash or shows no card. ' +
       "Use null for any field you cannot read confidently. Never guess.",
     messages: [{
       role: "user",
@@ -428,6 +432,7 @@ async function extractReceipt(body: Record<string, unknown>) {
   const text = ((d?.content || []) as Array<{ type: string; text?: string }>)
     .filter((c) => c.type === "text").map((c) => c.text || "").join(" ");
   let vendor: string | null = null, date: string | null = null, amount: number | null = null;
+  let card_last4: string | null = null;
   const m = text.match(/\{[\s\S]*\}/);
   if (m) {
     try {
@@ -439,9 +444,11 @@ async function extractReceipt(body: Record<string, unknown>) {
       }
       const a = Number(p.amount);
       if (Number.isFinite(a) && a > 0 && a < 1_000_000) amount = Math.round(a * 100) / 100;
+      const c4 = String(p.card_last4 ?? "").replace(/\D/g, "");
+      if (c4.length === 4) card_last4 = c4;
     } catch { /* model returned junk — treat as unreadable */ }
   }
-  return json({ ok: true, vendor, date, amount });
+  return json({ ok: true, vendor, date, amount, card_last4 });
 }
 
 // ---- create_expense: post an expense receipt as a QBO Purchase ---------------

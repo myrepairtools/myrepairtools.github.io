@@ -458,7 +458,11 @@ QuickBooks receipt app, designed to be Added to Home Screen (`assets/expenses-ma
 root-relative; standalone mode grows `--cpr-top-h` by `env(safe-area-inset-top)` so the
 iOS status bar doesn't cram the nav top bar). Flow: snap/pick a receipt photo
 (canvas-downscaled to ≤1600px JPEG) — **the `qbo` function's `extract_receipt` action
-(Claude vision, haiku) then reads it and prefills amount/date/vendor**, filling only
+(Claude vision, haiku) then reads it and prefills amount/date/vendor/card_last4
+— the four card digits printed on the slip pick the Paid With account by
+`matchPayAccount()`: the digits already in the account NAME ("Spark - Clackamas
+(8123)") cover a dipped card, the Settings `applepay` pairing covers an Apple
+Pay device number, and a match is only accepted when exactly ONE account fits**, filling only
 fields the owner hasn't typed (✨ status line under the thumb; retakes cancel in-flight
 reads via a sequence counter) → amount|date (two-col row) → Paid With (Bank/CC accounts,
 **filtered by the Settings allowlist** — `qbo_config` key 'paywith', edited in Settings →

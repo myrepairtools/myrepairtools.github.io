@@ -414,6 +414,20 @@ async function loadQbo(){
   }
 }
 
+/* The receipt prints four digits; which card that is depends on how it was paid.
+   A dipped card prints the card's own last-4 (already in the account name, e.g.
+   "Spark - Clackamas (8123)"); Apple Pay prints the device account number, which
+   is the pairing recorded in Settings. Check both, and only accept a match that
+   is UNIQUE — two cards ending 8123 means we don't actually know. */
+function matchPayAccount(last4){
+  if(!/^\d{4}$/.test(String(last4||'')))return null;
+  var hits=payAccounts().filter(function(a){
+    if(PAYAP[a.id]===last4)return true;
+    var digits=String(a.name||'').match(/\d{4}/g)||[];
+    return digits.indexOf(last4)>-1;
+  });
+  return hits.length===1?hits[0]:null;
+}
 function payAccounts(){
   var pays=ACCTS.filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
   /* Settings → Integrations → QuickBooks curates which accounts show here */
@@ -553,6 +567,11 @@ async function extractFromPhoto(blob){
     if(d.amount!=null&&amtVal()==null){$('#amt').value=d.amount.toFixed(2);used.push('amount');}
     if(d.date&&$('#date').value===todayLocal()&&d.date!==$('#date').value){$('#date').value=d.date;used.push('date');}
     if(d.vendor&&!$('#vendor').value.trim()){$('#vendor').value=d.vendor;vendorAutolink();used.push('vendor');}
+    /* the card the receipt says was used — only when nothing is picked yet */
+    if(d.card_last4&&!$('#paySel').value){
+      var pm=matchPayAccount(d.card_last4);
+      if(pm){$('#paySel').value=pm.id;used.push('card ····'+d.card_last4);}
+    }
     renderSplit();
     aiStat(used.length?'✨ Filled '+used.join(' + ')+' from the receipt — double-check, then save.'
                       :'✨ Receipt read — your entries were left as typed.');
