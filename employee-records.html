@@ -276,7 +276,7 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 /* ---- Availability: the same editor the new-hire form uses (intake.html), so
    what someone fills in at hire and what they change later are one control.
    Already mobile-shaped there — a tap target per day, no dropdowns. ---- */
-.avwrap{flex:1;min-width:0;max-width:640px;margin:0 auto;padding:24px 28px 48px}
+.avwrap{flex:1;min-width:0;max-width:720px;margin:0 auto;padding:24px 28px 48px}
 .avhd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .avhd .ttl{font-family:'Nunito',sans-serif;font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
 .avlist{background:#fff;border:1.5px solid var(--border);border-radius:11px;padding:2px 13px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
@@ -289,7 +289,7 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .avday{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark);flex:1}
 .avval{font-size:.79rem;font-weight:700}
 .avval.all{color:#8A8FA0}.avval.hours{color:#1E7AA8}.avval.off{color:var(--grey)}
-.avopen{background:#F8FAFD;margin:0 -13px;padding:10px 13px 12px;border-bottom:1px solid #F7F7F9}
+.avopen{background:#F8FAFD;margin:0 -13px;padding:13px 13px 15px;border-bottom:1px solid #F7F7F9}
 .avopen .avday{color:#1E7AA8}
 .avseg{display:inline-flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
 .avseg button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;padding:5px 9px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;white-space:nowrap;border-left:1.5px solid var(--border)}
@@ -299,6 +299,14 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .avhours{display:flex;align-items:center;gap:8px;margin-top:8px}
 .avhours select{flex:1;height:30px;padding:2px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.75rem;background:#fff}
 .avhours .to{font-size:.72rem;font-weight:700;color:var(--grey)}
+/* copy this day's setting onto other days — one tap per day, because typing
+   the same hours five times is the whole complaint */
+.avcopy{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+.avcopy .lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-right:2px}
+.avcopy button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;min-height:32px;padding:5px 11px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);cursor:pointer}
+.avcopy button:hover{border-color:var(--blue);color:var(--blue)}
+.avcopy button.did{border-color:#BFE8D0;background:var(--greenbg,#E9F6EE);color:var(--greend,#1B7A41)}
+.avcopy button.all{border-color:var(--border);color:var(--dark)}
 .avnote{font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-top:12px}
 .avsaved{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;color:var(--greend,#1B7A41);opacity:0;transition:opacity .2s}
 .avsaved.on{opacity:1}
@@ -1679,7 +1687,7 @@ function richText(v){
 const AV_DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const AV_HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
 const AV_CHEV='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C7CAD4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
-let AVAIL=null, AVOPEN=null, AVDIRTY=false;
+let AVAIL=null, AVOPEN=null, AVDIRTY=false, AVCOPIED=[];   // AVCOPIED: days just copied onto, for the tick
 function avDefault(){ return AV_DAYS.map((d,i)=>({day:i,mode:'all',from:'Open',to:'Close'})); }
 function avFor(e){
   const raw=(PROFILES[e.id]||{}).availability;
@@ -1708,6 +1716,9 @@ function availHtml(e){
         +'<button data-avmode="off" class="'+(a.mode==='off'?'on off':'')+'">Off</button></span></div>'
         +(a.mode==='hours'?'<div class="avhours"><select id="avFrom">'+AV_HOURS.map(x=>'<option'+(x===a.from?' selected':'')+'>'+x+'</option>').join('')
           +'</select><span class="to">to</span><select id="avTo">'+AV_HOURS.map(x=>'<option'+(x===a.to?' selected':'')+'>'+x+'</option>').join('')+'</select></div>':'')
+        +'<div class="avcopy"><span class="lbl">Copy to</span>'
+          +AV_DAYS.map((d,j)=>j===i?'':'<button data-avcopy="'+j+'"'+(AVCOPIED.indexOf(j)>-1?' class="did"':'')+'>'+d.slice(0,3)+'</button>').join('')
+          +'<button class="all" data-avcopy="all">All days</button></div>'
         +'</div></div>';
     }
   });
@@ -1723,10 +1734,16 @@ function availHtml(e){
 function wireAvailTab(e){
   const w=$('#work'), mine=AUTH&&String(AUTH.id)===String(e.id);
   if(!mine)return;
-  w.querySelectorAll('[data-avday]').forEach(b=>b.onclick=()=>{AVOPEN=+b.dataset.avday;renderWork();});
+  w.querySelectorAll('[data-avday]').forEach(b=>b.onclick=()=>{AVOPEN=+b.dataset.avday;AVCOPIED=[];renderWork();});
   w.querySelectorAll('[data-avmode]').forEach(b=>b.onclick=()=>{
     const a=AVAIL[AVOPEN];a.mode=b.dataset.avmode;
     if(a.mode!=='hours')AVOPEN=null;
+    AVCOPIED=[];AVDIRTY=true;renderWork();});
+  w.querySelectorAll('[data-avcopy]').forEach(b=>b.onclick=()=>{
+    const src=AVAIL[AVOPEN], k=b.dataset.avcopy;
+    const targets=(k==='all')?AVAIL.map((x,j)=>j).filter(j=>j!==AVOPEN):[+k];
+    targets.forEach(j=>{ AVAIL[j]={day:j,mode:src.mode,from:src.from,to:src.to};
+      if(AVCOPIED.indexOf(j)<0)AVCOPIED.push(j); });
     AVDIRTY=true;renderWork();});
   const f=w.querySelector('#avFrom'),t=w.querySelector('#avTo');
   if(f)f.onchange=()=>{AVAIL[AVOPEN].from=f.value;AVDIRTY=true;renderWork();};
@@ -1743,7 +1760,7 @@ function wireAvailTab(e){
       if(!r.ok||!d.ok){toast(d.error==='bad_availability'?'That didn’t look right — try again':'Could not save your availability',true);
         sv.disabled=false;sv.textContent='Save availability';return;}
       PROFILES[e.id]=Object.assign({},PROFILES[e.id]||{},{availability:d.availability});
-      AVDIRTY=false;AVOPEN=null;renderWork();
+      AVDIRTY=false;AVOPEN=null;AVCOPIED=[];renderWork();
       const s=$('#avSaved');if(s){s.classList.add('on');setTimeout(()=>s.classList.remove('on'),1800);}
     }catch(err){toast('Could not save — check connection',true);sv.disabled=false;sv.textContent='Save availability';}
   };
