@@ -109,14 +109,26 @@ async function alertMgr(staffId: unknown, title: string, body: string, store?: u
 // The Employee Handbook, rendered live from the KB so candidates always sign
 // the current wording. Read with the service role but filtered to published,
 // employee-visible articles only.
-async function handbookArticles() {
+/* The handbook the candidate signs is the LIVE KB category — no copy, no sync
+   step. Pinned by id from app_settings 'hiring.handbook_category_id' because
+   the old name match ('%handbook%') would silently render an EMPTY handbook —
+   and still collect a signature on it — the day someone renames the category. */
+async function handbookCategoryId(): Promise<number | null> {
+  const { data: cfg } = await admin.from("app_settings")
+    .select("value").eq("key", "hiring.handbook_category_id").maybeSingle();
+  const pinned = Number(cfg?.value?.id ?? cfg?.value);
+  if (pinned) return pinned;
   const { data: cat } = await admin.from("kb_categories").select("id").ilike("name", "%handbook%").maybeSingle();
-  if (!cat) return [];
+  return cat?.id ?? null;
+}
+async function handbookArticles() {
+  const id = await handbookCategoryId();
+  if (!id) return [];
   const { data } = await admin.from("kb_articles")
-    .select("slug, title, body, sort_order")
-    .eq("category_id", cat.id).eq("status", "published").eq("min_role", "employee")
+    .select("slug, title, body, version, sort_order")
+    .eq("category_id", id).eq("status", "published").eq("min_role", "employee")
     .order("sort_order").order("id");
-  return (data || []).map((a) => ({ slug: a.slug, title: a.title, body: a.body }));
+  return (data || []).map((a) => ({ slug: a.slug, title: a.title, body: a.body, version: a.version }));
 }
 
 // KB light markup -> the PDF builder's plain markup: bullets normalize to
@@ -217,6 +229,7 @@ async function buildOfferPdf(opts: {
   offerSig?: SigBlock | null;
   handbookSig?: SigBlock | null;
   ack?: Record<string, unknown> | null;
+  sections?: Array<Record<string, unknown>>;
 }): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("https://esm.sh/pdf-lib@1.17.1");
   const doc = await PDFDocument.create();
@@ -355,6 +368,14 @@ async function buildOfferPdf(opts: {
     para(String(ack.body || ""), font, 9.8, dark, 14.5);
     y -= 6;
     para("The Employee Handbook was presented in full, section by section, immediately before the employee signature below was captured.", font, 8.5, grey, 12.5);
+    // the exact sections and versions that were on screen — the acknowledgment
+    // stops being a promise about a document nobody can identify later
+    const secs = Array.isArray(opts.sections) ? opts.sections : [];
+    if (secs.length) {
+      y -= 2;
+      para("Sections signed: " + secs.map((x) => String(x.title || x.slug) + (x.version ? " (v" + x.version + ")" : "")).join(";  "),
+        font, 8.5, grey, 12.5);
+    }
     if (ownerImg && ack.employer_name) {
       ensure(120);
       y -= 12;
@@ -642,6 +663,13 @@ async function freeUsername(first: string, last: string, full: string): Promise<
    a rebuilt copy would show today's wording rather than what they signed.
 
    Best-effort by design — a storage hiccup must never block a conversion. */
+/* The section manifest captured at signature time (older rows have none). */
+function hbSections(it: Record<string, unknown>): Array<Record<string, unknown>> {
+  const m = it.signed_meta as Record<string, unknown> | null;
+  const hb = m && typeof m === "object" ? (m.handbook as Record<string, unknown> | undefined) : undefined;
+  const secs = hb && Array.isArray(hb.sections) ? hb.sections : [];
+  return secs as Array<Record<string, unknown>>;
+}
 async function archiveDocs(
   it: Record<string, unknown>,
   staffId: number,
@@ -697,6 +725,7 @@ async function archiveDocs(
         body: "", storeLine,
         handbookSig: { png: String(it.handbook_signature || ""), name: String(it.handbook_signed_name || who), at: String(it.handbook_signed_at) },
         ack: await handbookAck(),
+        sections: hbSections(it),
       });
       await file("handbook", "Employee handbook acknowledgment", pdf, it.handbook_signed_at);
     } catch (e) { errors.push("handbook: " + (e instanceof Error ? e.message : String(e))); }
@@ -1242,9 +1271,16 @@ Deno.serve(async (req) => {
     const sig = String(body.signature || "");
     if (name.length < 2) return json({ error: "name_required" }, 400);
     if (badSig(sig)) return json({ error: "signature_required" }, 400);
+    /* WHAT they signed, not just that they signed. The handbook renders live
+       from the KB, so without this the record is only reconstructible by
+       inference — this pins each section to the exact version that was on screen,
+       against the kb_article_versions snapshots we already keep. */
+    const hbAck = await handbookAck();
+    const manifest = (await handbookArticles()).map((a) => ({ slug: a.slug, title: a.title, version: a.version }));
     const { error } = await admin.from("staff_intake").update({
       handbook_signature: sig, handbook_signed_name: name.slice(0, 120), handbook_signed_at: now,
-      signed_meta: { ...meta, handbook: sigMeta(req) }, updated_at: now,
+      signed_meta: { ...meta, handbook: { ...sigMeta(req), ack_version: hbAck.version || null, sections: manifest } },
+      updated_at: now,
     }).eq("id", it.id).is("handbook_signed_at", null);
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true });
@@ -1287,6 +1323,7 @@ Deno.serve(async (req) => {
         ? { png: it.handbook_signature, name: it.handbook_signed_name || "", at: it.handbook_signed_at }
         : null,
       ack: it.handbook_signed_at ? await handbookAck() : null,
+      sections: hbSections(it),
     });
     return json({ ok: true, pdf: b64FromBytes(pdf), filename: "CPR Offer — " + (it.offer_signed_name || "signed") + ".pdf" });
   }

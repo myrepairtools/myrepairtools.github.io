@@ -1297,7 +1297,17 @@ One link does the whole flow: **sign the offer** (accept, or decline with
 an optional note → status 'declined', terminal, row kept + deletable) → **sign
 the Employee Handbook** (accordion rendered LIVE from the KB's Employee
 Handbook category via the intake fn — published employee articles only, so
-candidates always sign current wording) → the 5-step new-hire form. Signatures
+candidates always sign current wording; the category is pinned by id in
+`app_settings` `hiring.handbook_category_id`, since the old `%handbook%` name
+match would render an EMPTY handbook — and still take a signature on it — the
+day someone renames the category. Signing stamps a **manifest** into
+`signed_meta.handbook`: every section's slug + title + `kb_articles.version`
+that was on screen, plus the ack version. The live handbook is the one they
+sign, so without that the record was only reconstructible by inference; the
+manifest pins it against the `kb_article_versions` snapshots and prints on the
+frozen acknowledgment PDF as "Sections signed: … (v2)". Editing an article
+does NOT re-ask anyone already hired — that stays the deliberate
+**Require re-read** / **Require new signatures** tick at publish) → the 5-step new-hire form. Signatures
 follow the contracts pattern (png data-url + typed name + ip/ua in
 `signed_meta`); server enforces order (submit refuses `docs_first`/`declined`)
 and each milestone fires a best-effort **'hiring' alert** (new alerts kind,
