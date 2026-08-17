@@ -358,6 +358,8 @@ function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String
 const nameKey=s=>String(s||'').toLowerCase().replace(/[^a-z]+/g,'');
 const roleName=r=>({owner:'Owner',admin:'Manager',manager:'Manager',team_member:'Team Member',employee:'Team Member',candidate:'Candidate'})[r]||r||'';
 const sameName=(a,b)=>!!nameKey(a)&&nameKey(a)===nameKey(b);
+function fmtPhone(v){const d=String(v||'').replace(/\D/g,'').replace(/^1(?=\d{10}$)/,'');
+  return /^\d{10}$/.test(d)?('('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6)):String(v||'');}
 function fmtShort(x){if(!x)return'';const t=String(x);
   const d=/^\d{4}-\d{2}-\d{2}$/.test(t)?new Date(t+'T12:00:00'):new Date(t);
   if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
@@ -828,7 +830,8 @@ function drawProfile(sid){
   if(mode==='mgr'){
     const storeStaff=ALLSTAFF.filter(x=>x.id!==p.id&&x.active&&(x.home_store===p.home_store
       ||(Array.isArray(x.authorized_stores)&&x.authorized_stores.indexOf(p.home_store)>-1)));
-    h+='<div><span class="eyebrow">Mentor</span><select class="mentorsel" id="mentorSel">'
+    h+='<div style="display:flex;align-items:flex-end;gap:8px">'
+      +'<div><span class="eyebrow">Mentor</span><select class="mentorsel" id="mentorSel">'
       +'<option value="">No mentor</option>'
       +storeStaff.map(x=>'<option value="'+x.id+'"'+(p.mentor_staff_id===x.id?' selected':'')+'>'+esc(x.display_name)+'</option>').join('')
       +'</select></div>'
@@ -836,7 +839,7 @@ function drawProfile(sid){
       +'<span class="menu" data-menufor="p'+p.id+'" style="display:none">'
       +'<button data-mact="complete" data-sid="'+p.id+'" style="color:#1B7A41">✓ Mark completed</button>'
       +'<button class="red" data-mact="cancel" data-sid="'+p.id+'">✕ Cancel onboarding</button>'
-      +'</span></span>';
+      +'</span></span></div>';
   }
   h+='</div>';
   h+='<div class="prog"><span class="n">'+pr.done+' of '+pr.total+' items · '+pct+'%</span>'
@@ -1495,7 +1498,7 @@ function openReview(id){
     return '<span class="avchip'+cls+'"><b>'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.day]+'</b>'+esc(val)+'</span>';
   }).join('');
   const cands=STAFF.filter(p=>isNewHire(p));
-  let h='<div class="mhead"><span class="pav" style="width:40px;height:40px;font-size:.8rem">'+esc(initialsOf(nm))+'</span>'
+  let h='<div class="mhead" style="align-items:center"><span class="pav" style="width:40px;height:40px;font-size:.8rem">'+esc(initialsOf(nm))+'</span>'
     +'<div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">'+esc(nm)+'</h2>'
     +intakeStage(i)+'</div><button class="mx" id="rvX" aria-label="Close">×</button></div>';
   if(declined)h+='<div style="background:var(--redbg);border-radius:9px;padding:9px 12px;font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:10px">'
@@ -1511,13 +1514,13 @@ function openReview(id){
       +'</div></div>';
   }
   h+='<div class="rvsec"><div class="ey">Contact &amp; identity</div><div class="rv2">'
-    +rv('Legal name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)
+    +rv('Legal name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',fmtPhone(i.phone))
     +rv('Email',i.personal_email)+rv('Shirt',i.shirt_size)+'</div>'+rv('Address',addr)+'</div>';
   const em=[i.emergency,i.emergency2].filter(e=>e&&e.name);
   if(i.i9_docs||av||em.length){
     h+='<div class="rvsec"><div class="ey">Day one</div>'
       +rv('I-9 plan',i.i9_docs)
-      +em.map((e,n)=>rv('Emergency'+(em.length>1?' '+(n+1):''),[e.name,e.relationship,e.phone].filter(Boolean).join(' · '))).join('')
+      +em.map((e,n)=>rv('Emergency'+(em.length>1?' '+(n+1):''),[e.name,e.relationship,fmtPhone(e.phone)].filter(Boolean).join(' · '))).join('')
       +(av?'<div class="rvrow"><span class="k">Availability</span></div><div class="avchips">'+av+'</div>':'')
       +'</div>';
   }
