@@ -792,8 +792,16 @@ denormalized (like `inventory_edit_log.run_by_name`) because staff RLS hides oth
 people's rows from a team member, so a join would render blank for exactly the
 people reading the report. The column names whichever layer `effMax` resolved to:
 an un-overridden SKU reads **RepairQ** (that number is synced, not set by anyone),
-and rows written before the trigger existed read `—`. Schema:
-docs/sql/max-override-author.sql.
+and a row with no author at all reads `—`. Hovering the Max number gives the same
+answer with the full date, which is how the **Daily order** tab (no room for the
+column) and Part Groups surface it. **`updated_by_source` separates `live` (the
+trigger read the caller's own `auth.uid()`) from `log`** — the 792-of-812-row
+one-time backfill that reconstructed authors from the edge logs' JWT subjects by
+timestamp; those render "from logs" and say "recovered from access logs" on hover,
+and must never be collapsed into the same thing as a live stamp. **A backfill of
+these tables has to run with the triggers DISABLED** — the no-change branch copies
+the old author forward, so a live trigger writes null straight back over the
+backfill and reports success. Schema: docs/sql/max-override-author.sql.
 
 **Inventory Editor (bulk RepairQ status change from a file):** `inventory-editor.html`
 (Operations → **Tools** nav, admin/owner — `minRole:'admin'`) does what a one-off RMA

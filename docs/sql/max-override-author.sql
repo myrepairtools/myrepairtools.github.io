@@ -47,19 +47,22 @@ declare
 begin
   if tg_op = 'UPDATE'
      and to_jsonb(new) ->> col is not distinct from to_jsonb(old) ->> col then
-    new.updated_by      := old.updated_by;
-    new.updated_by_name := old.updated_by_name;
+    new.updated_by        := old.updated_by;
+    new.updated_by_name   := old.updated_by_name;
+    new.updated_by_source := old.updated_by_source;
     return new;
   end if;
 
   select id, display_name into s from staff where auth_uid = auth.uid();
 
   if s.id is not null then
-    new.updated_by      := s.id;
-    new.updated_by_name := s.display_name;
+    new.updated_by        := s.id;
+    new.updated_by_name   := s.display_name;
+    new.updated_by_source := 'live';
   elsif tg_op = 'UPDATE' then
-    new.updated_by      := old.updated_by;
-    new.updated_by_name := old.updated_by_name;
+    new.updated_by        := old.updated_by;
+    new.updated_by_name   := old.updated_by_name;
+    new.updated_by_source := old.updated_by_source;
   end if;
 
   new.updated_at := now();
@@ -82,3 +85,22 @@ drop trigger if exists trg_groups_author on public.groups;
 create trigger trg_groups_author
   before insert or update on public.groups
   for each row execute function public.stamp_max_author('max');
+
+-- ---------------------------------------------------------------------------
+-- Source of the stamp. 'live' = the trigger read it from the caller's own
+-- auth.uid(). 'log' = reconstructed afterwards from the edge logs' JWT
+-- subjects, matched to the row on timestamp. The two are NOT equivalent and
+-- the page labels them differently, so never collapse them.
+alter table public.max_overrides       add column if not exists updated_by_source text;
+alter table public.group_max_overrides add column if not exists updated_by_source text;
+alter table public.groups              add column if not exists updated_by_source text;
+
+-- stamp_max_author() above also sets updated_by_source='live'; see the applied
+-- migration max_override_author_source.
+--
+-- The one-time backfill (792 of 812 rows, 2026-06-18..2026-08-17) ran with
+-- BOTH triggers disabled: the no-change branch copies the OLD author forward,
+-- so with the trigger live every UPDATE would have written null straight back
+-- over the backfill and reported success. A row was only stamped when exactly
+-- one person wrote to that table within -4s/+1.5s of its updated_at; rows with
+-- two candidates, or none, were left null on purpose.
