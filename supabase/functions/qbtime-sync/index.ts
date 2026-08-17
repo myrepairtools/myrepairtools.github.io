@@ -589,7 +589,30 @@ async function syncTimesheets(token: string, startDate: string, endDate: string)
     const { error } = await admin.from("qbtime_timesheets").upsert(rows, { onConflict: "qbt_user_id,biz_date" });
     if (error) return { ok: false, error: "db_" + error.message };
   }
-  return { ok: true, range: { start: startDate, end: endDate }, timesheets: fetched, day_rows: rows.length };
+  // A punch is proof they turned up, which is the only thing that should hand
+  // a new hire the store's tools. They usually punch in on Workforce or the
+  // store machine, so this sync is where we find out.
+  const activated = await activateWhoPunched(rows);
+  return { ok: true, range: { start: startDate, end: endDate }, timesheets: fetched, day_rows: rows.length,
+    ...(activated.length ? { activated } : {}) };
+}
+
+/* Candidates who now have real hours on the clock become their real role.
+   No-op for everyone else — activate_staff only moves a row still sitting on
+   `candidate`, so calling it for a whole sync batch is cheap and idempotent. */
+async function activateWhoPunched(rows: Array<Record<string, unknown>>): Promise<number[]> {
+  const ids = Array.from(new Set(rows
+    .filter((r) => r.staff_id && (Number(r.seconds) > 0 || r.on_the_clock))
+    .map((r) => Number(r.staff_id))));
+  if (!ids.length) return [];
+  const { data: cands } = await admin.from("staff")
+    .select("id").eq("role", "candidate").in("id", ids);
+  const done: number[] = [];
+  for (const c of (cands || [])) {
+    const { data } = await admin.rpc("activate_staff", { p_staff_id: c.id, p_reason: "clock_in" });
+    if (data) done.push(Number(c.id));
+  }
+  return done;
 }
 
 Deno.serve(async (req) => {
@@ -724,7 +747,10 @@ Deno.serve(async (req) => {
       const body = { data: [{ user_id: Number(qbt_id), type: "regular", start: nowIso(), end: "", jobcode_id: 0, customfields: { [CLASS_CF]: cls.name } }] };
       const r = await qbtReq("POST", "timesheets", token, body);
       const created = Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0];
-      return json({ ok: r.status === 200 && (created?._status_code === 200), status: r.status, id: created?.id ?? null, sent_class: cls, result: r.data });
+      const punched = r.status === 200 && (created?._status_code === 200);
+      // clocking in for the first time is what makes a candidate an employee
+      if (punched && staff_id) await admin.rpc("activate_staff", { p_staff_id: Number(staff_id), p_reason: "clock_in" });
+      return json({ ok: punched, status: r.status, id: created?.id ?? null, sent_class: cls, result: r.data });
     }
     if (action === "clock_out") {
       const ts = await openTimesheet(token, qbt_id);
