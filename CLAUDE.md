@@ -1753,6 +1753,16 @@ When changing a tool's data layer, check which generation it uses first — they
   like Schedule Admin and Checklist. Watch for stray `<style id="__om-edit-overrides">`
   blocks after `</html>` — a visual editor left one here whose
   `#view .lbl{width:120px!important}` clipped the week-navigator label; it's deleted.
+- **The on-screen keyboard hides the bottom bars.** iOS does NOT shrink the
+  layout viewport for the keyboard, so a `position:fixed` bottom bar stays pinned
+  to the bottom of the *layout* viewport — behind the keyboard, or stranded
+  mid-screen once Safari scrolls, sitting on top of the field you're typing into
+  (owner report 2026-08-17, Expenses). nav.js flags `html.mrt-kb` whenever
+  `visualViewport` is >120px shorter than `innerHeight` with a text field
+  focused, and hides the bottom tab bar + assistant FAB and zeroes `--cpr-bb-h`.
+  **A page with its own fixed footer must add `html.mrt-kb .yourbar{display:none}`**
+  (expenses.html's save bar does). Don't try to float a fixed bar above the iOS
+  keyboard — it can't be done reliably.
 - **Form controls must be ≥16px on a phone.** iOS zooms the whole page whenever it
   focuses a field smaller than that, and the zoomed page then pans side to side —
   which reads as "the page moves around and is zoomed in" (owner report 2026-08-17,

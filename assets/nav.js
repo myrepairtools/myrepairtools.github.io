@@ -549,9 +549,40 @@
     text-decoration:none; padding:2px 0; min-width:0; }
   .cpr-bb-tab .i{ font-size:1.3rem; line-height:1.1; }
   .cpr-bb-tab.on{ color:var(--cpr-blue); }
+  /* On iOS the layout viewport does NOT shrink for the keyboard, so a fixed
+     bottom bar stays pinned to the bottom of the LAYOUT viewport — behind the
+     keyboard, or stranded mid-screen once Safari scrolls the page, sitting on
+     top of whatever you were typing into. While the keyboard is up the bottom
+     bar and any page footer that sits above it get out of the way entirely. */
+  html.mrt-kb .cpr-bottombar{ display:none; }
+  html.mrt-kb{ --cpr-bb-h:0px; }
+  @media(max-width:859px){ html.mrt-kb body{ padding-bottom:0 !important; } }
+  html.mrt-kb .cpra-fab{ display:none !important; }
   ::view-transition-group(cpr-bottombar){ animation-duration:0s; }
   ::view-transition-old(cpr-bottombar),::view-transition-new(cpr-bottombar){ animation:none; }
   `;
+
+  /* html.mrt-kb === the on-screen keyboard is open. visualViewport shrinks for
+     it even where the layout viewport doesn't, so the gap between the two is
+     the keyboard. Pages with their own fixed footers key off this too. */
+  (function keyboardFlag(){
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var on = false;
+    function sync(){
+      var gap = window.innerHeight - vv.height - vv.offsetTop;
+      var kb = gap > 120 && !!(document.activeElement &&
+        /^(input|textarea)$/i.test(document.activeElement.tagName) &&
+        !/^(checkbox|radio|button|submit|range|file)$/i.test(document.activeElement.type || ''));
+      if (kb === on) return;
+      on = kb;
+      document.documentElement.classList.toggle('mrt-kb', kb);
+    }
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    document.addEventListener('focusin', function(){ setTimeout(sync, 60); });
+    document.addEventListener('focusout', function(){ setTimeout(sync, 60); });
+  })();
 
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   // Lucide icons v1.24.0 (ISC/MIT, lucide.dev) — inlined inner markup; rendered by navIcon()

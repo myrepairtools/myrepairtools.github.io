@@ -7,7 +7,8 @@
 //
 //   GET  ?action=start          (owner JWT)  -> { url } to send the browser to consent
 //   GET  ?code=..&state=..&realmId=..  (from Intuit) -> exchange code, store tokens, redirect back
-//   GET  ?action=status         (owner JWT)  -> { connected, configured, realm_id, expires_at, updated_at }
+//   GET  ?action=status         (owner JWT)  -> { connected, configured, realm_id, expires_at,
+//                                                  updated_at, refresh_expires_at }
 //   GET  ?action=disconnect     (owner JWT)  -> delete the stored token
 //   GET  ?action=accounts       (owner JWT)  -> { accounts:[{id,name,type,subtype}] } — active chart of accounts
 //   GET  ?action=classes        (owner JWT)  -> { classes:[{id,name}] } — active classes (P&L by store)
@@ -168,6 +169,14 @@ async function alertRefreshDead(detail: string, meta: Record<string, unknown> | 
 // at once). Only the claim_token_refresh winner (docs/sql/token-refresh-lock.sql)
 // may call the token endpoint; losers keep using the current access token or
 // briefly wait for the winner's rotation to land.
+/* The access token lives an hour and is refreshed on demand; the REFRESH token
+   is the connection itself — ~100 days, and Intuit hands back a fresh window on
+   every refresh. That deadline is what "is my QuickBooks about to expire?"
+   actually means, so keep it where the status card can show it. */
+function rtExpiry(d: Record<string, unknown>): string | null {
+  const secs = Number(d.x_refresh_token_expires_in);
+  return Number.isFinite(secs) && secs > 0 ? new Date(Date.now() + secs * 1000).toISOString() : null;
+}
 async function getToken(): Promise<{ access_token: string; realm_id: string } | null> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: tok } = await admin.from("integration_tokens").select("*").eq("provider", PROVIDER).maybeSingle();
@@ -209,7 +218,7 @@ async function getToken(): Promise<{ access_token: string; realm_id: string } | 
       access_token: d.access_token,
       refresh_token: d.refresh_token || tok.refresh_token,
       expires_at,
-      meta: { ...((tok.meta || {}) as Record<string, unknown>), last_refresh_error: null },
+      meta: { ...((tok.meta || {}) as Record<string, unknown>), last_refresh_error: null, refresh_expires_at: rtExpiry(d) },
       refresh_lock_at: null,
       updated_at: new Date().toISOString(),
     };
@@ -656,7 +665,7 @@ Deno.serve(async (req) => {
     await admin.from("integration_tokens").upsert({
       provider: PROVIDER, access_token: d.access_token, refresh_token: d.refresh_token, expires_at,
       realm_id: String(realmId),
-      meta: { scope: d.scope || SCOPE, token_type: d.token_type },
+      meta: { scope: d.scope || SCOPE, token_type: d.token_type, refresh_expires_at: rtExpiry(d) },
       connected_by: Number(staffId), updated_at: new Date().toISOString(),
     }, { onConflict: "provider" });
     return redirect(`${RETURN_URL}?qbo=connected`);
@@ -801,10 +810,11 @@ Deno.serve(async (req) => {
   }
   if (action === "status") {
     const { data } = await admin.from("integration_tokens")
-      .select("realm_id, expires_at, updated_at").eq("provider", PROVIDER).maybeSingle();
+      .select("realm_id, expires_at, updated_at, meta").eq("provider", PROVIDER).maybeSingle();
     return json({
       connected: !!data, configured: !!CLIENT_ID,
       realm_id: data?.realm_id || null, expires_at: data?.expires_at || null, updated_at: data?.updated_at || null,
+      refresh_expires_at: ((data?.meta || {}) as Record<string, unknown>).refresh_expires_at || null,
     });
   }
   if (action === "disconnect") {

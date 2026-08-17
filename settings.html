@@ -1355,8 +1355,13 @@ async function qboRenderStatus(){
   }
   if(d.connected){
     qboCardPill('on');
-    if(st)st.textContent='Connected · Realm '+(d.realm_id||'?')
-      +(d.expires_at?(' · token expires '+new Date(d.expires_at).toLocaleString()):'');
+    /* The old line showed the ACCESS token's expiry — an hour away by design and
+       auto-refreshed — which reads as "the connection is about to die". Show the
+       refresh token's window instead: that IS the connection. */
+    var rex=d.refresh_expires_at?new Date(d.refresh_expires_at):null;
+    if(st)st.textContent='Connected · Realm '+(d.realm_id||'?')+' · '
+      +(rex?('renews automatically, good through '+rex.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}))
+           :'renews automatically');
     if(pill){pill.textContent='Connected';pill.style.color='#1E9E5B';pill.style.background='#E9F6EE';pill.style.border='1px solid #CFE9D8';pill.classList.remove('hide');}
     if(conn){conn.textContent='Reconnect';conn.classList.remove('hide');}
     if(disc)disc.classList.remove('hide');
