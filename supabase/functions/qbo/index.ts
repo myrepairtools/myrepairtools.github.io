@@ -732,6 +732,49 @@ Deno.serve(async (req) => {
     return json({ ok: true, id: String(d?.Employee?.Id || ""), name: d?.Employee?.DisplayName || null });
   }
 
+  if (action === "find_employee") {
+    // "Is this hire in QuickBooks yet?" — asked from the Onboarding board
+    // before merging a candidate onto a staff row. Includes INACTIVE records,
+    // because an employee created as an accounting contact rather than through
+    // payroll shows up exactly that way and the manager needs to see it.
+    // Manager-level, not owner: this is asked from the Onboarding board, and
+    // it reads nothing but names.
+    const who = await getStaff(req);
+    if (!who || !["owner", "admin", "manager"].includes(String(who.role))) {
+      return json({ error: "forbidden" }, 403);
+    }
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+    const first = String(body.first_name || "").trim().toLowerCase();
+    const last = String(body.last_name || "").trim().toLowerCase();
+    if (!first && !last) return json({ error: "name required" }, 400);
+    const q = "select * from Employee maxresults 500";
+    const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+    const norm = (x: unknown) => String(x || "").toLowerCase().replace(/[^a-z]/g, "");
+    const rows = ((d?.QueryResponse?.Employee || []) as Array<Record<string, any>>).map((e) => {
+      const gn = norm(e.GivenName), fn = norm(e.FamilyName), dn = norm(e.DisplayName);
+      // exact on both names, else same last name, else the display name contains it
+      const score = (gn === norm(first) && fn === norm(last)) ? 3
+        : (fn === norm(last) && !!last) ? 2
+        : (dn.includes(norm(last)) && !!last) ? 1 : 0;
+      return {
+        id: String(e.Id), name: e.DisplayName || `${e.GivenName || ""} ${e.FamilyName || ""}`.trim(),
+        active: e.Active !== false,
+        hire_date: e.HiredDate || null,
+        email: e.PrimaryEmailAddr?.Address || null,
+        phone: e.Mobile?.FreeFormNumber || e.PrimaryPhone?.FreeFormNumber || null,
+        // Payroll-created employees get 4000000xx ids; the Accounting API hands
+        // out small sequential ones. That difference is how you tell a real
+        // payroll employee from a contact record that will never be paid.
+        payroll: Number(e.Id) >= 1000000,
+        score,
+      };
+    }).filter((e) => e.score > 0).sort((a, b) => b.score - a.score || Number(b.active) - Number(a.active));
+    return json({ matches: rows.slice(0, 10), total_employees: (d?.QueryResponse?.Employee || []).length });
+  }
   // ---- owner-only from here down ----
   const staff = await getStaff(req);
   if (!staff || staff.role !== "owner") return json({ error: "forbidden", detail: "Owner only." }, 403);

@@ -70,6 +70,10 @@ background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:no
 .mhead h2{flex:1}
 .mx{border:none;background:none;font-size:1.5rem;line-height:1;color:var(--grey);cursor:pointer;padding:0 2px;margin-top:-2px}
 .mx:hover{color:var(--dark)}
+.qbsec{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;
+letter-spacing:.5px;color:var(--grey);margin:14px 0 6px}
+.qbrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);
+border-radius:10px;margin-bottom:8px}
 .f label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:10px 0 3px}
 .f input,.f select{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.88rem}
 /* a picker button that reads as one of the fields around it */
@@ -259,7 +263,7 @@ function draw(){
       stage='<span class="stage dec">Declined</span>';
       setup='declined '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' · “'+esc(i.decline_note)+'”':'');
     }else if(submitted){
-      stage='<span class="stage ready">Ready to convert</span>';
+      stage='<span class="stage ready">Pre-boarding complete</span>';
       setup=(docs?dchips(i)+' ':'')+'submitted '+esc(fmtShort(i.submitted_at));
     }else if(docs){
       stage='<span class="stage wait">'+(i.offer_signed_at?'Candidate — signing docs':'Candidate — offer out')+'</span>';
@@ -274,7 +278,9 @@ function draw(){
       +'<td style="font-weight:700">'+setup+'</td>'
       +'<td></td>'
       +'<td style="text-align:right;white-space:nowrap">'
-        +(submitted?'<button class="ghost" data-review="'+i.id+'">Review &amp; convert ›</button>'
+        +(submitted?'<button class="ghost" data-review="'+i.id+'">Review</button>'
+            +' <button class="ghost" data-qbnew="'+i.id+'">Create in QuickBooks</button>'
+            +' <button class="ghost" data-qbcheck="'+i.id+'">Check for QBO Records</button>'
           :declined?'<button class="ghost" data-review="'+i.id+'">View ›</button>'
           /* a candidate created but never delivered had no way to be sent
              afterwards — the only send button lived inside the wizard */
@@ -321,6 +327,12 @@ function draw(){
     else toast('Email failed — '+(j.error||'error'),true);
   });
   document.querySelectorAll('[data-review]').forEach(b=>b.onclick=()=>openReview(+b.getAttribute('data-review')));
+  document.querySelectorAll('[data-qbnew]').forEach(b=>b.onclick=()=>{
+    /* QuickBooks is where the payroll employee gets made — we can't do it for
+       them (accounting scope only), so the button opens the place they can. */
+    window.open('https://qbo.intuit.com/app/employees','_blank','noopener');
+  });
+  document.querySelectorAll('[data-qbcheck]').forEach(b=>b.onclick=()=>openQboCheck(+b.getAttribute('data-qbcheck')));
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
     const i=INTAKES.find(x=>x.id===+b.getAttribute('data-del'));if(!i)return;
     if(!confirm('Delete this intake'+(i.invited_name?(' for '+i.invited_name):'')+'? Their link stops working.'))return;
@@ -726,6 +738,79 @@ async function textLink(){
    moment before nav.js publishes the permission list */
 function canPage(k,role){ var p=window.CPRPerms;
   return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
+
+/* ----- "Check for QBO Records" -----
+   Payroll setup happens in QuickBooks by hand, so before a candidate becomes
+   an employee here we ask QuickBooks whether they exist yet — and show the MRT
+   row the QB Time sync will have stubbed from that same record. Confirming
+   merges the two and moves them from a bare stub to a Team Member Candidate. */
+function qbTile(m){
+  const pill=(t,bg,fg)=>'<span class="tbadge" style="background:'+bg+';color:'+fg+'">'+t+'</span>';
+  return '<div class="qbrow">'
+    +'<div style="flex:1;min-width:0"><div style="font-family:Nunito,sans-serif;font-weight:800">'+esc(m.name)+'</div>'
+    +'<div class="rl" style="margin-top:2px">id '+esc(m.id)
+      +(m.hire_date?' · hired '+esc(m.hire_date):'')+(m.email?' · '+esc(m.email):'')+'</div></div>'
+    +(m.payroll?pill('Payroll','var(--greenbg)','var(--greend)')
+              :pill('Contact only','var(--amberbg)','var(--ambert)'))
+    +(m.active?'':pill('Inactive','var(--redbg)','var(--red)'))
+    +'</div>';
+}
+async function openQboCheck(id){
+  const i=INTAKES.find(x=>x.id===id);if(!i)return;
+  const first=i.legal_first||String(i.invited_name||'').split(/\s+/)[0]||'';
+  const last=i.legal_last||String(i.invited_name||'').split(/\s+/).slice(-1)[0]||'';
+  const nm=[first,last].filter(Boolean).join(' ');
+  /* the row the QB Time sync makes from the QuickBooks employee */
+  const stub=STAFF.filter(p=>sameName(p.display_name,nm))[0]||null;
+  $('#mdl').style.maxWidth='560px';
+  const head='<div class="mhead"><h2>'+esc(nm)+'</h2><button class="mx" id="qbX" aria-label="Close">×</button></div>';
+  $('#mdl').innerHTML=head+'<div id="qbBody" class="empty">Checking QuickBooks…</div>';
+  $('#mask').classList.add('show');
+  $('#qbX').onclick=()=>{$('#mask').classList.remove('show');$('#mdl').style.maxWidth='';};
+  let matches=[],err='';
+  try{
+    const r=await fetch(SB_URL+'/functions/v1/qbo',{method:'POST',
+      headers:{'Content-Type':'application/json','apikey':ANON,'Authorization':'Bearer '+await jwt()},
+      body:JSON.stringify({action:'find_employee',first_name:first,last_name:last})});
+    const j=await r.json().catch(()=>({}));
+    if(r.status===200&&j.matches)matches=j.matches;else err=j.detail||j.error||('http '+r.status);
+  }catch(e){err=e.message||'failed';}
+  const body=$('#qbBody');body.className='';
+  const mrt=stub
+    ? '<div class="qbsec">In myRepairTools</div>'+qbTile({name:stub.display_name,
+        id:stub.id,hire_date:stub.start_date,email:null,payroll:false,active:true})
+        .replace('Contact only','From QB Time').replace('var(--amberbg)','var(--light-grey)').replace('var(--ambert)','var(--dark-grey)')
+    : '';
+  if(err){
+    body.innerHTML='<div class="qbsec">QuickBooks</div><div class="empty">Couldn’t reach QuickBooks — '+esc(err)+'</div>'+mrt
+      +'<div class="mact"><button class="btn alt" id="qbClose">Close</button></div>';
+  }else if(!matches.length){
+    body.innerHTML='<div class="qbsec">QuickBooks</div>'
+      +'<div class="empty">No employee named '+esc(nm)+' yet.</div>'+mrt
+      +'<div class="mact"><button class="btn alt" id="qbClose">Close</button>'
+      +'<button class="btn" id="qbOpen">Create in QuickBooks</button></div>';
+  }else{
+    body.innerHTML='<div class="qbsec">Found in QuickBooks</div>'+matches.map(qbTile).join('')+mrt
+      +'<div class="mact"><button class="btn alt" id="qbClose">Close</button>'
+      +'<button class="btn" id="qbGo">'+(stub?'Merge &amp; make Candidate':'Create their record')+'</button></div>';
+  }
+  const cl=$('#qbClose');if(cl)cl.onclick=()=>{$('#mask').classList.remove('show');$('#mdl').style.maxWidth='';};
+  const op=$('#qbOpen');if(op)op.onclick=()=>window.open('https://qbo.intuit.com/app/employees','_blank','noopener');
+  const go=$('#qbGo');if(go)go.onclick=()=>convertIntake(i,stub?stub.id:0,go);
+}
+/* the one place a candidate becomes staff — shared by the modal and Review */
+async function convertIntake(i,staffId,btn){
+  btn.disabled=true;btn.textContent='Working…';
+  const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
+    body:JSON.stringify(staffId?{action:'promote',intake_id:i.id,staff_id:staffId}:{action:'promote',intake_id:i.id})});
+  const j=await r.json().catch(()=>({}));
+  btn.disabled=false;
+  if(!(r.status===200&&j.ok)){toast(j.detail||j.error||'Failed',true);return;}
+  $('#mask').classList.remove('show');$('#mdl').style.maxWidth='';
+  toast(j.note||('Converted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' assigned'),!!j.note);
+  await loadAll();draw();
+}
+
 function openReview(id){
   const i=INTAKES.find(x=>x.id===id);if(!i)return;
   const rv=(k,v)=>v?'<div class="rvrow"><span class="k">'+k+'</span><span class="v">'+esc(v)+'</span></div>':'';
@@ -795,15 +880,7 @@ function openReview(id){
     if(docs&&!i.handbook_signed_at)missing.push('handbook signature');
     if(!i.submitted_at)missing.push('new-hire form');
     if(missing.length&&!confirm('Still missing: '+missing.join(', ')+'. Convert anyway (e.g. done on paper)?'))return;
-    go.disabled=true;
-    const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+await jwt(),'apikey':ANON},
-      body:JSON.stringify(sid?{action:'promote',intake_id:i.id,staff_id:sid}:{action:'promote',intake_id:i.id})});
-    const j=await r.json().catch(()=>({}));
-    go.disabled=false;
-    if(!(r.status===200&&j.ok)){toast(j.detail||j.error||'Failed',true);return;}
-    $('#mask').classList.remove('show');
-    toast(j.note||('Converted — '+(j.assigned||0)+' module'+(j.assigned===1?'':'s')+' auto-assigned'),!!j.note);
-    await loadAll();draw();
+    await convertIntake(i,sid,go);
   };
 }
 async function boot(){
