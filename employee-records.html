@@ -307,6 +307,27 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .avcopy button:hover{border-color:var(--blue);color:var(--blue)}
 .avcopy button.did{border-color:#BFE8D0;background:var(--greenbg,#E9F6EE);color:var(--greend,#1B7A41)}
 .avcopy button.all{border-color:var(--border);color:var(--dark)}
+/* ---- Notifications: the per-kind push/text matrix + this device's push ---- */
+.nfwrap{flex:1;min-width:0;max-width:720px;margin:0 auto;padding:24px 28px 48px}
+.nfhd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.nfhd .ttl{font-family:'Nunito',sans-serif;font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
+.nfhd .saved{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;color:var(--greend,#1B7A41);opacity:0;transition:opacity .2s}
+.nfhd .saved.on{opacity:1}
+.nfcard{background:#fff;border:1.5px solid var(--border);border-radius:11px;padding:6px 14px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.nftab{width:100%;border-collapse:collapse}
+.nftab th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);padding:9px 4px;text-align:left}
+.nftab th.c,.nftab td.c{text-align:center;width:64px}
+.nftab td{padding:9px 4px;border-top:1px solid #F5F6F8;font-size:.84rem;font-weight:700;color:var(--dark)}
+.nftab tr:first-child td{border-top:none}
+.nftab td.nfgrp{border-top:none;padding:14px 4px 2px}
+.nftab .gl{font-family:'Nunito',sans-serif;font-weight:900;font-size:.68rem;letter-spacing:.4px;text-transform:uppercase;color:var(--dark-grey)}
+.nftab .gh{font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.7rem;color:var(--grey)}
+.nftab .lk{font-size:.7rem}
+.nftab input[type=checkbox]{width:20px;height:20px;accent-color:var(--blue);cursor:pointer}
+.nftab input[type=checkbox]:disabled{cursor:default;opacity:.55}
+.nfpush{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px;font-size:.84rem;font-weight:700;color:var(--dark-grey)}
+.nfpush .btn-o{margin-left:auto}
+@media(max-width:640px){.nfwrap{padding:18px 16px calc(26px + var(--cpr-bb-h,0px));max-width:none}}
 .avnote{font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-top:12px}
 .avsaved{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;color:var(--greend,#1B7A41);opacity:0;transition:opacity .2s}
 .avsaved.on{opacity:1}
@@ -590,6 +611,7 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
       <button class="tab" data-tab="damage">Tech Damage <span class="badge blue" data-dmgbadge hidden></span></button>
       <button class="tab" data-tab="docs">Documents <span class="badge" data-docbadge style="color:var(--dark-grey);background:var(--light-grey)" hidden></span></button>
       <button class="tab" data-tab="avail">Availability</button>
+      <button class="tab" data-tab="notif">Notifications</button>
       <span class="tabdiv"></span>
       <button class="tab" data-tab="time">Time</button>
       <button class="tab" data-tab="pto">PTO</button>
@@ -882,7 +904,7 @@ function writeHash(){
 }
 function parseHash(){
   const h=location.hash.replace('#','');
-  const TABS=['profile','log','pips','damage','docs','avail','time','pto','commission'];
+  const TABS=['profile','log','pips','damage','docs','avail','notif','time','pto','commission'];
   /* #me — "My Profile" from the avatar menu / mobile drawer. A manager landing
      here wants their OWN profile, not the roster; writeHash then rewrites it to
      #e=<their id> so the link is shareable like any other. parseHash runs once
@@ -1093,6 +1115,9 @@ function renderTabs(){
   document.querySelectorAll('.tab').forEach(t=>{
     /* Log is the manager's record of conversations — never shown to the person */
     if(t.dataset.tab==='log')t.hidden=SELFONLY;
+    /* alert_prefs and push subscriptions are self-RLS — the tab only means
+       anything on your own profile */
+    if(t.dataset.tab==='notif')t.hidden=!(AUTH&&e&&String(e.id)===String(AUTH.id));
     t.classList.toggle('on',t.dataset.tab===S.tab);
   });
   const lb=$('[data-logbadge]'),pb=$('[data-pipbadge]'),db=$('[data-dmgbadge]'),ob=$('[data-docbadge]');
@@ -1118,6 +1143,7 @@ function renderWork(){
   else if(S.tab==='pips')w.innerHTML=pipHtml(e);
   else if(S.tab==='docs'){w.innerHTML=docsHtml(e);wireDocsTab(e);}
   else if(S.tab==='avail'){w.innerHTML=availHtml(e);wireAvailTab(e);}
+  else if(S.tab==='notif'){w.innerHTML=notifHtml();wireNotifTab();}
   else w.innerHTML=dmgHtml(e);
   const dp=w.querySelector('.detail-pane');if(dp)dp.classList.toggle('show',S.mDetail);
 }
@@ -1718,6 +1744,127 @@ function richText(v){
    same control. The person owns this one: they may edit their own, a manager
    viewing someone else sees it read-only. Saving routes through cpr-auth's
    set_availability, which texts the owner what changed. */
+/* ===== Notifications (ported from profile.html — alert_prefs + web push) =====
+   Two tiers, and the tiers are policy, not preference: ALERTS (schedule) go out
+   by push AND text to everyone and can't be switched off; Notifications are push
+   by default with text opt-in, except Communications push which is locked on. */
+const VAPID_PUBLIC='BNil1VM0Oi6oyk3rS2Y1QnxKx2st_k2tmxOBtQTRLmPU83Kw9kM72AilxY11UuGLexEt683x6EgJQLen3D0TOCg';
+const KIND_GROUPS=[
+  {label:'Alerts — urgent', hint:'Always delivered by push and text',
+   kinds:[['schedule','Schedule changes']], locked:true},
+  {label:'Notifications', hint:'Helpful updates — text is optional',
+   kinds:[['comms','Communications'],['task','Task nudges'],['schedule_preview','Weekly schedule preview'],
+          ['interview','Interviews booked'],['hiring','Hiring updates'],
+          ['kb','Required reading'],['goal','Goals & wins'],['birthday','Birthdays'],
+          ['anniversary','Anniversaries']], locked:false}
+];
+let PREFS=null, PREFS_LOADED=false, PUSH_MSG='', PUSH_BTN=false;
+function prefFor(kind){
+  const p=(PREFS&&PREFS[kind])||{};
+  return {push:(p.push===undefined?true:!!p.push), sms:(p.sms===undefined?false:!!p.sms)};
+}
+function notifHtml(){
+  if(!PREFS_LOADED)return '<div class="nfwrap"><div class="muted">Loading…</div></div>';
+  let rows='';
+  KIND_GROUPS.forEach(g=>{
+    rows+='<tr><td colspan="3" class="nfgrp"><div class="gl"'+(g.locked?' style="color:var(--red)"':'')+'>'+esc(g.label)+'</div><div class="gh">'+esc(g.hint)+'</div></td></tr>';
+    g.kinds.forEach(k=>{
+      const kind=k[0],label=k[1],pf=prefFor(kind);
+      const lockPush=g.locked||kind==='comms', lockSms=g.locked;
+      rows+='<tr><td class="kn">'+esc(label)+((lockPush||lockSms)?' <span class="lk" title="Always on">🔒</span>':'')+'</td>'
+        +'<td class="c"><input type="checkbox" data-nk="'+kind+'" data-nc="push"'+((lockPush||pf.push)?' checked':'')+(lockPush?' disabled':'')+'></td>'
+        +'<td class="c"><input type="checkbox" data-nk="'+kind+'" data-nc="sms"'+((lockSms||pf.sms)?' checked':'')+(lockSms?' disabled':'')+'></td></tr>';
+    });
+  });
+  return '<div class="nfwrap">'
+    +'<div class="nfhd"><span class="ttl">Notifications</span><span class="saved" id="nfSaved">Saved</span></div>'
+    +'<div class="nfcard"><table class="nftab"><thead><tr><th></th><th class="c">Push</th><th class="c">Text</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'<div class="nfhd" style="margin-top:20px"><span class="ttl">This Device</span></div>'
+    +'<div class="nfcard nfpush"><div id="nfPushStat">'+esc(PUSH_MSG||'Checking…')+'</div>'
+    +'<button type="button" class="btn-o" id="nfPushBtn"'+(PUSH_BTN?'':' hidden')+'>Enable Push</button></div>'
+    +'</div>';
+}
+async function loadPrefs(){
+  if(!AUTH)return;
+  const r=await sb.from('alert_prefs').select('prefs').eq('staff_id',AUTH.id).maybeSingle();
+  PREFS=(r.data&&r.data.prefs)||{};
+  PREFS_LOADED=true;
+}
+let nfT=null;
+async function savePrefs(){
+  if(PREFS.comms)PREFS.comms.push=true;    // policy: Communications push is locked on
+  const r=await sb.from('alert_prefs').upsert({staff_id:AUTH.id,prefs:PREFS,updated_at:new Date().toISOString()});
+  if(r.error){toast('Could not save — check connection',true);return;}
+  const el=$('#nfSaved'); if(el){el.classList.add('on');clearTimeout(nfT);nfT=setTimeout(()=>el.classList.remove('on'),1800);}
+}
+function pushSupported(){
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+function b64ToU8(b64){
+  const pad='='.repeat((4-b64.length%4)%4);
+  const raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  const arr=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+  return arr;
+}
+async function swReg(){
+  try{
+    const r=await navigator.serviceWorker.getRegistration(); if(r)return r;
+    return await Promise.race([navigator.serviceWorker.ready,new Promise(res=>setTimeout(()=>res(null),4000))]);
+  }catch(e){return null;}
+}
+async function saveSub(sub){
+  const j=sub.toJSON()||{},keys=j.keys||{};
+  const r=await sb.from('push_subscriptions').upsert({
+    staff_id:AUTH.id, endpoint:sub.endpoint, p256dh:keys.p256dh||'', auth:keys.auth||'',
+    ua:navigator.userAgent, last_seen:new Date().toISOString()
+  },{onConflict:'endpoint'});
+  return !r.error;
+}
+function pushUI(msg,btn){
+  PUSH_MSG=msg; PUSH_BTN=!!btn;
+  const st=$('#nfPushStat'), b=$('#nfPushBtn');
+  if(st)st.textContent=msg;
+  if(b)b.hidden=!btn;
+}
+async function initPush(){
+  if(!pushSupported()){pushUI('Install the app to your home screen first — push needs the installed app on iPhone',false);return;}
+  if(Notification.permission==='denied'){pushUI('Blocked — allow notifications for this app in iOS Settings',false);return;}
+  const reg=await swReg();
+  const sub=reg?await reg.pushManager.getSubscription().catch(()=>null):null;
+  if(sub){pushUI('✓ Push is on for this device',false);saveSub(sub);return;}
+  pushUI('Push is off on this device',true);
+}
+async function enablePush(){
+  const b=$('#nfPushBtn'); if(b)b.disabled=true;
+  try{
+    const perm=await Notification.requestPermission();     // must run from the tap
+    if(perm!=='granted'){
+      pushUI(perm==='denied'?'Blocked — allow notifications for this app in iOS Settings'
+        :'Permission not granted — tap again to retry.',perm!=='denied');
+      return;
+    }
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(VAPID_PUBLIC)});
+    if(!await saveSub(sub))toast('Subscribed, but could not sync — will retry next visit',true);
+    pushUI('✓ Push is on for this device',false);
+    toast('Push notifications are on');
+  }catch(e){toast('Could not enable push — try again',true);}
+  finally{const bb=$('#nfPushBtn'); if(bb)bb.disabled=false;}
+}
+function wireNotifTab(){
+  if(!PREFS_LOADED){loadPrefs().then(()=>{if(S.tab==='notif')renderWork();});return;}
+  const w=$('#work');
+  w.querySelectorAll('[data-nk]').forEach(cb=>cb.onchange=()=>{
+    const k=cb.dataset.nk, ch=cb.dataset.nc;
+    PREFS[k]=PREFS[k]||{};
+    PREFS[k][ch]=cb.checked;
+    savePrefs();
+  });
+  const pb=$('#nfPushBtn'); if(pb)pb.onclick=enablePush;
+  if(!PUSH_MSG)initPush();
+}
+
 const AV_DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const AV_HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
 const AV_CHEV='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C7CAD4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';

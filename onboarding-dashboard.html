@@ -284,11 +284,13 @@ const LI={
  dots:'<svg width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>'};
 const ic=(n,s)=>LI[n].replace(/\{s\}/g,s||14);
 const NEW_HIRE_DAYS=60;
+/* the step corporate's credentials belong to (onboarding_steps.action) */
+let CREDS_STEP_ID=0;
 
 let AUTH=null,BOOTED=false,STORE=localStorage.getItem('cprObStore')||'all';
 let VIEW={mode:'roster'};
 let STAFF=[],ALLSTAFF=[],OWNER=null,STORES=[],INTAKES=[],PENDING=[],IK_BYSTAFF={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],
-    ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={},PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={};
+    ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={},PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={},CREDS={};
 let OFFER_TPL='';
 async function resolveMe(sess){
   if(!sess||BOOTED)return;
@@ -300,7 +302,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 async function jwt(){return (await sb.auth.getSession()).data.session.access_token;}
 
 async function loadAll(){
-  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl,sr,pf,sc,cr,sg,qt]=await Promise.all([
+  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl,sr,pf,sc,cr,sg,qt,cd]=await Promise.all([
     sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,start_date,created_at,birthday,title,mentor_staff_id,onboarding_completed_at,onboarding_canceled_at').eq('active',true),
     sb.from('staff_intake').select('*').order('created_at',{ascending:false}),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
@@ -320,6 +322,7 @@ async function loadAll(){
     sb.from('commission_roster').select('staff_id'),
     sb.from('kb_signatures').select('article_id,staff_id,signature_epoch'),
     sb.from('qbtime_users').select('staff_id,active'),
+    sb.from('staff_credentials').select('*'),
   ]);
   OFFER_TPL=(tpl.data&&tpl.data.value&&tpl.data.value.body)||'';
   STORES=sr.data||[];
@@ -330,6 +333,7 @@ async function loadAll(){
   PENDING=INTAKES.filter(i=>i.status!=='promoted');
   IK_BYSTAFF={};INTAKES.forEach(i=>{if(i.promoted_staff_id&&!IK_BYSTAFF[i.promoted_staff_id])IK_BYSTAFF[i.promoted_staff_id]=i;});
   MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=sp.data||[];
+  CREDS_STEP_ID=((STEPS.find(x=>x.action==='credentials')||{}).id)||0;
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
   READS=rd.data||[];SIGROWS=sg.data||[];ATTEMPTS=at.data||[];SDONE=sd.data||[];QUIZROWS=qz.data||[];
   TICKS={};(tk.data||[]).forEach(r=>{TICKS[r.staff_id+':'+r.item]=r;});
@@ -337,6 +341,7 @@ async function loadAll(){
   SCHEDROWS={};(sc.data||[]).forEach(r=>{SCHEDROWS[r.staff_id]=true;});
   QBTIME={};(qt.data||[]).forEach(r=>{if(r.staff_id!=null)QBTIME[r.staff_id]=true;});
   ROSTERROWS={};(cr.data||[]).forEach(r=>{ROSTERROWS[r.staff_id]=r;});
+  CREDS={};(cd.data||[]).forEach(r=>{CREDS[r.staff_id]=r;});
 }
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function dchips(i){
@@ -745,6 +750,13 @@ function moduleColHtml(p,m,a,mx,mode){
     else if(hl)sub='<div class="isub nx">Next up · '+((mode==='emp')?(mgrOwned?'their move':'your move'):(mgrOwned?'your move':'their move'))+'</div>';
     else if(isStep&&it.s.note&&r.state!=='done'&&mode==='mgr')sub='<div class="isub">'+esc(it.s.note)+'</div>';
     let act='';
+    /* corporate's answer lands here — the manager pastes it on this step, and
+       it is the employee's to read from their own board and their profile */
+    if(isStep&&it.s.id===CREDS_STEP_ID){
+      act=(mode==='mgr'||mode==='mentor')
+        ?'<button class="iact" data-creds="'+p.id+'">'+(CREDS[p.id]&&CREDS[p.id].body?'Edit credentials ›':'Add credentials ›')+'</button>'
+        :(CREDS[p.id]&&CREDS[p.id].body?'<button class="iact" data-credsview="'+p.id+'">View ›</button>':'');
+    }
     if(mode==='emp'&&hl&&!mgrOwned){
       if(!isStep)act='<a class="iact" style="color:var(--red)" href="training.html#read='+esc(it.a.slug||'')+'">Start ›</a>';
       else if(it.s.link_url)act='<a class="iact" style="color:var(--red)" href="'+esc(it.s.link_url)+'">Start ›</a>';
@@ -904,6 +916,52 @@ function wireHiring(i){
     else if(k==='convert')openQboCheck(i.id);
   });
 }
+/* Paste what corporate sent back. Saving ticks the step — handing them over
+   and recording that you did are the same action. */
+function openCreds(p,readonly){
+  const cur=(CREDS[p.id]||{}).body||'';
+  $('#mdl').style.maxWidth='560px';
+  $('#mdl').innerHTML='<div class="mhead" style="align-items:center"><h2 style="flex:1;margin:0">CPR credentials — '+esc(p.display_name)+'</h2>'
+    +'<button class="mx" id="cdX" aria-label="Close">×</button></div>'
+    +(readonly
+      ?'<pre style="white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;font-size:.84rem;'
+        +'border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin:0">'+esc(cur)+'</pre>'
+        +'<div class="mact"><button class="btn alt" id="cdClose">Close</button>'
+        +'<button class="btn" id="cdCopy">Copy</button></div>'
+      :'<textarea id="cdBody" style="width:100%;min-height:200px;padding:10px 12px;border:1.5px solid var(--border);'
+        +'border-radius:10px;font-family:ui-monospace,monospace;font-size:.84rem;line-height:1.5;resize:vertical">'+esc(cur)+'</textarea>'
+        +'<div class="mact"><button class="btn alt" id="cdClose">Cancel</button>'
+        +(cur?'<button class="btn alt" id="cdClear" style="color:var(--red);border-color:#F6C9CA">Clear</button>':'')
+        +'<button class="btn" id="cdSave">Save</button></div>');
+  $('#mask').classList.add('show');
+  const shut=()=>{$('#mask').classList.remove('show');$('#mdl').style.maxWidth='';};
+  $('#cdX').onclick=shut;$('#cdClose').onclick=shut;
+  const cp=$('#cdCopy');
+  if(cp)cp.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(cur).then(()=>toast('Copied'),()=>toast('Copy failed',true));};
+  const sv=$('#cdSave');
+  if(sv)sv.onclick=async()=>{
+    const body=$('#cdBody').value;
+    sv.disabled=true;
+    const r=await sb.from('staff_credentials')
+      .upsert({staff_id:p.id,body,updated_by:AUTH.id,updated_at:new Date().toISOString()},{onConflict:'staff_id'})
+      .select().single();
+    if(r.error){sv.disabled=false;return toast(r.error.message,true);}
+    CREDS[p.id]=r.data;
+    /* handing them over IS the step */
+    if(body.trim()&&CREDS_STEP_ID&&!SDONE.find(x=>x.staff_id===p.id&&x.step_id===CREDS_STEP_ID)){
+      const d=await sb.from('onboarding_step_done').insert({step_id:CREDS_STEP_ID,staff_id:p.id,done_by:AUTH.id}).select().single();
+      if(!d.error)SDONE.push(d.data);
+    }
+    shut();toast('Credentials saved');drawProfile(p.id);
+  };
+  const cl=$('#cdClear');
+  if(cl)cl.onclick=async()=>{
+    if(!confirm('Clear these credentials? Do this once '+p.display_name.split(' ')[0]+' has changed their passwords.'))return;
+    const r=await sb.from('staff_credentials').delete().eq('staff_id',p.id);
+    if(r.error)return toast(r.error.message,true);
+    delete CREDS[p.id];shut();toast('Cleared');drawProfile(p.id);
+  };
+}
 function wireProfile(p,i,mode){
   const bk=$('#backRoster');if(bk)bk.onclick=()=>{location.hash='';};
   wireMenus();
@@ -913,6 +971,8 @@ function wireProfile(p,i,mode){
     f[k]=k in f?(f[k]?0:1):0;   /* default was folded (complete) -> first click opens */
     foldSet(f);drawProfile(p.id);
   });
+  document.querySelectorAll('[data-creds]').forEach(b=>b.onclick=()=>openCreds(p,false));
+  document.querySelectorAll('[data-credsview]').forEach(b=>b.onclick=()=>openCreds(p,true));
   const ms=$('#mentorSel');
   if(ms)ms.onchange=async()=>{
     const r=await fetch(SB_URL+'/functions/v1/cpr-auth',{method:'POST',

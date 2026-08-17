@@ -119,6 +119,14 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw
       <div id="obRows"></div>
     </div>
 
+    <!-- 1b · CPR credentials handed over by a manager (read-only) -->
+    <div class="card" id="credCard" style="display:none">
+      <div class="ctit">🔑 CPR Credentials</div>
+      <pre id="credBody" style="white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;
+        font-size:.84rem;line-height:1.55;margin:0;background:#F7F7F9;border-radius:10px;padding:12px 14px"></pre>
+      <button type="button" id="credCopy" style="margin-top:10px">Copy</button>
+    </div>
+
     <!-- 2 · contact -->
     <div class="card" id="contactCard">
       <div class="ctit">📇 Contact <span class="savemark" id="contactSaved">Saved ✓</span></div>
@@ -645,7 +653,19 @@ async function boot(){
 
   var pq=sb.from('staff_profiles').select('phone,personal_email,emergency,address,shirt_size,onboarding,photo_path').eq('staff_id',ME.id).maybeSingle();
   var aq=sb.from('alert_prefs').select('prefs').eq('staff_id',ME.id).maybeSingle();
-  var pr=await pq, ar=await aq;
+  /* what a manager pasted in from corporate's ticket reply — RLS hands back
+     this row for exactly two parties: them, and the managers over them */
+  var cq=sb.from('staff_credentials').select('body').eq('staff_id',ME.id).maybeSingle();
+  var pr=await pq, ar=await aq, cr=await cq;
+  var creds=(cr&&cr.data&&cr.data.body)||'';
+  if(creds){
+    $('#credBody').textContent=creds;
+    $('#credCard').style.display='block';
+    $('#credCopy').onclick=function(){
+      if(navigator.clipboard&&navigator.clipboard.writeText)
+        navigator.clipboard.writeText(creds).then(function(){toast('Copied');},function(){toast('Copy failed',true);});
+    };
+  }
   P=(pr&&pr.data)||{};
   OB=(P.onboarding&&typeof P.onboarding==='object')?P.onboarding:{};
   PREFS=(ar&&ar.data&&ar.data.prefs&&typeof ar.data.prefs==='object')?ar.data.prefs:{};
