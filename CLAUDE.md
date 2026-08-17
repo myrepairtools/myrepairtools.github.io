@@ -417,6 +417,18 @@ Dashboard **Today's Numbers**
 widget (`assets/digest-summary.js`, `window.CPRDigest.forToday()`) shows
 Rank · Total · GP% per store, manager-gated via `can()`.
 
+**Clock-in is the door (owner call 2026-08-17):** a candidate is promoted by
+their first PUNCH, not by a date — someone who never turns up never gets the
+store's tools. `staff_clocked_in(staff_id)` (docs/sql/activate-on-clock-in.sql)
+is what the clock calls: it ticks every `onboarding_steps` row marked
+`action='clock_in'` (today: "Download Workforce App" — a punch IS the proof
+the app is installed) and then runs `activate_staff()`, which flips
+`role_on_start` into their role and ticks the `action='activate'` step with
+`done_by` null. Two callers: qbtime-sync's `clock_in` (the MRT top bar, instant)
+and its timesheet sync (Workforce / a store machine, hourly). The day-one cron
+no longer promotes — it texts them and tells the manager who is expected and
+waiting on a punch.
+
 **Personal-device sessions:** pin-gate's 5-min idle auto-sign-out is SKIPPED in
 standalone display mode (Added-to-Home-Screen apps) — an installed app is a personal
 device whose lock screen is the security boundary, and iOS firing the expired idle

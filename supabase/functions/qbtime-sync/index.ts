@@ -605,11 +605,21 @@ async function activateWhoPunched(rows: Array<Record<string, unknown>>): Promise
     .filter((r) => r.staff_id && (Number(r.seconds) > 0 || r.on_the_clock))
     .map((r) => Number(r.staff_id))));
   if (!ids.length) return [];
-  const { data: cands } = await admin.from("staff")
-    .select("id").eq("role", "candidate").in("id", ids);
+  /* Anyone with an open clock_in-marked step, not just candidates — a punch is
+     what proves the Workforce app is installed, whatever their role. */
+  const { data: openStep } = await admin.from("onboarding_steps")
+    .select("id").eq("action", "clock_in").eq("active", true);
+  const stepIds = (openStep || []).map((s) => Number(s.id));
+  const { data: people } = await admin.from("staff").select("id, role").in("id", ids);
+  const { data: doneRows } = stepIds.length
+    ? await admin.from("onboarding_step_done").select("staff_id, step_id").in("staff_id", ids).in("step_id", stepIds)
+    : { data: [] };
+  const already = new Set((doneRows || []).map((r) => r.staff_id + ":" + r.step_id));
+  const cands = (people || []).filter((c) =>
+    c.role === "candidate" || stepIds.some((sid) => !already.has(c.id + ":" + sid)));
   const done: number[] = [];
-  for (const c of (cands || [])) {
-    const { data } = await admin.rpc("activate_staff", { p_staff_id: c.id, p_reason: "clock_in" });
+  for (const c of cands) {
+    const { data } = await admin.rpc("staff_clocked_in", { p_staff_id: c.id });
     if (data) done.push(Number(c.id));
   }
   return done;
@@ -749,7 +759,7 @@ Deno.serve(async (req) => {
       const created = Object.values((r.data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>)[0];
       const punched = r.status === 200 && (created?._status_code === 200);
       // clocking in for the first time is what makes a candidate an employee
-      if (punched && staff_id) await admin.rpc("activate_staff", { p_staff_id: Number(staff_id), p_reason: "clock_in" });
+      if (punched && staff_id) await admin.rpc("staff_clocked_in", { p_staff_id: Number(staff_id) });
       return json({ ok: punched, status: r.status, id: created?.id ?? null, sent_class: cls, result: r.data });
     }
     if (action === "clock_out") {
