@@ -114,7 +114,10 @@ these when adding UI so a new tool looks native.
   pinned, Active/Terminated segment, owner-only "↻ Sync employees" from QB Time — no
   "+ Add member" anywhere; hires auto-create on sync and carry a "Needs setup" chip)
   and a full-width per-person profile with tabs Profile · Log · PIPs & Reviews ·
-  Tech Damage · Documents · Time · PTO · Commission. Profile tab = 4 form cards + dirty-tracked
+  Tech Damage · Documents · Time · PTO · Commission. **Notifications tab** = the per-kind
+  push/text matrix + this device's push enrollment, ported from profile.html
+  (`alert_prefs`, `push_subscriptions`, the same two-tier locking); it renders
+  ONLY on your own profile, since both tables are self-RLS. Profile tab = 4 form cards + dirty-tracked
   save bar (cpr-auth `update_staff` + `set_pin`; an admin PIN reset shows ONCE in a
   modal); phone/email live in `staff_profiles.phone/personal_email` (routed through
   update_staff — the SMS pipeline reads the same field, never duplicate onto `staff`);
