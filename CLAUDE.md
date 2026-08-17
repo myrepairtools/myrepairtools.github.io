@@ -1601,9 +1601,13 @@ recurring schedule used to land on people's phones one click at a time.
 Recurring edits now write **`schedule_drafts`** instead (same shape as
 staff_schedule, one row per person, RLS `is_admin(store)` — nothing
 employee-facing can even read it; docs/sql/schedule-drafts.sql). The Recurring
-grid renders from the draft, drafted cells carry an amber outline, an amber bar
-counts unpublished changes with **Publish** / **Discard**, and the Recurring tab
-carries an amber badge from any view. Publish copies each draft onto
+grid renders from the draft and drafted cells carry an amber outline. **Publish
+is a permanent button in the schedule toolbar** (left of Notify staff, on every
+schedule tab) — grey and disabled while the draft matches what employees already
+see, green with the change count the moment it doesn't; **Discard** appears
+beside it only when there is something to discard, and the Recurring tab carries
+an amber badge from any view. Publishing takes no confirm step (owner call
+2026-08-17 — no pop-up). Publish copies each draft onto
 `staff_schedule` and deletes the drafts — that stamp is what the 📣 Notify
 modal's "what changed since the last broadcast" detection then picks up, so the
 flow is edit → publish → notify. **This Week and Monthly deliberately keep

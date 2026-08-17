@@ -67,8 +67,6 @@ table.bt td.cell{padding:5px;border-bottom:1px solid #F5F6F8;border-left:1px sol
 table.bt td.cell.clk{cursor:pointer}
 /* an edit that is drafted but not published yet */
 table.bt td.cell.pend{background:rgba(180,83,9,.05);box-shadow:inset 0 0 0 1.5px rgba(180,83,9,.32)}
-.pubbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#FFF8EE;border:1.5px solid rgba(180,83,9,.28);border-radius:11px}
-.pubbar .pn{font-family:'Nunito',sans-serif;font-weight:900;font-size:.82rem;color:var(--amber)}
 .pop-copy{display:flex;flex-wrap:wrap;gap:5px;padding:2px 6px 6px}
 .pop-copy button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;min-height:28px;padding:3px 9px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);cursor:pointer}
 .pop-copy button:hover{border-color:var(--blue);color:var(--blue)}
@@ -499,6 +497,24 @@ function makeShiftsBtn(){
   btn.textContent='🕘 Shifts';btn.title='Edit shifts & their hours';btn.onclick=openShiftsModal;
   return btn;
 }
+/* Publish sits with the other schedule actions and is always there: grey while
+   the draft matches what employees already see, green the moment it doesn't. */
+function makePublishBtn(){
+  var n=pendingCount();
+  var btn=document.createElement('button');btn.className='btn';btn.id='pubGo';
+  btn.textContent=n?('✓ Publish '+n):'✓ Publish';
+  if(n)btn.style.cssText='background:var(--green);border-color:var(--green);color:#fff';
+  else{btn.disabled=true;btn.style.cssText='color:var(--grey);background:var(--light-grey);cursor:default';}
+  btn.onclick=function(){publishDrafts(btn);};
+  return btn;
+}
+function makeDiscardBtn(){
+  var btn=document.createElement('button');btn.className='btn';btn.id='pubDiscard';
+  btn.textContent='Discard';
+  if(!pendingCount())btn.style.display='none';
+  btn.onclick=function(){if(confirm('Discard every unpublished change?'))discardDrafts();};
+  return btn;
+}
 function makeNotifyBtn(){
   var btn=document.createElement('button');btn.className='btn';btn.id='notifyBtn';
   btn.textContent='📣 Notify staff';btn.title='Email staff to check My Time after a schedule change';
@@ -700,6 +716,7 @@ function injectSchedChangeBar(){
   // one right-push spacer only — a second one strands whatever sits between them mid-row
   var hasSpacer=Array.prototype.some.call(host.children,function(c){return c.tagName==='SPAN'&&c.style.flex==='1';});
   if(!hasSpacer){var sp=document.createElement('span');sp.style.flex='1';host.appendChild(sp);}
+  host.appendChild(makePublishBtn());host.appendChild(makeDiscardBtn());
   host.appendChild(makeNotifyBtn());host.appendChild(makeShiftsBtn());host.appendChild(makeSchBtn());
 }
 function filterPillsHtml(){
@@ -760,11 +777,7 @@ function empCell(e,store){
 }
 function renderWeekly(){
   var head='<th class="emp">Employee</th>'+DAYS.map(function(d){return '<th>'+d+'</th>';}).join('')+HRS_TH;
-  var pn=pendingCount();
   var html='<div class="toolbar"><span class="cap"><span class="av" style="width:7px;height:7px;background:var(--blue);border-radius:50%"></span>Recurring weekly · repeats every week, no specific dates</span><span style="flex:1"></span>'+legendHtml()+'</div>'
-    +(pn?'<div class="pubbar"><span class="pn">'+pn+' unpublished change'+(pn===1?'':'s')+'</span><span style="flex:1"></span>'
-        +'<button class="btn" id="pubDiscard">Discard</button>'
-        +'<button class="btn" id="pubGo" style="background:var(--green);border-color:var(--green);color:#fff">Publish</button></div>':'')
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
   html+=filterStores().map(function(s){
     var emps=boardEmps(s.store), boardH=0;
@@ -791,8 +804,6 @@ function renderWeekly(){
 }
 function wireWeekly(){
   $('#view').querySelectorAll('[data-fp]').forEach(function(b){b.onclick=function(){FILTER=b.getAttribute('data-fp');render();};});
-  var pg=$('#pubGo');if(pg)pg.onclick=openPublishModal;
-  var pd=$('#pubDiscard');if(pd)pd.onclick=function(){if(confirm('Discard every unpublished change?'))discardDrafts();};
   $('#view').querySelectorAll('.cell.clk').forEach(function(td){td.onclick=function(ev){if(ev.target.closest('[data-rmv]'))return;openPicker(td,ev);};});
   $('#view').querySelectorAll('[data-add]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();openAdd(b.getAttribute('data-add'),ev);};});
   $('#view').querySelectorAll('[data-rmv]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var p=b.getAttribute('data-rmv').split('|');removeMember(p[0],Number(p[1]));};});
@@ -1326,11 +1337,10 @@ async function publishDrafts(btn){
     return {staff_id:x.e.id,store:x.e.home_store,shifts:built.shifts,work_days:built.work,updated_at:new Date().toISOString()};
   });
   var up=await sb.from('staff_schedule').upsert(rows,{onConflict:'staff_id'});
-  if(up.error){toast(up.error.message,true);if(btn){btn.disabled=false;btn.textContent='Publish';}return;}
+  if(up.error){toast(up.error.message,true);render();return;}
   var ids=rows.map(function(r){return r.staff_id;});
   var del=await sb.from('schedule_drafts').delete().in('staff_id',ids);
   if(del.error)toast(del.error.message,true);
-  closePublishModal();
   var n=list.reduce(function(a,x){return a+x.days.length;},0);
   toast('Published · '+n+' change'+(n===1?'':'s'));
   await load();
@@ -1341,42 +1351,6 @@ async function discardDrafts(){
   if(del.error){toast(del.error.message,true);return;}
   toast('Draft discarded');
   await load();
-}
-var PB_BACK=null,PB_WRAP=null;
-function closePublishModal(){if(PB_BACK){PB_BACK.remove();PB_BACK=null;}if(PB_WRAP){PB_WRAP.remove();PB_WRAP=null;}}
-function dayValText(empId,wd){
-  var a=dArr(empId)[wd];
-  if(a==null)return 'Not scheduled';
-  if(a==='off')return 'Off';
-  if(a.away)return 'In '+shortStore(a.store);
-  var sh=shiftById(a.id)||labelToShift(a.label);
-  return (sh?sh.name:(a.label||'Scheduled'))+' · '+shortStore(a.store);
-}
-function openPublishModal(){
-  closePop&&closePop();
-  var list=pendingList();if(!list.length)return;
-  var back=document.createElement('div');back.className='pop-back';back.style.zIndex=200;back.style.background='rgba(45,45,59,.34)';back.onclick=closePublishModal;
-  var wrap=document.createElement('div');wrap.style.cssText='position:fixed;inset:0;z-index:210;display:flex;align-items:flex-start;justify-content:center;padding:96px 16px 40px;overflow:auto;pointer-events:none';
-  var card=document.createElement('div');card.style.cssText='pointer-events:auto;width:100%;max-width:560px;background:#fff;border-radius:16px;border-top:3px solid var(--green);box-shadow:0 24px 60px rgba(45,45,59,.3);overflow:hidden';
-  document.body.appendChild(back);document.body.appendChild(wrap);wrap.appendChild(card);
-  PB_BACK=back;PB_WRAP=wrap;
-  var n=list.reduce(function(a,x){return a+x.days.length;},0);
-  var rows=list.map(function(x){
-    return '<div style="padding:11px 0;border-bottom:1px solid #F5F6F8">'
-      +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.86rem;color:var(--dark)">'+esc(x.e.display_name)+'</div>'
-      +x.days.map(function(wd){return '<div style="display:flex;gap:10px;font-family:\'Nunito Sans\',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey);margin-top:3px">'
-        +'<span style="width:34px;color:var(--grey);font-weight:800">'+DAYS[wd]+'</span><span>'+esc(dayValText(x.e.id,wd))+'</span></div>';}).join('')
-      +'</div>';
-  }).join('');
-  card.innerHTML='<div style="padding:18px 22px;border-bottom:1px solid #EEF0F4;display:flex;align-items:center;gap:10px">'
-    +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem">Publish Schedule</div>'
-    +'<span style="flex:1"></span><button id="pbX" style="border:none;background:none;font-size:1.3rem;color:var(--grey);cursor:pointer;line-height:1">✕</button></div>'
-    +'<div style="padding:6px 22px 18px;max-height:52vh;overflow:auto">'+rows+'</div>'
-    +'<div style="padding:14px 22px;border-top:1px solid #EEF0F4;display:flex;gap:10px;justify-content:flex-end">'
-    +'<button class="btn" id="pbCancel">Cancel</button>'
-    +'<button class="btn" id="pbGo" style="background:var(--green);border-color:var(--green);color:#fff">Publish '+n+' Change'+(n===1?'':'s')+'</button></div>';
-  $('#pbX').onclick=closePublishModal;$('#pbCancel').onclick=closePublishModal;
-  $('#pbGo').onclick=function(){publishDrafts($('#pbGo'));};
 }
 async function addMember(store,empId){closePop();(MEMBERS[store]=MEMBERS[store]||[]).push(empId);render();
   var r=await sb.from('schedule_membership').insert({store:store,staff_id:empId});if(r.error)toast(r.error.message,true);else{var e=empById(empId);toast((e?e.display_name.split(' ')[0]:'')+' added to '+shortStore(store));}}
