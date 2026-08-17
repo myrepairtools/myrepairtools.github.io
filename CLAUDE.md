@@ -1238,11 +1238,34 @@ whether the ROLE earns accessory/device → n/a otherwise) + 5 manual trust-me t
 (I-9, QB Workforce invite, RepairQ creds, shirt, team chat) in `staff_setup_checklist`
 with checked_by/at audit; assigned-module toggles + due-date chips (pickers.js);
 next-up items with inline manager ticks. **`onboarding-dashboard.html`** (Employees
-nav 'Onboarding', manager+) is the hiring pipeline (10b): stat tiles, stage chips
-(Candidate — offer out → signing docs → Ready to convert → In training, plus
-Declined), "New candidate", Review & convert → "Convert to New Employee ›"
-(promotes + fires auto-assign; a missing-docs convert warns but is allowed —
-paper case). **Candidate stage (owner directive 2026-08-12): new hires start as
+nav 'Onboarding', manager+) is the hiring pipeline, rebuilt per the
+"Onboarding Roster → Per-Person Profile" design handoff (2026-08-17):
+a full-width **roster** (avatar rows, stage pill, paperwork chips, progress
+bar with a whose-move-is-it next line, mentor column, per-row ⋯ menu) where
+View opens a **per-person profile board** (`#e=<staff_id>`, pre-conversion
+candidates `#i=<intake_id>`): columns **Hiring → New-hire setup → one per
+assigned module** (+ an Assign-training column when modules are unassigned).
+The Hiring column is intake-derived and holds what used to be roster buttons —
+offer/handbook/form as auto rows off the signature stamps, Review + Create-in-
+QuickBooks as manager ticks (`staff_intake.reviewed_at/_by`,
+`qbo_created_at/_by`) with their action links beside them, convert = the
+existing find_employee → promote modal. Setup mirrors kb-compliance's
+`setupRows` (keep the two in step); module columns render from
+`CPRTrack.build` — never forked — with one-click tick/untick on manager +
+back-office steps, `requires` rows saying what they wait on, due chips
+(CPRPickers.day), and 100% columns auto-collapsing to a 54px strip
+(localStorage `cprObFold`). **One page, two roles:** a non-manager landing
+here gets their OWN board (or their mentee's) — module columns only,
+back-office rows removed before unlock is computed (training.html's rule),
+manager steps read-only, their next step tickable — reached from a banner on
+training.html while onboarding is open. **Mentor** = `staff.mentor_staff_id`
+(header select, staff at the hire's store), written via cpr-auth
+`update_staff`; `is_my_mentee()` RLS (docs/sql/onboarding-profile.sql) lets a
+mentor read their mentee's track and tick manager steps without being an
+admin. The roster ends by stamping `onboarding_completed_at`/`canceled_at`
+(⋯ menu; staff row via update_staff + mirror on the intake row); stamped
+people leave the roster but stay reachable by deep link. A missing-docs
+convert warns but is allowed — paper case. **Candidate stage (owner directive 2026-08-12): new hires start as
 New Candidates.** The **New Candidate wizard** (4 steps, chips like the
 Checklist Template wizard: Candidate → Offer Letter → Preview → Send) takes
 name/store/position/pay/start + optional phone/email, then the **offer
