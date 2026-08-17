@@ -832,6 +832,9 @@ Deno.serve(async (req) => {
         .replace(/\{first\}/g, first || "there")
         .replace(/\{docs\}/g, docs)
         .replace(/\{store\}/g, String(it.invited_store || "").replace(/^CPR\s*/, ""))
+        // the public get-ready page — no token, nothing to sign in to, so it
+        // opens cold on a phone the morning of day one
+        .replace(/\{link\}/g, SITE + "/first-day.html")
         // a missing first name shouldn't leave "Ready for your first day, !"
         .replace(/,\s*!/g, "!");
       // Smart punctuation is not in GSM-7, and one em dash or curly apostrophe
