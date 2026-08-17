@@ -569,19 +569,35 @@
     var vv = window.visualViewport;
     if (!vv) return;
     var on = false;
+    function typing(){
+      var el = document.activeElement;
+      return !!(el && (/^textarea$/i.test(el.tagName) || el.isContentEditable ||
+        (/^input$/i.test(el.tagName) &&
+          !/^(checkbox|radio|button|submit|reset|range|file|color|image)$/i.test(el.type || ''))));
+    }
     function sync(){
-      var gap = window.innerHeight - vv.height - vv.offsetTop;
-      var kb = gap > 120 && !!(document.activeElement &&
-        /^(input|textarea)$/i.test(document.activeElement.tagName) &&
-        !/^(checkbox|radio|button|submit|range|file)$/i.test(document.activeElement.type || ''));
+      /* The keyboard is innerHeight - visualViewport.height, full stop.
+         offsetTop is how far the visual viewport has been scrolled WITHIN the
+         layout viewport — iOS makes it positive exactly when it scrolls your
+         field into view, so subtracting it cancelled the keyboard out and the
+         flag never fired on the first tap. */
+      var gap = window.innerHeight - vv.height;
+      /* a >150px shrink on a phone is only ever the keyboard; between 90 and
+         150 (short keyboards, floating/split) require a field to be focused,
+         which also keeps Safari's collapsing URL bar from counting */
+      var kb = gap > 150 || (gap > 90 && typing());
       if (kb === on) return;
       on = kb;
       document.documentElement.classList.toggle('mrt-kb', kb);
     }
     vv.addEventListener('resize', sync);
     vv.addEventListener('scroll', sync);
-    document.addEventListener('focusin', function(){ setTimeout(sync, 60); });
-    document.addEventListener('focusout', function(){ setTimeout(sync, 60); });
+    /* iOS animates the keyboard in over ~300ms and the resize can land before
+       or after focus, so re-check across the whole animation rather than once */
+    function syncSoon(){ [0, 120, 300, 600].forEach(function(ms){ setTimeout(sync, ms); }); }
+    document.addEventListener('focusin', syncSoon);
+    document.addEventListener('focusout', syncSoon);
+    window.addEventListener('orientationchange', syncSoon);
   })();
 
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }

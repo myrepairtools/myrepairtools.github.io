@@ -313,6 +313,10 @@ var PAYAP={};
    so a Clackamas Spark receipt doesn't get filed against nothing. {accountId:classId} */
 var PAYCLS={};
 var CLS_TOUCHED=false;   // once the class is set by hand, the card stops changing it
+/* The picker REMEMBERS the last card used, so "nothing chosen yet" can't be read
+   off the dropdown's value — it is almost never empty. Only a deliberate pick
+   blocks the receipt's own digits from correcting it. */
+var PAY_TOUCHED=false;
 var VENDORS=[];                        // from qbo ?action=vendors — the QBO vendor list
 var VEND=null;                         // matched QBO vendor {id,name} (typed text can stay unlinked)
 var PAYALLOW=null;                     // Settings allowlist of Paid With account ids (null/[] = all)
@@ -589,7 +593,7 @@ async function extractFromPhoto(blob){
     if(d.date&&$('#date').value===todayLocal()&&d.date!==$('#date').value){$('#date').value=d.date;used.push('date');}
     if(d.vendor&&!$('#vendor').value.trim()){$('#vendor').value=d.vendor;vendorAutolink();used.push('vendor');}
     /* the card the receipt says was used — only when nothing is picked yet */
-    if(d.card_last4&&!$('#paySel').value){
+    if(d.card_last4&&!PAY_TOUCHED){
       var pm=matchPayAccount(d.card_last4);
       if(pm){$('#paySel').value=pm.id;applyPayClass();used.push('card ····'+d.card_last4);}
     }
@@ -812,7 +816,7 @@ function renderSplit(){
 }
 selectAllOnFocus($('#amt'));
 $('#clsSel').addEventListener('change',function(){CLS_TOUCHED=true;renderSplit();});
-$('#paySel').addEventListener('change',applyPayClass);
+$('#paySel').addEventListener('change',function(){PAY_TOUCHED=true;applyPayClass();});
 $('#amt').addEventListener('input',function(){renderSplit();if(catOn())paintCatLeft();});
 
 /* ------------- save flow ------------- */
@@ -1010,7 +1014,7 @@ $('#newBtn').addEventListener('click',function(){
   $('#amt').value='';$('#date').value=todayLocal();
   EXP=null;$('#accSearch').value='';
   if(catOn())catToggle(false);
-  $('#clsSel').value='';SPLITSEL=null;CLS_TOUCHED=false;applyPayClass();renderSplit();
+  $('#clsSel').value='';SPLITSEL=null;CLS_TOUCHED=false;PAY_TOUCHED=false;applyPayClass();renderSplit();
   $('#vendor').value='';$('#note').value='';VEND=null;
   RECEIPT_ID=null;clearErr();
   window.scrollTo({top:0});

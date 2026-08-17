@@ -1765,9 +1765,15 @@ When changing a tool's data layer, check which generation it uses first — they
   layout viewport for the keyboard, so a `position:fixed` bottom bar stays pinned
   to the bottom of the *layout* viewport — behind the keyboard, or stranded
   mid-screen once Safari scrolls, sitting on top of the field you're typing into
-  (owner report 2026-08-17, Expenses). nav.js flags `html.mrt-kb` whenever
-  `visualViewport` is >120px shorter than `innerHeight` with a text field
-  focused, and hides the bottom tab bar + assistant FAB and zeroes `--cpr-bb-h`.
+  (owner report 2026-08-17, Expenses). nav.js flags `html.mrt-kb` off
+  `innerHeight - visualViewport.height` alone — **never subtract
+  `visualViewport.offsetTop`**: iOS makes it positive exactly when it scrolls the
+  focused field into view, cancelling the keyboard back out so the flag never
+  fires on the first tap (that was the first attempt's bug). >150px is the
+  keyboard outright; 90–150 also needs a focused field, so a collapsing URL bar
+  doesn't count; focus re-checks at 0/120/300/600ms because the keyboard animates
+  in and the resize can land either side of focus. The flag hides the bottom tab
+  bar + assistant FAB and zeroes `--cpr-bb-h`.
   **A page with its own fixed footer must add `html.mrt-kb .yourbar{display:none}`**
   (expenses.html's save bar does). Don't try to float a fixed bar above the iOS
   keyboard — it can't be done reliably.
