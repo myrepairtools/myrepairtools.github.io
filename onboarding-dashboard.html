@@ -327,7 +327,9 @@ function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String
 const nameKey=s=>String(s||'').toLowerCase().replace(/[^a-z]+/g,'');
 const roleName=r=>({owner:'Owner',admin:'Manager',manager:'Manager',team_member:'Team Member',employee:'Team Member',candidate:'Candidate'})[r]||r||'';
 const sameName=(a,b)=>!!nameKey(a)&&nameKey(a)===nameKey(b);
-function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
+function fmtShort(x){if(!x)return'';const t=String(x);
+  const d=/^\d{4}-\d{2}-\d{2}$/.test(t)?new Date(t+'T12:00:00'):new Date(t);
+  if(isNaN(d))return'';return (d.getMonth()+1)+'/'+d.getDate();}
 function fmtDue(iso){const d=new Date(String(iso).slice(0,10)+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 function isNewHire(p){const s=p.start_date||String(p.created_at||'').slice(0,10);
   return s&&(Date.parse(todayISO())-Date.parse(s))/864e5<=NEW_HIRE_DAYS;}
@@ -1430,14 +1432,16 @@ function openReview(id){
   const addr=i.address?[i.address.street,i.address.city,i.address.zip].filter(Boolean).join(', '):'';
   const av=(i.availability||[]).map(a=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.day]+' '
     +(a.mode==='all'?'All day':a.mode==='off'?'Off':(a.from+' – '+a.to))).join(' · ');
-  const declined=!!i.offer_declined_at||!!i.promoted_at, docs=!!i.offer_body;
+  const declined=!!i.offer_declined_at, docs=!!i.offer_body;
+  /* promoted rows are history — read-only, but nothing about them is declined */
+  const closed=declined||!!i.promoted_at;
   const sig=(label,img,who,at)=>img
     ?'<div class="rvrow"><span class="k">'+label+'</span><span class="v"><img class="sigthumb" src="'+img+'" alt="signature">'
       +'<div style="font-size:.68rem;color:var(--grey);margin-top:2px">'+esc(who||'')+' · '+esc(fmtShort(at))+'</div></span></div>'
     :'<div class="rvrow"><span class="k">'+label+'</span><span class="v" style="color:var(--grey2)">not signed yet</span></div>';
   /* candidates for promotion: sync-created / recently added staff without intake */
   const cands=STAFF.filter(p=>isNewHire(p));
-  $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+(declined?' — declined':' — candidate')+'</h2>'
+  $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+(declined?' — declined':i.promoted_at?'':' — candidate')+'</h2>'
     +(declined?'<div style="background:var(--redbg);border-radius:9px;padding:9px 12px;font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:10px">'
       +'Declined the offer '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' — “'+esc(i.decline_note)+'”':'')+'</div>':'')
     +rv('Position',i.position)+rv('Pay',i.pay)
@@ -1454,7 +1458,7 @@ function openReview(id){
         rv('Emergency'+(i.emergency2&&i.emergency2.name?' '+(n+1):''),
            [e.name,e.relationship,e.phone].filter(Boolean).join(' · '))).join('')
     +(av?rv('Availability',av):'')
-    +(declined?'<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>'
+    +(closed?'<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>'
       :'<div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;margin:14px 0 4px">'
         +[['Role',(MRT_ROLES.filter(r=>r.v===i.mrt_role)[0]||{}).t||'Team Member'],
           ['Stores',[i.invited_store].concat(i.authorized_stores||[]).filter((v,x,a)=>v&&a.indexOf(v)===x)
