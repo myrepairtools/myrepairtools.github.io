@@ -232,13 +232,17 @@ let REP={list:[],comps:{},trend:[]};          // reporting cache for the loaded 
 
 /* hash deep-link (#library / #reporting / #fairness) — a valid hash wins over localStorage */
 const HASH_SECS=['library','reporting','fairness'];
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function secFromHash(){const h=location.hash.replace('#','').toLowerCase();return HASH_SECS.indexOf(h)>-1?h:null;}
 const _hs=secFromHash();if(_hs){SEC=_hs;lsSet('cprTaskAdminSec',SEC);}
 window.addEventListener('hashchange',()=>{const t=secFromHash();if(t&&t!==SEC){SEC=t;lsSet('cprTaskAdminSec',SEC);if(CALM)render();}});   // CALM set = manager UI booted
 
 async function boot(){
   $('#app').style.visibility='visible';
-  if(!isMgr(ME.role)){$('#gate').classList.remove('hide');return;}
+  if(!canPage('checklist.manage',ME.role)){$('#gate').classList.remove('hide');return;}
   $('#body').classList.remove('hide');
   // Store list from the stores TABLE — the same names staff.home_store,
   // staff_schedule and can_see_store use. (CPRLocations' canonical names are

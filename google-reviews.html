@@ -183,8 +183,12 @@ function parseHash(){ const m=(location.hash||'').match(/^#r=(.+)$/); DEEP=m?dec
 parseHash();
 window.addEventListener('hashchange',()=>{ parseHash(); if(DEEP){ const r=REVS.find(x=>x.id===DEEP); if(r) openDrawer(r.id); } });
 
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function boot(){
-  if(!AUTH||!isMgr(AUTH.role)){ $('#body').innerHTML=''; $('#gate').hidden=false; return; }
+  if(!AUTH||!canPage('reports.reviews',AUTH.role)){ $('#body').innerHTML=''; $('#gate').hidden=false; return; }
   load();
 }
 async function load(){

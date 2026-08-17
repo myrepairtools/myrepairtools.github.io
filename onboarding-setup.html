@@ -317,6 +317,10 @@ function wireDnD(container,selector,persist,idOf,horizontal){
     }
   });
 }
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function openStepEditor(mod,s){
   const isNew=!s;s=s||{who:'manager'};
   const wrapEl=$('#mdlWrap');
@@ -362,7 +366,7 @@ function openStepEditor(mod,s){
   paint();
 }
 async function boot(){
-  if(!isMgr(AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
+  if(!canPage('onboarding.manage',AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
   await loadAll();draw();
 }
 </script>

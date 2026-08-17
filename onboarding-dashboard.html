@@ -722,6 +722,10 @@ async function textLink(){
     else{b.disabled=false;b.textContent='Text the signing link';toast(md.error||'Text failed — copy the link instead',true);}
   }catch(e){b.disabled=false;b.textContent='Text the signing link';toast('Text failed — copy the link instead',true);}
 }
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function openReview(id){
   const i=INTAKES.find(x=>x.id===id);if(!i)return;
   const rv=(k,v)=>v?'<div class="rvrow"><span class="k">'+k+'</span><span class="v">'+esc(v)+'</span></div>':'';
@@ -803,7 +807,7 @@ function openReview(id){
   };
 }
 async function boot(){
-  if(!isMgr(AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
+  if(!canPage('onboarding.manage',AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
   await loadAll();draw();
 }
 </script>

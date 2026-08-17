@@ -455,6 +455,10 @@ function openPanel(sid){
     toast('Done ✓');draw();openPanel(p.id);
   });
 }
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function closePanel(){$('#panel').classList.remove('show');$('#scrim').classList.remove('show');SEL=null;}
 $('#scrim').addEventListener('mousedown',closePanel);
 
@@ -467,7 +471,7 @@ async function loadTickNames(){
   Object.values(TICKS).forEach(t=>{t.by_name=by[t.checked_by]||'';});
 }
 async function boot(){
-  if(!isMgr(AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
+  if(!canPage('kb.compliance',AUTH.role)){$('#page').innerHTML='<div class="empty">Managers only.</div>';return;}
   await loadAll();await loadTickNames();draw();
 }
 </script>

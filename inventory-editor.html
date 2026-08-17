@@ -265,7 +265,11 @@ async function callFn(body){
   var staff=null;
   if(s){ try{ staff=(await sb.from('staff').select('display_name,role').eq('auth_uid',s.user.id).maybeSingle()).data; }catch(e){} }
   var role=(staff&&staff.role)||'';
-  if(role!=='admin'&&role!=='owner'){
+  /* access is a granted permission; the role test is the fallback for the
+     moment before nav.js publishes the permission list */
+  var perms=window.CPRPerms;
+  var allowed=perms ? perms.indexOf('inventory.editor')>-1 : (role==='admin'||role==='owner');
+  if(!allowed){
     $('#gate').classList.remove('hide');
     $('#gate').innerHTML='🔒 This tool writes to live RepairQ inventory and is limited to managers and the owner.'+
       (role?'':'<br><br>Sign in with your PIN first.');

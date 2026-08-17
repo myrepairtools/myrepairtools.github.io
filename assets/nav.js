@@ -82,7 +82,7 @@
   // Utilities that live under Operations as their own "Tools" sub-group —
   // single-purpose gadgets rather than day-to-day trackers.
   var TOOLS = [
-    { label:'Inventory Editor',    url:'inventory-editor.html',    icon:'package', minRole:'admin' },
+    { label:'Inventory Editor',    url:'inventory-editor.html',    icon:'package', acc:'inventory.editor' },
     { label:'Label Resizer',       url:'label-resizer.html',       icon:'printer' , acc:'tools.label_resizer'},
     { label:'Get the Extension',   url:'extension.html',           icon:'download' , acc:'tools.extension'}
   ];
@@ -100,19 +100,19 @@
   // would filter every report out of the list. The rail icon is rank-gated; pages gate by role.)
   var REPORTS = [
     { label:'Daily Digest',    url:'daily-digest.html',    icon:'sunrise', acc:'reports.digest' },
-    { label:'Google Traffic',  url:'google-traffic.html',  icon:'map-pin', minRole:'admin' },
-    { label:'Google Reviews',  url:'google-reviews.html',  icon:'star', minRole:'admin', badge:'gbp' },
-    { label:'Overtime Report', url:'report-overtime.html', icon:'timer', minRole:'admin' }
+    { label:'Google Traffic',  url:'google-traffic.html',  icon:'map-pin', acc:'reports.traffic' },
+    { label:'Google Reviews',  url:'google-reviews.html',  icon:'star', acc:'reports.reviews', badge:'gbp' },
+    { label:'Overtime Report', url:'report-overtime.html', icon:'timer', acc:'reports.overtime' }
   ];
   // Employees — people management (managers/owner): roster, scheduling, time off.
   var EMPLOYEES = [
     { label:'Team Members',   url:'employee-records.html', icon:'users', minRole:'admin', acc:'staff.view' },
-    { label:'Onboarding',     url:'onboarding-dashboard.html', icon:'graduation-cap', minRole:'admin' },
+    { label:'Onboarding',     url:'onboarding-dashboard.html', icon:'graduation-cap', acc:'onboarding.manage' },
     // Schedule/Task Admin reached from buttons on My Time / Checklist (hidden from menus)
     { label:'Schedule Admin', url:'schedule-admin.html',   icon:'calendar-cog', minRole:'admin', acc:'schedule.admin', hidden:true },
-    { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', minRole:'admin', hidden:true },
-    { label:'KB Compliance',  url:'kb-compliance.html',    icon:'clipboard-check', minRole:'admin', hidden:true },
-    { label:'Module Setup',   url:'onboarding-setup.html', icon:'graduation-cap', minRole:'admin', hidden:true },
+    { label:'Task Admin',     url:'task-admin.html',       icon:'folder-kanban', acc:'checklist.manage', hidden:true },
+    { label:'KB Compliance',  url:'kb-compliance.html',    icon:'clipboard-check', acc:'kb.compliance', hidden:true },
+    { label:'Module Setup',   url:'onboarding-setup.html', icon:'graduation-cap', acc:'onboarding.manage', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' },
     { label:'Bookings',       url:'interviews.html',       icon:'calendar-days', acc:'interviews.manage' }

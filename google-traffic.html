@@ -176,8 +176,12 @@ window.addEventListener('hashchange',()=>{ const h=(location.hash||'').replace('
 /* ===== data ===== */
 let LOCS=[], RMONTH=[], MROWS=[], KWS={}, MREVS=[], OPENREVS=[], THROUGH=null, LOADTOKEN=0;
 
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function boot(){
-  if(!AUTH||!isMgr(AUTH.role)){ $('#body').innerHTML=''; $('#gate').hidden=false; return; }
+  if(!AUTH||!canPage('reports.traffic',AUTH.role)){ $('#body').innerHTML=''; $('#gate').hidden=false; return; }
   loadStatic();
 }
 async function loadStatic(){

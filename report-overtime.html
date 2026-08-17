@@ -88,8 +88,12 @@ async function resolveMe(sess){
 }
 sb.auth.onAuthStateChange((_e,sess)=>{ if(sess) resolveMe(sess); });
 
+/* access is a granted permission; the role test stays as the fallback for the
+   moment before nav.js publishes the permission list */
+function canPage(k,role){ var p=window.CPRPerms;
+  return p ? p.indexOf(k)>-1 : ['owner','admin','manager'].indexOf(role)>-1; }
 function boot(){
-  if(!AUTH||!isMgr(AUTH.role)){ $('#repBody').innerHTML=''; $('#gate').hidden=false; return; }
+  if(!AUTH||!canPage('reports.overtime',AUTH.role)){ $('#repBody').innerHTML=''; $('#gate').hidden=false; return; }
   renderOvertime($('#repBody'));
 }
 
