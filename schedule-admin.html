@@ -127,6 +127,16 @@ table.bt td.cell.pend{background:rgba(180,83,9,.05);box-shadow:inset 0 0 0 1.5px
 .shdetail{min-width:0}
 .pg3item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;border-left:3px solid transparent;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;padding:9px 11px;border-radius:0 8px 8px 0;cursor:pointer;color:var(--dark-grey);margin-bottom:2px}
 .pg3item.on{background:#E9F4FB;color:var(--dark);border-left-color:var(--red)}
+.shcopy{margin-left:2px;flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);cursor:pointer}
+.shcopy:hover{border-color:var(--blue);color:var(--blue)}
+.shcopy.on{border-color:var(--blue);background:#EAF4FB;color:var(--blue)}
+.shcopyrow{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:8px 9px 9px 51px;margin-top:-3px;border-radius:0 0 8px 8px;background:#F6FAFD;border:1px solid #EEF0F4;border-top:none}
+.shcopyrow .lbl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-right:2px}
+.shcopyrow button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;min-height:28px;padding:3px 10px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);cursor:pointer}
+.shcopyrow button:hover{border-color:var(--blue);color:var(--blue)}
+.shcopyrow button.cl{color:var(--grey);border-style:dashed}
+.shcopyrow button.did{border-color:#BFE8D0;background:#E9F6EE;color:#1B7A41}
+.shcopyrow button.all{color:var(--dark)}
 .hlbl{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:5px}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue) !important;box-shadow:0 0 0 3px rgba(79,176,227,.15)}
 .toggle{width:40px;height:23px;border-radius:20px;border:none;background:var(--grey);position:relative;cursor:pointer;flex:none;transition:background .15s}
@@ -1373,6 +1383,7 @@ async function decide(id,status){var r=REQS.filter(function(x){return x.id===id;
    grid reflects any changes. Writes shifts + shift_hours. */
 var SED_PAL=['#2E9E5B','#4FB0E3','#8B5CF6','#DC282E','#B45309','#2D2D3B'];
 var SED_SHIFTS=[], SED_BY_ID={}, SED_HOURS={}, SED_SEL=lsGet('cprSchedShiftSel',null), SED_LOC=null, SED_DIRTY=false;
+var SED_COPY=null, SED_COPIED=[];   // which day's Copy row is open, and what it has written
 var SH_BACK=null, SH_WRAP=null;
 function sedStores(){return STORES.filter(function(s){return s.active!==false&&canSee(s.store);}).map(function(s){return s.store;});}
 function sedSort(a,b){return (a.sort||0)-(b.sort||0);}
@@ -1402,7 +1413,7 @@ function openShiftsModal(){
   var wrap=document.createElement('div');wrap.id='shWrap';wrap.style.cssText='position:fixed;inset:0;z-index:210;display:flex;align-items:flex-start;justify-content:center;padding:96px 16px 40px;overflow:auto;pointer-events:none';
   var card=document.createElement('div');card.id='shCard';card.style.cssText='pointer-events:auto;width:100%;max-width:940px;background:#fff;border-radius:16px;border-top:3px solid var(--red);box-shadow:0 24px 60px rgba(45,45,59,.3);overflow:hidden';
   document.body.appendChild(back);document.body.appendChild(wrap);wrap.appendChild(card);
-  SH_BACK=back;SH_WRAP=wrap;SED_DIRTY=false;
+  SH_BACK=back;SH_WRAP=wrap;SED_DIRTY=false;SED_COPY=null;SED_COPIED=[];
   card.innerHTML='<div style="padding:18px 22px;border-bottom:1px solid #EEF0F4;display:flex;align-items:center;gap:10px"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem">Shifts &amp; hours</div><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.76rem;color:var(--grey)">Reusable shifts and their hours per location &amp; day</div><span style="flex:1"></span><button id="shClose" style="border:none;background:none;font-size:1.3rem;color:var(--grey);cursor:pointer;line-height:1">✕</button></div><div style="padding:18px 22px"><div class="shmd"><div class="shmaster" id="shiftMaster"><div class="emptyc">Loading…</div></div><div class="shdetail" id="shiftDetail"></div></div></div>';
   $('#shClose').onclick=closeShiftsModal;
   sedLoad();
@@ -1432,7 +1443,7 @@ function sedRail(){
   }).join('');
   rail.innerHTML='<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.58rem;letter-spacing:.8px;text-transform:uppercase;color:var(--grey);padding:8px 11px 7px">Shifts</div>'
     +rows+'<div style="padding:8px 7px"><button class="btn alt sm" id="shNew" style="width:100%">+ New shift</button></div>';
-  rail.querySelectorAll('[data-shsel]').forEach(function(b){b.onclick=function(){SED_SEL=b.getAttribute('data-shsel');lsSet('cprSchedShiftSel',SED_SEL);sedRe();};});
+  rail.querySelectorAll('[data-shsel]').forEach(function(b){b.onclick=function(){SED_SEL=b.getAttribute('data-shsel');lsSet('cprSchedShiftSel',SED_SEL);SED_COPY=null;SED_COPIED=[];sedRe();};});
   var nb=$('#shNew');if(nb)nb.onclick=sedNew;
 }
 function sedEmptyHtml(){
@@ -1451,11 +1462,23 @@ function sedDayRow(loc,wd,ho){
   else if(mode==='closed')slot='<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.5rem;letter-spacing:.4px;color:var(--red);background:#FBE9EA;padding:3px 8px;border-radius:999px">CLOSED · NOT OFFERED</span>';
   else slot='';
   var eff=mode==='closed'?0:sedDurH((d&&d.start!=null)?d.start:ho.def.start,(d&&d.end!=null)?d.end:ho.def.end);
-  return '<div style="display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;background:#fff;border:1px solid #EEF0F4">'
+  var html='<div style="display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;background:#fff;border:1px solid #EEF0F4">'
     +'<span style="width:32px;flex:none;font-family:Nunito,sans-serif;font-weight:800;font-size:.76rem;color:var(--dark)">'+DOW[wd]+'</span>'
     +'<div style="display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;width:184px;flex:none">'+seg('Default','default')+seg('Custom','override')+seg('Closed','closed')+'</div>'
     +'<div style="flex:1;min-width:160px;display:flex;align-items:center;min-height:34px">'+slot+'</div>'
-    +sedHrsPill(eff,mode==='closed','shdHrs'+wd)+'</div>';
+    +sedHrsPill(eff,mode==='closed','shdHrs'+wd)
+    +(mode==='override'?'<button class="shcopy'+(SED_COPY===wd?' on':'')+'" data-copyday="'+wd+'">Copy</button>':'')
+    +'</div>';
+  /* copying a day's hours onto the others — typing the same 3:30–7:30 into five
+     boxes was the whole complaint */
+  if(mode==='override'&&SED_COPY===wd){
+    html+='<div class="shcopyrow"><span class="lbl">Copy to</span>'
+      +DOW.map(function(nm,j){if(j===wd)return '';
+        var dj=ho.days[j], cl=!!(dj&&dj.closed);
+        return '<button data-ccpy="'+j+'"'+(SED_COPIED.indexOf(j)>-1?' class="did"':(cl?' class="cl"':''))+'>'+nm+'</button>';}).join('')
+      +'<button class="all" data-ccpy="all">All days</button></div>';
+  }
+  return html;
 }
 function sedDetail(){
   var pane=$('#shiftDetail');if(!pane)return;
@@ -1492,7 +1515,7 @@ function sedDetail(){
   p.querySelectorAll('.shsw').forEach(function(b){b.onclick=function(){sedRecolor(s.id,b.getAttribute('data-color'));};});
   var act=p.querySelector('#shActive');if(act)act.onclick=function(){sedToggleActive(s.id);};
   var del=p.querySelector('#shDelBtn');if(del)del.onclick=function(){sedDel(s.id);};
-  p.querySelectorAll('.shloc').forEach(function(b){b.onclick=function(){SED_LOC=b.getAttribute('data-loc');sedDetail();};});
+  p.querySelectorAll('.shloc').forEach(function(b){b.onclick=function(){SED_LOC=b.getAttribute('data-loc');SED_COPY=null;SED_COPIED=[];sedDetail();};});
   var en=p.querySelector('#shEnabled');if(en)en.onclick=function(){sedSetEnabled(s.id,loc,false);};
   var enb=p.querySelector('#shEnable');if(enb)enb.onclick=function(){sedSetEnabled(s.id,loc,true);};
   var ds=p.querySelector('#shDefStart');if(ds)ds.onchange=function(){sedSetDef(s.id,loc,'start',ds.value);};
@@ -1501,6 +1524,32 @@ function sedDetail(){
   var cp=p.querySelector('#shCopy');if(cp)cp.onclick=function(){sedCopyLoc(s.id,loc);};
   p.querySelectorAll('.shday').forEach(function(b){b.onclick=function(){sedDayMode(s.id,loc,+b.getAttribute('data-wd'),b.getAttribute('data-mode'));};});
   p.querySelectorAll('.shdtime').forEach(function(b){b.onchange=function(){sedDayTime(s.id,loc,+b.getAttribute('data-wd'),b.getAttribute('data-which'),b.value);};});
+  p.querySelectorAll('[data-copyday]').forEach(function(b){b.onclick=function(){
+    var wd=+b.getAttribute('data-copyday');
+    SED_COPY=(SED_COPY===wd)?null:wd;SED_COPIED=[];sedDetail();};});
+  p.querySelectorAll('[data-ccpy]').forEach(function(b){b.onclick=function(){
+    sedCopyDay(s.id,loc,SED_COPY,b.getAttribute('data-ccpy'));};});
+}
+/* Copy one day's custom hours onto other days. "All days" skips days marked
+   Closed — closed is a deliberate statement, not a gap — while clicking a day
+   by name always applies, so a closed day can still be re-opened on purpose. */
+async function sedCopyDay(id,store,srcWd,which){
+  var st=sedHoursOf(id,store), src=st.days[srcWd];
+  if(!src||src.closed)return;
+  var targets;
+  if(which==='all'){targets=[0,1,2,3,4,5,6].filter(function(j){return j!==srcWd&&!(st.days[j]&&st.days[j].closed);});}
+  else targets=[Number(which)];
+  for(var i=0;i<targets.length;i++){
+    var j=targets[i], d=st.days[j];
+    if(d){var r=await sb.from('shift_hours').update({closed:false,start_min:src.start,end_min:src.end}).eq('id',d.id);
+      if(r.error){toast(r.error.message,true);return;}
+      d.closed=false;d.start=src.start;d.end=src.end;}
+    else{var r2=await sb.from('shift_hours').insert({shift_id:id,store:store,weekday:j,closed:false,start_min:src.start,end_min:src.end,enabled:true}).select().single();
+      if(r2.error){toast(r2.error.message,true);return;}
+      st.days[j]={id:r2.data.id,closed:false,start:src.start,end:src.end};}
+    if(SED_COPIED.indexOf(j)<0)SED_COPIED.push(j);
+  }
+  SED_DIRTY=true;sedRe();
 }
 /* ----- shift CRUD ----- */
 async function sedNew(){
@@ -1543,6 +1592,9 @@ async function sedSetDef(id,store,which,hhmm){var m=timeToMin(hhmm);if(m==null)r
   if(which==='start')st.def.start=m;else st.def.end=m;SED_DIRTY=true;sedRefreshHrs(id,store);
 }
 async function sedDayMode(id,store,wd,mode){
+  if(SED_COPY!==null&&SED_COPY!==wd){SED_COPY=null;}
+  if(mode!=='override'&&SED_COPY===wd)SED_COPY=null;
+  SED_COPIED=[];
   var st=sedHoursOf(id,store), d=st.days[wd];
   if(mode==='default'){
     if(d){var r=await sb.from('shift_hours').delete().eq('id',d.id);if(r.error){toast(r.error.message,true);return;}delete st.days[wd];}

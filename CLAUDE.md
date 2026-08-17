@@ -1645,6 +1645,12 @@ explicit hours there, which is my-schedule's fallback when a shift has no hours
 at that store). The recurring picker also carries a **Copy to** row — per-day
 chips plus Mon–Fri / All days — that clones the open day's assignment; the
 picker stays open so a five-day run is five taps.
+**Shift hours — Copy to:** a Custom day in the Shifts & hours modal carries a
+**Copy** button that opens a chip row under it (each other weekday + All days)
+writing that day's start/end onto the targets; copied chips tick green and the
+row stays open. **All days skips days marked Closed** — closed is a deliberate
+statement, not a gap — while clicking a day by name always applies, so a closed
+day can still be reopened on purpose.
 **Shift hours edit in place:** an `<input type="time">` fires `change` the
 moment its value parses, so the old re-render-on-change blew the field away
 after one digit. `sedSetDef`/`sedDayTime` now repaint just the hour pills
@@ -1729,6 +1735,10 @@ When changing a tool's data layer, check which generation it uses first — they
   so far: cash-journal, checklist; convert other pages' pills when touching them. (The
   design project's CLAUDE.md + `@myrepairtools/design-system` record the same rule —
   StorePills is deprecated for location switching.)
+- **`my-schedule.html` is full-width on desktop** (`body.web main{max-width:none}`),
+  like Schedule Admin and Checklist. Watch for stray `<style id="__om-edit-overrides">`
+  blocks after `</html>` — a visual editor left one here whose
+  `#view .lbl{width:120px!important}` clipped the week-navigator label; it's deleted.
 - **Persist view state across refresh — and deep-link it.** Any tool with tabs /
   sub-views remembers the active one in `localStorage` (e.g. `cprSetTab`) AND mirrors it
   in the URL hash (settings.html is the reference: valid hash > localStorage > default at
