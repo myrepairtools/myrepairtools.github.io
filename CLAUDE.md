@@ -1593,6 +1593,33 @@ not an undo), and the day-one cron still promotes anyone whose start date
 arrives un-ticked, then ticks the step — nobody is locked out of their first
 shift because a box wasn't checked.
 
+**Recurring schedule drafts (Schedule Admin → Recurring → Publish):**
+`staff_schedule` is live to every employee the instant it is written (My Time,
+the dashboard widget, the weekly-preview cron all read it), so reworking the
+recurring schedule used to land on people's phones one click at a time.
+Recurring edits now write **`schedule_drafts`** instead (same shape as
+staff_schedule, one row per person, RLS `is_admin(store)` — nothing
+employee-facing can even read it; docs/sql/schedule-drafts.sql). The Recurring
+grid renders from the draft, drafted cells carry an amber outline, an amber bar
+counts unpublished changes with **Publish** / **Discard**, and the Recurring tab
+carries an amber badge from any view. Publish copies each draft onto
+`staff_schedule` and deletes the drafts — that stamp is what the 📣 Notify
+modal's "what changed since the last broadcast" detection then picks up, so the
+flow is edit → publish → notify. **This Week and Monthly deliberately keep
+rendering from `staff_schedule`** (an operational view must show what is
+actually true), and per-week `schedule_overrides` still write straight through —
+a one-off day change is meant to be immediate. A draft that matches live again
+is deleted, so "unpublished" always means a real difference, and `shiftsOf()`
+keeps a day's stored label when the day itself didn't change (some rows carry
+explicit hours there, which is my-schedule's fallback when a shift has no hours
+at that store). The recurring picker also carries a **Copy to** row — per-day
+chips plus Mon–Fri / All days — that clones the open day's assignment; the
+picker stays open so a five-day run is five taps.
+**Shift hours edit in place:** an `<input type="time">` fires `change` the
+moment its value parses, so the old re-render-on-change blew the field away
+after one digit. `sedSetDef`/`sedDayTime` now repaint just the hour pills
+(`sedRefreshHrs`) and leave the DOM — and the caret — alone.
+
 **Store scoping (`app_settings`):** a general owner-managed key-value settings table
 (`app_settings` — key text pk, value jsonb, RLS read-all / write `is_owner()`;
 docs/sql/app-settings-schema.sql). First key **`schedule.store_scoping`** (default

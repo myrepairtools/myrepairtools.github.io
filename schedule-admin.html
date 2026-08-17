@@ -65,6 +65,14 @@ table.bt th .dt{font-weight:700;font-size:.72rem;color:var(--dark-grey);margin-t
 table.bt td.emp{padding:8px 16px;border-bottom:1px solid #F5F6F8;vertical-align:middle}
 table.bt td.cell{padding:5px;border-bottom:1px solid #F5F6F8;border-left:1px solid #F5F6F8;vertical-align:middle;height:56px}
 table.bt td.cell.clk{cursor:pointer}
+/* an edit that is drafted but not published yet */
+table.bt td.cell.pend{background:rgba(180,83,9,.05);box-shadow:inset 0 0 0 1.5px rgba(180,83,9,.32)}
+.pubbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#FFF8EE;border:1.5px solid rgba(180,83,9,.28);border-radius:11px}
+.pubbar .pn{font-family:'Nunito',sans-serif;font-weight:900;font-size:.82rem;color:var(--amber)}
+.pop-copy{display:flex;flex-wrap:wrap;gap:5px;padding:2px 6px 6px}
+.pop-copy button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;min-height:28px;padding:3px 9px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--dark-grey);cursor:pointer}
+.pop-copy button:hover{border-color:var(--blue);color:var(--blue)}
+.pop-copy button.did{border-color:#BFE8D0;background:#E9F6EE;color:#1B7A41}
 .empname{display:flex;align-items:center;gap:10px}
 .av{border-radius:50%;color:#fff;font-family:'Nunito',sans-serif;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
 .nmline{font-family:'Nunito',sans-serif;font-weight:800;font-size:.86rem;line-height:1.15}
@@ -260,6 +268,56 @@ var HOLIDAYS=[], HOLH={}, CATOBS={};   // HOLIDAYS rows; HOLH: holiday_id -> {st
 function holObserved(h){return h.catalog_id==null?true:(CATOBS[h.catalog_id]!==false);}   // manual holidays are always store-observed
 function holNeedCount(){var t=iso(new Date());return HOLIDAYS.filter(function(h){return h.holiday_date>=t&&holObserved(h)&&!h.hours_confirmed;}).length;}
 var SCHEDIT=false;   // This Week "Schedule change" edit mode (writes per-week schedule_overrides)
+
+/* ===== recurring drafts (docs/sql/schedule-drafts.sql) =====
+   staff_schedule is live to every employee the moment it is written, so
+   reworking the recurring schedule used to land on people's phones one click
+   at a time. Recurring edits now write schedule_drafts (admin-only by RLS) and
+   only Publish copies them onto staff_schedule. This Week and Monthly keep
+   rendering from SCHED — an operational view must show what is actually true. */
+var DRAFT={};   // staff_id -> {arr:[7], store}; present only while unpublished
+function parseShifts(shf){
+  var arr=[null,null,null,null,null,null,null];shf=shf||{};
+  for(var wd=0;wd<7;wd++){var v=shf[String(wd)];if(v==null)continue;if(typeof v==='string')v={label:v};
+    if(v.label==='Off'&&!v.shift_id)arr[wd]='off';
+    else if(v.away)arr[wd]={store:v.store,away:true};
+    else if(v.shift_id!=null)arr[wd]={store:v.store,id:v.shift_id,label:v.label};
+    else if(v.label){var m=SHIFTS.filter(function(s){return s.name===v.label;})[0];arr[wd]=m?{store:v.store,id:m.id}:null;}}
+  return arr;
+}
+/* the arr the Recurring grid edits: the draft when there is one, else live */
+function dArr(empId){return (DRAFT[empId]&&DRAFT[empId].arr)||(SCHED[empId]&&SCHED[empId].arr)||[null,null,null,null,null,null,null];}
+function draftArr(empId){                       // same, but starts a draft on first write
+  if(!DRAFT[empId])DRAFT[empId]={arr:(SCHED[empId]?SCHED[empId].arr.slice():[null,null,null,null,null,null,null]),store:(SCHED[empId]||{}).store};
+  return DRAFT[empId].arr;
+}
+function cellKey(a){return a==null?'':a==='off'?'off':a.away?('away|'+a.store):(a.store+'|'+a.id);}
+function cellPending(empId,wd){
+  if(!DRAFT[empId])return false;
+  return cellKey(DRAFT[empId].arr[wd])!==cellKey((SCHED[empId]||{arr:[]}).arr[wd]);
+}
+/* [{e, days:[wd]}] — who changed and on which days, newest publish list */
+function pendingList(){
+  return Object.keys(DRAFT).map(Number).map(function(id){
+    var days=[];for(var wd=0;wd<7;wd++)if(cellPending(id,wd))days.push(wd);
+    return {e:empById(id),days:days};
+  }).filter(function(x){return x.e&&x.days.length;})
+    .sort(function(a,b){return (a.e.display_name||'')<(b.e.display_name||'')?-1:1;});
+}
+function pendingCount(){return pendingList().reduce(function(n,x){return n+x.days.length;},0);}
+/* the staff_schedule shape, built from an arr — both sides of a diff go through
+   this, so an unchanged day can never look changed because of key order */
+function shiftsOf(arr){
+  var shifts={},work=[];
+  for(var wd=0;wd<7;wd++){var a=arr[wd];if(a==null)continue;
+    if(a==='off')shifts[wd]={label:'Off'};
+    else if(a.away)shifts[wd]={store:a.store,away:true};
+    /* keep the stored label on a day nobody touched — some rows carry explicit
+       hours there ("8:30AM - 4:30PM") and that is the fallback my-schedule uses
+       when a shift has no hours at that store */
+    else {shifts[wd]={store:a.store,shift_id:a.id,label:a.label||(shiftById(a.id)||{}).name||''};work.push(wd);}}
+  return {shifts:shifts,work:work};
+}
 /* Effective cell for a real date: a schedule_overrides row wins over the recurring template. */
 function effA(empId,wd,di){
   var o=OVR[empId+'|'+di];
@@ -304,7 +362,7 @@ function availFor(empId,wd){
   return {off:false,text:[a.from,a.to].filter(Boolean).join('–')};
 }
 async function load(){
-  var [st,so,sh,hr,sc,pf,rq,mm,ov,hol,holh,hc]=await Promise.all([
+  var [st,so,sh,hr,sc,pf,rq,mm,ov,hol,holh,hc,dr]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,start_date,avatar,avatar_color,hide_from_recurring').eq('active',true),
     sb.from('stores').select('store,display_order,active,color,min_staff,min_mgr,we_min_staff,we_min_mgr').order('display_order'),
     sb.from('shifts').select('id,name,color,sort,active').order('sort'),
@@ -316,7 +374,8 @@ async function load(){
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
     sb.from('holidays').select('id,name,holiday_date,is_federal,hours_confirmed,catalog_id').order('holiday_date'),
     sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
-    sb.from('holiday_catalog').select('id,observed,is_federal,active')
+    sb.from('holiday_catalog').select('id,observed,is_federal,active'),
+    sb.from('schedule_drafts').select('staff_id,store,shifts')
   ]);
   STAFF=(st.data||[]);   // everyone is selectable; hide_from_recurring keeps flex staff (e.g. owner) off the auto boards
   /* What they told us they can work on their new-hire form. It rides on the
@@ -330,13 +389,13 @@ async function load(){
   SCHED={};STAFF.forEach(function(e){SCHED[e.id]={arr:[null,null,null,null,null,null,null],store:e.home_store};});
   (sc.data||[]).forEach(function(r){
     var rec=SCHED[r.staff_id]||(SCHED[r.staff_id]={arr:[null,null,null,null,null,null,null],store:r.store});rec.store=r.store||rec.store;
-    var shf=r.shifts||{};
-    for(var wd=0;wd<7;wd++){var v=shf[String(wd)];if(v==null){rec.arr[wd]=null;continue;}if(typeof v==='string')v={label:v};
-      if(v.label==='Off'&&!v.shift_id)rec.arr[wd]='off';
-      else if(v.away)rec.arr[wd]={store:v.store,away:true};
-      else if(v.shift_id!=null)rec.arr[wd]={store:v.store,id:v.shift_id,label:v.label};
-      else if(v.label){var m=SHIFTS.filter(function(s){return s.name===v.label;})[0];rec.arr[wd]=m?{store:v.store,id:m.id}:null;}
-      else rec.arr[wd]=null;}
+    rec.arr=parseShifts(r.shifts);
+  });
+  /* Unpublished recurring edits (schedule_drafts) — the Recurring grid renders
+     from these, everything employee-facing still reads SCHED. */
+  DRAFT={};(dr&&dr.data||[]).forEach(function(r){
+    if(!SCHED[r.staff_id])return;                 // inactive/removed person
+    DRAFT[r.staff_id]={arr:parseShifts(r.shifts),store:r.store||SCHED[r.staff_id].store};
   });
   REQS=(rq.data||[]);
   MEMBERS={};(mm.data||[]).forEach(function(r){(MEMBERS[r.store]=MEMBERS[r.store]||[]).push(r.staff_id);});
@@ -403,7 +462,11 @@ function render(){
   /* keep the URL hash in step with the open view (shareable deep links) */
   try{if(location.hash.replace('#','')!==VIEW)history.replaceState(null,'','#'+VIEW);}catch(e){}
   var holNeed=holNeedCount();
-  $('#hub').innerHTML=defs.map(function(t){var badge=(t.k==='holidays'&&holNeed)?' <span class="badge">'+holNeed+'</span>':'';return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+badge+'</button>';}).join('');
+  var pend=pendingCount();
+  $('#hub').innerHTML=defs.map(function(t){
+    var badge=(t.k==='holidays'&&holNeed)?' <span class="badge">'+holNeed+'</span>'
+             :(t.k==='weekly'&&pend)?' <span class="badge" style="background:var(--amber)">'+pend+'</span>':'';
+    return '<button data-v="'+t.k+'"'+(t.k===VIEW?' class="on"':'')+'>'+t.l+badge+'</button>';}).join('');
   $('#hub').querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){VIEW=b.getAttribute('data-v');lsSet('cprSchedAdminView',VIEW);render();};});
   if(VIEW==='weekly')renderWeekly();
   else if(VIEW==='thisweek')renderThisWeek();
@@ -697,20 +760,24 @@ function empCell(e,store){
 }
 function renderWeekly(){
   var head='<th class="emp">Employee</th>'+DAYS.map(function(d){return '<th>'+d+'</th>';}).join('')+HRS_TH;
+  var pn=pendingCount();
   var html='<div class="toolbar"><span class="cap"><span class="av" style="width:7px;height:7px;background:var(--blue);border-radius:50%"></span>Recurring weekly · repeats every week, no specific dates</span><span style="flex:1"></span>'+legendHtml()+'</div>'
+    +(pn?'<div class="pubbar"><span class="pn">'+pn+' unpublished change'+(pn===1?'':'s')+'</span><span style="flex:1"></span>'
+        +'<button class="btn" id="pubDiscard">Discard</button>'
+        +'<button class="btn" id="pubGo" style="background:var(--green);border-color:var(--green);color:#fff">Publish</button></div>':'')
     +'<div class="toolbar">'+filterPillsHtml()+'</div><div class="boards">';
   html+=filterStores().map(function(s){
     var emps=boardEmps(s.store), boardH=0;
     var rows=emps.map(function(e){
       var total=0;
-      var cells=DAYS.map(function(d,wd){var a=SCHED[e.id].arr[wd];var inner;
+      var cells=DAYS.map(function(d,wd){var a=dArr(e.id)[wd];var inner;
         if(a==null){var av=availFor(e.id,wd);
           inner=av?'<div class="blankc av'+(av.off?' no':'')+'">'+esc(av.text)+'</div>':'<div class="blankc">+</div>';}
         else if(a==='off')inner='<div class="offc">OFF</div>';
         else if(a.store!==s.store||a.away)inner=cellAway(a.store);
         else inner=cellShift(a,s.store,wd);
         total+=cellHours(a,s.store,wd);
-        return '<td class="cell clk" data-emp="'+e.id+'" data-wd="'+wd+'" data-store="'+esc(s.store)+'">'+inner+'</td>';
+        return '<td class="cell clk'+(cellPending(e.id,wd)?' pend':'')+'" data-emp="'+e.id+'" data-wd="'+wd+'" data-store="'+esc(s.store)+'">'+inner+'</td>';
       }).join('');
       boardH+=total;
       return '<tr><td class="emp">'+empCell(e,s.store)+'</td>'+cells+hrsTd(total)+'</tr>';
@@ -724,6 +791,8 @@ function renderWeekly(){
 }
 function wireWeekly(){
   $('#view').querySelectorAll('[data-fp]').forEach(function(b){b.onclick=function(){FILTER=b.getAttribute('data-fp');render();};});
+  var pg=$('#pubGo');if(pg)pg.onclick=openPublishModal;
+  var pd=$('#pubDiscard');if(pd)pd.onclick=function(){if(confirm('Discard every unpublished change?'))discardDrafts();};
   $('#view').querySelectorAll('.cell.clk').forEach(function(td){td.onclick=function(ev){if(ev.target.closest('[data-rmv]'))return;openPicker(td,ev);};});
   $('#view').querySelectorAll('[data-add]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();openAdd(b.getAttribute('data-add'),ev);};});
   $('#view').querySelectorAll('[data-rmv]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();var p=b.getAttribute('data-rmv').split('|');removeMember(p[0],Number(p[1]));};});
@@ -1102,8 +1171,25 @@ function openPicker(td,ev){
   var aways=STORES.filter(function(st){return st.store!==store&&canSee(st.store);});
   if(aways.length){html+='<div class="pop-grp" style="border-top:1px solid #EEF0F4;margin-top:3px;padding-top:9px">Working at another store</div>';
     aways.forEach(function(st){html+='<button class="pop-item" data-away="'+esc(st.store)+'"><span style="width:9px;height:9px;border-radius:50%;background:'+esc(storeColor(st.store))+'"></span>In '+esc(shortStore(st.store))+'</button>';});}
+  /* copy THIS day's assignment onto other weekdays — the picker stays open so a
+     Mon–Fri run is five taps, not five trips through the menu */
+  if(dArr(emp)[wd]!=null){
+    html+='<div class="pop-grp" style="border-top:1px solid #EEF0F4;margin-top:3px;padding-top:9px">Copy to</div>'
+      +'<div class="pop-copy">'+DAYS.map(function(d,j){return j===wd?'':'<button data-cpy="'+j+'">'+esc(d)+'</button>';}).join('')
+      +'<button data-cpy="wd">Mon–Fri</button><button data-cpy="all">All days</button></div>';
+  }
   pop.innerHTML=html;document.body.appendChild(back);document.body.appendChild(pop);POP={remove:function(){back.remove();pop.remove();}};
   placePop(pop,ev.clientX,ev.clientY);
+  pop.querySelectorAll('[data-cpy]').forEach(function(b){b.onclick=function(ev2){
+    ev2.stopPropagation();
+    var k=b.getAttribute('data-cpy');
+    var targets=k==='all'?[0,1,2,3,4,5,6]:k==='wd'?[1,2,3,4,5]:[Number(k)];
+    copyDay(emp,wd,targets);
+    b.classList.add('did');
+    pop.querySelectorAll('[data-cpy]').forEach(function(o){
+      var ok=o.getAttribute('data-cpy');
+      if(ok!=='all'&&ok!=='wd'&&targets.indexOf(Number(ok))>-1)o.classList.add('did');});
+  };});
   pop.querySelectorAll('[data-act],[data-shift],[data-away]').forEach(function(b){b.onclick=function(){
     if(b.getAttribute('data-act')==='off')assign(emp,wd,'off');
     else if(b.getAttribute('data-act')==='clear')assign(emp,wd,null);
@@ -1206,14 +1292,92 @@ async function assignOverride(emp,di,val){
 }
 
 /* ===== mutations ===== */
+/* Recurring edits go to the draft table. A draft that matches live again is
+   deleted, so "unpublished" always means a real difference. */
 async function persistSched(empId){
-  var rec=SCHED[empId],e=empById(empId);var shifts={},wd;
-  for(wd=0;wd<7;wd++){var a=rec.arr[wd];if(a==null)continue;if(a==='off'){shifts[wd]={label:'Off'};}else if(a.away){shifts[wd]={store:a.store,away:true};}else{shifts[wd]={store:a.store,shift_id:a.id,label:(shiftById(a.id)||{}).name||''};}}
-  var work=[];for(wd=0;wd<7;wd++){var v=rec.arr[wd];if(v&&v!=='off')work.push(wd);}
-  var res=await sb.from('staff_schedule').upsert({staff_id:empId,store:e.home_store,shifts:shifts,work_days:work},{onConflict:'staff_id'});
+  var e=empById(empId);if(!e)return;
+  var d=DRAFT[empId];
+  var live=shiftsOf((SCHED[empId]||{arr:[]}).arr||[]);
+  if(!d||JSON.stringify(shiftsOf(d.arr).shifts)===JSON.stringify(live.shifts)){
+    delete DRAFT[empId];render();
+    var del=await sb.from('schedule_drafts').delete().eq('staff_id',empId);
+    if(del.error)toast(del.error.message,true);
+    return;
+  }
+  var built=shiftsOf(d.arr);
+  var res=await sb.from('schedule_drafts').upsert({staff_id:empId,store:e.home_store,shifts:built.shifts,work_days:built.work,updated_by:(AUTH&&AUTH.id)||null},{onConflict:'staff_id'});
   if(res.error)toast(res.error.message,true);
 }
-function assign(empId,wd,val){closePop();SCHED[empId].arr[wd]=val;render();persistSched(empId);var e=empById(empId);toast('Saved · '+(e?e.display_name.split(' ')[0]:'')+' · '+DAYS[wd]);}
+function assign(empId,wd,val){closePop();draftArr(empId)[wd]=val;render();persistSched(empId);var e=empById(empId);toast('Draft · '+(e?e.display_name.split(' ')[0]:'')+' · '+DAYS[wd]);}
+/* copy one day's assignment onto other weekdays — setting the same shift five
+   times was the whole complaint */
+function copyDay(empId,wd,targets){
+  var arr=draftArr(empId),src=arr[wd];
+  targets.forEach(function(t){if(t!==wd)arr[t]=(src&&typeof src==='object')?Object.assign({},src):src;});
+  render();persistSched(empId);
+}
+
+/* ===== publish: the draft becomes the schedule employees see ===== */
+async function publishDrafts(btn){
+  var list=pendingList();if(!list.length)return;
+  if(btn){btn.disabled=true;btn.textContent='Publishing…';}
+  var rows=list.map(function(x){
+    var built=shiftsOf(DRAFT[x.e.id].arr);
+    return {staff_id:x.e.id,store:x.e.home_store,shifts:built.shifts,work_days:built.work,updated_at:new Date().toISOString()};
+  });
+  var up=await sb.from('staff_schedule').upsert(rows,{onConflict:'staff_id'});
+  if(up.error){toast(up.error.message,true);if(btn){btn.disabled=false;btn.textContent='Publish';}return;}
+  var ids=rows.map(function(r){return r.staff_id;});
+  var del=await sb.from('schedule_drafts').delete().in('staff_id',ids);
+  if(del.error)toast(del.error.message,true);
+  closePublishModal();
+  var n=list.reduce(function(a,x){return a+x.days.length;},0);
+  toast('Published · '+n+' change'+(n===1?'':'s'));
+  await load();
+}
+async function discardDrafts(){
+  var ids=Object.keys(DRAFT).map(Number);if(!ids.length)return;
+  var del=await sb.from('schedule_drafts').delete().in('staff_id',ids);
+  if(del.error){toast(del.error.message,true);return;}
+  toast('Draft discarded');
+  await load();
+}
+var PB_BACK=null,PB_WRAP=null;
+function closePublishModal(){if(PB_BACK){PB_BACK.remove();PB_BACK=null;}if(PB_WRAP){PB_WRAP.remove();PB_WRAP=null;}}
+function dayValText(empId,wd){
+  var a=dArr(empId)[wd];
+  if(a==null)return 'Not scheduled';
+  if(a==='off')return 'Off';
+  if(a.away)return 'In '+shortStore(a.store);
+  var sh=shiftById(a.id)||labelToShift(a.label);
+  return (sh?sh.name:(a.label||'Scheduled'))+' · '+shortStore(a.store);
+}
+function openPublishModal(){
+  closePop&&closePop();
+  var list=pendingList();if(!list.length)return;
+  var back=document.createElement('div');back.className='pop-back';back.style.zIndex=200;back.style.background='rgba(45,45,59,.34)';back.onclick=closePublishModal;
+  var wrap=document.createElement('div');wrap.style.cssText='position:fixed;inset:0;z-index:210;display:flex;align-items:flex-start;justify-content:center;padding:96px 16px 40px;overflow:auto;pointer-events:none';
+  var card=document.createElement('div');card.style.cssText='pointer-events:auto;width:100%;max-width:560px;background:#fff;border-radius:16px;border-top:3px solid var(--green);box-shadow:0 24px 60px rgba(45,45,59,.3);overflow:hidden';
+  document.body.appendChild(back);document.body.appendChild(wrap);wrap.appendChild(card);
+  PB_BACK=back;PB_WRAP=wrap;
+  var n=list.reduce(function(a,x){return a+x.days.length;},0);
+  var rows=list.map(function(x){
+    return '<div style="padding:11px 0;border-bottom:1px solid #F5F6F8">'
+      +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.86rem;color:var(--dark)">'+esc(x.e.display_name)+'</div>'
+      +x.days.map(function(wd){return '<div style="display:flex;gap:10px;font-family:\'Nunito Sans\',sans-serif;font-weight:700;font-size:.78rem;color:var(--dark-grey);margin-top:3px">'
+        +'<span style="width:34px;color:var(--grey);font-weight:800">'+DAYS[wd]+'</span><span>'+esc(dayValText(x.e.id,wd))+'</span></div>';}).join('')
+      +'</div>';
+  }).join('');
+  card.innerHTML='<div style="padding:18px 22px;border-bottom:1px solid #EEF0F4;display:flex;align-items:center;gap:10px">'
+    +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem">Publish Schedule</div>'
+    +'<span style="flex:1"></span><button id="pbX" style="border:none;background:none;font-size:1.3rem;color:var(--grey);cursor:pointer;line-height:1">✕</button></div>'
+    +'<div style="padding:6px 22px 18px;max-height:52vh;overflow:auto">'+rows+'</div>'
+    +'<div style="padding:14px 22px;border-top:1px solid #EEF0F4;display:flex;gap:10px;justify-content:flex-end">'
+    +'<button class="btn" id="pbCancel">Cancel</button>'
+    +'<button class="btn" id="pbGo" style="background:var(--green);border-color:var(--green);color:#fff">Publish '+n+' Change'+(n===1?'':'s')+'</button></div>';
+  $('#pbX').onclick=closePublishModal;$('#pbCancel').onclick=closePublishModal;
+  $('#pbGo').onclick=function(){publishDrafts($('#pbGo'));};
+}
 async function addMember(store,empId){closePop();(MEMBERS[store]=MEMBERS[store]||[]).push(empId);render();
   var r=await sb.from('schedule_membership').insert({store:store,staff_id:empId});if(r.error)toast(r.error.message,true);else{var e=empById(empId);toast((e?e.display_name.split(' ')[0]:'')+' added to '+shortStore(store));}}
 async function removeMember(store,empId){MEMBERS[store]=(MEMBERS[store]||[]).filter(function(x){return x!==empId;});render();
@@ -1235,7 +1399,17 @@ function sedSort(a,b){return (a.sort||0)-(b.sort||0);}
 function sedHoursOf(sid,store){var h=SED_HOURS[sid]||(SED_HOURS[sid]={});return h[store]||(h[store]={def:null,days:{}});}
 function sedDurH(s,e){return (s==null||e==null||e<=s)?0:(e-s)/60;}
 function sedHrsTxt(h){if(!h)return '0h';var r=Math.round(h*100)/100;return r+'h';}
-function sedHrsPill(h,muted){return '<span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.7rem;color:'+(muted?'var(--grey)':'var(--dark-grey)')+';background:'+(muted?'#F3F2F2':'#EAF4FB')+';padding:2px 8px;border-radius:999px;white-space:nowrap">'+sedHrsTxt(h)+'</span>';}
+function sedHrsPill(h,muted,id){return '<span'+(id?' id="'+id+'"':'')+' style="font-family:Nunito,sans-serif;font-weight:800;font-size:.7rem;color:'+(muted?'var(--grey)':'var(--dark-grey)')+';background:'+(muted?'#F3F2F2':'#EAF4FB')+';padding:2px 8px;border-radius:999px;white-space:nowrap">'+sedHrsTxt(h)+'</span>';}
+/* Re-render on every keystroke would destroy the <input type="time"> the cursor
+   is in — a time input fires `change` the moment its value parses, so typing
+   one digit blew the field away mid-entry. Time edits repaint the hour pills
+   in place instead and leave the DOM (and the caret) alone. */
+function sedRefreshHrs(id,store){
+  var ho=sedHoursOf(id,store),el=$('#shDefHrs');
+  if(el&&ho.def)el.textContent=sedHrsTxt(sedDurH(ho.def.start,ho.def.end));
+  for(var wd=0;wd<7;wd++){var p=$('#shdHrs'+wd);if(!p)continue;var d=ho.days[wd];
+    p.textContent=sedHrsTxt(d&&d.closed?0:sedDurH((d&&d.start!=null)?d.start:(ho.def||{}).start,(d&&d.end!=null)?d.end:(ho.def||{}).end));}
+}
 function sedSummary(s){
   var hs=SED_HOURS[s.id]||{}, locs=Object.keys(hs).filter(function(st){return hs[st].def&&hs[st].def.enabled;});
   var ovr=locs.reduce(function(n,st){return n+Object.keys(hs[st].days).length;},0);
@@ -1301,7 +1475,7 @@ function sedDayRow(loc,wd,ho){
     +'<span style="width:32px;flex:none;font-family:Nunito,sans-serif;font-weight:800;font-size:.76rem;color:var(--dark)">'+DOW[wd]+'</span>'
     +'<div style="display:inline-flex;background:var(--light-grey);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;width:184px;flex:none">'+seg('Default','default')+seg('Custom','override')+seg('Closed','closed')+'</div>'
     +'<div style="flex:1;min-width:160px;display:flex;align-items:center;min-height:34px">'+slot+'</div>'
-    +sedHrsPill(eff,mode==='closed')+'</div>';
+    +sedHrsPill(eff,mode==='closed','shdHrs'+wd)+'</div>';
 }
 function sedDetail(){
   var pane=$('#shiftDetail');if(!pane)return;
@@ -1322,7 +1496,7 @@ function sedDetail(){
   html+='<div style="border:1px solid var(--border);border-radius:11px;background:#FBFBFC;overflow:hidden">';
   if(enabled){
     html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;background:#fff;border-bottom:1px solid #EEF0F4;flex-wrap:wrap">'
-      +'<div><label class="hlbl">Default hours at '+esc(shortStore(loc))+'</label><div style="display:flex;align-items:center;gap:7px"><input type="time" id="shDefStart" value="'+minToTime(ho.def.start)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" id="shDefEnd" value="'+minToTime(ho.def.end)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">'+sedHrsPill(sedDurH(ho.def.start,ho.def.end))+'</div></div>'
+      +'<div><label class="hlbl">Default hours at '+esc(shortStore(loc))+'</label><div style="display:flex;align-items:center;gap:7px"><input type="time" id="shDefStart" value="'+minToTime(ho.def.start)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px"><span style="color:var(--grey);font-weight:800">–</span><input type="time" id="shDefEnd" value="'+minToTime(ho.def.end)+'" style="width:140px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">'+sedHrsPill(sedDurH(ho.def.start,ho.def.end),false,'shDefHrs')+'</div></div>'
       +'<div style="display:flex;align-items:center;gap:9px"><button id="shEnabled" class="toggle grn on"></button><span style="font-family:Nunito,sans-serif;font-weight:800;font-size:.78rem;color:var(--green)">Enabled here</span></div></div>';
     html+='<div style="padding:13px 16px 16px"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;flex-wrap:wrap"><div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;letter-spacing:.5px;text-transform:uppercase;color:#9aa0b0">Per-day hours <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--grey)">— override only where it differs</span></div><div style="display:flex;gap:7px"><button id="shReset" class="btn alt sm">Reset to default</button><button id="shCopy" class="btn alt sm">Copy to all locations</button></div></div>'
       +'<div style="display:flex;flex-direction:column;gap:4px">';
@@ -1386,7 +1560,7 @@ async function sedSetEnabled(id,store,val){
 async function sedSetDef(id,store,which,hhmm){var m=timeToMin(hhmm);if(m==null)return;var st=sedHoursOf(id,store);if(!st.def)return;
   var patch={};patch[which==='start'?'start_min':'end_min']=m;
   var r=await sb.from('shift_hours').update(patch).eq('id',st.def.id);if(r.error){toast(r.error.message,true);return;}
-  if(which==='start')st.def.start=m;else st.def.end=m;SED_DIRTY=true;sedDetail();
+  if(which==='start')st.def.start=m;else st.def.end=m;SED_DIRTY=true;sedRefreshHrs(id,store);
 }
 async function sedDayMode(id,store,wd,mode){
   var st=sedHoursOf(id,store), d=st.days[wd];
@@ -1405,7 +1579,7 @@ async function sedDayMode(id,store,wd,mode){
 async function sedDayTime(id,store,wd,which,hhmm){var m=timeToMin(hhmm);if(m==null)return;var d=sedHoursOf(id,store).days[wd];if(!d)return;
   var patch={};patch[which==='start'?'start_min':'end_min']=m;
   var r=await sb.from('shift_hours').update(patch).eq('id',d.id);if(r.error){toast(r.error.message,true);return;}
-  if(which==='start')d.start=m;else d.end=m;SED_DIRTY=true;sedDetail();
+  if(which==='start')d.start=m;else d.end=m;SED_DIRTY=true;sedRefreshHrs(id,store);
 }
 async function sedResetDays(id,store){var st=sedHoursOf(id,store);var ids=Object.keys(st.days).map(function(wd){return st.days[wd].id;});if(!ids.length)return;
   var r=await sb.from('shift_hours').delete().in('id',ids);if(r.error){toast(r.error.message,true);return;}
