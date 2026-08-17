@@ -355,7 +355,7 @@ Deno.serve(async (req)=>{
     if (!c) return json({
       error: "forbidden"
     }, 403);
-    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, birthday, hr_status, notes, archived, hide_from_records, phone, email, terminated_at, termination_reason, termination_note, rehire_eligible, terminated_by } = body;
+    const { staff_id, first_name, last_name, username, preferred_name, role, home_store, authorized_stores, active, title, start_date, birthday, hr_status, notes, archived, hide_from_records, phone, email, terminated_at, termination_reason, termination_note, rehire_eligible, terminated_by, mentor_staff_id, onboarding_completed_at, onboarding_canceled_at } = body;
     if (!staff_id) return json({
       error: "missing staff_id"
     }, 400);
@@ -390,6 +390,11 @@ Deno.serve(async (req)=>{
     if (termination_note != null) patch.termination_note = termination_note || null;
     if (rehire_eligible != null) patch.rehire_eligible = !!rehire_eligible;
     if (terminated_by != null) patch.terminated_by = terminated_by || null;
+    // Onboarding profile: who mentors them, and the stamps that end the
+    // roster row. "" clears (un-complete / un-cancel / no mentor).
+    if (mentor_staff_id != null) patch.mentor_staff_id = mentor_staff_id || null;
+    if (onboarding_completed_at != null) patch.onboarding_completed_at = onboarding_completed_at || null;
+    if (onboarding_canceled_at != null) patch.onboarding_canceled_at = onboarding_canceled_at || null;
     // preferred_name: "" clears the override (back to legal), a value sets it, omitted leaves as-is.
     if (preferred_name != null) patch.preferred_name = (String(preferred_name).trim() || null);
     if (first_name != null || last_name != null || username != null || preferred_name != null) {

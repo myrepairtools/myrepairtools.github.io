@@ -119,6 +119,18 @@ padding:22px 20px;display:flex;flex-direction:column;align-items:flex-start;gap:
 .zero .bd{font-size:.8rem;font-weight:600;color:var(--grey2);line-height:1.55}
 .zero .cta{margin-top:auto;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;color:var(--blue);text-decoration:none}
 .empty{color:var(--grey);font-weight:700;font-size:.85rem;padding:18px 0}
+/* onboarding banner (design 1e) — shown while a track is open */
+.obann{text-decoration:none;display:flex;align-items:center;gap:13px;background:#EAF6FD;border:1px solid #CFE7F6;border-radius:12px;
+padding:13px 16px;margin-bottom:16px;flex-wrap:wrap}
+.obann .bic{width:40px;height:40px;border-radius:50%;background:var(--blue);color:#fff;flex:none;
+display:flex;align-items:center;justify-content:center}
+.obann .bt{flex:1;min-width:200px}
+.obann .bttl{text-decoration:none;font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;color:var(--blued)}
+.obann .bnx{text-decoration:none;font-size:.74rem;font-weight:700;color:var(--dark-grey);margin-top:2px}
+.obann .bbar{width:180px;height:7px;border-radius:999px;background:#fff;overflow:hidden;margin-top:5px}
+.obann .bbar>i{display:block;height:100%;background:var(--blue);border-radius:999px}
+.obann .bgo{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;background:var(--red);color:#fff;
+border:none;border-radius:9px;padding:9px 14px;cursor:pointer;white-space:nowrap;text-decoration:none}
 .toast{position:fixed;bottom:calc(24px + var(--cpr-bb-h,0px));left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
 padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
 opacity:0;pointer-events:none;transition:opacity .18s;z-index:900}
@@ -255,6 +267,19 @@ function drawHome(){
   const comp=completedItems();
   let h=header();
 
+  /* the door to the full board on the Onboarding page — mine, or a mentee's */
+  if(ASSIGNS.length&&activeMods.length){
+    const m0=activeMods[0];
+    const nx=(()=>{for(const m of mods){const r=m.rows.find(x=>x.type==='item'&&x.state==='next');
+      if(r)return r.it.kind==='s'?r.it.s.title:r.it.a.title;}return null;})();
+    const pct=m0.total?Math.round(m0.done/m0.total*100):0;
+    h+='<a class="obann" href="onboarding-dashboard.html#e='+AUTH.id+'">'
+      +'<span class="bic">'+ic('grad',20)+'</span>'
+      +'<span class="bt"><span class="bttl">You\u2019re in onboarding \u2014 '+esc(m0.mod.name)+': '+m0.done+' of '+m0.total+' done</span>'
+      +(nx?'<span class="bnx" style="display:block">Next: '+esc(nx)+'</span>':'')
+      +'<span class="bbar"><i style="width:'+pct+'%"></i></span></span>'
+      +'<span class="bgo">Open my onboarding \u203a</span></a>';
+  }
   h+='<div class="sect"><div class="eyebrow">My onboarding</div>';
   if(!ASSIGNS.length){
     h+='<div class="zero"><span class="tile">'+ic('grad',19)+'</span>'
