@@ -1739,6 +1739,13 @@ When changing a tool's data layer, check which generation it uses first — they
   like Schedule Admin and Checklist. Watch for stray `<style id="__om-edit-overrides">`
   blocks after `</html>` — a visual editor left one here whose
   `#view .lbl{width:120px!important}` clipped the week-navigator label; it's deleted.
+- **Form controls must be ≥16px on a phone.** iOS zooms the whole page whenever it
+  focuses a field smaller than that, and the zoomed page then pans side to side —
+  which reads as "the page moves around and is zoomed in" (owner report 2026-08-17,
+  employee-records). Any page with inputs needs a `@media(max-width:860px)` rule
+  putting `input/select/textarea` at 16px, with `!important` where an inline
+  font-size is in play. Don't reach for `user-scalable=no` (Safari ignores it) or
+  `overflow-x:hidden` on body (it breaks the sticky save bars).
 - **Persist view state across refresh — and deep-link it.** Any tool with tabs /
   sub-views remembers the active one in `localStorage` (e.g. `cprSetTab`) AND mirrors it
   in the URL hash (settings.html is the reference: valid hash > localStorage > default at
