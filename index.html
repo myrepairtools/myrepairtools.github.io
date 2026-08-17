@@ -31,6 +31,15 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 .editing .reset-btn{display:inline-block}
 
 /* edit-mode banner */
+
+.setup-nudge{display:none;align-items:center;gap:13px;text-decoration:none;background:#fff;border:1.5px solid #F0D9AE;border-left:4px solid var(--amber,#C9820B);border-radius:12px;padding:13px 16px;margin:0 0 16px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.setup-nudge:not([hidden]){display:flex}
+.setup-nudge .sn-i{flex:none;width:30px;height:30px;border-radius:8px;background:#FDF3E2;color:#8A5A00;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+.setup-nudge .sn-t{flex:1;min-width:0;font-family:'Nunito Sans',sans-serif;font-size:.86rem;color:var(--dark,#2D2D3B);line-height:1.35}
+.setup-nudge .sn-t b{font-family:'Nunito',sans-serif;font-weight:900;display:block}
+.setup-nudge .sn-t span{color:var(--dark-grey,#4E4E50);font-weight:700;font-size:.78rem}
+.setup-nudge .sn-go{flex:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;color:var(--red,#DC282E);white-space:nowrap}
+.setup-nudge:hover{border-color:#E6C489}
 .edit-note{display:none;align-items:center;gap:9px;background:#EAF6FD;border:1px solid #BFE2F5;color:#1f6f9c;border-radius:11px;padding:10px 14px;font-size:.82rem;font-weight:700;margin-bottom:16px}
 .editing .edit-note{display:flex}
 
@@ -197,6 +206,15 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
     </div>
   </div>
 
+  <!-- first-run nudge: profile.html is no longer in the rail, so this is how
+       someone finds the setup steps they have not done yet. It removes itself
+       once they are done, and never renders for anyone already set up. -->
+  <a id="setupNudge" class="setup-nudge" href="profile.html" hidden>
+    <span class="sn-i">⚙</span>
+    <span class="sn-t"><b>Finish setting up your account</b><span id="snSub"></span></span>
+    <span class="sn-go">Set up ›</span>
+  </a>
+
   <div class="edit-note">↔ Drag a widget by its header to reorder · pick <b>100 / 60 / 40</b> width · <b>＋ Add a widget</b> to bring more in · changes save automatically.</div>
 
   <div class="widgets" id="widgets"></div>
@@ -233,6 +251,37 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
 <script src="assets/comms.js"></script>
 <script>
 (function(){
+  /* ============ first-run setup nudge ============
+     profile.html left the rail, so the dashboard is where someone finds the
+     steps they have not finished. Mirrors profile.html's own checklist: the
+     stored flags win, and anything already true on the record counts even if
+     the flag was never written (people set up before the flag existed).
+     Silent for anyone complete, and silent if we cannot tell. */
+  setTimeout(function setupNudge(){
+    var el=document.getElementById('setupNudge'); if(!el)return;
+    sbClient().then(function(sb){
+      if(!sb)return;
+      return myStaffId().then(function(id){
+        if(!id)return;
+        return sb.from('staff_profiles').select('phone,emergency,onboarding').eq('staff_id',id).maybeSingle()
+          .then(function(r){
+            var p=(r&&r.data)||{}, ob=(p.onboarding&&typeof p.onboarding==='object')?p.onboarding:{};
+            var em=p.emergency||{};
+            var todo=[];
+            if(!(ob.contact===true||p.phone))todo.push('contact details');
+            if(!(ob.emergency===true||(em.name&&em.phone)))todo.push('emergency contact');
+            if(ob.notifications!==true)todo.push('notifications');
+            if(ob.app!==true)todo.push('the app on your phone');
+            if(!todo.length)return;
+            document.getElementById('snSub').textContent =
+              todo.length===1 ? ('Still to do: '+todo[0]+'.')
+                              : (todo.slice(0,-1).join(', ')+' and '+todo[todo.length-1]+' still to do.');
+            el.hidden=false;
+          });
+      });
+    }).catch(function(){});
+  },0);
+
   /* ====================== greeting + date ====================== */
   var greetEl=document.getElementById('greeting'), subEl=document.getElementById('subline');
   function timeGreeting(){ var h=new Date().getHours(); return h<12?'Good morning':h<18?'Good afternoon':'Good evening'; }
