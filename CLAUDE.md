@@ -130,7 +130,15 @@ these when adding UI so a new tool looks native.
   the acknowledgment renders from live KB articles, so a rebuilt copy would
   show today's wording instead of what they signed. The intake row is a
   HIRING record and leaves the Onboarding board on promote, so it must never
-  be the only home for a signed document. Managers can also file anything by
+  be the only home for a signed document. **The tab is a ledger** (design handoff
+  "1a — The Ledger", 2026-08-16): a table — file-type tile, title over
+  filename·size, kind chip, green ✓ Signed / grey Added, who filed it, and
+  ↓/Open mini-buttons — where a row click opens a **preview drawer** (440px,
+  slides in from the right; a bottom sheet under 640px) that renders the real
+  document inline: PDFs through the vendored `assets/pdfjs/`, images direct,
+  both off a fresh 120-second signed URL fetched on open. Esc and the scrim
+  close it. On mobile the ledger folds to one line per document (date moves
+  under the title) and Add pins to the bottom. Managers can also file anything by
   hand (kind 'upload'), and "Re-file signed paperwork" backfills anyone
   converted before this existed (intake `archive_docs`, idempotent on
   `(staff_id, kind, source)`). The page never holds a URL to a file — it mints
