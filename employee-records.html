@@ -83,6 +83,12 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .tm-page[hidden]{display:none}
 .backlink{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito';font-weight:800;color:var(--blue);text-decoration:none;font-size:.78rem;background:none;border:none;cursor:pointer;padding:0}
 .prof-facts{display:flex;align-items:center;gap:16px;margin-top:10px;flex-wrap:wrap;font-size:.8rem;color:var(--dark-grey);font-weight:700}
+/* profile header, compact on mobile (design update 2026-08-17): the stat row
+   and full-width buttons pushed the tabs below the fold on a phone, so the
+   header collapses to one summary line that expands on demand */
+.prof-actions{display:flex;gap:9px;flex:none;align-items:flex-start}
+.prof-sub .sub-start{display:none}
+.mstats{display:none}
 .termbox{display:flex;gap:10px;align-items:flex-start;background:var(--light-grey);border:1px solid var(--border);border-radius:10px;padding:12px 15px;margin-top:14px}
 .termbox .tb-t{font-size:.82rem;color:var(--dark-grey);line-height:1.55;flex:1}
 .termbox .tb-t b{font-family:'Nunito'}
@@ -463,9 +469,29 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
   .table-card tbody td[data-cell="act"] .rowbtn{width:100%}
   .table-card tbody td.chev{display:none}
   /* mobile profile (3f) */
-  .prof{padding:12px 16px 0}
-  .prof .av{width:48px;height:48px;font-size:1rem}
+  .prof{padding:12px 16px 0;position:relative}
+  .prof .av{width:44px!important;height:44px!important;font-size:.95rem!important}
   .prof-name{font-size:1.2rem}
+  .prof-top{padding-top:6px!important}
+  /* Export becomes an icon in the corner instead of a full-width button */
+  .prof-actions{position:absolute;top:10px;right:14px;gap:7px}
+  .prof-actions .btn-o[data-act="export"]{width:36px;height:36px;padding:0;font-size:1rem;line-height:1}
+  .prof-actions .xt{display:none}
+  .prof-sub{font-size:.8rem}
+  .prof-sub .sub-start{display:inline}
+  .prof-facts{margin-top:7px;gap:5px 14px;font-size:.76rem}
+  .prof-facts .f-start{display:none}
+  /* the six stat tiles fold into one line; opening it reveals the rest, the
+     first four stay hidden because the summary already names them */
+  .metrics{display:none}
+  .prof.stats-open .metrics{display:flex;margin:0 0 12px}
+  .prof.stats-open .metrics .metric:nth-child(-n+4){display:none}
+  .mstats{display:flex;align-items:center;gap:10px;margin-top:10px;padding:9px 0 11px;border-top:1px solid var(--light-grey)}
+  .mstats .ms-line{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.74rem;font-weight:700;color:var(--dark-grey)}
+  .mstats .ms-line b{font-family:'Nunito';font-weight:800;color:var(--dark)}
+  .ms-more{display:inline-flex;align-items:center;gap:4px;font-family:'Nunito';font-weight:800;font-size:.64rem;color:var(--blue);background:none;border:none;cursor:pointer;padding:0;white-space:nowrap}
+  .ms-more svg{transition:transform .15s}
+  .prof.stats-open .ms-more svg{transform:rotate(180deg)}
   .tabbar{padding:11px 16px 0;scrollbar-width:none}
   .tabbar::-webkit-scrollbar{display:none}
   .tab{flex:none;white-space:nowrap}
@@ -934,14 +960,16 @@ function renderProfileHead(){
   const prof=PROFILES[e.id]||{phone:'',email:''};
   const bday=e.birthday?(()=>{const p=e.birthday.split('-');return MONTHS[(+p[1])-1]+' '+(+p[2]);})():'';
   const facts=[];
-  if(prof.phone)facts.push('📞 '+esc(prof.phone));
-  if(prof.email)facts.push('✉️ '+esc(prof.email));
-  if(bday)facts.push('🎂 '+esc(bday));
-  if(e.start&&!term)facts.push('Started '+esc(fmt(e.start)));
-  const sub=esc(e.role)+' · '+esc(e.store||'—')+(term&&e.start?(' · '+esc(fmt(e.start))+' – '+esc(e.terminatedAt?fmt(e.terminatedAt):'')):'');
-  const actions=term
-    ?'<span style="display:flex;gap:9px;flex:none"><button class="btn-o" data-act="export">↓ Export</button><button class="btn-reinstate" data-act="reinstate">Reinstate</button></span>'
-    :'<button class="btn-o" data-act="export" style="flex:none">↓ Export</button>';
+  if(prof.phone)facts.push('<span>📞 '+esc(prof.phone)+'</span>');
+  if(prof.email)facts.push('<span>✉️ '+esc(prof.email)+'</span>');
+  if(bday)facts.push('<span>🎂 '+esc(bday)+'</span>');
+  if(e.start&&!term)facts.push('<span class="f-start">Started '+esc(fmt(e.start))+'</span>');
+  /* on a phone the start date rides the subtitle as "Since Aug 2021" instead of
+     taking a line of its own in the facts row */
+  const since=(e.start&&!term)?(()=>{const p=e.start.split('-');return MONTHS[(+p[1])-1]+' '+p[0];})():'';
+  const sub=esc(e.role)+' · '+esc(e.store||'—')+(term&&e.start?(' · '+esc(fmt(e.start))+' – '+esc(e.terminatedAt?fmt(e.terminatedAt):'')):'')+(since?'<span class="sub-start"> · Since '+esc(since)+'</span>':'');
+  const exBtn='<button class="btn-o" data-act="export" title="Export records">↓<span class="xt"> Export</span></button>';
+  const actions='<span class="prof-actions">'+exBtn+(term?'<button class="btn-reinstate" data-act="reinstate">Reinstate</button>':'')+'</span>';
   const termbox=term?('<div class="termbox"><span style="font-size:.95rem">📁</span><div class="tb-t"><b>'+esc(e.terminationReason||'Terminated')+'</b> · last day '+esc(e.terminatedAt?fmt(e.terminatedAt):'—')
     +(e.terminatedBy&&NAMES[e.terminatedBy]?(' · logged by '+esc(NAMES[e.terminatedBy])):'')
     +(e.rehireEligible?' · eligible for rehire':' · not eligible for rehire')
@@ -956,7 +984,7 @@ function renderProfileHead(){
     +'<div style="min-width:0"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
     +'<span class="prof-name head" style="font-size:1.6rem'+(term?';color:var(--dark-grey)':'')+'">'+esc(e.name)+'</span>'+badge+'</div>'
     +'<div class="prof-sub">'+sub+'</div>'
-    +(facts.length?('<div class="prof-facts">'+facts.map(f=>'<span>'+f+'</span>').join('')+'</div>'):'')
+    +(facts.length?('<div class="prof-facts">'+facts.join('')+'</div>'):'')
     +'</div></div>'+actions+'</div>'
     +termbox
     +'<div class="metrics">'
@@ -966,7 +994,13 @@ function renderProfileHead(){
     +m('var(--dark)',money(dmgYtd),'Damage YTD')
     +m('var(--green)',tenure(e.start),'Tenure')
     +m('var(--grey)',last?fmt(last):'—','Last Seen',true)
-    +'</div></div>';
+    +'</div>'
+    /* mobile-only condensed line — the six tiles above stay hidden until it
+       is expanded, so the tabs sit above the fold on a phone */
+    +'<div class="mstats"><span class="ms-line">'+e.entries.length+(e.entries.length===1?' entry':' entries')
+      +' · '+openPips+' open PIPs · '+absences+' absences · <b>'+money(dmgYtd)+'</b> dmg YTD</span>'
+      +'<button class="ms-more" data-act="stats">All stats <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>'
+    +'</div>';
 }
 
 function renderTabs(){
@@ -1922,7 +1956,8 @@ function handleAct(a){
   const e=selEmp();if(!e)return;
   const curEntry=()=>e.entries.find(x=>x.id===S.entryId);
   const curPip=()=>e.pips.find(p=>p.id===S.pipId);
-  if(a==='export')exportEmployee(e);
+  if(a==='stats'){const pr=document.querySelector('#profile .prof');if(pr)pr.classList.toggle('stats-open');}
+  else if(a==='export')exportEmployee(e);
   else if(a==='reinstate')reinstateFromProfile(e);
   else if(a==='edit-term')openTerminateModal(e,true);
   else if(a==='new-entry')openEntryEditor(e,null);
