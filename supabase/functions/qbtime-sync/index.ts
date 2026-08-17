@@ -661,6 +661,29 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, error: error.message }, 500);
     return json({ ok: true, staff_id: Number(sid), active: false });
   }
+  if (action === "archive_user") {
+    // QB Time has no delete for users — archiving (active=false) is the only
+    // way to retire one. Needed when a QuickBooks employee is deleted: the QB
+    // Time user it created outlives it and keeps showing up in the roster.
+    // Owner-only; it writes to QB Time, not just to us.
+    const who = await callerStaff(req);
+    if (!who || who.role !== "owner") return json({ ok: false, error: "forbidden" }, 403);
+    let qbt_id = url.searchParams.get("qbt_id") || "";
+    if (req.method === "POST") {
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      if (b.qbt_id != null) qbt_id = String(b.qbt_id);
+    }
+    if (!qbt_id) return json({ ok: false, error: "qbt_id required" }, 400);
+    const { status, data } = await qbtReq("PUT", "users", token, {
+      data: [{ id: Number(qbt_id), active: false }],
+    });
+    if (status !== 200) return json({ ok: false, error: `qbt_${status}`, detail: data }, 502);
+    const res = (data?.results?.users || {}) as Record<string, Record<string, unknown>>;
+    const row = Object.values(res)[0] || {};
+    // mirror it locally so the roster stops showing them before the next sync
+    await admin.from("qbtime_users").update({ active: false, staff_id: null }).eq("qbt_id", String(qbt_id));
+    return json({ ok: true, qbt_id, active: row.active, name: `${row.first_name || ""} ${row.last_name || ""}`.trim() });
+  }
   if (action === "map") {
     // POST { qbt_id, staff_id } — staff_id null/empty unlinks. (GET fallback via query params too.)
     let qbt_id = url.searchParams.get("qbt_id") || "";
