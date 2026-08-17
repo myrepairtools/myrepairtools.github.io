@@ -847,7 +847,7 @@
   // mobile has no rail to switch areas, so the slide-in menu shows every section
   // the user can see at once (profile · My Hub · Operations · Admin · Settings).
   function paneMobileInner(){
-    var h = '<a class="cpr-mhd" href="employee-records.html" style="text-decoration:none;color:inherit">'+avatarHtml('cpr-mav')
+    var h = '<a class="cpr-mhd" href="employee-records.html#me" style="text-decoration:none;color:inherit">'+avatarHtml('cpr-mav')
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></a>';
     var kbRow = { label:'Knowledge Base', url:'knowledge.html', icon:'book-open', acc:'kb.view' };
     var trRow = { label:'Training', url:'training.html', icon:'graduation-cap', acc:'training.view' };
@@ -1200,7 +1200,7 @@
       + '<button data-um="switch"><span class="umic">⇄</span> Switch user</button>'
       + '<button class="danger" data-um="signout"><span class="umic">⏏</span> Sign out</button>';
     document.body.appendChild(usermenu);
-    usermenu.querySelector('[data-um="profile"]').onclick = function(){ usermenu.classList.remove('show'); location.href = 'employee-records.html'; };
+    usermenu.querySelector('[data-um="profile"]').onclick = function(){ usermenu.classList.remove('show'); location.href = 'employee-records.html#me'; };
     usermenu.querySelector('[data-um="switch"]').onclick = function(){ usermenu.classList.remove('show'); doSwitchUser(); };
     usermenu.querySelector('[data-um="signout"]').onclick = function(){ usermenu.classList.remove('show'); doSignOut(); };
     var idBtn = top && top.querySelector('[data-roleslot]');

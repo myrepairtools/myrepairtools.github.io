@@ -711,6 +711,7 @@ async function doLogin(){
 }
 function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
 let SELFONLY=false;   // true = the page is this person's own profile and nothing else
+let WANT_ME=false;    // arrived on #me — open my own profile once AUTH resolves
 async function initAuth(){
   $('#lkGo').onclick=doLogin;
   $('#lkPin').focus();
@@ -840,7 +841,15 @@ function sortedEntries(e){
 }
 
 /* ===== render (landing ⇄ profile) ===== */
+function applyWantMe(){
+  if(!WANT_ME||!AUTH)return;
+  S.view='profile';
+  if(String(S.empId)!==String(AUTH.id)){S.empId=AUTH.id;PD=null;CD=null;}
+  const me=ALL.find(x=>String(x.id)===String(AUTH.id));if(me)syncSel(me);
+  WANT_ME=false;
+}
 function render(){
+  applyWantMe();
   /* in self mode there is no list view to fall back to — the profile IS the page */
   if(SELFONLY){ S.view='profile'; if(String(S.empId)!==String(AUTH.id)){S.empId=AUTH.id;PD=null;CD=null;}
     if(S.tab==='log')S.tab='profile'; }
@@ -862,7 +871,20 @@ function writeHash(){
 function parseHash(){
   const h=location.hash.replace('#','');
   const TABS=['profile','log','pips','damage','docs','avail','time','pto','commission'];
-  if(h.slice(0,2)==='e='){
+  /* #me — "My Profile" from the avatar menu / mobile drawer. A manager landing
+     here wants their OWN profile, not the roster; writeHash then rewrites it to
+     #e=<their id> so the link is shareable like any other. parseHash runs once
+     at boot BEFORE the session resolves, so with no AUTH yet this only records
+     the intent and applyWantMe() finishes it the moment sign-in lands. */
+  if(h==='me'||h.slice(0,3)==='me/'){
+    const parts=h.split('/');
+    WANT_ME=true;
+    S.view='profile';S.empId=AUTH?AUTH.id:null;
+    S.tab=TABS.indexOf(parts[1])>-1?parts[1]:'profile';
+    S.commSub=(parts[2]==='history')?'history':'settings';
+    if(AUTH){const me=ALL.find(x=>String(x.id)===String(AUTH.id));if(me)syncSel(me);}
+    PD=null;CD=null;AVAIL=null;AVOPEN=null;AVDIRTY=false;
+  }else if(h.slice(0,2)==='e='){
     const parts=h.slice(2).split('/');
     const raw=parts[0],id=(raw!==''&&!isNaN(+raw))?+raw:raw;
     S.view='profile';S.empId=SELFONLY?AUTH.id:id;
@@ -870,7 +892,7 @@ function parseHash(){
     S.commSub=(parts[2]==='history')?'history':'settings';
     const e=ALL.find(x=>String(x.id)===String(id));if(e)syncSel(e);
     PD=null;CD=null;AVAIL=null;AVOPEN=null;AVDIRTY=false;
-  }else if(SELFONLY){S.view='profile';S.empId=AUTH.id;S.tab='profile';}
+  }else if(SELFONLY&&AUTH){S.view='profile';S.empId=AUTH.id;S.tab='profile';}
   else{S.view='list';S.empId=null;S.seg=(h==='terminated')?'terminated':'active';}
 }
 function relTime(ts){
