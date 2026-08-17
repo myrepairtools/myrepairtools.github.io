@@ -1134,35 +1134,22 @@ Deno.serve(async (req) => {
       }
       results.push({ id: it.id, name: first, ok, ...(err ? { error: err } : {}) });
     }
-    // Same run promotes anyone who was converted early: they've been on the
-    // `candidate` role (their schedule + training only) since conversion, and
-    // today is the day they actually become what the wizard picked.
+    // Access follows the punch clock, not the calendar (owner call
+    // 2026-08-17): activate_staff() runs off their first clock-in, so a hire
+    // who never turns up never gets the store's tools. This run only tells the
+    // manager who is expected today and still sitting on `candidate`.
     const promoted: Record<string, unknown>[] = [];
     const { data: starting } = await admin.from("staff")
       .select("id, display_name, home_store, role_on_start")
       .eq("role", "candidate").eq("active", true).lte("start_date", today);
     for (const p of (starting || [])) {
-      const to = ["team_member", "admin"].includes(String(p.role_on_start)) ? String(p.role_on_start) : "team_member";
-      if (dry) { promoted.push({ id: p.id, name: p.display_name, would_become: to }); continue; }
-      const { error } = await admin.from("staff")
-        .update({ role: to, role_on_start: null }).eq("id", p.id).eq("role", "candidate");
-      if (error) { promoted.push({ id: p.id, name: p.display_name, ok: false, error: error.message }); continue; }
-      promoted.push({ id: p.id, name: p.display_name, ok: true, role: to });
-      // Activation is an onboarding step a manager normally ticks. When the
-      // cron gets there first, tick it for them so the track doesn't sit on a
-      // step that already happened.
-      const { data: actStep } = await admin.from("onboarding_steps")
-        .select("id").eq("action", "activate").eq("active", true).maybeSingle();
-      if (actStep) {
-        await admin.from("onboarding_step_done")
-          .upsert({ step_id: actStep.id, staff_id: p.id }, { onConflict: "step_id,staff_id", ignoreDuplicates: true });
-      }
+      promoted.push({ id: p.id, name: p.display_name, awaiting: "clock_in" });
+      if (dry) continue;
       await alertMgr(null, "First day — " + p.display_name,
-        p.display_name + " starts today and now has full "
-        + (to === "admin" ? "Manager" : "Team Member") + " access.",
+        p.display_name + " starts today. They get full access when they clock in.",
         p.home_store);
     }
-    return json({ ok: true, date: today, considered: (due || []).length, results, promoted });
+    return json({ ok: true, date: today, considered: (due || []).length, results, awaiting_clock_in: promoted });
   }
 
   if (action === "get") {
