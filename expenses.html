@@ -590,7 +590,18 @@ async function extractFromPhoto(blob){
     var used=[];
     /* fill only what the owner hasn't typed — never clobber a hand-entered value */
     if(d.amount!=null&&amtVal()==null){$('#amt').value=d.amount.toFixed(2);used.push('amount');}
-    if(d.date&&$('#date').value===todayLocal()&&d.date!==$('#date').value){$('#date').value=d.date;used.push('date');}
+    /* A misread date is the one wrong field you can't see afterwards — it books
+       the money into a period you never look at (a Dutch Bros run landed in
+       April 2020). Accept a read date only if it's plausible for a receipt:
+       within the last 18 months and not tomorrow. Anything else keeps today's
+       date and says so. */
+    var dateOff=null;
+    if(d.date&&$('#date').value===todayLocal()&&d.date!==$('#date').value){
+      var rd=new Date(d.date+'T12:00:00'), now=new Date();
+      var days=(now-rd)/86400000;
+      if(days>=-1.5&&days<=550){$('#date').value=d.date;used.push('date');}
+      else dateOff=d.date;
+    }
     if(d.vendor&&!$('#vendor').value.trim()){$('#vendor').value=d.vendor;vendorAutolink();used.push('vendor');}
     /* the card the receipt says was used — only when nothing is picked yet */
     if(d.card_last4&&!PAY_TOUCHED){
@@ -598,8 +609,10 @@ async function extractFromPhoto(blob){
       if(pm){$('#paySel').value=pm.id;applyPayClass();used.push('card ····'+d.card_last4);}
     }
     renderSplit();
-    aiStat(used.length?'✨ Filled '+used.join(' + ')+' from the receipt — double-check, then save.'
-                      :'✨ Receipt read — your entries were left as typed.');
+    var msg=used.length?'✨ Filled '+used.join(' + ')+' from the receipt — double-check, then save.'
+                       :'✨ Receipt read — your entries were left as typed.';
+    if(dateOff)msg+=' Read the date as '+esc(dateOff)+' — kept today\'s instead, set it if that\'s right.';
+    aiStat(msg);
   }catch(e){
     if(seq!==EXTRACT_SEQ)return;
     aiStat('Couldn’t read the receipt — enter it manually.');
