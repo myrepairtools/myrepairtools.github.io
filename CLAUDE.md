@@ -463,7 +463,11 @@ fields the owner hasn't typed (✨ status line under the thumb; retakes cancel i
 reads via a sequence counter) → amount|date (two-col row) → Paid With (Bank/CC accounts,
 **filtered by the Settings allowlist** — `qbo_config` key 'paywith', edited in Settings →
 Integrations → QuickBooks Online → "Expenses · Paid With Accounts", re-checked on every
-page open) → expense account (type-to-search combobox over the QBO chart of accounts +
+page open. That row also carries **`applepay`** — `{accountId:'9095'}`, a per-card
+last-4 typed in beside each allowed account — because **Apple Pay prints its own
+device account number on the receipt, not the card's**, so a slip reading 9095 is
+unmatchable to "Spark - Clackamas 8123" from memory when logging late; the picker
+prints "<account> · Apple Pay 9095") → expense account (type-to-search combobox over the QBO chart of accounts +
 last-5 recent chips; the `accounts` action returns **`fqn`** (FullyQualifiedName)
 + `parent_id`/`sub` — searching matches the FULL path, so typing a parent
 ("Store Buildout Expenses") lists the parent AND every sub-account under it, and

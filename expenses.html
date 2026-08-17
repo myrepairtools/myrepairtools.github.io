@@ -302,6 +302,10 @@ if(navigator.standalone)document.documentElement.classList.add('mrt-standalone')
 
 /* ------------- state ------------- */
 var ACCTS=[],CLASSES=[],STORECLS=[];   // from qbo ?action=accounts / ?action=classes
+/* Apple Pay reports its own device account number on the receipt, not the card's
+   last-4, so "9095" on a slip is unmatchable to "Spark - Clackamas 8123" from
+   memory. Settings records the pairing; the picker prints both. */
+var PAYAP={};
 var VENDORS=[];                        // from qbo ?action=vendors — the QBO vendor list
 var VEND=null;                         // matched QBO vendor {id,name} (typed text can stay unlinked)
 var PAYALLOW=null;                     // Settings allowlist of Paid With account ids (null/[] = all)
@@ -358,16 +362,19 @@ async function loadQbo(){
   if(cache&&cache.accounts&&cache.accounts.length){
     ACCTS=cache.accounts;CLASSES=cache.classes||[];VENDORS=cache.vendors||[];
     PAYALLOW=Array.isArray(cache.paywith)?cache.paywith:null;
+    PAYAP=(cache.applepay&&typeof cache.applepay==='object')?cache.applepay:{};
     paintAccounts();
   }
   /* the allowlist is one tiny row — always re-check it so a Settings edit
      applies on the next open instead of after the 1-hour cache expires */
   sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle().then(function(pw){
-    var ids=(pw.data&&pw.data.value&&Array.isArray(pw.data.value.ids))?pw.data.value.ids:null;
-    if(JSON.stringify(ids)!==JSON.stringify(PAYALLOW)){
-      PAYALLOW=ids;paintAccounts();
+    var v=(pw.data&&pw.data.value)||{};
+    var ids=Array.isArray(v.ids)?v.ids:null;
+    var ap=(v.applepay&&typeof v.applepay==='object')?v.applepay:{};
+    if(JSON.stringify(ids)!==JSON.stringify(PAYALLOW)||JSON.stringify(ap)!==JSON.stringify(PAYAP)){
+      PAYALLOW=ids;PAYAP=ap;paintAccounts();
       try{var c=JSON.parse(localStorage.getItem(LS_QBO)||'null');
-        if(c){c.paywith=PAYALLOW;localStorage.setItem(LS_QBO,JSON.stringify(c));}}catch(e){}
+        if(c){c.paywith=PAYALLOW;c.applepay=PAYAP;localStorage.setItem(LS_QBO,JSON.stringify(c));}}catch(e){}
     }
   },function(){});
   /* a cached payload from before accounts carried their full path can't do
@@ -384,8 +391,9 @@ async function loadQbo(){
     try{
       var pw=await sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle();
       PAYALLOW=(pw.data&&pw.data.value&&Array.isArray(pw.data.value.ids))?pw.data.value.ids:null;
+      PAYAP=(pw.data&&pw.data.value&&pw.data.value.applepay&&typeof pw.data.value.applepay==='object')?pw.data.value.applepay:{};
     }catch(e3){}
-    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES,vendors:VENDORS,paywith:PAYALLOW}));}catch(e){}
+    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES,vendors:VENDORS,paywith:PAYALLOW,applepay:PAYAP}));}catch(e){}
     $('#qboBanner').style.display='none';
     paintAccounts();
   }catch(e){
@@ -416,7 +424,11 @@ function paintAccounts(){
   var last='';try{last=localStorage.getItem(LS_PAY)||'';}catch(e){}
   var pays=payAccounts(),cur=$('#paySel').value||last;
   $('#paySel').innerHTML='<option value="">Choose account…</option>'+pays.map(function(a){
-    return '<option value="'+esc(a.id)+'"'+(a.id===cur?' selected':'')+'>'+esc(a.name)+' · '+esc(a.type)+'</option>';
+    /* the Apple Pay digits come FIRST after the name — on a late receipt that is
+       the number you are reading off the slip */
+    var ap=PAYAP[a.id];
+    return '<option value="'+esc(a.id)+'"'+(a.id===cur?' selected':'')+'>'+esc(a.name)
+      +(ap?(' · Apple Pay '+esc(ap)):(' · '+esc(a.type)))+'</option>';
   }).join('');
 
   /* Class — plain classes + the even-split option (only when store classes exist) */
