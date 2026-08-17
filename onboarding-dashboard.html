@@ -220,6 +220,23 @@ display:flex;align-items:center;justify-content:center;margin-top:0}
   .pid{gap:10px}
   .pnm{font-size:1.2rem}
 }
+/* intake review modal */
+.rvsec{border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.rvsec .ey{display:flex;align-items:center;gap:8px;font-family:'Nunito',sans-serif;font-weight:900;font-size:.62rem;
+text-transform:uppercase;letter-spacing:.8px;color:var(--grey2);margin-bottom:6px}
+.rv2{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+@media(max-width:560px){.rv2{grid-template-columns:1fr}}
+.sig2{display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
+.sigbox{flex:1;min-width:170px;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;background:#FDFDFE}
+.sigbox .sl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.6px;color:var(--grey2)}
+.sigbox img{display:block;max-width:100%;max-height:60px;margin:6px 0 5px}
+.sigbox .sm{font-size:.7rem;font-weight:700;color:var(--grey2);border-top:1px solid var(--border);padding-top:5px}
+.sigbox.missing{display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:700;font-size:.76rem;min-height:96px}
+.avchips{display:flex;flex-wrap:wrap;gap:6px}
+.avchip{flex:1;min-width:56px;border:1px solid var(--border);border-radius:8px;padding:5px 4px;font-size:.7rem;font-weight:700;text-align:center}
+.avchip b{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey2);margin-bottom:1px}
+.avchip.off{background:#F7F7F9;color:var(--grey)}
+.avchip.hrs{border-color:#CFE7F6;color:var(--blued)}
 .toast{position:fixed;bottom:calc(24px + var(--cpr-bb-h,0px));left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
 padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
 opacity:0;pointer-events:none;transition:opacity .18s;z-index:1300}
@@ -373,8 +390,8 @@ function setupRows(p){
   const rows=[];
   const auto=(ok,label,subOk,subMiss)=>rows.push({kind:ok?'ok':'miss',label,sub:ok?subOk:subMiss});
   auto(!!p.home_store,'Home store + authorized stores',(shortStore(p.home_store)||'')+' · verified','no home store');
-  auto(!!SCHEDROWS[p.id],'Schedule employee','schedule built','no schedule built');
-  if(rows[rows.length-1].kind==='miss')rows[rows.length-1].fix='schedule-admin.html';
+  rows.push({kind:'manual',key:'sched_built',label:'Schedule employee',
+    sub:SCHEDROWS[p.id]?'rows in Schedule Admin':'',tick:TICKS[p.id+':sched_built']||null});
   /* telling them is its own job — a schedule nobody was told about is a
      no-show waiting to happen. First schedules fire no automatic notice. */
   rows.push({kind:'manual',key:'sched_notify',label:'Notify employee of schedule',sub:'',tick:TICKS[p.id+':sched_notify']||null});
@@ -1431,51 +1448,70 @@ function openReview(id){
   const i=INTAKES.find(x=>x.id===id);if(!i)return;
   const rv=(k,v)=>v?'<div class="rvrow"><span class="k">'+k+'</span><span class="v">'+esc(v)+'</span></div>':'';
   const name=[i.legal_first,i.legal_middle,i.legal_last].filter(Boolean).join(' ');
+  const nm=name||i.invited_name||'Intake';
   const addr=i.address?[i.address.street,i.address.city,i.address.zip].filter(Boolean).join(', '):'';
-  const av=(i.availability||[]).map(a=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.day]+' '
-    +(a.mode==='all'?'All day':a.mode==='off'?'Off':(a.from+' – '+a.to))).join(' · ');
   const declined=!!i.offer_declined_at, docs=!!i.offer_body;
-  /* promoted rows are history — read-only, but nothing about them is declined */
   const closed=declined||!!i.promoted_at;
-  const sig=(label,img,who,at)=>img
-    ?'<div class="rvrow"><span class="k">'+label+'</span><span class="v"><img class="sigthumb" src="'+img+'" alt="signature">'
-      +'<div style="font-size:.68rem;color:var(--grey);margin-top:2px">'+esc(who||'')+' · '+esc(fmtShort(at))+'</div></span></div>'
-    :'<div class="rvrow"><span class="k">'+label+'</span><span class="v" style="color:var(--grey2)">not signed yet</span></div>';
-  /* candidates for promotion: sync-created / recently added staff without intake */
+  const sigbox=(label,img,who,at)=>img
+    ?'<div class="sigbox"><div class="sl">'+label+'</div><img src="'+img+'" alt="signature">'
+      +'<div class="sm">'+esc(who||'')+' · '+esc(fmtShort(at))+'</div></div>'
+    :'<div class="sigbox missing">'+label+' — not signed yet</div>';
+  const comm=i.commission
+    ?('Yes — '+Object.keys(EARN_LABELS).filter(k=>(i.commission_earns||{})[k]).map(k=>EARN_LABELS[k].toLowerCase()).join(', ')||'Yes')
+    :(i.pay_type?'No':'');
+  const av=(i.availability||[]).map(a=>{
+    const val=a.mode==='all'?'All day':a.mode==='off'?'Off':(a.from+' – '+a.to);
+    const cls=a.mode==='off'?' off':a.mode==='hours'?' hrs':'';
+    return '<span class="avchip'+cls+'"><b>'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][a.day]+'</b>'+esc(val)+'</span>';
+  }).join('');
   const cands=STAFF.filter(p=>isNewHire(p));
-  $('#mdl').innerHTML='<h2>'+esc(name||i.invited_name||'Intake')+(declined?' — declined':i.promoted_at?'':' — candidate')+'</h2>'
-    +(declined?'<div style="background:var(--redbg);border-radius:9px;padding:9px 12px;font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:10px">'
-      +'Declined the offer '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' — “'+esc(i.decline_note)+'”':'')+'</div>':'')
-    +rv('Position',i.position)+rv('Pay',i.pay)
-    +rv('Commission',i.commission
-      ?('Yes — '+Object.keys(EARN_LABELS).filter(k=>(i.commission_earns||{})[k]).map(k=>EARN_LABELS[k].toLowerCase()).join(', ')||'Yes')
-      :(i.pay_type?'No':''))
-    +rv('Start',i.start_hint)
-    +(docs?sig('Offer',i.offer_signature,i.offer_signed_name,i.offer_signed_at)
-      +sig('Handbook',i.handbook_signature,i.handbook_signed_name,i.handbook_signed_at)
-      +(i.offer_signed_at?'<div style="margin:8px 0 4px"><button class="ghost" id="rvPdf">⬇ Signed offer (PDF)</button></div>':''):'')
-    +rv('Name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)+rv('Email',i.personal_email)
-    +rv('Address',addr)+rv('Shirt',i.shirt_size)+rv('I-9 plan',i.i9_docs)
-    +[i.emergency,i.emergency2].filter(e=>e&&e.name).map((e,n)=>
-        rv('Emergency'+(i.emergency2&&i.emergency2.name?' '+(n+1):''),
-           [e.name,e.relationship,e.phone].filter(Boolean).join(' · '))).join('')
-    +(av?rv('Availability',av):'')
-    +(closed?'<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>'
-      :'<div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;margin:14px 0 4px">'
-        +[['Role',(MRT_ROLES.filter(r=>r.v===i.mrt_role)[0]||{}).t||'Team Member'],
-          ['Stores',[i.invited_store].concat(i.authorized_stores||[]).filter((v,x,a)=>v&&a.indexOf(v)===x)
-            .map(s=>'CPR '+shortStore(s)).join(', ')],
-          ['PIN',i.suggested_pin?'Theirs from the form':'Set one on Team Members'],
-          ['Commission',i.commission?'On':'Off']]
-          .map(r=>'<div class="rvrow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span></div>').join('')
-        +'</div>'
+  let h='<div class="mhead"><span class="pav" style="width:40px;height:40px;font-size:.8rem">'+esc(initialsOf(nm))+'</span>'
+    +'<div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">'+esc(nm)+'</h2>'
+    +intakeStage(i)+'</div><button class="mx" id="rvX" aria-label="Close">×</button></div>';
+  if(declined)h+='<div style="background:var(--redbg);border-radius:9px;padding:9px 12px;font-size:.8rem;font-weight:700;color:var(--red);margin-bottom:10px">'
+    +'Declined the offer '+esc(fmtShort(i.offer_declined_at))+(i.decline_note?' — “'+esc(i.decline_note)+'”':'')+'</div>';
+  h+='<div class="rvsec"><div class="ey">Offer</div><div class="rv2">'
+    +rv('Position',i.position)+rv('Pay',i.pay)+rv('Commission',comm)+rv('Start',i.start_hint)+'</div></div>';
+  if(docs){
+    h+='<div class="rvsec"><div class="ey">Signatures'
+      +(i.offer_signed_at?'<button class="ghost" id="rvPdf" style="margin-left:auto">⬇ Signed offer (PDF)</button>':'')+'</div>'
+      +'<div class="sig2">'
+      +sigbox('Offer letter',i.offer_signature,i.offer_signed_name,i.offer_signed_at)
+      +sigbox('Employee Handbook',i.handbook_signature,i.handbook_signed_name,i.handbook_signed_at)
+      +'</div></div>';
+  }
+  h+='<div class="rvsec"><div class="ey">Contact &amp; identity</div><div class="rv2">'
+    +rv('Legal name',name)+rv('Preferred',i.preferred_name)+rv('DOB',i.dob)+rv('Phone',i.phone)
+    +rv('Email',i.personal_email)+rv('Shirt',i.shirt_size)+'</div>'+rv('Address',addr)+'</div>';
+  const em=[i.emergency,i.emergency2].filter(e=>e&&e.name);
+  if(i.i9_docs||av||em.length){
+    h+='<div class="rvsec"><div class="ey">Day one</div>'
+      +rv('I-9 plan',i.i9_docs)
+      +em.map((e,n)=>rv('Emergency'+(em.length>1?' '+(n+1):''),[e.name,e.relationship,e.phone].filter(Boolean).join(' · '))).join('')
+      +(av?'<div class="rvrow"><span class="k">Availability</span></div><div class="avchips">'+av+'</div>':'')
+      +'</div>';
+  }
+  if(closed){
+    h+='<div class="mact"><button class="btn alt" id="rvClose">Close</button></div>';
+  }else{
+    h+='<div class="rvsec"><div class="ey">Convert</div><div class="rv2">'
+      +rv('Role',(MRT_ROLES.filter(r=>r.v===i.mrt_role)[0]||{}).t||'Team Member')
+      +rv('Stores',[i.invited_store].concat(i.authorized_stores||[]).filter((v,x,a)=>v&&a.indexOf(v)===x)
+        .map(x=>'CPR '+shortStore(x)).join(', '))
+      +rv('PIN',i.suggested_pin?'Theirs from the form':'Set one on Team Members')
+      +rv('Commission',i.commission?'On':'Off')+'</div>'
       +'<div class="f"><label>Staff record</label><select id="rvStaff">'
       +'<option value="">Create a new one</option>'
-      +cands.map(p=>'<option value="'+p.id+'"'+(sameName(p.display_name,name||i.invited_name)?' selected':'')+'>'
-        +'Use '+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div>'
-      +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Convert to New Employee ›</button></div>');
+      +cands.map(p=>'<option value="'+p.id+'"'+(sameName(p.display_name,nm)?' selected':'')+'>'
+        +'Use '+esc(p.display_name)+' · CPR '+esc(shortStore(p.home_store||''))+'</option>').join('')+'</select></div></div>'
+      +'<div class="mact"><button class="btn alt" id="rvClose">Close</button><button class="btn" id="rvGo">Convert to New Employee ›</button></div>';
+  }
+  $('#mdl').style.maxWidth='620px';
+  $('#mdl').innerHTML=h;
   $('#mask').classList.add('show');
-  $('#rvClose').onclick=()=>{$('#mask').classList.remove('show');};
+  const shut=()=>{$('#mask').classList.remove('show');$('#mdl').style.maxWidth='';};
+  $('#rvClose')&&($('#rvClose').onclick=shut);
+  $('#rvX').onclick=shut;
   const pb=$('#rvPdf');if(pb)pb.onclick=async()=>{
     pb.disabled=true;pb.textContent='Building…';
     try{
