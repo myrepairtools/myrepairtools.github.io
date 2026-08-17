@@ -98,6 +98,11 @@ label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.7
 .tbl tbody tr.member td:first-child{border-left:3px solid var(--blue);padding-left:24px}
 .tbl tbody tr.member td.itm,.tbl tbody tr.member td.sku{color:var(--dark-grey)}
 .tbl tbody tr.grp.open{background:#EEF4FB}
+/* Last Changed By — name over the date it was set */
+.tbl td.setby{white-space:nowrap;line-height:1.25}
+.setby-who{display:block;font-weight:700;font-size:.8rem;color:var(--dark-grey)}
+.setby-when{display:block;font-size:.68rem;font-weight:700;color:var(--grey)}
+.setby-none{color:var(--grey);font-weight:700;font-size:.78rem}
 /* ===== Part Groups (in-main table + inline editor) ===== */
 .gfilter-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 16px}
 .gfilter-bar+.gfilter-bar{border-top:1px dashed var(--border)}
@@ -471,6 +476,7 @@ tr.samchild.parent-ordered .samkid{color:#8A8F9C;background:#EDEDF0;border-color
         <th class="num">Claim ✓</th>
         <th class="num">On order</th>
         <th class="num">Max</th>
+        <th>Last Changed By</th>
         <th>Flags</th>
         <th></th>
       </tr></thead>
@@ -625,6 +631,9 @@ var GROUPS=[],CONSUMPTION=[],STOPSTOCK={},OVERRIDE={},CLAIMREPORT={},REPAIRSNOPA
 var MSP={},MSP_INFLIGHT={};   /* cpr.parts live product data: sku → {price,in_stock,stock_qty,saleable,url} */
 var MSPEND={};               /* cpr.parts ordered-but-not-shipped qty per sku (bridges the RepairQ PO gap) */
 var FLAGTYPES=[],SKUFLAGS={},GROUPOVR={}; /* custom flag defs; per-store sku->[flag_key]; per-store group_id->max */
+/* who last CHANGED the max, per store: sku -> {by,at} and group_id -> {by,at}.
+   A sku with no override row is still on RepairQ's number, so it has no author here. */
+var SETBY={},GROUPSETBY={};
 var STOCK_ASOF=null, CONS_ASOF=null; /* current store's last stock + consumption sync */
 /* kill-switch for the consignment-only flag. Set to true to instantly disable
    the action site-wide (it once coincided with a consumption_log wipe; root
@@ -638,9 +647,9 @@ async function fn(body){var r=await fetch(FN,{method:'POST',headers:{'Content-Ty
 function allowedStores(me){if(!me)return [];if(me.role==='owner')return STORES.slice();var set={};set[me.home_store]=1;(me.authorized_stores||[]).forEach(function(s){set[s]=1;});return STORES.filter(function(s){return set[s];});}
 
 async function loadGroups(){
-  var g=await sb.from('groups').select('id,name,max,default_sku,position,manufacturer,model,part_type').order('position');
+  var g=await sb.from('groups').select('id,name,max,default_sku,position,manufacturer,model,part_type,updated_by_name,updated_at').order('position');
   var m=await sb.from('group_members').select('group_id,sku,name,position').order('position');
-  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,position:x.position||0,members:[],manufacturer:x.manufacturer||null,model:x.model||null,part_type:x.part_type||null};});
+  var byId={};(g.data||[]).forEach(function(x){byId[x.id]={id:x.id,name:x.name,max:x.max,def:x.default_sku,position:x.position||0,members:[],manufacturer:x.manufacturer||null,model:x.model||null,part_type:x.part_type||null,setBy:x.updated_by_name,setAt:x.updated_at};});
   (m.data||[]).forEach(function(x){if(byId[x.group_id])byId[x.group_id].members.push({sku:x.sku,name:x.name});});
   GROUPS=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return a.position-b.position;});
 }
@@ -910,7 +919,7 @@ async function loadAll(){
   var store=STATE.store, rg=curRange(), day=rg.to;
   var res=await Promise.all([
     fetchAllStock(store),
-    sb.from('max_overrides').select('sku,value').eq('store',store),
+    sb.from('max_overrides').select('sku,value,updated_by_name,updated_at').eq('store',store),
     sb.from('consignment_only').select('sku').eq('store',store),
     sb.from('claim_report').select('sku,elig_in_stock').eq('store',store),
     sb.from('consumption_log').select('sku,units,name').eq('store',store).gte('biz_date',rg.from).lte('biz_date',rg.to),
@@ -918,7 +927,7 @@ async function loadAll(){
     loadGroups(),
     sb.from('flag_types').select('key,label,color,icon,active,sort').eq('active',true).order('sort').order('id'),
     sb.from('sku_flags').select('sku,flag_key').eq('store',store),
-    sb.from('group_max_overrides').select('group_id,value').eq('store',store),
+    sb.from('group_max_overrides').select('group_id,value,updated_by_name,updated_at').eq('store',store),
     sb.from('consumption_log').select('updated_at').eq('store',store).order('updated_at',{ascending:false}).limit(1).maybeSingle(),
     loadSamsungRows(),
     /* manual "already ordered" marks live on the range's END day (the "as of" day) */
@@ -928,14 +937,14 @@ async function loadAll(){
     sb.rpc('ms_pending_for_store',{p_store:store})
   ]);
   var snap={};STOCK_ASOF=null;(res[0]||[]).forEach(function(r){snap[r.sku]={name:r.name,instock:r.in_stock,onorder:r.on_order,max:r.max_baseline};if(r.updated_at&&(!STOCK_ASOF||r.updated_at>STOCK_ASOF))STOCK_ASOF=r.updated_at;});SNAP=snap;
-  var ov={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;});OVERRIDE[store]=ov;
+  var ov={},ovw={};(res[1].data||[]).forEach(function(r){ov[r.sku]=r.value;ovw[r.sku]={by:r.updated_by_name,at:r.updated_at};});OVERRIDE[store]=ov;SETBY[store]=ovw;
   STOPSTOCK[store]=(res[2].data||[]).map(function(r){return r.sku;});
   var cr={};(res[3].data||[]).forEach(function(r){cr[r.sku]=r.elig_in_stock;});CLAIMREPORT[store]=cr;
   var cons=[];var cnames={};(res[4].data||[]).forEach(function(r){cons.push({sku:r.sku,units:r.units});if(r.name)cnames[r.sku]=r.name;});CONSUMPTION=cons;CNAMES=cnames;
   REPAIRSNOPARTS[store]=(res[5].data||[]).map(function(r){return {tkt:r.ticket,dev:r.device,tech:r.tech,note:r.note};});
   FLAGTYPES=res[7].error?[]:(res[7].data||[]);
   var sf={};(res[8].data||[]).forEach(function(r){(sf[r.sku]||(sf[r.sku]=[])).push(r.flag_key);});SKUFLAGS[store]=sf;
-  var go={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;});GROUPOVR[store]=go;
+  var go={},gow={};(res[9].data||[]).forEach(function(r){go[r.group_id]=r.value;gow[r.group_id]={by:r.updated_by_name,at:r.updated_at};});GROUPOVR[store]=go;GROUPSETBY[store]=gow;
   CONS_ASOF=(res[10]&&res[10].data)?res[10].data.updated_at:null;
   ORDERED={};((res[12]&&res[12].data)||[]).forEach(function(r){ORDERED[r.sku]=(r.ordered_qty||0);});
   /* live truth from cpr.parts: quantities ACTUALLY ordered that day (ms_orders,
@@ -1255,6 +1264,29 @@ function isOverridden(sku){return (OVERRIDE[STATE.store]||{}).hasOwnProperty(sku
 /* part groups are global; each store can override the group's max stock here */
 function effGroupMax(gid){var o=GROUPOVR[STATE.store]||{};if(o.hasOwnProperty(gid))return o[gid];var g=groupById(gid);return g?(g.max||0):0;}
 function isGroupOverridden(gid){return (GROUPOVR[STATE.store]||{}).hasOwnProperty(gid);}
+/* Who last changed the number in the Max column — which is whichever layer
+   effMax/effGroupMax actually resolved to, not just the override table. A sku
+   nobody has touched is still on the value RepairQ syncs in, so it has no
+   author to name; rows written before the author trigger existed have none
+   either, and both read as an em dash rather than pretending. */
+function setByFor(r){
+  var rec;
+  if(r.type==='group'){
+    rec=isGroupOverridden(r.gid)?(GROUPSETBY[STATE.store]||{})[r.gid]:null;
+    if(!rec){var g=groupById(r.gid);rec=g&&g.setBy?{by:g.setBy,at:g.setAt}:null;}
+  } else {
+    rec=isOverridden(r.sku)?(SETBY[STATE.store]||{})[r.sku]:null;
+  }
+  return rec&&rec.by?rec:null;
+}
+function setByCell(r){
+  var rec=setByFor(r);
+  if(!rec)return '<span class="setby-none">'+(r.type==='group'||isOverridden(r.sku)?'—':'RepairQ')+'</span>';
+  var d=rec.at?new Date(rec.at):null;
+  var when=d&&!isNaN(d)?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+  return '<span class="setby-who">'+esc(rec.by)+'</span>'
+       + (when?'<span class="setby-when">'+when+'</span>':'');
+}
 /* shared flag-cell renderer: CO tag + any custom flag badges assigned to flagSku */
 function flagTint(hex){
   hex=String(hex||'#4FB0E3').replace('#','');if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');
@@ -1347,6 +1379,7 @@ function renderStock(){
       +'<td class="num">'+claimPill(r.claimElig)+'</td>'
       +'<td class="num">'+r.onorder+'</td>'
       +'<td class="num">'+maxCell(r.type==='group'?'gidstore':'sku',r.type==='group'?r.gid:r.sku,r.max)+'</td>'
+      +'<td class="setby">'+setByCell(r)+'</td>'
       +'<td>'+flags+'</td>'
       +'<td class="optcell"><button class="opt" data-sku="'+r.flagSku+'" aria-label="Options">⋮</button></td>';
     tb.appendChild(tr);

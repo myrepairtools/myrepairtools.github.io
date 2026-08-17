@@ -779,6 +779,22 @@ arrived and left without ever being on a ticket is never *consumed*, so it never
 reaches this list — catching those needs a separate "recently received at store"
 pull from RepairQ (not yet built).
 
+**Who set a max stock level:** the Stock Level tab carries a **Last Changed By**
+column. `max_overrides` / `group_max_overrides` / `groups` gained
+`updated_by` + `updated_by_name`, stamped by the `stamp_max_author()` **trigger**
+— never by the page: `auth.uid()` can't be spoofed by a hand-rolled request the
+way a client-supplied name can, and any future writer is covered without
+remembering to pass one. The trigger takes the max's column name as its argument
+and only re-stamps when THAT column actually changes, so renaming or reordering a
+part group leaves the max's author alone; a service-role write with no matching
+staff row carries the previous author forward instead of blanking it. The name is
+denormalized (like `inventory_edit_log.run_by_name`) because staff RLS hides other
+people's rows from a team member, so a join would render blank for exactly the
+people reading the report. The column names whichever layer `effMax` resolved to:
+an un-overridden SKU reads **RepairQ** (that number is synced, not set by anyone),
+and rows written before the trigger existed read `—`. Schema:
+docs/sql/max-override-author.sql.
+
 **Inventory Editor (bulk RepairQ status change from a file):** `inventory-editor.html`
 (Operations → **Tools** nav, admin/owner — `minRole:'admin'`) does what a one-off RMA
 pull-back needed: change hundreds of units' RepairQ status from a scanned list. Flow:
