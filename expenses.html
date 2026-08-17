@@ -327,6 +327,15 @@ function todayLocal(){
   var d=new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
+/* Tapping an amount that already has a number in it means retyping it, so put
+   the whole value under the cursor. iOS drops a caret where you touched AFTER
+   the focus event, so re-select once the tap has finished landing. */
+function selectAllOnFocus(el){
+  function all(){try{el.setSelectionRange(0,el.value.length);}catch(e){}}
+  el.addEventListener('focus',function(){setTimeout(all,0);});
+  el.addEventListener('touchend',function(){setTimeout(all,0);});
+  el.addEventListener('mouseup',function(e){if(el.selectionStart===el.selectionEnd){e.preventDefault();all();}});
+}
 function amtVal(){
   var v=parseFloat(String($('#amt').value).replace(/[$,\s]/g,''));
   return (isFinite(v)&&v>0)?Math.round(v*100)/100:null;
@@ -667,6 +676,7 @@ function addCatLine(seed){
     +'<button type="button" class="cx" aria-label="Remove line">✕</button>';
   var amtI=row.querySelector('.amtw input'), accI=row.querySelector('.combobox input'),
       list=row.querySelector('.acclist'), x=row.querySelector('.cx');
+  selectAllOnFocus(amtI);
   if(CATS[i].amt!=null)amtI.value=CATS[i].amt.toFixed(2);
   if(CATS[i].acc)accI.value=accPath(CATS[i].acc)||CATS[i].acc.name;
   amtI.addEventListener('input',function(){idx().amt=catAmt(amtI);paintCatLeft();});
@@ -757,6 +767,7 @@ function renderSplit(){
     });
   });
 }
+selectAllOnFocus($('#amt'));
 $('#clsSel').addEventListener('change',renderSplit);
 $('#amt').addEventListener('input',function(){renderSplit();if(catOn())paintCatLeft();});
 
