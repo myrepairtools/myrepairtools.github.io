@@ -196,6 +196,30 @@ actionable information: it tells a manager which item to go do first.
 unlock something the order already locked, which is what makes adding one
 safe. Only steps can carry a prerequisite today; articles can't.
 
+### Two-part steps are two steps
+
+Some tasks have a submit half and a receive half with real waiting in
+between — "Get CPR Credentials" is really *request them from corporate*, then
+*hand them to the employee*, possibly days apart and by different people.
+
+That is modelled as **two steps chained with `requires`**, not as one step
+with two ticks, because each half needs its own `who` and its own completion
+record:
+
+| who | step | requires |
+|---|---|---|
+| backoffice | Request CPR credentials | — |
+| manager | Give credentials to the employee | `s5` |
+
+That gives "submitted the 12th · handed over the 15th" as real audit, and the
+gap between them is visible rather than hidden inside one half-done checkbox.
+The Getting Set Up module already carries this pair as a live example.
+
+The cost is list length, and that IS a design problem: a chained pair reads as
+two rows. Worth deciding whether a chain renders as one grouped unit ("Get CPR
+Credentials · 1 of 2") or simply as two rows where the second says what it's
+waiting on. Either is fine; it just shouldn't look like an accident.
+
 ### The decision this surfaces
 
 Prerequisites are most useful if strict sequential unlock relaxes — otherwise
