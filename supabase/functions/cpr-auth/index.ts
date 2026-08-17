@@ -271,6 +271,83 @@ Deno.serve(async (req)=>{
     if (werr) return json({ error: "db_error", detail: werr.message }, 500);
     return json({ ok: true, birthday: value });
   }
+  // ---------- SELF: set my availability ----------
+  // Availability is the one thing on the profile that is the employee's own
+  // statement rather than a manager's record, so they own it. It is stored on
+  // staff_profiles (RLS would let the browser write it directly) but routes
+  // through here so a change can be announced — a schedule gets built off this,
+  // and someone quietly dropping Saturdays is exactly what a manager needs told.
+  if (action === "set_availability") {
+    const auth = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!auth) return json({ error: "forbidden" }, 403);
+    const { data: u } = await admin.auth.getUser(auth);
+    if (!u?.user) return json({ error: "forbidden" }, 403);
+    const { data: me } = await admin.from("staff")
+      .select("id, display_name, home_store").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    if (!me) return json({ error: "forbidden" }, 403);
+
+    const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const raw = Array.isArray(body.availability) ? body.availability : null;
+    if (!raw || raw.length !== 7) return json({ error: "bad_availability" }, 400);
+    const clean = [];
+    for (let i = 0; i < 7; i++) {
+      const a = raw[i] || {};
+      const mode = ["all", "hours", "off"].includes(String(a.mode)) ? String(a.mode) : "all";
+      clean.push({
+        day: i,
+        mode,
+        from: mode === "hours" ? String(a.from || "Open").slice(0, 12) : null,
+        to:   mode === "hours" ? String(a.to || "Close").slice(0, 12) : null,
+      });
+    }
+
+    const { data: prof } = await admin.from("staff_profiles")
+      .select("availability").eq("staff_id", me.id).maybeSingle();
+    const before = Array.isArray(prof?.availability) ? prof!.availability : null;
+    const { error: werr } = await admin.from("staff_profiles")
+      .upsert({ staff_id: me.id, availability: clean, updated_at: new Date().toISOString() },
+              { onConflict: "staff_id" });
+    if (werr) return json({ error: "db_error", detail: werr.message }, 500);
+
+    // What actually changed, in words — a diff is the whole point of the alert.
+    const label = (a: Record<string, unknown> | null) => !a ? "—"
+      : a.mode === "all" ? "All day" : a.mode === "off" ? "Off" : `${a.from} – ${a.to}`;
+    const changed: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const b = before ? (before[i] || null) : null;
+      if (!b || b.mode !== clean[i].mode || b.from !== clean[i].from || b.to !== clean[i].to) {
+        changed.push(`${DAYS[i].slice(0, 3)} ${label(b)} → ${label(clean[i])}`);
+      }
+    }
+    // First time they fill it in there is no diff worth texting about
+    const firstTime = !before;
+    let notice: string | null = null;
+    if (changed.length && !firstTime) {
+      const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") ?? "";
+      const { data: owners } = await admin.from("staff")
+        .select("id").eq("role", "owner").eq("active", true);
+      const ids = (owners ?? []).map((o: { id: number }) => o.id);
+      if (ids.length && NOTIFY_SECRET) {
+        // best effort — an alert that fails must never cost them the save
+        try {
+          const ar = await fetch(`${URL}/functions/v1/alerts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "send", secret: NOTIFY_SECRET,
+              kind: "schedule",   // urgent tier — this is meant to arrive as a text
+              title: `${me.display_name} changed their availability`,
+              body: changed.join(" · ") + (me.home_store ? `  (${me.home_store})` : ""),
+              link: "employee-records.html#e=" + me.id + "/availability",
+              staff_ids: ids,
+            }),
+          });
+          if (!ar.ok) notice = "alert_" + ar.status;
+        } catch { notice = "alert_failed"; }
+      }
+    }
+    return json({ ok: true, availability: clean, changed: changed.length, ...(notice ? { notice } : {}) });
+  }
   // ---------- ADMIN: list full staff ----------
   if (action === "list_staff_admin") {
     const c = await caller(req, body);

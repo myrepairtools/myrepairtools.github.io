@@ -273,6 +273,36 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
    opens a preview beside it so checking what a document actually says never
    means leaving the page. */
 .dgwrap{flex:1;min-width:0;max-width:1400px;margin:0 auto;padding:24px 28px 48px}
+/* ---- Availability: the same editor the new-hire form uses (intake.html), so
+   what someone fills in at hire and what they change later are one control.
+   Already mobile-shaped there — a tap target per day, no dropdowns. ---- */
+.avwrap{flex:1;min-width:0;max-width:640px;margin:0 auto;padding:24px 28px 48px}
+.avhd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.avhd .ttl{font-family:'Nunito',sans-serif;font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
+.avlist{background:#fff;border:1.5px solid var(--border);border-radius:11px;padding:2px 13px;box-shadow:0 1px 3px rgba(45,45,59,.05)}
+.avrow{border-bottom:1px solid #F7F7F9}
+.avrow:last-child{border-bottom:none}
+.avbtn{display:flex;align-items:center;width:100%;gap:8px;background:none;border:none;padding:11px 0;cursor:pointer;text-align:left}
+.avbtn:hover{background:#F8FAFD}
+.avbtn:disabled{cursor:default}
+.avbtn:disabled:hover{background:none}
+.avday{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark);flex:1}
+.avval{font-size:.79rem;font-weight:700}
+.avval.all{color:#8A8FA0}.avval.hours{color:#1E7AA8}.avval.off{color:var(--grey)}
+.avopen{background:#F8FAFD;margin:0 -13px;padding:10px 13px 12px;border-bottom:1px solid #F7F7F9}
+.avopen .avday{color:#1E7AA8}
+.avseg{display:inline-flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
+.avseg button{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;padding:5px 9px;border:none;background:#fff;color:var(--dark-grey);cursor:pointer;white-space:nowrap;border-left:1.5px solid var(--border)}
+.avseg button:first-child{border-left:none}
+.avseg button.on{background:var(--red);color:#fff}
+.avseg button.on.off{background:var(--grey)}
+.avhours{display:flex;align-items:center;gap:8px;margin-top:8px}
+.avhours select{flex:1;height:30px;padding:2px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.75rem;background:#fff}
+.avhours .to{font-size:.72rem;font-weight:700;color:var(--grey)}
+.avnote{font-size:.78rem;font-weight:700;color:var(--dark-grey);margin-top:12px}
+.avsaved{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;color:var(--greend,#1B7A41);opacity:0;transition:opacity .2s}
+.avsaved.on{opacity:1}
+@media(max-width:640px){.avwrap{padding:18px 16px calc(26px + var(--cpr-bb-h,0px));max-width:none}}
 .dghd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
 .dghd .lft{display:flex;align-items:center;gap:10px}
 .dghd .ttl{font-family:'Nunito',sans-serif;font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
@@ -539,6 +569,7 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
       <button class="tab" data-tab="pips">PIPs &amp; Reviews <span class="badge amber" data-pipbadge hidden></span></button>
       <button class="tab" data-tab="damage">Tech Damage <span class="badge blue" data-dmgbadge hidden></span></button>
       <button class="tab" data-tab="docs">Documents <span class="badge" data-docbadge style="color:var(--dark-grey);background:var(--light-grey)" hidden></span></button>
+      <button class="tab" data-tab="avail">Availability</button>
       <span class="tabdiv"></span>
       <button class="tab" data-tab="time">Time</button>
       <button class="tab" data-tab="pto">PTO</button>
@@ -708,7 +739,7 @@ async function load(){
     sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,off_seconds,on_the_clock').gte('biz_date',tsFrom),
     sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,note,submitted_at'),
     sb.from('stores').select('store,display_order,active').order('display_order'),
-    sb.from('staff_profiles').select('staff_id,phone,personal_email,photo_path'),
+    sb.from('staff_profiles').select('staff_id,phone,personal_email,photo_path,availability'),
     sb.from('staff_documents').select('*').eq('deleted',false).order('created_at',{ascending:false}),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
@@ -822,7 +853,7 @@ function writeHash(){
 }
 function parseHash(){
   const h=location.hash.replace('#','');
-  const TABS=['profile','log','pips','damage','docs','time','pto','commission'];
+  const TABS=['profile','log','pips','damage','docs','avail','time','pto','commission'];
   if(h.slice(0,2)==='e='){
     const parts=h.slice(2).split('/');
     const raw=parts[0],id=(raw!==''&&!isNaN(+raw))?+raw:raw;
@@ -830,7 +861,7 @@ function parseHash(){
     S.tab=TABS.indexOf(parts[1])>-1?parts[1]:'profile';
     S.commSub=(parts[2]==='history')?'history':'settings';
     const e=ALL.find(x=>String(x.id)===String(id));if(e)syncSel(e);
-    PD=null;CD=null;
+    PD=null;CD=null;AVAIL=null;AVOPEN=null;AVDIRTY=false;
   }else if(SELFONLY){S.view='profile';S.empId=AUTH.id;S.tab='profile';}
   else{S.view='list';S.empId=null;S.seg=(h==='terminated')?'terminated':'active';}
 }
@@ -1044,6 +1075,7 @@ function renderWork(){
   else if(S.tab==='pto')w.innerHTML=ptoHtml(e);
   else if(S.tab==='pips')w.innerHTML=pipHtml(e);
   else if(S.tab==='docs'){w.innerHTML=docsHtml(e);wireDocsTab(e);}
+  else if(S.tab==='avail'){w.innerHTML=availHtml(e);wireAvailTab(e);}
   else w.innerHTML=dmgHtml(e);
   const dp=w.querySelector('.detail-pane');if(dp)dp.classList.toggle('show',S.mDetail);
 }
@@ -1639,6 +1671,83 @@ function richText(v){
 }
 
 
+/* ----- Availability -----
+   Lifted from intake.html step 5 so the new-hire form and the profile are the
+   same control. The person owns this one: they may edit their own, a manager
+   viewing someone else sees it read-only. Saving routes through cpr-auth's
+   set_availability, which texts the owner what changed. */
+const AV_DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const AV_HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
+const AV_CHEV='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C7CAD4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+let AVAIL=null, AVOPEN=null, AVDIRTY=false;
+function avDefault(){ return AV_DAYS.map((d,i)=>({day:i,mode:'all',from:'Open',to:'Close'})); }
+function avFor(e){
+  const raw=(PROFILES[e.id]||{}).availability;
+  if(!Array.isArray(raw)||raw.length!==7)return null;
+  return raw.map((a,i)=>({day:i,mode:['all','hours','off'].indexOf(a&&a.mode)>-1?a.mode:'all',
+    from:(a&&a.from)||'Open',to:(a&&a.to)||'Close'}));
+}
+function avLabel(a){ return a.mode==='all'?'All day':a.mode==='off'?'Off':(a.from+' – '+a.to); }
+function availHtml(e){
+  const mine=AUTH&&String(AUTH.id)===String(e.id);
+  const stated=avFor(e);
+  if(!AVAIL)AVAIL=stated?stated.map(a=>({...a})):avDefault();
+  let rows='';
+  AVAIL.forEach((a,i)=>{
+    const cls=a.mode==='all'?'all':a.mode==='off'?'off':'hours';
+    if(AVOPEN!==i||!mine){
+      rows+='<div class="avrow"><button class="avbtn" data-avday="'+i+'"'+(mine?'':' disabled')+'>'
+        +'<span class="avday">'+AV_DAYS[i]+'</span>'
+        +'<span class="avval '+cls+'">'+esc(avLabel(a))+'</span>'+(mine?AV_CHEV:'')+'</button></div>';
+    }else{
+      rows+='<div class="avrow"><div class="avopen"><div style="display:flex;align-items:center;gap:8px">'
+        +'<span class="avday">'+AV_DAYS[i]+'</span><span style="flex:1"></span>'
+        +'<span class="avseg">'
+        +'<button data-avmode="all" class="'+(a.mode==='all'?'on':'')+'">All day</button>'
+        +'<button data-avmode="hours" class="'+(a.mode==='hours'?'on':'')+'">Hours</button>'
+        +'<button data-avmode="off" class="'+(a.mode==='off'?'on off':'')+'">Off</button></span></div>'
+        +(a.mode==='hours'?'<div class="avhours"><select id="avFrom">'+AV_HOURS.map(x=>'<option'+(x===a.from?' selected':'')+'>'+x+'</option>').join('')
+          +'</select><span class="to">to</span><select id="avTo">'+AV_HOURS.map(x=>'<option'+(x===a.to?' selected':'')+'>'+x+'</option>').join('')+'</select></div>':'')
+        +'</div></div>';
+    }
+  });
+  return '<div class="avwrap">'
+    +'<div class="avhd"><span class="ttl">Availability</span>'
+      +'<span style="display:flex;align-items:center;gap:10px">'
+      +'<span class="avsaved" id="avSaved">Saved ✓</span>'
+      +(mine?'<button class="dgadd" id="avSave"'+(AVDIRTY?'':' disabled')+'>Save availability</button>':'')+'</span></div>'
+    +'<div class="avlist">'+rows+'</div>'
+    +(mine?'<div class="avnote">'+(stated?'':'Nothing on file yet — everyone starts “All day”, so change only the days that differ.')+'</div>':'')
+  +'</div>';
+}
+function wireAvailTab(e){
+  const w=$('#work'), mine=AUTH&&String(AUTH.id)===String(e.id);
+  if(!mine)return;
+  w.querySelectorAll('[data-avday]').forEach(b=>b.onclick=()=>{AVOPEN=+b.dataset.avday;renderWork();});
+  w.querySelectorAll('[data-avmode]').forEach(b=>b.onclick=()=>{
+    const a=AVAIL[AVOPEN];a.mode=b.dataset.avmode;
+    if(a.mode!=='hours')AVOPEN=null;
+    AVDIRTY=true;renderWork();});
+  const f=w.querySelector('#avFrom'),t=w.querySelector('#avTo');
+  if(f)f.onchange=()=>{AVAIL[AVOPEN].from=f.value;AVDIRTY=true;renderWork();};
+  if(t)t.onchange=()=>{AVAIL[AVOPEN].to=t.value;AVDIRTY=true;renderWork();};
+  const sv=w.querySelector('#avSave');
+  if(sv)sv.onclick=async()=>{
+    sv.disabled=true;sv.textContent='Saving…';
+    try{
+      const tok=(await sb.auth.getSession()).data.session.access_token;
+      const r=await fetch(SB_URL+'/functions/v1/cpr-auth',{method:'POST',
+        headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+tok},
+        body:JSON.stringify({action:'set_availability',availability:AVAIL})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok||!d.ok){toast(d.error==='bad_availability'?'That didn’t look right — try again':'Could not save your availability',true);
+        sv.disabled=false;sv.textContent='Save availability';return;}
+      PROFILES[e.id]=Object.assign({},PROFILES[e.id]||{},{availability:d.availability});
+      AVDIRTY=false;AVOPEN=null;renderWork();
+      const s=$('#avSaved');if(s){s.classList.add('on');setTimeout(()=>s.classList.remove('on'),1800);}
+    }catch(err){toast('Could not save — check connection',true);sv.disabled=false;sv.textContent='Save availability';}
+  };
+}
 /* ----- Documents: the HR file (docs/sql/staff-documents.sql) -----
    Signed paperwork is frozen to a PDF at conversion and filed against the
    PERSON, so it survives the hiring record it came from. Files live in the
