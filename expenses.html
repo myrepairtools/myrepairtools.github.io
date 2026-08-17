@@ -309,6 +309,10 @@ var ACCTS=[],CLASSES=[],STORECLS=[];   // from qbo ?action=accounts / ?action=cl
    last-4, so "9095" on a slip is unmatchable to "Spark - Clackamas 8123" from
    memory. Settings records the pairing; the picker prints both. */
 var PAYAP={};
+/* Each card's home store, mapped in Settings — picking the card fills the class
+   so a Clackamas Spark receipt doesn't get filed against nothing. {accountId:classId} */
+var PAYCLS={};
+var CLS_TOUCHED=false;   // once the class is set by hand, the card stops changing it
 var VENDORS=[];                        // from qbo ?action=vendors — the QBO vendor list
 var VEND=null;                         // matched QBO vendor {id,name} (typed text can stay unlinked)
 var PAYALLOW=null;                     // Settings allowlist of Paid With account ids (null/[] = all)
@@ -375,6 +379,7 @@ async function loadQbo(){
     ACCTS=cache.accounts;CLASSES=cache.classes||[];VENDORS=cache.vendors||[];
     PAYALLOW=Array.isArray(cache.paywith)?cache.paywith:null;
     PAYAP=(cache.applepay&&typeof cache.applepay==='object')?cache.applepay:{};
+    PAYCLS=(cache.paycls&&typeof cache.paycls==='object')?cache.paycls:{};
     paintAccounts();
   }
   /* the allowlist is one tiny row — always re-check it so a Settings edit
@@ -383,10 +388,12 @@ async function loadQbo(){
     var v=(pw.data&&pw.data.value)||{};
     var ids=Array.isArray(v.ids)?v.ids:null;
     var ap=(v.applepay&&typeof v.applepay==='object')?v.applepay:{};
-    if(JSON.stringify(ids)!==JSON.stringify(PAYALLOW)||JSON.stringify(ap)!==JSON.stringify(PAYAP)){
-      PAYALLOW=ids;PAYAP=ap;paintAccounts();
+    var cl=(v.cls&&typeof v.cls==='object')?v.cls:{};
+    if(JSON.stringify(ids)!==JSON.stringify(PAYALLOW)||JSON.stringify(ap)!==JSON.stringify(PAYAP)
+      ||JSON.stringify(cl)!==JSON.stringify(PAYCLS)){
+      PAYALLOW=ids;PAYAP=ap;PAYCLS=cl;paintAccounts();
       try{var c=JSON.parse(localStorage.getItem(LS_QBO)||'null');
-        if(c){c.paywith=PAYALLOW;c.applepay=PAYAP;localStorage.setItem(LS_QBO,JSON.stringify(c));}}catch(e){}
+        if(c){c.paywith=PAYALLOW;c.applepay=PAYAP;c.paycls=PAYCLS;localStorage.setItem(LS_QBO,JSON.stringify(c));}}catch(e){}
     }
   },function(){});
   /* a cached payload from before accounts carried their full path can't do
@@ -404,8 +411,9 @@ async function loadQbo(){
       var pw=await sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle();
       PAYALLOW=(pw.data&&pw.data.value&&Array.isArray(pw.data.value.ids))?pw.data.value.ids:null;
       PAYAP=(pw.data&&pw.data.value&&pw.data.value.applepay&&typeof pw.data.value.applepay==='object')?pw.data.value.applepay:{};
+      PAYCLS=(pw.data&&pw.data.value&&pw.data.value.cls&&typeof pw.data.value.cls==='object')?pw.data.value.cls:{};
     }catch(e3){}
-    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES,vendors:VENDORS,paywith:PAYALLOW,applepay:PAYAP}));}catch(e){}
+    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES,vendors:VENDORS,paywith:PAYALLOW,applepay:PAYAP,paycls:PAYCLS}));}catch(e){}
     $('#qboBanner').style.display='none';
     paintAccounts();
   }catch(e){
@@ -434,6 +442,17 @@ function payAccounts(){
   if(PAYALLOW&&PAYALLOW.length)pays=pays.filter(function(a){return PAYALLOW.indexOf(a.id)>-1;});
   return pays;
 }
+/* Fill the class from the card that paid. Skipped once the class has been set
+   by hand — an override has to survive the next card change. */
+function applyPayClass(){
+  if(CLS_TOUCHED)return;
+  var cid=PAYCLS[$('#paySel').value];
+  if(!cid)return;
+  if(!CLASSES.some(function(c){return String(c.id)===String(cid);}))return;   // class archived/renamed away
+  if($('#clsSel').value===String(cid))return;
+  $('#clsSel').value=String(cid);
+  renderSplit();
+}
 function expAccounts(){return ACCTS.filter(function(a){return /expense|cost of goods sold/i.test(a.type||'');});}
 function storeClasses(){
   var names=LOC.names();
@@ -457,6 +476,7 @@ function paintAccounts(){
       +(ap?(' · Apple Pay '+esc(ap)):(' · '+esc(a.type)))+'</option>';
   }).join('');
 
+  /* a remembered card carries its class in too, before anything is typed */
   /* Class — plain classes + the even-split option (only when store classes exist) */
   STORECLS=storeClasses();
   var curC=$('#clsSel').value;
@@ -466,6 +486,7 @@ function paintAccounts(){
   if(STORECLS.length>=2)
     html+='<option value="__split"'+(curC==='__split'?' selected':'')+'>⚖️ Split Evenly Across Stores</option>';
   $('#clsSel').innerHTML=html;
+  applyPayClass();          /* the remembered card brings its class in on first paint */
   renderSplit();
   renderRecentChips();
 }
@@ -570,7 +591,7 @@ async function extractFromPhoto(blob){
     /* the card the receipt says was used — only when nothing is picked yet */
     if(d.card_last4&&!$('#paySel').value){
       var pm=matchPayAccount(d.card_last4);
-      if(pm){$('#paySel').value=pm.id;used.push('card ····'+d.card_last4);}
+      if(pm){$('#paySel').value=pm.id;applyPayClass();used.push('card ····'+d.card_last4);}
     }
     renderSplit();
     aiStat(used.length?'✨ Filled '+used.join(' + ')+' from the receipt — double-check, then save.'
@@ -790,7 +811,8 @@ function renderSplit(){
   });
 }
 selectAllOnFocus($('#amt'));
-$('#clsSel').addEventListener('change',renderSplit);
+$('#clsSel').addEventListener('change',function(){CLS_TOUCHED=true;renderSplit();});
+$('#paySel').addEventListener('change',applyPayClass);
 $('#amt').addEventListener('input',function(){renderSplit();if(catOn())paintCatLeft();});
 
 /* ------------- save flow ------------- */
@@ -988,7 +1010,7 @@ $('#newBtn').addEventListener('click',function(){
   $('#amt').value='';$('#date').value=todayLocal();
   EXP=null;$('#accSearch').value='';
   if(catOn())catToggle(false);
-  $('#clsSel').value='';SPLITSEL=null;renderSplit();
+  $('#clsSel').value='';SPLITSEL=null;CLS_TOUCHED=false;applyPayClass();renderSplit();
   $('#vendor').value='';$('#note').value='';VEND=null;
   RECEIPT_ID=null;clearErr();
   window.scrollTo({top:0});

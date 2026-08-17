@@ -1493,9 +1493,14 @@ var QBO_PAY_SEL=[];   // [{id,name,type}] in the order the owner added them
    device account number), so late-logging a receipt means staring at "9095"
    with no idea which store's card it was. {accountId: '9095'} */
 var QBO_PAY_AP={};
+/* Which store's class a card belongs to — the Clackamas Spark buys Clackamas
+   things — so picking the payment account in Expenses fills the class too.
+   {accountId: classId}; a card that spans stores just stays unset. */
+var QBO_PAY_CLS={};
 function qboPayHtml(val){
   var chosen=(val&&Array.isArray(val.ids))?val.ids:[];
   QBO_PAY_AP=(val&&val.applepay&&typeof val.applepay==='object')?val.applepay:{};
+  QBO_PAY_CLS=(val&&val.cls&&typeof val.cls==='object')?val.cls:{};
   var accts=(QBO_ACCOUNTS||[]).filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
   if(!accts.length)return '';
   var byId={};accts.forEach(function(a){byId[a.id]=a;});
@@ -1518,7 +1523,12 @@ function qboPayRenderSel(){
     el.innerHTML='<div style="font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.66rem;letter-spacing:.6px;text-transform:uppercase;color:var(--grey);margin-bottom:4px">Allowed accounts · '+QBO_PAY_SEL.length+'</div>'
       +QBO_PAY_SEL.map(function(a,i){
         return '<div style="display:flex;align-items:center;gap:9px;border-top:1px solid var(--light-grey);padding:9px 2px;font-family:\'Nunito Sans\',sans-serif;font-size:.86rem;font-weight:700;color:var(--dark)">'
-          +'<span style="flex:1;min-width:0">'+esc(a.name)+' <span style="color:var(--grey);font-weight:600;font-size:.74rem">· '+esc(a.type)+'</span></span>'
+          +'<span style="flex:1 1 200px;min-width:0">'+esc(a.name)+' <span style="color:var(--grey);font-weight:600;font-size:.74rem">· '+esc(a.type)+'</span></span>'
+          +'<label style="flex:none;display:flex;align-items:center;gap:6px;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)">Class'
+          +'<select class="qbo-paycls" data-id="'+esc(a.id)+'" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:16px;font-weight:700;max-width:170px">'
+          +'<option value="">—</option>'+(QBO_CLASSES||[]).map(function(c){
+              return '<option value="'+esc(c.id)+'"'+(String(QBO_PAY_CLS[a.id]||'')===String(c.id)?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')
+          +'</select></label>'
           +'<label style="flex:none;display:flex;align-items:center;gap:6px;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grey)">Apple Pay'
           +'<input type="text" class="qbo-payap" data-id="'+esc(a.id)+'" value="'+esc(QBO_PAY_AP[a.id]||'')+'" maxlength="4" inputmode="numeric" placeholder="····" style="width:62px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:\'Nunito Sans\',sans-serif;font-size:16px;font-weight:700;text-align:center"></label>'
           +'<button type="button" class="qbo-payx" data-i="'+i+'" title="Remove" style="flex:none;width:30px;height:30px;border:none;border-radius:8px;background:var(--light-grey);color:var(--dark-grey);font-weight:800;cursor:pointer">✕</button>'
@@ -1527,11 +1537,17 @@ function qboPayRenderSel(){
   }
   $all('#qboPaySel .qbo-payx').forEach(function(b){
     b.onclick=function(){
-      var a=QBO_PAY_SEL[+b.getAttribute('data-i')];if(a)delete QBO_PAY_AP[a.id];
+      var a=QBO_PAY_SEL[+b.getAttribute('data-i')];if(a){delete QBO_PAY_AP[a.id];delete QBO_PAY_CLS[a.id];}
       QBO_PAY_SEL.splice(+b.getAttribute('data-i'),1);qboPayRenderSel();};
   });
   /* hold the digits in state as they're typed — the row re-renders on add/remove
      and would otherwise drop whatever was half-entered */
+  $all('#qboPaySel .qbo-paycls').forEach(function(sel){
+    sel.onchange=function(){
+      if(sel.value)QBO_PAY_CLS[sel.getAttribute('data-id')]=sel.value;
+      else delete QBO_PAY_CLS[sel.getAttribute('data-id')];
+    };
+  });
   $all('#qboPaySel .qbo-payap').forEach(function(inp){
     inp.oninput=function(){
       var v=inp.value.replace(/\D/g,'').slice(0,4);
@@ -1568,9 +1584,10 @@ function qboPayWire(){
 }
 async function qboSavePaywith(){
   var ids=QBO_PAY_SEL.map(function(a){return a.id;});
-  var ap={};ids.forEach(function(id){if(QBO_PAY_AP[id])ap[id]=QBO_PAY_AP[id];});
+  var ap={},cl={};
+  ids.forEach(function(id){if(QBO_PAY_AP[id])ap[id]=QBO_PAY_AP[id];if(QBO_PAY_CLS[id])cl[id]=QBO_PAY_CLS[id];});
   var r=await sb.from('qbo_config').upsert({
-    key:'paywith', value:{ids:ids,applepay:ap},
+    key:'paywith', value:{ids:ids,applepay:ap,cls:cl},
     updated_by:(AUTH&&AUTH.name)||'owner', updated_at:new Date().toISOString()
   },{onConflict:'key'});
   if(r.error)toast('Save failed — '+r.error.message,true);
