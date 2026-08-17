@@ -679,9 +679,18 @@ var TAB=lsGet('cprSetTab','loc'), SEARCH='', ROSTER='active', RP='roles';
 if(TAB==='staff'){TAB='loc';lsSet('cprSetTab',TAB);}
 /* deep links from the nav Settings pane (settings.html#integ etc.) beat the remembered tab */
 var HASH_TABS=['loc','notif','pages','commission','competitions','integ','roles'];
-function tabFromHash(){var h=location.hash.replace('#','').toLowerCase();return HASH_TABS.indexOf(h)>-1?h:null;}
+/* '#integ' is the library; '#integ/qbo' is one integration's own page. Which
+   one is open lives in the HASH, not localStorage — the nav's Integrations row
+   points at '#integ', so it has to land on the library, while a refresh or a
+   shared link still reopens whatever page you were on. */
+function tabFromHash(){var h=location.hash.replace('#','').toLowerCase().split('/')[0];return HASH_TABS.indexOf(h)>-1?h:null;}
+function integFromHash(){var p=location.hash.replace('#','').toLowerCase().split('/');return (p[0]==='integ'&&p[1])?p[1]:null;}
 var _ht=tabFromHash(); if(_ht){TAB=_ht;lsSet('cprSetTab',TAB);}
-window.addEventListener('hashchange',function(){var t=tabFromHash();if(t&&t!==TAB){TAB=t;lsSet('cprSetTab',TAB);renderAll();}});
+window.addEventListener('hashchange',function(){
+  var t=tabFromHash(),k=integFromHash();
+  if(t&&t!==TAB){TAB=t;lsSet('cprSetTab',TAB);INTEG_OPEN=k;renderAll();return;}
+  if(TAB==='integ'&&k!==INTEG_OPEN){INTEG_OPEN=k;renderInteg();if(k)integStatus(k);}
+});
 qbtHandleReturn();   /* if returning from the QuickBooks Time OAuth round-trip, land on Integrations */
 qboHandleReturn();   /* same for the QuickBooks Online round-trip */
 var STAFF=[], STORES=[], REGSTORE=null, REGS=[], QBU=[];
@@ -1179,7 +1188,8 @@ function renderTabs(){
   $('#setTitle').textContent=TT[0];
   $('#setSub').textContent=TT[1];
   /* keep the URL hash in step with the open section (nav active row + shareable links) */
-  try{if(location.hash.replace('#','')!==TAB)history.replaceState(null,'','#'+TAB);}catch(e){}
+  var wantHash=TAB+((TAB==='integ'&&INTEG_OPEN)?('/'+INTEG_OPEN):'');
+  try{if(location.hash.replace('#','')!==wantHash)history.replaceState(null,'','#'+wantHash);}catch(e){}
   $('#ctLoc').textContent=STORES.length;
   $('#ctRoles').textContent=RBROLES.length;
   $('#tabRoles').classList.toggle('hide',!owner);
@@ -1207,7 +1217,9 @@ function renderTabs(){
 /* ===================== Integrations library ↔ detail ===================== */
 /* Integrations is a card library; a gear on each card opens that integration's
    own settings sub-page. INTEG_OPEN = null (library) | 'qbtime' (a detail page). */
-var INTEG_OPEN=lsGet('cprIntegOpen')||null;
+/* the OAuth return handlers run before this line and pin the page they came
+   back to — don't clobber that with the (already-stripped) hash */
+var INTEG_OPEN=INTEG_OPEN||integFromHash();
 function renderInteg(){
   var lib=$('#integLibrary'), det=$('#integDetail'); if(!lib||!det)return;
   var open=INTEG_OPEN;
@@ -1216,8 +1228,10 @@ function renderInteg(){
   $all('.integ-page').forEach(function(p){ p.classList.add('hide'); });
   if(open){ var pg=$('#integ-'+open); if(pg)pg.classList.remove('hide'); }
 }
-function integOpen(key){ INTEG_OPEN=key; lsSet('cprIntegOpen',key); renderInteg(); if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); if(key==='mobilesentrix')msRenderStatus(); }
-function integClose(){ INTEG_OPEN=null; lsSet('cprIntegOpen',''); renderInteg(); }
+function integStatus(key){ if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); if(key==='mobilesentrix')msRenderStatus(); }
+function integHash(){ try{history.replaceState(null,'','#integ'+(INTEG_OPEN?('/'+INTEG_OPEN):''));}catch(e){} }
+function integOpen(key){ INTEG_OPEN=key; integHash(); renderInteg(); integStatus(key); }
+function integClose(){ INTEG_OPEN=null; integHash(); renderInteg(); }
 
 /* ===================== QuickBooks Time (integrations) ===================== */
 var QBT_FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/qbtime-oauth';
@@ -1302,7 +1316,7 @@ function qbtHandleReturn(){
   QBT_RETURN_MSG = s==='connected' ? 'QuickBooks Time connected ✓'
     : ('Connection failed'+(q.get('detail')?(' — '+q.get('detail')):'')+'.');
   TAB='integ'; lsSet('cprSetTab',TAB);
-  INTEG_OPEN='qbtime'; lsSet('cprIntegOpen','qbtime'); /* land back inside the QB Time page */
+  INTEG_OPEN='qbtime';   /* land back inside the QB Time page */
   q.delete('qbtime'); q.delete('detail');
   history.replaceState(null,'',location.pathname+(q.toString()?('?'+q.toString()):''));
 }
@@ -1395,7 +1409,7 @@ function qboHandleReturn(){
   QBO_RETURN_MSG = s==='connected' ? 'QuickBooks Online connected ✓'
     : ('Connection failed'+(q.get('detail')?(' — '+q.get('detail')):'')+'.');
   TAB='integ'; lsSet('cprSetTab',TAB);
-  INTEG_OPEN='qbo'; lsSet('cprIntegOpen','qbo'); /* land back inside the QBO page */
+  INTEG_OPEN='qbo';   /* land back inside the QBO page */
   q.delete('qbo'); q.delete('detail');
   history.replaceState(null,'',location.pathname+(q.toString()?('?'+q.toString()):''));
 }
