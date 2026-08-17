@@ -1165,16 +1165,16 @@ Deno.serve(async (req) => {
     // (role, home + authorized stores, wage type) or on the form (name, PIN),
     // so convert finishes the hire instead of handing back a half-made person.
     let pinNote: string | null = null;
+    const wantRole = ["team_member", "employee", "admin"].includes(String(it.mrt_role))
+      ? (it.mrt_role === "employee" ? "team_member" : String(it.mrt_role)) : "team_member";
+    const todayPT = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const startsLater = !!it.start_date && String(it.start_date) > todayPT;
     if (!staffId) {
       const nm = [it.legal_first, it.legal_last].filter(Boolean).join(" ").trim()
         || String(it.invited_name || "").trim();
       if (!nm) return json({ error: "no_name" }, 400);
       const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin), Number(it.id)) : null;
       const username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), nm);
-      const wantRole = ["team_member", "employee", "admin"].includes(String(it.mrt_role))
-        ? (it.mrt_role === "employee" ? "team_member" : String(it.mrt_role)) : "team_member";
-      const todayPT = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
-      const startsLater = !!it.start_date && String(it.start_date) > todayPT;
       if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
       const { data: made, error: cerr } = await admin.from("staff").insert({
         display_name: nm,
@@ -1233,6 +1233,16 @@ Deno.serve(async (req) => {
       const pin = await pinFreeOrNull(String(it.suggested_pin), Number(it.id));
       if (pin) patch.pin_hash = await hashPin(pin);
       else pinNote = "their chosen PIN was already taken — set a new one";
+    }
+    // The QB Time sync stubs a row for anyone it finds in QuickBooks, and since
+    // payroll setup now happens BEFORE convert, most hires arrive as a stub —
+    // so without this the candidate stage would almost never be used. A stub is
+    // a row nobody has set up: no PIN and no home store. A configured person's
+    // role is left alone, always.
+    const isStub = !st.pin_hash && !st.home_store;
+    if (isStub && startsLater && st.role !== "candidate") {
+      patch.role = "candidate";
+      patch.role_on_start = wantRole;
     }
     if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
     if (patch.pin_hash) await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
