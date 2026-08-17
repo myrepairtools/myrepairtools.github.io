@@ -464,7 +464,12 @@ reads via a sequence counter) → amount|date (two-col row) → Paid With (Bank/
 **filtered by the Settings allowlist** — `qbo_config` key 'paywith', edited in Settings →
 Integrations → QuickBooks Online → "Expenses · Paid With Accounts", re-checked on every
 page open) → expense account (type-to-search combobox over the QBO chart of accounts +
-last-5 recent chips) → Class, or **⚖️ Split Evenly Across Stores** (store toggle chips,
+last-5 recent chips; the `accounts` action returns **`fqn`** (FullyQualifiedName)
++ `parent_id`/`sub` — searching matches the FULL path, so typing a parent
+("Store Buildout Expenses") lists the parent AND every sub-account under it, and
+rows show the path. Never go back to selecting `Name` alone: half this chart is
+sub-accounts and a bare "Flooring" is unfindable and ambiguous. A cached
+`cprExpQbo` payload with no `fqn` counts as stale so the page heals itself) → Class, or **⚖️ Split Evenly Across Stores** (store toggle chips,
 all pre-selected, tap one off for a 2-store split, min 2; remainder cent rides the first
 line) → **Vendor combobox** over the QBO vendor list (`?action=vendors`) — an exact match
 writes `qbo_vendor_id/_name` and the Purchase carries `EntityRef type Vendor` (server

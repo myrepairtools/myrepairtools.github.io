@@ -1405,9 +1405,11 @@ function qboAcctOpts(accounts,firstLabel,isFirst,selectedId){
   var first=[],rest=[];
   (accounts||[]).forEach(function(a){ (isFirst(a)?first:rest).push(a); });
   function opt(a){
-    return '<option value="'+esc(a.id)+'" data-name="'+esc(a.name)+'"'
+    /* the full path, so two sub-accounts both called "Flooring" are tellable apart */
+    var nm=a.fqn||a.name;
+    return '<option value="'+esc(a.id)+'" data-name="'+esc(nm)+'"'
       +(String(a.id)===String(selectedId||'')?' selected':'')+'>'
-      +esc(a.name)+(a.subtype?(' · '+esc(a.subtype)):'')+'</option>';
+      +esc(nm)+(a.subtype?(' · '+esc(a.subtype)):'')+'</option>';
   }
   return '<option value="">— Select account —</option>'
     +'<optgroup label="'+esc(firstLabel)+'">'+first.map(opt).join('')+'</optgroup>'

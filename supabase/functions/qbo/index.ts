@@ -810,14 +810,29 @@ Deno.serve(async (req) => {
     // Active chart of accounts — feeds the Settings store→account mapping dropdowns.
     const tok = await getToken();
     if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
-    const q = "select Id, Name, AccountType, AccountSubType from Account where Active = true maxresults 1000";
+    // `select *` rather than a column list: FullyQualifiedName and ParentRef are
+    // what make a sub-account findable by its PARENT ("Store Buildout:Flooring"),
+    // and Name alone hides the whole hierarchy — a chart with a dozen children
+    // called things like "Flooring" is unusable without it.
+    const q = "select * from Account where Active = true maxresults 1000";
     const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
       { headers: qboHeaders(tok.access_token) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
     const accounts = ((d?.QueryResponse?.Account || []) as Array<Record<string, unknown>>)
-      .map((a) => ({ id: String(a.Id), name: (a.Name as string) || "", type: (a.AccountType as string) || null, subtype: (a.AccountSubType as string) || null }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .map((a) => {
+        const par = (a.ParentRef || null) as { value?: string; name?: string } | null;
+        return {
+          id: String(a.Id),
+          name: (a.Name as string) || "",
+          fqn: (a.FullyQualifiedName as string) || (a.Name as string) || "",
+          parent_id: par?.value ? String(par.value) : null,
+          sub: !!a.SubAccount,
+          type: (a.AccountType as string) || null,
+          subtype: (a.AccountSubType as string) || null,
+        };
+      })
+      .sort((a, b) => a.fqn.localeCompare(b.fqn));
     return json({ accounts });
   }
   if (action === "classes") {
