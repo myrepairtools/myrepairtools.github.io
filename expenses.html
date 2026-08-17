@@ -94,6 +94,22 @@ border-radius:12px;box-shadow:0 10px 30px rgba(45,45,59,.16);max-height:260px;ov
 .accrow:active,.accrow:hover{background:rgba(79,176,227,.08)}
 .accrow .hint{display:block;font-size:.72rem;font-weight:600;color:var(--grey)}
 .accrow .par{color:var(--grey);font-weight:700}
+/* category split — one receipt, several expense accounts */
+.catline{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}
+.catline .amtw{position:relative;flex:0 0 108px}
+.catline .amtw .dol{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--grey);font-weight:800;pointer-events:none}
+.catline .amtw input{padding-left:24px;font-family:'Nunito',sans-serif;font-weight:800}
+.catline .combobox{flex:1;min-width:0}
+.catline .cx{flex:none;width:44px;min-height:44px;border:1.5px solid var(--border);border-radius:10px;background:#fff;
+color:var(--grey);font-size:1rem;cursor:pointer}
+.catfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px}
+.catadd{font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;min-height:44px;padding:0 14px;
+border:1.5px solid var(--border);border-radius:10px;background:#fff;color:var(--dark);cursor:pointer}
+.catleft{font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;color:var(--dark-grey)}
+.catleft.over{color:var(--red)}
+.catleft.ok{color:#1B7A41}
+.catlink{display:inline-block;margin:8px 0 2px;padding:0;border:none;background:none;color:var(--blue);
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.84rem;cursor:pointer;min-height:44px}
 .accrow.none{color:var(--grey);cursor:default}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
 .chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;border:1.5px solid var(--border);border-radius:999px;
@@ -210,11 +226,19 @@ opacity:0;pointer-events:none;transition:opacity .18s;z-index:980;max-width:92vw
       <select id="paySel" aria-label="Payment account"><option value="">Loading accounts…</option></select>
 
       <div class="fldl">Expense Account</div>
-      <div class="chips" id="recentChips"></div>
-      <div class="combobox">
-        <input type="text" id="accSearch" placeholder="Type to search accounts…" aria-label="Expense account">
-        <div class="acclist" id="accList"></div>
+      <div id="accSingle">
+        <div class="chips" id="recentChips"></div>
+        <div class="combobox">
+          <input type="text" id="accSearch" placeholder="Type to search accounts…" aria-label="Expense account">
+          <div class="acclist" id="accList"></div>
+        </div>
       </div>
+      <div id="catWrap" style="display:none">
+        <div id="catLines"></div>
+        <div class="catfoot"><button type="button" class="catadd" id="catAdd">＋ Add Category</button>
+          <span class="catleft" id="catLeft"></span></div>
+      </div>
+      <button type="button" class="catlink" id="catToggle">Split by category</button>
 
       <div class="fldl">Class</div>
       <select id="clsSel" aria-label="Class"></select>
@@ -578,15 +602,15 @@ function accParts(a){
   var p=accPath(a).split(':').map(function(x){return x.trim();});
   return {lead:p.slice(0,-1).join(' › '),leaf:p[p.length-1]||accPath(a)};
 }
-function renderAccList(){
-  var q=$('#accSearch').value.trim().toLowerCase();
+/* one list renderer for the single picker AND every category line */
+function fillAccList(inp,el,onPick){
+  var q=inp.value.trim().toLowerCase();
   var list=expAccounts().filter(function(a){
     if(!q)return true;
     return accPath(a).toLowerCase().indexOf(q)>=0
       || (a.name||'').toLowerCase().indexOf(q)>=0
       || (a.subtype||'').toLowerCase().indexOf(q)>=0;
   }).slice(0,40);
-  var el=$('#accList');
   if(!list.length){el.innerHTML='<div class="accrow none">'+(ACCTS.length?'No matching accounts':'Accounts not loaded yet')+'</div>';}
   else el.innerHTML=list.map(function(a,i){
     var p=accParts(a);
@@ -596,13 +620,85 @@ function renderAccList(){
   }).join('');
   el.querySelectorAll('.accrow[data-i]').forEach(function(row){
     /* mousedown beats the input's blur so the tap isn't swallowed */
-    row.addEventListener('mousedown',function(e){e.preventDefault();pickExp(list[+row.getAttribute('data-i')]);});
+    row.addEventListener('mousedown',function(e){e.preventDefault();onPick(list[+row.getAttribute('data-i')]);});
   });
   el.style.display='block';
 }
+function renderAccList(){fillAccList($('#accSearch'),$('#accList'),pickExp);}
 $('#accSearch').addEventListener('focus',renderAccList);
 $('#accSearch').addEventListener('input',function(){EXP=null;renderAccList();});
 $('#accSearch').addEventListener('blur',function(){setTimeout(function(){$('#accList').style.display='none';},150);});
+
+/* ------------- category split (one receipt, several expense accounts) -------------
+   Two things bought on one card swipe belong on two lines. CATS is null until
+   the owner asks for it; each line carries its own amount + account and the
+   lines must add up to the receipt total. Line DOM is built once and kept — a
+   re-render on every keystroke would take the caret with it. */
+var CATS=null;
+function catOn(){return Array.isArray(CATS);}
+function catAmt(el){var v=parseFloat(String(el.value).replace(/[$,\s]/g,''));return isFinite(v)?Math.round(v*100)/100:null;}
+function catTotal(){return CATS.reduce(function(t,c){return t+(c.amt||0);},0);}
+function catLeft(){var a=amtVal();return a==null?null:Math.round((a-catTotal())*100)/100;}
+function paintCatLeft(){
+  var el=$('#catLeft'),left=catLeft();
+  if(left==null){el.textContent='';el.className='catleft';return;}
+  if(Math.abs(left)<0.005){el.textContent='Balanced';el.className='catleft ok';}
+  else if(left<0){el.textContent=money2(-left)+' over';el.className='catleft over';}
+  else {el.textContent=money2(left)+' left';el.className='catleft';}
+}
+function addCatLine(seed){
+  var i=CATS.length;
+  CATS.push({amt:(seed&&seed.amt!=null)?seed.amt:null,acc:(seed&&seed.acc)||null});
+  var row=document.createElement('div');row.className='catline';
+  row.innerHTML='<span class="amtw"><span class="dol">$</span><input type="text" inputmode="decimal" placeholder="0.00" aria-label="Line amount"></span>'
+    +'<span class="combobox"><input type="text" placeholder="Type to search accounts…" aria-label="Expense account"><span class="acclist"></span></span>'
+    +'<button type="button" class="cx" aria-label="Remove line">✕</button>';
+  var amtI=row.querySelector('.amtw input'), accI=row.querySelector('.combobox input'),
+      list=row.querySelector('.acclist'), x=row.querySelector('.cx');
+  if(CATS[i].amt!=null)amtI.value=CATS[i].amt.toFixed(2);
+  if(CATS[i].acc)accI.value=accPath(CATS[i].acc)||CATS[i].acc.name;
+  amtI.addEventListener('input',function(){idx().amt=catAmt(amtI);paintCatLeft();});
+  accI.addEventListener('focus',function(){fillAccList(accI,list,pick);});
+  accI.addEventListener('input',function(){idx().acc=null;fillAccList(accI,list,pick);});
+  accI.addEventListener('blur',function(){setTimeout(function(){list.style.display='none';},150);});
+  x.addEventListener('click',function(){
+    var k=rowIndex();if(k<0)return;
+    CATS.splice(k,1);row.remove();
+    if(!CATS.length)catToggle(false); else paintCatLeft();
+  });
+  function rowIndex(){return Array.prototype.indexOf.call($('#catLines').children,row);}
+  function idx(){var k=rowIndex();return CATS[k<0?0:k];}
+  function pick(a){
+    idx().acc={id:a.id,name:accPath(a)||a.name,fqn:a.fqn||null,subtype:a.subtype||null};
+    accI.value=idx().acc.name;list.style.display='none';pushRecent(a);
+  }
+  $('#catLines').appendChild(row);
+  return {row:row,amtI:amtI,accI:accI};
+}
+function catToggle(on){
+  if(on){
+    var a=amtVal();
+    CATS=[];$('#catLines').innerHTML='';
+    addCatLine({amt:a,acc:EXP});
+    $('#accSingle').style.display='none';
+    $('#catWrap').style.display='block';
+    $('#catToggle').textContent='One category only';
+  }else{
+    var first=(CATS&&CATS[0])||null;
+    CATS=null;$('#catLines').innerHTML='';
+    $('#accSingle').style.display='';
+    $('#catWrap').style.display='none';
+    $('#catToggle').textContent='Split by category';
+    if(first&&first.acc){EXP=first.acc;$('#accSearch').value=first.acc.name;}
+  }
+  paintCatLeft();
+}
+$('#catToggle').addEventListener('click',function(){catToggle(!catOn());});
+$('#catAdd').addEventListener('click',function(){
+  var left=catLeft();
+  var made=addCatLine({amt:(left!=null&&left>0.004)?left:null});
+  paintCatLeft();made.accI.focus();
+});
 
 /* ------------- class split preview ------------- */
 /* Which stores the split covers — ALL pre-selected; tap a chip to drop a store
@@ -650,7 +746,7 @@ function renderSplit(){
   });
 }
 $('#clsSel').addEventListener('change',renderSplit);
-$('#amt').addEventListener('input',renderSplit);
+$('#amt').addEventListener('input',function(){renderSplit();if(catOn())paintCatLeft();});
 
 /* ------------- save flow ------------- */
 function setBtn(t,busy){var b=$('#saveBtn');b.textContent=t;b.disabled=!!busy;}
@@ -704,7 +800,13 @@ $('#form').addEventListener('submit',async function(ev){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('Pick a date',true);return;}
   var payId=$('#paySel').value;
   if(!payId){toast('Choose the payment account',true);return;}
-  if(!EXP||!EXP.id){toast('Choose the expense account',true);$('#accSearch').focus();return;}
+  if(catOn()){
+    if(CATS.some(function(c){return !c.acc||!c.acc.id;})){toast('Every category needs an account',true);return;}
+    if(CATS.some(function(c){return !(c.amt>0);})){toast('Every category needs an amount',true);return;}
+    var lf=catLeft();
+    if(Math.abs(lf)>0.005){toast(lf>0?(money2(lf)+' still unassigned'):(money2(-lf)+' over the total'),true);return;}
+  }
+  else if(!EXP||!EXP.id){toast('Choose the expense account',true);$('#accSearch').focus();return;}
   var pay=payAccounts().filter(function(a){return a.id===payId;})[0]
        ||{id:payId,name:$('#paySel').selectedOptions[0]?$('#paySel').selectedOptions[0].textContent:'',type:null};
 
@@ -728,8 +830,22 @@ $('#form').addEventListener('submit',async function(ev){
   /* c — write the row (status pending; the function flips it to posted/failed) */
   setBtn('Saving…',true);
   var clsVal=$('#clsSel').value;
-  var split=(clsVal==='__split')?splitLines(amount):null;
   var cls=(clsVal&&clsVal!=='__split')?CLASSES.filter(function(c){return c.id===clsVal;})[0]:null;
+  /* Category lines and the per-store split are different axes — a category split
+     across stores is every category on every store's class. The row's single
+     expense account stays the first category so the receipt still reads sensibly. */
+  var split;
+  if(catOn()){
+    split=[];
+    CATS.forEach(function(c){
+      var per=(clsVal==='__split')?splitLines(c.amt):[{class_id:cls?cls.id:null,class_name:cls?cls.name:null,amount:c.amt}];
+      per.forEach(function(l){
+        split.push({amount:l.amount,class_id:l.class_id,class_name:l.class_name,
+                    account_id:c.acc.id,account_name:c.acc.name||null});
+      });
+    });
+  }else split=(clsVal==='__split')?splitLines(amount):null;
+  var primary=catOn()?CATS[0].acc:EXP;
   /* vendor link rides along only while the typed text still IS that vendor */
   var vtxt=$('#vendor').value.trim();
   var vlink=(VEND&&vtxt&&squash(VEND.name)===squash(vtxt))?VEND:null;
@@ -740,7 +856,7 @@ $('#form').addEventListener('submit',async function(ev){
     qbo_vendor_name:vlink?vlink.name:null,
     memo:$('#note').value.trim()||null,
     payment_account_id:pay.id,payment_account_name:pay.name||null,payment_account_type:pay.type||null,
-    expense_account_id:EXP.id,expense_account_name:EXP.name||null,
+    expense_account_id:primary.id,expense_account_name:primary.name||null,
     class_id:cls?cls.id:null,class_name:cls?cls.name:null,
     split:split,receipt_path:receiptPath,
     status:'pending',created_by:window.CPRNavName||'owner'
@@ -766,7 +882,7 @@ $('#form').addEventListener('submit',async function(ev){
   }
   RECEIPT_ID=ins.data.id;
   try{localStorage.setItem(LS_PAY,pay.id);}catch(e){}
-  pushRecent(EXP);
+  pushRecent(primary);   /* EXP is null in split mode — the first category stands in */
 
   /* d — book it in QBO */
   setBtn('Booking in QBO…',true);
@@ -826,6 +942,7 @@ $('#newBtn').addEventListener('click',function(){
   setPhoto(null);SHOT_INPUTS.forEach(function(id){$('#'+id).value='';});aiStat('');EXTRACT_SEQ++;
   $('#amt').value='';$('#date').value=todayLocal();
   EXP=null;$('#accSearch').value='';
+  if(catOn())catToggle(false);
   $('#clsSel').value='';SPLITSEL=null;renderSplit();
   $('#vendor').value='';$('#note').value='';VEND=null;
   RECEIPT_ID=null;clearErr();

@@ -469,7 +469,12 @@ last-5 recent chips; the `accounts` action returns **`fqn`** (FullyQualifiedName
 ("Store Buildout Expenses") lists the parent AND every sub-account under it, and
 rows show the path. Never go back to selecting `Name` alone: half this chart is
 sub-accounts and a bare "Flooring" is unfindable and ambiguous. A cached
-`cprExpQbo` payload with no `fqn` counts as stale so the page heals itself) → Class, or **⚖️ Split Evenly Across Stores** (store toggle chips,
+`cprExpQbo` payload with no `fqn` counts as stale so the page heals itself) → Class, (**Split by category** turns that one picker into
+amount+account lines for a receipt covering two things — shop tools and signage
+off one Home Depot run; lines must total the receipt, a new line prefills what's
+left, and each line rides into `split` as its own `account_id`/`account_name`,
+which `create_expense` reads per line, falling back to the row's single account
+for older store-only splits) or **⚖️ Split Evenly Across Stores** (store toggle chips,
 all pre-selected, tap one off for a 2-store split, min 2; remainder cent rides the first
 line) → **Vendor combobox** over the QBO vendor list (`?action=vendors`) — an exact match
 writes `qbo_vendor_id/_name` and the Purchase carries `EntityRef type Vendor` (server

@@ -503,18 +503,23 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
   // One expense line per class-split entry, or a single line with the row's class.
   const desc = [row.vendor, row.memo].filter(Boolean).join(" — ") || undefined;
   const expenseRef = { value: String(row.expense_account_id), ...(row.expense_account_name ? { name: String(row.expense_account_name) } : {}) };
-  const line = (amt: number, class_id: unknown, class_name: unknown) => ({
+  // A split entry may name its own expense account (one receipt, two categories
+  // — shop tools and signage off the same Home Depot run) and/or its own class.
+  // Anything it leaves out falls back to the row's single account.
+  const line = (amt: number, class_id: unknown, class_name: unknown, acct_id?: unknown, acct_name?: unknown) => ({
     DetailType: "AccountBasedExpenseLineDetail",
     Amount: amt,
     Description: desc,
     AccountBasedExpenseLineDetail: {
-      AccountRef: expenseRef,
+      AccountRef: acct_id
+        ? { value: String(acct_id), ...(acct_name ? { name: String(acct_name) } : {}) }
+        : expenseRef,
       ...(class_id ? { ClassRef: { value: String(class_id), ...(class_name ? { name: String(class_name) } : {}) } } : {}),
     },
   });
   let lines: Array<ReturnType<typeof line>>;
   if (Array.isArray(row.split) && row.split.length) {
-    lines = (row.split as Array<Record<string, unknown>>).map((e) => line(Number(e.amount), e.class_id, e.class_name));
+    lines = (row.split as Array<Record<string, unknown>>).map((e) => line(Number(e.amount), e.class_id, e.class_name, e.account_id, e.account_name));
     const sum = lines.reduce((t, l) => t + l.Amount, 0);
     if (lines.some((l) => !Number.isFinite(l.Amount) || l.Amount <= 0) || Math.abs(sum - amount) > 0.011) {
       const detail = `Split lines must all be positive and total the receipt amount (${usd(sum)} vs ${usd(amount)}).`;
