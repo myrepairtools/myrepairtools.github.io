@@ -200,6 +200,7 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .tabbar{flex:none;display:flex;align-items:center;gap:10px;padding:11px 22px 0;background:#fff;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 .tab{font-family:'Nunito';font-weight:800;font-size:.84rem;background:none;border:none;border-bottom:3px solid transparent;color:var(--grey);padding:7px 4px 11px;cursor:pointer;margin-bottom:-1px;display:flex;align-items:center;gap:7px}
 .tab.on{border-bottom-color:var(--red);color:var(--red)}
+.tab[hidden]{display:none}
 .tab .badge{font-family:'Nunito';font-weight:800;font-size:.62rem;color:#fff;border-radius:9px;padding:1px 7px}
 .badge.amber{background:var(--amber)}.badge.blue{background:var(--blue)}
 .tabdiv{align-self:center;width:1px;height:16px;background:var(--border);margin:0 4px 8px}
@@ -446,7 +447,7 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
 }
 /* mobile landing (3e): stack the roster table into per-store cards */
 @media(max-width:640px){
-  .tm-page{padding:18px 16px 26px}
+  .tm-page{padding:18px 16px calc(26px + 68px + var(--cpr-bb-h,0px))}
   .tm-search{max-width:none;width:100%;flex:none}
   .tm-toolbar{gap:8px}
   .tm-toolbar .seg{flex:1}
@@ -670,6 +671,7 @@ async function doLogin(){
   }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
 }
 function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
+let SELFONLY=false;   // true = the page is this person's own profile and nothing else
 async function initAuth(){
   $('#lkGo').onclick=doLogin;
   $('#lkPin').focus();
@@ -677,7 +679,13 @@ async function initAuth(){
   const sess=(await sb.auth.getSession()).data.session;
   if(sess){
     const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};unlock();return;}
+    if(sr.data){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};
+      /* SELFONLY: this is My Profile, not the roster. Anyone below manager gets
+         the same page scoped to themselves — no roster, no Log, nothing
+         editable. Every write here is server-checked as well (cpr-auth vets
+         the role), so this decides what renders, not what is permitted. */
+      SELFONLY=['owner','admin','manager'].indexOf(AUTH.role)<0;
+      unlock();return;}
   }
   $('#lock').removeAttribute('hidden');
 }
@@ -794,8 +802,11 @@ function sortedEntries(e){
 
 /* ===== render (landing ⇄ profile) ===== */
 function render(){
+  /* in self mode there is no list view to fall back to — the profile IS the page */
+  if(SELFONLY){ S.view='profile'; if(String(S.empId)!==String(AUTH.id)){S.empId=AUTH.id;PD=null;CD=null;}
+    if(S.tab==='log')S.tab='profile'; }
   const prof=(S.view==='profile'&&selEmp());
-  if(S.view==='profile'&&!prof){S.view='list';S.empId=null;}   // dead deep link → roster (before the hash writes)
+  if(S.view==='profile'&&!prof&&!SELFONLY){S.view='list';S.empId=null;}   // dead deep link → roster (before the hash writes)
   writeHash();
   $('#landing').hidden=!!prof;
   $('#pview').hidden=!prof;
@@ -815,12 +826,13 @@ function parseHash(){
   if(h.slice(0,2)==='e='){
     const parts=h.slice(2).split('/');
     const raw=parts[0],id=(raw!==''&&!isNaN(+raw))?+raw:raw;
-    S.view='profile';S.empId=id;
+    S.view='profile';S.empId=SELFONLY?AUTH.id:id;
     S.tab=TABS.indexOf(parts[1])>-1?parts[1]:'profile';
     S.commSub=(parts[2]==='history')?'history':'settings';
     const e=ALL.find(x=>String(x.id)===String(id));if(e)syncSel(e);
     PD=null;CD=null;
-  }else{S.view='list';S.empId=null;S.seg=(h==='terminated')?'terminated':'active';}
+  }else if(SELFONLY){S.view='profile';S.empId=AUTH.id;S.tab='profile';}
+  else{S.view='list';S.empId=null;S.seg=(h==='terminated')?'terminated':'active';}
 }
 function relTime(ts){
   if(!ts)return null;const ms=Date.now()-new Date(ts).getTime();if(isNaN(ms)||ms<0)return null;
@@ -968,7 +980,7 @@ function renderProfileHead(){
      taking a line of its own in the facts row */
   const since=(e.start&&!term)?(()=>{const p=e.start.split('-');return MONTHS[(+p[1])-1]+' '+p[0];})():'';
   const sub=esc(e.role)+' · '+esc(e.store||'—')+(term&&e.start?(' · '+esc(fmt(e.start))+' – '+esc(e.terminatedAt?fmt(e.terminatedAt):'')):'')+(since?'<span class="sub-start"> · Since '+esc(since)+'</span>':'');
-  const exBtn='<button class="btn-o" data-act="export" title="Export records">↓<span class="xt"> Export</span></button>';
+  const exBtn=SELFONLY?'':'<button class="btn-o" data-act="export" title="Export records">↓<span class="xt"> Export</span></button>';
   const actions='<span class="prof-actions">'+exBtn+(term?'<button class="btn-reinstate" data-act="reinstate">Reinstate</button>':'')+'</span>';
   const termbox=term?('<div class="termbox"><span style="font-size:.95rem">📁</span><div class="tb-t"><b>'+esc(e.terminationReason||'Terminated')+'</b> · last day '+esc(e.terminatedAt?fmt(e.terminatedAt):'—')
     +(e.terminatedBy&&NAMES[e.terminatedBy]?(' · logged by '+esc(NAMES[e.terminatedBy])):'')
@@ -977,7 +989,7 @@ function renderProfileHead(){
     +'</div><button class="tb-edit" data-act="edit-term">Edit</button></div>'):'';
   const m=(dot,val,lbl,sm)=>'<div class="metric"><span class="mdot" style="background:'+dot+'"></span><span class="mval'+(sm?' sm':'')+'">'+esc(val)+'</span><span class="mlbl">'+lbl+'</span></div>';
   $('#profile').innerHTML='<div class="prof">'
-    +'<button class="backlink" data-act="back">← Team Members</button>'
+    +(SELFONLY?'':'<button class="backlink" data-act="back">← Team Members</button>')
     +'<div class="prof-top" style="padding:12px 0 0">'
     +'<div class="prof-id" style="align-items:flex-start">'
     +avTile(e,'av','width:64px;height:64px;font-size:1.3rem;background:'+e.avatarBg+(term?';opacity:.55':''))
@@ -1005,7 +1017,11 @@ function renderProfileHead(){
 
 function renderTabs(){
   const e=selEmp();
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===S.tab));
+  document.querySelectorAll('.tab').forEach(t=>{
+    /* Log is the manager's record of conversations — never shown to the person */
+    if(t.dataset.tab==='log')t.hidden=SELFONLY;
+    t.classList.toggle('on',t.dataset.tab===S.tab);
+  });
   const lb=$('[data-logbadge]'),pb=$('[data-pipbadge]'),db=$('[data-dmgbadge]'),ob=$('[data-docbadge]');
   const nl=e?e.entries.length:0,np=e?e.pips.length:0,nd=e?dmgFor(e).length:0,no=e?docsFor(e.id).length:0;
   if(no>0){ob.textContent=no;ob.hidden=false;}else ob.hidden=true;
@@ -1034,7 +1050,8 @@ function renderWork(){
 
 /* ===== Profile tab (2a form cards + save bar; 3c/3g modals) ===== */
 function genPin(){let s='';for(let i=0;i<4;i++)s+=Math.floor(Math.random()*10);return s;}
-function canEdit(e){const r=AUTH&&AUTH.role;if(r==='owner')return true;
+function canEdit(e){if(SELFONLY)return false;   // My Profile is a record, not an editor
+  const r=AUTH&&AUTH.role;if(r==='owner')return true;
   if(r!=='admin'&&r!=='manager')return false;           // caller must be a manager+ (cpr-auth vets this server-side too)
   const t=String(e.roleLevel||'').toLowerCase();return t==='employee'||t==='team_member';}   // mirrors cpr-auth canManageRole
 function initPD(e){
@@ -1680,15 +1697,17 @@ function docsHtml(e){
     +'<div class="dghd">'
       +'<div class="lft"><span class="ttl">Documents</span>'
       +'<span class="dgpill">'+docs.length+' on file</span></div>'
-      +'<div style="display:flex;gap:8px">'
+      /* filing into someone's HR record is a manager action; in My Profile the
+         ledger is read-and-download only */
+      +(SELFONLY?'':'<div style="display:flex;gap:8px">'
         +'<button class="dgsec" data-act="doc-refile">Re-file signed paperwork</button>'
-        +'<button class="dgadd" data-act="doc-upload">+ Add a document</button></div>'
+        +'<button class="dgadd" data-act="doc-upload">+ Add a document</button></div>')
     +'</div>'
     +'<div class="dgcard">'
       +'<div class="dgheadrow dgcols"><div>Document</div><div>Kind</div><div>Signed / Added</div><div>By</div><div></div></div>'
       +(rows||'<div class="dgempty">No documents on file yet.</div>')
     +'</div>'
-    +'<div class="dgmobadd"><button data-act="doc-upload">+ Add a document</button></div>'
+    +(SELFONLY?'':'<div class="dgmobadd"><button data-act="doc-upload">+ Add a document</button></div>')
     +'<input type="file" id="docFile" accept="application/pdf,image/*" hidden></div>';
 }
 function wireDocsTab(e){
@@ -1869,7 +1888,7 @@ function pipHtml(e){
   const cur=e.pips.find(p=>p.id===S.pipId);
   return '<div class="list-pane" style="width:308px">'
     +'<div class="flt" style="justify-content:space-between;align-items:center"><span class="lbl" style="margin:0">Plans &amp; Reviews</span>'
-    +'<button class="btn-red" style="padding:6px 12px;font-size:.72rem" data-act="new-pip">+ New PIP</button></div>'
+    +(SELFONLY?'':'<button class="btn-red" style="padding:6px 12px;font-size:.72rem" data-act="new-pip">+ New PIP</button>')+'</div>'
     +'<div class="list-scroll">'+(cards||'<div class="empty-sm">No PIPs on file for this employee.</div>')+'</div></div>'
     +'<div class="detail-pane">'+(cur?pipDetail(e,cur):'<div class="center-msg">Select a plan to view it, or start a new PIP.</div>')+'</div>';
 }
