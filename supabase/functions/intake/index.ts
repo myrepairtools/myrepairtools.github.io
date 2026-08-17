@@ -441,7 +441,7 @@ function mailHtml(o: {
 
 /* The text/plain half of the same message — every client that shows it. */
 function mailText(o: { greeting: string; paras: string[]; steps?: string[]; cta?: { label: string; url: string } }): string {
-  const strip = (x: string) => x.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
+  const strip = (x: string) => x.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
   return [
     o.greeting,
     "",
@@ -1420,6 +1420,14 @@ Deno.serve(async (req) => {
     const link = SITE + "/intake.html?t=" + it.token;
     const pdf = await buildOfferPdf({ body: it.offer_body, link, storeLine: await storeLetterhead(it.invited_store) });
     const first = String(it.invited_name || "").trim().split(/\s+/)[0] || "there";
+    // The candidate should have a human's number from the very first email —
+    // same two people (owner + store manager) and the same contact card the
+    // welcome email carries.
+    const people = await contactPeople(it.invited_store);
+    const contactLine = people.length
+      ? people.map((p) => "<strong>" + esch(p.name) + "</strong> — " + p.title + ", "
+          + '<a href="tel:' + p.phone + '" style="color:#1E7AA8">' + prettyPhone(p.phone) + "</a>").join("<br>")
+      : "";
     const msg = {
       greeting: "Hi " + first + ",",
       paras: [
@@ -1428,12 +1436,14 @@ Deno.serve(async (req) => {
         + " Your offer letter is attached to this email as a PDF.",
         "When you're ready, open your offer to read it and either accept or decline."
         + " Accepting takes a signature right on the page — nothing to print, and nothing to bring in.",
+        ...(contactLine ? ["Questions? Call or text either of us — the attached contact card adds both numbers to your phone in one tap:<br><br>" + contactLine] : []),
       ],
       cta: { label: "Review your offer", url: link },
       ctaNote: "Or paste this into your browser:",
     };
     const r = await sendOfferEmail(String(it.personal_email), "Your offer from CPR Cell Phone Repair",
-      mailText(msg), mailHtml(msg), pdf, "CPR Offer Letter.pdf", await hiringReplyTo());
+      mailText(msg), mailHtml(msg), pdf, "CPR Offer Letter.pdf", await hiringReplyTo(),
+      people.length ? [{ filename: "CPR Contacts.vcf", bytes: vcardFor(people), type: "text/vcard" }] : []);
     if (r.ok) {
       await admin.from("staff_intake").update({
         offer_sent_at: new Date().toISOString(), offer_sent_via: "email", updated_at: new Date().toISOString(),
