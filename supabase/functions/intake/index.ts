@@ -807,26 +807,51 @@ Deno.serve(async (req) => {
       .is("offer_declined_at", null)
       .not("offer_signed_at", "is", null)
       .not("phone", "is", null);
+    const { data: tpls } = await admin.from("message_templates")
+      .select("store, body").eq("template_key", "day_one");
+    const tplFor = (store: unknown) =>
+      (tpls || []).find((t) => t.store && String(t.store) === String(store))?.body
+      || (tpls || []).find((t) => !t.store)?.body || "";
     const results: Record<string, unknown>[] = [];
     for (const it of (due || [])) {
       const first = String(it.preferred_name || it.legal_first || it.invited_name || "").trim().split(/\s+/)[0];
       // "Something else" reads badly inside "bring your ___"
+      const tplBody = tplFor(it.invited_store);
       const docs = it.i9_docs && !/^something else/i.test(String(it.i9_docs))
         ? String(it.i9_docs)
         : "ID and work-authorization documents";
-      const msg = "Good morning" + (first ? " " + first : "")
-        + ", we are excited to have you start today! Please remember to bring your "
-        + docs + " so we can complete your Form I-9 paperwork today.";
+      // Wording lives in `message_templates` (key 'day_one') so it can be
+      // edited in Settings without a deploy — same place the ready-for-pickup
+      // text lives. Short codes: {first} {docs} {store}. The built-in below is
+      // only the fallback for a missing template row.
+      const msg = (tplBody
+        || "Ready for your first day, {first}! Two things before you head in: bring your {docs} "
+           + "so we can finish your I-9 paperwork, and make sure the QuickBooks Workforce app is "
+           + "installed and you are signed in — that is how you will clock in when you get here. "
+           + "See you soon!")
+        .replace(/\{first\}/g, first || "there")
+        .replace(/\{docs\}/g, docs)
+        .replace(/\{store\}/g, String(it.invited_store || "").replace(/^CPR\s*/, ""))
+        // a missing first name shouldn't leave "Ready for your first day, !"
+        .replace(/,\s*!/g, "!");
+      // Smart punctuation is not in GSM-7, and one em dash or curly apostrophe
+      // flips the whole message to UCS-2 — 67 characters per segment instead of
+      // 153. The i9_docs values carry a curly apostrophe ("Driver’s license"),
+      // so this is not hypothetical.
+      const sms = msg
+        .replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2013\u2014]/g, "-").replace(/\u2026/g, "...")
+        .replace(/\u00a0/g, " ");
       // dry_run composes and reports without sending — safe to exercise against
       // real rows, and how the cron gets verified without texting anyone
-      if (body.dry_run) { results.push({ id: it.id, name: first, to: it.phone, store: it.invited_store, message: msg }); continue; }
+      if (body.dry_run) { results.push({ id: it.id, name: first, to: it.phone, store: it.invited_store, message: sms }); continue; }
       let ok = false, err = "";
       try {
         const r = await fetch(SB_URL + "/functions/v1/messaging", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "send", secret: NOTIFY_SECRET, to: it.phone, body: msg,
+            action: "send", secret: NOTIFY_SECRET, to: it.phone, body: sms,
             store: it.invited_store, template_key: "day_one",
             agent_name: "MRT Onboarding",
           }),
