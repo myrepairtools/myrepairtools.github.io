@@ -157,7 +157,7 @@ const MANUAL_ITEMS=[
 ];
 
 let AUTH=null,BOOTED=false;
-let STAFF=[],PROFILES={},SCHEDROWS={},ROSTERROWS={},TICKS={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],EARNPERMS={};
+let STAFF=[],PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={},TICKS={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],EARNPERMS={};
 let STORE='all',SEL=null;
 
 async function resolveMe(sess){
@@ -169,7 +169,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 (async()=>{try{const s=(await sb.auth.getSession()).data.session;if(s)resolveMe(s);}catch(e){}})();
 
 async function loadAll(){
-  const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp,sg]=await Promise.all([
+  const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp,sg,qt]=await Promise.all([
     sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,birthday,start_date,pin_hash,created_at').eq('active',true),
     sb.from('staff_profiles').select('staff_id,phone,emergency,shirt_size'),
     sb.from('staff_schedule').select('staff_id'),
@@ -188,10 +188,12 @@ async function loadAll(){
     sb.from('permissions').select('id,key').like('key','commission.earn.%'),
     sb.from('role_permissions').select('role_id,permission_id'),
     sb.from('kb_signatures').select('article_id,staff_id,signature_epoch,signed_at'),
+    sb.from('qbtime_users').select('staff_id,active'),
   ]);
   STAFF=(st.data||[]).filter(s=>s.role!=='owner');
   PROFILES={};(pf.data||[]).forEach(p=>{PROFILES[p.staff_id]=p;});
   SCHEDROWS={};(sc.data||[]).forEach(r=>{SCHEDROWS[r.staff_id]=true;});
+  QBTIME={};(qt.data||[]).forEach(r=>{if(r.staff_id!=null)QBTIME[r.staff_id]=true;});
   ROSTERROWS={};(cr.data||[]).forEach(r=>{ROSTERROWS[r.staff_id]=r;});
   TICKS={};(tk.data||[]).forEach(r=>{TICKS[r.staff_id+':'+r.item]=r;});
   MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=sp.data||[];
@@ -247,6 +249,9 @@ function setupRows(p){
   auto(!!p.pin_hash,'Staff record & PIN set','verified · staff.pin_hash','no PIN yet');
   auto(!!p.home_store,'Home store + authorized stores',(shortStore(p.home_store)||'')+' · verified','no home store');
   auto(!!SCHEDROWS[p.id],'Recurring schedule exists','staff_schedule · verified','no recurring schedule');
+  /* They can't clock in until QB Time knows who they are. The hourly sync
+     links them once QuickBooks has them, so this ticks itself. */
+  auto(!!QBTIME[p.id],'Can clock in — QuickBooks Time','qbtime_users · linked','not linked to QuickBooks Time');
   auto(asgn.length>0,'Onboarding modules assigned',asgn.length+' module'+(asgn.length===1?'':'s')+(asgn.some(a=>a.due_at)?' · due dates set':''),'nothing assigned');
   auto(!!prof.phone,'Phone on file',(prof.phone||'')+' · feeds SMS','nothing on file');
   auto(!!prof.emergency,'Emergency contact','on file','nothing on file');

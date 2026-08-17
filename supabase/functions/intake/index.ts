@@ -785,11 +785,21 @@ Deno.serve(async (req) => {
     // 7:30am store-local on someone's first day. Sent from the STORE's own
     // RingCentral line (messaging's `send` resolves the line from `store`) —
     // never the company alerts number, which is for staff notifications.
-    // Secret-gated: this is a cron, there's no staff JWT to check.
+    // Secret-gated: this is a cron, there's no staff JWT to check. A manager
+    // JWT is accepted for DRY RUNS only — this fires unattended at 7:30am for
+    // a real person, so being able to see exactly what it would do (and on
+    // which date) without sending anything is worth more than the purity.
     const secret = String(body.secret || new URL(req.url).searchParams.get("secret") || "");
-    if (!NOTIFY_SECRET || secret !== NOTIFY_SECRET) return json({ error: "forbidden" }, 403);
+    const machineOk = !!NOTIFY_SECRET && secret === NOTIFY_SECRET;
+    const dry = !!body.dry_run;
+    if (!machineOk) {
+      if (!dry || !(await manager(req))) return json({ error: "forbidden" }, 403);
+    }
     // "today" is Pacific — a UTC date would fire a day early all evening.
-    const today = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+    // `as_of` lets a dry run ask "what happens on Monday?".
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(String(body.as_of || ""))
+      ? String(body.as_of)
+      : new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
     const { data: due } = await admin.from("staff_intake")
       .select("id, token, invited_name, invited_store, legal_first, preferred_name, phone, i9_docs, start_date")
       .eq("start_date", today)
@@ -842,6 +852,7 @@ Deno.serve(async (req) => {
       .eq("role", "candidate").eq("active", true).lte("start_date", today);
     for (const p of (starting || [])) {
       const to = ["team_member", "admin"].includes(String(p.role_on_start)) ? String(p.role_on_start) : "team_member";
+      if (dry) { promoted.push({ id: p.id, name: p.display_name, would_become: to }); continue; }
       const { error } = await admin.from("staff")
         .update({ role: to, role_on_start: null }).eq("id", p.id).eq("role", "candidate");
       if (error) { promoted.push({ id: p.id, name: p.display_name, ok: false, error: error.message }); continue; }
