@@ -1555,9 +1555,10 @@ self-setup invite, and it shows in the inactive list. Real payroll employees
 come from Intuit's first-party payroll API (id family `4000000xx`, vs the
 small sequential ids Accounting hands out). So `hiring.qbo_autocreate` is OFF
 and the intake fn's `createQboEmployee` is dormant — putting someone on
-payroll is the **"Add to QuickBooks Payroll"** onboarding step
-(`onboarding_steps` id 3, `who:'backoffice'`, first in "Getting Set Up — HR &
-Accounts"). Don't rebuild this as an automation without new evidence that
+payroll is the **"Create in QuickBooks Payroll"** step of the onboarding
+profile's Hiring column (a manager tick on `staff_intake.qbo_created_at`),
+followed by the two QB Time configs it gates — "Add class in QB Time
+(classic)" and "Map payroll accounts" (`qbt_class_at`/`payroll_map_at`). Don't rebuild this as an automation without new evidence that
 Intuit will grant the scope; `qbo`'s `start` action takes an optional `scope`
 (unioned with accounting, so testing can never cost the access we have) if you
 want to re-test.

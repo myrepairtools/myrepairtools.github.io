@@ -30,7 +30,11 @@ border-radius:12px;padding:10px 14px;box-shadow:var(--card)}
 .stat .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;color:var(--dark);margin-top:2px}
 .stat.red{border-left-color:var(--red);background:#FFF7F7}
 .stat.red .v{color:var(--red)}
-.tcard{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--card)}
+.tcard{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card)}
+.tcard th:first-child{border-top-left-radius:12px}
+.tcard th:last-child{border-top-right-radius:12px}
+.tcard tr:last-child td:first-child{border-bottom-left-radius:12px}
+.tcard tr:last-child td:last-child{border-bottom-right-radius:12px}
 table{width:100%;border-collapse:collapse}
 th{padding:9px 12px;text-align:left;font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;
 letter-spacing:.8px;color:var(--grey);background:#fafafa;border-bottom:1px solid var(--border)}
@@ -131,6 +135,16 @@ font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--dark
 .menu button.red:hover{background:#FFF1F1}
 .ghost.red{background:var(--red);border-color:var(--red);color:#fff}
 .ghost.red:hover{filter:brightness(1.07);color:#fff}
+@media(max-width:700px){
+  .tcard table,.tcard tbody,.tcard tr,.tcard td{display:block}
+  .tcard thead{display:none}
+  .tcard tr{padding:10px 12px;border-bottom:1px solid var(--border)}
+  .tcard tr:last-child{border-bottom:none}
+  .tcard td{padding:3px 0;border-bottom:none}
+  .tcard td:last-child{text-align:left!important;padding-top:7px}
+  .rowhl td:first-child{box-shadow:none}
+  .rowhl{box-shadow:inset 3px 0 0 #C9820B}
+}
 /* ---------- profile ---------- */
 .phd{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--card);padding:14px 20px 16px;margin-bottom:14px}
 .backlink{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;color:var(--blue);text-decoration:none;cursor:pointer;background:none;border:none;padding:0}
@@ -287,7 +301,7 @@ async function jwt(){return (await sb.auth.getSession()).data.session.access_tok
 
 async function loadAll(){
   const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl,sr,pf,sc,cr,ro,pe,rp,sg,qt]=await Promise.all([
-    sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,start_date,created_at,pin_hash,birthday,title,mentor_staff_id,onboarding_completed_at,onboarding_canceled_at').eq('active',true),
+    sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,start_date,created_at,birthday,title,mentor_staff_id,onboarding_completed_at,onboarding_canceled_at').eq('active',true),
     sb.from('staff_intake').select('*').order('created_at',{ascending:false}),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('onboarding_sections').select('*'),
@@ -398,7 +412,7 @@ function setupRows(p){
   auto(!!QBTIME[p.id],'Can clock in — QuickBooks Time','linked','not linked to QuickBooks Time');
   auto(asgn.length>0,'Onboarding modules assigned',asgn.length+' module'+(asgn.length===1?'':'s'),'nothing assigned');
   auto(!!p.birthday,'Birthday','on file','nothing on file');
-  const earnsA=roleEarns(effRole(p),'accessories'),earnsD=roleEarns(effRole(p),'devices');
+  const earnsA=roleEarns(effRole(p),'accessory'),earnsD=roleEarns(effRole(p),'device');
   if(earnsA)auto(!!ROSTERROWS[p.id],'Accessory commission plan','verified','no commission_roster row');
   else rows.push({kind:'na',label:'Accessory commission plan',sub:'n/a'});
   if(earnsD)auto(!!ROSTERROWS[p.id],'Device commission plan','verified','no commission_roster row');
@@ -422,11 +436,19 @@ function setupCounts(p){
 function hiringRows(i){
   if(!i)return[];
   const rows=[],docs=!!i.offer_body;
-  const auto=(k,l,at)=>rows.push({k,label:l,auto:true,done:!!at,date:at});
+  /* a paper-signed hire's missing e-signatures can never arrive after
+     promote — they go n/a instead of holding Ready hostage forever */
+  const auto=(k,l,at)=>rows.push({k,label:l,auto:true,done:!!at,date:at,
+    ...(i.promoted_at&&!at?{kind:'na'}:{})});
   if(docs){auto('offer','Offer signed',i.offer_signed_at);auto('handbook','Handbook signed',i.handbook_signed_at);}
   auto('form','New-hire form submitted',i.submitted_at);
   rows.push({k:'review',label:'Review intake form',done:!!i.reviewed_at,date:i.reviewed_at,tick:'review',act:'Open form ›'});
   rows.push({k:'qbo',label:'Create in QuickBooks Payroll',done:!!i.qbo_created_at,date:i.qbo_created_at,tick:'qbo',act:'Open QuickBooks ›'});
+  /* the two QB Time configs only exist once the payroll employee does */
+  rows.push({k:'qbt_class',label:'Add class in QB Time (classic)',done:!!i.qbt_class_at,date:i.qbt_class_at,
+    tick:'qbt_class',blocked:!i.qbo_created_at});
+  rows.push({k:'payroll_map',label:'Map payroll accounts',done:!!i.payroll_map_at,date:i.payroll_map_at,
+    tick:'payroll_map',blocked:!i.qbo_created_at});
   rows.push({k:'convert',label:'Match QBO record & convert',auto:!!i.promoted_at,done:!!i.promoted_at,date:i.promoted_at,
     act:i.promoted_at?null:'Match & convert ›'});
   return rows;
@@ -435,7 +457,7 @@ function hiringRows(i){
    count from this same function or the two disagree */
 function personProgress(p){
   const i=IK_BYSTAFF[p.id]||null;
-  const h=hiringRows(i);
+  const h=hiringRows(i).filter(r=>r.kind!=='na');
   const mods=personTrack(p,false);
   return {i,h,mods,
     done:h.filter(r=>r.done).length+mods.reduce((n,m)=>n+m.done,0),
@@ -445,7 +467,7 @@ function nextThing(p,pr){
   const pd=pr.mods.find(m=>m.pastDue);
   if(pd)return {label:pd.mod.name+' past due',past:true};
   const hn=pr.h.find(r=>!r.done);
-  if(hn)return {label:hn.label,you:true};
+  if(hn)return {label:hn.label,you:!hn.auto||hn.k==='convert'};
   for(const m of pr.mods){
     const r=m.rows.find(x=>x.type==='item'&&x.state==='next');
     if(r){const it=r.it;
@@ -456,7 +478,7 @@ function nextThing(p,pr){
 }
 function onRoster(p){
   return !p.onboarding_completed_at&&!p.onboarding_canceled_at
-    &&(p.role==='candidate'||isNewHire(p));
+    &&(p.role==='candidate'||isNewHire(p)||!!IK_BYSTAFF[p.id]);
 }
 
 /* ---------- roster ---------- */
@@ -593,7 +615,9 @@ function wireMenus(){
         body:JSON.stringify({action:'cancel',intake_id:i.id})});
       const j=await r.json().catch(()=>({}));
       if(!(r.status===200&&j.ok)){toast(j.error||'Failed',true);return;}
-      toast('Intake deleted');await loadAll();draw();
+      toast('Intake deleted');
+      if(VIEW.mode==='cand'&&VIEW.iid===i.id)location.hash='';
+      await loadAll();draw();
       return;
     }
     if(act==='complete'||act==='cancel'){
@@ -618,7 +642,8 @@ async function stampOnboarding(p,act){
   const j=await r.json().catch(()=>({}));
   if(!(r.status===200&&!j.error)){toast(j.error||'Failed',true);return;}
   const i=IK_BYSTAFF[p.id];
-  if(i)await sb.from('staff_intake').update({[field]:now,[field.replace('_at','_by')]:AUTH.id}).eq('id',i.id);
+  if(i){const m=await sb.from('staff_intake').update({[field]:now,[field.replace('_at','_by')]:AUTH.id}).eq('id',i.id);
+    if(m.error)toast(m.error.message,true);}
   toast(act==='complete'?'Onboarding completed':'Onboarding canceled');
   location.hash='';await loadAll();draw();
 }
@@ -665,19 +690,24 @@ function intakeStage(i){
 }
 function hiringColHtml(i,sid){
   const rows=hiringRows(i);
-  const done=rows.filter(r=>r.done).length, complete=done===rows.length;
+  const counted=rows.filter(r=>r.kind!=='na');
+  const done=counted.filter(r=>r.done).length, complete=done===counted.length;
   const html=rows.map(r=>{
-    const tickable=!r.auto;
+    const tickable=!!r.tick&&!(r.blocked&&!r.done);
     const box=tickable
       ?'<button class="ckb'+(r.done?' on':'')+'" data-htick="'+r.k+'" data-iid="'+i.id+'">'+(r.done?ic('check',10):'')+'</button>'
+      :r.kind==='na'?stC('na','minus',10)
+      :(r.blocked&&!r.done)?stC('lock','lock',10)
       :(r.done?stC('ok','check'):stC('lock','minus',10));
     const act=r.act?'<button class="iact" data-hact="'+r.k+'" data-iid="'+i.id+'">'+esc(r.act)+'</button>':'';
     return '<div class="irow">'+box
-      +'<div class="itxt"><div class="ittl"'+(r.done?' style="color:var(--grey2)"':'')+'>'+esc(r.label)+'</div>'
-      +(r.done&&r.date?'<div class="isub">'+esc(fmtShort(r.date))+'</div>':'')+'</div>'+act+'</div>';
+      +'<div class="itxt"><div class="ittl"'+(r.done?' style="color:var(--grey2)"':(r.blocked&&!r.done)?' style="color:var(--grey)"':'')+'>'+esc(r.label)+'</div>'
+      +(r.done&&r.date?'<div class="isub">'+esc(fmtShort(r.date))+'</div>'
+        :(r.blocked&&!r.done)?'<div class="isub blocked">Waiting on Create in QuickBooks Payroll</div>':'')
+      +'</div>'+act+'</div>';
   }).join('');
-  const chips='<span class="cnt'+(complete?' ok':'')+'">'+done+' / '+rows.length+'</span>';
-  return colShell('hiring','hiring','Hiring',chips,html,sid,complete,done+' / '+rows.length);
+  const chips='<span class="cnt'+(complete?' ok':'')+'">'+done+' / '+counted.length+'</span>';
+  return colShell('hiring','hiring','Hiring',chips,html,sid,complete,done+' / '+counted.length);
 }
 function setupColHtml(p){
   const rows=setupRows(p),c=setupCounts(p);
@@ -715,7 +745,8 @@ function moduleColHtml(p,m,a,mx,mode){
     const who=isStep?it.s.who:'emp';
     const title=isStep?it.s.title:it.a.title;
     const mgrOwned=isStep&&(who==='manager'||who==='backoffice');
-    const canTick=(mode==='mgr'&&mgrOwned)||(mode==='mentor'&&who==='manager')
+    const canTick=(mode==='mgr'&&mgrOwned)
+      ||(mode==='mentor'&&who==='manager'&&!(isStep&&it.s.action))
       ||(mode==='emp'&&isStep&&who==='employee'&&r.state!=='lock');
     const blocked=mx.blockers[it.id];
     const hl=r.state==='next';
@@ -731,7 +762,7 @@ function moduleColHtml(p,m,a,mx,mode){
     else if(hl)sub='<div class="isub nx">Next up · '+((mode==='emp')?(mgrOwned?'their move':'your move'):(mgrOwned?'your move':'their move'))+'</div>';
     else if(isStep&&it.s.note&&r.state!=='done'&&mode==='mgr')sub='<div class="isub">'+esc(it.s.note)+'</div>';
     let act='';
-    if((mode==='emp'||mode==='mentor')&&hl&&!mgrOwned){
+    if(mode==='emp'&&hl&&!mgrOwned){
       if(!isStep)act='<a class="iact" style="color:var(--red)" href="training.html#read='+esc(it.a.slug||'')+'">Start ›</a>';
       else if(it.s.link_url)act='<a class="iact" style="color:var(--red)" href="'+esc(it.s.link_url)+'">Start ›</a>';
     }
@@ -872,12 +903,12 @@ function drawCand(iid){
   });
 }
 function wireHiring(i){
+  const HFIELDS={review:'reviewed',qbo:'qbo_created',qbt_class:'qbt_class',payroll_map:'payroll_map'};
   document.querySelectorAll('[data-htick]').forEach(b=>b.onclick=async()=>{
-    const k=b.getAttribute('data-htick');
+    const f=HFIELDS[b.getAttribute('data-htick')];
+    if(!f)return;
     const on=b.classList.contains('on');
-    const patch=k==='review'
-      ?{reviewed_at:on?null:new Date().toISOString(),reviewed_by:on?null:AUTH.id}
-      :{qbo_created_at:on?null:new Date().toISOString(),qbo_created_by:on?null:AUTH.id};
+    const patch={[f+'_at']:on?null:new Date().toISOString(),[f+'_by']:on?null:AUTH.id};
     const r=await sb.from('staff_intake').update(patch).eq('id',i.id);
     if(r.error)return toast(r.error.message,true);
     await loadAll();draw();
@@ -904,7 +935,7 @@ function wireProfile(p,i,mode){
       headers:{'Content-Type':'application/json','apikey':ANON,'Authorization':'Bearer '+await jwt()},
       body:JSON.stringify({action:'update_staff',staff_id:p.id,mentor_staff_id:ms.value||''})});
     const j=await r.json().catch(()=>({}));
-    if(j.error)return toast(j.error,true);
+    if(r.status!==200||j.error)return toast(j.error||'Failed',true);
     p.mentor_staff_id=+ms.value||null;
     toast(ms.value?'Mentor set':'Mentor cleared');
     await loadAll();draw();
@@ -1403,12 +1434,11 @@ async function openQboCheck(id){
   /* The MRT row this would merge ONTO — not a QuickBooks result. Its pill
      says what state that row is in, rather than guessing where it came from:
      a row with no store and no PIN is a shell nobody has set up. */
-  const bare=stub&&!stub.home_store&&!stub.pin_hash;
+  const bare=stub&&!stub.home_store;
   const mrtTile=stub?'<div class="qbrow">'
     +'<div style="flex:1;min-width:0"><div style="font-family:Nunito,sans-serif;font-weight:800">'+esc(stub.display_name)+'</div>'
     +'<div class="rl" style="margin-top:2px">id '+esc(stub.id)+' · '
-    +esc([stub.home_store?('CPR '+shortStore(stub.home_store)):'no store',
-          stub.pin_hash?'PIN set':'no PIN'].join(' · '))+'</div></div>'
+    +esc(stub.home_store?('CPR '+shortStore(stub.home_store)):'no store')+'</div></div>'
     +'<span class="tbadge" style="background:'+(bare?'var(--amberbg);color:var(--ambert)':'var(--greenbg);color:var(--greend)')+'">'
     +(bare?'Needs setup':'Set up')+'</span></div>':'';
   const mrt=stub?'<div class="qbsec">Merge onto</div>'+mrtTile:'';

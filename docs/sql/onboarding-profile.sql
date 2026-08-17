@@ -99,3 +99,30 @@ create policy "mentor updates mentee setup" on public.staff_setup_checklist
 drop policy if exists "mentor reads mentee reads" on public.kb_reads;
 create policy "mentor reads mentee reads" on public.kb_reads
   for select to authenticated using (public.is_my_mentee(staff_id));
+
+-- 2026-08-17 follow-ups (adversarial review + owner asks):
+--
+-- The mentor could read the mentee's step ticks and article receipts but not
+-- their quiz attempts or signatures — so a quiz-passed article rendered
+-- un-done on the mentor's board and locked everything after it.
+drop policy if exists "mentor reads mentee attempts" on public.kb_quiz_attempts;
+create policy "mentor reads mentee attempts" on public.kb_quiz_attempts
+  for select to authenticated using (public.is_my_mentee(staff_id));
+drop policy if exists "mentor reads mentee signatures" on public.kb_signatures;
+create policy "mentor reads mentee signatures" on public.kb_signatures
+  for select to authenticated using (public.is_my_mentee(staff_id));
+
+-- A mentor ticking steps must not be able to tick an ACTION step — the
+-- Activate step's trigger would promote their mentee (to admin, if that is
+-- what the wizard picked). Granting access stays a manager's move.
+drop policy if exists "mentor ticks mentee steps" on public.onboarding_step_done;
+create policy "mentor ticks mentee steps" on public.onboarding_step_done
+  for insert to authenticated with check (
+    public.is_my_mentee(staff_id)
+    and not exists (select 1 from onboarding_steps s
+                    where s.id = step_id and s.action is not null)
+  );
+
+-- Hiring-column stamps for the two QB Time configs that used to be module
+-- steps (owner call: they belong to hiring, gated on the payroll add).
+-- Columns: staff_intake.qbt_class_at/_by, payroll_map_at/_by.

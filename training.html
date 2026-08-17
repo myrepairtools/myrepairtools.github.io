@@ -169,7 +169,7 @@ const LI={
 const ic=(n,s)=>LI[n].replace(/\{s\}/g,s||14);
 
 /* ---------- auth ---------- */
-let AUTH=null,BOOTED=false;
+let AUTH=null,BOOTED=false,OBSTATE={};
 async function resolveMe(sess){
   if(!sess||BOOTED)return;
   const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
@@ -198,7 +198,7 @@ function fmtShort(x){if(!x)return'';const d=new Date(x);if(isNaN(d))return'';ret
 function readMins(body){const w=String(body||'').split(/\s+/).length;return Math.max(1,Math.round(w/200));}
 
 async function loadAll(){
-  const [mo,se,ar,st,as,rd,qz,at,sd,sg]=await Promise.all([
+  const [mo,se,ar,st,as,rd,qz,at,sd,sg,me]=await Promise.all([
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
     sb.from('onboarding_sections').select('*'),
     sb.from('kb_articles').select('id,slug,title,summary,body,status,min_role,require_ack,require_signature,signature_version,emoji,icon_url,module_id,section_id,sort_order,category_id,updated_at,version').eq('status','published'),
@@ -209,7 +209,9 @@ async function loadAll(){
     sb.from('kb_quiz_attempts').select('quiz_id,score_pct,passed').eq('staff_id',AUTH.id),
     sb.from('onboarding_step_done').select('*').eq('staff_id',AUTH.id),
     sb.from('kb_signatures').select('article_id,signature_epoch,signed_at').eq('staff_id',AUTH.id),
+    sb.from('staff').select('onboarding_completed_at,onboarding_canceled_at').eq('id',AUTH.id).maybeSingle(),
   ]);
+  OBSTATE=(me&&me.data)||{};
   MODULES=mo.data||[];SECTIONS=se.data||[];ARTS=ar.data||[];STEPS=st.data||[];
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
   READS={};(rd.data||[]).forEach(r=>{READS[r.article_id]=r;});
@@ -268,7 +270,7 @@ function drawHome(){
   let h=header();
 
   /* the door to the full board on the Onboarding page — mine, or a mentee's */
-  if(ASSIGNS.length&&activeMods.length){
+  if(ASSIGNS.length&&activeMods.length&&!OBSTATE.onboarding_completed_at&&!OBSTATE.onboarding_canceled_at){
     const m0=activeMods[0];
     const nx=(()=>{for(const m of mods){const r=m.rows.find(x=>x.type==='item'&&x.state==='next');
       if(r)return r.it.kind==='s'?r.it.s.title:r.it.a.title;}return null;})();
