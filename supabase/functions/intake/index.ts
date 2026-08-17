@@ -452,9 +452,11 @@ function mailText(o: { greeting: string; paras: string[]; steps?: string[]; cta?
     "— CPR Cell Phone Repair, Oregon",
   ].join("\n");
 }
+type Attach = { filename: string; bytes: Uint8Array; type: string };
 async function sendOfferEmail(to: string, subject: string, text: string, html: string,
-  pdf: Uint8Array, filename: string, replyTo?: string): Promise<{ ok: boolean; error?: string }> {
+  pdf: Uint8Array, filename: string, replyTo?: string, extra?: Attach[]): Promise<{ ok: boolean; error?: string }> {
   const b64 = b64FromBytes(pdf);
+  const more = (extra || []).map((a) => ({ ...a, b64: b64FromBytes(a.bytes) }));
   if (RESEND_API_KEY) {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -462,7 +464,8 @@ async function sendOfferEmail(to: string, subject: string, text: string, html: s
       body: JSON.stringify({
         from: HIRING_FROM, to: [to], subject, text, html,
         ...(replyTo ? { reply_to: replyTo } : {}),
-        attachments: [{ filename, content: b64 }],
+        attachments: [{ filename, content: b64 }]
+          .concat(more.map((a) => ({ filename: a.filename, content: a.b64 }))),
       }),
     });
     if (r.ok) return { ok: true };
@@ -479,7 +482,8 @@ async function sendOfferEmail(to: string, subject: string, text: string, html: s
         from: `CPR Cell Phone Repair <${GMAIL_USER}>`, to, subject,
         content: text, html,
         ...(replyTo ? { replyTo } : {}),
-        attachments: [{ filename, content: b64, encoding: "base64", contentType: "application/pdf" }],
+        attachments: [{ filename, content: b64, encoding: "base64", contentType: "application/pdf" }]
+          .concat(more.map((a) => ({ filename: a.filename, content: a.b64, encoding: "base64", contentType: a.type }))),
       });
       await client.close();
       return { ok: true };
@@ -499,6 +503,58 @@ async function storeLetterhead(store: unknown): Promise<string | undefined> {
   if (!row) return undefined;
   return [row.address, row.phone].filter(Boolean).join("  \u2022  ") || undefined;
 }
+/* A .vcf the phone can actually save. One file, both people — iOS offers
+   "Add All Contacts", Android imports both. Numbers come from
+   staff_profiles.phone, the same field the SMS pipeline uses. */
+function vcardFor(people: Array<{ name: string; phone: string; email?: string | null; title: string }>): Uint8Array {
+  const esc = (x: string) => String(x || "").replace(/([,;\\])/g, "\\$1");
+  const cards = people.filter((p) => p.name && p.phone).map((p) => {
+    const parts = String(p.name).trim().split(/\s+/);
+    const last = parts.length > 1 ? parts.pop() : "";
+    return [
+      "BEGIN:VCARD", "VERSION:3.0",
+      "N:" + esc(last || "") + ";" + esc(parts.join(" ")) + ";;;",
+      "FN:" + esc(p.name),
+      "ORG:CPR Cell Phone Repair",
+      "TITLE:" + esc(p.title),
+      "TEL;TYPE=CELL:" + p.phone,
+      ...(p.email ? ["EMAIL;TYPE=WORK:" + esc(p.email)] : []),
+      "END:VCARD",
+    ].join("\r\n");
+  });
+  return new TextEncoder().encode(cards.join("\r\n") + "\r\n");
+}
+
+type Person = { name: string; phone: string; title: string };
+/* Who a new hire should be able to reach before their first day: the owner,
+   and the manager of the store they're joining. Phones come from
+   staff_profiles.phone — the same field the SMS pipeline uses, never a
+   duplicate on the staff row. */
+async function contactPeople(store: unknown): Promise<Person[]> {
+  const { data: owners } = await admin.from("staff")
+    .select("id, display_name, role, staff_profiles(phone)")
+    .eq("role", "owner").eq("active", true).limit(1);
+  const { data: stRows } = await admin.from("stores").select("store, rq_name, manager_staff_id");
+  const srow = (stRows || []).find((r) => r.store === store || r.rq_name === store);
+  const { data: mgrRow } = srow?.manager_staff_id
+    ? await admin.from("staff").select("id, display_name, staff_profiles(phone)")
+      .eq("id", srow.manager_staff_id).maybeSingle()
+    : { data: null };
+  const phoneOf = (r: Record<string, unknown> | null) => {
+    const sp = r?.staff_profiles as Record<string, unknown> | Array<Record<string, unknown>> | null;
+    const one = Array.isArray(sp) ? sp[0] : sp;
+    return one?.phone ? String(one.phone) : "";
+  };
+  const storeShort = String(store || "").replace(/^CPR\s*/, "");
+  return [
+    ...(owners?.[0] && phoneOf(owners[0])
+      ? [{ name: String(owners[0].display_name), phone: phoneOf(owners[0]), title: "Owner" }] : []),
+    ...(mgrRow && phoneOf(mgrRow) && String(mgrRow.display_name) !== String(owners?.[0]?.display_name || "")
+      ? [{ name: String(mgrRow.display_name), phone: phoneOf(mgrRow), title: "Store Manager, " + storeShort }] : []),
+  ];
+}
+const prettyPhone = (p: string) => p.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3");
+
 /* Stage two. Fires once, when the offer is signed: their signed copy attached,
    and the link to the handbook + new-hire form. Stamped so a re-signed or
    replayed request can't email twice. */
@@ -507,10 +563,18 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
   if (!/@/.test(email) || it.newhire_sent_at) return;
   const link = SITE + "/intake.html?t=" + String(it.token) + "&s=hire";
   const first = String(it.invited_name || it.offer_signed_name || "").trim().split(/\s+/)[0] || "there";
+  const people = await contactPeople(it.invited_store);
+  const pretty = prettyPhone;
+  const contactLine = people.length
+    ? people.map((p) => "<strong>" + esch(p.name) + "</strong> — " + p.title + ", "
+        + '<a href="tel:' + p.phone + '" style="color:#1E7AA8">' + pretty(p.phone) + "</a>").join("<br>")
+    : "";
+
   const msg = {
     greeting: "Hi " + first + ",",
     paras: [
       "Welcome to the team. Your signed offer letter is attached — that copy is yours to keep.",
+      ...(contactLine ? ["Save these two numbers before your first day. The attached contact card adds both to your phone in one tap:<br><br>" + contactLine] : []),
       "There are two things left to finish online, about ten minutes in all:",
     ],
     steps: [
@@ -533,7 +597,8 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
     });
   } catch { return; }
   const r = await sendOfferEmail(email, "Welcome to CPR — your next steps",
-    mailText(msg), mailHtml(msg), pdf, "CPR Offer — signed.pdf", await hiringReplyTo());
+    mailText(msg), mailHtml(msg), pdf, "CPR Offer — signed.pdf", await hiringReplyTo(),
+    people.length ? [{ filename: "CPR Contacts.vcf", bytes: vcardFor(people), type: "text/vcard" }] : []);
   if (r.ok) {
     await admin.from("staff_intake")
       .update({ newhire_sent_at: new Date().toISOString() })
@@ -775,6 +840,28 @@ async function hiringReplyTo(): Promise<string | undefined> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  /* The one GET: the contact card a candidate saves to their phone. It has to
+     be a real URL with a real content-type — a blob download of a .vcf is
+     hit-and-miss on iOS, where a plain link hands straight to Contacts. The
+     token is the credential, same as every other candidate-side call. */
+  if (req.method === "GET") {
+    const u = new URL(req.url);
+    if (u.searchParams.get("action") !== "vcard") return json({ error: "method_not_allowed" }, 405);
+    const token = u.searchParams.get("t") || "";
+    if (!token) return json({ error: "token required" }, 400);
+    const { data } = await admin.from("staff_intake").select("invited_store").eq("token", token).maybeSingle();
+    if (!data) return json({ error: "not_found" }, 404);
+    const people = await contactPeople(data.invited_store);
+    if (!people.length) return json({ error: "no_contacts" }, 404);
+    return new Response(vcardFor(people), {
+      headers: {
+        ...CORS,
+        "Content-Type": "text/vcard; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="CPR Contacts.vcf"',
+        "Cache-Control": "no-store",
+      },
+    });
+  }
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { return json({ error: "bad_json" }, 400); }
@@ -912,7 +999,21 @@ Deno.serve(async (req) => {
       const b = await ownerSigBytes();
       if (b) owner_sig = "data:image/png;base64," + b64FromBytes(b);
     }
-    return json({ ok: true, intake: data, ...(owner_sig ? { owner_sig } : {}), ...(handbook ? { handbook, ack } : {}) });
+    // How to reach a human. A candidate has had no contact details from us
+    // between signing and their first day — the store phone was only ever in
+    // the offer PDF's letterhead, and the reply-to only in an email header.
+    const { data: st } = await admin.from("stores").select("store, rq_name, phone, address");
+    const srow = (st || []).find((r) =>
+      r.store === data.invited_store || r.rq_name === data.invited_store) || null;
+    const contact = {
+      store: srow ? String(srow.store).replace(/^CPR\s*/, "") : null,
+      phone: srow?.phone || null,
+      address: srow?.address || null,
+      email: await hiringReplyTo() || null,
+      people: (await contactPeople(data.invited_store))
+        .map((p) => ({ ...p, pretty: prettyPhone(p.phone) })),
+    };
+    return json({ ok: true, intake: data, contact, ...(owner_sig ? { owner_sig } : {}), ...(handbook ? { handbook, ack } : {}) });
   }
 
   if (action === "sign_offer" || action === "decline_offer" || action === "sign_handbook") {

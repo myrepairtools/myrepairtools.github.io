@@ -1270,6 +1270,18 @@ an Employee Handbook acknowledgment page — downloadable from the candidate's
 done card and the manager review modal's "⬇ Signed offer (PDF)". Docs columns:
 docs/sql/candidate-stage.sql. A link created with the docs checkbox OFF keeps
 the original form-only flow (offer_body null).
+**Who they can reach before day one:** a candidate had no phone number for a
+human between signing and their start date. The intake fn's `contactPeople()`
+resolves the owner + the store's manager (`stores.manager_staff_id`) with
+phones from `staff_profiles.phone` — the same field the SMS pipeline uses,
+never a copy on `staff`. Those two ride three surfaces: the welcome email
+(contact block + a `CPR Contacts.vcf` attachment — `sendOfferEmail` takes an
+optional extra-attachments array), the intake page's signed + done cards
+("Your team" rows with tel: links and an **Add to contacts** button), and
+`first-day.html`'s store numbers. The .vcf is served by the fn's **one GET
+route** (`?action=vcard&t=<token>`, `text/vcard` + Content-Disposition) rather
+than built as a browser blob — iOS hands a served vcard straight to Contacts
+and ignores a blob download.
 **Intake:** `intake.html` is a PUBLIC token page (11a; candidate phases above,
 then 5 steps: About you → Address
 & work details → Emergency contacts → Availability with All day/Hours/Off per day and

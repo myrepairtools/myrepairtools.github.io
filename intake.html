@@ -204,6 +204,25 @@ letter-spacing:.4px;color:var(--grey);padding-top:2px}
 .done .ck{width:52px;height:52px;border-radius:50%;background:#E1F5EE;color:#0f6e56;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px}
 .done .ck.grey{background:#F0F1F4;color:var(--grey2)}
 .done h2{margin-bottom:6px}
+.contact{margin-top:16px;padding-top:12px;border-top:1px solid var(--border);
+font-size:.82rem;font-weight:700;color:var(--grey2);text-align:center;line-height:1.5}
+.contact a{color:var(--blued);text-decoration:none;font-weight:800}
+.cards{margin-top:16px;padding-top:14px;border-top:1px solid var(--border);text-align:left}
+.cards .ey{display:block;font-family:'Nunito',sans-serif;font-weight:900;font-size:.72rem;
+letter-spacing:.06em;text-transform:uppercase;color:var(--grey2);margin-bottom:8px}
+.pcard{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.pcard:last-of-type{border-bottom:none}
+.pcard .av{width:34px;height:34px;flex:none;border-radius:50%;background:var(--dark);color:#fff;
+font-family:'Nunito',sans-serif;font-weight:900;font-size:.76rem;display:flex;align-items:center;justify-content:center}
+.pcard .who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.pcard .nm{display:block;font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;color:var(--dark);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .ti{display:block;font-size:.75rem;font-weight:700;color:var(--grey2)}
+.pcard .tel{font-weight:800;font-size:.84rem;color:var(--blued);text-decoration:none;white-space:nowrap}
+.vcf{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;
+border:1.5px solid var(--border);border-radius:10px;padding:11px;text-decoration:none;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;color:var(--dark)}
+.vcf:hover{border-color:var(--blue);color:var(--blued)}
 .done .linkbtn{display:block;margin:12px auto 0;border:none;background:none;padding:4px;cursor:pointer;
 font-family:'Nunito',sans-serif;font-weight:800;font-size:.8rem;color:var(--blued);text-decoration:underline}
 .done p{font-size:.85rem;font-weight:700;color:var(--grey2);margin:0}
@@ -224,6 +243,7 @@ const CHEV='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="
 const CHEVD='<svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 const LOGO='<img class="logo" src="assets/images/CPRLogo_NoAssurant_White.svg" alt="CPR Cell Phone Repair">';
 const CHECK='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const CONTACTICO='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>';
 
 const Q=new URLSearchParams(location.search);
 const TOKEN=Q.get('t')||'';
@@ -243,6 +263,7 @@ const I9_OPTIONS=[
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const HOURS=['Open','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','Close'];
 let PHASE='form';        // offer | signed | handbook | form | done | declined
+let CONTACT=null;        // {store, phone, address, email} — how to reach us
 let SHOWOFFER=false;     // the signed letter, expanded from the confirmation card
 let STEP=1, SUBMITTED=false, TRIED=false, OPENDAY=null, DECLINING=false;
 let EC2=false;           // the second emergency contact, added on request
@@ -289,6 +310,33 @@ function curStep(){
   if(PHASE==='offer')return 1;
   if(PHASE==='handbook')return 2;
   return (INVITE&&INVITE.offer_body?2:0)+STEP;
+}
+/* Between signing and their first day a candidate had no way to reach us —
+   the store phone lived only in the offer PDF's letterhead. */
+/* The people, not just the store line — a candidate on their phone can save
+   both numbers in one tap. The .vcf comes from the function as a real file
+   (GET ?action=vcard) because iOS hands a served vcard straight to Contacts
+   and a blob download it just stares at. */
+function peopleHtml(){
+  const ppl=(CONTACT&&CONTACT.people)||[];
+  if(!ppl.length)return '';
+  const initials=n=>String(n||'').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();
+  return '<div class="cards"><span class="ey">Your team</span>'
+    +ppl.map(p=>'<div class="pcard"><span class="av">'+esc(initials(p.name))+'</span>'
+      +'<span class="who"><span class="nm">'+esc(p.name)+'</span>'
+      +'<span class="ti">'+esc(p.title)+'</span></span>'
+      +'<a class="tel" href="tel:'+esc(p.phone)+'">'+esc(p.pretty||p.phone)+'</a></div>').join('')
+    +'<a class="vcf" href="'+FN+'?action=vcard&t='+encodeURIComponent(TOKEN)+'">'+CONTACTICO+'Add to contacts</a>'
+    +'</div>';
+}
+function contactHtml(){
+  if(!CONTACT)return '';
+  const bits=[];
+  if(CONTACT.phone)bits.push('<a href="tel:'+esc(String(CONTACT.phone).replace(/[^\d+]/g,''))+'">'+esc(CONTACT.phone)+'</a>');
+  if(CONTACT.email)bits.push('<a href="mailto:'+esc(CONTACT.email)+'">'+esc(CONTACT.email)+'</a>');
+  if(!bits.length)return '';
+  return '<div class="contact">Questions? '
+    +(CONTACT.store?'CPR '+esc(CONTACT.store)+' — ':'')+bits.join(' or ')+'</div>';
 }
 function prog(){
   const tot=totSteps(),cur=curStep(),pct=Math.round(cur/tot*100);
@@ -624,6 +672,7 @@ function draw(){
       +'<div class="done"><span class="ck">'+CHECK+'</span><h2>All set'+(firstName()?', '+esc(firstName()):'')+'!</h2>'
       +'<p>Your manager has everything they need.<br>See you on your first day.</p>'
       +(INVITE&&INVITE.offer_signed_at?'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">⬇ Download your signed offer (PDF)</button>':'')
+      +peopleHtml()+contactHtml()
       +'</div>';
     const dl=$('#dlPdf');
     if(dl)dl.onclick=()=>downloadSigned(dl,'\u2B07 Download your signed offer (PDF)');
@@ -646,6 +695,7 @@ function draw(){
       +'</p>'
       +'<button class="btn alt" id="dlPdf" style="margin-top:16px;width:100%">\u2B07 Download your signed offer (PDF)</button>'
       +'<button class="linkbtn" id="seeOffer">'+(SHOWOFFER?'Hide':'View')+' your signed offer</button>'
+      +peopleHtml()+contactHtml()
       +'</div>'
       +(SHOWOFFER
         ?'<div class="cbd" style="padding-top:0"><div class="offerbox">'+renderOffer(INVITE.offer_body)
@@ -678,6 +728,7 @@ async function refresh(){
   const r=await call({action:'get',token:TOKEN});
   if(r.status===200&&r.data.ok){
     INVITE=r.data.intake;
+    if(r.data.contact)CONTACT=r.data.contact;
     if(r.data.handbook)HANDBOOK=r.data.handbook;
     if(r.data.ack)ACK=r.data.ack;
     OWNERSIG=r.data.owner_sig||OWNERSIG;
@@ -690,6 +741,7 @@ async function refresh(){
   const r=await call({action:'get',token:TOKEN});
   if(!(r.status===200&&r.data.ok)){$('#card').innerHTML='<div class="gone">This link isn’t valid anymore — ask your manager to resend it.</div>';return;}
   INVITE=r.data.intake;
+  if(r.data.contact)CONTACT=r.data.contact;
   if(r.data.handbook)HANDBOOK=r.data.handbook;
   if(r.data.ack)ACK=r.data.ack;
   OWNERSIG=r.data.owner_sig||null;
