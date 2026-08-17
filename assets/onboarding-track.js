@@ -28,6 +28,9 @@
  * Row list per module (`rows`) interleaves section headers with items:
  *   {type:'section', sec, done, total}   — presentation only
  *   {type:'item', it, state:'done'|'next'|'lock'}
+ * A module also carries `blockers` — {itemId: requiredItemId} for anything
+ * locked by a named prerequisite rather than by its position, so a surface can
+ * say WHAT it's waiting on instead of just greying the row.
  * Sequential unlock is GLOBAL across assigned modules and ignores section
  * boundaries (sections are presentation only). Nothing locks on past-due.
  */
@@ -89,13 +92,33 @@
       })
       .filter(function (x) { return x.items.length; });
 
+    /* A step may name one item it waits on (onboarding_steps.requires, an item
+       key like 's3' or 'a17'). This blocks IN ADDITION to sequential order —
+       it can never unlock something order already locked, so adding a
+       prerequisite is always safe. Blocking on a fact rather than a checkbox
+       (e.g. "not until they're a staff record") belongs on the setup card,
+       not here. */
+    var doneById = {};
+    mods.forEach(function (mx) {
+      mx.items.forEach(function (it) { doneById[it.id] = itemDone(it); });
+    });
+    function blockedBy(it) {
+      var req = it.kind === 's' ? (it.s.requires || '') : '';
+      if (!req) return null;
+      /* an unknown key must not wedge the track — treat it as satisfied */
+      return (req in doneById) && !doneById[req] ? req : null;
+    }
+
     var nextFound = false;
     mods.forEach(function (mx, mi) {
       mx.done = mx.items.filter(itemDone).length;
       mx.total = mx.items.length;
       mx.quizzes = mx.items.filter(function (it) { return it.kind === 'a' && quizzes[it.a.id] && quizzes[it.a.id].nq; }).length;
+      mx.blockers = {};
       mx.states = mx.items.map(function (it) {
         if (itemDone(it)) return 'done';
+        var req = blockedBy(it);
+        if (req) { mx.blockers[it.id] = req; return 'lock'; }
         if (!nextFound) { nextFound = true; return 'next'; }
         return 'lock';
       });

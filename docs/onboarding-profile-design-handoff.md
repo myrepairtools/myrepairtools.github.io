@@ -175,7 +175,45 @@ Design needs to decide whether the roster shows both with one row shape, or
 whether pre-conversion candidates stay a separate section above. Suggest the
 latter: their action is "finish the hire," not "work the track."
 
-## 6. Ground rules that aren't negotiable
+## 6. Prerequisites — a fourth thing to draw
+
+An item can now name **one other item it waits on**
+(`onboarding_steps.requires`, an item key like `s3` or `a17`). Live already;
+the field is empty everywhere, so nothing behaves differently until someone
+fills it in.
+
+`CPRTrack` returns `blockers` per module — `{itemId: requiredItemId}` — for
+anything locked by a named prerequisite rather than by its position. So a
+locked row can say **what** it's waiting on instead of just going grey:
+
+> Give Schedule — waiting on *Add to QuickBooks Payroll*
+
+That's the state design needs to draw. It's visually distinct from an
+ordinary `lock` (which just means "not your turn yet"), because this one is
+actionable information: it tells a manager which item to go do first.
+
+**It blocks in ADDITION to sequential order.** A prerequisite can never
+unlock something the order already locked, which is what makes adding one
+safe. Only steps can carry a prerequisite today; articles can't.
+
+### The decision this surfaces
+
+Prerequisites are most useful if strict sequential unlock relaxes — otherwise
+order already blocks everything and `requires` only matters when a
+prerequisite sits LATER in the list. The open question, for the owner not
+design:
+
+> Should items without a prerequisite unlock in parallel, so an employee can
+> read the handbook while back-office does QuickBooks — with `requires` as
+> the only thing that blocks?
+
+Related, and currently inconsistent: **Training filters `backoffice` steps out
+before computing unlock, KB Compliance doesn't.** So the same person is
+"blocked" on the manager's screen and not blocked on their own. Whatever
+design draws should assume that gets settled deliberately rather than
+inherited.
+
+## 7. Ground rules that aren't negotiable
 
 - **NO EXPLAINERS** (CLAUDE.md, the rule broken most often). A field gets a
   label, a step gets a name, a button gets a verb. No sentence under a card
