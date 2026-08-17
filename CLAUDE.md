@@ -1281,7 +1281,10 @@ optional extra-attachments array), the intake page's signed + done cards
 `first-day.html`'s store numbers. The .vcf is served by the fn's **one GET
 route** (`?action=vcard&t=<token>`, `text/vcard` + Content-Disposition) rather
 than built as a browser blob — iOS hands a served vcard straight to Contacts
-and ignores a blob download.
+and ignores a blob download. To see the welcome email itself without burning a
+test candidate (and texting that store's manager an "Offer signed" alert), the
+intake fn's **`preview_newhire`** action (manager JWT, like `send_offer`) mails
+it to any address off a made-up candidate — no row, so nothing is stamped.
 **Intake:** `intake.html` is a PUBLIC token page (11a; candidate phases above,
 then 5 steps: About you → Address
 & work details → Emergency contacts → Availability with All day/Hours/Off per day and

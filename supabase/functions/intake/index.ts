@@ -558,9 +558,9 @@ const prettyPhone = (p: string) => p.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "($1)
 /* Stage two. Fires once, when the offer is signed: their signed copy attached,
    and the link to the handbook + new-hire form. Stamped so a re-signed or
    replayed request can't email twice. */
-async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
+async function sendNewHireEmail(it: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const email = String(it.personal_email || "");
-  if (!/@/.test(email) || it.newhire_sent_at) return;
+  if (!/@/.test(email) || it.newhire_sent_at) return { ok: false, error: "no_email" };
   const link = SITE + "/intake.html?t=" + String(it.token) + "&s=hire";
   const first = String(it.invited_name || it.offer_signed_name || "").trim().split(/\s+/)[0] || "there";
   const people = await contactPeople(it.invited_store);
@@ -595,15 +595,18 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<void> {
         at: String(it.offer_signed_at || ""),
       },
     });
-  } catch { return; }
+  } catch { return { ok: false, error: "pdf_failed" }; }
   const r = await sendOfferEmail(email, "Welcome to CPR — your next steps",
     mailText(msg), mailHtml(msg), pdf, "CPR Offer — signed.pdf", await hiringReplyTo(),
     people.length ? [{ filename: "CPR Contacts.vcf", bytes: vcardFor(people), type: "text/vcard" }] : []);
-  if (r.ok) {
+  // No id = a preview send (see the preview_newhire action); there's no row
+  // to stamp and nothing to stop from sending twice.
+  if (r.ok && it.id) {
     await admin.from("staff_intake")
       .update({ newhire_sent_at: new Date().toISOString() })
       .eq("id", it.id as number).is("newhire_sent_at", null);
   }
+  return r;
 }
 
 /* House convention: first initial + last name, lowercase (bbay, kfarnworth).
@@ -837,6 +840,9 @@ async function hiringReplyTo(): Promise<string | undefined> {
   if (v && /@/.test(String(v))) return String(v);
   return REPLY_TO_ENV && /@/.test(REPLY_TO_ENV) ? REPLY_TO_ENV : undefined;
 }
+
+/* A scribble, for preview sends only — never a real person's signature. */
+const SAMPLE_SIG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbgAAAB4CAYAAACAVeezAAACvklEQVR42u3c2XHCMBRAUTXkCui/LtMBYFsSbzlnht8Qa7sRk2QMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC46zhe56eXEQIgfcyuvIwmAGWiJnYAtAib2AFQPmxCB0DYuK2IpFkBYGvYdgfULAGwLDpRbotmDYApkYl4gxQ6AG5HJfJtUugACHlrEzoASt/ahA6AVnGbETuzDiBuZ6VnETvgX2eN8ybQJHVbfFYEMDtozhxx81MW0CJqzhxxC7dQrRpwPgpd8gm0cC1CcC76p/LiZjFbmODTnaXvY5bELf1PblYn5Njz/3p/syZupT6iME8QY49H+n7M4sVBNEI5g2fuoE5M7HtxEzxzCUv3bZbv18wOH012jZ8ZwZ7Mu2fsdXETRYsfSoXNbU7czKPQQemwCZ242chCB6PLHrDHh18qsbltAqz97v9j1+0NG96awDoXOXHDRzbgkwqREzeEDoQtyBh5QBwS1oowJPojZ+u30QXHhDPz8DBS9UMWJSL+DGb9WIobNoL1I2oJX1bD57UhbtgI1pGoiRoCR8eD0ygJm7ARZvEbGURO2H6dO0EjzSYwKohcz7Blv0mafQQOoRM2c0G/jWE0ELn6cTNiACInbACInLABOJAdwBviZrQARK5U3IwUgMgJGwAiJ24APD60jZJxAnB4u7UBIHLiBoDIGQsA1h7u4iZuACJXLGziBiBybm0AOPg9IwACsPG5xA1A5E7PA4DIubUBIHTiBoDI3Q6buAGQ5kYkbACUCohbGwClQidsAJSKy5X3FjcAlofmSWx2vhcA3I7Ptwg9+ZriBkCY0M16mQUASkXOyANQKnZGGYAyoTOiAJQInhEDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBF3p18Qr5T26N7AAAAAElFTkSuQmCC";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -1179,6 +1185,30 @@ Deno.serve(async (req) => {
   // ---- manager side (JWT auth) ----
   const mgr = await manager(req);
   if (!mgr) return json({ error: "forbidden" }, 403);
+  /* Send the welcome email to any address, off a made-up candidate. The real
+     one only fires when someone signs a real offer, so reviewing its wording
+     or formatting used to mean burning a test candidate — and texting that
+     store's manager an "Offer signed" alert. Manager-gated like send_offer,
+     which is the other action here that puts mail in someone's inbox. */
+  if (action === "preview_newhire") {
+    const to = String(body.to || "");
+    if (!/@/.test(to)) return json({ error: "to required" }, 400);
+    const store = String(body.store || "CPR Eugene");
+    const name = String(body.name || "Sample Candidate");
+    const { data: tpl } = await admin.from("app_settings")
+      .select("value").eq("key", "hiring.offer_template").maybeSingle();
+    const at = new Date().toISOString();
+    const sent = await sendNewHireEmail({
+      // no id — sendNewHireEmail skips its sent-stamp, there's no row here
+      token: "sample", personal_email: to, invited_name: name, invited_store: store,
+      offer_body: String(tpl?.value?.body || "# Offer of Employment\n\nSample offer letter.")
+        .replace(/\{name\}/g, name).replace(/\{position\}/g, "Repair Technician")
+        .replace(/\{pay\}/g, "$18.00/hour").replace(/\{store\}/g, store.replace(/^CPR\s*/, ""))
+        .replace(/\{start\}/g, "your start date").replace(/\{signature\}/g, ""),
+      offer_signature: SAMPLE_SIG, offer_signed_name: name, offer_signed_at: at,
+    });
+    return json({ ok: sent.ok, sent_to: to, store, ...(sent.error ? { error: sent.error } : {}) });
+  }
   if (action === "offer_pdf") {
     // Preview: build the PDF from a raw (possibly not-yet-saved) body. No
     // signing link yet — the wizard hasn't created the row.
