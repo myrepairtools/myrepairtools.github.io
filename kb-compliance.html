@@ -146,14 +146,13 @@ const LI={
 const ic=(n,s)=>LI[n].replace(/\{s\}/g,s||12);
 
 const NEW_HIRE_DAYS=60;
+/* Only what the Getting Set Up track does NOT already carry. I-9, credentials,
+   PIN, and profile details are track steps — ticking them in two places just
+   makes the two disagree (the same rule that removed the QuickBooks tick). */
 const MANUAL_ITEMS=[
-  {key:'i9',        label:'I-9 collected'},
-  /* QuickBooks payroll is step 1 of the "Getting Set Up" module — ticking it
-     in two places just makes the two disagree. */
-  {key:'rq_creds',  label:'RepairQ credentials requested'},
-  {key:'shirt',     label:'Shirt ordered'},
+  {key:'shirt',label:'Shirt ordered'},
   {key:'shirt_issued',label:'Shirt issued'},
-  {key:'team_chat', label:'Added to team chat'},
+  {key:'team_chat',label:'Added to team chat'},
 ];
 
 let AUTH=null,BOOTED=false;
@@ -246,15 +245,14 @@ function setupRows(p){
   const asgn=ASSIGNS.filter(a=>a.staff_id===p.id);
   const rows=[];
   const auto=(ok,label,subOk,subMiss)=>rows.push({kind:ok?'ok':'miss',label,sub:ok?subOk:subMiss});
-  auto(!!p.pin_hash,'Staff record & PIN set','verified · staff.pin_hash','no PIN yet');
   auto(!!p.home_store,'Home store + authorized stores',(shortStore(p.home_store)||'')+' · verified','no home store');
-  auto(!!SCHEDROWS[p.id],'Recurring schedule exists','staff_schedule · verified','no recurring schedule');
+  auto(!!SCHEDROWS[p.id],'Schedule employee','schedule built','no schedule built');
+  if(rows[rows.length-1].kind==='miss')rows[rows.length-1].fix='schedule-admin.html';
+  rows.push({kind:'manual',key:'sched_notify',label:'Notify employee of schedule',sub:'',tick:TICKS[p.id+':sched_notify']||null});
   /* They can't clock in until QB Time knows who they are. The hourly sync
      links them once QuickBooks has them, so this ticks itself. */
   auto(!!QBTIME[p.id],'Can clock in — QuickBooks Time','qbtime_users · linked','not linked to QuickBooks Time');
   auto(asgn.length>0,'Onboarding modules assigned',asgn.length+' module'+(asgn.length===1?'':'s')+(asgn.some(a=>a.due_at)?' · due dates set':''),'nothing assigned');
-  auto(!!prof.phone,'Phone on file',(prof.phone||'')+' · feeds SMS','nothing on file');
-  auto(!!prof.emergency,'Emergency contact','on file','nothing on file');
   auto(!!p.birthday,'Birthday','on file — milestones post','nothing on file — milestones post');
   const earnsA=roleEarns(effRole(p),'accessories'),earnsD=roleEarns(effRole(p),'devices');
   if(earnsA)auto(!!ROSTERROWS[p.id],'Accessory commission plan','commission_roster · verified','no commission_roster row');
@@ -353,7 +351,7 @@ function openPanel(sid){
           :'<span class="ckic na">'+ic('minus',10)+'</span>';
         return '<div class="ckrow">'+icn
           +'<div class="ckt"><div class="cklbl'+(r.kind==='na'?' dim':'')+'">'+esc(r.label)+'</div><div class="cksub'+(r.kind==='miss'?' red':'')+'">'+esc(r.sub)+'</div></div>'
-          +(r.kind==='miss'?'<a class="cklink" href="employee-records.html#e='+p.id+'">Add in Team Members ›</a>':'')
+          +(r.kind==='miss'?'<a class="cklink" href="'+esc(r.fix||('employee-records.html#e='+p.id))+'">'+(r.fix?'Fix ›':'Add in Team Members ›')+'</a>':'')
           +'</div>';
       }).join('')+'</div></div>';
   }

@@ -359,9 +359,10 @@ function personTrack(p,empView){
     signatures:sgs,today:todayISO()});
 }
 /* ---- new-hire setup rows (mirrors kb-compliance — keep the two in step) ---- */
+/* Only what the Getting Set Up track does NOT already carry. I-9, credentials,
+   PIN, and profile details are track steps — ticking them in two places just
+   makes the two disagree (the same rule that removed the QuickBooks tick). */
 const MANUAL_ITEMS=[
-  {key:'i9',label:'I-9 collected'},
-  {key:'rq_creds',label:'RepairQ credentials requested'},
   {key:'shirt',label:'Shirt ordered'},
   {key:'shirt_issued',label:'Shirt issued'},
   {key:'team_chat',label:'Added to team chat'},
@@ -371,13 +372,14 @@ function setupRows(p){
   const asgn=ASSIGNS.filter(a=>a.staff_id===p.id);
   const rows=[];
   const auto=(ok,label,subOk,subMiss)=>rows.push({kind:ok?'ok':'miss',label,sub:ok?subOk:subMiss});
-  auto(!!p.pin_hash,'Staff record & PIN set','verified','no PIN yet');
   auto(!!p.home_store,'Home store + authorized stores',(shortStore(p.home_store)||'')+' · verified','no home store');
-  auto(!!SCHEDROWS[p.id],'Recurring schedule exists','verified','no recurring schedule');
+  auto(!!SCHEDROWS[p.id],'Schedule employee','schedule built','no schedule built');
+  if(rows[rows.length-1].kind==='miss')rows[rows.length-1].fix='schedule-admin.html';
+  /* telling them is its own job — a schedule nobody was told about is a
+     no-show waiting to happen. First schedules fire no automatic notice. */
+  rows.push({kind:'manual',key:'sched_notify',label:'Notify employee of schedule',sub:'',tick:TICKS[p.id+':sched_notify']||null});
   auto(!!QBTIME[p.id],'Can clock in — QuickBooks Time','linked','not linked to QuickBooks Time');
   auto(asgn.length>0,'Onboarding modules assigned',asgn.length+' module'+(asgn.length===1?'':'s'),'nothing assigned');
-  auto(!!prof.phone,'Phone on file',(prof.phone||''),'nothing on file');
-  auto(!!prof.emergency,'Emergency contact','on file','nothing on file');
   auto(!!p.birthday,'Birthday','on file','nothing on file');
   const earnsA=roleEarns(effRole(p),'accessories'),earnsD=roleEarns(effRole(p),'devices');
   if(earnsA)auto(!!ROSTERROWS[p.id],'Accessory commission plan','verified','no commission_roster row');
@@ -674,7 +676,7 @@ function setupColHtml(p){
     return '<div class="irow">'+icn
       +'<div class="itxt"><div class="ittl'+(r.kind==='na'?' lock':'')+'">'+esc(r.label)+'</div>'
       +'<div class="isub'+(r.kind==='miss'?'" style="color:var(--red)':'')+'">'+esc(r.sub)+'</div></div>'
-      +(r.kind==='miss'?'<a class="iact" href="employee-records.html#e='+p.id+'">Fix ›</a>':'')
+      +(r.kind==='miss'?'<a class="iact" href="'+esc(r.fix||('employee-records.html#e='+p.id))+'">Fix ›</a>':'')
       +'</div>';
   }).join('');
   const chips='<span class="cnt'+(complete?' ok':'')+'">'+c.ready+' / '+c.total+'</span>';
