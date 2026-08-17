@@ -508,11 +508,17 @@ function makePublishBtn(){
   btn.onclick=function(){publishDrafts(btn);};
   return btn;
 }
-function makeDiscardBtn(){
+/* Revert throws the draft away and puts the grid back to what employees see.
+   It lights up and goes out with Publish — the two are the same decision. */
+function makeRevertBtn(){
+  var n=pendingCount();
   var btn=document.createElement('button');btn.className='btn';btn.id='pubDiscard';
-  btn.textContent='Discard';
-  if(!pendingCount())btn.style.display='none';
-  btn.onclick=function(){if(confirm('Discard every unpublished change?'))discardDrafts();};
+  btn.textContent='↺ Revert';
+  if(n)btn.style.cssText='color:var(--red);border-color:#F3C7C9';
+  else{btn.disabled=true;btn.style.cssText='color:var(--grey);background:var(--light-grey);cursor:default';}
+  btn.onclick=function(){
+    if(confirm('Throw away '+n+' unpublished change'+(n===1?'':'s')+'?'))discardDrafts();
+  };
   return btn;
 }
 function makeNotifyBtn(){
@@ -716,7 +722,7 @@ function injectSchedChangeBar(){
   // one right-push spacer only — a second one strands whatever sits between them mid-row
   var hasSpacer=Array.prototype.some.call(host.children,function(c){return c.tagName==='SPAN'&&c.style.flex==='1';});
   if(!hasSpacer){var sp=document.createElement('span');sp.style.flex='1';host.appendChild(sp);}
-  host.appendChild(makePublishBtn());host.appendChild(makeDiscardBtn());
+  host.appendChild(makePublishBtn());host.appendChild(makeRevertBtn());
   host.appendChild(makeNotifyBtn());host.appendChild(makeShiftsBtn());host.appendChild(makeSchBtn());
 }
 function filterPillsHtml(){

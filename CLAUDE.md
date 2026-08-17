@@ -1626,10 +1626,13 @@ employee-facing can even read it; docs/sql/schedule-drafts.sql). The Recurring
 grid renders from the draft and drafted cells carry an amber outline. **Publish
 is a permanent button in the schedule toolbar** (left of Notify staff, on every
 schedule tab) — grey and disabled while the draft matches what employees already
-see, green with the change count the moment it doesn't; **Discard** appears
-beside it only when there is something to discard, and the Recurring tab carries
-an amber badge from any view. Publishing takes no confirm step (owner call
-2026-08-17 — no pop-up). Publish copies each draft onto
+see, green with the change count the moment it doesn't. **↺ Revert** sits beside
+it and lights up and goes out with it — the two are the same decision — throwing
+the draft away and putting the grid back to what employees see (a confirm, since
+it destroys work); the Recurring tab carries an amber badge from any view.
+Publishing itself takes no confirm step (owner call 2026-08-17 — no pop-up).
+**A draft is a row in Postgres, not page state**: doing nothing saves it,
+leaving the page keeps it, and coming back finds Publish and Revert still lit. Publish copies each draft onto
 `staff_schedule` and deletes the drafts — that stamp is what the 📣 Notify
 modal's "what changed since the last broadcast" detection then picks up, so the
 flow is edit → publish → notify. **This Week and Monthly deliberately keep
