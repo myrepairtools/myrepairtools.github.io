@@ -414,7 +414,13 @@ async function callFn(body){
   var s=await ensureSession();
   var staff=null;
   if(s){try{staff=(await sb.from('staff').select('id,display_name,role,home_store').eq('auth_uid',s.user.id).maybeSingle()).data;}catch(e){}}
-  if(!staff||(staff.role!=='admin'&&staff.role!=='owner')){
+  /* access is a granted permission now, so it can be handed out without
+     promoting someone to admin. Falls back to the old role test until nav.js
+     has published the permission list. */
+  var perms=window.CPRPerms;
+  var allowed=perms ? perms.indexOf('interviews.manage')>-1
+                    : !!staff&&(staff.role==='admin'||staff.role==='owner');
+  if(!staff||!allowed){
     $('#gate').classList.remove('hide');
     $('#gate').innerHTML='🔒 Bookings is for managers and the owner.'+(staff?'':'<br><br>Sign in with your PIN first.');
     return;

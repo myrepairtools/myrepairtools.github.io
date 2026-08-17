@@ -630,6 +630,9 @@ function ready(rows){
   setTab(initialTab(),true);
 }
 function roleRank(){ var R={none:0,employee:1,team_member:1,manager:2,admin:2,owner:3}; return R[window.CPRNavRole]||0; }
+/* viewing the digest is a granted permission; Force update stays manager-only
+   because repairq-query checks the manager's own JWT server-side anyway */
+function canDigest(){ var p=window.CPRPerms; return !p ? roleRank()>=1 : (p.indexOf('reports.digest')>-1); }
 
 async function boot(){
   if(DEMO){ ready(demoRows()); return; }
@@ -656,8 +659,8 @@ async function boot(){
   if(q.error){ gate('inbox','Couldn\u2019t Load The Digest','Refresh to retry.'); return; }
   if(!q.data||!q.data.length){
     var check=function(){
-      if(roleRank()>=2)gate('inbox','No Capture Yet','The sync runs every four hours \u2014 the first snapshot of the day lands early morning.');
-      else gate('lock','Managers Only','The Daily Digest is the management scorecard. Ask an owner if you think you should have access.');
+      if(canDigest())gate('inbox','No Capture Yet','The sync runs every four hours \u2014 the first snapshot of the day lands early morning.');
+      else gate('lock','No Access','Ask an owner if you think you should have access to the Daily Digest.');
     };
     check();
     window.addEventListener('cprnav:auth',check);

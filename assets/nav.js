@@ -99,7 +99,7 @@
   // (No `acc` yet — there's no 'reports.view' permission in the catalog, and canSee(acc)
   // would filter every report out of the list. The rail icon is rank-gated; pages gate by role.)
   var REPORTS = [
-    { label:'Daily Digest',    url:'daily-digest.html',    icon:'sunrise', minRole:'admin' },
+    { label:'Daily Digest',    url:'daily-digest.html',    icon:'sunrise', acc:'reports.digest' },
     { label:'Google Traffic',  url:'google-traffic.html',  icon:'map-pin', minRole:'admin' },
     { label:'Google Reviews',  url:'google-reviews.html',  icon:'star', minRole:'admin', badge:'gbp' },
     { label:'Overtime Report', url:'report-overtime.html', icon:'timer', minRole:'admin' }
@@ -115,7 +115,7 @@
     { label:'Module Setup',   url:'onboarding-setup.html', icon:'graduation-cap', minRole:'admin', hidden:true },
     { label:'Time Entries',   url:'time-entries.html',     icon:'clock-4', minRole:'admin', acc:'schedule.admin' },
     { label:'Time Off',       url:'time-off.html',         icon:'palmtree', minRole:'admin', acc:'schedule.admin' },
-    { label:'Bookings',       url:'interviews.html',       icon:'calendar-days', minRole:'admin' }
+    { label:'Bookings',       url:'interviews.html',       icon:'calendar-days', acc:'interviews.manage' }
   ];
   var PRIVILEGED = [
     // Cash Admin reached from a button on Cash Tracker (hidden from menus)
