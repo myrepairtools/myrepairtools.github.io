@@ -74,6 +74,8 @@ background:#fff;color:var(--dark);padding:5px 10px;cursor:pointer;white-space:no
 letter-spacing:.5px;color:var(--grey);margin:14px 0 6px}
 .qbrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);
 border-radius:10px;margin-bottom:8px}
+.qbwarn{background:var(--amberbg);color:var(--ambert);border-radius:9px;padding:10px 12px;
+font-size:.78rem;font-weight:700;line-height:1.5;margin-top:4px}
 .f label{display:block;font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin:10px 0 3px}
 .f input,.f select{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:600;font-size:.88rem}
 /* a picker button that reads as one of the fields around it */
@@ -776,17 +778,26 @@ async function openQboCheck(id){
     if(r.status===200&&j.matches)matches=j.matches;else err=j.detail||j.error||('http '+r.status);
   }catch(e){err=e.message||'failed';}
   const body=$('#qbBody');body.className='';
-  const mrt=stub
-    ? '<div class="qbsec">In myRepairTools</div>'+qbTile({name:stub.display_name,
-        id:stub.id,hire_date:stub.start_date,email:null,payroll:false,active:true})
-        .replace('Contact only','From QB Time').replace('var(--amberbg)','var(--light-grey)').replace('var(--ambert)','var(--dark-grey)')
-    : '';
+  /* The MRT row this would merge ONTO — not a QuickBooks result. Its pill
+     says what state that row is in, rather than guessing where it came from:
+     a row with no store and no PIN is a shell nobody has set up. */
+  const bare=stub&&!stub.home_store&&!stub.pin_hash;
+  const mrtTile=stub?'<div class="qbrow">'
+    +'<div style="flex:1;min-width:0"><div style="font-family:Nunito,sans-serif;font-weight:800">'+esc(stub.display_name)+'</div>'
+    +'<div class="rl" style="margin-top:2px">id '+esc(stub.id)+' · '
+    +esc([stub.home_store?('CPR '+shortStore(stub.home_store)):'no store',
+          stub.pin_hash?'PIN set':'no PIN'].join(' · '))+'</div></div>'
+    +'<span class="tbadge" style="background:'+(bare?'var(--amberbg);color:var(--ambert)':'var(--greenbg);color:var(--greend)')+'">'
+    +(bare?'Needs setup':'Set up')+'</span></div>':'';
+  const mrt=stub?'<div class="qbsec">Merge onto</div>'+mrtTile:'';
   if(err){
     body.innerHTML='<div class="qbsec">QuickBooks</div><div class="empty">Couldn’t reach QuickBooks — '+esc(err)+'</div>'+mrt
       +'<div class="mact"><button class="btn alt" id="qbClose">Close</button></div>';
   }else if(!matches.length){
     body.innerHTML='<div class="qbsec">QuickBooks</div>'
       +'<div class="empty">No employee named '+esc(nm)+' yet.</div>'+mrt
+      +(stub&&bare?'<div class="qbwarn">This myRepairTools record has no QuickBooks employee behind it — '
+        +'it was synced from one that has since been deleted. Create them in QuickBooks, then check again.</div>':'')
       +'<div class="mact"><button class="btn alt" id="qbClose">Close</button>'
       +'<button class="btn" id="qbOpen">Create in QuickBooks</button></div>';
   }else{
