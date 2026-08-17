@@ -288,7 +288,7 @@ const NEW_HIRE_DAYS=60;
 let AUTH=null,BOOTED=false,STORE=localStorage.getItem('cprObStore')||'all';
 let VIEW={mode:'roster'};
 let STAFF=[],ALLSTAFF=[],OWNER=null,STORES=[],INTAKES=[],PENDING=[],IK_BYSTAFF={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],
-    ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={},PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={},EARNPERMS={};
+    ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],TICKS={},PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={};
 let OFFER_TPL='';
 async function resolveMe(sess){
   if(!sess||BOOTED)return;
@@ -300,7 +300,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 async function jwt(){return (await sb.auth.getSession()).data.session.access_token;}
 
 async function loadAll(){
-  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl,sr,pf,sc,cr,ro,pe,rp,sg,qt]=await Promise.all([
+  const [st,ik,mo,se,ar,sp,as,rd,at,sd,qz,tk,tpl,sr,pf,sc,cr,sg,qt]=await Promise.all([
     sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,start_date,created_at,birthday,title,mentor_staff_id,onboarding_completed_at,onboarding_canceled_at').eq('active',true),
     sb.from('staff_intake').select('*').order('created_at',{ascending:false}),
     sb.from('onboarding_modules').select('*').eq('active',true).order('sort'),
@@ -318,9 +318,6 @@ async function loadAll(){
     sb.from('staff_profiles').select('staff_id,phone,emergency,shirt_size,photo_path'),
     sb.from('staff_schedule').select('staff_id'),
     sb.from('commission_roster').select('staff_id'),
-    sb.from('roles').select('id,key'),
-    sb.from('permissions').select('id,key').like('key','commission.earn.%'),
-    sb.from('role_permissions').select('role_id,permission_id'),
     sb.from('kb_signatures').select('article_id,staff_id,signature_epoch'),
     sb.from('qbtime_users').select('staff_id,active'),
   ]);
@@ -340,14 +337,6 @@ async function loadAll(){
   SCHEDROWS={};(sc.data||[]).forEach(r=>{SCHEDROWS[r.staff_id]=true;});
   QBTIME={};(qt.data||[]).forEach(r=>{if(r.staff_id!=null)QBTIME[r.staff_id]=true;});
   ROSTERROWS={};(cr.data||[]).forEach(r=>{ROSTERROWS[r.staff_id]=r;});
-  EARNPERMS={};
-  const permById={};(pe.data||[]).forEach(x=>{permById[x.id]=x.key;});
-  const roleById={};(ro.data||[]).forEach(x=>{roleById[x.id]=x.key;});
-  (rp.data||[]).forEach(x=>{
-    const rk=roleById[x.role_id],pk=permById[x.permission_id];
-    if(!rk||!pk)return;
-    (EARNPERMS[rk]=EARNPERMS[rk]||{})[pk.replace('commission.earn.','')]=true;
-  });
 }
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function dchips(i){
@@ -372,8 +361,6 @@ function avatarHtml(pid,name,big){
   const u=photoUrl(pid);
   return '<span class="pav'+(big?' big':'')+'">'+(u?'<img src="'+esc(u)+'" alt="">':esc(initialsOf(name)))+'</span>';
 }
-const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
-function roleEarns(role,what){const k=ROLE_ALIAS[role]||role;return !!(EARNPERMS[k]&&EARNPERMS[k][what]);}
 function effRole(p){return p.role==='candidate'&&p.role_on_start?p.role_on_start:p.role;}
 /* the one track call — employee-facing surfaces hide back-office work
    entirely (same rule as training.html); the manager board shows it all */
@@ -413,11 +400,6 @@ function setupRows(p){
   auto(!!QBTIME[p.id],'Can clock in — QuickBooks Time','linked','not linked to QuickBooks Time');
   auto(asgn.length>0,'Onboarding modules assigned',asgn.length+' module'+(asgn.length===1?'':'s'),'nothing assigned');
   auto(!!p.birthday,'Birthday','on file','nothing on file');
-  const earnsA=roleEarns(effRole(p),'accessory'),earnsD=roleEarns(effRole(p),'device');
-  if(earnsA)auto(!!ROSTERROWS[p.id],'Accessory commission plan','verified','no commission_roster row');
-  else rows.push({kind:'na',label:'Accessory commission plan',sub:'n/a'});
-  if(earnsD)auto(!!ROSTERROWS[p.id],'Device commission plan','verified','no commission_roster row');
-  else rows.push({kind:'na',label:'Device commission plan',sub:'n/a'});
   MANUAL_ITEMS.forEach(mi=>{
     const t=TICKS[p.id+':'+mi.key];
     const sub=/^shirt/.test(mi.key)?(prof.shirt_size?('size '+prof.shirt_size):'no size on file'):'';

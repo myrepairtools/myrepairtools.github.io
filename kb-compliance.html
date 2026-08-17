@@ -155,7 +155,7 @@ const MANUAL_ITEMS=[
 ];
 
 let AUTH=null,BOOTED=false;
-let STAFF=[],PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={},TICKS={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[],EARNPERMS={};
+let STAFF=[],PROFILES={},SCHEDROWS={},QBTIME={},ROSTERROWS={},TICKS={},MODULES=[],SECTIONS=[],ARTS=[],STEPS=[],ASSIGNS=[],READS=[],SIGROWS=[],ATTEMPTS=[],SDONE=[],QUIZROWS=[];
 let STORE='all',SEL=null;
 
 async function resolveMe(sess){
@@ -167,7 +167,7 @@ sb.auth.onAuthStateChange((_e,sess)=>{if(sess)resolveMe(sess);});
 (async()=>{try{const s=(await sb.auth.getSession()).data.session;if(s)resolveMe(s);}catch(e){}})();
 
 async function loadAll(){
-  const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,ro,pe,rp,sg,qt]=await Promise.all([
+  const [st,pf,sc,cr,tk,mo,se,ar,sp,as,rd,at,sd,qz,sg,qt]=await Promise.all([
     sb.from('staff').select('id,display_name,role,role_on_start,home_store,authorized_stores,active,birthday,start_date,pin_hash,created_at').eq('active',true),
     sb.from('staff_profiles').select('staff_id,phone,emergency,shirt_size'),
     sb.from('staff_schedule').select('staff_id'),
@@ -182,9 +182,6 @@ async function loadAll(){
     sb.from('kb_quiz_attempts').select('quiz_id,staff_id,passed'),
     sb.from('onboarding_step_done').select('*'),
     sb.from('kb_quizzes').select('id,article_id,pass_pct,active,kb_quiz_questions(id)').eq('active',true),
-    sb.from('roles').select('id,key'),
-    sb.from('permissions').select('id,key').like('key','commission.earn.%'),
-    sb.from('role_permissions').select('role_id,permission_id'),
     sb.from('kb_signatures').select('article_id,staff_id,signature_epoch,signed_at'),
     sb.from('qbtime_users').select('staff_id,active'),
   ]);
@@ -198,20 +195,7 @@ async function loadAll(){
   ASSIGNS=(as.data||[]).filter(a=>a.module_id!=null);
   READS=rd.data||[];SIGROWS=sg.data||[];ATTEMPTS=at.data||[];SDONE=sd.data||[];QUIZROWS=qz.data||[];
   /* which roles earn accessory / device commission (for the n/a rows) */
-  EARNPERMS={};
-  const permById={};(pe.data||[]).forEach(p=>{permById[p.id]=p.key;});
-  const roleById={};(ro.data||[]).forEach(r=>{roleById[r.id]=r.key;});
-  (rp.data||[]).forEach(x=>{
-    const rk=roleById[x.role_id],pk=permById[x.permission_id];
-    if(!rk||!pk)return;
-    (EARNPERMS[rk]=EARNPERMS[rk]||{})[pk.replace('commission.earn.','')]=true;
-  });
 }
-const ROLE_ALIAS={owner:'owner',admin:'admin',manager:'admin',employee:'team_member',team_member:'team_member'};
-/* A candidate earns whatever the role they start on earns — asking the
-   candidate role itself would say "n/a" and hide a commission row that has to
-   be set up before their first sale. */
-function roleEarns(role,what){const k=ROLE_ALIAS[role]||role;return !!(EARNPERMS[k]&&EARNPERMS[k][what]);}
 function effRole(p){return p.role==='candidate'&&p.role_on_start?p.role_on_start:p.role;}
 function shortStore(s){return window.CPRLocations?CPRLocations.display(s):String(s||'').replace(/^CPR\s*/,'');}
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -253,11 +237,6 @@ function setupRows(p){
   auto(!!QBTIME[p.id],'Can clock in — QuickBooks Time','qbtime_users · linked','not linked to QuickBooks Time');
   auto(asgn.length>0,'Onboarding modules assigned',asgn.length+' module'+(asgn.length===1?'':'s')+(asgn.some(a=>a.due_at)?' · due dates set':''),'nothing assigned');
   auto(!!p.birthday,'Birthday','on file — milestones post','nothing on file — milestones post');
-  const earnsA=roleEarns(effRole(p),'accessory'),earnsD=roleEarns(effRole(p),'device');
-  if(earnsA)auto(!!ROSTERROWS[p.id],'Accessory commission plan','commission_roster · verified','no commission_roster row');
-  else rows.push({kind:'na',label:'Accessory commission plan',sub:'n/a — role doesn’t earn accessory'});
-  if(earnsD)auto(!!ROSTERROWS[p.id],'Device commission plan','commission_roster · verified','no commission_roster row');
-  else rows.push({kind:'na',label:'Device commission plan',sub:'n/a — role earns '+(earnsA?'accessory only':'neither')});
   MANUAL_ITEMS.forEach(mi=>{
     const t=TICKS[p.id+':'+mi.key];
     const sub=/^shirt/.test(mi.key)?(prof.shirt_size?('size '+prof.shirt_size):'no size on file'):'';
