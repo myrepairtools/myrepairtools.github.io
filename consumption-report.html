@@ -26,6 +26,7 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 .tab.active{background:var(--dark);color:#fff}
 .maxwrap{display:inline-flex;align-items:center;gap:5px;justify-content:flex-end}
 .maxval{font-family:'Nunito',sans-serif;font-weight:800}
+.maxval[title]{cursor:help}
 .maxval.unset{color:var(--grey);font-weight:700}
 .maxval.ovr{color:var(--blue)}
 .pen{background:none;border:none;cursor:pointer;color:var(--grey);font-size:.82rem;padding:0;line-height:1;opacity:.5}
@@ -1269,15 +1270,34 @@ function isGroupOverridden(gid){return (GROUPOVR[STATE.store]||{}).hasOwnPropert
    nobody has touched is still on the value RepairQ syncs in, so it has no
    author to name; rows written before the author trigger existed have none
    either, and both read as an em dash rather than pretending. */
-function setByFor(r){
-  var rec;
-  if(r.type==='group'){
-    rec=isGroupOverridden(r.gid)?(GROUPSETBY[STATE.store]||{})[r.gid]:null;
-    if(!rec){var g=groupById(r.gid);rec=g&&g.setBy?{by:g.setBy,at:g.setAt}:null;}
-  } else {
-    rec=isOverridden(r.sku)?(SETBY[STATE.store]||{})[r.sku]:null;
+/* keyed the same way maxCell is (sku | gidstore | gid) so the Max cell's hover
+   and the Last Changed By column always answer from one resolver */
+function setByRec(kind,key){
+  var rec=null,g;
+  if(kind==='sku'){
+    rec=isOverridden(key)?(SETBY[STATE.store]||{})[key]:null;
+  } else if(kind==='gidstore'){
+    rec=isGroupOverridden(key)?(GROUPSETBY[STATE.store]||{})[key]:null;
+    if(!rec){g=groupById(key);rec=g&&g.setBy?{by:g.setBy,at:g.setAt}:null;}
+  } else if(kind==='gid'){
+    g=groupById(key);rec=g&&g.setBy?{by:g.setBy,at:g.setAt}:null;
   }
   return rec&&rec.by?rec:null;
+}
+function setByFor(r){
+  return r.type==='group'?setByRec('gidstore',r.gid):setByRec('sku',r.sku);
+}
+/* hover text for the Max number itself — the same answer the column gives,
+   with the full date, and on the Daily order tab too (no column there) */
+function setByTitle(kind,key){
+  var rec=setByRec(kind,key);
+  if(rec){
+    var d=rec.at?new Date(rec.at):null;
+    return 'Last changed by '+rec.by
+      +(d&&!isNaN(d)?' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'');
+  }
+  if(kind==='sku'&&!isOverridden(key))return 'From RepairQ';
+  return 'Last changed by — not recorded';
 }
 function setByCell(r){
   var rec=setByFor(r);
@@ -1311,7 +1331,7 @@ function maxCell(kind,key,val){
   // A non-overridden 0 means no max set yet -> gray dash.
   var showNum=ovr||val>0;
   return '<span class="maxwrap" data-mk="'+kind+'" data-mv="'+key+'">'
-    +'<span class="maxval'+(showNum?'':' unset')+(ovr?' ovr':'')+'">'+(showNum?val:'—')+'</span>'
+    +'<span class="maxval'+(showNum?'':' unset')+(ovr?' ovr':'')+'" title="'+esc(setByTitle(kind,key))+'">'+(showNum?val:'—')+'</span>'
     +'<button class="pen" aria-label="Edit max" title="Edit max">✎</button></span>';
 }
 function wireMaxEdit(scope){
