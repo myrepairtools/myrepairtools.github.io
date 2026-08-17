@@ -834,8 +834,10 @@ sheets** (top:52px under the top bar; `.mback` is z-index 1200, above the 1001 b
 bar). New Booking uses host chips, a horizontal day strip with open counts (full days
 greyed), and a 2-up slot grid; the footer CTA names the time ("Book 10:00 AM").
 Confirmations: SMS from the store's own
-RingCentral line via `messaging`, email via Resend→**Gmail SMTP fallback** (only Gmail is
-configured today, so email works through that). **Reminder matrix** — the
+RingCentral line via `messaging`, email via Resend (live; `HIRING_FROM` =
+hiring@myrepairtools.com) with a **Gmail SMTP fallback that is currently dead**
+— its app password returns 535 bad-credentials, so Resend is the only working
+transport; `preview_newhire` reports which one carried a send. **Reminder matrix** — the
 `interviews-remind-hourly` pg_cron (now `*/15`; `?action=remind`, NOTIFY_SECRET) runs four
 independent passes, each with its own booking flag so nothing double-fires: candidate
 text/email at ~24h (window 20–26h before start — same-day bookings skip it, their
@@ -1546,11 +1548,27 @@ sign in, see their own schedule and do their training, but none of the store's
 tools. `staff.role_on_start` carries the role the wizard actually picked, and
 the **day-one cron** (`hiring-day-one-sms`, 14:30 UTC — the same run that sends
 the 7:30am SMS) promotes every candidate whose `start_date` has arrived, then
-fires a `hiring` alert to the owner + store manager. Converting someone whose
-start date is today or past skips `candidate` entirely. Five tools that were
+fires a `hiring` alert to the owner + store manager. Five tools that were
 reachable by any signed-in person (Contracts, LCD Buyback, Brand Assets, Label
 Resizer, Get the Extension) gained permission keys so the ROLE decides
 visibility — never hard-code a page allowlist per role; add the `acc:` key.
+**Everyone now arrives through `candidate` (owner call 2026-08-17;
+docs/sql/candidate-activation.sql).** Finishing the new-hire form
+auto-converts them — the intake fn's `submit` calls the extracted
+`promoteIntake()`, the same path a manager's Convert button runs, with
+`forceCandidate` — so their first week's schedule can be built the day they
+accept instead of the day they arrive. Because everyone sits in the role, it
+is genuinely narrow: `schedule.view` + their own profile, and the Knowledge
+Base / Training / Communications (open to any signed-in person before) gained
+`kb.view` / `training.view` / `comms.view`, granted to owner+admin+team_member
+and withheld here. The door out is an onboarding step: **"Activate employee"**
+(`onboarding_steps.action = 'activate'`, manager). Ticking it promotes them to
+`staff.role_on_start` via an AFTER INSERT trigger on `onboarding_step_done` —
+a trigger, not page code, so every surface that can tick a step activates
+correctly. **Un-ticking does NOT demote** (taking access away is a decision,
+not an undo), and the day-one cron still promotes anyone whose start date
+arrives un-ticked, then ticks the step — nobody is locked out of their first
+shift because a box wasn't checked.
 
 **Store scoping (`app_settings`):** a general owner-managed key-value settings table
 (`app_settings` — key text pk, value jsonb, RLS read-all / write `is_owner()`;

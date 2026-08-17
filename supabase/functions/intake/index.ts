@@ -454,10 +454,10 @@ function mailText(o: { greeting: string; paras: string[]; steps?: string[]; cta?
 }
 type Attach = { filename: string; bytes: Uint8Array; type: string };
 async function sendOfferEmail(to: string, subject: string, text: string, html: string,
-  pdf: Uint8Array, filename: string, replyTo?: string, extra?: Attach[]): Promise<{ ok: boolean; error?: string }> {
+  pdf: Uint8Array, filename: string, replyTo?: string, extra?: Attach[], skipResend?: boolean): Promise<{ ok: boolean; error?: string; via?: string; id?: string }> {
   const b64 = b64FromBytes(pdf);
   const more = (extra || []).map((a) => ({ ...a, b64: b64FromBytes(a.bytes) }));
-  if (RESEND_API_KEY) {
+  if (RESEND_API_KEY && !skipResend) {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -468,8 +468,8 @@ async function sendOfferEmail(to: string, subject: string, text: string, html: s
           .concat(more.map((a) => ({ filename: a.filename, content: a.b64 }))),
       }),
     });
-    if (r.ok) return { ok: true };
     const d = await r.json().catch(() => ({}));
+    if (r.ok) return { ok: true, via: "resend", id: d && d.id ? String(d.id) : undefined };
     if (!GMAIL_USER) return { ok: false, error: (d && (d.message || d.name)) || `resend_${r.status}` };
   }
   if (GMAIL_USER && GMAIL_APP_PASSWORD) {
@@ -486,7 +486,7 @@ async function sendOfferEmail(to: string, subject: string, text: string, html: s
           .concat(more.map((a) => ({ filename: a.filename, content: a.b64, encoding: "base64", contentType: a.type }))),
       });
       await client.close();
-      return { ok: true };
+      return { ok: true, via: "gmail:" + GMAIL_USER };
     } catch (e) {
       return { ok: false, error: "gmail_" + String((e as Error)?.message || e).slice(0, 200) };
     }
@@ -558,7 +558,7 @@ const prettyPhone = (p: string) => p.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "($1)
 /* Stage two. Fires once, when the offer is signed: their signed copy attached,
    and the link to the handbook + new-hire form. Stamped so a re-signed or
    replayed request can't email twice. */
-async function sendNewHireEmail(it: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+async function sendNewHireEmail(it: Record<string, unknown>, skipResend?: boolean): Promise<{ ok: boolean; error?: string; via?: string; id?: string }> {
   const email = String(it.personal_email || "");
   if (!/@/.test(email) || it.newhire_sent_at) return { ok: false, error: "no_email" };
   const link = SITE + "/intake.html?t=" + String(it.token) + "&s=hire";
@@ -598,7 +598,7 @@ async function sendNewHireEmail(it: Record<string, unknown>): Promise<{ ok: bool
   } catch { return { ok: false, error: "pdf_failed" }; }
   const r = await sendOfferEmail(email, "Welcome to CPR — your next steps",
     mailText(msg), mailHtml(msg), pdf, "CPR Offer — signed.pdf", await hiringReplyTo(),
-    people.length ? [{ filename: "CPR Contacts.vcf", bytes: vcardFor(people), type: "text/vcard" }] : []);
+    people.length ? [{ filename: "CPR Contacts.vcf", bytes: vcardFor(people), type: "text/vcard" }] : [], skipResend);
   // No id = a preview send (see the preview_newhire action); there's no row
   // to stamp and nothing to stop from sending twice.
   if (r.ok && it.id) {
@@ -844,6 +844,176 @@ async function hiringReplyTo(): Promise<string | undefined> {
 /* A scribble, for preview sends only — never a real person's signature. */
 const SAMPLE_SIG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbgAAAB4CAYAAACAVeezAAACvklEQVR42u3c2XHCMBRAUTXkCui/LtMBYFsSbzlnht8Qa7sRk2QMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC46zhe56eXEQIgfcyuvIwmAGWiJnYAtAib2AFQPmxCB0DYuK2IpFkBYGvYdgfULAGwLDpRbotmDYApkYl4gxQ6AG5HJfJtUugACHlrEzoASt/ahA6AVnGbETuzDiBuZ6VnETvgX2eN8ybQJHVbfFYEMDtozhxx81MW0CJqzhxxC7dQrRpwPgpd8gm0cC1CcC76p/LiZjFbmODTnaXvY5bELf1PblYn5Njz/3p/syZupT6iME8QY49H+n7M4sVBNEI5g2fuoE5M7HtxEzxzCUv3bZbv18wOH012jZ8ZwZ7Mu2fsdXETRYsfSoXNbU7czKPQQemwCZ242chCB6PLHrDHh18qsbltAqz97v9j1+0NG96awDoXOXHDRzbgkwqREzeEDoQtyBh5QBwS1oowJPojZ+u30QXHhDPz8DBS9UMWJSL+DGb9WIobNoL1I2oJX1bD57UhbtgI1pGoiRoCR8eD0ygJm7ARZvEbGURO2H6dO0EjzSYwKohcz7Blv0mafQQOoRM2c0G/jWE0ELn6cTNiACInbACInLABOJAdwBviZrQARK5U3IwUgMgJGwAiJ24APD60jZJxAnB4u7UBIHLiBoDIGQsA1h7u4iZuACJXLGziBiBybm0AOPg9IwACsPG5xA1A5E7PA4DIubUBIHTiBoDI3Q6buAGQ5kYkbACUCohbGwClQidsAJSKy5X3FjcAlofmSWx2vhcA3I7Ptwg9+ZriBkCY0M16mQUASkXOyANQKnZGGYAyoTOiAJQInhEDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIBF3p18Qr5T26N7AAAAAElFTkSuQmCC";
 
+/* The whole conversion, callable. Finishing the new-hire form runs it
+   automatically (submit), and a manager can still run it by hand for a
+   paper-signed hire (the promote action). */
+async function promoteIntake(intakeId: number, staffIdIn: number,
+  actor: { id?: number; display_name?: string } | null, forceCandidate = false): Promise<Response> {
+
+    // copy the intake onto an existing staff row + staff_profiles, stamp the
+    // link, and fire module auto-assign for the hire. staff_id required (the
+    // staff row is created by the QB Time sync or Team Members first).
+    // Doc gating lives in the UI (a paper-signed candidate can still be
+    // converted) — but a declined offer is a hard no.
+    let staffId = staffIdIn;
+    const { data: it } = await admin.from("staff_intake").select("*").eq("id", intakeId).maybeSingle();
+    if (!it) return json({ error: "not_found" }, 404);
+    if (it.offer_declined_at) return json({ error: "declined" }, 409);
+
+    // No staff row yet? Build it. Everything needed was decided in the wizard
+    // (role, home + authorized stores, wage type) or on the form (name, PIN),
+    // so convert finishes the hire instead of handing back a half-made person.
+    let pinNote: string | null = null;
+    const wantRole = ["team_member", "employee", "admin"].includes(String(it.mrt_role))
+      ? (it.mrt_role === "employee" ? "team_member" : String(it.mrt_role)) : "team_member";
+    const todayPT = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+    // Everyone lands on `candidate` and stays there until a manager ticks the
+    // Activate step (or the day-one cron fires) — that tick is the single door
+    // to the store's tools, whatever their start date says.
+    const startsLater = forceCandidate || (!!it.start_date && String(it.start_date) > todayPT);
+    if (!staffId) {
+      const nm = [it.legal_first, it.legal_last].filter(Boolean).join(" ").trim()
+        || String(it.invited_name || "").trim();
+      if (!nm) return json({ error: "no_name" }, 400);
+      const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin), Number(it.id)) : null;
+      const username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), nm);
+      if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
+      const { data: made, error: cerr } = await admin.from("staff").insert({
+        display_name: nm,
+        username,
+        first_name: it.legal_first || null,
+        last_name: it.legal_last || null,
+        preferred_name: it.preferred_name || null,
+        birthday: it.dob || null,
+        // Converting before day one is what lets you build their first
+        // schedule — Schedule Admin only lists real staff rows. They land on
+        // `candidate` until then: their own schedule and training, none of the
+        // store's tools. The day-one cron promotes them to the real role.
+        role: startsLater ? "candidate" : wantRole,
+        role_on_start: startsLater ? wantRole : null,
+        home_store: it.invited_store || null,
+        authorized_stores: Array.isArray(it.authorized_stores) && it.authorized_stores.length
+          ? it.authorized_stores : null,
+        title: it.position || null,
+        wage_type: it.pay_type === "salary" ? "salary" : "hourly",
+        start_date: it.start_date || null,
+        active: true,
+        ...(pin ? { pin_hash: await hashPin(pin) } : {}),
+      }).select("id").single();
+      if (cerr) return json({ error: "staff_create_failed", detail: cerr.message }, 500);
+      staffId = made.id;
+      // the PIN has served its purpose; don't leave it sitting in plaintext
+      await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
+    }
+    const { data: st } = await admin.from("staff").select(
+      "id, role, start_date, birthday, title, first_name, last_name, preferred_name, " +
+      "home_store, authorized_stores, wage_type, pin_hash, username").eq("id", staffId).maybeSingle();
+    if (!st) return json({ error: "staff_not_found" }, 404);
+    // FILL EMPTY ONLY, never overwrite — a value already on the staff row was put
+    // there by a manager and outranks the form. The stub the QB Time sync creates
+    // carries name and (sometimes) hire date and nothing else, so without this the
+    // wizard's store / pay / start date and the PIN they chose would be stranded on
+    // the intake row and the converted person would land half-made.
+    const patch: Record<string, unknown> = {};
+    if (it.legal_first && !st.first_name) patch.first_name = it.legal_first;
+    if (it.legal_last && !st.last_name) patch.last_name = it.legal_last;
+    if (it.preferred_name && !st.preferred_name) patch.preferred_name = it.preferred_name;
+    if (it.dob && !st.birthday) patch.birthday = it.dob;
+    if (it.position && !st.title) patch.title = it.position;
+    if (it.invited_store && !st.home_store) patch.home_store = it.invited_store;
+    if (Array.isArray(it.authorized_stores) && it.authorized_stores.length
+      && !(Array.isArray(st.authorized_stores) && st.authorized_stores.length)) {
+      patch.authorized_stores = it.authorized_stores;
+    }
+    if (it.start_date && !st.start_date) patch.start_date = it.start_date;
+    if (it.pay_type && !st.wage_type) patch.wage_type = it.pay_type === "salary" ? "salary" : "hourly";
+    if (!st.username) patch.username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), String(it.invited_name || ""));
+    // the PIN they picked on the form is useless sitting on the intake row — but
+    // it can only be taken if nobody else already answers to it
+    if (it.suggested_pin && !st.pin_hash) {
+      // exclude THIS intake row, or their own claim reads as a collision
+      const pin = await pinFreeOrNull(String(it.suggested_pin), Number(it.id));
+      if (pin) patch.pin_hash = await hashPin(pin);
+      else pinNote = "their chosen PIN was already taken — set a new one";
+    }
+    // The QB Time sync stubs a row for anyone it finds in QuickBooks, and since
+    // payroll setup now happens BEFORE convert, most hires arrive as a stub —
+    // so without this the candidate stage would almost never be used. A stub is
+    // a row nobody has set up: no PIN and no home store. A configured person's
+    // role is left alone, always.
+    const isStub = !st.pin_hash && !st.home_store;
+    if (isStub && startsLater && st.role !== "candidate") {
+      patch.role = "candidate";
+      patch.role_on_start = wantRole;
+    }
+    if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
+    if (patch.pin_hash) await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
+    // contact + emergency onto staff_profiles (never overwrite non-empty)
+    const { data: prof } = await admin.from("staff_profiles")
+      .select("staff_id, phone, personal_email, emergency, address, shirt_size, availability").eq("staff_id", staffId).maybeSingle();
+    await admin.from("staff_profiles").upsert({
+      staff_id: staffId,
+      phone: prof?.phone || it.phone || null,
+      personal_email: prof?.personal_email || it.personal_email || null,
+      emergency: prof?.emergency || it.emergency || null,
+      // asked for on the new-hire form and then stranded there: you can't
+      // order someone a shirt from a size that never left the intake row
+      address: prof?.address || it.address || null,
+      shirt_size: prof?.shirt_size || it.shirt_size || null,
+      // what they said they can work — Schedule Admin needs it to build their
+      // first week, and the intake row leaves the board the moment we promote
+      availability: prof?.availability || it.availability || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "staff_id" });
+    // commission profile from the wizard's Pay step. earns_override is exactly
+    // {accessory,device,services} (assets/commission-engine.js), so it carries
+    // over as-is. Only written when the row doesn't already have a profile —
+    // a roster row edited by hand on Team Members always wins.
+    if (it.pay_type || it.commission) {
+      const { data: existing } = await admin.from("commission_roster")
+        .select("staff_id").eq("staff_id", staffId).maybeSingle();
+      if (!existing) {
+        const earns = it.commission
+          ? (it.commission_earns || { accessory: true, device: true, services: true })
+          : { accessory: false, device: false, services: false };
+        await admin.from("commission_roster").insert({
+          staff_id: staffId,
+          commission_active: !!it.commission,
+          earns_override: earns,
+        });
+      }
+    }
+    await admin.from("staff_intake").update({
+      status: "promoted", promoted_staff_id: staffId, promoted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("id", intakeId);
+    // file the signed paperwork onto the person before the intake row leaves
+    // the board — this is the only moment it's guaranteed to still be visible
+    const docs = await archiveDocs(it, staffId, actor).catch(() => ({ filed: 0, errors: ["archive failed"] }));
+    // training: what the wizard picked, plus whatever the modules' own
+    // auto-assign rules match. A hire should never land with an empty track
+    // just because nobody has configured a rule yet.
+    const { data: mods } = await admin.from("onboarding_modules").select("id, auto_assign_role, auto_assign_from").eq("active", true);
+    // a candidate becomes wantRole; auto-assign has to aim at that, not at the
+    // holding role they are sitting in right now
+    const effRole = st.role === "candidate" ? wantRole : String(st.role);
+    const hired = String(st.start_date || new Date().toISOString().slice(0, 10));
+    const picked = Array.isArray(it.modules) ? (it.modules as unknown[]).map(Number) : [];
+    let assigned = 0;
+    for (const m of (mods || [])) {
+      if (!picked.includes(Number(m.id))) {
+        if (!m.auto_assign_role) continue;
+        const roleOk = m.auto_assign_role === "any" || m.auto_assign_role === effRole
+          || (m.auto_assign_role === "team_member" && ["employee", "team_member"].includes(effRole));
+        const dateOk = !m.auto_assign_from || hired >= String(m.auto_assign_from);
+        if (!roleOk || !dateOk) continue;
+      }
+      const { error } = await admin.from("onboarding_assignments")
+        .upsert({ staff_id: staffId, module_id: m.id, assigned_by: actor?.id ?? null }, { onConflict: "staff_id,module_id", ignoreDuplicates: true });
+      if (!error) assigned++;
+    }
+    return json({ ok: true, assigned, staff_id: staffId, docs, ...(pinNote ? { note: pinNote } : {}) });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   /* The one GET: the contact card a candidate saves to their phone. It has to
@@ -978,6 +1148,15 @@ Deno.serve(async (req) => {
         .update({ role: to, role_on_start: null }).eq("id", p.id).eq("role", "candidate");
       if (error) { promoted.push({ id: p.id, name: p.display_name, ok: false, error: error.message }); continue; }
       promoted.push({ id: p.id, name: p.display_name, ok: true, role: to });
+      // Activation is an onboarding step a manager normally ticks. When the
+      // cron gets there first, tick it for them so the track doesn't sit on a
+      // step that already happened.
+      const { data: actStep } = await admin.from("onboarding_steps")
+        .select("id").eq("action", "activate").eq("active", true).maybeSingle();
+      if (actStep) {
+        await admin.from("onboarding_step_done")
+          .upsert({ step_id: actStep.id, staff_id: p.id }, { onConflict: "step_id,staff_id", ignoreDuplicates: true });
+      }
       await alertMgr(null, "First day — " + p.display_name,
         p.display_name + " starts today and now has full "
         + (to === "admin" ? "Manager" : "Team Member") + " access.",
@@ -1173,13 +1352,25 @@ Deno.serve(async (req) => {
     // Best-effort and stamped: a QBO outage must never cost a candidate their
     // finished paperwork, and the error is kept so it can be retried by hand.
     const qbo = await createQboEmployee({ ...row, ...patch });
+    /* Live in MRT the moment the form is done. Schedule Admin only lists real
+       staff rows, so waiting for a manager to click Convert meant their first
+       week couldn't be built until someone got around to it. They land on
+       `candidate` — their own schedule and profile, none of the store's tools
+       — until the Activate step is ticked. */
+    let live: Record<string, unknown> = { ok: false };
+    try {
+      const res = await promoteIntake(Number(row.id), 0, row.invited_by ? { id: Number(row.invited_by) } : null, true);
+      live = await res.json().catch(() => ({ ok: false }));
+    } catch (e) {
+      live = { ok: false, error: String((e as Error)?.message || e).slice(0, 200) };
+    }
     await alertMgr(row.invited_by, "New-hire form in — " + nm,
       nm + " finished their paperwork" + (row.offer_body ? " (offer + handbook signed)" : "")
-      + (qbo.ok ? " — added to QuickBooks, ready to convert."
-         : qbo.skipped ? " — ready to convert."
-         : " — ready to convert. QuickBooks add failed: " + qbo.error),
+      + (live.ok ? " — they're live in myRepairTools as a candidate. Build their schedule, then tick Activate employee when they start."
+         : " — ready to convert." + (live.error ? " Auto-convert failed: " + live.error : ""))
+      + (qbo.ok ? " Added to QuickBooks." : !qbo.skipped && qbo.error ? " QuickBooks add failed: " + qbo.error : ""),
       row.invited_store);
-    return json({ ok: true, qbo });
+    return json({ ok: true, qbo, live });
   }
 
   // ---- manager side (JWT auth) ----
@@ -1190,6 +1381,20 @@ Deno.serve(async (req) => {
      or formatting used to mean burning a test candidate — and texting that
      store's manager an "Offer signed" alert. Manager-gated like send_offer,
      which is the other action here that puts mail in someone's inbox. */
+  /* Did that email actually land? Resend accepting a message and the mailbox
+     receiving it are different events — this reads back the delivery event so
+     "not seeing it" can be answered with delivered / bounced / spam instead of
+     a guess. */
+  if (action === "mail_status") {
+    const id = String(body.id || "");
+    if (!id) return json({ error: "id required" }, 400);
+    if (!RESEND_API_KEY) return json({ error: "no_resend" }, 400);
+    const r = await fetch("https://api.resend.com/emails/" + encodeURIComponent(id), {
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+    });
+    const d = await r.json().catch(() => ({}));
+    return json({ ok: r.ok, status: r.status, mail: d });
+  }
   if (action === "preview_newhire") {
     const to = String(body.to || "");
     if (!/@/.test(to)) return json({ error: "to required" }, 400);
@@ -1206,8 +1411,8 @@ Deno.serve(async (req) => {
         .replace(/\{pay\}/g, "$18.00/hour").replace(/\{store\}/g, store.replace(/^CPR\s*/, ""))
         .replace(/\{start\}/g, "your start date").replace(/\{signature\}/g, ""),
       offer_signature: SAMPLE_SIG, offer_signed_name: name, offer_signed_at: at,
-    });
-    return json({ ok: sent.ok, sent_to: to, store, ...(sent.error ? { error: sent.error } : {}) });
+    }, String(body.transport || "") === "gmail");
+    return json({ ok: sent.ok, sent_to: to, store, via: sent.via, id: sent.id, from: HIRING_FROM, ...(sent.error ? { error: sent.error } : {}) });
   }
   if (action === "offer_pdf") {
     // Preview: build the PDF from a raw (possibly not-yet-saved) body. No
@@ -1308,164 +1513,9 @@ Deno.serve(async (req) => {
     return json({ ok: true, ...docs });
   }
   if (action === "promote") {
-    // copy the intake onto an existing staff row + staff_profiles, stamp the
-    // link, and fire module auto-assign for the hire. staff_id required (the
-    // staff row is created by the QB Time sync or Team Members first).
-    // Doc gating lives in the UI (a paper-signed candidate can still be
-    // converted) — but a declined offer is a hard no.
     const intakeId = Number(body.intake_id);
-    let staffId = Number(body.staff_id) || 0;
     if (!intakeId) return json({ error: "intake_id required" }, 400);
-    const { data: it } = await admin.from("staff_intake").select("*").eq("id", intakeId).maybeSingle();
-    if (!it) return json({ error: "not_found" }, 404);
-    if (it.offer_declined_at) return json({ error: "declined" }, 409);
-
-    // No staff row yet? Build it. Everything needed was decided in the wizard
-    // (role, home + authorized stores, wage type) or on the form (name, PIN),
-    // so convert finishes the hire instead of handing back a half-made person.
-    let pinNote: string | null = null;
-    const wantRole = ["team_member", "employee", "admin"].includes(String(it.mrt_role))
-      ? (it.mrt_role === "employee" ? "team_member" : String(it.mrt_role)) : "team_member";
-    const todayPT = new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
-    const startsLater = !!it.start_date && String(it.start_date) > todayPT;
-    if (!staffId) {
-      const nm = [it.legal_first, it.legal_last].filter(Boolean).join(" ").trim()
-        || String(it.invited_name || "").trim();
-      if (!nm) return json({ error: "no_name" }, 400);
-      const pin = it.suggested_pin ? await pinFreeOrNull(String(it.suggested_pin), Number(it.id)) : null;
-      const username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), nm);
-      if (it.suggested_pin && !pin) pinNote = "their chosen PIN was already taken — set a new one";
-      const { data: made, error: cerr } = await admin.from("staff").insert({
-        display_name: nm,
-        username,
-        first_name: it.legal_first || null,
-        last_name: it.legal_last || null,
-        preferred_name: it.preferred_name || null,
-        birthday: it.dob || null,
-        // Converting before day one is what lets you build their first
-        // schedule — Schedule Admin only lists real staff rows. They land on
-        // `candidate` until then: their own schedule and training, none of the
-        // store's tools. The day-one cron promotes them to the real role.
-        role: startsLater ? "candidate" : wantRole,
-        role_on_start: startsLater ? wantRole : null,
-        home_store: it.invited_store || null,
-        authorized_stores: Array.isArray(it.authorized_stores) && it.authorized_stores.length
-          ? it.authorized_stores : null,
-        title: it.position || null,
-        wage_type: it.pay_type === "salary" ? "salary" : "hourly",
-        start_date: it.start_date || null,
-        active: true,
-        ...(pin ? { pin_hash: await hashPin(pin) } : {}),
-      }).select("id").single();
-      if (cerr) return json({ error: "staff_create_failed", detail: cerr.message }, 500);
-      staffId = made.id;
-      // the PIN has served its purpose; don't leave it sitting in plaintext
-      await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
-    }
-    const { data: st } = await admin.from("staff").select(
-      "id, role, start_date, birthday, title, first_name, last_name, preferred_name, " +
-      "home_store, authorized_stores, wage_type, pin_hash, username").eq("id", staffId).maybeSingle();
-    if (!st) return json({ error: "staff_not_found" }, 404);
-    // FILL EMPTY ONLY, never overwrite — a value already on the staff row was put
-    // there by a manager and outranks the form. The stub the QB Time sync creates
-    // carries name and (sometimes) hire date and nothing else, so without this the
-    // wizard's store / pay / start date and the PIN they chose would be stranded on
-    // the intake row and the converted person would land half-made.
-    const patch: Record<string, unknown> = {};
-    if (it.legal_first && !st.first_name) patch.first_name = it.legal_first;
-    if (it.legal_last && !st.last_name) patch.last_name = it.legal_last;
-    if (it.preferred_name && !st.preferred_name) patch.preferred_name = it.preferred_name;
-    if (it.dob && !st.birthday) patch.birthday = it.dob;
-    if (it.position && !st.title) patch.title = it.position;
-    if (it.invited_store && !st.home_store) patch.home_store = it.invited_store;
-    if (Array.isArray(it.authorized_stores) && it.authorized_stores.length
-      && !(Array.isArray(st.authorized_stores) && st.authorized_stores.length)) {
-      patch.authorized_stores = it.authorized_stores;
-    }
-    if (it.start_date && !st.start_date) patch.start_date = it.start_date;
-    if (it.pay_type && !st.wage_type) patch.wage_type = it.pay_type === "salary" ? "salary" : "hourly";
-    if (!st.username) patch.username = await freeUsername(String(it.legal_first || ""), String(it.legal_last || ""), String(it.invited_name || ""));
-    // the PIN they picked on the form is useless sitting on the intake row — but
-    // it can only be taken if nobody else already answers to it
-    if (it.suggested_pin && !st.pin_hash) {
-      // exclude THIS intake row, or their own claim reads as a collision
-      const pin = await pinFreeOrNull(String(it.suggested_pin), Number(it.id));
-      if (pin) patch.pin_hash = await hashPin(pin);
-      else pinNote = "their chosen PIN was already taken — set a new one";
-    }
-    // The QB Time sync stubs a row for anyone it finds in QuickBooks, and since
-    // payroll setup now happens BEFORE convert, most hires arrive as a stub —
-    // so without this the candidate stage would almost never be used. A stub is
-    // a row nobody has set up: no PIN and no home store. A configured person's
-    // role is left alone, always.
-    const isStub = !st.pin_hash && !st.home_store;
-    if (isStub && startsLater && st.role !== "candidate") {
-      patch.role = "candidate";
-      patch.role_on_start = wantRole;
-    }
-    if (Object.keys(patch).length) await admin.from("staff").update(patch).eq("id", staffId);
-    if (patch.pin_hash) await admin.from("staff_intake").update({ suggested_pin: null }).eq("id", intakeId);
-    // contact + emergency onto staff_profiles (never overwrite non-empty)
-    const { data: prof } = await admin.from("staff_profiles")
-      .select("staff_id, phone, personal_email, emergency, address, shirt_size, availability").eq("staff_id", staffId).maybeSingle();
-    await admin.from("staff_profiles").upsert({
-      staff_id: staffId,
-      phone: prof?.phone || it.phone || null,
-      personal_email: prof?.personal_email || it.personal_email || null,
-      emergency: prof?.emergency || it.emergency || null,
-      // asked for on the new-hire form and then stranded there: you can't
-      // order someone a shirt from a size that never left the intake row
-      address: prof?.address || it.address || null,
-      shirt_size: prof?.shirt_size || it.shirt_size || null,
-      // what they said they can work — Schedule Admin needs it to build their
-      // first week, and the intake row leaves the board the moment we promote
-      availability: prof?.availability || it.availability || null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "staff_id" });
-    // commission profile from the wizard's Pay step. earns_override is exactly
-    // {accessory,device,services} (assets/commission-engine.js), so it carries
-    // over as-is. Only written when the row doesn't already have a profile —
-    // a roster row edited by hand on Team Members always wins.
-    if (it.pay_type || it.commission) {
-      const { data: existing } = await admin.from("commission_roster")
-        .select("staff_id").eq("staff_id", staffId).maybeSingle();
-      if (!existing) {
-        const earns = it.commission
-          ? (it.commission_earns || { accessory: true, device: true, services: true })
-          : { accessory: false, device: false, services: false };
-        await admin.from("commission_roster").insert({
-          staff_id: staffId,
-          commission_active: !!it.commission,
-          earns_override: earns,
-        });
-      }
-    }
-    await admin.from("staff_intake").update({
-      status: "promoted", promoted_staff_id: staffId, promoted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    }).eq("id", intakeId);
-    // file the signed paperwork onto the person before the intake row leaves
-    // the board — this is the only moment it's guaranteed to still be visible
-    const docs = await archiveDocs(it, staffId, mgr).catch(() => ({ filed: 0, errors: ["archive failed"] }));
-    // training: what the wizard picked, plus whatever the modules' own
-    // auto-assign rules match. A hire should never land with an empty track
-    // just because nobody has configured a rule yet.
-    const { data: mods } = await admin.from("onboarding_modules").select("id, auto_assign_role, auto_assign_from").eq("active", true);
-    const hired = String(st.start_date || new Date().toISOString().slice(0, 10));
-    const picked = Array.isArray(it.modules) ? (it.modules as unknown[]).map(Number) : [];
-    let assigned = 0;
-    for (const m of (mods || [])) {
-      if (!picked.includes(Number(m.id))) {
-        if (!m.auto_assign_role) continue;
-        const roleOk = m.auto_assign_role === "any" || m.auto_assign_role === st.role
-          || (m.auto_assign_role === "team_member" && ["employee", "team_member"].includes(st.role));
-        const dateOk = !m.auto_assign_from || hired >= String(m.auto_assign_from);
-        if (!roleOk || !dateOk) continue;
-      }
-      const { error } = await admin.from("onboarding_assignments")
-        .upsert({ staff_id: staffId, module_id: m.id, assigned_by: mgr.id }, { onConflict: "staff_id,module_id", ignoreDuplicates: true });
-      if (!error) assigned++;
-    }
-    return json({ ok: true, assigned, staff_id: staffId, docs, ...(pinNote ? { note: pinNote } : {}) });
+    return await promoteIntake(intakeId, Number(body.staff_id) || 0, mgr, true);
   }
   return json({ error: "unknown action" }, 400);
 });

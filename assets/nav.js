@@ -91,7 +91,7 @@
     { label:'Dashboard',           url:'index.html',                icon:'house' },
     { label:'Checklist',           url:'checklist.html',            icon:'list-checks' , acc:'checklist.view'},
     { label:'Alerts',              url:'alerts.html',               icon:'bell' },
-    { label:'Communications',      url:'communications.html',       icon:'megaphone' },
+    { label:'Communications',      url:'communications.html',       icon:'megaphone', acc:'comms.view' },
     { label:'My Commission',       url:'commission-dashboard.html', icon:'chart-line', acc:'commission.dashboard' },
     { label:'My Time',             url:'my-schedule.html',          icon:'calendar-days', acc:'schedule.view' }
   ];
@@ -849,8 +849,10 @@
   function paneMobileInner(){
     var h = '<a class="cpr-mhd" href="profile.html" style="text-decoration:none;color:inherit">'+avatarHtml('cpr-mav')
       + '<div><div class="nm">'+(NAV_NAME?esc(NAV_NAME):'Not signed in')+'</div><div class="rl">'+esc(roleText())+'</div></div></a>';
-    h += linkHtml({ label:'Knowledge Base', url:'knowledge.html', icon:'book-open' });
-    h += linkHtml({ label:'Training', url:'training.html', icon:'graduation-cap' });
+    var kbRow = { label:'Knowledge Base', url:'knowledge.html', icon:'book-open', acc:'kb.view' };
+    var trRow = { label:'Training', url:'training.html', icon:'graduation-cap', acc:'training.view' };
+    if (canSee(kbRow)) h += linkHtml(kbRow);
+    if (canSee(trRow)) h += linkHtml(trRow);
     var hub = HUB.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
     if (hub) h += '<div class="cpr-grp">My Hub</div>' + hub;
     var pr = PRICING.filter(canSee).map(function(t){ return linkHtml(t); }).join('');
@@ -931,6 +933,17 @@
     });
     d.style.display = any ? '' : 'none';
   }
+  // Knowledge Base + Training rail links. Open to everyone with a real role;
+  // a candidate (hired, not started) has neither key until a manager ticks
+  // Activate employee, so the role decides rather than a page allowlist.
+  function updateLearnIcons(){
+    if (!rail) return;
+    var pairs = [['.cpr-kbbtn','kb.view'], ['.cpr-trainbtn','training.view']];
+    pairs.forEach(function(p){
+      var b = rail.querySelector(p[0]);
+      if (b) b.style.display = canSee({ acc:p[1] }) ? '' : 'none';
+    });
+  }
   // the rail-bottom gear → Settings shows only for users who can actually use it
   function updateGearIcon(){
     var g = rail && rail.querySelector('.cpr-railgear');
@@ -944,6 +957,7 @@
     updateAdminIcon();
     updateReportsIcon();
     updateEmployeesIcon();
+    updateLearnIcons();
     updateGearIcon();
     // top bar identity (name)
     if (top){ var rp = top.querySelector('[data-roleslot]'); if (rp) rp.innerHTML = roleSlotHtml(); wireTop(); }
@@ -1058,8 +1072,8 @@
     rail.innerHTML = ''
       + '<button class="cpr-burger2" aria-label="Menu">☰</button>'
       + '<a class="cpr-areabtn'+(ON_HOME?' active':'')+'" href="'+esc(HOME)+'" title="Home">'+railIcon('home')+'<span class="rlbl">Home</span></a>'
-      + '<a class="cpr-areabtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'<span class="rlbl">Knowledge Base</span></a>'
-      + '<a class="cpr-areabtn'+(currentFile==='training.html'?' active':'')+'" href="training.html" title="Training">'+railIcon('cap')+'<span class="rlbl">Training</span></a>'
+      + '<a class="cpr-areabtn cpr-kbbtn'+(currentFile==='knowledge.html'?' active':'')+'" href="knowledge.html" title="Knowledge Base">'+railIcon('book')+'<span class="rlbl">Knowledge Base</span></a>'
+      + '<a class="cpr-areabtn cpr-trainbtn'+(currentFile==='training.html'?' active':'')+'" href="training.html" title="Training">'+railIcon('cap')+'<span class="rlbl">Training</span></a>'
       + '<span class="cpr-raildiv"></span>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='hub'?' active':'')+'" data-area="hub" title="My Hub">'+railIcon('user')+'<span class="rlbl">My Hub</span></button>'
       + '<button class="cpr-areabtn'+(ACTIVE_AREA==='pricing'?' active':'')+'" data-area="pricing" title="Sales &amp; Pricing">'+railIcon('tag')+'<span class="rlbl">Sales &amp; Pricing</span></button>'
