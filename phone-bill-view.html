@@ -26,13 +26,18 @@ letter-spacing:.7px;color:var(--dark-grey);margin-bottom:4px}
 .owe .s{font-size:.85rem;font-weight:700;color:var(--grey);margin-top:4px}
 .zelle{background:#F5FBFE;border:1px solid #CFE9F8;border-radius:10px;padding:12px 14px;
 font-weight:700;font-size:.9rem;color:var(--dark);margin-top:14px}
-/* three cards: Past Due leads at full size, Current and Total follow smaller */
+/* three cards in a row — they read as one summary, so they stay side by side
+   even on a phone (the numbers scale down instead of stacking) */
 .owe.cur{border-top-color:#C98A00}
 .owe.cur .n{color:#C98A00}
 .owe.tot{border-top-color:var(--dark)}
 .owe.tot .n{color:var(--dark)}
-.owe.cur,.owe.tot{padding:15px 18px}
-.owe.cur .n,.owe.tot .n{font-size:1.7rem}
+.sumrow{display:flex;gap:9px;margin-bottom:14px}
+.sumrow .card{flex:1;min-width:0;margin-bottom:0;padding:14px 8px}
+.sumrow .l{font-size:.6rem;letter-spacing:.4px}
+.sumrow .n{font-size:1.35rem}
+.sumrow .s{font-size:.66rem;margin-top:3px}
+@media(max-width:380px){.sumrow{gap:6px}.sumrow .n{font-size:1.15rem}.sumrow .l{font-size:.55rem}}
 .mrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--light-grey)}
 .mrow:last-child{border-bottom:none}
 .mrow .d{flex:1}
@@ -90,22 +95,24 @@ function render(d){
   if(d.name)$('#hd').textContent=d.name+'’s Phone Bill';
   $('#view').style.display='block';
   $('#view').innerHTML=''
-    +'<div class="card owe'+(owed.length?'':' clear')+'">'
-      +'<div class="l">'+(owed.length?'Past Due':'You’re All Caught Up')+'</div>'
-      +'<div class="n">'+money(total)+'</div>'
-      +'<div class="s">'+(owed.length?(owed.length+' month'+(owed.length===1?'':'s')+' outstanding'):'Nothing overdue right now')+'</div>'
+    +'<div class="sumrow">'
+      +'<div class="card owe'+(owed.length?'':' clear')+'">'
+        +'<div class="l">Past Due</div>'
+        +'<div class="n">'+money(total)+'</div>'
+        +'<div class="s">'+(owed.length?(owed.length+' month'+(owed.length===1?'':'s')):'none')+'</div>'
+      +'</div>'
+      +'<div class="card owe cur">'
+        +'<div class="l">Current</div>'
+        +'<div class="n">'+money(upSum)+'</div>'
+        +'<div class="s">'+(up.length?('due '+fD(up[up.length-1].due_date)):'none')+'</div>'
+      +'</div>'
+      +'<div class="card owe tot">'
+        +'<div class="l">Total</div>'
+        +'<div class="n">'+money(total+upSum)+'</div>'
+        +'<div class="s">your balance</div>'
+      +'</div>'
     +'</div>'
-    +'<div class="card owe cur">'
-      +'<div class="l">Current</div>'
-      +'<div class="n">'+money(upSum)+'</div>'
-      +'<div class="s">'+(up.length?('due '+fD(up[up.length-1].due_date)):'Nothing pending')+'</div>'
-    +'</div>'
-    +'<div class="card owe tot">'
-      +'<div class="l">Total</div>'
-      +'<div class="n">'+money(total+upSum)+'</div>'
-      +'<div class="s">your balance</div>'
-      +((owed.length||up.length)&&d.zelle_note?('<div class="zelle">Zelle: '+esc(d.zelle_note)+'</div>'):'')
-    +'</div>'
+    +((owed.length||up.length)&&d.zelle_note?('<div class="card"><div class="zelle" style="margin-top:0">Zelle: '+esc(d.zelle_note)+'</div></div>'):'')
     +'<div class="card"><h2>Months</h2>'
     +d.months.map(function(m){
       var st=m.status==='paid'?'paid':(m.due_date>today?'upcoming':'unpaid');
