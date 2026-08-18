@@ -118,14 +118,24 @@ async function checkGoals() {
   const subject = hits.length === 1 ? "Goal hit" : `${hits.length} goals hit`;
   const text = `${mLabel} goal${hits.length === 1 ? "" : "s"} reached:\n\n` + hits.map((h) => h.line).join("\n");
   const res = await sendVia("commission.goal_hit", subject, text);
-  if (res.delivered) {
-    await admin.from("notify_log").insert(hits.map((h) => ({ dedupe_key: h.key, kind: "goal_hit", staff_id: h.staffId, detail: h.line })));
-    // personal push to each person who hit — their own lines only
-    const byStaff: Record<number, string[]> = {};
-    hits.forEach((h) => { (byStaff[h.staffId] = byStaff[h.staffId] || []).push(h.line); });
-    for (const sid in byStaff) {
-      await sendAlert([Number(sid)], "goal", "🎯 You hit a goal!", byStaff[sid].join("\n"), "commission-dashboard.html#goals");
-    }
+  /* A goal hit is between that person and the owner — Kade doesn't need to know
+     Travis hit his accessory target, so the rule is unrouted from the all-staff
+     Communications feed. Everything below therefore must NOT hang off
+     res.delivered: an unrouted rule reports delivered:false, which would mean
+     nothing is deduped and NOBODY is told, every run, forever. */
+  await admin.from("notify_log").insert(hits.map((h) => ({ dedupe_key: h.key, kind: "goal_hit", staff_id: h.staffId, detail: h.line })));
+  // the person who hit it — their own lines only
+  const byStaff: Record<number, string[]> = {};
+  hits.forEach((h) => { (byStaff[h.staffId] = byStaff[h.staffId] || []).push(h.line); });
+  for (const sid in byStaff) {
+    await sendAlert([Number(sid)], "goal", "🎯 You hit a goal!", byStaff[sid].join("\n"), "commission-dashboard.html#goals");
+  }
+  // …and the owners, who want to see every hit so they can say well done.
+  // Their own alert feed, not the team's — role, never a hardcoded name.
+  const own = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
+  const ownerIds = (own.data || []).map((o: { id: number }) => Number(o.id));
+  if (ownerIds.length) {
+    await sendAlert(ownerIds, "goal", `🎯 ${subject}`, hits.map((h) => h.line).join("\n"), "commission-dashboard.html#board");
   }
   return json({ ok: true, hits: hits.length, delivered: res.delivered, notify: res.detail });
 }
