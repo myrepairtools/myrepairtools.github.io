@@ -36,7 +36,12 @@
     'jerry-ding-order.html':'orders.jerryding', 'po-converter.html':'orders.po',
     'price-calculator.html':'pricing.view', 'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
     'cash-admin.html':'cash.admin', 'cash-journal.html':'cash.journal', 'expenses.html':'expenses.record',
-    'employee-records.html':'staff.view',
+    /* employee-records.html is deliberately absent: it is BOTH the Team Members
+       roster and every employee's own "My Profile" (the avatar menu points here
+       via #me). Gating the page on staff.view locked every non-manager out of
+       their own record. The roster/self split is decided inside the page by
+       SELFONLY, and the data by RLS — staff_self_read, staff_documents_read,
+       staff_pips_read and alert_prefs all scope a team member to their own row. */
     'settings.html':'staff.manage',
     'claim-payouts.html':'claims.view', 'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
     'commission-dashboard.html':'commission.dashboard',
