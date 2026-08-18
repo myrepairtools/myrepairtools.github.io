@@ -377,6 +377,30 @@ retries, and a **definitive refresh failure fires a system-tier alert to owners*
 connection surfaces in minutes, not days. Any new rotating-token integration must
 reuse this claim pattern — never refresh unguarded.
 
+**Phone Bill (owner's personal Verizon split tracker):** `phone_bill_months`
+(one row per 17th→16th billing cycle; `lines` jsonb = ONLY the buddy's line
+amounts keyed by last-4, `payer_total` their sum, status paid|unpaid tracks
+whether he has squared up — he pays by Zelle, so there is deliberately NO
+payment link) + `phone_bill_config` (single row: payer name/phone, Zelle note,
+line labels). RLS owner-only on both (docs/sql/phone-bill.sql). Surface:
+`phone-bill.html` (PRIVILEGED nav 'Phone Bill', permission key `phone.bill`,
+owner) — tiles (Owes · Upcoming · Last Paid Up), month table with one column
+per line (labels from config; columns ordered by the newest cycle's amount so
+the phone leads — integer-like jsonb keys iterate ascending otherwise), status
+pill tap-toggles paid (paid_at stamped), row click = edit modal (dates, bill
+total, per-line amounts with ＋ Line for new lines — the buddy's kid's phone
+lands as a new last-4 on whatever month it first bills, ＋ Line it there and
+it carries forward), ⚙ config modal. **New cycles auto-create on page load**:
+while the latest row's NEXT cycle has fully closed (service_end < today —
+never the in-progress cycle), insert it with lines cloned from the latest row
+as estimates, due the 8th of the month after service end. "Text <payer>"
+builds the catch-up message (per-month amounts + total + Zelle note) and
+opens the phone's own Messages app via an `sms:` deep link — deliberately not
+the RingCentral pipe; it is a personal text from the owner's number. History
+seeded from the owner's SharePoint list (Nov 2025→May 2026 paid) + the real
+Verizon bills for Jun/Jul/Aug 2026 (parsed from PDFs: lines 5274 iPhone /
+4245 + 1395 watches).
+
 **Daily Digest (owner's morning scorecard):** `digest_raw` (one row per
 `(capture_date, tile_key)`; `rows` jsonb = that Looker tile's records; RLS
 `is_admin()`, writes service-role only — the `daily-digest-sync` pg_cron calls

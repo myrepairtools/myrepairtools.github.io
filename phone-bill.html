@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phone Bill — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link rel="stylesheet" href="assets/fonts.css">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C98A00;--white:#fff;
+--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:1080px;margin:0 auto;padding:24px 28px 70px}
+.titlerow{display:flex;align-items:center;gap:9px}
+.titlerow svg{color:var(--red)}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem}
+.ownertag{font-family:'Nunito',sans-serif;font-weight:800;font-size:.55rem;letter-spacing:.4px;text-transform:uppercase;
+color:var(--red);border:1px solid #F6C9CA;background:#FFF1F1;border-radius:5px;padding:2px 6px}
+.hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.hd .spacer{flex:1}
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;border:none;border-radius:10px;
+padding:9px 14px;cursor:pointer;background:var(--dark);color:#fff;display:inline-flex;align-items:center;gap:6px}
+.btn.alt{background:#fff;color:var(--dark);border:1.5px solid var(--border)}
+.btn.red{background:var(--red)}
+.btn:disabled{opacity:.5;cursor:default}
+.tiles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.tile{flex:1;min-width:170px;max-width:280px;background:#fff;border:1px solid var(--border);
+border-left:4px solid var(--blue);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
+.tile .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--dark-grey)}
+.tile .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.25rem;margin-top:2px}
+.tile .s{font-size:.72rem;font-weight:700;color:var(--grey)}
+.tile.owed{border-left-color:var(--red)}
+.tile.owed .n{color:var(--red)}
+.tile.up{border-left-color:var(--amber)}
+.tile.ok{border-left-color:var(--green)}
+.tile.ok .n{color:var(--green)}
+.table-card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.86rem;font-variant-numeric:tabular-nums;min-width:760px}
+th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;
+color:var(--dark-grey);text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);white-space:nowrap}
+th.num{text-align:right}
+td{padding:9px 12px;border-bottom:1px solid var(--light-grey);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:#FAFBFD}
+td.num{text-align:right;white-space:nowrap}
+td.tot{font-family:'Nunito',sans-serif;font-weight:800}
+.due{font-family:'Nunito',sans-serif;font-weight:800;white-space:nowrap}
+.svc{color:var(--dark-grey);font-weight:600;font-size:.8rem;white-space:nowrap}
+.pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;border-radius:999px;padding:4px 11px;
+border:none;cursor:pointer;white-space:nowrap}
+.pill.paid{background:#E8F5EC;color:var(--green)}
+.pill.unpaid{background:#FDECEC;color:var(--red)}
+.pill.upcoming{background:#FBF3E1;color:var(--amber)}
+.muted{color:var(--grey);font-weight:700}
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(45,45,59,.45);z-index:1200;display:none;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
+.mask.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:20px 22px;width:100%;max-width:460px;box-shadow:0 12px 40px rgba(45,45,59,.25)}
+.modal h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:14px}
+.frow{display:flex;gap:10px;margin-bottom:10px}
+.frow>div{flex:1}
+.fl{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);margin-bottom:3px}
+input,textarea{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.9rem;color:var(--dark);background:#fff}
+input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+.lrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.lrow .ln{width:86px}
+.lrow .ll{flex:1}
+.lrow .la{width:104px;text-align:right}
+.lrow .x{background:none;border:none;color:var(--grey);font-size:1rem;cursor:pointer;padding:2px 4px}
+.lrow .x:hover{color:var(--red)}
+.addline{background:none;border:none;color:var(--blue);font-family:'Nunito',sans-serif;font-weight:800;font-size:.78rem;cursor:pointer;padding:0;margin-bottom:12px}
+.mbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.mbtns .del{margin-right:auto;color:var(--red)}
+.toast{position:fixed;left:50%;bottom:calc(24px + var(--cpr-bb-h,0px));transform:translate(-50%,20px);background:var(--dark);color:#fff;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;border-radius:10px;padding:10px 16px;opacity:0;pointer-events:none;
+transition:.25s;z-index:1400}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--red)}
+@media(max-width:860px){
+  main{padding:16px 12px 70px}
+  input,textarea,select{font-size:16px!important}
+  .tile{min-width:140px}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="hd">
+    <div class="titlerow"><span id="h1ic"></span><h1>Phone Bill</h1><span class="ownertag">Owner</span></div>
+    <div class="spacer"></div>
+    <button class="btn red" id="textBtn"></button>
+    <button class="btn alt" id="addBtn">＋ Add Month</button>
+    <button class="btn alt" id="cfgBtn" title="Settings"></button>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="table-card"><table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+</main>
+<div class="mask" id="mask"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* ============================================================
+   Phone Bill — the owner's personal Verizon split tracker.
+   phone_bill_months: one row per 17th→16th billing cycle; `lines` =
+   the payer's line amounts keyed by last-4; status = squared up or not.
+   phone_bill_config: payer name/phone, Zelle note, line labels.
+   RLS owner-only. New cycles auto-create on page load once the latest
+   service period has closed (due the 8th of the following month),
+   cloning the last known line amounts until the real bill is entered.
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var $all=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+
+var MSHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var ROWS=[], CFG=null;
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');clearTimeout(toast._t);toast._t=setTimeout(function(){t.className='toast';},2200);}
+function money(n){if(n==null||n===''||isNaN(n))return '—';var neg=n<-0.004,a=Math.abs(+n);
+  return (neg?'-$':'$')+a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function pd(s){var p=String(s).slice(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function fmtD(s){if(!s)return '—';var d=pd(s);return MSHORT[d.getMonth()]+' '+d.getDate();}
+function fmtDY(s){if(!s)return '—';var d=pd(s);return MSHORT[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();}
+function fmtSvc(r){if(!r.service_start||!r.service_end)return '—';return fmtD(r.service_start)+' – '+fmtD(r.service_end);}
+function todayISO(){return iso(new Date());}
+function payerSum(lines){var t=0;Object.keys(lines||{}).forEach(function(k){var v=+lines[k];if(!isNaN(v))t+=v;});return Math.round(t*100)/100;}
+function payerName(){return (CFG&&CFG.payer_name)||'Kevin';}
+
+/* line columns = every line number seen, config-label order first */
+function lineKeys(){
+  var seen={},out=[];
+  Object.keys((CFG&&CFG.line_labels)||{}).forEach(function(k){if(!seen[k]){seen[k]=1;out.push(k);}});
+  ROWS.forEach(function(r){Object.keys(r.lines||{}).forEach(function(k){if(!seen[k]){seen[k]=1;out.push(k);}});});
+  /* integer-like jsonb keys iterate ascending, which buries the big line —
+     order columns by the newest cycle's amount instead */
+  var ref=(ROWS[0]&&ROWS[0].lines)||{};
+  out.sort(function(a,b){return (+ref[b]||0)-(+ref[a]||0);});
+  return out;
+}
+function lineLabel(k){var l=(CFG&&CFG.line_labels&&CFG.line_labels[k])||'';return l?l+' ('+k+')':'Line '+k;}
+
+/* -------- load + auto top-up -------- */
+async function load(){
+  var [m,c]=await Promise.all([
+    sb.from('phone_bill_months').select('*').order('due_date',{ascending:false}),
+    sb.from('phone_bill_config').select('*').maybeSingle()
+  ]);
+  if(m.error){toast(m.error.message,true);return;}
+  ROWS=m.data||[]; CFG=c.data||{payer_name:'Kevin',line_labels:{}};
+  await topUp();
+  render();
+}
+/* a cycle's row exists once its service period has CLOSED (the bill generates
+   on the end date) — never for the cycle still in progress */
+async function topUp(){
+  var guard=0;
+  while(guard++<6){
+    var latest=ROWS[0];
+    if(!latest||!latest.service_end)break;
+    var s=pd(latest.service_end);s.setDate(s.getDate()+1);
+    var e=new Date(s.getFullYear(),s.getMonth()+1,s.getDate()-1);
+    if(todayISO()<=iso(e))break;
+    var due=new Date(e.getFullYear(),e.getMonth()+1,8);
+    var row={due_date:iso(due),service_start:iso(s),service_end:iso(e),bill_total:null,
+      lines:latest.lines||{},payer_total:payerSum(latest.lines),status:'unpaid'};
+    var r=await sb.from('phone_bill_months').insert(row).select().single();
+    if(r.error)break;
+    ROWS.unshift(r.data);
+  }
+}
+
+/* -------- render -------- */
+function render(){
+  var today=todayISO(), name=payerName();
+  var owed=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date<=today;});
+  var up=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date>today;});
+  var owedSum=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
+  var upSum=up.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
+  var lastPaid=ROWS.filter(function(r){return r.status==='paid';})[0];
+  $('#tiles').innerHTML=''
+    +'<div class="tile '+(owed.length?'owed':'ok')+'"><div class="l">'+esc(name)+' Owes</div><div class="n">'+money(owedSum)+'</div>'
+      +'<div class="s">'+(owed.length?owed.length+' month'+(owed.length===1?'':'s')+' behind':'All caught up')+'</div></div>'
+    +'<div class="tile up"><div class="l">Upcoming</div><div class="n">'+money(upSum)+'</div>'
+      +'<div class="s">'+(up.length?up.map(function(r){return fmtD(r.due_date);}).join(' · '):'—')+'</div></div>'
+    +'<div class="tile ok"><div class="l">Last Paid Up</div><div class="n">'+(lastPaid?fmtD(lastPaid.due_date):'—')+'</div>'
+      +'<div class="s">'+(lastPaid?fmtSvc(lastPaid):'')+'</div></div>';
+  $('#textBtn').textContent='Text '+name;
+  var keys=lineKeys();
+  $('#thead').innerHTML='<tr><th>Due</th><th>Service</th><th class="num">Bill Total</th>'
+    +keys.map(function(k){return '<th class="num" title="'+esc(lineLabel(k))+'">'+esc((CFG.line_labels&&CFG.line_labels[k])?CFG.line_labels[k]:('Line '+k))+'</th>';}).join('')
+    +'<th class="num">'+esc(name)+'</th><th></th></tr>';
+  $('#tbody').innerHTML=ROWS.map(function(r,i){
+    var st=r.status==='paid'?'paid':(r.due_date>today?'upcoming':'unpaid');
+    var stTxt=st==='paid'?('Paid'+(r.paid_at?' '+fmtD(r.paid_at):'')):(st==='upcoming'?'Due '+fmtD(r.due_date):'Unpaid');
+    return '<tr data-i="'+i+'"><td class="due">'+fmtDY(r.due_date)+'</td><td class="svc">'+fmtSvc(r)+'</td>'
+      +'<td class="num">'+money(r.bill_total)+'</td>'
+      +keys.map(function(k){var v=(r.lines||{})[k];return '<td class="num">'+(v==null?'<span class="muted">—</span>':money(v))+'</td>';}).join('')
+      +'<td class="num tot">'+money(r.payer_total!=null?r.payer_total:payerSum(r.lines))+'</td>'
+      +'<td><button class="pill '+st+'" data-p="'+i+'">'+stTxt+'</button></td></tr>';
+  }).join('')||'<tr><td colspan="9" class="muted" style="padding:16px">No months yet.</td></tr>';
+  $all('#tbody tr').forEach(function(tr){tr.onclick=function(ev){if(ev.target.closest('.pill'))return;editMonth(ROWS[+tr.getAttribute('data-i')]);};});
+  $all('[data-p]').forEach(function(b){b.onclick=function(){togglePaid(ROWS[+b.getAttribute('data-p')]);};});
+}
+
+/* -------- actions -------- */
+async function togglePaid(r){
+  var toPaid=r.status!=='paid';
+  if(!toPaid&&!confirm('Mark '+fmtDY(r.due_date)+' unpaid again?'))return;
+  var patch=toPaid?{status:'paid',paid_at:todayISO()}:{status:'unpaid',paid_at:null};
+  var res=await sb.from('phone_bill_months').update(patch).eq('id',r.id);
+  if(res.error){toast(res.error.message,true);return;}
+  Object.assign(r,patch);
+  toast(toPaid?'Paid':'Unpaid');
+  render();
+}
+function textPayer(){
+  var phone=(CFG&&CFG.payer_phone||'').replace(/[^\d+]/g,'');
+  if(!phone){cfgModal();return;}
+  var today=todayISO();
+  var owed=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date<=today;}).sort(function(a,b){return a.due_date<b.due_date?-1:1;});
+  var total=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
+  var msg;
+  if(!owed.length)msg='Phone bill: all caught up right now 👍';
+  else if(owed.length===1)msg='Phone bill ('+fmtSvc(owed[0])+'): '+money(+owed[0].payer_total||payerSum(owed[0].lines))+'. '+(CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance')+' 🙏';
+  else msg='Phone bill catch-up: '+owed.map(function(r){return fmtD(r.due_date)+' '+money(+r.payer_total||payerSum(r.lines));}).join(' · ')
+    +' — total '+money(total)+'. '+(CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance')+' 🙏';
+  location.href='sms:'+phone+'?&body='+encodeURIComponent(msg);
+}
+
+/* -------- month modal -------- */
+function linesEditor(lines){
+  return Object.keys(lines).map(function(k){
+    return '<div class="lrow" data-lr><input class="ln" value="'+esc(k)+'" inputmode="numeric" aria-label="Line">'
+      +'<span class="ll muted" style="font-size:.75rem">'+esc((CFG.line_labels&&CFG.line_labels[k])||'')+'</span>'
+      +'<input class="la" value="'+(lines[k]==null?'':lines[k])+'" inputmode="decimal" aria-label="Amount">'
+      +'<button class="x" data-x>✕</button></div>';
+  }).join('');
+}
+function readLines(host){
+  var out={};
+  $all('[data-lr]',host).forEach(function(row){
+    var k=$('.ln',row).value.replace(/\D/g,''), v=parseFloat($('.la',row).value);
+    if(k)out[k]=isNaN(v)?0:Math.round(v*100)/100;
+  });
+  return out;
+}
+function wireLineRows(host){
+  $all('[data-x]',host).forEach(function(x){x.onclick=function(){x.closest('[data-lr]').remove();};});
+}
+function editMonth(r){
+  var isNew=!r;
+  var m=r||{due_date:'',service_start:'',service_end:'',bill_total:'',lines:(ROWS[0]&&ROWS[0].lines)||{},note:''};
+  $('#modal').innerHTML='<h2>'+(isNew?'Add Month':fmtDY(m.due_date))+'</h2>'
+    +'<div class="frow"><div><div class="fl">Due Date</div><input type="date" id="mDue" value="'+esc(String(m.due_date).slice(0,10))+'"></div>'
+    +'<div><div class="fl">Bill Total</div><input id="mTot" inputmode="decimal" value="'+(m.bill_total==null?'':m.bill_total)+'"></div></div>'
+    +'<div class="frow"><div><div class="fl">Service Start</div><input type="date" id="mS" value="'+esc(String(m.service_start||'').slice(0,10))+'"></div>'
+    +'<div><div class="fl">Service End</div><input type="date" id="mE" value="'+esc(String(m.service_end||'').slice(0,10))+'"></div></div>'
+    +'<div class="fl">'+esc(payerName())+' Lines</div>'
+    +'<div id="mLines">'+linesEditor(m.lines||{})+'</div>'
+    +'<button class="addline" id="mAdd">＋ Line</button>'
+    +'<div class="fl">Note</div><textarea id="mNote" rows="2">'+esc(m.note||'')+'</textarea>'
+    +'<div class="mbtns">'
+      +(isNew?'':'<button class="btn alt del" id="mDel">Delete</button>')
+      +'<button class="btn alt" id="mCancel">Cancel</button><button class="btn" id="mSave">Save</button></div>';
+  $('#mask').classList.add('show');
+  wireLineRows($('#mLines'));
+  $('#mAdd').onclick=function(){
+    var d=document.createElement('div');
+    d.innerHTML='<div class="lrow" data-lr><input class="ln" placeholder="Last 4" inputmode="numeric" aria-label="Line">'
+      +'<span class="ll"></span><input class="la" placeholder="0.00" inputmode="decimal" aria-label="Amount"><button class="x" data-x>✕</button></div>';
+    $('#mLines').appendChild(d.firstChild);
+    wireLineRows($('#mLines'));
+  };
+  $('#mCancel').onclick=closeModal;
+  if($('#mDel'))$('#mDel').onclick=async function(){
+    if(!confirm('Delete the '+fmtDY(m.due_date)+' month?'))return;
+    var res=await sb.from('phone_bill_months').delete().eq('id',m.id);
+    if(res.error){toast(res.error.message,true);return;}
+    ROWS=ROWS.filter(function(x){return x.id!==m.id;});
+    closeModal();render();toast('Deleted');
+  };
+  $('#mSave').onclick=async function(){
+    var lines=readLines($('#mLines'));
+    var patch={due_date:$('#mDue').value,service_start:$('#mS').value||null,service_end:$('#mE').value||null,
+      bill_total:($('#mTot').value===''?null:parseFloat($('#mTot').value)),
+      lines:lines,payer_total:payerSum(lines),note:$('#mNote').value||null};
+    if(!patch.due_date){toast('Due date required',true);return;}
+    var res=isNew
+      ?await sb.from('phone_bill_months').insert(patch).select().single()
+      :await sb.from('phone_bill_months').update(patch).eq('id',m.id).select().single();
+    if(res.error){toast(res.error.message,true);return;}
+    if(isNew)ROWS.push(res.data);else Object.assign(m,res.data);
+    ROWS.sort(function(a,b){return a.due_date<b.due_date?1:-1;});
+    closeModal();render();toast('Saved');
+  };
+}
+
+/* -------- config modal -------- */
+function cfgModal(){
+  var keys=lineKeys();
+  $('#modal').innerHTML='<h2>Settings</h2>'
+    +'<div class="frow"><div><div class="fl">Name</div><input id="cName" value="'+esc(CFG.payer_name||'')+'"></div>'
+    +'<div><div class="fl">Phone</div><input id="cPhone" inputmode="tel" value="'+esc(CFG.payer_phone||'')+'"></div></div>'
+    +'<div class="fl">Zelle Note</div><input id="cZelle" value="'+esc(CFG.zelle_note||'')+'">'
+    +'<div class="fl" style="margin-top:10px">Line Labels</div>'
+    +keys.map(function(k){return '<div class="lrow"><span class="ln" style="font-weight:800;font-family:Nunito,sans-serif">'+esc(k)+'</span>'
+      +'<input class="ll" data-lbl="'+esc(k)+'" value="'+esc((CFG.line_labels&&CFG.line_labels[k])||'')+'"></div>';}).join('')
+    +'<div class="mbtns"><button class="btn alt" id="cCancel">Cancel</button><button class="btn" id="cSave">Save</button></div>';
+  $('#mask').classList.add('show');
+  $('#cCancel').onclick=closeModal;
+  $('#cSave').onclick=async function(){
+    var labels={};
+    $all('[data-lbl]').forEach(function(i){if(i.value.trim())labels[i.getAttribute('data-lbl')]=i.value.trim();});
+    var patch={id:true,payer_name:$('#cName').value.trim()||'Kevin',payer_phone:$('#cPhone').value.trim()||null,
+      zelle_note:$('#cZelle').value.trim()||null,line_labels:labels,updated_at:new Date().toISOString()};
+    var res=await sb.from('phone_bill_config').upsert(patch,{onConflict:'id'});
+    if(res.error){toast(res.error.message,true);return;}
+    CFG=patch;closeModal();render();toast('Saved');
+  };
+}
+function closeModal(){$('#mask').classList.remove('show');}
+$('#mask').addEventListener('click',function(e){if(e.target===$('#mask'))closeModal();});
+
+/* -------- boot -------- */
+if(window.CPRNavIcon){$('#h1ic').innerHTML=CPRNavIcon('smartphone',20);$('#cfgBtn').innerHTML=CPRNavIcon('settings',15);}
+else $('#cfgBtn').textContent='⚙';
+$('#textBtn').onclick=textPayer;
+$('#addBtn').onclick=function(){editMonth(null);};
+load();
+</script>
+</body>
+</html>

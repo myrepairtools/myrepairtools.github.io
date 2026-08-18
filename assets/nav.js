@@ -124,6 +124,7 @@
     { label:'Payroll · Commission & Tips', url:'commission-calculator.html', icon:'receipt', minRole:'owner', acc:'commission.view' },
     { label:'Profit First',     url:'profit-first.html',          icon:'landmark', minRole:'owner', acc:'profit.view' },
     { label:'Cash Journal',     url:'cash-journal.html',          icon:'notebook-tabs', minRole:'owner', acc:'cash.journal' },
+    { label:'Phone Bill',       url:'phone-bill.html',            icon:'smartphone',    minRole:'owner', acc:'phone.bill' },
     { label:'Expenses',         url:'expenses.html',              icon:'receipt-text', minRole:'owner', acc:'expenses.record' }
   ];
   // Settings — the rail gear is a real area now (design handoff): clicking it swaps
