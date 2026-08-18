@@ -550,14 +550,24 @@ async function syncTimesheets(token: string, startDate: string, endDate: string)
   const byUserDay = new Map<string, Agg>();
   let page = 1, fetched = 0;
   for (let i = 0; i < 100; i++) {
-    const { status, data } = await qbtGet("timesheets", token, { start_date: startDate, end_date: endDate, page, per_page: 200 });
+    // on_the_clock defaults to "no" — without "both" this only ever fetched CLOSED
+    // shifts, so anyone currently working was invisible here until they punched out
+    // (and the on_the_clock flag below could never be true). That made activation
+    // land at the END of a new hire's first shift instead of the start.
+    const { status, data } = await qbtGet("timesheets", token, { start_date: startDate, end_date: endDate, on_the_clock: "both", page, per_page: 200 });
     if (status !== 200) return { ok: false, error: `timesheets_${status}`, detail: data };
     const obj = (data?.results?.timesheets || {}) as Record<string, Record<string, unknown>>;
     const arr = Object.values(obj);
     for (const t of arr) {
       const uid = String(t.user_id), date = String(t.date || "").slice(0, 10);
       if (!uid || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-      const secs = Number(t.duration) || 0;            // seconds; QB sends elapsed for open shifts too
+      // QB reports duration 0 on an OPEN shift, so a day with someone still working
+      // would read 0 hours all day. Count elapsed-since-start for those instead.
+      let secs = Number(t.duration) || 0;
+      if (!secs && t.on_the_clock === true && t.start) {
+        const ms = Date.now() - new Date(String(t.start)).getTime();
+        if (ms > 0) secs = Math.floor(ms / 1000);
+      }
       const jc = String(t.jobcode_id ?? "0");
       const k = uid + "|" + date;
       const a = byUserDay.get(k) || { seconds: 0, jobcodes: {}, onclock: false };
@@ -750,7 +760,12 @@ Deno.serve(async (req) => {
     }
     if (action === "clock_in") {
       const existing = await openTimesheet(token, qbt_id);
-      if (existing) return json({ ok: true, already_clocked_in: true, id: existing.id, start: existing.start });
+      if (existing) {
+        // already on the clock is still proof they punched — someone who clocks in on
+        // Workforce and then opens MRT lands here, and must still get activated
+        if (staff_id) await admin.rpc("staff_clocked_in", { p_staff_id: Number(staff_id) });
+        return json({ ok: true, already_clocked_in: true, id: existing.id, start: existing.start });
+      }
       if (!store) return json({ ok: false, error: "store_required" }, 400);
       const cls = await classForStore(token, store);
       if (!cls) return json({ ok: false, error: "no_class_for_store", store }, 400);
