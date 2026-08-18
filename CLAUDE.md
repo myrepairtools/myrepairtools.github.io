@@ -382,7 +382,8 @@ reuse this claim pattern — never refresh unguarded.
 amounts keyed by last-4, `payer_total` their sum, status paid|unpaid tracks
 whether he has squared up — he pays by Zelle, so there is deliberately NO
 payment link) + `phone_bill_config` (single row: payer name/phone, Zelle note,
-line labels) + `bill_path` → the PDF in the private `phone-bills` bucket
+line labels, `default_lines` = the recurring per-line amounts) + `bill_path`
+→ the PDF in the private `phone-bills` bucket
 (owner-only storage policy). RLS owner-only on both (docs/sql/phone-bill.sql).
 **Drop a bill:** dragging the carrier PDF anywhere on the page (or the Drop a
 Bill button) uploads it, then the **`qbo` function's `extract_phone_bill`**
@@ -402,10 +403,18 @@ the phone leads — integer-like jsonb keys iterate ascending otherwise), status
 pill tap-toggles paid (paid_at stamped), row click = edit modal (dates, bill
 total, per-line amounts with ＋ Line for new lines — the buddy's kid's phone
 lands as a new last-4 on whatever month it first bills, ＋ Line it there and
-it carries forward), ⚙ config modal. **New cycles auto-create on page load**:
-while the latest row's NEXT cycle has fully closed (service_end < today —
-never the in-progress cycle), insert it with lines cloned from the latest row
-as estimates, due the 8th of the month after service end. "Text <payer>"
+it carries forward), ⚙ config modal. **New cycles auto-create**, so an unpaid month
+surfaces on its own: the `phone-bill-rollover` pg_cron (daily 15:30 UTC) calls
+the **`phone-bill` edge function's** secret-gated `rollover`, and the page
+tops up on load too — both insert every cycle whose service period has fully
+CLOSED (never the in-progress one), due the 8th of the month after service
+end, seeded from `default_lines` when set, else the previous month's amounts.
+**Kevin's own view is `phone-bill-view.html`** — a PUBLIC page (no gates, no
+nav) where his mobile number is the credential: the same function's `view`
+action matches it against `payer_phone` (last 10 digits, so formatting never
+matters) and returns only his months, totals and the Zelle note — never the
+household's other lines, bill totals or PDFs. The number is remembered in
+localStorage so he doesn't retype it, and the catch-up text carries the link. "Text <payer>"
 builds the catch-up message (one month per line + total + Zelle note) and
 opens a compose modal that sends it through the `messaging` function from
 `phone_bill_config.send_from` — a dedicated RingCentral line (+1 971 348 3566)

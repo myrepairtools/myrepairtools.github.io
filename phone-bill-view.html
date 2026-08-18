@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Phone Bill</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link rel="stylesheet" href="assets/fonts.css">
+<style>
+/* Public page — no gates, no nav. The payer's phone number is the credential
+   and everything is read-only; the owner-only page stays where the editing is. */
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--ring:0 0 0 3px rgba(79,176,227,.15)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark);
+padding:calc(28px + env(safe-area-inset-top)) 16px 60px}
+.wrap{max-width:520px;margin:0 auto}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;margin-bottom:14px}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px 18px;margin-bottom:14px}
+.owe{border-top:4px solid var(--red);text-align:center}
+.owe.clear{border-top-color:var(--green)}
+.owe .n{font-family:'Nunito',sans-serif;font-weight:900;font-size:2.4rem;color:var(--red);line-height:1.1}
+.owe.clear .n{color:var(--green)}
+.owe .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;
+letter-spacing:.7px;color:var(--dark-grey);margin-bottom:4px}
+.owe .s{font-size:.85rem;font-weight:700;color:var(--grey);margin-top:4px}
+.zelle{background:#F5FBFE;border:1px solid #CFE9F8;border-radius:10px;padding:12px 14px;
+font-weight:700;font-size:.9rem;color:var(--dark);margin-top:14px}
+.mrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--light-grey)}
+.mrow:last-child{border-bottom:none}
+.mrow .d{flex:1}
+.mrow .d b{font-family:'Nunito',sans-serif;font-size:.95rem;display:block}
+.mrow .d span{font-size:.76rem;color:var(--grey);font-weight:700}
+.mrow .a{font-family:'Nunito',sans-serif;font-weight:800;font-size:.98rem;font-variant-numeric:tabular-nums}
+.pill{font-family:'Nunito',sans-serif;font-weight:800;font-size:.66rem;border-radius:999px;padding:4px 10px;white-space:nowrap}
+.pill.paid{background:#E8F5EC;color:var(--green)}
+.pill.unpaid{background:#FDECEC;color:var(--red)}
+.pill.upcoming{background:#FBF3E1;color:#C98A00}
+h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;margin-bottom:6px}
+label{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;text-transform:uppercase;
+letter-spacing:.4px;color:var(--dark-grey);display:block;margin-bottom:5px}
+input{width:100%;padding:12px 13px;border:1.5px solid var(--border);border-radius:10px;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:16px;color:var(--dark)}
+input:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+button{width:100%;margin-top:10px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;
+border:none;border-radius:10px;padding:13px;background:var(--red);color:#fff;cursor:pointer}
+button:disabled{opacity:.55;cursor:default}
+.err{color:var(--red);font-weight:700;font-size:.85rem;margin-top:9px}
+.foot{text-align:center;font-size:.74rem;color:var(--grey);font-weight:700;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="hd">Phone Bill</h1>
+  <div class="card" id="gate">
+    <h2>Enter your mobile number</h2>
+    <label for="ph">Mobile Number</label>
+    <input id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="(541) 555-0123">
+    <button id="go">View My Bill</button>
+    <div class="err" id="err" style="display:none"></div>
+  </div>
+  <div id="view" style="display:none"></div>
+</div>
+<script>
+var FN='https://xuvsehrevxackuhmbmry.supabase.co/functions/v1/phone-bill';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var $=function(s){return document.querySelector(s);};
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function money(n){var x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function pd(s){var p=String(s).slice(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function fD(s){if(!s)return '';var d=pd(s);return MS[d.getMonth()]+' '+d.getDate();}
+function fDY(s){if(!s)return '';var d=pd(s);return MS[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();}
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+
+function render(d){
+  var today=todayISO();
+  var owed=d.months.filter(function(m){return m.status!=='paid'&&m.due_date<=today;});
+  var total=owed.reduce(function(t,m){return t+(+m.amount||0);},0);
+  $('#gate').style.display='none';
+  if(d.name)$('#hd').textContent=d.name+'’s Phone Bill';
+  $('#view').style.display='block';
+  $('#view').innerHTML=''
+    +'<div class="card owe'+(owed.length?'':' clear')+'">'
+      +'<div class="l">'+(owed.length?'You Owe':'You’re All Caught Up')+'</div>'
+      +'<div class="n">'+money(total)+'</div>'
+      +'<div class="s">'+(owed.length?(owed.length+' month'+(owed.length===1?'':'s')+' outstanding'):'Nothing due right now')+'</div>'
+      +(owed.length&&d.zelle_note?('<div class="zelle">Zelle: '+esc(d.zelle_note)+'</div>'):'')
+    +'</div>'
+    +'<div class="card"><h2>Months</h2>'
+    +d.months.map(function(m){
+      var st=m.status==='paid'?'paid':(m.due_date>today?'upcoming':'unpaid');
+      var lbl=st==='paid'?('Paid'+(m.paid_at?' '+fD(m.paid_at):'')):(st==='upcoming'?'Due '+fD(m.due_date):'Unpaid');
+      return '<div class="mrow"><div class="d"><b>'+fDY(m.due_date)+'</b>'
+        +'<span>'+fD(m.service_start)+' – '+fD(m.service_end)+'</span></div>'
+        +'<span class="a">'+money(m.amount)+'</span>'
+        +'<span class="pill '+st+'">'+lbl+'</span></div>';
+    }).join('')
+    +'</div>'
+    +'<div class="foot">Updated by Britt · amounts come straight off the Verizon bill</div>';
+}
+async function look(phone,quiet){
+  var r,d;
+  try{
+    r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+ANON},
+      body:JSON.stringify({action:'view',phone:phone})});
+    d=await r.json();
+  }catch(e){d={error:'network'};}
+  if(d&&d.ok){try{localStorage.setItem('cprPhoneBillWho',phone);}catch(e){}render(d);return true;}
+  if(!quiet){
+    $('#err').style.display='block';
+    $('#err').textContent=(d&&d.error==='no_match')?'That number isn’t on this plan. Check with Britt.':'Could not load right now — try again.';
+  }
+  try{localStorage.removeItem('cprPhoneBillWho');}catch(e){}
+  return false;
+}
+$('#go').onclick=async function(){
+  var v=$('#ph').value.trim();
+  if(v.replace(/\D/g,'').length<10){$('#err').style.display='block';$('#err').textContent='Enter your full 10-digit mobile number.';return;}
+  this.disabled=true;this.textContent='Checking…';
+  await look(v);
+  this.disabled=false;this.textContent='View My Bill';
+};
+$('#ph').addEventListener('keydown',function(e){if(e.key==='Enter')$('#go').click();});
+/* remembered on this device so he doesn't retype it every month */
+(function(){
+  var saved=null;try{saved=localStorage.getItem('cprPhoneBillWho');}catch(e){}
+  if(saved)look(saved,true);
+})();
+</script>
+</body>
+</html>

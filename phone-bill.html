@@ -198,8 +198,10 @@ async function topUp(){
     var e=new Date(s.getFullYear(),s.getMonth()+1,s.getDate()-1);
     if(todayISO()<=iso(e))break;
     var due=new Date(e.getFullYear(),e.getMonth()+1,8);
+    /* recurring amounts win when they're set — that's what they're for */
+    var seed=(CFG&&CFG.default_lines&&Object.keys(CFG.default_lines).length)?CFG.default_lines:(latest.lines||{});
     var row={due_date:iso(due),service_start:iso(s),service_end:iso(e),bill_total:null,
-      lines:latest.lines||{},payer_total:payerSum(latest.lines),status:'unpaid'};
+      lines:seed,payer_total:payerSum(seed),status:'unpaid'};
     var r=await sb.from('phone_bill_months').insert(row).select().single();
     if(r.error)break;
     ROWS.unshift(r.data);
@@ -287,11 +289,12 @@ function catchUpMsg(){
   var total=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
   var pay=CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance';
   var msg;
-  if(!owed.length)msg='Phone bill: all caught up right now 👍';
+  if(!owed.length)msg='Phone bill: all caught up right now.';
   else msg='Phone bill'+(owed.length>1?' catch-up':'')+':\n'
     +owed.map(function(r){return fmtD(r.due_date)+' — '+money(+r.payer_total||payerSum(r.lines));}).join('\n')
     +(owed.length>1?('\nTotal — '+money(total)):'')
-    +'\n\n'+pay+' 🙏';
+    +'\n\n'+pay+'.'
+    +'\n\nCheck any time: '+location.origin+'/phone-bill-view.html';
   return msg;
 }
 
@@ -463,17 +466,22 @@ function cfgModal(){
     +'<div class="frow"><div><div class="fl">Zelle Note</div><input id="cZelle" value="'+esc(CFG.zelle_note||'')+'"></div>'
     +'<div><div class="fl">Send From</div><input id="cFrom" inputmode="tel" value="'+esc(CFG.send_from||'')+'"></div></div>'
     +'<div class="fl" style="margin-top:10px">Line Labels</div>'
-    +keys.map(function(k){return '<div class="lrow"><span class="ln" style="font-weight:800;font-family:Nunito,sans-serif">'+esc(k)+'</span>'
-      +'<input class="ll" data-lbl="'+esc(k)+'" value="'+esc((CFG.line_labels&&CFG.line_labels[k])||'')+'"></div>';}).join('')
+    +keys.map(function(k){
+      var dv=(CFG.default_lines&&CFG.default_lines[k]);
+      return '<div class="lrow"><span class="ln" style="font-weight:800;font-family:Nunito,sans-serif">'+esc(k)+'</span>'
+      +'<input class="ll" data-lbl="'+esc(k)+'" value="'+esc((CFG.line_labels&&CFG.line_labels[k])||'')+'">'
+      +'<input class="la" data-dflt="'+esc(k)+'" inputmode="decimal" placeholder="0.00" value="'+(dv==null?'':dv)+'"></div>';}).join('')
+    +'<div class="fl" style="margin-top:2px;color:var(--grey)">Label · Recurring Amount</div>'
     +'<div class="mbtns"><button class="btn alt" id="cCancel">Cancel</button><button class="btn" id="cSave">Save</button></div>';
   $('#mask').classList.add('show');
   $('#cCancel').onclick=closeModal;
   $('#cSave').onclick=async function(){
-    var labels={};
+    var labels={},dflt={};
     $all('[data-lbl]').forEach(function(i){if(i.value.trim())labels[i.getAttribute('data-lbl')]=i.value.trim();});
+    $all('[data-dflt]').forEach(function(i){var v=parseFloat(i.value);if(!isNaN(v))dflt[i.getAttribute('data-dflt')]=Math.round(v*100)/100;});
     var patch={id:true,payer_name:$('#cName').value.trim()||'Kevin',payer_phone:$('#cPhone').value.trim()||null,
       zelle_note:$('#cZelle').value.trim()||null,send_from:$('#cFrom').value.trim()||null,
-      line_labels:labels,updated_at:new Date().toISOString()};
+      line_labels:labels,default_lines:dflt,updated_at:new Date().toISOString()};
     var res=await sb.from('phone_bill_config').upsert(patch,{onConflict:'id'});
     if(res.error){toast(res.error.message,true);return;}
     CFG=patch;closeModal();render();toast('Saved');
