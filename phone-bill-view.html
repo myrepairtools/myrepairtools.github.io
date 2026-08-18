@@ -26,16 +26,13 @@ letter-spacing:.7px;color:var(--dark-grey);margin-bottom:4px}
 .owe .s{font-size:.85rem;font-weight:700;color:var(--grey);margin-top:4px}
 .zelle{background:#F5FBFE;border:1px solid #CFE9F8;border-radius:10px;padding:12px 14px;
 font-weight:700;font-size:.9rem;color:var(--dark);margin-top:14px}
-/* Past Due is the hero; Current and Total sit under it as a split row */
-.split{display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--light-grey)}
-.split div{flex:1;min-width:0}
-.split .l{font-family:'Nunito',sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase;
-letter-spacing:.6px;color:var(--dark-grey)}
-.split .v{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.15rem;margin-top:2px;
-font-variant-numeric:tabular-nums}
-.split .s{font-size:.68rem;font-weight:700;color:var(--grey)}
-.split .cur .v{color:#C98A00}
-.split .tot .v{color:var(--dark)}
+/* three cards: Past Due leads at full size, Current and Total follow smaller */
+.owe.cur{border-top-color:#C98A00}
+.owe.cur .n{color:#C98A00}
+.owe.tot{border-top-color:var(--dark)}
+.owe.tot .n{color:var(--dark)}
+.owe.cur,.owe.tot{padding:15px 18px}
+.owe.cur .n,.owe.tot .n{font-size:1.7rem}
 .mrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--light-grey)}
 .mrow:last-child{border-bottom:none}
 .mrow .d{flex:1}
@@ -97,12 +94,16 @@ function render(d){
       +'<div class="l">'+(owed.length?'Past Due':'You’re All Caught Up')+'</div>'
       +'<div class="n">'+money(total)+'</div>'
       +'<div class="s">'+(owed.length?(owed.length+' month'+(owed.length===1?'':'s')+' outstanding'):'Nothing overdue right now')+'</div>'
-      +((owed.length||up.length)?('<div class="split">'
-        +'<div class="cur"><div class="l">Current</div><div class="v">'+money(upSum)+'</div>'
-          +'<div class="s">'+(up.length?('due '+fD(up[up.length-1].due_date)):'Nothing pending')+'</div></div>'
-        +'<div class="tot"><div class="l">Total</div><div class="v">'+money(total+upSum)+'</div>'
-          +'<div class="s">your balance</div></div>'
-      +'</div>'):'')
+    +'</div>'
+    +'<div class="card owe cur">'
+      +'<div class="l">Current</div>'
+      +'<div class="n">'+money(upSum)+'</div>'
+      +'<div class="s">'+(up.length?('due '+fD(up[up.length-1].due_date)):'Nothing pending')+'</div>'
+    +'</div>'
+    +'<div class="card owe tot">'
+      +'<div class="l">Total</div>'
+      +'<div class="n">'+money(total+upSum)+'</div>'
+      +'<div class="s">your balance</div>'
       +((owed.length||up.length)&&d.zelle_note?('<div class="zelle">Zelle: '+esc(d.zelle_note)+'</div>'):'')
     +'</div>'
     +'<div class="card"><h2>Months</h2>'
