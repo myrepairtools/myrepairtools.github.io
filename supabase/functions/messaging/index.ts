@@ -280,6 +280,10 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
   let jwt = (line && line.jwt) ? line.jwt : RC_JWT_DEFAULT;
   // system alerts (employee notifications) send from the official company line
   if (payload?._official) { from = ALERTS_FROM || RC_FROM_DEFAULT; jwt = RC_JWT_DEFAULT; }
+  // explicit line override (owner-gated at the call site): RingCentral itself
+  // rejects a number the authenticated extension doesn't own, so this can only
+  // select among lines we actually have.
+  if (payload?._fromOverride) { from = e164(payload._fromOverride) || from; }
   const store = line ? line.store : (payload?.store || null);
   if (!from) return json({ ok: false, error: "No sending line configured (RINGCENTRAL_FROM_NUMBER)" }, 400);
 
@@ -904,7 +908,14 @@ Deno.serve(async (req) => {
     if (WRITE.includes(String(payload?.action)) && !sentBy.id && !machineOk) {
       return json({ ok: false, error: "forbidden" }, 403);
     }
-    if (payload?.action === "send") return await actionSend(payload, sentBy);
+    if (payload?.action === "send") {
+      let over: string | null = null;
+      if (payload?.from_number && sentBy.id) {
+        const { data: me } = await admin.from("staff").select("role").eq("auth_uid", sentBy.id).maybeSingle();
+        if (me?.role === "owner") over = String(payload.from_number);
+      }
+      return await actionSend(over ? { ...payload, _fromOverride: over } : payload, sentBy);
+    }
     // server-to-server: the alerts function texts employees from the official line
     if (payload?.action === "system_send") {
       if (!SYSTEM_SECRET || payload?.secret !== SYSTEM_SECRET) return json({ ok: false, error: "forbidden" }, 403);

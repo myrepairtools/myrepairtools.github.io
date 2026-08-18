@@ -406,9 +406,14 @@ it carries forward), ⚙ config modal. **New cycles auto-create on page load**:
 while the latest row's NEXT cycle has fully closed (service_end < today —
 never the in-progress cycle), insert it with lines cloned from the latest row
 as estimates, due the 8th of the month after service end. "Text <payer>"
-builds the catch-up message (per-month amounts + total + Zelle note) and
-opens the phone's own Messages app via an `sms:` deep link — deliberately not
-the RingCentral pipe; it is a personal text from the owner's number. History
+builds the catch-up message (one month per line + total + Zelle note) and
+opens a compose modal that sends it through the `messaging` function from
+`phone_bill_config.send_from` — a dedicated RingCentral line (+1 971 348 3566)
+that authenticates on the MAIN app JWT, so no store_lines row is needed. The
+send passes `from_number`, which `messaging` honors only for an owner JWT
+(`_fromOverride`; RingCentral itself rejects a number the extension does not
+own). With no `send_from` configured it falls back to an `sms:` deep link from
+the owner's own phone. History
 seeded from the owner's SharePoint list (Nov 2025→May 2026 paid) + the real
 Verizon bills for Jun/Jul/Aug 2026 (parsed from PDFs: lines 5274 iPhone /
 4245 + 1395 watches).

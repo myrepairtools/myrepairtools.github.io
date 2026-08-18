@@ -252,9 +252,36 @@ async function togglePaid(r){
   toast(toPaid?'Paid':'Unpaid');
   render();
 }
+/* Send it from our own RingCentral line when one is configured; otherwise hand
+   the message to the phone's Messages app so it goes from the owner's number. */
 function textPayer(){
   var phone=(CFG&&CFG.payer_phone||'').replace(/[^\d+]/g,'');
   if(!phone){cfgModal();return;}
+  var msg=catchUpMsg();
+  if(!CFG.send_from){location.href='sms:'+phone+'?&body='+encodeURIComponent(msg);return;}
+  $('#modal').innerHTML='<h2>Text '+esc(payerName())+'</h2>'
+    +'<div class="fl">To</div><input id="tTo" value="'+esc(phone)+'">'
+    +'<div class="fl" style="margin-top:8px">Message</div><textarea id="tBody" rows="8">'+esc(msg)+'</textarea>'
+    +'<div class="mbtns"><button class="btn alt" id="tCancel">Cancel</button><button class="btn red" id="tSend">Send</button></div>';
+  $('#mask').classList.add('show');
+  $('#tCancel').onclick=closeModal;
+  $('#tSend').onclick=async function(){
+    var btn=this;btn.disabled=true;btn.textContent='Sending…';
+    var sess=await sb.auth.getSession();
+    var tok=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
+    var d;
+    try{
+      var r=await fetch(SB_URL+'/functions/v1/messaging',{method:'POST',
+        headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+tok},
+        body:JSON.stringify({action:'send',to:$('#tTo').value.trim(),body:$('#tBody').value,
+          from_number:CFG.send_from,agent_name:'Phone Bill'})});
+      d=await r.json();
+    }catch(e){d={ok:false,error:String(e&&e.message||e)};}
+    if(d&&d.ok){closeModal();toast('Texted '+payerName());}
+    else{toast((d&&d.error)||'Send failed',true);btn.disabled=false;btn.textContent='Send';}
+  };
+}
+function catchUpMsg(){
   var today=todayISO();
   var owed=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date<=today;}).sort(function(a,b){return a.due_date<b.due_date?-1:1;});
   var total=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
@@ -265,7 +292,7 @@ function textPayer(){
     +owed.map(function(r){return fmtD(r.due_date)+' — '+money(+r.payer_total||payerSum(r.lines));}).join('\n')
     +(owed.length>1?('\nTotal — '+money(total)):'')
     +'\n\n'+pay+' 🙏';
-  location.href='sms:'+phone+'?&body='+encodeURIComponent(msg);
+  return msg;
 }
 
 /* -------- drop a bill: upload → AI read → review -------- */
@@ -433,7 +460,8 @@ function cfgModal(){
   $('#modal').innerHTML='<h2>Settings</h2>'
     +'<div class="frow"><div><div class="fl">Name</div><input id="cName" value="'+esc(CFG.payer_name||'')+'"></div>'
     +'<div><div class="fl">Phone</div><input id="cPhone" inputmode="tel" value="'+esc(CFG.payer_phone||'')+'"></div></div>'
-    +'<div class="fl">Zelle Note</div><input id="cZelle" value="'+esc(CFG.zelle_note||'')+'">'
+    +'<div class="frow"><div><div class="fl">Zelle Note</div><input id="cZelle" value="'+esc(CFG.zelle_note||'')+'"></div>'
+    +'<div><div class="fl">Send From</div><input id="cFrom" inputmode="tel" value="'+esc(CFG.send_from||'')+'"></div></div>'
     +'<div class="fl" style="margin-top:10px">Line Labels</div>'
     +keys.map(function(k){return '<div class="lrow"><span class="ln" style="font-weight:800;font-family:Nunito,sans-serif">'+esc(k)+'</span>'
       +'<input class="ll" data-lbl="'+esc(k)+'" value="'+esc((CFG.line_labels&&CFG.line_labels[k])||'')+'"></div>';}).join('')
@@ -444,7 +472,8 @@ function cfgModal(){
     var labels={};
     $all('[data-lbl]').forEach(function(i){if(i.value.trim())labels[i.getAttribute('data-lbl')]=i.value.trim();});
     var patch={id:true,payer_name:$('#cName').value.trim()||'Kevin',payer_phone:$('#cPhone').value.trim()||null,
-      zelle_note:$('#cZelle').value.trim()||null,line_labels:labels,updated_at:new Date().toISOString()};
+      zelle_note:$('#cZelle').value.trim()||null,send_from:$('#cFrom').value.trim()||null,
+      line_labels:labels,updated_at:new Date().toISOString()};
     var res=await sb.from('phone_bill_config').upsert(patch,{onConflict:'id'});
     if(res.error){toast(res.error.message,true);return;}
     CFG=patch;closeModal();render();toast('Saved');
@@ -457,6 +486,7 @@ $('#mask').addEventListener('click',function(e){if(e.target===$('#mask'))closeMo
 if(window.CPRNavIcon){$('#h1ic').innerHTML=CPRNavIcon('smartphone',20);$('#cfgBtn').innerHTML=CPRNavIcon('settings',15);}
 else $('#cfgBtn').textContent='⚙';
 $('#textBtn').onclick=textPayer;
+$('#cfgBtn').onclick=cfgModal;
 $('#addBtn').onclick=function(){editMonth(null);};
 load();
 </script>
