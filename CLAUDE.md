@@ -1797,6 +1797,26 @@ entries behind it. **🖨 Print** in the detail header + `@media print` CSS that
 strips the app chrome and prints the detail as a report. writeCloseDeposits
 failures now toast (they used to console.warn only — that's why pre-Aug-2026
 audits have no [ac:] deposit ledger entries; only audit 12 was backfilled).
+**✨ Claude Audit** (detail header, next to Print): downloads a zip a future
+Claude session can reconcile the month from — INSTRUCTIONS.md (the playbook:
+the two metrics, Open/Close-SET-balance semantics, skip `[ac:` rows, envelope
+math, match unlogged pulls to RQ payouts), audit.json (audit row + per-location
+results + month-start carry + prior audit), entries.csv (full window incl. the
+RQ close fields payments/payouts/transfer_in/out/expected/counted),
+envelope_days.csv, petty.csv, and the LIVE RepairQ slice rq_methods.csv /
+rq_payouts.csv / rq_negative_payments.csv from `repairq-query`'s
+**`cash_audit_pull`** action (admin/owner JWT, like digest_refresh — three
+Looker plain queries on the `transaction` explore; `stores.rq_name` maps store
+→ `location.short_name`; Looker's "A to B" date range is end-EXCLUSIVE so the
+action pushes the audit's inclusive end out one day). Key RQ facts baked into
+that pipe: trade-in buys are **payout transactions** (`transaction.payout_amount`
+< 0, itemized per ticket); the Financial Summary "Cash" line = Cash
+payments − Cash payouts (verified to the penny, July 2026 Eugene:
+10,176.17 − 1,158.00 = 9,018.17); `payment_method.name` resolves only on the
+`transaction` explore (view:'transaction'), not view:'ticket' — invalid Looker
+fields/filters are dropped SILENTLY, so a wrong field name looks like null
+data, not an error. The zip itself is built by a ~40-line stored
+(uncompressed) zip writer inline in cash-admin.html — no library.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 

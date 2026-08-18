@@ -2282,6 +2282,54 @@ Deno.serve(async (req) => {
     return json(await runDigestSync());
   }
 
+  if (payload?.action === "cash_audit_pull") {
+    // Cash Admin's "Claude Audit" export: the RepairQ payments/payouts slice of
+    // an audit window, gated by a manager JWT so the browser never holds the
+    // proxy secret. Read-only — three Looker queries on the transaction explore.
+    const tok = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u, error: uerr } = await admin.auth.getUser(tok);
+    if (uerr || !u?.user) return json({ ok: false, error: "sign in required" }, 401);
+    const { data: st } = await admin.from("staff")
+      .select("role, active").eq("auth_uid", u.user.id).eq("active", true).maybeSingle();
+    const role = st?.role || "";
+    if (role !== "admin" && role !== "owner") return json({ ok: false, error: "manager access required" }, 403);
+    const store = String(payload?.store || "").trim();
+    const from = String(payload?.from || "").slice(0, 10);
+    const to = String(payload?.to || "").slice(0, 10);
+    if (!store || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return json({ ok: false, error: "store, from, to required" }, 400);
+    }
+    // stores.rq_name is the Looker location.short_name (e.g. "CPR Clackamas OR")
+    const { data: srow } = await admin.from("stores").select("rq_name").eq("store", store).maybeSingle();
+    const rqName = srow?.rq_name || store;
+    // Looker's "A to B" date range is end-EXCLUSIVE; the audit window is
+    // inclusive dates, so push the end out one day.
+    const endD = new Date(to + "T00:00:00Z"); endD.setUTCDate(endD.getUTCDate() + 1);
+    const range = `${from} to ${endD.toISOString().slice(0, 10)}`;
+    const pq = (fields: string[], extra: Record<string, string>, sorts: string[]) => ({
+      model: "repairq_cpr", view: "transaction", fields, pivots: [], fill_fields: [],
+      filters: { "location.short_name": rqName, "transaction.created_date": range, ...extra },
+      filter_expression: "", sorts, limit: "2000", column_limit: "50", total: false, row_total: "",
+      subtotals: [], dynamic_fields: "", query_timezone: "America/Los_Angeles",
+      element_id: "mrtaudit", client_id: "mrtaudit", generate_links: false,
+      path_prefix: "/embed/looks", server_table_calcs: false, source: "look",
+    });
+    const runOne = async (q: any) => {
+      const run = await lookerRun({ options: { async: true, eager_poll: false, force_run: false, generate_links: false, streaming: false }, plain_queries: [q] });
+      const rows: any[] = [];
+      for (const r of run.results) if (Array.isArray((r as any).rows)) rows.push(...flattenLookerRows((r as any).rows));
+      return rows;
+    };
+    try {
+      const methods = await runOne(pq(["payment_method.name", "transaction.payment_amount_total", "transaction.payout_amount_total"], {}, []));
+      const payouts = await runOne(pq(["transaction.created_time", "transaction.payout_amount", "ticket.id", "payment_method.name"], { "transaction.payout_amount": "<0" }, ["transaction.created_time"]));
+      const negPayments = await runOne(pq(["transaction.created_time", "transaction.payment_amount", "ticket.id", "payment_method.name"], { "transaction.payment_amount": "<0" }, ["transaction.created_time"]));
+      return json({ ok: true, store, rq_location: rqName, from, to, methods, payouts, negative_payments: negPayments });
+    } catch (e) {
+      return json({ ok: false, error: String((e as any)?.message || e) }, 502);
+    }
+  }
+
   // admin gate — server-side callers only
   if (!PROXY_SECRET || req.headers.get("x-cpr-rq-secret") !== PROXY_SECRET) {
     return json({ ok: false, error: "unauthorized" }, 401);
