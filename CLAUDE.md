@@ -1074,7 +1074,10 @@ watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 the RepairQ page context (ticket #, store, tech, line items) posted in via
 postMessage and prepended to the first message. Auth rides the MRT origin's
 Supabase session (sign in once per browser); Options has an AI Assistant toggle.
-**What's Next?** (`scripts/whatsNext.js`) — the "McDonald's order board": a 🍔 button in
+**Quick links:** `customQuickLink.js` renders **Price Guide as a built-in
+link** in RepairQ's nav (hard-coded to myrepairtools.github.io/price-guide.html,
+always framed — no setting), plus **two** user-configurable custom links in
+Options (the third slot was removed). **What's Next?** (`scripts/whatsNext.js`) — the "McDonald's order board": a 🍔 button in
 RepairQ's top bar fetches RepairQ's own ticket list (same-origin, follows the
 `Ticket_page` pager), keeps workable tickets only (New / New Claim / In Diagnosis /
 Ready for Repair; excludes Waiting*, Pending Notification, pickup/closed — those "Est."
