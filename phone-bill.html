@@ -55,6 +55,26 @@ border:none;cursor:pointer;white-space:nowrap}
 .pill.unpaid{background:#FDECEC;color:var(--red)}
 .pill.upcoming{background:#FBF3E1;color:var(--amber)}
 .muted{color:var(--grey);font-weight:700}
+/* bill drop zone — hidden until armed or a file is dragged over the page */
+.drop{display:none;border:2px dashed var(--border);border-radius:12px;background:#fff;padding:26px 18px;
+text-align:center;font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark-grey);margin-bottom:16px}
+.drop.on{display:block}
+.drop.hot{border-color:var(--blue);background:#F5FBFE;color:var(--blue)}
+.drop span{display:block;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.82rem;color:var(--grey);margin-top:5px}
+.drop.busy{border-style:solid;border-color:var(--blue)}
+/* line picker in the review modal */
+.pick{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--light-grey)}
+.pick:last-of-type{border-bottom:none}
+.pick input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--red)}
+.pick .who{flex:1;min-width:0}
+.pick .who b{font-family:'Nunito',sans-serif;font-size:.86rem}
+.pick .who span{display:block;font-size:.74rem;color:var(--grey);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick .amt{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;white-space:nowrap}
+.pdf{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;letter-spacing:.3px;color:var(--blue);
+background:#F5FBFE;border:1px solid #CFE9F8;border-radius:5px;padding:2px 5px;margin-left:5px;cursor:pointer;vertical-align:1px}
+.pdf:hover{background:#E8F5FD}
+.sumline{display:flex;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:800;
+font-size:.9rem;padding:9px 0 2px;border-top:2px solid var(--border);margin-top:6px}
 /* modal */
 .mask{position:fixed;inset:0;background:rgba(45,45,59,.45);z-index:1200;display:none;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
 .mask.show{display:flex}
@@ -93,9 +113,12 @@ transition:.25s;z-index:1400}
     <div class="titlerow"><span id="h1ic"></span><h1>Phone Bill</h1><span class="ownertag">Owner</span></div>
     <div class="spacer"></div>
     <button class="btn red" id="textBtn"></button>
+    <button class="btn alt" id="dropBtn">Drop a Bill</button>
     <button class="btn alt" id="addBtn">＋ Add Month</button>
     <button class="btn alt" id="cfgBtn" title="Settings"></button>
   </div>
+  <input type="file" id="billFile" accept="application/pdf" style="display:none">
+  <div class="drop" id="drop"><b>Drop the Verizon bill PDF here</b><span id="dropMsg"></span></div>
   <div class="tiles" id="tiles"></div>
   <div class="table-card"><table>
     <thead id="thead"></thead>
@@ -201,19 +224,21 @@ function render(){
   $('#textBtn').textContent='Text '+name;
   var keys=lineKeys();
   $('#thead').innerHTML='<tr><th>Due</th><th>Service</th><th class="num">Bill Total</th>'
-    +keys.map(function(k){return '<th class="num" title="'+esc(lineLabel(k))+'">'+esc((CFG.line_labels&&CFG.line_labels[k])?CFG.line_labels[k]:('Line '+k))+'</th>';}).join('')
+    +keys.map(function(k){return '<th class="num" title="'+esc(lineLabel(k))+'">'+esc(k)+'</th>';}).join('')
     +'<th class="num">'+esc(name)+'</th><th></th></tr>';
   $('#tbody').innerHTML=ROWS.map(function(r,i){
     var st=r.status==='paid'?'paid':(r.due_date>today?'upcoming':'unpaid');
     var stTxt=st==='paid'?('Paid'+(r.paid_at?' '+fmtD(r.paid_at):'')):(st==='upcoming'?'Due '+fmtD(r.due_date):'Unpaid');
     return '<tr data-i="'+i+'"><td class="due">'+fmtDY(r.due_date)+'</td><td class="svc">'+fmtSvc(r)+'</td>'
-      +'<td class="num">'+money(r.bill_total)+'</td>'
+      +'<td class="num">'+money(r.bill_total)
+      +(r.bill_path?(' <button class="pdf" data-bill="'+i+'" title="Open the bill PDF">PDF</button>'):'')+'</td>'
       +keys.map(function(k){var v=(r.lines||{})[k];return '<td class="num">'+(v==null?'<span class="muted">—</span>':money(v))+'</td>';}).join('')
       +'<td class="num tot">'+money(r.payer_total!=null?r.payer_total:payerSum(r.lines))+'</td>'
       +'<td><button class="pill '+st+'" data-p="'+i+'">'+stTxt+'</button></td></tr>';
   }).join('')||'<tr><td colspan="9" class="muted" style="padding:16px">No months yet.</td></tr>';
   $all('#tbody tr').forEach(function(tr){tr.onclick=function(ev){if(ev.target.closest('.pill'))return;editMonth(ROWS[+tr.getAttribute('data-i')]);};});
   $all('[data-p]').forEach(function(b){b.onclick=function(){togglePaid(ROWS[+b.getAttribute('data-p')]);};});
+  $all('[data-bill]').forEach(function(b){b.onclick=function(e){e.stopPropagation();openBill(ROWS[+b.getAttribute('data-bill')]);};});
 }
 
 /* -------- actions -------- */
@@ -233,12 +258,105 @@ function textPayer(){
   var today=todayISO();
   var owed=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date<=today;}).sort(function(a,b){return a.due_date<b.due_date?-1:1;});
   var total=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
+  var pay=CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance';
   var msg;
   if(!owed.length)msg='Phone bill: all caught up right now 👍';
-  else if(owed.length===1)msg='Phone bill ('+fmtSvc(owed[0])+'): '+money(+owed[0].payer_total||payerSum(owed[0].lines))+'. '+(CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance')+' 🙏';
-  else msg='Phone bill catch-up: '+owed.map(function(r){return fmtD(r.due_date)+' '+money(+r.payer_total||payerSum(r.lines));}).join(' · ')
-    +' — total '+money(total)+'. '+(CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance')+' 🙏';
+  else msg='Phone bill'+(owed.length>1?' catch-up':'')+':\n'
+    +owed.map(function(r){return fmtD(r.due_date)+' — '+money(+r.payer_total||payerSum(r.lines));}).join('\n')
+    +(owed.length>1?('\nTotal — '+money(total)):'')
+    +'\n\n'+pay+' 🙏';
   location.href='sms:'+phone+'?&body='+encodeURIComponent(msg);
+}
+
+/* -------- drop a bill: upload → AI read → review -------- */
+var DROP_ARMED=false;
+function armDrop(on){DROP_ARMED=on;$('#drop').classList.toggle('on',on);if(!on)$('#drop').classList.remove('hot','busy');}
+function dropMsg(m){$('#dropMsg').textContent=m||'';}
+['dragenter','dragover'].forEach(function(ev){
+  document.addEventListener(ev,function(e){
+    if(!(e.dataTransfer&&Array.prototype.indexOf.call(e.dataTransfer.types||[],'Files')>-1))return;
+    e.preventDefault();armDrop(true);$('#drop').classList.add('hot');
+  });
+});
+document.addEventListener('dragleave',function(e){if(e.relatedTarget===null)$('#drop').classList.remove('hot');});
+document.addEventListener('drop',function(e){
+  if(!(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length))return;
+  e.preventDefault();$('#drop').classList.remove('hot');
+  takeBill(e.dataTransfer.files[0]);
+});
+$('#drop').onclick=function(){$('#billFile').click();};
+$('#billFile').onchange=function(){if(this.files&&this.files[0])takeBill(this.files[0]);this.value='';};
+$('#dropBtn').onclick=function(){armDrop(true);$('#billFile').click();};
+
+async function takeBill(file){
+  if(!file||!/pdf$/i.test(file.type||file.name)){toast('Drop the bill PDF',true);armDrop(false);return;}
+  if(file.size>25*1024*1024){toast('That PDF is too large',true);armDrop(false);return;}
+  armDrop(true);$('#drop').classList.add('busy');dropMsg('Reading '+file.name+'…');
+  var path='bills/'+(crypto.randomUUID?crypto.randomUUID():String(Date.now()))+'.pdf';
+  var up=await sb.storage.from('phone-bills').upload(path,file,{contentType:'application/pdf'});
+  if(up.error){toast(up.error.message,true);armDrop(false);return;}
+  var sess=await sb.auth.getSession();
+  var tok=sess&&sess.data&&sess.data.session&&sess.data.session.access_token;
+  var r,d;
+  try{
+    r=await fetch(SB_URL+'/functions/v1/qbo',{method:'POST',
+      headers:{'Content-Type':'application/json',apikey:ANON,Authorization:'Bearer '+tok},
+      body:JSON.stringify({action:'extract_phone_bill',path:path})});
+    d=await r.json();
+  }catch(e){d={error:'network',detail:String(e&&e.message||e)};}
+  armDrop(false);
+  if(!d||!d.ok){toast('Could not read that bill: '+((d&&(d.detail||d.error))||'unknown'),true);return;}
+  reviewBill(d,path);
+}
+/* the read gives every line on the account — tick the payer's */
+function reviewBill(d,path){
+  var known={}; Object.keys((ROWS[0]&&ROWS[0].lines)||{}).forEach(function(k){known[k]=1;});
+  var lines=(d.lines||[]);
+  var existing=d.due_date?ROWS.filter(function(r){return String(r.due_date).slice(0,10)===d.due_date;})[0]:null;
+  $('#modal').innerHTML='<h2>'+(d.due_date?('Bill due '+fmtDY(d.due_date)):'Bill Read')+'</h2>'
+    +'<div class="frow"><div><div class="fl">Service</div><input id="bS" type="date" value="'+esc(d.service_start||'')+'"></div>'
+    +'<div><div class="fl">to</div><input id="bE" type="date" value="'+esc(d.service_end||'')+'"></div></div>'
+    +'<div class="frow"><div><div class="fl">Due Date</div><input id="bDue" type="date" value="'+esc(d.due_date||'')+'"></div>'
+    +'<div><div class="fl">Bill Total</div><input id="bTot" inputmode="decimal" value="'+(d.bill_total==null?'':d.bill_total)+'"></div></div>'
+    +'<div class="fl" style="margin-top:8px">Which Lines Are '+esc(payerName())+'’s</div>'
+    +lines.map(function(l,i){
+      var on=known[l.last4]?' checked':'';
+      return '<label class="pick"><input type="checkbox" data-ln="'+i+'"'+on+'>'
+        +'<span class="who"><b>'+esc(l.last4)+'</b><span>'+esc(l.owner||'')+' · '+esc(l.device||'')+'</span></span>'
+        +'<span class="amt">'+money(l.amount)+'</span></label>';
+    }).join('')
+    +'<div class="sumline"><span>'+esc(payerName())+'’s total</span><span id="bSum">—</span></div>'
+    +(existing?'<p class="fl" style="color:var(--amber);margin-top:10px">Updates the '+fmtDY(existing.due_date)+' month</p>':'')
+    +'<div class="mbtns"><button class="btn alt" id="bCancel">Cancel</button><button class="btn" id="bSave">Save Month</button></div>';
+  $('#mask').classList.add('show');
+  var sum=function(){
+    var t=0;$all('[data-ln]').forEach(function(c){if(c.checked)t+=(+lines[+c.getAttribute('data-ln')].amount||0);});
+    $('#bSum').textContent=money(Math.round(t*100)/100);return Math.round(t*100)/100;
+  };
+  $all('[data-ln]').forEach(function(c){c.onchange=sum;}); sum();
+  $('#bCancel').onclick=closeModal;
+  $('#bSave').onclick=async function(){
+    var picked={};
+    $all('[data-ln]').forEach(function(c){if(c.checked){var l=lines[+c.getAttribute('data-ln')];picked[l.last4]=l.amount;}});
+    if(!Object.keys(picked).length){toast('Tick at least one line',true);return;}
+    var patch={due_date:$('#bDue').value,service_start:$('#bS').value||null,service_end:$('#bE').value||null,
+      bill_total:($('#bTot').value===''?null:parseFloat($('#bTot').value)),
+      lines:picked,payer_total:payerSum(picked),bill_path:path};
+    if(!patch.due_date){toast('Due date required',true);return;}
+    var cur=ROWS.filter(function(r){return String(r.due_date).slice(0,10)===patch.due_date;})[0];
+    var res=cur
+      ?await sb.from('phone_bill_months').update(patch).eq('id',cur.id).select().single()
+      :await sb.from('phone_bill_months').insert(patch).select().single();
+    if(res.error){toast(res.error.message,true);return;}
+    if(cur)Object.assign(cur,res.data);else ROWS.push(res.data);
+    ROWS.sort(function(a,b){return a.due_date<b.due_date?1:-1;});
+    closeModal();render();toast('Saved from the bill');
+  };
+}
+async function openBill(r){
+  var s=await sb.storage.from('phone-bills').createSignedUrl(r.bill_path,120);
+  if(s.error||!s.data){toast('Could not open the bill',true);return;}
+  window.open(s.data.signedUrl,'_blank');
 }
 
 /* -------- month modal -------- */

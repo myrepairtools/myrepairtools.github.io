@@ -451,6 +451,83 @@ async function extractReceipt(body: Record<string, unknown>) {
   return json({ ok: true, vendor, date, amount, card_last4 });
 }
 
+// ---- extract_phone_bill: Claude reads a carrier bill PDF from storage --------
+
+async function extractPhoneBill(body: Record<string, unknown>) {
+  const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+  if (!ANTHROPIC_KEY) return json({ error: "no_ai", detail: "ANTHROPIC_API_KEY is not set." }, 503);
+  const path = typeof body.path === "string" ? body.path.trim() : "";
+  if (!path || path.includes("..")) return json({ error: "bad_request", detail: "path required." }, 400);
+  const dl = await admin.storage.from("phone-bills").download(path);
+  if (dl.error || !dl.data) return json({ error: "not_found", detail: dl.error?.message || "no file" }, 404);
+  const buf = new Uint8Array(await dl.data.arrayBuffer());
+  if (buf.length > 25_000_000) return json({ error: "too_large", detail: "Bill PDF too large." }, 413);
+  let b64 = "";
+  for (let i = 0; i < buf.length; i += 32768) b64 += String.fromCharCode.apply(null, buf.subarray(i, i + 32768) as unknown as number[]);
+  b64 = btoa(b64);
+
+  const payload = {
+    model: "claude-opus-5",   // a 40-page carrier bill is a real read — once a month, accuracy over speed
+    max_tokens: 3000,
+    system: 'You extract fields from a mobile carrier bill PDF. Reply with ONLY a JSON object, no prose: ' +
+      '{"service_start":"YYYY-MM-DD"|null,"service_end":"YYYY-MM-DD"|null,"due_date":"YYYY-MM-DD"|null,' +
+      '"bill_total":number|null,"lines":[{"owner":string,"last4":"1234","device":string,"amount":number}]}. ' +
+      'service_start/service_end = the billing period. due_date = the "total due on" date (infer the year from the billing period). ' +
+      'bill_total = the total amount due. ' +
+      'lines = EVERY phone/watch/tablet/internet line on the account — including lines the summary folds into ' +
+      '"Remaining N lines" (their details appear in the charges-by-line pages later in the document). ' +
+      'For each: owner = the name printed over the line, last4 = the last four digits of that line\'s phone number, ' +
+      'device = the device description, amount = that line\'s total monthly charge as shown. ' +
+      'Account-wide charges are NOT a line. Use null for anything you cannot read confidently. Never guess.',
+    messages: [{
+      role: "user",
+      content: [
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } },
+        { type: "text", text: "Extract the fields from this bill." },
+      ],
+    }],
+  };
+  let r: Response, d: any;
+  try {
+    r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    d = await r.json().catch(() => ({}));
+  } catch (e) {
+    return json({ error: "ai_error", detail: String((e as Error)?.message || e) }, 502);
+  }
+  if (!r.ok) return json({ error: "ai_error", detail: d?.error?.message || ("HTTP " + r.status) }, 502);
+  if (d?.stop_reason === "refusal") return json({ error: "ai_error", detail: "The model declined to read this file." }, 502);
+
+  const text = ((d?.content || []) as Array<{ type: string; text?: string }>)
+    .filter((c) => c.type === "text").map((c) => c.text || "").join(" ");
+  const out: Record<string, unknown> = { service_start: null, service_end: null, due_date: null, bill_total: null, lines: [] };
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      const p = JSON.parse(m[0]);
+      const dt = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && +v.slice(0, 4) >= 2000 && +v.slice(0, 4) <= 2100) ? v : null;
+      out.service_start = dt(p.service_start); out.service_end = dt(p.service_end); out.due_date = dt(p.due_date);
+      const t = Number(p.bill_total);
+      if (Number.isFinite(t) && t > 0 && t < 100000) out.bill_total = Math.round(t * 100) / 100;
+      if (Array.isArray(p.lines)) {
+        out.lines = p.lines.map((l: any) => {
+          const l4 = String(l?.last4 ?? "").replace(/\D/g, "").slice(-4);
+          const a = Number(l?.amount);
+          return {
+            owner: String(l?.owner ?? "").slice(0, 60), last4: l4.length === 4 ? l4 : null,
+            device: String(l?.device ?? "").slice(0, 80),
+            amount: Number.isFinite(a) ? Math.round(a * 100) / 100 : null,
+          };
+        }).filter((l: any) => l.last4 && l.amount != null).slice(0, 30);
+      }
+    } catch { /* model returned junk — leave the nulls */ }
+  }
+  return json({ ok: true, ...out });
+}
+
 // ---- create_expense: post an expense receipt as a QBO Purchase ---------------
 
 async function createExpense(body: Record<string, unknown>, staff: { display_name: string }) {
@@ -931,6 +1008,9 @@ Deno.serve(async (req) => {
   }
   if (action === "extract_receipt") {
     return await extractReceipt(body);
+  }
+  if (action === "extract_phone_bill") {
+    return await extractPhoneBill(body);
   }
   if (action === "post_je") {
     return await postJournalEntry(body, staff);
