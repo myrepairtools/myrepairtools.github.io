@@ -1148,7 +1148,16 @@ truncates a note at the first 4-byte char (most emoji), so an emoji-PREFIXED not
 stores completely blank — and a blank note blocks the whole ticket from saving
 (the v2.5.80 Eugene incident). Every extension `writeNote` strips astral chars
 before posting and note prefixes stay ASCII/BMP (✔ ⚠ ⛔ are safe; 📣 🛡 are not).
-Safety net: `repairq-query`'s `sweep_blank_notes` action (the
+**A note that can't be written must say so:** followUp's `writeNote` used to
+bail silently when the page had no `YII_CSRF_TOKEN` input — the Supabase
+`ticket_contacts` row saved, the RepairQ note never appeared, and nothing was
+logged (owner report 2026-08-18, ticket 16364927). It now looks for the token
+in the input, a `meta[name=csrf-token]`, and the cookie (that read is
+try/caught — `document.cookie` throws in an opaque document), and when there
+is still no token it hands the write to bg.js anyway, whose in-tab path reads
+the token off the page itself; bg.js therefore treats `csrf` as OPTIONAL and
+only skips its direct fetch without one. Every remaining dead end files a
+`kind:'debug'` row through `issue:report`. Safety net: `repairq-query`'s `sweep_blank_notes` action (the
 `repairq-blank-note-sweep` pg_cron, :20/:50 hourly) scans the active ticket list
 and deletes any empty-bodied note.
 

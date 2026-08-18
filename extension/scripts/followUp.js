@@ -140,6 +140,21 @@
         });
     }
 
+    /* a note that never gets written must leave a trace — silent failures are
+       how this went unnoticed until someone read the ticket */
+    function noteDebug(detail) {
+        try {
+            chrome.runtime.sendMessage({
+                type: 'issue:report',
+                payload: {
+                    kind: 'debug', message: 'followUp note: ' + detail,
+                    ticket_no: ticketNo() || '', url: location.href,
+                    ext_version: (chrome.runtime.getManifest() || {}).version || '',
+                },
+            }, function () { void chrome.runtime.lastError; });
+        } catch (e) { /* diagnostics only */ }
+    }
+
     /* --- write the ticket-note backup (best effort) --- */
     function writeNote(text) {
         // RepairQ's DB is 3-byte MySQL utf8: a 4-byte char (most emoji) silently
@@ -147,12 +162,26 @@
         // note, and blank notes block the ticket from saving. Strip them.
         text = String(text == null ? '' : text).replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();
         if (!text) return;   // never POST a blank note (RepairQ rejects it → global "save the ticket" error modal)
-        var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value;
+        // CSRF lives in a hidden input on most RepairQ pages, but not all of
+        // them — look wider, and if it still isn't here, hand the write to
+        // bg.js anyway: its in-tab path reads the token from the page itself.
+        // (Bailing silently here is why notes went missing with nothing logged.)
+        var cookieTok = '';
+        // document.cookie throws in sandboxed/opaque documents — never let the
+        // lookup itself be what stops the note from being written
+        try { cookieTok = (String(document.cookie).match(/(?:^|;\s*)YII_CSRF_TOKEN=([^;]+)/) || [])[1] || ''; } catch (e) { cookieTok = ''; }
+        var csrf = (document.getElementsByName('YII_CSRF_TOKEN')[0] || {}).value
+            || (document.querySelector('input[name="YII_CSRF_TOKEN"]') || {}).value
+            || (document.querySelector('meta[name="csrf-token"]') || {}).content
+            || cookieTok
+            || '';
+        try { csrf = csrf ? decodeURIComponent(csrf) : ''; } catch (e) { /* raw value */ }
         var id = ticketNo();
-        if (!csrf || !id) return;
+        if (!id) { noteDebug('no ticket id'); return; }
         // bg.js path first — the service worker outlives any page turn, so the
         // write can't be killed by navigation; page fetch stays as fallback
         var pageFetch = function () {
+            if (!csrf) { noteDebug('no csrf in page and bg path failed'); return; }
             fetch('/ajax/ticketNote/save', {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
