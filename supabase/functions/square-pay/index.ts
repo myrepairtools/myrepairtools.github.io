@@ -36,6 +36,7 @@ const SQ_VERSION = "2024-06-04";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const NOTIFY_SECRET = Deno.env.get("NOTIFY_SECRET") || "";
 const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
 const cors = {
@@ -203,6 +204,75 @@ async function actionLinkStatus(payload: any) {
   return json({ ok: true, id, paid, state });
 }
 
+/* sweep_pending — the cron's job. The panel polls only while it is open, so a
+   link paid after the tech closes it would sit at 'sent' forever. This asks
+   Square about every still-open payment from the last 3 days and, when one has
+   been paid, stamps the row and tells the tech who took it plus that store's
+   managers. Alerts are best-effort: a notification failure must never stop the
+   row from being marked paid. */
+async function actionSweepPending() {
+  const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: rows } = await admin.from("square_payments")
+    .select("id, store, mode, amount_cents, ticket_no, customer_name, taken_by, square_order_id, status")
+    .in("status", ["sent", "pending"])
+    .not("square_order_id", "is", null)
+    .gte("created_at", since)
+    .order("created_at", { ascending: true })
+    .limit(50);
+  const checked: any[] = [];
+  for (const row of (rows || [])) {
+    let paid = false, state = "";
+    try {
+      const r = await sq("GET", "orders/" + row.square_order_id);
+      state = String(r.data?.order?.state || "").toLowerCase();
+      const tenders = r.data?.order?.tenders || [];
+      paid = state === "completed" || tenders.length > 0;
+      if (paid) {
+        await updRow(row.id, { status: "completed", square_payment_id: tenders[0]?.payment_id || null });
+        await notifyPaid(row);
+      }
+    } catch (e) {
+      state = "error: " + String((e as Error)?.message || e);
+    }
+    checked.push({ id: row.id, paid, state });
+  }
+  return json({ ok: true, checked: checked.length, paid: checked.filter((c) => c.paid).length, detail: checked });
+}
+
+/* who hears about it: the tech who took the payment + the managers over that
+   store (home store or authorized there) */
+async function notifyPaid(row: any) {
+  try {
+    const ids = new Set<number>();
+    if (row.taken_by) {
+      const { data: tech } = await admin.from("staff")
+        .select("id").eq("display_name", row.taken_by).eq("active", true).maybeSingle();
+      if (tech?.id) ids.add(Number(tech.id));
+    }
+    const { data: mgrs } = await admin.from("staff")
+      .select("id, home_store, authorized_stores, role").eq("active", true).in("role", ["admin", "owner"]);
+    for (const m of (mgrs || [])) {
+      const auth = Array.isArray(m.authorized_stores) ? m.authorized_stores : [];
+      if (m.home_store === row.store || auth.indexOf(row.store) > -1) ids.add(Number(m.id));
+    }
+    if (!ids.size) return;
+    const amount = "$" + (Number(row.amount_cents || 0) / 100).toFixed(2);
+    const who = row.customer_name ? (" from " + row.customer_name) : "";
+    const tkt = row.ticket_no ? (" · ticket " + String(row.ticket_no).replace(/^#0*/, "")) : "";
+    await fetch(SB_URL + "/functions/v1/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SB_SERVICE, Authorization: "Bearer " + SB_SERVICE },
+      body: JSON.stringify({
+        action: "send", secret: NOTIFY_SECRET, kind: "system",
+        title: "Square payment received — " + amount,
+        body: amount + who + tkt + " (" + row.store + ") has been paid.",
+        link: "index.html", icon: "banknote",
+        staff_ids: Array.from(ids),
+      }),
+    });
+  } catch (e) { /* the payment is recorded either way */ }
+}
+
 async function actionKeyedCharge(payload: any, takenBy: string) {
   const store = String(payload?.store || "");
   const amount = cents(payload?.amount_cents);
@@ -251,6 +321,16 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   let payload: any = {};
   try { payload = await req.json(); } catch { /* empty */ }
+
+  // the cron sweep authenticates by secret, not by a signed-in tech
+  if (payload?.action === "sweep_pending") {
+    if (!NOTIFY_SECRET || String(payload?.secret || "") !== NOTIFY_SECRET) {
+      return json({ ok: false, error: "forbidden" }, 403);
+    }
+    if (!SQ_TOKEN) return json({ ok: false, error: "SQUARE_ACCESS_TOKEN not set" }, 500);
+    try { return await actionSweepPending(); }
+    catch (e) { return json({ ok: false, error: String((e as Error)?.message || e) }, 502); }
+  }
 
   // resolve the signed-in staff member (audit trail); anonymous calls refused
   let takenBy = "";
