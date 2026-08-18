@@ -1780,6 +1780,24 @@ existing store rows, inserts added stores, archives removed ones). The generator
 applies each day's `day_assignments[dow]` override (else the row's default) per store — so
 "weekdays → Mid shift, weekends → Open shift" resolves the right person automatically.
 
+**Cash audit detail (cash-admin.html):** the closed-audit view shows the whole
+month's cash story: **Month Start** per location (the PRIOR closed audit's
+carry_forward — the same source the audit math seeds from; '—' when no prior),
+Month-start / Month-end (counted) / Carried-into-next-month header lines, and
+the over/short arithmetic spelled out (counted − (start + sales − petty) = X).
+**Two different metrics on purpose:** the headline over/short is counted-vs-
+SALES (cash_audits.over_short, frozen at close by trueOverShort); the
+per-location "Vs tracker" column is counted-vs-the-transfer-LOG — a diagnostic
+that can be hundreds off while the audit itself balances (Eugene July 2026:
++$9.83 audit, −$420 Large Safe vs tracker, all of it one day's logged drops
+that never matched an envelope). A **Petty Cash card** lists the window's
+`to_location='Cash Expenses'` entries with notes, flags when their total ≠ the
+audit's petty figure, and says so when the figure was typed at close with no
+entries behind it. **🖨 Print** in the detail header + `@media print` CSS that
+strips the app chrome and prints the detail as a report. writeCloseDeposits
+failures now toast (they used to console.warn only — that's why pre-Aug-2026
+audits have no [ac:] deposit ledger entries; only audit 12 was backfilled).
+
 When changing a tool's data layer, check which generation it uses first — they share no code.
 
 ## Conventions when editing

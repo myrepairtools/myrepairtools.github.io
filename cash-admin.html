@@ -129,6 +129,17 @@ tr.aurow-clk:hover td{background:#f8fafd}
 .auwiz th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:var(--dark-grey);text-align:left;padding:7px 9px;border-bottom:1px solid var(--border);background:#F0F1F4}
 .auwiz td{padding:8px 9px;border-bottom:1px solid var(--light-grey);font-size:.85rem}
 .auwiz td.num,.auwiz th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* print = the open audit detail only, as a clean report */
+@media print{
+  .cpr-topbar,.cpr-rail,.cpr-pane,.cpr-bottombar,.cpra-fab,.cpr-usermenu,
+  .adminbtn,.banner,.bar,.sub,#adPrint,#adBack,.save-row{display:none!important}
+  main>div:first-child{display:none!important}
+  body{background:#fff}
+  main{padding:0!important}
+  body{padding-bottom:0!important}
+  .card,.table-card{box-shadow:none!important;border:1px solid #ccc!important;break-inside:avoid;margin-bottom:10px!important}
+  #auDetailView [style*="overflow-x"]{overflow-x:visible!important}
+}
 </style>
 </head>
 <body>
@@ -1058,7 +1069,7 @@ async function writeCloseDeposits(row,depBank,depSB,depSL){
   if(num(depBank)>0) ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Deposit',location:'Large Safe',to_location:BANK,amount:num(depBank),notes:'Bank deposit at audit close '+tag});
   if(num(depSB)>0)   ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Deposit',location:'Small Safe',to_location:BANK,amount:num(depSB),notes:'Bank deposit at audit close '+tag});
   if(num(depSL)>0)   ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Transfer',location:'Small Safe',to_location:'Large Safe',amount:num(depSL),notes:'Small→Large at audit close '+tag});
-  if(ins.length){ var r=await sb.from('cash_entries').insert(ins); if(r.error) console.warn('close deposit entries:',r.error.message); }
+  if(ins.length){ var r=await sb.from('cash_entries').insert(ins); if(r.error){ console.warn('close deposit entries:',r.error.message); toast('Audit closed, but the deposit ledger entries failed to write — '+r.error.message,true); } }
 }
 
 /* ---- DETAIL (closed audits, read-only) + delete ---- */
@@ -1066,14 +1077,31 @@ async function openDetail(row){
   showAuView('detail');
   var host=$('#auDetailView');
   host.innerHTML='<div class="card"><p class="muted">Loading…</p></div>';
-  var [al,ad]=await Promise.all([
+  var startISO=String(row.period_start).slice(0,10), endISO=String(row.period_end).slice(0,10);
+  var [al,ad,pe,prior]=await Promise.all([
     sb.from('cash_audit_locations').select('*').eq('audit_id',row.id),
-    sb.from('cash_audit_days').select('*').eq('audit_id',row.id).order('day')
+    sb.from('cash_audit_days').select('*').eq('audit_id',row.id).order('day'),
+    sb.from('cash_entries').select('biz_date,employee,location,amount,notes')
+      .eq('store',row.store).eq('to_location',EXPENSE)
+      .gte('biz_date',startISO).lte('biz_date',endISO).order('biz_date'),
+    priorClosedAudit(row.store,startISO)
   ]);
   var locs=(al.error?[]:(al.data||[])), days=(ad.error?[]:(ad.data||[]));
+  var pettyRows=(pe.error?[]:(pe.data||[]));
+  /* month-start = the prior closed audit's confirmed carry-forward, the same
+     source the audit's own math seeded from */
+  var openBy=null;
+  if(prior&&prior.id!==row.id){
+    var pl=await sb.from('cash_audit_locations').select('location,counted,carry_forward').eq('audit_id',prior.id);
+    if(!pl.error&&(pl.data||[]).length){openBy={};(pl.data||[]).forEach(function(r2){openBy[r2.location]=num(r2.carry_forward!=null?r2.carry_forward:r2.counted);});}
+  }
+  var openTotal=null,countedTotal=0,carryTotal=0;
+  locs.forEach(function(r){countedTotal+=num(r.counted);carryTotal+=num(r.carry_forward!=null?r.carry_forward:r.counted);});
+  if(openBy){openTotal=0;Object.keys(openBy).forEach(function(k){openTotal+=openBy[k];});}
   var os=(row.over_short!=null)?num(row.over_short):(function(){var t=0;locs.forEach(function(r){t+=num(r.over_short);});return t;})();
   var trs=locs.map(function(r){
-    return '<tr><td>'+r.location+'</td><td class="num">'+money(r.tracked)+'</td><td class="num">'+money(r.counted)+'</td>'
+    var op=(openBy&&openBy.hasOwnProperty(r.location))?money(openBy[r.location]):'—';
+    return '<tr><td>'+r.location+'</td><td class="num">'+op+'</td><td class="num">'+money(r.tracked)+'</td><td class="num">'+money(r.counted)+'</td>'
       +'<td class="num" style="color:'+osColor(num(r.over_short))+'">'+money(r.over_short)+'</td>'
       +'<td class="num"><b style="font-family:Nunito,sans-serif">'+money(r.carry_forward!=null?r.carry_forward:r.counted)+'</b></td></tr>';
   }).join('');
@@ -1090,21 +1118,29 @@ async function openDetail(row){
       +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
         +'<h2 style="margin:0">'+shortStore(row.store)+' · '+fmtRange(row.period_start,row.period_end)
         +(isDel?' <span class="aupill" style="color:#8a909e;background:var(--light-grey);vertical-align:middle">Deleted</span>':'')+'</h2>'
-        +'<button class="btn alt sm" id="adBack">‹ Back to audits</button></div>'
+        +'<div style="display:flex;gap:8px"><button class="btn alt sm" id="adPrint">🖨 Print</button><button class="btn alt sm" id="adBack">‹ Back to audits</button></div></div>'
       +(isDel?'<p class="hint" style="color:var(--red)">Deleted by '+(row.deleted_by||'—')+' on '+String(row.deleted_at||'').slice(0,10)+'. Its balances no longer carry forward — restore it to bring it back.</p>':'')
       +'<div class="recon" style="padding:12px 0 0">'
         +'<div class="rl"><span>Status</span><span>'+(isDel?'Deleted':'Closed '+String(row.closed_at||'').slice(0,10))+'</span></div>'
         +'<div class="rl"><span>Completed by</span><span>'+(row.auditor||'—')+'</span></div>'
         +'<div class="rl"><span>Starting balances confirmed by</span><span>'+(row.confirmed_by||'—')+(row.confirmed_at?(' · '+String(row.confirmed_at).slice(0,10)):'')+'</span></div>'
+        +'<div class="rl"><span>Month-start cash</span><span>'+(openTotal!=null?money(openTotal):'—')+'</span></div>'
+        +'<div class="rl"><span>Month-end cash (counted)</span><span>'+money(countedTotal)+'</span></div>'
+        +'<div class="rl"><span>Carried into next month</span><span>'+money(carryTotal)+'</span></div>'
         +'<div class="rl"><span>Over / short <span class="muted" style="font-weight:600">(counted vs sales)</span></span><span class="'+(Math.abs(os)<0.005?'ok':(os>0?'over':'bad'))+'">'+money(os)+'</span></div>'
+        +((openTotal!=null&&row.repairq_sales!=null)
+          ?('<div class="rl"><span class="muted" style="font-weight:600">'+money(countedTotal)+' counted − ('+money(openTotal)+' start + '+money(row.repairq_sales)+' sales − '+money(row.petty_cash)+' petty)</span><span class="muted" style="font-weight:700">= '+money(Math.round((countedTotal-(openTotal+num(row.repairq_sales)-num(row.petty_cash)))*100)/100)+'</span></div>')
+          :'')
         +'<div class="rl"><span>RepairQ net sales</span><span>'+money(row.repairq_sales)+'</span></div>'
         +'<div class="rl"><span>Petty cash out</span><span>'+money(row.petty_cash)+'</span></div>'
         +'<div class="rl"><span>Bank deposit (Large Safe)</span><span>'+money(row.bank_deposit)+'</span></div>'
         +'<div class="rl"><span>Small Safe → bank / → Large</span><span>'+money(row.small_to_bank)+' / '+money(row.small_to_large)+'</span></div>'
       +'</div></div>'
     +'<div class="table-card" style="margin-bottom:14px"><table>'
-      +'<thead><tr><th>Location</th><th class="num">Tracked</th><th class="num">Counted</th><th class="num">Vs tracker</th><th class="num">Carried forward</th></tr></thead>'
-      +'<tbody>'+(trs||'<tr><td colspan="5" class="muted" style="padding:12px">No location rows.</td></tr>')+'</tbody></table></div>'
+      +'<thead><tr><th>Location</th><th class="num">Month Start</th><th class="num">Tracked</th><th class="num">Counted</th><th class="num">Vs tracker</th><th class="num">Carried forward</th></tr></thead>'
+      +'<tbody>'+(trs||'<tr><td colspan="6" class="muted" style="padding:12px">No location rows.</td></tr>')
+      +'<tr style="border-top:2px solid var(--border)"><td><b>Total</b></td><td class="num"><b>'+(openTotal!=null?money(openTotal):'—')+'</b></td><td class="num"></td><td class="num"><b>'+money(countedTotal)+'</b></td><td class="num"></td><td class="num"><b>'+money(carryTotal)+'</b></td></tr>'
+      +'</tbody></table></div>'
     +'<div class="card"><h2>Bill counts</h2>'
       +'<p class="hint">Large Safe envelopes: <b>'+money(envTotal)+'</b> across '+envRows.length+' day'+(envRows.length===1?'':'s')
       +(smallRow?(' · Small Safe: <b>'+money(smallRow.total)+'</b>'):'')+'</p>'
@@ -1112,12 +1148,24 @@ async function openDetail(row){
         +envRows.map(function(r){return '<tr><td>'+String(r.day).slice(5)+'</td><td class="num bal">'+money(r.total)+'</td><td class="num">'+(r.c100||'')+'</td><td class="num">'+(r.c50||'')+'</td><td class="num">'+(r.c20||'')+'</td><td class="num">'+(r.c10||'')+'</td><td class="num">'+(r.c5||'')+'</td><td class="num">'+(r.c1||'')+'</td></tr>';}).join('')
         +'</tbody></table></div>'):'')
     +'</div>'
+    +'<div class="card"><h2>Petty Cash</h2>'
+      +(pettyRows.length
+        ?('<div style="overflow-x:auto"><table class="elog" style="min-width:420px"><thead><tr><th>Date</th><th>By</th><th>From</th><th class="num">Amount</th><th>Note</th></tr></thead><tbody>'
+          +pettyRows.map(function(r){return '<tr><td>'+String(r.biz_date).slice(5)+'</td><td>'+(r.employee||'—')+'</td><td>'+(r.location||'—')+'</td><td class="num bal">'+money(r.amount)+'</td><td>'+(r.notes||'')+'</td></tr>';}).join('')
+          +'</tbody></table></div>'
+          +(Math.abs(pettyRows.reduce(function(t,r){return t+num(r.amount);},0)-num(row.petty_cash))>0.005
+            ?('<p class="hint" style="color:#8a5a00">Entries total '+money(pettyRows.reduce(function(t,r){return t+num(r.amount);},0))+' — the audit recorded '+money(row.petty_cash)+'.</p>'):''))
+        :(num(row.petty_cash)>0
+          ?('<p class="hint">'+money(row.petty_cash)+' recorded at close — no petty cash entries were logged in the tracker for this period.</p>')
+          :'<p class="hint">No petty cash this period.</p>'))
+    +'</div>'
     +'<div class="card"><h2>History</h2>'+histHtml+'</div>'
     +'<div class="save-row">'
       +(isDel?'<button class="btn" id="adRestore">↩ Restore this audit</button>'
         :'<button class="btn alt sm" id="adEdit">✎ Edit this audit</button><button class="btn alt sm" id="adDelete" style="color:var(--red)">Delete this audit</button>')
     +'</div>';
   $('#adBack').onclick=loadAudit;
+  $('#adPrint').onclick=function(){window.print();};
   if($('#adEdit'))$('#adEdit').onclick=function(){ editAudit(row); };
   if($('#adDelete'))$('#adDelete').onclick=function(){ deleteAudit(row); };
   if($('#adRestore'))$('#adRestore').onclick=function(){ restoreAudit(row); };
