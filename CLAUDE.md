@@ -418,7 +418,10 @@ matters) and returns only his months, totals and the Zelle note — never the
 household's other lines, bill totals or PDFs. His card mirrors the owner
 page's three numbers: Past Due as the hero, with Current and Total under it. The number is remembered in
 localStorage so he doesn't retype it, and the catch-up text carries the link. "Text <payer>"
-builds the catch-up message (one month per line + total + Zelle note) and
+builds the catch-up message — every UNPAID month, split into "Past due" and
+"Coming up" (a cycle closes on the 16th and its row generates on the 17th, so
+the newest bill is a real charge before its due date lands) plus the combined
+total and the Zelle note — and
 opens a compose modal that sends it through the `messaging` function from
 `phone_bill_config.send_from` — a dedicated RingCentral line (+1 971 348 3566)
 that authenticates on the MAIN app JWT, so no store_lines row is needed. The
