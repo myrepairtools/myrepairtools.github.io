@@ -41,7 +41,7 @@ const CORS: Record<string, string> = {
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const KINDS = ["comms", "task", "schedule", "schedule_preview", "kb", "goal", "birthday", "anniversary", "system", "interview", "hiring"];
+const KINDS = ["comms", "task", "schedule", "schedule_preview", "kb", "goal", "birthday", "anniversary", "system", "interview", "hiring", "payment"];
 
 async function callerAllowed(req: Request, body: Record<string, unknown>): Promise<boolean> {
   if (SECRET && body.secret === SECRET) return true;
@@ -114,7 +114,7 @@ async function doSend(body: Record<string, unknown>) {
     // ALERTS (urgent — schedule/system): must reach people NOW, so push AND SMS
     // are auto-enrolled for everyone (prefs can't turn them off).
     const urgent = kind === "schedule" || kind === "system";
-    const wantPush = pushOff ? false : ((kind === "comms" || urgent) ? true : p.push !== false);
+    const wantPush = pushOff ? false : ((kind === "comms" || kind === "payment" || urgent) ? true : p.push !== false);
     const wantSms = urgent ? true : p.sms === true;
 
     if (wantPush && VAPID_PUB) {

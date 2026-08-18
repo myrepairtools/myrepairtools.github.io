@@ -263,7 +263,7 @@ async function notifyPaid(row: any) {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SB_SERVICE, Authorization: "Bearer " + SB_SERVICE },
       body: JSON.stringify({
-        action: "send", secret: NOTIFY_SECRET, kind: "system",
+        action: "send", secret: NOTIFY_SECRET, kind: "payment",
         title: "Square payment received — " + amount,
         body: amount + who + tkt + " (" + row.store + ") has been paid.",
         link: "index.html", icon: "banknote",

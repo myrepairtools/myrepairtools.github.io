@@ -225,7 +225,7 @@ var KIND_GROUPS=[
   {label:'Alerts — urgent', hint:'Always delivered by push and text',
    kinds:[['schedule','Schedule changes']], locked:true},
   {label:'Notifications', hint:'Helpful updates — text is optional',
-   kinds:[['comms','Communications'],['task','Task nudges'],['schedule_preview','Weekly schedule preview'],
+   kinds:[['comms','Communications'],['payment','Square payments'],['task','Task nudges'],['schedule_preview','Weekly schedule preview'],
           ['interview','Interviews booked'],['hiring','Hiring updates'],
           ['kb','Required reading'],['goal','Goals & wins'],['birthday','Birthdays'],
           ['anniversary','Anniversaries']], locked:false}
@@ -458,6 +458,7 @@ var prefT=null;
 async function savePrefs(){
   clearTimeout(prefT);
   if(PREFS.comms)PREFS.comms.push=true;   // policy: Communications push is locked on
+  if(PREFS.payment)PREFS.payment.push=true;  // same for Square payments — a paid link must reach someone
   var r=await sb.from('alert_prefs').upsert({staff_id:ME.id,prefs:PREFS,updated_at:new Date().toISOString()});
   if(r.error){toast('Could not save — check connection',true);return;}
   tick('#notifSaved');
@@ -468,7 +469,7 @@ function renderMatrix(){
     html+='<tr><td colspan="3" style="padding:10px 0 4px"><div style="font-family:Nunito,sans-serif;font-weight:900;font-size:.72rem;letter-spacing:.4px;text-transform:uppercase;color:'+(g.locked?'var(--red)':'var(--dark-grey)')+'">'+esc(g.label)+'</div><div style="font-family:Nunito Sans,sans-serif;font-weight:700;font-size:.68rem;color:var(--grey)">'+esc(g.hint)+'</div></td></tr>';
     g.kinds.forEach(function(k){
       var kind=k[0],label=k[1],p=prefFor(kind);
-      var lockPush=g.locked||kind==='comms', lockSms=g.locked;
+      var lockPush=g.locked||kind==='comms'||kind==='payment', lockSms=g.locked;
       html+='<tr><td class="kn">'+esc(label)+((lockPush&&lockSms)?'<span class="lock" title="Always on">🔒</span>':(lockPush?'<span class="lock" title="Push always on">🔒</span>':''))+'</td>';
       html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="push"'
         +((lockPush||p.push)?' checked':'')+(lockPush?' disabled':'')+'></label></td>';
@@ -481,7 +482,7 @@ function renderMatrix(){
     cb.addEventListener('change',function(){
       var kind=cb.getAttribute('data-kind'),ch=cb.getAttribute('data-ch');
       var cur=prefFor(kind);cur[ch]=cb.checked;
-      if(kind==='comms')cur.push=true;
+      if(kind==='comms'||kind==='payment')cur.push=true;
       PREFS[kind]=cur;
       clearTimeout(prefT);prefT=setTimeout(savePrefs,500);
       markNotifEngaged();
