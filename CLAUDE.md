@@ -415,7 +415,8 @@ end, seeded from `default_lines` when set, else the previous month's amounts.
 nav) where his mobile number is the credential: the same function's `view`
 action matches it against `payer_phone` (last 10 digits, so formatting never
 matters) and returns only his months, totals and the Zelle note — never the
-household's other lines, bill totals or PDFs. The number is remembered in
+household's other lines, bill totals or PDFs. His card mirrors the owner
+page's three numbers: Past Due as the hero, with Current and Total under it. The number is remembered in
 localStorage so he doesn't retype it, and the catch-up text carries the link. "Text <payer>"
 builds the catch-up message (one month per line + total + Zelle note) and
 opens a compose modal that sends it through the `messaging` function from
