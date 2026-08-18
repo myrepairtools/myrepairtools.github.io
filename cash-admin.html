@@ -105,6 +105,7 @@ table.elog td.den.z{color:var(--grey)}
 .exp-btn{cursor:pointer;color:var(--blue);font-weight:800;font-size:.95rem;user-select:none;text-align:center}
 tr.detrow>td{background:#fafbfc;padding:0;border-bottom:1px solid var(--border)}
 tr.detrow.hide{display:none}
+.backlink{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;color:var(--blue);text-decoration:none;font-size:.78rem;background:none;border:none;cursor:pointer;padding:0;margin-bottom:10px}
 .recon{padding:12px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 24px;box-sizing:border-box}
 .recon .rl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--dark-grey);padding:2px 0}
 .recon .rl span:last-child{font-family:'Nunito',sans-serif;font-weight:800;color:var(--dark)}
@@ -132,7 +133,7 @@ tr.aurow-clk:hover td{background:#f8fafd}
 /* print = the open audit detail only, as a clean report */
 @media print{
   .cpr-topbar,.cpr-rail,.cpr-pane,.cpr-bottombar,.cpra-fab,.cpr-usermenu,
-  .adminbtn,.banner,.bar,.sub,#adPrint,#adBack,#adClaude,.save-row{display:none!important}
+  .adminbtn,.banner,.bar,.sub,#adPrint,#adBack,#adClaude,#adReports,.save-row{display:none!important}
   main>div:first-child{display:none!important}
   body{background:#fff}
   main{padding:0!important}
@@ -1165,8 +1166,31 @@ function claudeAuditMd(row,rqErr){
 '',
 '## Report',
 'Lead with whether the month balances. Then the reconciliation — every payout /',
-'pull / top-up matched, with dates and ticket numbers. End with unresolved items',
-'and the exact question to ask the team about each.',
+'pull / top-up matched, with dates and ticket numbers. Whenever a dollar traces',
+'to a RepairQ ticket, cite the ticket and LINK it:',
+'https://cpr.repairq.io/ticket/<ticket id> — the reader must be able to click',
+'straight from the report to the ticket. End with unresolved items and the',
+'exact question to ask the team about each.',
+'',
+'## Publish the report to MRT',
+'Write the report as ONE self-contained HTML file, brand-styled: Nunito',
+'(headings) / Nunito Sans (body) from Google Fonts; red #DC282E, dark #2D2D3B,',
+'blue #4FB0E3; light + dark themes via prefers-color-scheme. Verdict banner',
+'first (balances or not, the headline number), then the money-test equation,',
+'the matched-transaction table with ticket numbers, the safe/envelope ledger,',
+'and end with "The Ask" — the process changes to raise with the team.',
+'',
+'If you have database access to the MRT Supabase project (management API,',
+'MCP, or the repo scripts), file the report on the audit itself so it appears',
+'under "Audit Reports" on the audit page in Cash Admin:',
+'',
+'    insert into cash_audit_reports (audit_id, title, summary, html, created_by)',
+'    values (<audit_id from audit.json>, <short title>,',
+'            <one-sentence verdict>, <the full HTML>, \'Claude\');',
+'',
+'An existing row on any audit is the reference example for tone and format.',
+'No database access: deliver the HTML in chat and say it belongs in',
+'cash_audit_reports for this audit_id.',
 '',
 '## Files',
 '- audit.json — the audit row, per-location results, month-start carry, prior audit',
@@ -1177,6 +1201,14 @@ function claudeAuditMd(row,rqErr){
 ''];
   if(rqErr)lines.push('','!> The RepairQ pull FAILED building this bundle ('+rqErr+') — the rq_*.csv','files are missing. Reconcile what you can and list the RQ queries you would','have run.','');
   return lines.join('\n');
+}
+/* a stored report is a full self-contained HTML doc — open it as its own tab */
+async function openAuditReport(id){
+  var r=await sb.from('cash_audit_reports').select('html').eq('id',id).single();
+  if(r.error||!r.data){toast('Could not load the report',true);return;}
+  var u=URL.createObjectURL(new Blob([r.data.html],{type:'text/html;charset=utf-8'}));
+  window.open(u,'_blank');
+  setTimeout(function(){URL.revokeObjectURL(u);},60000);
 }
 async function claudeAudit(row,locs,days,pettyRows,openBy,prior){
   var btn=$('#adClaude'), keep=btn?btn.innerHTML:'';
@@ -1198,6 +1230,7 @@ async function claudeAudit(row,locs,days,pettyRows,openBy,prior){
       if(d&&d.ok)rq=d; else rqErr=(d&&d.error)||('HTTP '+r.status);
     }catch(e){rqErr=String(e&&e.message||e);}
     var auditJson={
+      audit_id:row.id,
       store:row.store, period_start:startISO, period_end:endISO, status:row.status,
       closed_at:row.closed_at, auditor:row.auditor,
       repairq_sales:row.repairq_sales, petty_cash:row.petty_cash, over_short:row.over_short,
@@ -1235,14 +1268,17 @@ async function openDetail(row){
   var host=$('#auDetailView');
   host.innerHTML='<div class="card"><p class="muted">Loading…</p></div>';
   var startISO=String(row.period_start).slice(0,10), endISO=String(row.period_end).slice(0,10);
-  var [al,ad,pe,prior]=await Promise.all([
+  var [al,ad,pe,prior,rp]=await Promise.all([
     sb.from('cash_audit_locations').select('*').eq('audit_id',row.id),
     sb.from('cash_audit_days').select('*').eq('audit_id',row.id).order('day'),
     sb.from('cash_entries').select('biz_date,employee,location,amount,notes')
       .eq('store',row.store).eq('to_location',EXPENSE)
       .gte('biz_date',startISO).lte('biz_date',endISO).order('biz_date'),
-    priorClosedAudit(row.store,startISO)
+    priorClosedAudit(row.store,startISO),
+    sb.from('cash_audit_reports').select('id,title,summary,created_by,created_at')
+      .eq('audit_id',row.id).order('created_at',{ascending:false})
   ]);
+  var reports=(rp.error?[]:(rp.data||[]));
   var locs=(al.error?[]:(al.data||[])), days=(ad.error?[]:(ad.data||[]));
   var pettyRows=(pe.error?[]:(pe.data||[]));
   /* month-start = the prior closed audit's confirmed carry-forward, the same
@@ -1270,12 +1306,14 @@ async function openDetail(row){
   if(!log.length&&row.confirmed_at)log=[{action:'finalized',by:row.confirmed_by||row.auditor,at:row.confirmed_at}];
   var histHtml=log.length?log.map(function(ev){return '<div class="rl" style="padding:3px 0"><span>'+auEventLabel(ev)+'</span><span></span></div>';}).join('')
     :'<div class="muted" style="font-weight:600">No history recorded.</div>';
+  var escH=function(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
   host.innerHTML=''
+    +'<button class="backlink" id="adBack">← Audits</button>'
     +'<div class="card" style="border-top-color:'+(isDel?'var(--grey)':'var(--green)')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
         +'<h2 style="margin:0">'+shortStore(row.store)+' · '+fmtRange(row.period_start,row.period_end)
         +(isDel?' <span class="aupill" style="color:#8a909e;background:var(--light-grey);vertical-align:middle">Deleted</span>':'')+'</h2>'
-        +'<div style="display:flex;gap:8px"><button class="btn alt sm" id="adClaude" style="display:inline-flex;align-items:center;gap:6px">'+(window.CPRNavIcon?CPRNavIcon('sparkles',14):'')+'Claude Audit</button><button class="btn alt sm" id="adPrint">🖨 Print</button><button class="btn alt sm" id="adBack">‹ Back to audits</button></div></div>'
+        +'<div style="display:flex;gap:8px"><button class="btn alt sm" id="adClaude" style="display:inline-flex;align-items:center;gap:6px">'+(window.CPRNavIcon?CPRNavIcon('sparkles',14):'')+'Claude Audit</button><button class="btn alt sm" id="adPrint">🖨 Print</button></div></div>'
       +(isDel?'<p class="hint" style="color:var(--red)">Deleted by '+(row.deleted_by||'—')+' on '+String(row.deleted_at||'').slice(0,10)+'. Its balances no longer carry forward — restore it to bring it back.</p>':'')
       +'<div class="recon" style="padding:12px 0 0">'
         +'<div class="rl"><span>Status</span><span>'+(isDel?'Deleted':'Closed '+String(row.closed_at||'').slice(0,10))+'</span></div>'
@@ -1293,6 +1331,15 @@ async function openDetail(row){
         +'<div class="rl"><span>Bank deposit (Large Safe)</span><span>'+money(row.bank_deposit)+'</span></div>'
         +'<div class="rl"><span>Small Safe → bank / → Large</span><span>'+money(row.small_to_bank)+' / '+money(row.small_to_large)+'</span></div>'
       +'</div></div>'
+    +(reports.length?('<div class="card" id="adReports"><h2>Audit Reports</h2>'
+      +reports.map(function(r){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--light-grey)">'
+          +'<div><b style="font-family:Nunito,sans-serif">'+escH(r.title)+'</b>'
+          +(r.summary?('<div class="muted" style="font-weight:600;font-size:.85rem">'+escH(r.summary)+'</div>'):'')
+          +'<div class="muted" style="font-weight:700;font-size:.75rem">'+String(r.created_at).slice(0,10)+' · '+escH(r.created_by||'—')+'</div></div>'
+          +'<button class="btn alt sm" data-rep="'+r.id+'">Open</button></div>';
+      }).join('')
+      +'</div>'):'')
     +'<div class="table-card" style="margin-bottom:14px"><table>'
       +'<thead><tr><th>Location</th><th class="num">Month Start</th><th class="num">Tracked</th><th class="num">Counted</th><th class="num">Vs tracker</th><th class="num">Carried forward</th></tr></thead>'
       +'<tbody>'+(trs||'<tr><td colspan="6" class="muted" style="padding:12px">No location rows.</td></tr>')
@@ -1324,6 +1371,7 @@ async function openDetail(row){
   $('#adBack').onclick=loadAudit;
   $('#adPrint').onclick=function(){window.print();};
   $('#adClaude').onclick=function(){claudeAudit(row,locs,days,pettyRows,openBy,prior);};
+  $all('[data-rep]').forEach(function(btn){btn.onclick=function(){openAuditReport(btn.getAttribute('data-rep'));};});
   if($('#adEdit'))$('#adEdit').onclick=function(){ editAudit(row); };
   if($('#adDelete'))$('#adDelete').onclick=function(){ deleteAudit(row); };
   if($('#adRestore'))$('#adRestore').onclick=function(){ restoreAudit(row); };

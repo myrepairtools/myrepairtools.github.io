@@ -1817,6 +1817,19 @@ payments − Cash payouts (verified to the penny, July 2026 Eugene:
 fields/filters are dropped SILENTLY, so a wrong field name looks like null
 data, not an error. The zip itself is built by a ~40-line stored
 (uncompressed) zip writer inline in cash-admin.html — no library.
+**The results come BACK into MRT:** `cash_audit_reports` (audit_id FK, title,
+summary, html, created_by; docs/sql/cash-audit-reports.sql — browser READ-only
+via the parent audit's `is_admin(store)`, delete `is_owner()`; writes are
+service-role only). The zip's INSTRUCTIONS.md tells the auditing Claude
+session to write its finished report as ONE self-contained brand-styled HTML
+file (Nunito/Nunito Sans, light+dark, **every dollar traced to a ticket
+linked as `https://cpr.repairq.io/ticket/<id>`**) and insert it here; the
+audit detail then shows an **Audit Reports** card (row → opens the stored
+HTML in its own tab via a `text/html;charset=utf-8` blob — the charset
+matters, a bare 'text/html' blob mojibakes the en-dashes). July 2026 Eugene's
+reconciliation is filed as the reference example. The detail's back control
+is a profile-style `.backlink` ("← Audits") above the card, not a header
+button.
 
 When changing a tool's data layer, check which generation it uses first — they share no code.
 
