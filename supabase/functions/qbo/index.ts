@@ -649,6 +649,238 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
 
 // =============================================================================
 
+// ---------------------------------------------------------------------------
+// A MobileSentrix order -> one properly-split QBO Purchase.
+//
+// The point is the bank feed: a Purchase whose total equals the card charge and
+// whose lines are coded per category means the feed offers a one-tap Match
+// instead of a lump landing in COGS - Parts.
+//
+// Everything judgemental lives in Postgres (ms_order_split / ms_category_map /
+// ms_sku_category) so it is correctable without a redeploy. This function only
+// resolves the QBO-side references and posts.
+//
+// Consignment is NEVER posted: those parts arrive unpaid, so no card charge
+// exists for them; corporate drafts the bank separately when parts are used and
+// that lands in COGS - Parts (Consigned) on its own. Posting a consignment
+// order here would invent an expense that never happened.
+async function postMsOrder(body: Record<string, unknown>, actor: string) {
+  const incrementId = String(body.increment_id || "").trim();
+  const dryRun = body.dry_run !== false;          // safe by default: must ask to post
+  if (!incrementId) return json({ error: "bad_request", detail: "increment_id is required." }, 400);
+
+  const { data: o, error: oe } = await admin.from("ms_orders")
+    .select("*").eq("increment_id", incrementId).maybeSingle();
+  if (oe) return json({ error: "db_error", detail: oe.message }, 500);
+  if (!o) return json({ error: "not_found", detail: `No MobileSentrix order ${incrementId}.` }, 404);
+
+  // ---- eligibility, stated as refusals so a bad row can never post ----
+  const orderType = String((o.raw as Record<string, unknown> | null)?.order_type ?? "");
+  const problems: string[] = [];
+  if (String(o.payment_method || "") === "consignment" || orderType === "1")
+    problems.push("Consignment order — no payment was made, so there is nothing to book.");
+  if (!(Number(o.grand_total) > 0)) problems.push("Order total is not greater than zero.");
+  if (!o.cc_last4) problems.push("No card on the order — only card-paid orders are booked.");
+  if (!["0", "10"].includes(orderType))
+    problems.push(`Order type ${orderType || "(none)"} is not a Sales or Battery order.`);
+  if (o.qbo_purchase_id) return json({ error: "already_posted", purchase_id: String(o.qbo_purchase_id) }, 409);
+
+  // ---- the split (categories + amounts), computed in Postgres ----
+  const { data: split, error: se } = await admin.rpc("ms_order_split", { p_increment_id: incrementId });
+  if (se) return json({ error: "db_error", detail: se.message }, 500);
+  const rows = (split || []) as Array<{ category: string; amount: string }>;
+  if (!rows.length) problems.push("Split came back empty.");
+  const amount = Math.round(Number(o.grand_total) * 100) / 100;
+  const splitSum = Math.round(rows.reduce((t, r) => t + Number(r.amount), 0) * 100) / 100;
+  if (Math.abs(splitSum - amount) > 0.011)
+    problems.push(`Split totals ${usd(splitSum)} but the card was charged ${usd(amount)}.`);
+  for (const r of rows) {
+    if (r.category === "UNCLASSIFIED")
+      problems.push(`${usd(r.amount)} could not be categorised — add the SKU to ms_sku_category.`);
+    if (r.category === "Discount")
+      problems.push(`Order carries a ${usd(r.amount)} discount; discounts are not handled yet.`);
+    if (Number(r.amount) <= 0 && r.category !== "Discount")
+      problems.push(`${r.category} line is not positive (${usd(r.amount)}).`);
+  }
+
+  const tok = await getToken();
+  if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+
+  // ---- category -> QBO account ----
+  const { data: catRows } = await admin.from("ms_category_map").select("*").eq("active", true);
+  const catMap = new Map((catRows || []).map((c: Record<string, unknown>) => [String(c.category), c]));
+  const lines: Array<Record<string, unknown>> = [];
+
+  // ---- store -> class. qbo_store_map is keyed by the RAW RepairQ store name
+  // ("CPR Clackamas OR") while ms_orders carries the app name, so compare on a
+  // squashed prefix rather than demanding equality.
+  const squash = (s: unknown) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const { data: storeRows } = await admin.from("qbo_store_map").select("*");
+  const storeRow = (storeRows || []).find((s: Record<string, unknown>) =>
+    squash(s.store).startsWith(squash(o.store)) || squash(o.store).startsWith(squash(s.store)));
+  if (!storeRow) problems.push(`No qbo_store_map row matches store "${o.store}".`);
+  const classRef = storeRow?.class_id
+    ? { ClassRef: { value: String(storeRow.class_id), ...(storeRow.class_name ? { name: String(storeRow.class_name) } : {}) } }
+    : {};
+  if (!storeRow?.class_id) problems.push(`Store "${o.store}" has no class mapped.`);
+
+  // ---- card -> the QBO account it is paid from ----
+  // The allowlist is the same one the Expenses page uses; the last four printed
+  // on the card are matched against the ACCOUNT NAME (the house convention is
+  // "Spark - Clackamas (8123)"). Exactly one hit or we refuse: paying the wrong
+  // card is worse than not posting.
+  const { data: cfg } = await admin.from("qbo_config").select("value").eq("key", "paywith").maybeSingle();
+  const allowIds = ((cfg?.value as Record<string, unknown> | null)?.ids || []) as string[];
+  let payAcct: Record<string, unknown> | null = null;
+  let accountsSeen: Array<{ id: string; name: string; type: string }> = [];
+  try {
+    const aq = "select * from Account where Active = true maxresults 1000";
+    const ar = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(aq)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const ad = await ar.json().catch(() => ({}));
+    const all = (ad?.QueryResponse?.Account || []) as Array<Record<string, unknown>>;
+    accountsSeen = all.map((a) => ({ id: String(a.Id), name: String(a.Name || ""), type: String(a.AccountType || "") }));
+
+    // category accounts resolve by NAME against the live chart
+    for (const r of rows) {
+      const cm = catMap.get(r.category);
+      if (!cm) { problems.push(`Category "${r.category}" is not in ms_category_map.`); continue; }
+      let id = cm.qbo_account_id ? String(cm.qbo_account_id) : "";
+      let nm = cm.qbo_account_name ? String(cm.qbo_account_name) : "";
+      if (!id) {
+        const hit = all.find((a) => String(a.Name || "").toLowerCase() === r.category.toLowerCase())
+                 || all.find((a) => String(a.FullyQualifiedName || "").toLowerCase().endsWith(r.category.toLowerCase()));
+        if (hit) { id = String(hit.Id); nm = String(hit.Name); }
+      }
+      if (!id) { problems.push(`No QBO account mapped or named "${r.category}".`); continue; }
+      lines.push({
+        DetailType: "AccountBasedExpenseLineDetail",
+        Amount: Math.round(Number(r.amount) * 100) / 100,
+        Description: `${r.category} — MobileSentrix ${incrementId}`,
+        AccountBasedExpenseLineDetail: { AccountRef: { value: id, ...(nm ? { name: nm } : {}) }, ...classRef },
+      });
+    }
+
+    const last4 = String(o.cc_last4 || "");
+    const allowed = all.filter((a) => allowIds.map(String).includes(String(a.Id)));
+    const hits = allowed.filter((a) => String(a.Name || "").includes(last4));
+    if (hits.length === 1) payAcct = hits[0];
+    else problems.push(hits.length === 0
+      ? `No allowed Paid With account names card •${last4}.`
+      : `${hits.length} allowed accounts name card •${last4} — cannot tell which.`);
+  } catch (e) {
+    problems.push(`Could not read the QBO chart of accounts: ${String((e as Error)?.message || e)}`);
+  }
+
+  // ---- vendor (best effort — a Purchase books fine without it) ----
+  let entityRef: Record<string, unknown> = {};
+  let vendorName: string | null = null;
+  try {
+    const vq = "select Id, DisplayName from Vendor where Active = true maxresults 1000";
+    const vr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(vq)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const vd = await vr.json().catch(() => ({}));
+    const v = ((vd?.QueryResponse?.Vendor || []) as Array<Record<string, unknown>>)
+      .find((x) => squash(x.DisplayName).includes("mobilesentrix"));
+    if (v?.Id) { entityRef = { EntityRef: { value: String(v.Id), name: String(v.DisplayName), type: "Vendor" } }; vendorName = String(v.DisplayName); }
+  } catch { /* best effort */ }
+
+  const txnDate = new Date(String(o.ordered_at)).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  const docNumber = `MS-${incrementId}`;
+  const purchase = {
+    PaymentType: "CreditCard",
+    AccountRef: payAcct ? { value: String(payAcct.Id), name: String(payAcct.Name) } : undefined,
+    ...entityRef,
+    DocNumber: docNumber,
+    TxnDate: txnDate,
+    PrivateNote: `MobileSentrix order ${incrementId} (${orderType === "10" ? "Battery" : "Sales"} Order) — recorded via myRepairTools by ${actor}.`,
+    Line: lines,
+  };
+
+  const preview = {
+    order: {
+      increment_id: incrementId, store: o.store, ordered_at: o.ordered_at, txn_date: txnDate,
+      order_type: orderType === "10" ? "Battery Order" : "Sales Order",
+      status: o.status, card: `${o.cc_type || "card"} •${o.cc_last4}`, charged: amount,
+    },
+    resolved: {
+      pay_account: payAcct ? { id: String(payAcct.Id), name: String(payAcct.Name) } : null,
+      class: storeRow?.class_id ? { id: String(storeRow.class_id), name: storeRow.class_name } : null,
+      vendor: vendorName,
+      doc_number: docNumber,
+    },
+    lines: lines.map((l) => ({
+      account: (l.AccountBasedExpenseLineDetail as Record<string, any>).AccountRef,
+      amount: l.Amount,
+    })),
+    line_total: Math.round(lines.reduce((t, l) => t + Number(l.Amount), 0) * 100) / 100,
+    problems,
+  };
+
+  if (problems.length) return json({ ok: false, would_post: false, ...preview }, 200);
+  if (dryRun) return json({ ok: true, dry_run: true, would_post: true, ...preview, payload: purchase }, 200);
+
+  // ---- live post: claim, recover, create, stamp (same shape as createExpense) ----
+  const stale = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const claim = await admin.from("ms_orders")
+    .update({ qbo_claimed_at: new Date().toISOString(), qbo_error: null })
+    .eq("increment_id", incrementId).is("qbo_purchase_id", null)
+    .or(`qbo_claimed_at.is.null,qbo_claimed_at.lt.${stale}`)
+    .select("increment_id");
+  if (claim.error) return json({ error: "db_error", detail: claim.error.message }, 500);
+  if (!claim.data?.length) {
+    const { data: again } = await admin.from("ms_orders").select("qbo_purchase_id").eq("increment_id", incrementId).maybeSingle();
+    if (again?.qbo_purchase_id) return json({ error: "already_posted", purchase_id: String(again.qbo_purchase_id) }, 409);
+    return json({ error: "in_progress", detail: "This order is being booked right now." }, 409);
+  }
+  const rollback = (why: string) =>
+    admin.from("ms_orders").update({ qbo_error: why, qbo_claimed_at: null })
+      .eq("increment_id", incrementId).is("qbo_purchase_id", null).then(() => {});
+
+  // A previous attempt may have created the Purchase and died before stamping.
+  try {
+    const q = `select Id from Purchase where DocNumber = '${docNumber}'`;
+    const pr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const pd = await pr.json().catch(() => ({}));
+    const found = pd?.QueryResponse?.Purchase?.[0]?.Id;
+    if (found) {
+      await admin.from("ms_orders").update({
+        qbo_purchase_id: String(found), qbo_doc_number: docNumber, qbo_posted_at: new Date().toISOString(),
+        qbo_amount: amount, qbo_error: null, qbo_claimed_at: null,
+      }).eq("increment_id", incrementId).is("qbo_purchase_id", null);
+      return json({ ok: true, purchase_id: String(found), amount, recovered: true, doc_number: docNumber });
+    }
+  } catch { /* best effort */ }
+
+  let r: Response, d: any;
+  try {
+    r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/purchase?minorversion=${MINORVERSION}`, {
+      method: "POST", headers: qboHeaders(tok.access_token), body: JSON.stringify(purchase),
+    });
+    d = await r.json().catch(() => ({}));
+  } catch (e) {
+    const detail = String((e as Error)?.message || e);
+    await rollback(detail);
+    return json({ error: "qbo_error", detail }, 502);
+  }
+  const posted = d?.Purchase;
+  if (!r.ok || !posted?.Id) {
+    const detail = faultDetail(d);
+    await rollback(detail);
+    return json({ error: "qbo_error", detail, intuit_tid: tid(r) }, 502);
+  }
+  const stamp = await admin.from("ms_orders").update({
+    qbo_purchase_id: String(posted.Id), qbo_doc_number: docNumber,
+    qbo_posted_at: new Date().toISOString(), qbo_amount: amount, qbo_error: null, qbo_claimed_at: null,
+  }).eq("increment_id", incrementId);
+  return json({
+    ok: true, purchase_id: String(posted.Id), doc_number: docNumber, amount,
+    lines: preview.lines,
+    ...(stamp.error ? { warn: `Posted Purchase ${posted.Id} but the row failed to update (${stamp.error.message}).` } : {}),
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const url = new URL(req.url);
@@ -796,6 +1028,26 @@ Deno.serve(async (req) => {
     }).filter((e) => e.score > 0).sort((a, b) => b.score - a.score || Number(b.active) - Number(a.active));
     return json({ matches: rows.slice(0, 10), total_employees: (d?.QueryResponse?.Employee || []).length });
   }
+  // ---- MobileSentrix order -> QBO Purchase ----
+  // Dual auth like create_employee: a cron authenticates with the server
+  // secret, a person with their own JWT. Manager-level, because coding a
+  // vendor purchase is bookkeeping, not an ownership decision -- and dry_run
+  // (the default) posts nothing at all.
+  if (action === "ms_post") {
+    const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
+    let actor = "";
+    if (NOTIFY && String(body.secret || "") === NOTIFY) {
+      actor = "myRepairTools (scheduled)";
+    } else {
+      const who = await getStaff(req);
+      if (!who || !["owner", "admin", "manager"].includes(String(who.role))) {
+        return json({ error: "forbidden" }, 403);
+      }
+      actor = who.display_name;
+    }
+    return await postMsOrder(body, actor);
+  }
+
   // ---- owner-only from here down ----
   const staff = await getStaff(req);
   if (!staff || staff.role !== "owner") return json({ error: "forbidden", detail: "Owner only." }, 403);
