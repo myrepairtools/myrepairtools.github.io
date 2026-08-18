@@ -388,8 +388,9 @@ line labels, `default_lines` = the recurring per-line amounts) + `bill_path`
 **Drop a bill:** dragging the carrier PDF anywhere on the page (or the Drop a
 Bill button) uploads it, then the **`qbo` function's `extract_phone_bill`**
 action (owner JWT like every qbo action) downloads it service-side and reads
-it with Claude via a base64 `document` block — `claude-opus-5`, ~11s for a
-40-page Verizon bill — returning service period, due date, bill total, and
+it with Claude via a base64 `document` block — `claude-opus-5` with retries
+then a `claude-sonnet-5` fallback (a 529 overload on a 40-page document must
+not make the owner re-drop the file), ~11s for a 40-page Verizon bill — returning service period, due date, bill total, and
 EVERY line (owner · last-4 · device · amount), including the ones the summary
 folds into "Remaining N lines" (their details live in the later charges-by-line
 pages; the prompt says so explicitly). A review modal tick-boxes which lines
@@ -397,7 +398,8 @@ are the payer's (already-known last-4s pre-ticked, live total), then saves —
 matching an existing month by due_date instead of duplicating it. Saved months
 show a PDF chip that mints a 120-second signed URL. Surface:
 `phone-bill.html` (PRIVILEGED nav 'Phone Bill', permission key `phone.bill`,
-owner) — tiles (Owes · Upcoming · Last Paid Up), month table with one column
+owner) — three tiles (Past Due · Current · Total, mobile-condensed), month
+table with a PDF column and one column
 per line (labels from config; columns ordered by the newest cycle's amount so
 the phone leads — integer-like jsonb keys iterate ascending otherwise), status
 pill tap-toggles paid (paid_at stamped), row click = edit modal (dates, bill

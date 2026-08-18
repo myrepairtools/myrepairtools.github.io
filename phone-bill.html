@@ -36,6 +36,9 @@ border-left:4px solid var(--blue);border-radius:12px;padding:10px 14px;box-shado
 .tile.up{border-left-color:var(--amber)}
 .tile.ok{border-left-color:var(--green)}
 .tile.ok .n{color:var(--green)}
+.tile.tot{border-left-color:var(--dark)}
+@media(max-width:860px){.tiles{gap:8px}.tile{flex:1 1 0;min-width:0;max-width:none;padding:9px 10px}
+  .tile .l{font-size:.58rem;letter-spacing:.3px}.tile .n{font-size:1rem}.tile .s{font-size:.62rem}}
 .table-card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.86rem;font-variant-numeric:tabular-nums;min-width:760px}
 th{font-family:'Nunito',sans-serif;font-weight:800;font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;
@@ -70,8 +73,9 @@ text-align:center;font-family:'Nunito',sans-serif;font-weight:800;color:var(--da
 .pick .who b{font-family:'Nunito',sans-serif;font-size:.86rem}
 .pick .who span{display:block;font-size:.74rem;color:var(--grey);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pick .amt{font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;white-space:nowrap}
+.bcell{text-align:center;white-space:nowrap}
 .pdf{font-family:'Nunito',sans-serif;font-weight:800;font-size:.6rem;letter-spacing:.3px;color:var(--blue);
-background:#F5FBFE;border:1px solid #CFE9F8;border-radius:5px;padding:2px 5px;margin-left:5px;cursor:pointer;vertical-align:1px}
+background:#F5FBFE;border:1px solid #CFE9F8;border-radius:5px;padding:2px 6px;cursor:pointer}
 .pdf:hover{background:#E8F5FD}
 .sumline{display:flex;justify-content:space-between;font-family:'Nunito',sans-serif;font-weight:800;
 font-size:.9rem;padding:9px 0 2px;border-top:2px solid var(--border);margin-top:6px}
@@ -215,29 +219,28 @@ function render(){
   var up=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date>today;});
   var owedSum=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
   var upSum=up.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
-  var lastPaid=ROWS.filter(function(r){return r.status==='paid';})[0];
   $('#tiles').innerHTML=''
-    +'<div class="tile '+(owed.length?'owed':'ok')+'"><div class="l">'+esc(name)+' Owes</div><div class="n">'+money(owedSum)+'</div>'
+    +'<div class="tile '+(owed.length?'owed':'ok')+'"><div class="l">Past Due</div><div class="n">'+money(owedSum)+'</div>'
       +'<div class="s">'+(owed.length?owed.length+' month'+(owed.length===1?'':'s')+' behind':'All caught up')+'</div></div>'
-    +'<div class="tile up"><div class="l">Upcoming</div><div class="n">'+money(upSum)+'</div>'
-      +'<div class="s">'+(up.length?up.map(function(r){return fmtD(r.due_date);}).join(' · '):'—')+'</div></div>'
-    +'<div class="tile ok"><div class="l">Last Paid Up</div><div class="n">'+(lastPaid?fmtD(lastPaid.due_date):'—')+'</div>'
-      +'<div class="s">'+(lastPaid?fmtSvc(lastPaid):'')+'</div></div>';
+    +'<div class="tile up"><div class="l">Current</div><div class="n">'+money(upSum)+'</div>'
+      +'<div class="s">'+(up.length?('due '+up.map(function(r){return fmtD(r.due_date);}).join(' · ')):'Nothing pending')+'</div></div>'
+    +'<div class="tile tot"><div class="l">Total</div><div class="n">'+money(owedSum+upSum)+'</div>'
+      +'<div class="s">'+esc(name)+'’s balance</div></div>';
   $('#textBtn').textContent='Text '+name;
   var keys=lineKeys();
-  $('#thead').innerHTML='<tr><th>Due</th><th>Service</th><th class="num">Bill Total</th>'
+  $('#thead').innerHTML='<tr><th>Due</th><th>Service</th><th class="num">Bill Total</th><th>Bill</th>'
     +keys.map(function(k){return '<th class="num" title="'+esc(lineLabel(k))+'">'+esc(k)+'</th>';}).join('')
     +'<th class="num">'+esc(name)+'</th><th></th></tr>';
   $('#tbody').innerHTML=ROWS.map(function(r,i){
     var st=r.status==='paid'?'paid':(r.due_date>today?'upcoming':'unpaid');
     var stTxt=st==='paid'?('Paid'+(r.paid_at?' '+fmtD(r.paid_at):'')):(st==='upcoming'?'Due '+fmtD(r.due_date):'Unpaid');
     return '<tr data-i="'+i+'"><td class="due">'+fmtDY(r.due_date)+'</td><td class="svc">'+fmtSvc(r)+'</td>'
-      +'<td class="num">'+money(r.bill_total)
-      +(r.bill_path?(' <button class="pdf" data-bill="'+i+'" title="Open the bill PDF">PDF</button>'):'')+'</td>'
+      +'<td class="num">'+money(r.bill_total)+'</td>'
+      +'<td class="bcell">'+(r.bill_path?('<button class="pdf" data-bill="'+i+'" title="Open the bill PDF">PDF</button>'):'<span class="muted">—</span>')+'</td>'
       +keys.map(function(k){var v=(r.lines||{})[k];return '<td class="num">'+(v==null?'<span class="muted">—</span>':money(v))+'</td>';}).join('')
       +'<td class="num tot">'+money(r.payer_total!=null?r.payer_total:payerSum(r.lines))+'</td>'
       +'<td><button class="pill '+st+'" data-p="'+i+'">'+stTxt+'</button></td></tr>';
-  }).join('')||'<tr><td colspan="9" class="muted" style="padding:16px">No months yet.</td></tr>';
+  }).join('')||'<tr><td colspan="10" class="muted" style="padding:16px">No months yet.</td></tr>';
   $all('#tbody tr').forEach(function(tr){tr.onclick=function(ev){if(ev.target.closest('.pill'))return;editMonth(ROWS[+tr.getAttribute('data-i')]);};});
   $all('[data-p]').forEach(function(b){b.onclick=function(){togglePaid(ROWS[+b.getAttribute('data-p')]);};});
   $all('[data-bill]').forEach(function(b){b.onclick=function(e){e.stopPropagation();openBill(ROWS[+b.getAttribute('data-bill')]);};});
@@ -294,7 +297,7 @@ function catchUpMsg(){
     +owed.map(function(r){return fmtD(r.due_date)+' — '+money(+r.payer_total||payerSum(r.lines));}).join('\n')
     +(owed.length>1?('\nTotal — '+money(total)):'')
     +'\n\n'+pay+'.'
-    +'\n\nCheck any time: '+location.origin+'/phone-bill-view.html';
+    +'\n\nCheck any time: https://myrepairtools.github.io/phone-bill-view.html';
   return msg;
 }
 

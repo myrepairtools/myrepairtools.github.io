@@ -487,18 +487,30 @@ async function extractPhoneBill(body: Record<string, unknown>) {
       ],
     }],
   };
-  let r: Response, d: any;
-  try {
-    r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    d = await r.json().catch(() => ({}));
-  } catch (e) {
-    return json({ error: "ai_error", detail: String((e as Error)?.message || e) }, 502);
+  // Once-a-month call on a big document: ride out a transient overload rather
+  // than making the owner re-drop the file — retry, then fall back to Sonnet
+  // (same extraction, different capacity pool) before giving up.
+  let r!: Response, d: any;
+  const MODELS = ["claude-opus-5", "claude-sonnet-5"];
+  outer:
+  for (const model of MODELS) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await new Promise((res) => setTimeout(res, attempt * 3000));
+      try {
+        r = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, model }),
+        });
+        d = await r.json().catch(() => ({}));
+      } catch (e) {
+        d = { error: { message: String((e as Error)?.message || e) } };
+        continue;
+      }
+      if (r.ok || (r.status !== 429 && r.status < 500)) break outer;
+    }
   }
-  if (!r.ok) return json({ error: "ai_error", detail: d?.error?.message || ("HTTP " + r.status) }, 502);
+  if (!r || !r.ok) return json({ error: "ai_error", detail: d?.error?.message || ("HTTP " + (r?.status ?? "?")) }, 502);
   if (d?.stop_reason === "refusal") return json({ error: "ai_error", detail: "The model declined to read this file." }, 502);
 
   const text = ((d?.content || []) as Array<{ type: string; text?: string }>)
