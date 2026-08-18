@@ -1279,9 +1279,18 @@ still open 7+ days after publish. Schema: docs/sql/kb-onboarding-schema.sql.
 
 **Training Center (round-2 design handoff, 2026-08-12):** the training surface
 split three ways. **`training.html`** (My Hub 'Training', graduation-cap) is the
-employee home: My onboarding module cards (bar · due chip · Continue), Assigned
-training (required reads + "Require re-read" refreshers), quiet Completed history,
-"Nothing assigned yet" zero state; `#track` is the 9b module detail (section header
+employee home, rebuilt to design 2a (handoff "Training Page — Employee Side",
+2026-08-17): **one glance = what to do now.** An **onboarding banner** replaces
+the module cards entirely — current module, n of m, the next VISIBLE item with
+whose move it is ("— your move" / "— waiting on your manager"), a due chip, and
+a red Open-my-onboarding button into the onboarding board's employee view;
+module detail lives there, never here. Below it **"Do these — N"**, one ordered
+card (signature-required first, then required reading / re-reads) where only the
+TOP row carries the red button, so there is one obvious next action; empty state
+is "You're all caught up", and the section always renders so the page shape is
+stable. **Completed collapses to a single row** ("15 items completed · newest …",
+localStorage `cprTrainDone`) so finished work stops pushing real work below the
+fold. `#track` is the 9b module detail (section header
 bands with per-section counts, next/lock/done rows, "Waiting on your manager" chip,
 past-due = red chip+bar, NOTHING locks on past-due; sections are presentation only —
 unlock stays strictly sequential). knowledge.html#onboarding redirects here.
