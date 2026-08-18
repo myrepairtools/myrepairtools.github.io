@@ -222,8 +222,8 @@ var VAPID_PUBLIC='BNil1VM0Oi6oyk3rS2Y1QnxKx2st_k2tmxOBtQTRLmPU83Kw9kM72AilxY11Uu
    auto-enrolled for everyone and can't be turned off. Notifications are the helpful
    stuff — push on by default, text is opt-in per person. */
 var KIND_GROUPS=[
-  {label:'Alerts — urgent', hint:'Always delivered by push and text',
-   kinds:[['schedule','Schedule changes']], locked:true},
+  {label:'Alerts — urgent', hint:'Always delivered by text',
+   kinds:[['schedule','Schedule changes']], locked:true, smsOnly:true},
   {label:'Notifications', hint:'Helpful updates — text is optional',
    kinds:[['comms','Communications'],['task','Task nudges'],['schedule_preview','Weekly schedule preview'],
           ['interview','Interviews booked'],['hiring','Hiring updates'],
@@ -471,7 +471,7 @@ function renderMatrix(){
       var lockPush=g.locked||kind==='comms', lockSms=g.locked;
       html+='<tr><td class="kn">'+esc(label)+((lockPush&&lockSms)?'<span class="lock" title="Always on">🔒</span>':(lockPush?'<span class="lock" title="Push always on">🔒</span>':''))+'</td>';
       html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="push"'
-        +((lockPush||p.push)?' checked':'')+(lockPush?' disabled':'')+'></label></td>';
+        +((!g.smsOnly&&(lockPush||p.push))?' checked':'')+(lockPush?' disabled':'')+'></label></td>';
       html+='<td><label class="ckwrap"><input type="checkbox" data-kind="'+kind+'" data-ch="sms"'
         +((lockSms||p.sms)?' checked':'')+(lockSms?' disabled':'')+'></label></td></tr>';
     });

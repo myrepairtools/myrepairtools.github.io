@@ -669,7 +669,16 @@ const STORECOLOR={'Eugene':'#23A62F','Salem Northeast':'#DE262E','Clackamas':'#4
 const $=s=>document.querySelector(s);
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function money(n){const x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function isoOf(v){return String(v||'').slice(0,10);}
+/* Mostly fed ISO strings/timestamps, but the Time tab hands it real Dates — and
+   String(date).slice(0,10) is "Tue Jul 07", which PostgREST rejects with a 400.
+   Format Dates as LOCAL y-m-d; toISOString() would shift the day west of UTC. */
+function isoOf(v){
+  if(v instanceof Date){
+    if(isNaN(v.getTime()))return '';
+    return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  }
+  return String(v||'').slice(0,10);
+}
 function fmt(iso){iso=isoOf(iso);if(!iso)return '';const p=iso.split('-');if(p.length<3)return iso;return MONTHS[(+p[1])-1]+' '+(+p[2])+', '+p[0];}
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function tenure(iso){iso=isoOf(iso);if(!iso)return '—';const s=new Date(iso+'T00:00:00'),n=new Date(todayISO()+'T00:00:00');if(isNaN(s))return '—';let m=(n.getFullYear()-s.getFullYear())*12+(n.getMonth()-s.getMonth());if(n.getDate()<s.getDate())m--;if(m<0)return '—';const y=Math.floor(m/12),mo=m%12;return (y?y+'y ':'')+mo+'m';}
@@ -786,6 +795,9 @@ async function load(){
     sb.from('staff_documents').select('*').eq('deleted',false).order('created_at',{ascending:false}),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
+  /* A failed side query used to render as an empty tab — the 400 above read as
+     "no clocked time in the last 6 weeks" on every profile for weeks. Say so. */
+  if(tsRes&&tsRes.error)toast('Could not load time entries: '+tsRes.error.message,true);
   QBU=(qbRes&&qbRes.data)||[];   // QB Time users, for the per-profile link row + PTO balances (raw)
   SYNCED_AT=QBU.map(u=>u.last_synced).filter(Boolean).sort().slice(-1)[0]||null;
   JOBCODES={}; ((jcRes&&jcRes.data)||[]).forEach(j=>{JOBCODES[String(j.qbt_id)]={name:j.name,type:j.type};});
@@ -1750,8 +1762,8 @@ function richText(v){
    by default with text opt-in, except Communications push which is locked on. */
 const VAPID_PUBLIC='BNil1VM0Oi6oyk3rS2Y1QnxKx2st_k2tmxOBtQTRLmPU83Kw9kM72AilxY11UuGLexEt683x6EgJQLen3D0TOCg';
 const KIND_GROUPS=[
-  {label:'Alerts — urgent', hint:'Always delivered by push and text',
-   kinds:[['schedule','Schedule changes']], locked:true},
+  {label:'Alerts — urgent', hint:'Always delivered by text',
+   kinds:[['schedule','Schedule changes']], locked:true, smsOnly:true},
   {label:'Notifications', hint:'Helpful updates — text is optional',
    kinds:[['comms','Communications'],['task','Task nudges'],['schedule_preview','Weekly schedule preview'],
           ['interview','Interviews booked'],['hiring','Hiring updates'],
@@ -1772,7 +1784,7 @@ function notifHtml(){
       const kind=k[0],label=k[1],pf=prefFor(kind);
       const lockPush=g.locked||kind==='comms', lockSms=g.locked;
       rows+='<tr><td class="kn">'+esc(label)+((lockPush||lockSms)?' <span class="lk" title="Always on">🔒</span>':'')+'</td>'
-        +'<td class="c"><input type="checkbox" data-nk="'+kind+'" data-nc="push"'+((lockPush||pf.push)?' checked':'')+(lockPush?' disabled':'')+'></td>'
+        +'<td class="c"><input type="checkbox" data-nk="'+kind+'" data-nc="push"'+((!g.smsOnly&&(lockPush||pf.push))?' checked':'')+(lockPush?' disabled':'')+'></td>'
         +'<td class="c"><input type="checkbox" data-nk="'+kind+'" data-nc="sms"'+((lockSms||pf.sms)?' checked':'')+(lockSms?' disabled':'')+'></td></tr>';
     });
   });

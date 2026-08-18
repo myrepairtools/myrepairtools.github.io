@@ -111,10 +111,14 @@ async function doSend(body: Record<string, unknown>) {
   for (const id of ids) {
     const p = (prefs[id] || {})[kind] || {};
     // Two tiers. Notifications (task/kb/goal/comms…): push default ON, SMS opt-in.
-    // ALERTS (urgent — schedule/system): must reach people NOW, so push AND SMS
-    // are auto-enrolled for everyone (prefs can't turn them off).
+    // ALERTS (urgent — schedule/system): must reach people NOW, so SMS is
+    // auto-enrolled for everyone (prefs can't turn it off).
     const urgent = kind === "schedule" || kind === "system";
-    const wantPush = pushOff ? false : ((kind === "comms" || urgent) ? true : p.push !== false);
+    // 'schedule' is TEXT ONLY by owner preference — a schedule change should
+    // arrive once, as a text, not as a push and a text. (Schedule Admin's
+    // broadcast already passed push:false; this makes it true of the kind.)
+    const textOnly = kind === "schedule";
+    const wantPush = (pushOff || textOnly) ? false : ((kind === "comms" || urgent) ? true : p.push !== false);
     const wantSms = urgent ? true : p.sms === true;
 
     if (wantPush && VAPID_PUB) {
