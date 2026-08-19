@@ -761,9 +761,19 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
       });
     }
 
+    // The account NAME carries the current card's last four ("Spark - Eugene
+    // (9928)"), but a store can still be ordering on a RETIRED or second card
+    // that settles to the same account. qbo_config.paywith.alias maps those
+    // extra numbers onto their account: { "<accountId>": ["8106", ...] }.
     const last4 = String(o.cc_last4 || "");
+    const alias = ((cfg?.value as Record<string, unknown> | null)?.alias || {}) as Record<string, unknown>;
+    const aliasFor = (id: unknown) => {
+      const v = alias[String(id)];
+      return (Array.isArray(v) ? v : v == null ? [] : [v]).map(String);
+    };
     const allowed = all.filter((a) => allowIds.map(String).includes(String(a.Id)));
-    const hits = allowed.filter((a) => String(a.Name || "").includes(last4));
+    const hits = allowed.filter((a) =>
+      String(a.Name || "").includes(last4) || aliasFor(a.Id).includes(last4));
     if (hits.length === 1) payAcct = hits[0];
     // Name what was actually considered: "no match" is unactionable on its own,
     // and the usual cause is a card that was never added to the Settings
