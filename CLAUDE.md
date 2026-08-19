@@ -1160,6 +1160,22 @@ only skips its direct fetch without one. Every remaining dead end files a
 `kind:'debug'` row through `issue:report`. Safety net: `repairq-query`'s `sweep_blank_notes` action (the
 `repairq-blank-note-sweep` pg_cron, :20/:50 hourly) scans the active ticket list
 and deletes any empty-bodied note.
+**A check-in stash may only land on ITS OWN customer's ticket (v2.8.2, issues
+3105/3106):** the check-in modal fires before a ticket number exists, so the
+choice waits in sessionStorage (`mrt_fu_pending`) and flushes onto the next
+ticket page. The old rule flushed onto ANY New/edit ticket that loaded next in
+the tab — an abandoned check-in put customer A's follow-up on customer B's
+ticket, which read as both reported bugs at once (missing where the tech saved
+it, present where they didn't; Ready-for-Pickup then found "pref: none" and
+never texted). `pendMatchesTicket()` now matches the stash's phone/email
+against the ticket page's own customer block before flushing (note
+`suggestedPhones()` returns `{num,tag}` objects, not strings); a stash with no
+contact data (return/skip) rides only the fresh post-save landing
+(`mrt_fu_checkin`, consumed once); TTL is 15 min. A non-matching stash stays
+put for its own ticket. Test: scratchpad fu_leak.mjs (mock pages must mirror
+RepairQ's real sidebar — `.sub-head h3` "Customer" + sibling `.block-content`,
+≤480px wide — or `customerAnchor()` finds nothing and boot stalls in
+`whenSummaryReady`).
 
 **Google Business Profile (Google Traffic + Google Reviews):** measures why Eugene
 wins on Google and runs the review-reply engine. Data layer (`docs/sql/2026-07-10-gbp-schema.sql`

@@ -502,11 +502,35 @@
             var raw = sessionStorage.getItem(PENDING_KEY);
             if (!raw) return null;
             var o = JSON.parse(raw);
-            if (!o || !o.ts || (Date.now() - o.ts) > 30 * 60000) { pendingClear(); return null; }
+            if (!o || !o.ts || (Date.now() - o.ts) > 15 * 60000) { pendingClear(); return null; }
             return o.p || null;
         } catch (e) { return null; }
     }
     function pendingClear() { try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {} }
+
+    /* A stash may only land on ITS OWN customer's ticket. The old rule flushed
+       onto whatever New/edit ticket loaded next in the tab, so an abandoned
+       check-in put customer A's follow-up on customer B's ticket (issue 3106:
+       missing where the tech saved it, present where they didn't). Match the
+       stash's own contact data against the ticket page's customer block; a
+       stash with nothing to match (return/skip, no number/email) only rides
+       the fresh post-save landing. */
+    function pendMatchesTicket(pend) {
+        if (!pend) return false;
+        try {
+            var pd = digits(pend.number || '');
+            if (pd.length >= 10) {
+                var pages = suggestedPhones();
+                for (var i = 0; i < pages.length; i++) if (digits(pages[i].num).slice(-10) === pd.slice(-10)) return true;
+            }
+            var pe = String(pend.email || '').trim().toLowerCase();
+            if (pe) {
+                var cb = customerBlock();
+                if (cb && cb.textContent.toLowerCase().indexOf(pe) > -1) return true;
+            }
+        } catch (e) { /* fall through to no-match */ }
+        return false;
+    }
 
     function flushPending(pend) {
         pendingClear();
@@ -598,14 +622,11 @@
                 var statusReady = !!document.querySelector('#summary .block-content span.fullsize.label, #summary .block-content span.label');
                 if ((!statusReady || (!ddFor('contact number') && !customerBlock())) && tries++ < 20) { setTimeout(whenSummaryReady, 300); return; }
                 // flush a follow-up choice captured on the numberless check-in
-                // page onto this freshly-saved ticket (status "New").
-                var pend = !current ? pendingGet() : null;
-                if (pend && (isNewStatus() || /\/ticket\/edit\//.test(location.pathname))) { flushPending(pend); pend = null; }
-                renderChip();
-                // auto-pop = check-in only: the EDIT page, or the first ticket
-                // page after a create (the post-save landing is a VIEW page,
-                // flagged from the create page). All other view loads are
-                // button-only via the sidebar block.
+                // page onto this freshly-saved ticket (status "New") — but ONLY
+                // when the stash provably belongs to THIS ticket's customer, or
+                // this is the immediate post-save landing (fresh flag) with no
+                // contact data to compare. A stash that does not match stays put
+                // for the ticket it was made for and must not touch this one.
                 var isEdit = /\/ticket\/edit\//.test(location.pathname);
                 var fresh = false;
                 try {
@@ -613,6 +634,18 @@
                     fresh = ts > 0 && (Date.now() - ts) < 10 * 60000;
                     if (fresh) sessionStorage.removeItem(CHECKIN_KEY);   // consume — one pop only
                 } catch (e) {}
+                var pend = !current ? pendingGet() : null;
+                if (pend) {
+                    var pendHasContact = !!(digits(pend.number || '').length >= 10 || String(pend.email || '').trim());
+                    var pendBelongsHere = pendHasContact ? pendMatchesTicket(pend) : fresh;
+                    if (!pendBelongsHere) pend = null;   // someone else's check-in — leave it alone
+                }
+                if (pend && (isNewStatus() || isEdit)) { flushPending(pend); pend = null; }
+                renderChip();
+                // auto-pop = check-in only: the EDIT page, or the first ticket
+                // page after a create (the post-save landing is a VIEW page,
+                // flagged from the create page). All other view loads are
+                // button-only via the sidebar block.
                 // A brand-new ticket lands on a VIEW page (/ticket/<id>) with status
                 // "New"; the create-page flag doesn't fire for every RepairQ check-in
                 // URL, so key off the status too. wasPrompted() keeps it to one pop.
