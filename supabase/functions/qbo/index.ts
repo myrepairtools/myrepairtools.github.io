@@ -897,6 +897,95 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Find existing Purchases, and move one to a different class.
+//
+// Separate from postMsOrder on purpose: that CREATES records, this EDITS ones
+// a human already categorised. Editing someone's books by amount-matching is
+// only safe if you can see what matched first, so `qbo_find_purchases` is
+// read-only and `qbo_set_class` takes ONE id that a person picked.
+async function findPurchases(body: Record<string, unknown>) {
+  const tok = await getToken();
+  if (!tok) return json({ error: "not_connected" }, 503);
+  const acct = String(body.account_id || "").trim();
+  const from = String(body.from || "").trim();
+  const to = String(body.to || "").trim();
+  if (!from || !to) return json({ error: "bad_request", detail: "from and to dates are required." }, 400);
+
+  let q = `select * from Purchase where TxnDate >= '${from}' and TxnDate <= '${to}' maxresults 1000`;
+  const r = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(q)}&minorversion=${MINORVERSION}`,
+    { headers: qboHeaders(tok.access_token) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) return json({ error: "qbo_error", detail: faultDetail(d), intuit_tid: tid(r) }, 502);
+
+  const rows = ((d?.QueryResponse?.Purchase || []) as Array<Record<string, any>>)
+    .filter((p) => !acct || String(p.AccountRef?.value || "") === acct)
+    .map((p) => ({
+      id: String(p.Id),
+      sync_token: String(p.SyncToken),
+      txn_date: p.TxnDate,
+      total: Number(p.TotalAmt),
+      doc_number: p.DocNumber || null,
+      vendor: p.EntityRef?.name || null,
+      pay_account: p.AccountRef?.name || null,
+      private_note: p.PrivateNote || null,
+      lines: (p.Line || []).map((l: Record<string, any>) => ({
+        amount: Number(l.Amount),
+        account: l.AccountBasedExpenseLineDetail?.AccountRef?.name || null,
+        class: l.AccountBasedExpenseLineDetail?.ClassRef?.name || null,
+        class_id: l.AccountBasedExpenseLineDetail?.ClassRef?.value || null,
+      })),
+    }));
+  return json({ count: rows.length, purchases: rows });
+}
+
+// Re-class ONE Purchase. QBO replaces the whole Line array on update, so the
+// record is read back first and only ClassRef is touched -- amounts, accounts
+// and descriptions are carried through exactly as they were.
+async function setPurchaseClass(body: Record<string, unknown>, actor: string) {
+  const tok = await getToken();
+  if (!tok) return json({ error: "not_connected" }, 503);
+  const id = String(body.purchase_id || "").trim();
+  const classId = String(body.class_id || "").trim();
+  const className = String(body.class_name || "").trim();
+  const dryRun = body.dry_run !== false;
+  if (!id || !classId) return json({ error: "bad_request", detail: "purchase_id and class_id are required." }, 400);
+
+  const gr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/purchase/${id}?minorversion=${MINORVERSION}`,
+    { headers: qboHeaders(tok.access_token) });
+  const gd = await gr.json().catch(() => ({}));
+  const p = gd?.Purchase;
+  if (!gr.ok || !p) return json({ error: "qbo_error", detail: faultDetail(gd), intuit_tid: tid(gr) }, 502);
+
+  const before = (p.Line || []).map((l: Record<string, any>) => ({
+    amount: Number(l.Amount),
+    account: l.AccountBasedExpenseLineDetail?.AccountRef?.name || null,
+    class: l.AccountBasedExpenseLineDetail?.ClassRef?.name || null,
+  }));
+  const updated = { ...p, sparse: false, Line: (p.Line || []).map((l: Record<string, any>) =>
+    l.AccountBasedExpenseLineDetail
+      ? { ...l, AccountBasedExpenseLineDetail: { ...l.AccountBasedExpenseLineDetail,
+          ClassRef: { value: classId, ...(className ? { name: className } : {}) } } }
+      : l) };
+
+  const summary = {
+    purchase_id: id, doc_number: p.DocNumber || null, txn_date: p.TxnDate,
+    total: Number(p.TotalAmt), pay_account: p.AccountRef?.name || null,
+    vendor: p.EntityRef?.name || null,
+    before, after_class: className || classId,
+  };
+  if (dryRun) return json({ ok: true, dry_run: true, ...summary });
+
+  const ur = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/purchase?minorversion=${MINORVERSION}`, {
+    method: "POST", headers: qboHeaders(tok.access_token), body: JSON.stringify(updated),
+  });
+  const ud = await ur.json().catch(() => ({}));
+  if (!ur.ok || !ud?.Purchase) return json({ error: "qbo_error", detail: faultDetail(ud), intuit_tid: tid(ur) }, 502);
+  return json({ ok: true, ...summary,
+    new_sync_token: String(ud.Purchase.SyncToken),
+    note: `Re-classed by ${actor}.` });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const url = new URL(req.url);
@@ -1062,6 +1151,25 @@ Deno.serve(async (req) => {
       actor = who.display_name;
     }
     return await postMsOrder(body, actor);
+  }
+
+  // ---- read / re-class existing Purchases (owner only: edits real books) ----
+  if (action === "qbo_find_purchases" || action === "qbo_set_class") {
+    // Same dual auth as ms_post, but OWNER only for a person: this edits
+    // records a human already categorised, which is a different thing from
+    // adding a new one.
+    const NOTIFY2 = Deno.env.get("NOTIFY_SECRET") || "";
+    let actor2 = "";
+    if (NOTIFY2 && String(body.secret || "") === NOTIFY2) {
+      actor2 = "myRepairTools";
+    } else {
+      const who = await getStaff(req);
+      if (!who || who.role !== "owner") return json({ error: "forbidden", detail: "Owner only." }, 403);
+      actor2 = who.display_name;
+    }
+    return action === "qbo_find_purchases"
+      ? await findPurchases(body)
+      : await setPurchaseClass(body, actor2);
   }
 
   // ---- owner-only from here down ----
