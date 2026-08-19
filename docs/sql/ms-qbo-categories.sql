@@ -131,12 +131,17 @@ revoke execute on function public.ms_order_split(text)          from anon;
 --                          309). Aliased PRE-EMPTIVELY -- it has never placed
 --                          a MobileSentrix order, so this is only so the first
 --                          one does not refuse.
---   Clackamas 8590         12 orders 5/23-6/11, ran alongside 8123 then
---                          stopped. The owner has since said it is a manager's
---                          active card, but which ACCOUNT it settles to is
---                          still unconfirmed -- do NOT alias it onto
---                          Spark - Clackamas until the charges are seen on
---                          that statement.
+--   Eugene   8590         A EUGENE card (acct 309) that was saved into the
+--                          CLACKAMAS MobileSentrix account and used there for
+--                          12 orders / $3,057.95 over 5/23 and 6/5-6/11. It
+--                          looked missing from QBO only because the charges
+--                          sit on the Eugene statement while the goods and the
+--                          class are Clackamas.
+--
+-- That case is the reason pay account and class are resolved SEPARATELY: the
+-- account comes from the CARD and the class from the ORDER'S STORE, so one
+-- store's card paying for another store's parts books correctly without a
+-- special case -- Spark - Eugene funds it, CPR Clackamas carries the cost.
 --
 -- An alias asserts that two card numbers settle to one statement. Guessing
 -- books real spend against the wrong card, so only add one the owner has
