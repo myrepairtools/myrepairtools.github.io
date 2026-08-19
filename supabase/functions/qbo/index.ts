@@ -765,9 +765,15 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
     const allowed = all.filter((a) => allowIds.map(String).includes(String(a.Id)));
     const hits = allowed.filter((a) => String(a.Name || "").includes(last4));
     if (hits.length === 1) payAcct = hits[0];
-    else problems.push(hits.length === 0
-      ? `No allowed Paid With account names card •${last4}.`
-      : `${hits.length} allowed accounts name card •${last4} — cannot tell which.`);
+    // Name what was actually considered: "no match" is unactionable on its own,
+    // and the usual cause is a card that was never added to the Settings
+    // allowlist, or an account whose name omits the last four.
+    else {
+      const names = allowed.map((a) => String(a.Name || "")).join(" | ") || "(allowlist is empty)";
+      problems.push(hits.length === 0
+        ? `No allowed Paid With account names card •${last4}. Allowed accounts: ${names}`
+        : `${hits.length} allowed accounts name card •${last4} — cannot tell which. Allowed accounts: ${names}`);
+    }
   } catch (e) {
     problems.push(`Could not read the QBO chart of accounts: ${String((e as Error)?.message || e)}`);
   }
