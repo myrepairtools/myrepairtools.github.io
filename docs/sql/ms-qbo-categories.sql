@@ -127,10 +127,16 @@ revoke execute on function public.ms_order_split(text)          from anon;
 --   Salem    Amex 4769     backup card, 3 orders on 7/15 only. NOT a Smartly
 --                          card and has no QBO account -- those orders cannot
 --                          post until one exists.
+--   Eugene   3988         Ben's card, on the Spark - Eugene account (acct
+--                          309). Aliased PRE-EMPTIVELY -- it has never placed
+--                          a MobileSentrix order, so this is only so the first
+--                          one does not refuse.
 --   Clackamas 8590         12 orders 5/23-6/11, ran alongside 8123 then
---                          stopped. Unidentified -- do NOT alias it onto
---                          Spark - Clackamas without confirming the charges
---                          actually appear on that statement.
+--                          stopped. The owner has since said it is a manager's
+--                          active card, but which ACCOUNT it settles to is
+--                          still unconfirmed -- do NOT alias it onto
+--                          Spark - Clackamas until the charges are seen on
+--                          that statement.
 --
 -- An alias asserts that two card numbers settle to one statement. Guessing
 -- books real spend against the wrong card, so only add one the owner has
