@@ -110,3 +110,28 @@ $$;
 
 revoke execute on function public.ms_categorize(text,text,text) from anon;
 revoke execute on function public.ms_order_split(text)          from anon;
+
+-- ---------------------------------------------------------------------------
+-- Card -> Paid-With account, and why aliases exist.
+--
+-- The posting function matches an order's cc_last4 against the QBO account
+-- NAME ("Spark - Clackamas (8123)"). That breaks the moment a card is
+-- reissued, because the account keeps its old number in the name while
+-- MobileSentrix starts charging the new one. qbo_config.paywith.alias carries
+-- the extra numbers: { "<accountId>": ["8106", ...] }.
+--
+-- Known lineage (2026-08-19, from the owner):
+--   Eugene   9928 -> 8106  (reissued 8/13; same Spark account, acct 309)
+--   Salem    8223 -> 5082  (8223 hit by ~$15k fraud and cancelled mid-July;
+--                           5082 is the replacement Smartly, acct 397)
+--   Salem    Amex 4769     backup card, 3 orders on 7/15 only. NOT a Smartly
+--                          card and has no QBO account -- those orders cannot
+--                          post until one exists.
+--   Clackamas 8590         12 orders 5/23-6/11, ran alongside 8123 then
+--                          stopped. Unidentified -- do NOT alias it onto
+--                          Spark - Clackamas without confirming the charges
+--                          actually appear on that statement.
+--
+-- An alias asserts that two card numbers settle to one statement. Guessing
+-- books real spend against the wrong card, so only add one the owner has
+-- confirmed.
