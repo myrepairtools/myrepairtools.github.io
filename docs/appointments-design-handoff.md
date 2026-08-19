@@ -146,7 +146,9 @@ The funnel, one step on screen at a time with a progress bar:
 **Service → Location → Time → Your details**
 
 - **Service** — cards from the services library: name, how long it takes, and
-  the price when the service is set to show it.
+  the price. Pricing here is **information, not commerce** — the customer is
+  never asked to pay on this page (§8). A service that genuinely can't be priced
+  up front sets `price_visible` off and says so rather than showing $0.
 - **Location** — one card per store with address, phone, directions, and the
   next opening. Skipped when a link pins the store.
 - **Time** — month calendar plus a slot grid. Default is **"Anyone available"**;
@@ -190,9 +192,9 @@ surface people actually look at every morning.
 Managers only, permission `appointments.manage`. Rail-list + detail-pane editor,
 the same shape as the Contracts settings tabs.
 
-- **Services** — the library. Name, duration, gap after, price, show-price
-  toggle, active, and **which staff can perform it** (the link that drives
-  everything in §3).
+- **Services** — the library. Name, duration, gap after, price, `price_visible`
+  (off = the service is quoted after diagnosis, so no number is shown), active,
+  and **which staff can perform it** (the link that drives everything in §3).
 - **Consultation Windows** — per store, per weekday, multiple ranges per day.
 - **Rules** — lead time, horizon, max per day, gap default, cancel cutoff,
   `max_concurrent`.
@@ -276,11 +278,16 @@ dashboard widget renders from it. Never re-derive that in the widget.
 
 ## 8. Deliberately not in this build
 
-- **Taking payment.** Services carry a price and the booking page shows it; the
-  money is collected in store at the counter. The owner has mentioned charging
-  for services, so keep the seam clean — Contracts' Square quick-pay link is the
-  pattern to copy when we do it, and a `deposit` on the service row is where it
-  would attach.
+- **Taking payment. Settled, not deferred.** Payment is taken in RepairQ with
+  the customer at the counter, and this tool never touches money. There is no
+  payment step in the funnel, no deposit, and no Square link — don't design a
+  seam for one.
+
+  **Pricing exists purely so the customer knows what they are signing up for.**
+  That is the whole job of the price on a service: no surprise at the counter.
+  Design it as plain information — legible on the service card and carried onto
+  the confirmation — never as a checkout line item, a total, or anything that
+  reads like it is about to ask for a card.
 - **A customer table.** Name / phone / email live on the appointment, matching
   how `interview_bookings` does it. A soft match on phone can surface a repeat
   customer's history without us building a CRM. Linking to a RepairQ ticket is
