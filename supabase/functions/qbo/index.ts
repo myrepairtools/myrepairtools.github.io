@@ -925,6 +925,7 @@ async function findPurchases(body: Record<string, unknown>) {
       sync_token: String(p.SyncToken),
       txn_date: p.TxnDate,
       total: Number(p.TotalAmt),
+      credit: !!p.Credit,          // true = money coming BACK (refund/credit)
       doc_number: p.DocNumber || null,
       vendor: p.EntityRef?.name || null,
       pay_account: p.AccountRef?.name || null,
