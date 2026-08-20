@@ -48,9 +48,31 @@ async function callerStaff(req: Request): Promise<Record<string, unknown> | null
   if (!auth) return null;
   const { data } = await admin.auth.getUser(auth);
   if (!data?.user) return null;
-  const { data: s } = await admin.from("staff").select("id, role, display_name")
+  // home_store / authorized_stores are fetched so `send` can authorize by store,
+  // not merely authenticate. Same round trip.
+  const { data: s } = await admin.from("staff")
+    .select("id, role, display_name, home_store, authorized_stores")
     .eq("auth_uid", data.user.id).eq("active", true).maybeSingle();
   return s || null;
+}
+
+/* Being signed in is NOT authorization. This function runs under the service
+   role, so the RLS applied to the contracts table in 20260820155110
+   (mc_sel / mc_upd / mc_ins -> can_see_store(store)) does NOT constrain it —
+   every scope check has to be made here, explicitly.
+
+   Compared case-insensitively rather than through norm_store(): contracts.store
+   is NOT NULL and holds canonical values ('CPR Eugene'), as does
+   staff.home_store. If a RepairQ spelling ever reaches this column, make this
+   an rpc. */
+function callerAtStore(staff: Record<string, unknown> | null, store: string): boolean {
+  if (!staff) return false;
+  const role = String(staff.role || "");
+  if (role === "owner") return true;
+  const norm = (s: unknown) => String(s || "").trim().toLowerCase();
+  if (norm(staff.home_store) === norm(store)) return true;
+  const list = Array.isArray(staff.authorized_stores) ? staff.authorized_stores : [];
+  return list.some((s: unknown) => norm(s) === norm(store));
 }
 
 async function byToken(t: string) {
@@ -254,6 +276,14 @@ Deno.serve(async (req) => {
       const b = await req.json().catch(() => ({}));
       const c = await byToken(String(b.t || ""));
       if (!c) return json({ ok: false, error: "not_found" }, 404);
+      // A contract's token IS its customer's credential. Before this, any active
+      // staff JWT that learned a token could send ANOTHER store's contract to
+      // that store's customer — a text or email from a store the sender does not
+      // work at. Authenticating the caller was never enough; scope it.
+      // 404 rather than 403 so the response does not confirm the token is real.
+      if (!callerAtStore(staff, String(c.store || ""))) {
+        return json({ ok: false, error: "not_found" }, 404);
+      }
       if (c.status === "void") return json({ ok: false, error: "void" }, 409);
 
       // Delivery method: 'email' | 'text' | 'both'. Legacy callers sent nothing
