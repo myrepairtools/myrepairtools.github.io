@@ -13,17 +13,15 @@ body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var
 main{max-width:680px;margin:0 auto;padding:18px 16px 70px}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:-.4px}
 .hide{display:none!important}
-/* lock (mirrors schedule.html) */
-.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;z-index:2000}
-.lock.hide{display:none}
-.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
-.lock-box .ic{font-size:30px;margin-bottom:14px}
-.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
-.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
-.lock-box input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px;text-align:center;letter-spacing:4px}
-.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
-.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
-.app{display:none}.app.show{display:block}
+/* The page-local PIN overlay used to live here (.lock / .lock-box / .lock-err),
+   together with `.app{display:none}.app.show{display:block}`. Both are gone:
+   assets/pin-gate.js is the one gate and paints its own full-screen cover until
+   a session exists, so #app no longer needs to hide itself and there is no
+   second lock to paint over the first. That second lock is what the owner saw
+   as the double PIN — the 🗓️ "My Time · Enter your PIN to see your shifts"
+   card appearing on top of a page pin-gate was already unlocking.
+   NOTE: `.show` survives elsewhere on this page (.toast.show at :98,
+   .shmask.show at :195) — only the .app rule was removed. */
 /* header */
 .me-hd{display:flex;align-items:center;gap:11px;margin-bottom:14px}
 /* mobile: the admin button crowds the name — drop it to its own row under the location pills */
@@ -207,18 +205,7 @@ body.mfull main{max-width:none}   /* month view fills the viewport instead of th
 </style>
 </head>
 <body>
-<div id="lockScreen" class="lock">
-  <div class="lock-box">
-    <div class="ic">🗓️</div>
-    <h2>My Time</h2>
-    <p>Enter your PIN to see your shifts.</p>
-    <input id="lkPin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
-    <button id="lkGo">Unlock</button>
-    <div id="lkErr" class="lock-err"></div>
-  </div>
-</div>
-
-<div id="app" class="app">
+<div id="app">
   <main>
     <div class="me-hd">
       <span class="me-av" id="meAv"></span>
@@ -271,14 +258,25 @@ function statusBadge(st){return 'sbadge '+(st==='approved'?'':st==='denied'?'':'
 function statusStyle(st){return st==='approved'?'color:var(--green);background:#E6F4EC':st==='denied'?'color:var(--red);background:#FBE9EA':'color:var(--amber);background:#FCF3E3';}
 function statusLabel(st){return st==='approved'?'Approved':st==='denied'?'Denied':'Pending';}
 
-/* ===== auth (PIN lock, accepts any role) ===== */
-var ME=null, IDLE_MS=10*60*1000, idleTimer=null;
-function fn(body,tok){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
-function lockErr(t){$('#lkErr').textContent=t||'';}
-function showLock(){$('#app').classList.remove('show');$('#lockScreen').classList.remove('hide');$('#lkPin').value='';}
-function resetIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);}
-function relock(){clearTimeout(idleTimer);sb.auth.signOut();ME=null;showLock();}
-function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();wireAdminBtn();load();}
+/* ===== auth — one shared gate, no page-local copy =====
+   This page used to carry its own doLogin / showLock / getSession and its own
+   10-minute idle sign-out. That is what produced the double PIN: on a cold open
+   the page's getSession() returned null before pin-gate.js had finished
+   restoring the session, so the page painted its own 🗓️ "My Time" lock over a
+   page pin-gate was already in the middle of unlocking. Refreshing "fixed" it
+   because by then restoration had completed.
+
+   Deleting it is not enough on its own — the old unlockUI() was also the only
+   thing that revealed #app and the only caller of load(). Both jobs move to
+   CPRAuth.ready, which pin-gate settles once identity is known:
+     resolve -> we have {id,name,role,home_store,authorized_stores}; render.
+     reject  -> identity could NOT be established. pin-gate reveals the page
+                anyway on that path, so we must say so rather than render an
+                empty schedule that reads as "you have no shifts".
+     pending -> the PIN box is up or the device is offline. Correct: signing in
+                reloads, and the network-heal path resolves this promise.
+   There is deliberately no second getSession() here; that call is what raced. */
+var ME=null;
 /* Schedule Admin lives behind this button now (not in the nav) — visible to everyone,
    greyed without access. The page itself still verifies the role. */
 function wireAdminBtn(){
@@ -288,26 +286,29 @@ function wireAdminBtn(){
   b.title=ok?'Open Schedule Admin':'Managers & the owner only';
   b.onclick=ok?null:function(e){e.preventDefault();toast('Schedule Admin is for managers & the owner',true);};
 }
-async function doLogin(){
-  var pin=$('#lkPin').value||'';if(!pin){lockErr('Enter your PIN');return;}
-  $('#lkGo').disabled=true;lockErr('Signing in…');
-  try{
-    var r=await fn({action:'login',pin:pin,device_id:DEVICE_ID});
-    if(r.status!==200){var d=r.data||{};lockErr(d.error==='invalid'?('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'')):(d.error||'Login failed.'));$('#lkGo').disabled=false;return;}
-    var st=r.data.staff||{};
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-    ME={id:st.id,name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
-    $('#lkGo').disabled=false;lockErr('');unlockUI();
-  }catch(e){$('#lkGo').disabled=false;lockErr(String(e&&e.message||e));}
+/* Identity resolved -> render. Identity NOT resolved -> say so. pin-gate fails
+   OPEN when it cannot read a staff row (it reveals and lets RLS govern), so
+   without this branch the page would render with ME null: every ME-dependent
+   view collapses and it reads as "you have no shifts" rather than "we could not
+   load you". */
+function bootAuth(){
+  if(!window.CPRAuth){ bootFailed('The sign-in script did not load.'); return; }
+  window.CPRAuth.ready.then(function(me){
+    ME={id:me.id,name:me.name,role:me.role,home_store:me.home_store,authorized_stores:me.authorized_stores||[]};
+    wireAdminBtn();
+    load();
+  }, function(){
+    bootFailed('We could not load your profile.');
+  });
 }
-async function initAuth(){
-  $('#lkGo').onclick=doLogin;
-  $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});$('#lkPin').focus();
-  ['click','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(){if(ME)resetIdle();});});
-  var sess=(await sb.auth.getSession()).data.session;
-  if(sess){var sr=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){ME={id:sr.data.id,name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}}
-  showLock();
+function bootFailed(msg){
+  var m=document.querySelector('#app main')||document.querySelector('#app');
+  if(!m)return;
+  m.innerHTML='<div style="max-width:520px;margin:48px auto;padding:26px;text-align:center;'
+    +'background:#fff;border:1.5px solid var(--border,#E6E6EA);border-radius:12px">'
+    +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:6px">'+esc(msg)+'</div>'
+    +'<div style="font-size:.88rem;color:var(--dark-grey,#6B6B76);font-weight:600">Reload the page. If it keeps happening, tell a manager.</div>'
+    +'</div>';
 }
 
 /* ===== data ===== */
@@ -1198,7 +1199,7 @@ async function wizSubmit(){
   REQS.push(r.data);closePlanner();toast(isOwner?'✓ Time off booked':'✓ Sent to your manager');renderHeader();render();
 }
 
-initAuth();
+bootAuth();
 </script>
 </body>
 </html>
