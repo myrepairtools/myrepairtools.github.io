@@ -63,7 +63,6 @@
     { label:'Consumption & Ordering', url:'consumption-report.html', icon:'chart-column', acc:'consumption.view' },
     { label:'Device Ordering',     url:'device-orders.html',       icon:'tablet-smartphone', acc:'consumption.view' },
     { label:'Jerry Ding Order',    url:'jerry-ding-order.html',    icon:'clipboard-list', acc:'orders.jerryding' },
-    { label:'PO Converter',        url:'po-converter.html',        icon:'package', acc:'orders.po' },
     { label:'Hyla Orders',         url:'hyla-orders.html',         icon:'recycle', img:'assets/images/Assurant_icon.png', acc:'orders.hyla' }
   ];
   // Sales & Pricing — quoting and customer-facing pricing.

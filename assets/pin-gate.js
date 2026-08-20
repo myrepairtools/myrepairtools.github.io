@@ -33,8 +33,8 @@
   var PAGEACC = {
     'cash-tracker.html':'cash.view', 'consumption-report.html':'consumption.view',
     'damage-tracker.html':'damage.view', 'hyla-orders.html':'orders.hyla',
-    'jerry-ding-order.html':'orders.jerryding', 'po-converter.html':'orders.po',
-    'price-calculator.html':'pricing.view', 'price-calc-and-guide.html':'pricing.view', 'price-guide.html':'pricing.view',
+    'jerry-ding-order.html':'orders.jerryding',
+    'price-calculator.html':'pricing.view', 'price-guide.html':'pricing.view',
     'cash-admin.html':'cash.admin', 'cash-journal.html':'cash.journal', 'expenses.html':'expenses.record',
     /* employee-records.html is deliberately absent: it is BOTH the Team Members
        roster and every employee's own "My Profile" (the avatar menu points here
