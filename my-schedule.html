@@ -426,7 +426,14 @@ async function load(){
     sb.from('shifts').select('id,name,color,sort,active'),
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,hours,paid,day_hours,partial_days'),
+    /* `note` is deliberately NOT fetched. This page shows teammates' requests so
+       people can plan around each other — dates, type and status, which is the
+       whole point of the feature. The note is free text and on a Sick request is
+       where a medical reason lands; a teammate has no business reading it. It was
+       being pulled into every employee's browser despite never being rendered
+       (the row at :695 prints range, type, day count, hours and status only), so
+       dropping it costs nothing. Managers read notes on time-off.html. */
+    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,hours,paid,day_hours,partial_days'),
     sb.from('holidays').select('id,holiday_date,name'),
     sb.from('holiday_hours').select('holiday_id,store,closed,open_min,close_min'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
