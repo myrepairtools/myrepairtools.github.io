@@ -190,6 +190,48 @@ async function rcGet(path: string, jwt?: string, appKey?: string, appSecret?: st
   return { ok: r.ok, status: r.status, data: await r.json() };
 }
 
+/* One message-store read returns a PAGE, not a time window. `perPage=250` with
+   no pagination means "the newest 250 records", which is not what
+   `dateFrom` asks for — RingCentral returns newest-first, so the OLDEST records
+   in the requested window are the ones dropped.
+
+   Measured 2026-08-20 against sms_log over 30 days: CPR Eugene 616 messages,
+   CPR Salem Northeast 542, CPR Clackamas OR 219. The 250th-newest row is 13 days
+   old at Eugene and Salem, so those two stores were seeing under half the window
+   they asked for and roughly half their conversations; Clackamas fits under the
+   cap and saw everything. That store-dependence is exactly why the report read
+   as intermittent and got closed. It also tightens through the day, since the
+   250 is measured back from now.
+
+   Those are lower bounds: texts staff send from the RingCentral app never reach
+   sms_log but do consume records here.
+
+   So: page until the window is covered. perPage stays at the proven 250 rather
+   than reaching for a larger value we have not verified this account accepts;
+   the ceiling exists so one very busy store can never hang the call, and when it
+   bites we say so instead of quietly returning a short list. */
+const RC_PAGE = 250;
+const RC_MAX_PAGES = 8;                      // 2000 records — ~3 months at Eugene's rate
+async function rcGetPaged(
+  base: string,
+  a: { jwt?: string; appKey?: string; appSecret?: string },
+  maxPages = RC_MAX_PAGES,
+): Promise<{ ok: boolean; status: number; data?: any; records: any[]; truncated: boolean }> {
+  const records: any[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const sep = base.includes("?") ? "&" : "?";
+    const r = await rcGet(`${base}${sep}perPage=${RC_PAGE}&page=${page}`, a.jwt, a.appKey, a.appSecret);
+    if (!r.ok) return { ok: false, status: r.status, data: r.data, records, truncated: records.length > 0 };
+    const recs = r.data?.records || [];
+    records.push(...recs);
+    const totalPages = Number(r.data?.paging?.totalPages);
+    if (recs.length < RC_PAGE) return { ok: true, status: r.status, data: r.data, records, truncated: false };
+    if (Number.isFinite(totalPages) && page >= totalPages) return { ok: true, status: r.status, data: r.data, records, truncated: false };
+    if (page === maxPages) return { ok: true, status: r.status, data: r.data, records, truncated: true };
+  }
+  return { ok: true, status: 200, records, truncated: false };
+}
+
 async function rcPut(path: string, body: unknown, jwt?: string, appKey?: string, appSecret?: string) {
   const t = await rcToken(jwt, appKey, appSecret);
   const r = await fetch(`${RC_SERVER}${path}`, {
@@ -492,11 +534,11 @@ async function actionConversations(payload: any) {
   if (!a.jwt) return json({ ok: false, error: "No line configured for this store" }, 400);
   const days = Math.max(1, Math.min(90, Number(payload?.days) || 30));
   const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
-  const r = await rcGet(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&perPage=250&dateFrom=${dateFrom}`, a.jwt, a.appKey, a.appSecret);
-  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status });
+  const g = await rcGetPaged(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&dateFrom=${dateFrom}`, a);
+  if (!g.ok) return json({ ok: false, error: g.data?.message || `HTTP ${g.status}`, status: g.status });
 
   const threads: Record<string, any> = {};
-  for (const m of (r.data?.records || [])) {
+  for (const m of g.records) {
     const inbound = m.direction === "Inbound";
     const party = inbound ? m.from : (Array.isArray(m.to) ? m.to[0] : m.to);
     const num = e164(party?.phoneNumber || "");
@@ -514,7 +556,8 @@ async function actionConversations(payload: any) {
   const list = Object.values(threads)
     .filter((t: any) => !internal.has(t.number))
     .sort((x: any, y: any) => String(y.last_time).localeCompare(String(x.last_time)));
-  return json({ ok: true, store: line?.store || a.store, conversations: list });
+  // Report a hit ceiling rather than returning a short list as if it were whole.
+  return json({ ok: true, store: line?.store || a.store, conversations: list, scanned: g.records.length, truncated: g.truncated });
 }
 
 let internalCache: { nums: Set<string>; exp: number } | null = null;
@@ -606,9 +649,9 @@ async function actionThread(payload: any) {
   if (!want) return json({ ok: false, error: "number required" }, 400);
   const days = Math.max(1, Math.min(180, Number(payload?.days) || 60));
   const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
-  const r = await rcGet(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&perPage=250&dateFrom=${dateFrom}`, a.jwt, a.appKey, a.appSecret);
-  if (!r.ok) return json({ ok: false, error: r.data?.message || `HTTP ${r.status}`, status: r.status });
-  const msgs = (r.data?.records || []).filter((m: any) => {
+  const g = await rcGetPaged(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&dateFrom=${dateFrom}`, a);
+  if (!g.ok) return json({ ok: false, error: g.data?.message || `HTTP ${g.status}`, status: g.status });
+  const msgs = g.records.filter((m: any) => {
     const party = m.direction === "Inbound" ? m.from : (Array.isArray(m.to) ? m.to[0] : m.to);
     return e164(party?.phoneNumber || "") === want;
   }).map((m: any) => ({
@@ -616,7 +659,7 @@ async function actionThread(payload: any) {
     text: (m.subject || "").toString(), time: m.creationTime,
     status: m.messageStatus || m.readStatus || null,
   })).sort((x: any, y: any) => String(x.time).localeCompare(String(y.time)));
-  return json({ ok: true, number: want, messages: msgs });
+  return json({ ok: true, number: want, messages: msgs, truncated: g.truncated });
 }
 
 // Call log — missed-call focus. Needs the "ReadCallLog" scope on the app.
