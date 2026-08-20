@@ -27,6 +27,15 @@
 //           split all come from the row — the request supplies ONLY the id), attach
 //           the receipt image from the private 'receipts' bucket, stamp the row, and
 //           return { ok, purchase_id, attachable_id, amount }.
+//   POST { action:'ms_post', increment_id, dry_run }  (manager JWT or NOTIFY_SECRET)
+//        -> book ONE MobileSentrix order as a split QBO Purchase. dry_run defaults
+//           TRUE; it returns the split, the resolved account/class/vendor and any
+//           refusals without writing.
+//   POST { action:'ms_post_sweep', dry_run, limit }   (manager JWT or NOTIFY_SECRET)
+//        -> the go-forward loop: post every SHIPPED order since
+//           qbo_config.ms_post.cutoff that is clean, and write the reason onto
+//           ms_orders.qbo_error for every one that is not. Retries the queue on
+//           each run, so filing a missing SKU is the whole fix.
 //
 // Intuit specifics worth knowing:
 //   - The OAuth callback carries a realmId query param (the QBO company id); every
@@ -685,12 +694,31 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
     problems.push(`Order type ${orderType || "(none)"} is not a Sales or Battery order.`);
   if (o.qbo_purchase_id) return json({ error: "already_posted", purchase_id: String(o.qbo_purchase_id) }, 409);
 
+  // The books before the cutoff were done by hand. Enforced HERE rather than in
+  // the sweep's query so no caller -- cron, page, or curl -- can reach back and
+  // duplicate an expense a human already categorised. Moving the date is a
+  // deliberate qbo_config edit, not something a stray request can do.
+  const { data: msCfgRow } = await admin.from("qbo_config").select("value").eq("key", "ms_post").maybeSingle();
+  const msCfg = (msCfgRow?.value ?? {}) as Record<string, unknown>;
+  const cutoff = String(msCfg.cutoff || "");
+  if (cutoff && String(o.ordered_at || "") < cutoff)
+    problems.push(`Ordered ${String(o.ordered_at).slice(0, 10)}, before the ${cutoff} cutoff — those books were done by hand.`);
+
+  // Only a SHIPPED order is final. One still Processing can still gain or lose
+  // lines, and a Purchase posted at the wrong amount is worse than a late one.
+  if (String(o.status || "") !== "Shipped")
+    problems.push(`Order is "${o.status || "(none)"}", not Shipped — the amount is not final yet.`);
+
   // ---- the split (categories + amounts), computed in Postgres ----
   const { data: split, error: se } = await admin.rpc("ms_order_split", { p_increment_id: incrementId });
   if (se) return json({ error: "db_error", detail: se.message }, 500);
   const rows = (split || []) as Array<{ category: string; amount: string }>;
   if (!rows.length) problems.push("Split came back empty.");
-  const amount = Math.round(Number(o.grand_total) * 100) / 100;
+  // What the card was actually charged. NOT grand_total: MobileSentrix's API
+  // returns that field WITHOUT shipping (proven against 16 of their own PDF
+  // invoices), so trusting it understates every order that paid freight and
+  // the bank feed then refuses to match the Purchase.
+  const amount = Math.round((Number(o.subtotal) + Number(o.shipping_amount || 0)) * 100) / 100;
   const splitSum = Math.round(rows.reduce((t, r) => t + Number(r.amount), 0) * 100) / 100;
   if (Math.abs(splitSum - amount) > 0.011)
     problems.push(`Split totals ${usd(splitSum)} but the card was charged ${usd(amount)}.`);
@@ -894,6 +922,91 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
     ok: true, purchase_id: String(posted.Id), doc_number: docNumber, amount,
     lines: preview.lines,
     ...(stamp.error ? { warn: `Posted Purchase ${posted.Id} but the row failed to update (${stamp.error.message}).` } : {}),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Post every new MobileSentrix order that is clean, and QUEUE the ones that
+// are not.
+//
+// Clean means postMsOrder found nothing to refuse on: every line categorised,
+// the split totalling what the card was charged, a mapped Paid With account
+// and a store class. Those post themselves. Anything else -- a SKU nobody has
+// filed yet, a card with no account, a total that does not reconcile -- has
+// its reason written to ms_orders.qbo_error and waits for a human. It is
+// retried on every run, so filing the SKU is the whole fix; nothing has to be
+// re-queued by hand.
+//
+// The point of posting at all is the bank feed: a split Purchase gives the
+// incoming charge something to MATCH, instead of a rule adding it to
+// COGS - Parts as one lump.
+async function msPostSweep(body: Record<string, unknown>, actor: string) {
+  const { data: cfgRow } = await admin.from("qbo_config").select("value").eq("key", "ms_post").maybeSingle();
+  const cfg = (cfgRow?.value ?? {}) as Record<string, unknown>;
+  if (cfg.enabled === false) return json({ ok: true, skipped: "disabled", detail: "qbo_config.ms_post.enabled is false." });
+  const cutoff = String(cfg.cutoff || "");
+  if (!cutoff) {
+    return json({ error: "no_cutoff", detail: "qbo_config.ms_post.cutoff is not set. Refusing to sweep without one — it is the only thing standing between this and re-posting the whole order history." }, 400);
+  }
+
+  const dryRun = body.dry_run === true;
+  const limit = Math.max(1, Math.min(Number(body.limit) || 25, 100));
+
+  // Consignment carries no card, so filtering on one drops it here as well as
+  // in postMsOrder. Everything else that could refuse is left to postMsOrder,
+  // which states each refusal in words worth showing a person.
+  const { data: due, error: qe } = await admin.from("ms_orders")
+    .select("increment_id, store, ordered_at, status, subtotal, shipping_amount")
+    .is("qbo_purchase_id", null)
+    .gte("ordered_at", cutoff)
+    .not("cc_last4", "is", null)
+    .gt("grand_total", 0)
+    .eq("status", "Shipped")
+    .order("ordered_at", { ascending: true })
+    .limit(limit);
+  if (qe) return json({ error: "db_error", detail: qe.message }, 500);
+
+  const posted: Array<Record<string, unknown>> = [];
+  const queued: Array<Record<string, unknown>> = [];
+  const failed: Array<Record<string, unknown>> = [];
+
+  for (const o of (due || [])) {
+    const id = String(o.increment_id);
+    const charged = Math.round((Number(o.subtotal) + Number(o.shipping_amount || 0)) * 100) / 100;
+    let res: Record<string, unknown>;
+    try {
+      res = await (await postMsOrder({ increment_id: id, dry_run: dryRun }, actor)).json();
+    } catch (e) {
+      failed.push({ increment_id: id, store: o.store, charged, detail: String((e as Error)?.message || e) });
+      continue;
+    }
+
+    if (res.ok && (res.purchase_id || dryRun)) {
+      posted.push({
+        increment_id: id, store: o.store, charged,
+        ...(dryRun ? { would_post: true } : { purchase_id: res.purchase_id, doc_number: res.doc_number }),
+        lines: res.lines,
+      });
+      continue;
+    }
+    // Refusals carry `problems`; anything else is a real failure (QBO down, a
+    // dead token). Both are recorded, but only the first is a queue item a
+    // person can act on.
+    const why = Array.isArray(res.problems) && res.problems.length
+      ? (res.problems as string[]).join(" ")
+      : String(res.detail || res.error || "Unknown error.");
+    const bucket = Array.isArray(res.problems) && res.problems.length ? queued : failed;
+    bucket.push({ increment_id: id, store: o.store, charged, why });
+    if (!dryRun) {
+      await admin.from("ms_orders").update({ qbo_error: why }).eq("increment_id", id).is("qbo_purchase_id", null);
+    }
+  }
+
+  return json({
+    ok: true, dry_run: dryRun, cutoff, considered: due?.length || 0,
+    posted_count: posted.length, queued_count: queued.length, failed_count: failed.length,
+    posted_total: Math.round(posted.reduce((t, p) => t + Number(p.charged), 0) * 100) / 100,
+    posted, queued, failed,
   });
 }
 
@@ -1139,7 +1252,7 @@ Deno.serve(async (req) => {
   // secret, a person with their own JWT. Manager-level, because coding a
   // vendor purchase is bookkeeping, not an ownership decision -- and dry_run
   // (the default) posts nothing at all.
-  if (action === "ms_post") {
+  if (action === "ms_post" || action === "ms_post_sweep") {
     const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
     let actor = "";
     if (NOTIFY && String(body.secret || "") === NOTIFY) {
@@ -1151,7 +1264,9 @@ Deno.serve(async (req) => {
       }
       actor = who.display_name;
     }
-    return await postMsOrder(body, actor);
+    return action === "ms_post_sweep"
+      ? await msPostSweep(body, actor)
+      : await postMsOrder(body, actor);
   }
 
   // ---- read / re-class existing Purchases (owner only: edits real books) ----

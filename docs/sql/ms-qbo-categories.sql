@@ -203,3 +203,31 @@ revoke execute on function public.ms_order_split(text)          from anon;
 -- alias and would have made all 12 orders on the 8590 card refuse to post.
 -- settings.html now merges onto the loaded row instead of replacing it.
 -- Anything else stored under paywith is protected by the same fix.
+
+-- ---------------------------------------------------------------------------
+-- Go-forward posting: qbo_config key 'ms_post'.
+--
+--   { "cutoff": "2026-08-20", "enabled": true }
+--
+-- The 253 card orders before the cutoff were reconciled and categorised BY
+-- HAND, so the tool must never see them. The cutoff is enforced inside the
+-- edge function's postMsOrder(), not just in the sweep's query, so no caller
+-- -- cron, page, or curl -- can reach back and duplicate an expense someone
+-- already booked. Moving the date is a deliberate edit to this row.
+--
+-- The `ms-qbo-post-hourly` pg_cron (:45, after ms-orders-sync at :40) calls
+-- the qbo function's `ms_post_sweep`. It posts every SHIPPED order since the
+-- cutoff whose split is clean, and writes the refusal onto ms_orders.qbo_error
+-- for every order that is not -- an unfiled SKU, a card with no QBO account, a
+-- total that does not reconcile. The queue is retried on every run, so filing
+-- the SKU IS the fix; nothing has to be re-queued by hand.
+--
+-- Only SHIPPED posts. An order still Processing or on Reserve Stock can still
+-- gain or lose lines, and a Purchase booked at the wrong amount is worse for
+-- the bank feed than one booked a day late.
+--
+-- Why post at all: a bank RULE was auto-ADDING every MobileSentrix charge to
+-- COGS - Parts as one lump (297 of 300 rows in the owner's August export said
+-- RULE APPLIED, 299 of 300 said Added, not Matched). A split Purchase gives
+-- the incoming charge something to MATCH instead. That rule has to be off, or
+-- it re-creates the problem this whole pipeline exists to solve.
