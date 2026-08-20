@@ -712,7 +712,7 @@ const S={view:'list',seg:'active',empId:null,tab:'profile',commSub:'settings',en
 let SYNCBANNER=null;   // {kind:'ok'|'bad', html} — the sync-result banner above the table
 let PD=null, PD_BASE='';   // profile-tab draft + clean baseline (dirty when JSON differs)
 let CD=null, CD_BASE='';   // commission-settings draft + baseline
-let SNAPS=null, LIVE=null, SNAPS_FOR=null;   // commission history cache (per profile)
+let SNAPS=null, LIVE=null, SNAPS_FOR=null, LIVE_ERR=null;   // commission history cache (per profile)
 
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
 /* best available session token: getSession can intermittently return null when
@@ -1582,9 +1582,18 @@ async function loadHistoryFor(e){
   SNAPS=(snapRes.error?[]:(snapRes.data||[]));
   SNAPS_FOR=String(e.id);
   LIVE=null;
+  /* A failed read must never turn into a plausible number. Every one of these
+     results is consumed as `.data||[]`, so an errored sales query would hand
+     the engine all-zero totals and it would compute a real-looking $0.00
+     payout for the month — indistinguishable from an employee who genuinely
+     sold nothing. Refuse to compute, and name the read that failed. */
+  const failedReads=[['snapshots',snapRes],['sales',salesRes],['tips',tipRes],['goals',goalRes]]
+    .filter(p=>p[1]&&p[1].error).map(p=>p[0]);
+  LIVE_ERR=failedReads.length?failedReads.join(', '):null;
+  const liveReadOk=!salesRes.error&&!tipRes.error&&!goalRes.error;
   const E=window.CommissionEngine;
   const hasArchive=SNAPS.some(r=>isoOf(r.month).slice(0,7)===period);
-  if(E&&!e.archived&&!hasArchive){
+  if(E&&!e.archived&&!hasArchive&&liveReadOk){
     try{
       const ros=CROSTER[e.id]||{};
       const roleKey=ROLE_ALIAS[e.roleLevel]||e.roleLevel;
@@ -1599,7 +1608,7 @@ async function loadHistoryFor(e){
       const c=E.computeCommission(totals,{accessoryGoal:goal,accDeviceUnits:totals.DeviceAttach,rates:effRates,earns:earns,rules:effRules});
       const tips={};(tipRes.data||[]).forEach(x=>{tips[x.store]={hours:x.hours||{},pool:Number(x.pool)||0};});
       LIVE={month:period,totals:totals,commission:c.total,tips:tipFor(e.name,tips)};
-    }catch(err){LIVE=null;}
+    }catch(err){LIVE=null;LIVE_ERR='the live calculation ('+String(err&&err.message||err)+')';}
   }
   renderHistory(e);
 }
@@ -1609,10 +1618,11 @@ function renderHistory(e){
   const mLabel=iso=>{const p=isoOf(iso).split('-');return MONTHFULL[(+p[1])-1]+' '+p[0];};
   const money2=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const attach=t=>{const tk=Number(t&&t.Tickets)||0,au=Number(t&&t.AccyUnits)||0;return tk>0?Math.round(au/tk*100)+'%':'—';};
+  const warn=LIVE_ERR?'<div class="tm-empty" style="border-left:3px solid var(--red);color:var(--red);font-weight:700;text-align:left">Could not load '+esc(LIVE_ERR)+'. This month is not shown — do not use this page for payroll until it loads.</div>':'';
   if(LIVE)rows.push({label:mLabel(LIVE.month+'-01'),sub:'month to date',accy:LIVE.totals.NetAccySales,att:attach(LIVE.totals),comm:LIVE.commission,tips:LIVE.tips,live:true});
   SNAPS.forEach(r=>{const t=r.totals||{};
     rows.push({label:mLabel(r.month),sub:'',accy:Number(t.NetAccySales)||0,att:attach(t),comm:Number(r.total)||0,tips:Number(r.tips)||0,live:false});});
-  if(!rows.length){host.innerHTML='<div class="tm-empty">No commission history yet — months appear here once payroll archives them.</div>';return;}
+  if(!rows.length){host.innerHTML=warn+'<div class="tm-empty">No commission history yet — months appear here once payroll archives them.</div>';return;}
   const trs=rows.map(r=>'<tr>'
     +'<td><span style="font-family:Nunito,sans-serif;font-weight:800">'+esc(r.label)+'</span>'+(r.sub?'<span style="font-size:.7rem;color:var(--grey);font-weight:700"> · '+esc(r.sub)+'</span>':'')+'</td>'
     +'<td class="num" style="font-weight:700">'+money2(r.accy)+'</td>'
@@ -1621,7 +1631,7 @@ function renderHistory(e){
     +'<td class="num" style="color:var(--dark-grey)">'+money2(r.tips)+'</td>'
     +'<td class="num" style="font-family:Nunito,sans-serif;font-weight:900">'+money2(r.comm+r.tips)+'</td>'
     +'<td>'+(r.live?'<span class="hist-badge live">Live estimate</span>':'<span class="hist-badge arch">📸 Archived</span>')+'</td></tr>').join('');
-  host.innerHTML='<div class="table-card"><table><thead><tr><th>Month</th><th class="r">Accessory $</th><th class="r">Attach</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th><th></th></tr></thead><tbody>'+trs+'</tbody></table></div>'
+  host.innerHTML=warn+'<div class="table-card"><table><thead><tr><th>Month</th><th class="r">Accessory $</th><th class="r">Attach</th><th class="r">Commission</th><th class="r">Tips</th><th class="r">Total</th><th></th></tr></thead><tbody>'+trs+'</tbody></table></div>'
     +'<div class="tm-foot">Archived rows come from the payroll snapshot (what was actually paid); the current month recomputes live.</div>';
 }
 
