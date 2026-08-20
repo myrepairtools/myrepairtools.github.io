@@ -375,7 +375,9 @@ async function loadTarget(){
   months.forEach(m=>{if(snapBy[m.key]!=null)m.total=snapBy[m.key];});
   const pd=new Date(VIEWM.getFullYear(),VIEWM.getMonth()-1,1);
   const prevKey=pd.getFullYear()+'-'+('0'+(pd.getMonth()+1)).slice(-2);
-  STATE.calc={totals,cfg,c,tip,mi,months,wd:workDayInfo(t.id),prevTotals:byMon[prevKey]||blankTotals(),prevTotal:(months[10]||{}).total||0,snap};
+  // bonus rides along with tip — renderOverview reads it off STATE.calc, and
+  // leaving it out here made that a ReferenceError that blanked the whole tab.
+  STATE.calc={totals,cfg,c,tip,bonus,mi,months,wd:workDayInfo(t.id),prevTotals:byMon[prevKey]||blankTotals(),prevTotal:(months[10]||{}).total||0,snap};
   $('#status').textContent='';
   renderHeader();render();
 }
@@ -405,7 +407,7 @@ function trendSvg(months){
     +'<polyline points="'+pts+'" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>'+dots+'</svg>';
 }
 function renderOverview(){
-  const {totals:t,cfg,c,tip,mi,months,wd}=STATE.calc, R=c.rules, earns=c.earns;
+  const {totals:t,cfg,c,tip,bonus,mi,months,wd}=STATE.calc, R=c.rules, earns=c.earns;
   const proj=wd.elapsed>0?c.total/wd.elapsed*wd.total:c.total;
   const attach=t.Tickets>0?t.AccyUnits/t.Tickets:0;
   const avgAccy=t.AccyUnits>0?t.NetAccySales/t.AccyUnits:0;
