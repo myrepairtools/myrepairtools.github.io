@@ -77,18 +77,28 @@ returns text language sql stable as $$
     end);
 $$;
 
--- The split for one order. Guaranteed to total the amount actually charged:
--- freight is the RESIDUAL (grand_total - line total), never shipping_amount --
--- MobileSentrix stamps a shipping rate on orders where it was waived and never
--- billed, and booking that field overstates the Purchase so the bank feed
--- refuses to match it.
--- A null category means the rules could not place the line; it surfaces as
--- 'UNCLASSIFIED' so the caller refuses to post rather than guessing.
+-- The split for one order. Totals the amount actually charged, which is
+-- subtotal + shipping_amount.
+--
+-- Freight is NOT a residual. MobileSentrix's API returns a grand_total that
+-- OMITS shipping: checked against the vendor's own PDF invoices for 16 orders,
+-- every invoice reads "Grand Total = Subtotal + Shipping" and its "Paid" line
+-- equals that to the cent, while the API's grand_total equals the SUBTOTAL
+-- alone on each of the 5 that carried shipping. subtotal + shipping_amount
+-- matched the amount paid 16/16; the old residual rule (grand_total - line
+-- total) booked $0 freight on 44 of the 45 orders that were really charged.
+--
+-- shipping_incl_tax is NOT the billed figure. It reads exactly $3.99 above
+-- shipping_amount on 16 orders and matched no invoice. Never use it.
+--
+-- Two different failures, two labels, neither mapped to an account so both
+-- refuse to post: UNCLASSIFIED = the rules could not place a line item;
+-- UNRECONCILED = the item rows do not add up to the subtotal.
 create or replace function public.ms_order_split(p_increment_id text)
 returns table (category text, amount numeric)
 language sql stable as $$
   with o as (
-    select increment_id, grand_total, items
+    select increment_id, subtotal, shipping_amount, items
     from public.ms_orders where increment_id = p_increment_id
   ),
   li as (
@@ -99,17 +109,38 @@ language sql stable as $$
   ),
   lines as (select cat, round(sum(amt), 2) amt from li group by cat),
   residual as (
-    select round(o.grand_total - coalesce((select sum(amt) from lines), 0), 2) r from o
+    select round(o.subtotal - coalesce((select sum(amt) from lines), 0), 2) r from o
   )
   select cat, amt from lines where amt <> 0
   union all
-  select case when r > 0 then 'Freight & Delivery' else 'Discount' end, r
+  select 'Freight & Delivery', round(shipping_amount, 2) from o where shipping_amount > 0
+  union all
+  select case when r > 0 then 'UNRECONCILED' else 'Discount' end, r
     from residual where r <> 0
   order by 2 desc;
 $$;
 
 revoke execute on function public.ms_categorize(text,text,text) from anon;
 revoke execute on function public.ms_order_split(text)          from anon;
+
+-- ---------------------------------------------------------------------------
+-- Shipping on an "Add to my existing order": a human has to look.
+--
+-- An add-to order normally ships free -- it goes in the box the parent order
+-- is already paying for. 97 of 102 did. The 5 that were charged are ALL
+-- Clackamas, and in every one the same-day combined total was far past the
+-- $500 free-shipping threshold, which is the exact situation where
+-- MobileSentrix refunded the shipping on 1500447592:
+--
+--   06-08  1500420924  $5.00      06-29  1500430974  $3.99
+--   07-22  1500442336  $5.00      07-30  1500446076  $5.00
+--   08-03  1500447592  $5.00   <- confirmed refunded
+--
+-- This CANNOT be automated. The order payload carries no refund data at all
+-- (total_refunded, shipping_refunded, total_paid, total_invoiced are null on
+-- every order), so a credited shipping charge is invisible to the sync; it is
+-- only knowable from the credit log or the statement. Flag these for review
+-- rather than inventing a rule.
 
 -- ---------------------------------------------------------------------------
 -- Card -> Paid-With account, and why aliases exist.
