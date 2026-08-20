@@ -563,12 +563,34 @@ main{max-width:none;margin:0;padding:24px 28px 70px}
   function localStorageGet(){ try{ var a=JSON.parse(localStorage.getItem(LS)); return (a&&a.length)?a:null; }catch(_){ return null; } }
   function localStorageSet(v){ try{ if(v) localStorage.setItem(LS, JSON.stringify(v)); else localStorage.removeItem(LS); }catch(_){} }
 
+  /* Small inline marker beside ⚙ Customize. Only ever shown to report a real
+     outcome — there is no indicator while things are working. */
+  function syncNote(msg){
+    var host=document.getElementById('editBtn'); if(!host||!host.parentNode) return;
+    var el=document.getElementById('dashSync');
+    if(!msg){ if(el&&el.parentNode) el.parentNode.removeChild(el); return; }
+    if(!el){ el=document.createElement('span'); el.id='dashSync';
+      el.style.cssText='margin-left:10px;font:700 .72rem "Nunito Sans",sans-serif;color:var(--red)';
+      host.parentNode.insertBefore(el,host.nextSibling); }
+    el.textContent=msg;
+  }
+
   function save(){
     var layout=getLayout();
     localStorageSet(layout);
     clearTimeout(saveT);
     saveT=setTimeout(function(){ myStaffId().then(function(id){ if(!id) return; sbClient().then(function(sb){ if(!sb) return;
-      sb.from('dashboard_layouts').upsert({ staff_id:id, layout:layout, updated_at:new Date().toISOString() }, { onConflict:'staff_id' }).then(function(){}, function(){}); }); }); }, 600);
+      var row={ staff_id:id, layout:layout, updated_at:new Date().toISOString() };
+      /* Supabase resolves with {error} rather than rejecting, so the two empty
+         callbacks that used to be here swallowed every failure: the layout
+         looked saved and then "reverted" on the next device or after a storage
+         clear. Check the result, retry once, and say so if it still fails. */
+      var put=function(){ return sb.from('dashboard_layouts').upsert(row,{ onConflict:'staff_id' }); };
+      var failed=function(){ syncNote('Saved on this device only — cloud sync failed'); };
+      put().then(function(r){
+        if(!r||!r.error){ syncNote(''); return null; }
+        return put().then(function(r2){ if(r2&&r2.error) failed(); else syncNote(''); }, failed);
+      }, failed); }); }, 600);
   }
   function applyLayout(layout){ renderLayout(layout); }
 
