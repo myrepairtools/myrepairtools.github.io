@@ -106,6 +106,26 @@
         }
         return '';
     }
+    /* RepairQ's own customer id, off the /customers/<id> link that BOTH the
+       check-in form (once a customer is chosen) and the ticket sidebar carry.
+       This is the only stable identity available on both sides of the stash.
+       A phone number is not: the whole documented purpose of the stash is to
+       capture the contact for THIS VISIT, which may be a number that isn't on
+       the customer's record at all. Returns '' when no customer is on the page,
+       which callers must treat as "cannot identify", never as "no match". */
+    function customerId() {
+        try {
+            var sel = 'a[href*="/customers/"]';
+            var cb = customerBlock();
+            var cust = document.querySelector('#customer');
+            var a = (cb && cb.querySelector(sel))
+                 || (cust && cust.querySelector(sel))
+                 || document.querySelector('.block-content ' + sel);
+            var m = a && (a.getAttribute('href') || '').match(/\/customers\/(\d+)/);
+            return m ? m[1] : '';
+        } catch (e) { return ''; }
+    }
+
     function customerFirst() {
         var dd = ddFor('customer name'); var n = dd ? dd.textContent.trim()
             : ((document.getElementById('Customer_first_name') || {}).value || '');
@@ -495,7 +515,15 @@
     // note) the instant the saved ticket page loads.
     var PENDING_KEY = 'mrt_fu_pending';
     function pendingSet(payload) {
-        try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ p: payload, ts: Date.now() })); } catch (e) {}
+        try {
+            // Stamp WHOSE check-in this is at capture time. Identity has to be
+            // recorded here — by the time the saved ticket loads, the only thing
+            // left to compare against is the page, and the number the tech typed
+            // may deliberately not be on that customer's record.
+            var p = {}; for (var k in (payload || {})) p[k] = payload[k];
+            if (!p.cust) { var c = customerId(); if (c) p.cust = c; }
+            sessionStorage.setItem(PENDING_KEY, JSON.stringify({ p: p, ts: Date.now() }));
+        } catch (e) {}
     }
     function pendingGet() {
         try {
@@ -515,7 +543,7 @@
        stash's own contact data against the ticket page's customer block; a
        stash with nothing to match (return/skip, no number/email) only rides
        the fresh post-save landing. */
-    function pendMatchesTicket(pend) {
+    function pendMatchesContact(pend) {
         if (!pend) return false;
         try {
             var pd = digits(pend.number || '');
@@ -530,6 +558,33 @@
             }
         } catch (e) { /* fall through to no-match */ }
         return false;
+    }
+
+    /* Does this stash belong to the customer currently on screen?
+
+       IDENTITY FIRST. When both sides carry RepairQ's customer id that settles
+       it outright, in both directions — it lets a hand-typed number through, and
+       it still refuses someone else's check-in.
+
+       Matching on contact data alone (2.8.2) got the refusal right and the
+       acceptance badly wrong: it compared the stashed number against numbers
+       ALREADY on the customer's record, so the moment a tech typed a spouse's
+       or a work number — the case this feature exists for — the stash was
+       judged to belong to nobody, silently dropped, and the tech got re-asked
+       with a blank modal (staff report #592). It survives here only as the
+       fallback for a page with no customer link and for stashes written before
+       the id was stamped, and it can no longer reject on its own: an unmatched
+       number on a genuinely fresh post-save landing is accepted, because we
+       could not identify the customer, not because we identified a different
+       one. `fresh` is safe in that position precisely because it is only
+       consulted when the authoritative test could not run. */
+    function pendOwnership(pend, fresh) {
+        if (!pend) return false;
+        var pageCust = customerId(), pendCust = String(pend.cust || '');
+        if (pageCust && pendCust) return pageCust === pendCust;
+        var hasContact = !!(digits(pend.number || '').length >= 10 || String(pend.email || '').trim());
+        if (hasContact) return pendMatchesContact(pend) || !!fresh;
+        return !!fresh;
     }
 
     function flushPending(pend) {
@@ -572,7 +627,11 @@
             if (createPoppedFlag) return true;
             if (!customerIsSelected()) return false;
             markCreatePopped();
-            if (pendingGet()) return true;   // already captured for this check-in
+            // Already captured for THIS customer — don't ask twice. A stash left
+            // over from someone else's check-in must not suppress this one's
+            // modal, which is how a follow-up went uncaptured entirely (#3106).
+            var held = pendingGet();
+            if (held && pendOwnership(held, false)) return true;
             // let RepairQ paint the customer's numbers first (modal suggestions)
             setTimeout(function () { if (!document.getElementById('mrt-fu-modal')) openModal(null); }, 500);
             return true;
@@ -594,8 +653,16 @@
                 try { sessionStorage.setItem(CHECKIN_KEY, String(Date.now())); } catch (e) {}
                 // a choice already captured on this check-in: show it on the
                 // customer card so it's visibly saved before the ticket exists
+                // Only re-show a stash that belongs to the customer on THIS
+                // check-in. The old code restored whatever was in the stash with
+                // no ownership test at all, which painted the previous
+                // customer's method and number onto the new customer's card AND
+                // called markCreatePopped(), so the modal never fired for them —
+                // both halves of #3106 from one line. If we can't identify the
+                // customer we restore nothing: being asked again is a small
+                // annoyance, attaching the wrong person's contact is a defect.
                 var pend0 = pendingGet();
-                if (pend0) {
+                if (pend0 && customerId() && pendOwnership(pend0, false)) {
                     markCreatePopped();
                     current = (pend0.method === 'skip') ? { method: 'skip' }
                             : { method: pend0.method, contact_number: pend0.number, contact_name: pend0.name, contact_email: pend0.email };
@@ -635,11 +702,7 @@
                     if (fresh) sessionStorage.removeItem(CHECKIN_KEY);   // consume — one pop only
                 } catch (e) {}
                 var pend = !current ? pendingGet() : null;
-                if (pend) {
-                    var pendHasContact = !!(digits(pend.number || '').length >= 10 || String(pend.email || '').trim());
-                    var pendBelongsHere = pendHasContact ? pendMatchesTicket(pend) : fresh;
-                    if (!pendBelongsHere) pend = null;   // someone else's check-in — leave it alone
-                }
+                if (pend && !pendOwnership(pend, fresh)) pend = null;   // someone else's check-in — leave it alone
                 if (pend && (isNewStatus() || isEdit)) { flushPending(pend); pend = null; }
                 renderChip();
                 // auto-pop = check-in only: the EDIT page, or the first ticket
