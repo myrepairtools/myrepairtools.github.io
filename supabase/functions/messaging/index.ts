@@ -392,25 +392,44 @@ async function actionSend(payload: any, sentBy: { id?: string; name?: string }) 
 
   // Log the outreach on the RepairQ ticket SERVER-SIDE. The browser could never
   // land this note reliably — it raced the page reload that follows the status
-  // change. Here it's a plain authenticated server post via repairq-query;
-  // fire-and-forget so a note hiccup never fails the (already-sent) text.
+  // change. AWAITED, so the caller learns whether the note actually landed and
+  // can fall back to its own browser write BEFORE it fires the status change.
+  // A note failure never fails the send: the text is already with the customer.
+  let noteOk: boolean | undefined, noteErr: string | undefined;
   if (ok && payload?.ticket_no && payload?.note) {
-    writeTicketNote(payload.ticket_no, payload.note).catch(() => {});
+    const n = await writeTicketNote(payload.ticket_no, payload.note);
+    noteOk = n.ok; noteErr = n.error;
   }
 
-  return ok ? json({ ok: true, id: rcId, to, from: sentFrom, store }) : json({ ok: false, error: err }, 502);
+  return ok
+    ? json({ ok: true, id: rcId, to, from: sentFrom, store, note_ok: noteOk, note_error: noteErr })
+    : json({ ok: false, error: err }, 502);
 }
 
-// Post a note to a RepairQ ticket through repairq-query's authenticated session.
-async function writeTicketNote(ticketNo: string, note: string) {
+// Post a note to a RepairQ ticket through repairq-query's authenticated session,
+// and REPORT what happened. This used to be fire-and-forget with the response
+// never read, so all three of "the secret isn't set", "repairq-query returned
+// 502" and "the fetch threw" were indistinguishable from success — the tech saw
+// "✓ Text sent", the telemetry logged "(server note)", and the ticket had no
+// note on it. That is the owner's "almost always had an issue with getting the
+// extension to post to the notes section", and nothing anywhere recorded it.
+// Still cannot fail the outreach: the message has already gone to the customer.
+async function writeTicketNote(ticketNo: string, note: string): Promise<{ ok: boolean; error?: string }> {
   const secret = Deno.env.get("REPAIRQ_PROXY_SECRET");
-  if (!secret) return;
-  const url = `${SB_URL}/functions/v1/repairq-query`;
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-cpr-rq-secret": secret, "apikey": SB_SERVICE, "Authorization": `Bearer ${SB_SERVICE}` },
-    body: JSON.stringify({ action: "note_add", ticket_no: ticketNo, note }),
-  });
+  if (!secret) return { ok: false, error: "no_proxy_secret" };
+  try {
+    const r = await fetch(`${SB_URL}/functions/v1/repairq-query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-cpr-rq-secret": secret, "apikey": SB_SERVICE, "Authorization": `Bearer ${SB_SERVICE}` },
+      body: JSON.stringify({ action: "note_add", ticket_no: ticketNo, note }),
+    });
+    const d = await r.json().catch(() => ({} as Record<string, unknown>));
+    if (!r.ok) return { ok: false, error: String((d as { error?: string }).error || `http_${r.status}`) };
+    if ((d as { ok?: boolean }).ok === false) return { ok: false, error: String((d as { error?: string }).error || "note_add_failed") };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message || e) };
+  }
 }
 
 const SELF_URL = `${SB_URL.replace(".supabase.co", ".functions.supabase.co")}/messaging`;

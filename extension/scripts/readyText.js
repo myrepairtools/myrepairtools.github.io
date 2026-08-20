@@ -414,6 +414,13 @@
     // TEMP diagnostic breadcrumbs (v2.5.85): stamp every step of the
     // ready-for-pickup flow so a failing machine shows exactly where its
     // path diverges. Cheap silent rows; remove once the note bug is closed.
+    // What the server said about the ticket note it was asked to write.
+    // undefined = this build of the server doesn't report yet (treat as before).
+    function noteTag(r) {
+        if (!r || r.note_ok === undefined) return ' (server note unreported)';
+        return r.note_ok ? ' (server note)' : ' (SERVER NOTE FAILED: ' + (r.note_error || '?') + ')';
+    }
+
     function crumb(step, extra) {
         try {
             chrome.runtime.sendMessage({ type: 'issue:report', payload: {
@@ -486,8 +493,14 @@
                 } }, function (res) {
                     var r = chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : res;
                     var ok = r && r.ok;
+                    // The call branch used to crumb NOTHING — 248 call-preference
+                    // intercepts with zero evidence either way. It reports now.
+                    crumb('call', ok ? 'ok' + noteTag(r) : 'fail ' + ((r && r.error) || '?'));
                     msg.textContent = ok ? '✓ Call placed' : '⚠ ' + ((r && r.error) || 'call failed');
-                    var note = ok ? null
+                    var note = ok
+                        ? (r.note_ok === false
+                            ? 'Ready for pickup - automated call placed to ' + pretty(num) + ' - myRepairTools (' + (techName() || 'staff') + ')'
+                            : null)
                         : 'Ready for pickup - automated call to ' + pretty(num) + ' did not place - myRepairTools (' + (techName() || 'staff') + ')';
                     setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 2200);
                 });
@@ -505,9 +518,16 @@
                 note: 'Ready-for-pickup text sent to ' + pretty(num) + ' - myRepairTools (' + (techName() || 'staff') + ')',
             }, function (res) {
                 var ok = res && res.ok;
-                crumb('sent', ok ? 'ok (server note)' : 'fail ' + ((res && res.error) || '?'));
+                // 'ok (server note)' used to be derived from the SMS result alone
+                // — it claimed a note that nothing had checked. The server now
+                // reports note_ok, so the crumb states what actually happened and
+                // a failed server note falls back to the browser write below.
+                crumb('sent', ok ? 'ok' + noteTag(res) : 'fail ' + ((res && res.error) || '?'));
                 msg.textContent = ok ? '✓ Text sent' : '⚠ ' + ((res && res.error) || 'failed');
-                var note = ok ? null
+                var note = ok
+                    ? (res.note_ok === false
+                        ? 'Ready-for-pickup text sent to ' + pretty(num) + ' - myRepairTools (' + (techName() || 'staff') + ')'
+                        : null)
                     : 'Ready for pickup - automated text to ' + pretty(num) + ' did not send - myRepairTools (' + (techName() || 'staff') + ')';
                 setTimeout(function () { toast.remove(); proceed(btn, note); }, ok ? 650 : 1500);
             });
