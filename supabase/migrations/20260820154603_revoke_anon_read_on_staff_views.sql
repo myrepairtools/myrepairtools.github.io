@@ -1,0 +1,45 @@
+-- staff_roster / staff_directory: remove anonymous READ.
+--
+-- WHY. Both are views without security_invoker, so they execute as their owner
+-- and `staff` RLS never applies to them. anon held SELECT, and the Supabase anon
+-- key ships in every page's HTML on a PUBLIC repo -- so both were readable by
+-- anyone on the internet with no login:
+--   staff_roster    12 rows: display_name, username, role, home_store,
+--                            authorized_stores, active
+--   staff_directory 14 rows: id, display_name, first_name, last_name,
+--                            home_store, authorized_stores, role, active,
+--                            avatar, avatar_color, start_date, birthday_md
+-- staff_directory is the worse of the two: it has NO `active` filter, so it
+-- exposed TERMINATED staff as well, and full name + employer + start date +
+-- birthday is a social-engineering kit. Proven anonymously over REST before
+-- this change: HTTP 206, 12 and 14 rows.
+--
+-- The write half of this defect was closed separately in 20260820150332.
+--
+-- BLAST RADIUS: `authenticated` keeps SELECT, so every consumer keeps working.
+-- Verified there is no public consumer -- every reader is a gated page or an
+-- authenticated asset:
+--   staff_roster    -> cash-tracker.html:219, cash-admin.html:424,
+--                      settings.html:761 (+ two stale duplicates under assets/)
+--   staff_directory -> my-schedule.html:424, assets/comms.js:123 and :174,
+--                      assets/celebrations-summary.js:52
+-- Checked every ungated page (first-day, intake, interview, contract-sign,
+-- phone-bill-view, eula, privacy): zero references to either view.
+--
+-- DO NOT "fix" this class by setting security_invoker=true instead. `staff` RLS
+-- is own-row-only, so both views would collapse to a single row and break all
+-- six consumers above.
+--
+-- WATCH FOR: a page that queries during session restore previously succeeded
+-- ANONYMOUSLY and will now return permission denied. In the normal flow the
+-- session is in storage before page code runs, and pin-gate holds its cover
+-- through a cold resume, so this should not surface -- but an empty staff list
+-- or store dropdown on one of the six consumers above is the symptom to look
+-- for, and a refresh is the workaround.
+--
+-- VERIFIED after applying:
+--   anonymous, no Authorization header -> HTTP 401, 42501 permission denied,
+--     on BOTH views.
+--   authenticated as codextest (team_member), running each consumer's EXACT
+--     query -> 12 / 12 / 12 / 14 / 12 / 14 rows. No regression.
+revoke select on public.staff_roster, public.staff_directory from anon;
