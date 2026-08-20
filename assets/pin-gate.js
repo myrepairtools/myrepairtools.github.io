@@ -32,6 +32,7 @@
   // just need any valid session). Mirrors the permissions catalog / nav.js.
   var PAGEACC = {
     'cash-tracker.html':'cash.view', 'consumption-report.html':'consumption.view',
+    'device-orders.html':'consumption.view',
     'damage-tracker.html':'damage.view', 'hyla-orders.html':'orders.hyla',
     'jerry-ding-order.html':'orders.jerryding',
     'price-calculator.html':'pricing.view', 'price-guide.html':'pricing.view',
