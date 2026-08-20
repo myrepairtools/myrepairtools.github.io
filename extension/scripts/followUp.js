@@ -160,6 +160,35 @@
         });
     }
 
+    function fuToast(text, isErr) {
+        try {
+            var t = document.createElement('div');
+            t.className = 'mrt-fu-toast' + (isErr ? ' err' : '');
+            t.textContent = text;
+            document.body.appendChild(t);
+            setTimeout(function () { t.classList.add('show'); }, 20);
+            setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, isErr ? 6000 : 2600);
+        } catch (e) { /* cosmetic */ }
+    }
+
+    /* A save that didn't save must SAY so. contact_set was fire-and-forget:
+       the chip rendered "saved", the modal closed, and a forbidden or a DB
+       error left no preference on the ticket and no trace anywhere — so at
+       pickup readyText logged 'pref: none' and showed the manual chooser
+       instead of texting. Half of staff report #3106. The RepairQ backup note
+       is still written either way, so the answer is never wholly lost. */
+    function contactSet(payload, what) {
+        return fn('contact_set', payload).then(function (r) {
+            if (r && r.ok) return true;
+            var why = (r && r.error) || 'no response';
+            noteDebug('contact_set failed (' + (what || payload.method) + '): ' + why);
+            current = null;
+            try { renderChip(); } catch (e) {}
+            fuToast('⚠ Follow-up NOT saved — ' + why + '. The ticket note was still written.', true);
+            return false;
+        });
+    }
+
     /* a note that never gets written must leave a trace — silent failures are
        how this went unnoticed until someone read the ticket */
     function noteDebug(detail) {
@@ -329,7 +358,7 @@
                 return;
             }
             pendingClear();   // an on-ticket answer supersedes any check-in stash
-            fn('contact_set', payload);
+            contactSet(payload, 'save');
             // permanent backup note
             var who = payload.name || 'customer';
             var how = m === 'email' ? 'EMAIL → ' + payload.email
@@ -355,7 +384,7 @@
             if (!current) {
                 current = { method: 'skip' };
                 pendingClear();
-                fn('contact_set', { ticket_no: ticketNo(), store: storeName(), method: 'skip', agent_name: techName() });
+                contactSet({ ticket_no: ticketNo(), store: storeName(), method: 'skip', agent_name: techName() }, 'skip');
                 renderChip();
             }
             markPrompted(); closeModal();
@@ -597,7 +626,7 @@
         };
         current = (m === 'skip') ? { method: 'skip' }
                 : { method: m, contact_number: payload.number, contact_name: payload.name, contact_email: payload.email };
-        fn('contact_set', payload);
+        contactSet(payload, 'flush');
         if (m !== 'skip') {
             var who = payload.name || 'customer';
             var how = m === 'email' ? 'EMAIL → ' + payload.email
