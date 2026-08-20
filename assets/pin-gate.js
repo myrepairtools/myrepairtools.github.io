@@ -14,6 +14,86 @@
  * ========================================================================= */
 (function () {
   'use strict';
+
+  /* ---- window.CPRAuth — the one resolved-identity contract ----------------
+     Pages must never re-derive identity for themselves. Twelve pages currently
+     ship their own getSession()+staff lookup, and that duplication is what the
+     passcode glitch is made of: this file already races getSession against a 4s
+     timeout because three Supabase clients (here, nav.js, and the page's own)
+     share one storage key and the call can HANG rather than reject. A page that
+     repeats the call reproduces the hang on a page we have already revealed.
+
+     Use it:  CPRAuth.ready.then(function(me){ ...render... })
+                           .catch(function(e){ ...fail CLOSED... });
+
+     It settles ONCE, and only on a definitive outcome:
+       resolve — identity known. The page is (or is about to be) revealed.
+       reject  — identity could NOT be established. Fail closed; do not render
+                 as though the viewer were a manager. e.reason is one of
+                 'no-staff-row' | 'staff-read-failed' | 'no-access'.
+       pending — deliberately, while the PIN box is up, while offline, and
+                 through every reconnect retry. Signing in RELOADS the page and
+                 the network-heal path reveals WITHOUT a reload, so a promise
+                 that stayed pending is exactly right: the page's boot code has
+                 not run yet and will be resolved when boot finally succeeds.
+                 Never poll this; await it.
+
+     resolve payload:
+       { id, name, role, home_store, authorized_stores,
+         isOwner, isAdmin,          // isAdmin maps manager->admin like nav.js:163
+         perms,                     // array, or null if not fetched on this page
+         permsUnknown,              // true if the permission read failed
+         gateSkipped }              // true only inside a non-?embed=1 iframe
+
+     NOTE the fail-OPEN asymmetry, deliberately left as-is here: when the
+     permission read fails this file still reveal()s the page (data stays
+     RLS-protected). CPRAuth resolves in that case but sets permsUnknown, so a
+     page that wants to fail closed can. Changing reveal() itself is a
+     behavioural change with real lockout risk and does not belong in the commit
+     that merely introduces this contract. */
+  var authSettled = false, authResolveFn, authRejectFn, permsPromise = null;
+  var CPRAuth = {
+    ready: new Promise(function (res, rej) { authResolveFn = res; authRejectFn = rej; }),
+    user: null,
+    // Permission list on demand, cached. boot() only fetches permissions when
+    // the page declares one, so pages that need the full list ask for it here
+    // rather than re-implementing the RPC.
+    perms: function () {
+      if (permsPromise) return permsPromise;
+      permsPromise = loadSB().then(function (c) {
+        if (!c) return [];
+        return c.rpc('my_permissions').then(function (pr) { return (pr && pr.data) || []; },
+                                            function () { return []; });
+      }, function () { return []; });
+      return permsPromise;
+    }
+  };
+  window.CPRAuth = CPRAuth;
+  // Marks the rejection handled so a page that only uses .then() doesn't log an
+  // unhandled rejection. The original promise still rejects for real consumers.
+  CPRAuth.ready.catch(function () {});
+
+  function authUser(row, perms, permsUnknown) {
+    var role = row && row.role ? row.role : null;
+    return {
+      id: row ? row.id : null,
+      name: (row && row.display_name) || '',
+      role: role,
+      home_store: row ? row.home_store : null,
+      authorized_stores: (row && row.authorized_stores) || [],
+      isOwner: role === 'owner',
+      isAdmin: role === 'owner' || role === 'admin' || role === 'manager',
+      perms: perms || null,
+      permsUnknown: !!permsUnknown,
+      gateSkipped: false
+    };
+  }
+  function authResolve(u) { if (authSettled) return; authSettled = true; CPRAuth.user = u; authResolveFn(u); }
+  function authReject(reason) {
+    if (authSettled) return; authSettled = true;
+    var e = new Error('CPRAuth: ' + reason); e.reason = reason; authRejectFn(e);
+  }
+
   // Skipped inside an iframe (RepairQ embeds) — EXCEPT an explicit ?embed=1
   // surface like the extension's New Contract modal. That iframe gets its own
   // partitioned storage, so it can't see the top-level myrepairtools session:
@@ -22,7 +102,14 @@
   var IS_EMBED = (function () {
     try { return new URLSearchParams(location.search).get('embed') === '1'; } catch (e) { return false; }
   })();
-  if (window.self !== window.top && !IS_EMBED) return;
+  if (window.self !== window.top && !IS_EMBED) {
+    // The gate does not run here, so identity is genuinely unknown — but a
+    // pending promise would hang every embedded page forever. Resolve with
+    // gateSkipped so a migrated page can take its own path instead of waiting.
+    authResolve({ id:null, name:'', role:null, home_store:null, authorized_stores:[],
+                  isOwner:false, isAdmin:false, perms:null, permsUnknown:true, gateSkipped:true });
+    return;
+  }
 
   var SB_URL  = 'https://xuvsehrevxackuhmbmry.supabase.co';
   var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
@@ -238,16 +325,23 @@
         gateForm(''); return;
       }
       netWait = false;
-      c.from('staff').select('display_name,role').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
-        var role = sr && sr.data ? sr.data.role : null;
-        var nm = sr && sr.data ? sr.data.display_name : '';
-        if (!role){ reveal(); return; }                       // valid session, role unknown -> let RLS govern
-        if (role === 'owner' || !NEED_PERM){ reveal(); return; } // owner sees all; page has no access perm
-        c.rpc('my_permissions').then(function(pr){             // gate by the page's Access permission
+      // id / home_store / authorized_stores are fetched for CPRAuth's benefit —
+      // same single round trip, and they are exactly the fields the pages that
+      // still roll their own identity lookup go on to ask for.
+      c.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid', sess.user.id).maybeSingle().then(function(sr){
+        var row  = sr && sr.data ? sr.data : null;
+        var role = row ? row.role : null;
+        var nm   = row ? row.display_name : '';
+        if (!role){ reveal(); authReject('no-staff-row'); return; }  // reveal (RLS governs) but identity is unknown
+        if (role === 'owner' || !NEED_PERM){                         // owner sees all; page has no access perm
+          reveal(); authResolve(authUser(row, null, false)); return;
+        }
+        c.rpc('my_permissions').then(function(pr){                   // gate by the page's Access permission
           var perms = (pr && pr.data) ? pr.data : [];
-          if (perms.indexOf(NEED_PERM) > -1) reveal(); else noAccess(nm);
-        }, function(){ reveal(); });                           // perm read failed -> fail open (data still RLS-protected)
-      }, function(){ reveal(); });                            // role read failed -> fail open
+          if (perms.indexOf(NEED_PERM) > -1){ reveal(); authResolve(authUser(row, perms, false)); }
+          else { noAccess(nm); authReject('no-access'); }
+        }, function(){ reveal(); authResolve(authUser(row, null, true)); });  // perm read failed -> fail open, flagged
+      }, function(){ reveal(); authReject('staff-read-failed'); });  // role read failed -> reveal, identity unknown
     }, function(){                                            // getSession itself threw — same rule as above
       if (storedCreds()){ waitForNet(tries); return; }
       gateForm('');
