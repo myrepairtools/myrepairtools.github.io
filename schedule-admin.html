@@ -239,11 +239,14 @@ function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
 /* ===== auth (admin PIN lock) ===== */
+/* Installed home-screen apps must never idle-sign-out — see pin-gate's armIdle().
+   This page's own timer called signOut() on the SHARED session and undid that. */
+var STANDALONE=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
 var IDLE_MS=10*60*1000, idleTimer=null;
 function fn(body,tok){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
 function lockErr(t){$('#lkErr').textContent=t||'';}
 function showLock(){$('#app').classList.remove('show');$('#lockScreen').classList.remove('hide');$('#lkPin').value='';}
-function resetIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);}
+function resetIdle(){clearTimeout(idleTimer);if(!STANDALONE)idleTimer=setTimeout(relock,IDLE_MS);}
 function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;showLock();}
 function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
 function isAdminRole(r){return ['admin','manager','owner'].indexOf(r)>-1;}

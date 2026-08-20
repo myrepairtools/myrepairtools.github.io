@@ -412,12 +412,20 @@ function fetchEntries(store,period){
 }
 
 /* ===== auth: name + PIN via cpr-auth, Supabase session, 5-min idle relock ===== */
+/* An installed home-screen app is a personal device whose lock screen IS the
+   security boundary, so it must never idle-sign-out — that is pin-gate's policy
+   (armIdle() returns early when STANDALONE) and the reason "keep me signed in"
+   exists at all. This page kept its OWN timer, which called signOut() on the
+   SHARED session and undid that from the outside: install the app, open Cash
+   Admin, leave it five minutes, and you are signed out of everything. Matches
+   the guard settings.html:756 already had. */
+var STANDALONE=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
 var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
 function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
 function lockErr(t){var e=$('#lkErr');if(e)e.textContent=t||'';}
 function showLock(){$('#app').classList.remove('show');var lk=$('#lockScreen');if(lk)lk.classList.remove('hide');var pin=$('#lkPin');if(pin)pin.value='';}
 function idleExpired(){var t=+localStorage.getItem('cash_admin_last_active')||0;return Date.now()-t>IDLE_MS;}
-function resetIdle(){var now=Date.now();clearTimeout(idleTimer);idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('cash_admin_last_active',String(now));}}
+function resetIdle(){var now=Date.now();clearTimeout(idleTimer);if(!STANDALONE)idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('cash_admin_last_active',String(now));}}
 function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;booted=false;showLock();}
 function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();boot();}
 async function populateLockNames(){
