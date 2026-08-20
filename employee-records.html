@@ -449,21 +449,9 @@ tr.person:hover .who .nm{color:#1E7AA8;text-decoration:underline}
 .sec .sb{font-size:.9rem;color:var(--dark);line-height:1.65}
 .sec .sb p{margin:0 0 8px}
 
-/* lock screen */
-.lock{position:fixed;inset:0;z-index:1500;background:var(--light-grey);display:flex;align-items:center;justify-content:center;padding:24px}
-.lock[hidden]{display:none}
-.lock-card{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 30px rgba(45,45,59,.10);padding:26px 26px 22px;width:340px;max-width:100%}
-.lock-card .lk-mark{width:42px;height:42px;border-radius:11px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Nunito';font-weight:900;margin-bottom:14px}
-.lock-card h1{font-family:'Nunito';font-weight:900;font-size:1.15rem;margin:0 0 3px}
-.lock-card p{font-size:.8rem;color:var(--dark-grey);font-weight:600;margin:0 0 16px}
-.lk-field{margin-bottom:11px}
-.lk-field label{display:block;font-family:'Nunito';font-weight:800;font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);margin-bottom:5px}
-.lk-input{width:100%;font-family:'Nunito Sans';font-size:.92rem;padding:10px 11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;outline:none}
-.lk-input:focus{border-color:var(--blue)}
-.lk-go{width:100%;font-family:'Nunito';font-weight:800;font-size:.9rem;border:none;border-radius:9px;padding:11px;cursor:pointer;background:var(--red);color:#fff;margin-top:6px}
-.lk-go:disabled{opacity:.6;cursor:default}
-.lk-err{color:var(--red);font-size:.74rem;font-weight:700;margin-top:9px;min-height:1em;text-align:center}
-
+/* The page-local PIN card lived here (.lock / .lock-card / .lk-*).
+   pin-gate.js is the one gate and now loads in <head>. #app keeps its
+   `hidden` attribute so this page reveals only after identity resolves. */
 /* ===== modal / editors ===== */
 .modal{position:fixed;inset:0;z-index:1700;display:none}
 .modal.show{display:block}
@@ -587,21 +575,6 @@ textarea.fin{resize:vertical;min-height:58px;line-height:1.5}
 </head>
 <body>
 
-<!-- ===== PIN lock ===== -->
-<div id="lock" class="lock">
-  <div class="lock-card">
-    <div class="lk-mark">+</div>
-    <h1>Team Members</h1>
-    <p>Enter your PIN to view staff records.</p>
-    <div class="lk-field">
-      <label>PIN</label>
-      <input id="lkPin" class="lk-input" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" autofocus>
-    </div>
-    <button id="lkGo" class="lk-go">Sign in</button>
-    <div id="lkErr" class="lk-err"></div>
-  </div>
-</div>
-
 <!-- ===== app ===== -->
 <div id="app" class="erec-root" hidden>
   <!-- landing: the roster table -->
@@ -696,7 +669,6 @@ function avTile(e,cls,style){
 }
 function initials(name){return String(name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()||'—';}
 function stripStore(s){return String(s||'').replace(/^CPR\s+/i,'').trim();}
-function deviceId(){try{let d=localStorage.getItem('cpr_device_id');if(!d){d='dev-'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('cpr_device_id',d);}return d;}catch(e){return 'dev-x';}}
 function toast(m,err){const t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>{t.className='toast';},2400);}
 
 /* ===== state + data ===== */
@@ -718,7 +690,6 @@ let PD=null, PD_BASE='';   // profile-tab draft + clean baseline (dirty when JSO
 let CD=null, CD_BASE='';   // commission-settings draft + baseline
 let SNAPS=null, LIVE=null, SNAPS_FOR=null, LIVE_ERR=null;   // commission history cache (per profile)
 
-function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(r=>r.json().then(d=>({status:r.status,data:d}),()=>({status:r.status,data:{}})));}
 /* best available session token: getSession can intermittently return null when
    several Supabase clients share storage, so fall back to the stored token. */
 async function sessionToken(){
@@ -736,45 +707,53 @@ async function authFn(body){
 }
 
 /* ===== auth (PIN only) ===== */
-async function doLogin(){
-  const pin=$('#lkPin').value;
-  const err=$('#lkErr');
-  if(!pin){err.textContent='Enter your PIN';return;}
-  $('#lkGo').disabled=true;err.textContent='Signing in…';
-  try{
-    const r=await fn({action:'login',pin,device_id:deviceId()});
-    if(r.status!==200){const d=r.data||{};
-      if(r.status===423||d.locked)err.textContent='Locked after too many tries — an owner must reset this device.';
-      else if(d.error==='invalid')err.textContent='Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'');
-      else err.textContent=d.error||'Login failed.';
-      $('#lkGo').disabled=false;return;
-    }
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-    const st=r.data.staff||{};
-    AUTH={id:st.id,name:st.display_name,role:st.role};
-    err.textContent='';$('#lkGo').disabled=false;
-    unlock();
-  }catch(e){$('#lkGo').disabled=false;err.textContent=String(e&&e.message||e);}
-}
-function unlock(){$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');load();}
-let SELFONLY=false;   // true = the page is this person's own profile and nothing else
+/* ===== auth — one shared gate =====
+   The page-local PIN card and its getSession() are gone; pin-gate.js owns both.
+   #app deliberately KEEPS its `hidden` attribute and is only revealed once
+   identity resolves, so this page fails CLOSED — which matters more here than
+   anywhere else on the site, because SELFONLY's old default was `false`, i.e.
+   the MANAGER view of the whole roster. Any path that revealed the page without
+   resolving identity would have shown a tech everyone's records. */
+let SELFONLY=true;    // fail closed: assume "my profile only" until proven otherwise
 let WANT_ME=false;    // arrived on #me — open my own profile once AUTH resolves
-async function initAuth(){
-  $('#lkGo').onclick=doLogin;
-  $('#lkPin').focus();
-  $('#lkPin').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  const sess=(await sb.auth.getSession()).data.session;
-  if(sess){
-    const sr=await sb.from('staff').select('id,display_name,role').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role};
-      /* SELFONLY: this is My Profile, not the roster. Anyone below manager gets
-         the same page scoped to themselves — no roster, no Log, nothing
-         editable. Every write here is server-checked as well (cpr-auth vets
-         the role), so this decides what renders, not what is permitted. */
-      SELFONLY=['owner','admin','manager'].indexOf(AUTH.role)<0;
-      unlock();return;}
-  }
-  $('#lock').removeAttribute('hidden');
+
+/* Is the record currently open my OWN? Then present it as My Profile, even for
+   a manager — no Log, no Export, no PIP or document management.
+
+   This mirrors what the database already enforces rather than inventing a rule:
+   can_see_staff() lets a manager through only for team_member / employee /
+   candidate rows at their own stores, so a manager's OWN row is reachable only
+   via staff_self_read. The server already treats a manager's own record as
+   "self"; this makes the UI agree. Previously SELFONLY was derived from role
+   alone, so a manager viewing themselves still saw their own Log (write-ups
+   about them), Export, + New PIP and + Add a document.
+
+   The owner is exempt by design — they see everything, their own record included. */
+function selfView(){
+  if(!AUTH) return true;                                    // fail closed
+  if(AUTH.role==='owner') return false;
+  if(SELFONLY) return true;                                 // below manager: always self
+  return S.empId!=null && String(S.empId)===String(AUTH.id);
+}
+
+function bootAuth(){
+  if(!window.CPRAuth){ bootFailed('The sign-in script did not load.'); return; }
+  window.CPRAuth.ready.then(function(me){
+    AUTH={id:me.id,name:me.name,role:me.role};
+    SELFONLY=['owner','admin','manager'].indexOf(AUTH.role)<0;
+    $('#app').removeAttribute('hidden');
+    load();
+  }, function(){ bootFailed('We could not load your profile.'); });
+}
+/* Leaves #app hidden on purpose. pin-gate FAILS OPEN when it cannot read a
+   staff row, so this is the one place that must not inherit that. */
+function bootFailed(msg){
+  const d=document.createElement('div');
+  d.setAttribute('style','max-width:520px;margin:48px auto;padding:26px;text-align:center;'
+    +'background:#fff;border:1.5px solid var(--border);border-radius:12px;font-family:"Nunito Sans",sans-serif');
+  d.innerHTML='<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:6px">'+esc(msg)+'</div>'
+    +'<div style="font-size:.88rem;color:var(--dark-grey);font-weight:600">Reload the page. If it keeps happening, tell a manager.</div>';
+  document.body.appendChild(d);
 }
 
 /* ===== data load ===== */
@@ -904,6 +883,9 @@ function render(){
   if(SELFONLY){ S.view='profile'; if(String(S.empId)!==String(AUTH.id)){S.empId=AUTH.id;PD=null;CD=null;}
     if(S.tab==='log')S.tab='profile'; }
   const prof=(S.view==='profile'&&selEmp());
+  /* A manager landing on their OWN profile must not sit on the Log tab — it is
+     hidden for them now, and a hidden-but-active tab renders an empty pane. */
+  if(selfView()&&S.tab==='log')S.tab='profile';
   if(S.view==='profile'&&!prof&&!SELFONLY){S.view='list';S.empId=null;}   // dead deep link → roster (before the hash writes)
   writeHash();
   $('#landing').hidden=!!prof;
@@ -1091,7 +1073,7 @@ function renderProfileHead(){
      taking a line of its own in the facts row */
   const since=(e.start&&!term)?(()=>{const p=e.start.split('-');return MONTHS[(+p[1])-1]+' '+p[0];})():'';
   const sub=esc(e.role)+' · '+esc(e.store||'—')+(term&&e.start?(' · '+esc(fmt(e.start))+' – '+esc(e.terminatedAt?fmt(e.terminatedAt):'')):'')+(since?'<span class="sub-start"> · Since '+esc(since)+'</span>':'');
-  const exBtn=SELFONLY?'':'<button class="btn-o" data-act="export" title="Export records">↓<span class="xt"> Export</span></button>';
+  const exBtn=selfView()?'':'<button class="btn-o" data-act="export" title="Export records">↓<span class="xt"> Export</span></button>';
   const actions='<span class="prof-actions">'+exBtn+(term?'<button class="btn-reinstate" data-act="reinstate">Reinstate</button>':'')+'</span>';
   const termbox=term?('<div class="termbox"><span style="font-size:.95rem">📁</span><div class="tb-t"><b>'+esc(e.terminationReason||'Terminated')+'</b> · last day '+esc(e.terminatedAt?fmt(e.terminatedAt):'—')
     +(e.terminatedBy&&NAMES[e.terminatedBy]?(' · logged by '+esc(NAMES[e.terminatedBy])):'')
@@ -1130,7 +1112,7 @@ function renderTabs(){
   const e=selEmp();
   document.querySelectorAll('.tab').forEach(t=>{
     /* Log is the manager's record of conversations — never shown to the person */
-    if(t.dataset.tab==='log')t.hidden=SELFONLY;
+    if(t.dataset.tab==='log')t.hidden=selfView();
     /* alert_prefs and push subscriptions are self-RLS — the tab only means
        anything on your own profile */
     if(t.dataset.tab==='notif')t.hidden=!(AUTH&&e&&String(e.id)===String(AUTH.id));
@@ -1166,7 +1148,7 @@ function renderWork(){
 
 /* ===== Profile tab (2a form cards + save bar; 3c/3g modals) ===== */
 function genPin(){let s='';for(let i=0;i<4;i++)s+=Math.floor(Math.random()*10);return s;}
-function canEdit(e){if(SELFONLY)return false;   // My Profile is a record, not an editor
+function canEdit(e){if(selfView())return false;   // My Profile is a record, not an editor
   const r=AUTH&&AUTH.role;if(r==='owner')return true;
   if(r!=='admin'&&r!=='manager')return false;           // caller must be a manager+ (cpr-auth vets this server-side too)
   const t=String(e.roleLevel||'').toLowerCase();return t==='employee'||t==='team_member';}   // mirrors cpr-auth canManageRole
@@ -2032,7 +2014,7 @@ function docsHtml(e){
       +'<span class="dgpill">'+docs.length+' on file</span></div>'
       /* filing into someone's HR record is a manager action; in My Profile the
          ledger is read-and-download only */
-      +(SELFONLY?'':'<div style="display:flex;gap:8px">'
+      +(selfView()?'':'<div style="display:flex;gap:8px">'
         +'<button class="dgsec" data-act="doc-refile">Re-file signed paperwork</button>'
         +'<button class="dgadd" data-act="doc-upload">+ Add a document</button></div>')
     +'</div>'
@@ -2040,7 +2022,7 @@ function docsHtml(e){
       +'<div class="dgheadrow dgcols"><div>Document</div><div>Kind</div><div>Signed / Added</div><div>By</div><div></div></div>'
       +(rows||'<div class="dgempty">No documents on file yet.</div>')
     +'</div>'
-    +(SELFONLY?'':'<div class="dgmobadd"><button data-act="doc-upload">+ Add a document</button></div>')
+    +(selfView()?'':'<div class="dgmobadd"><button data-act="doc-upload">+ Add a document</button></div>')
     +'<input type="file" id="docFile" accept="application/pdf,image/*" hidden></div>';
 }
 function wireDocsTab(e){
@@ -2221,7 +2203,7 @@ function pipHtml(e){
   const cur=e.pips.find(p=>p.id===S.pipId);
   return '<div class="list-pane" style="width:308px">'
     +'<div class="flt" style="justify-content:space-between;align-items:center"><span class="lbl" style="margin:0">Plans &amp; Reviews</span>'
-    +(SELFONLY?'':'<button class="btn-red" style="padding:6px 12px;font-size:.72rem" data-act="new-pip">+ New PIP</button>')+'</div>'
+    +(selfView()?'':'<button class="btn-red" style="padding:6px 12px;font-size:.72rem" data-act="new-pip">+ New PIP</button>')+'</div>'
     +'<div class="list-scroll">'+(cards||'<div class="empty-sm">No PIPs on file for this employee.</div>')+'</div></div>'
     +'<div class="detail-pane">'+(cur?pipDetail(e,cur):'<div class="center-msg">Select a plan to view it, or start a new PIP.</div>')+'</div>';
 }
@@ -2575,7 +2557,7 @@ $('#profile').addEventListener('click',e=>{const a=e.target.closest('[data-act]'
 
 /* boot (skip the lock inside iframes, mirroring the other gates) */
 parseHash();
-if(window.self===window.top)initAuth();
+if(window.self===window.top)bootAuth();
 else{$('#lock').setAttribute('hidden','');$('#app').removeAttribute('hidden');
   /* iframe: no lock, but still resolve the session so role gates render right */
   (async()=>{try{const sess=(await sb.auth.getSession()).data.session;
