@@ -1074,7 +1074,17 @@ async function finalizeAudit(counts,depBank,depSB,depSL){
    are cleared first so re-closing an audit doesn't duplicate them. */
 async function writeCloseDeposits(row,depBank,depSB,depSL){
   var tag='[ac:'+row.id+']';
-  try{ await sb.from('cash_entries').delete().eq('store',row.store).like('notes','%'+tag+'%'); }catch(e){}
+  /* The idempotency claim above only holds if this clear actually succeeded.
+     It used to be swallowed by an empty catch (and its {error} discarded), so
+     a failed clear followed by a successful insert silently DOUBLED the
+     deposits for that audit. If we cannot clear, we must not insert. */
+  var dprev;
+  try{ dprev=await sb.from('cash_entries').delete().eq('store',row.store).like('notes','%'+tag+'%'); }
+  catch(e){ dprev={error:{message:String(e&&e.message||e)}}; }
+  if(dprev&&dprev.error){
+    toast('Audit closed, but the previous deposit ledger entries could not be cleared — '+dprev.error.message+'. Deposit entries were not rewritten, to avoid double-counting. Re-close the audit to retry.',true);
+    return;
+  }
   var end=String(row.period_end).slice(0,10), by=(AUTH?AUTH.name:row.confirmed_by||'');
   var ins=[];
   if(num(depBank)>0) ins.push({store:row.store,biz_date:end,period:row.period,employee:by,operation:'Deposit',location:'Large Safe',to_location:BANK,amount:num(depBank),notes:'Bank deposit at audit close '+tag});
