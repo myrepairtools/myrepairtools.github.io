@@ -706,7 +706,16 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
 
   // Only a SHIPPED order is final. One still Processing can still gain or lose
   // lines, and a Purchase posted at the wrong amount is worse than a late one.
-  if (String(o.status || "") !== "Shipped")
+  //
+  // `allow_canceled` is the deliberate exception, and it exists because of what
+  // a MobileSentrix cancellation actually does: the card was already charged
+  // and the money comes back as STORE CREDIT, never to the card. So a canceled
+  // order with a real bank charge behind it IS an expense, and refusing it
+  // leaves a bank line nobody can ever match. Only a caller who has SEEN that
+  // charge passes this flag -- the sweep never does, because it cannot read a
+  // statement.
+  const allowCanceled = body.allow_canceled === true && String(o.status || "") === "Canceled";
+  if (String(o.status || "") !== "Shipped" && !allowCanceled)
     problems.push(`Order is "${o.status || "(none)"}", not Shipped — the amount is not final yet.`);
 
   // ---- the split (categories + amounts), computed in Postgres ----

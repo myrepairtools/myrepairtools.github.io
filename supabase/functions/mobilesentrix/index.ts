@@ -59,18 +59,26 @@ async function getStaff(req: Request) {
 const utc = (s: unknown) => (typeof s === "string" && s.trim()) ? s.trim().replace(" ", "T") + "Z" : null;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 
-async function syncStore(store: string, token: string, tokenSecret: string) {
+async function syncStore(store: string, token: string, tokenSecret: string, opts: { since?: string; pages?: number } = {}) {
   // Incremental watermark: newest updated_at we already hold, minus 3 days of
   // overlap (status flips re-touch updated_at). First run: 60 days back.
+  //
+  // opts.since overrides it for a BACKFILL. The watermark only ever walks
+  // forward, so history older than the first sync is otherwise unreachable --
+  // Salem's orders started at 2026-05-24 purely because that is 60 days before
+  // the first run, and the April invoices sat in the API the whole time.
   const { data: wm } = await admin.from("ms_orders").select("updated_at")
     .eq("store", store).order("updated_at", { ascending: false }).limit(1);
-  const since = wm?.[0]?.updated_at
-    ? new Date(new Date(wm[0].updated_at).getTime() - 3 * 24 * 3600 * 1000)
-    : new Date(Date.now() - 60 * 24 * 3600 * 1000);
+  const since = opts.since
+    ? new Date(opts.since)
+    : wm?.[0]?.updated_at
+      ? new Date(new Date(wm[0].updated_at).getTime() - 3 * 24 * 3600 * 1000)
+      : new Date(Date.now() - 60 * 24 * 3600 * 1000);
   const sinceStr = since.toISOString().slice(0, 19).replace("T", " ");
 
   let upserted = 0;
-  for (let page = 1; page <= 10; page++) {
+  const maxPages = Math.max(1, Math.min(opts.pages || 10, 40));
+  for (let page = 1; page <= maxPages; page++) {
     const qs = `limit=100&page=${page}` +
       `&filter%5B1%5D%5Battribute%5D=updated_at&filter%5B1%5D%5Bgt%5D=${encodeURIComponent(sinceStr)}` +
       `&order=updated_at&dir=asc`;
@@ -145,11 +153,17 @@ Deno.serve(async (req) => {
     const { data: toks } = await admin.from("integration_tokens")
       .select("provider, access_token, meta").like("provider", "ms:%");
     if (!toks?.length) return json({ error: "no_stores_connected" }, 503);
+    // Backfill controls. `since` reaches back past the watermark; `store`
+    // limits it to one account so a history pull cannot re-walk all three.
+    const backfillSince = String(body.since || "").trim() || undefined;
+    const onlyStore = String(body.store || "").trim();
+    const pages = Number(body.pages) || undefined;
     const results = [];
     for (const t of toks) {
       const store = String(t.provider).slice(3);
+      if (onlyStore && store !== onlyStore) continue;
       const secret = t.meta?.access_token_secret || "";
-      results.push(await syncStore(store, t.access_token, secret));
+      results.push(await syncStore(store, t.access_token, secret, { since: backfillSince, pages }));
     }
     return json({ ok: true, results });
   }
