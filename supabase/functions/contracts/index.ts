@@ -196,16 +196,20 @@ async function checkPaid(c: Record<string, unknown>): Promise<Record<string, unk
 // notification problem must never break the payment flip.
 async function notifyPaid(c: Record<string, unknown>): Promise<void> {
   if (!NOTIFY_SECRET) return;
+  const amt = Number(c.paid_amount || c.collect || 0);
+  const who = String(c.customer_name || "Customer");
+  const subject = "Contract paid — " + who + (amt > 0 ? " · $" + amt.toFixed(2) : "");
+  const text = who + " paid" + (amt > 0 ? " $" + amt.toFixed(2) : "") + " for their "
+    + (c.contract_type ? String(c.contract_type).toLowerCase() + " " : "") + "repair agreement"
+    + (c.device ? " (" + c.device + ")" : "") + "."
+    + (c.store ? "\nStore: " + c.store : "")
+    + (c.ticket_ref ? "\nTicket: " + c.ticket_ref : "")
+    + "\n\nOpen: " + SITE + "/contracts.html";
+
+  // The routed rule stays — it's how the owner wires this to SMS/email/webhook in
+  // Settings › Notifications. It is deliberately NOT routed to the Communications
+  // Feed any more: a paid contract is one ticket's money, not company news.
   try {
-    const amt = Number(c.paid_amount || c.collect || 0);
-    const who = String(c.customer_name || "Customer");
-    const subject = "Contract paid — " + who + (amt > 0 ? " · $" + amt.toFixed(2) : "");
-    const text = who + " paid" + (amt > 0 ? " $" + amt.toFixed(2) : "") + " for their "
-      + (c.contract_type ? String(c.contract_type).toLowerCase() + " " : "") + "repair agreement"
-      + (c.device ? " (" + c.device + ")" : "") + "."
-      + (c.store ? "\nStore: " + c.store : "")
-      + (c.ticket_ref ? "\nTicket: " + c.ticket_ref : "")
-      + "\n\nOpen: " + SITE + "/contracts.html";
     await fetch(SB_URL + "/functions/v1/notify?secret=" + encodeURIComponent(NOTIFY_SECRET), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -218,6 +222,27 @@ async function notifyPaid(c: Record<string, unknown>): Promise<void> {
       }),
     });
   } catch { /* notification is best-effort */ }
+
+  // …and the two parties who actually want it: the tech who wrote the contract,
+  // and the owners. A personal, muteable 'payment' alert (the same kind Square
+  // payments use) instead of an all-staff post — automated events notify the
+  // people they concern. Nothing here may throw: the paid flip already happened.
+  try {
+    const ids = new Set<number>();
+    const by = Number(c.created_by);
+    if (Number.isFinite(by) && by > 0) ids.add(by);
+    const own = await admin.from("staff").select("id").eq("role", "owner").eq("active", true);
+    (own.data || []).forEach((o: { id: number }) => ids.add(Number(o.id)));
+    if (ids.size) {
+      await fetch(SB_URL + "/functions/v1/alerts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send", secret: NOTIFY_SECRET, staff_ids: [...ids],
+          kind: "payment", title: subject, body: text, link: "contracts.html",
+        }),
+      });
+    }
+  } catch { /* alert is best-effort */ }
 }
 
 Deno.serve(async (req) => {
