@@ -1,0 +1,43 @@
+-- time_off_requests: remove the self-update branch from tor_upd.
+--
+-- WHY. The policy read `is_admin(store) OR staff_id = <me>`, so an employee
+-- could PATCH their own request to status='approved' with a direct API call.
+-- That is not merely a state change: qbtime-sync selects
+-- `.eq("status","approved").is("qbt_ids",null)` and posts the row to QB Time as
+-- approved time off with no approver check and no verification that decided_by
+-- is a manager (supabase/functions/qbtime-sync/index.ts:807 and :275). The path
+-- from self-approval to payroll is automatic, on a cron, with a 14-day
+-- lookback. Because WITH CHECK carried the same expression, the employee could
+-- also edit `hours` and `day_hours` on their own row.
+--
+-- BLAST RADIUS: none found. No frontend flow updates your own row. Employees
+-- INSERT to create (tor_ins) and DELETE to withdraw (tor_del, which permits
+-- self-delete only while status='pending') -- both untouched here. All four
+-- decide paths in the UI are manager/owner actions:
+--   time-off.html:295        canApprove() + self-approval check
+--   employee-records.html    owner-only
+--   my-schedule.html:725     owner-only (canDecide)
+--   schedule-admin.html:1375 had NO guard -- fixed separately on the frontend
+-- Owners keep deciding their own requests: is_admin() short-circuits on
+-- role='owner' before any store comparison. qbtime-sync writes qbt_ids under
+-- the service role and bypasses RLS entirely.
+--
+-- norm_store() is added because is_admin() compares store names by RAW equality
+-- while this database also carries RepairQ spellings ('CPR Clackamas OR'). All
+-- 13 current rows are canonical, so it is a no-op today and protection later.
+--
+-- NOTE for follow-up, deliberately NOT changed here: time_off_requests.store is
+-- still nullable, and is_admin(NULL) returns true for any manager anywhere. No
+-- row has a null store today. Making the column NOT NULL is a schema change and
+-- belongs in its own migration.
+--
+-- VERIFIED after applying, as codextest (team_member, CPR Eugene) over the REST
+-- API -- not in the SQL editor, which bypasses RLS and proves nothing:
+--   create own request              -> id 18 created      (tor_ins unaffected)
+--   PATCH own request to 'approved' -> []  0 rows         (BLOCKED)
+--   read back                       -> still 'pending'    (no partial mutation)
+--   DELETE own request              -> HTTP 204           (tor_del unaffected)
+-- Test row removed; table back to 13 rows.
+alter policy tor_upd on public.time_off_requests
+  using      ( is_admin(norm_store(store)) )
+  with check ( is_admin(norm_store(store)) );
