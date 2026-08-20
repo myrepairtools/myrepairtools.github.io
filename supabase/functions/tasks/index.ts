@@ -332,11 +332,33 @@ Deno.serve(async (req) => {
   const action = url.searchParams.get("action") || "generate";
   try {
     if (action === "nudge") {
+      // Cron only. nudge() fans out alerts to every person whose shift is ending
+      // with open tasks; there is no reason for a browser to be able to fire it,
+      // and nothing in the site does (no ?action=nudge caller exists in any
+      // *.html or *.js). A signed-in JWT is not authorization to notify staff.
+      if (!secretOk) return json({ ok: false, error: "forbidden" }, 403);
       return await nudge();
     }
     if (action === "generate") {
-      const date = url.searchParams.get("date") || laTodayISO();
-      return await generate(date);
+      // A user JWT may only top up TODAY.
+      //
+      // generate() is not read-only: it advances rotation_pos on every 'rotate'
+      // template and auto-closes stale open dailies as `missed`. With the date
+      // taken straight off the query string, ANY signed-in employee could run it
+      // for an arbitrary day and rewrite task state across every store -- mark a
+      // day's work missed, or push the round-robin so the same person draws the
+      // closing shift.
+      //
+      // The page-load top-up stays exactly as designed: checklist.html:292,
+      // checklist.html:872 and task-admin.html:948 all call ?action=generate
+      // with NO date, so they land on today and are unaffected. The cron keeps
+      // the full range through the secret.
+      const today = laTodayISO();
+      const asked = url.searchParams.get("date");
+      if (asked && asked !== today && !secretOk) {
+        return json({ ok: false, error: "generating another day is the scheduled run's job" }, 403);
+      }
+      return await generate(asked || today);
     }
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (err) {
