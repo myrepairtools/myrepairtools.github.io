@@ -1,0 +1,31 @@
+-- interview_bookings: stop every signed-in session reading the applicant list.
+--
+-- WAS: ivb_r SELECT USING (true) -- any authenticated person could read every
+-- applicant's name, phone and email.
+--
+-- WHY THIS ONE AND NOT THE CUSTOMER TABLES. The owner's standing decision is
+-- that all staff see customer data: a retail repair shop is too small to
+-- compartmentalise it, and a tech needs the customer's number to text them that
+-- their repair is ready. That is settled, and these are NOT that.
+-- interview_bookings holds people who applied to a job listing and were sent an
+-- interview link. They do not work here and may never.
+--
+-- It also contradicts a boundary the owner drew explicitly: a `candidate` --
+-- offered the job, not yet clocked in for a first shift -- gets their schedule
+-- and training and NOT the rest of MRT, with promotion to team_member happening
+-- on their first punch as proof they showed up. Under USING (true) a candidate
+-- could read the whole applicant list, including rivals for the same job.
+--
+-- interviews.manage already expresses the intended rule (nav.js's gate for
+-- interviews.html, granted to admin and owner). This makes the table agree with
+-- the page. The `OR staff_id = my_staff_id()` arm mirrors the existing ivb_u
+-- UPDATE policy so a host keeps read access to their own bookings.
+--
+-- BLAST RADIUS: none for public booking. interview.html and the whole
+-- candidate-facing surface run inside the `interviews` edge function under the
+-- service role (16 refs there, zero in any public page). The only browser
+-- reader is interviews.html (:455 select, :566 update), the manager page.
+--
+-- VERIFIED as codextest (team_member, lacks interviews.manage): 8 rows -> 0.
+alter policy ivb_r on public.interview_bookings
+  using ( has_perm('interviews.manage') or staff_id = my_staff_id() );
