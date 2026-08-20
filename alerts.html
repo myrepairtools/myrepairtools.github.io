@@ -124,9 +124,15 @@ function render(){
 async function openAlert(id){
   var r=ROWS.filter(function(x){return x.id===id;})[0];if(!r)return;
   if(!r.read_at){
-    r.read_at=new Date().toISOString();
-    render();
-    sb.from('alerts').update({read_at:r.read_at}).eq('id',id).then(function(){},function(){});
+    /* This used to set read_at locally, re-render, then fire the update with
+       two empty callbacks and navigate away. Supabase resolves with {error}
+       instead of rejecting, so a failed write left the row unread in the
+       database while the screen said otherwise — the alert then "came back"
+       later with nothing to explain it. Confirm the write before claiming it. */
+    var stamp=new Date().toISOString();
+    var u=await sb.from('alerts').update({read_at:stamp}).eq('id',id);
+    if(u&&u.error){ toast('Could not mark this alert read — '+u.error.message); }
+    else { r.read_at=stamp; render(); }
   }
   if(r.link)location.href=r.link;
 }
