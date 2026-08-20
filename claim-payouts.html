@@ -2136,7 +2136,13 @@ async function saveBatchDate(batchKey, btn) {
     const r1 = await sb.from('claim_repairs').update({ payout_date: date, updated_at: nowIso }).in('ticket_id', ids);
     if (r1.error) throw new Error(r1.error.message);
     // claim_parts keys by ticket_id too — keep its payout_date in sync.
-    await sb.from('claim_parts').update({ payout_date: date }).in('ticket_id', ids);
+    // The repair rows are already committed at this point, so a failure here
+    // leaves repair and parts payout dates disagreeing, which lands straight
+    // in claim reconciliation. Say so instead of toasting success.
+    const r2 = await sb.from('claim_parts').update({ payout_date: date }).in('ticket_id', ids);
+    if (r2.error) throw new Error(
+      `the repair rows were dated but the parts rows failed (${r2.error.message}). `
+      + `Invoice ${batch.claim_invoice} is now out of sync — re-run this to retry.`);
     toast(`Dated invoice ${batch.claim_invoice} → ${date} (${ids.length} tickets)`, 'success');
     const idSet = new Set(ids);
     for (const t of rawTickets) if (idSet.has(String(t.ticket_id))) t.payout_date = date;
