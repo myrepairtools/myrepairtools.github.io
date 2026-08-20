@@ -2185,9 +2185,58 @@ Deno.serve(async (req) => {
     // 'repairq.suppliers'), self-seeding it from a recent Instock unit in
     // device_inventory (hourly-synced) when the cache is stale or empty.
     if (mode === "supplier_options") {
+      // RepairQ HIDES integration-owned suppliers ("MobileSentrix (Integrated)",
+      // id 7433) from the edit form's <select> — but they are perfectly valid to
+      // POST, which is how a unit ends up on one in the first place. Reading the
+      // rendered dropdown alone therefore offers a list that can never contain
+      // the supplier the integration itself uses. Looker reads the DATABASE
+      // rather than the form, so it sees them; the list we offer is the UNION of
+      // the two. Cached separately from the dropdown so the per-unit path stays
+      // a single fetch.
+      const HIDDEN_KEY = "repairq.suppliers_hidden";
+      const hiddenOpts = async (): Promise<Array<{ id: string; name: string }>> => {
+        const { data: c } = await admin.from("app_settings").select("value").eq("key", HIDDEN_KEY).maybeSingle();
+        const cv0: any = c?.value || null;
+        if (cv0?.options?.length && Date.now() - new Date(cv0.at || 0).getTime() < 7 * 864e5) return cv0.options;
+        try {
+          // dimensions only -> Looker groups, so this is the distinct supplier set
+          const rows = await lk(["supplier.id", "supplier.name"], {}, ["supplier.name"]);
+          const seen = new Map<string, string>();
+          for (const r of rows) {
+            const id = String(r["supplier.id"] ?? "").trim();
+            const nm = String(r["supplier.name"] ?? "").trim();
+            if (/^\d+$/.test(id) && nm && !seen.has(id)) seen.set(id, nm);
+          }
+          const opts = [...seen].map(([id, name]) => ({ id, name }));
+          if (opts.length) {
+            await admin.from("app_settings").upsert({
+              key: HIDDEN_KEY, value: { at: new Date().toISOString(), options: opts },
+            }, { onConflict: "key" });
+          }
+          return opts;
+        } catch (_) { return cv0?.options || []; }
+      };
+      // The dropdown is authoritative for NAME and for which one is selected;
+      // Looker only fills in the ones the form refused to render.
+      const mergeOpts = (
+        dropdown: Array<{ id: string; name: string; selected?: boolean }>,
+        extra: Array<{ id: string; name: string }>,
+      ) => {
+        const byId = new Map<string, { id: string; name: string; selected: boolean; hidden?: boolean }>();
+        for (const o of extra) byId.set(String(o.id), { id: String(o.id), name: o.name, selected: false, hidden: true });
+        for (const o of dropdown) byId.set(String(o.id), { id: String(o.id), name: o.name, selected: !!o.selected });
+        return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+      };
       const parseFrom = async (id: string) => {
         const g = await rqRequest({ method: "GET", path: `/inventory/edit/${id}` });
-        return parseSelectOptions(g.body || "", "InventoryItemForm[supplier_id]");
+        const body = g.body || "";
+        return {
+          opts: parseSelectOptions(body, "InventoryItemForm[supplier_id]"),
+          // A hidden supplier is never rendered as <option selected>, so read the
+          // form field itself — otherwise a unit already on an integration
+          // supplier reports "no current supplier".
+          current: parseEditForm(body)["InventoryItemForm[supplier_id]"] ?? null,
+        };
       };
       const cacheSet = async (opts: Array<{ id: string; name: string }>) => {
         try {
@@ -2199,10 +2248,12 @@ Deno.serve(async (req) => {
       };
       const itemId = String(payload.item_id || "");
       if (/^\d+$/.test(itemId)) {
-        const opts = await parseFrom(itemId);
+        const { opts, current } = await parseFrom(itemId);
         if (!opts.length) return json({ ok: false, error: "could not read suppliers (that unit may be locked/sold — pick another serial)" }, 502);
-        await cacheSet(opts);
-        return json({ ok: true, mode: "supplier_options", current: opts.find((o) => o.selected)?.id || null, options: opts });
+        const merged = mergeOpts(opts, await hiddenOpts());
+        await cacheSet(merged);
+        return json({ ok: true, mode: "supplier_options",
+          current: current || merged.find((o) => o.selected)?.id || null, options: merged });
       }
       const { data: cached } = await admin.from("app_settings").select("value").eq("key", "repairq.suppliers").maybeSingle();
       const cv: any = cached?.value || null;
@@ -2212,8 +2263,19 @@ Deno.serve(async (req) => {
       const { data: units } = await admin.from("device_inventory").select("rq_id")
         .ilike("status", "instock%").order("uploaded_at", { ascending: false }).limit(5);
       for (const u of (units || [])) {
-        const opts = await parseFrom(String(u.rq_id));
-        if (opts.length) { await cacheSet(opts); return json({ ok: true, mode: "supplier_options", current: null, options: opts }); }
+        const { opts } = await parseFrom(String(u.rq_id));
+        if (opts.length) {
+          const merged = mergeOpts(opts, await hiddenOpts());
+          await cacheSet(merged);
+          return json({ ok: true, mode: "supplier_options", current: null, options: merged });
+        }
+      }
+      // No editable unit to read a form from — Looker alone still beats nothing.
+      const lookerOnly = await hiddenOpts();
+      if (lookerOnly.length) {
+        const merged = mergeOpts([], lookerOnly);
+        await cacheSet(merged);
+        return json({ ok: true, mode: "supplier_options", current: null, options: merged, source: "looker" });
       }
       if (cv?.options?.length) return json({ ok: true, mode: "supplier_options", current: null, options: cv.options, cached: true });
       return json({ ok: false, error: "no supplier list available yet — run a Preview with a serial once" }, 502);
