@@ -286,19 +286,35 @@ function textPayer(){
     else{toast((d&&d.error)||'Send failed',true);btn.disabled=false;btn.textContent='Send';}
   };
 }
+/* Every row in the table is a CLOSED billing cycle (they generate on the 17th,
+   once the 17th→16th period ends), so an unpaid month belongs in the text even
+   before its due date lands — the charge is already real. Past due and the
+   not-yet-due month are listed separately so he can see which is which. */
 function catchUpMsg(){
-  var today=todayISO();
-  var owed=ROWS.filter(function(r){return r.status==='unpaid'&&r.due_date<=today;}).sort(function(a,b){return a.due_date<b.due_date?-1:1;});
-  var total=owed.reduce(function(t,r){return t+(+r.payer_total||payerSum(r.lines));},0);
+  var today=todayISO(), amt=function(r){return +r.payer_total||payerSum(r.lines);};
+  var unpaid=ROWS.filter(function(r){return r.status==='unpaid';}).sort(function(a,b){return a.due_date<b.due_date?-1:1;});
+  var owed=unpaid.filter(function(r){return r.due_date<=today;});
+  var up=unpaid.filter(function(r){return r.due_date>today;});
+  var owedSum=owed.reduce(function(t,r){return t+amt(r);},0);
+  var total=unpaid.reduce(function(t,r){return t+amt(r);},0);
   var pay=CFG.zelle_note?('Zelle: '+CFG.zelle_note):'Zelle when you get a chance';
-  var msg;
-  if(!owed.length)msg='Phone bill: all caught up right now.';
-  else msg='Phone bill'+(owed.length>1?' catch-up':'')+':\n'
-    +owed.map(function(r){return fmtD(r.due_date)+' — '+money(+r.payer_total||payerSum(r.lines));}).join('\n')
-    +(owed.length>1?('\nTotal — '+money(total)):'')
+  if(!unpaid.length)return 'Phone bill: all caught up right now.';
+  var lines=[];
+  if(owed.length){
+    lines.push('Past due:');
+    owed.forEach(function(r){lines.push(fmtD(r.due_date)+' — '+money(amt(r)));});
+    if(owed.length>1)lines.push('Past due total — '+money(owedSum));
+  }
+  if(up.length){
+    if(owed.length)lines.push('');
+    lines.push('Coming up:');
+    up.forEach(function(r){lines.push(fmtD(r.due_date)+' — '+money(amt(r)));});
+  }
+  if(owed.length&&up.length)lines.push('');
+  if(unpaid.length>1)lines.push('Total — '+money(total));
+  return 'Phone bill:\n'+lines.join('\n')
     +'\n\n'+pay+'.'
     +'\n\nCheck any time: https://myrepairtools.github.io/phone-bill-view.html';
-  return msg;
 }
 
 /* -------- drop a bill: upload → AI read → review -------- */

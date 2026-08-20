@@ -34,8 +34,6 @@ function saveOptions(done) {
     const customQuickLinkUrl1 = document.getElementById('customQuickLinkUrl1').value;
     const customQuickLinkName2 = document.getElementById('customQuickLinkName2').value;
     const customQuickLinkUrl2 = document.getElementById('customQuickLinkUrl2').value;
-    const customQuickLinkName3 = document.getElementById('customQuickLinkName3').value;
-    const customQuickLinkUrl3 = document.getElementById('customQuickLinkUrl3').value;
     const cbtText = document.getElementById('binLabelName').value;
     const lcdIds = { enabled: 'lcdEnabled', iphone: 'lcdIphone', galaxys: 'lcdGalaxys', galaxynote: 'lcdGalaxynote', galaxyz: 'lcdGalaxyz', pixel: 'lcdPixel' };
     let lcd = {};
@@ -74,11 +72,9 @@ function saveOptions(done) {
     });
     const customQuickLinkFrame1 = document.getElementById('customQuickLinkFrame1').getAttribute('data-checked') === 'checked';
     const customQuickLinkFrame2 = document.getElementById('customQuickLinkFrame2').getAttribute('data-checked') === 'checked';
-    const customQuickLinkFrame3 = document.getElementById('customQuickLinkFrame3').getAttribute('data-checked') === 'checked';
     chrome.storage.sync.set({
         customQuickLinkName1, customQuickLinkUrl1, customQuickLinkFrame1,
         customQuickLinkName2, customQuickLinkUrl2, customQuickLinkFrame2,
-        customQuickLinkName3, customQuickLinkUrl3, customQuickLinkFrame3,
         enabled: checkedBoxes,
         cbt: { enabled: true, text: cbtText },
         lcd, ai, wn, mcpr, sms, tt
@@ -123,22 +119,19 @@ function restoreOptions() {
     chrome.storage.sync.get([
         'customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1',
         'customQuickLinkName2', 'customQuickLinkUrl2', 'customQuickLinkFrame2',
-        'customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3',
         'enabled', 'cbt', 'lcd', 'ai', 'wn', 'mcpr', 'sms', 'tt'
     ]).then((result) => {
         document.getElementById('customQuickLinkName1').value = result.customQuickLinkName1 || '';
         document.getElementById('customQuickLinkUrl1').value = result.customQuickLinkUrl1 || '';
         document.getElementById('customQuickLinkName2').value = result.customQuickLinkName2 || '';
         document.getElementById('customQuickLinkUrl2').value = result.customQuickLinkUrl2 || '';
-        document.getElementById('customQuickLinkName3').value = result.customQuickLinkName3 || '';
-        document.getElementById('customQuickLinkUrl3').value = result.customQuickLinkUrl3 || '';
         document.getElementById('binLabelName').value = (result.cbt !== undefined) ? result.cbt.text : 'In Possession';
 
         const setState = (el, on, cls) => {
             el.setAttribute('data-checked', on ? 'checked' : 'unchecked');
             el.className = cls + ' ' + (on ? 'checked' : 'unchecked');
         };
-        ['customQuickLinkFrame1', 'customQuickLinkFrame2', 'customQuickLinkFrame3'].forEach((id) => {
+        ['customQuickLinkFrame1', 'customQuickLinkFrame2'].forEach((id) => {
             setState(document.getElementById(id), !!result[id], 'ql-checkmark');
         });
         setState(document.getElementById('aiEnabled'), !result.ai || result.ai.enabled !== false, 'lcd-checkmark');
@@ -203,7 +196,7 @@ function restoreOptions() {
 function addButtonListeners() {
     Array.from(document.getElementsByClassName('checkmark')).forEach((b) => b.addEventListener('click', toggleBox));
     Array.from(document.getElementsByClassName('lcd-checkmark')).forEach((b) => b.addEventListener('click', toggleLcdBox));
-    ['customQuickLinkFrame1', 'customQuickLinkFrame2', 'customQuickLinkFrame3'].forEach((id) => {
+    ['customQuickLinkFrame1', 'customQuickLinkFrame2'].forEach((id) => {
         document.getElementById(id).addEventListener('click', toggleLinkBox);
     });
 

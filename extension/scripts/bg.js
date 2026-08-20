@@ -177,11 +177,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     var p = msg.payload || {};
     var text = String(p.note == null ? '' : p.note)
         .replace(/[\u{10000}-\u{10FFFF}]/gu, '').trim();   // RepairQ MySQL is 3-byte utf8 — emoji truncate the note to blank
-    if (!text || !p.ticketId || !p.csrf) { sendResponse({ ok: false, error: 'missing note/ticketId/csrf' }); return true; }
+    // csrf is OPTIONAL — the in-tab path reads its own token off the page, so a
+    // page without a visible token must still reach that fallback
+    if (!text || !p.ticketId) { sendResponse({ ok: false, error: 'missing note/ticketId' }); return true; }
     var tabId = sender && sender.tab && sender.tab.id;
     var ticketId = String(p.ticketId);
 
     var direct = function () {
+        if (!p.csrf) return Promise.resolve({ ok: false, error: 'no csrf from page' });
         return fetch('https://cpr.repairq.io/ajax/ticketNote/save', {
             method: 'POST', credentials: 'include',
             headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },

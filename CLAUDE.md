@@ -418,7 +418,10 @@ matters) and returns only his months, totals and the Zelle note — never the
 household's other lines, bill totals or PDFs. His card mirrors the owner
 page's three numbers: Past Due as the hero, with Current and Total under it. The number is remembered in
 localStorage so he doesn't retype it, and the catch-up text carries the link. "Text <payer>"
-builds the catch-up message (one month per line + total + Zelle note) and
+builds the catch-up message — every UNPAID month, split into "Past due" and
+"Coming up" (a cycle closes on the 16th and its row generates on the 17th, so
+the newest bill is a real charge before its due date lands) plus the combined
+total and the Zelle note — and
 opens a compose modal that sends it through the `messaging` function from
 `phone_bill_config.send_from` — a dedicated RingCentral line (+1 971 348 3566)
 that authenticates on the MAIN app JWT, so no store_lines row is needed. The
@@ -1074,7 +1077,10 @@ watcher + Good/Bad modal), `scripts/lcdLabel.js` (send-display label at
 the RepairQ page context (ticket #, store, tech, line items) posted in via
 postMessage and prepended to the first message. Auth rides the MRT origin's
 Supabase session (sign in once per browser); Options has an AI Assistant toggle.
-**What's Next?** (`scripts/whatsNext.js`) — the "McDonald's order board": a 🍔 button in
+**Quick links:** `customQuickLink.js` renders **Price Guide as a built-in
+link** in RepairQ's nav (hard-coded to myrepairtools.github.io/price-guide.html,
+always framed — no setting), plus **two** user-configurable custom links in
+Options (the third slot was removed). **What's Next?** (`scripts/whatsNext.js`) — the "McDonald's order board": a 🍔 button in
 RepairQ's top bar fetches RepairQ's own ticket list (same-origin, follows the
 `Ticket_page` pager), keeps workable tickets only (New / New Claim / In Diagnosis /
 Ready for Repair; excludes Waiting*, Pending Notification, pickup/closed — those "Est."
@@ -1142,9 +1148,34 @@ truncates a note at the first 4-byte char (most emoji), so an emoji-PREFIXED not
 stores completely blank — and a blank note blocks the whole ticket from saving
 (the v2.5.80 Eugene incident). Every extension `writeNote` strips astral chars
 before posting and note prefixes stay ASCII/BMP (✔ ⚠ ⛔ are safe; 📣 🛡 are not).
-Safety net: `repairq-query`'s `sweep_blank_notes` action (the
+**A note that can't be written must say so:** followUp's `writeNote` used to
+bail silently when the page had no `YII_CSRF_TOKEN` input — the Supabase
+`ticket_contacts` row saved, the RepairQ note never appeared, and nothing was
+logged (owner report 2026-08-18, ticket 16364927). It now looks for the token
+in the input, a `meta[name=csrf-token]`, and the cookie (that read is
+try/caught — `document.cookie` throws in an opaque document), and when there
+is still no token it hands the write to bg.js anyway, whose in-tab path reads
+the token off the page itself; bg.js therefore treats `csrf` as OPTIONAL and
+only skips its direct fetch without one. Every remaining dead end files a
+`kind:'debug'` row through `issue:report`. Safety net: `repairq-query`'s `sweep_blank_notes` action (the
 `repairq-blank-note-sweep` pg_cron, :20/:50 hourly) scans the active ticket list
 and deletes any empty-bodied note.
+**A check-in stash may only land on ITS OWN customer's ticket (v2.8.2, issues
+3105/3106):** the check-in modal fires before a ticket number exists, so the
+choice waits in sessionStorage (`mrt_fu_pending`) and flushes onto the next
+ticket page. The old rule flushed onto ANY New/edit ticket that loaded next in
+the tab — an abandoned check-in put customer A's follow-up on customer B's
+ticket, which read as both reported bugs at once (missing where the tech saved
+it, present where they didn't; Ready-for-Pickup then found "pref: none" and
+never texted). `pendMatchesTicket()` now matches the stash's phone/email
+against the ticket page's own customer block before flushing (note
+`suggestedPhones()` returns `{num,tag}` objects, not strings); a stash with no
+contact data (return/skip) rides only the fresh post-save landing
+(`mrt_fu_checkin`, consumed once); TTL is 15 min. A non-matching stash stays
+put for its own ticket. Test: scratchpad fu_leak.mjs (mock pages must mirror
+RepairQ's real sidebar — `.sub-head h3` "Customer" + sibling `.block-content`,
+≤480px wide — or `customerAnchor()` finds nothing and boot stalls in
+`whenSummaryReady`).
 
 **Google Business Profile (Google Traffic + Google Reviews):** measures why Eugene
 wins on Google and runs the review-reply engine. Data layer (`docs/sql/2026-07-10-gbp-schema.sql`

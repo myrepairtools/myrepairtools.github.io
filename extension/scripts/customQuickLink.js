@@ -213,10 +213,18 @@ function renderLink(name, link, frame) {
     }  
 }
 
+/* Price Guide ships as a built-in quick link — always present, always framed.
+   It sits ahead of the user's own links so it lands in the same nav spot on
+   every machine no matter what anyone has configured. */
+function priceGuideLink() {
+    renderLink('Price Guide', 'https://myrepairtools.github.io/price-guide.html', true);
+}
+
 // Get the user's custom link name and URL from their sync storage
 function getLink() {
     let name = '';
     let link = '';
+    priceGuideLink();
     chrome.storage.sync.get(['customQuickLinkName1', 'customQuickLinkUrl1', 'customQuickLinkFrame1'])
     .then((result => {
         name = result.customQuickLinkName1;
@@ -229,13 +237,6 @@ function getLink() {
         name = result.customQuickLinkName2;
         link = result.customQuickLinkUrl2;
         frame = result.customQuickLinkFrame2;
-        renderLink(name, link, frame);
-    }));
-    chrome.storage.sync.get(['customQuickLinkName3', 'customQuickLinkUrl3', 'customQuickLinkFrame3'])
-    .then((result => {
-        name = result.customQuickLinkName3;
-        link = result.customQuickLinkUrl3;
-        frame = result.customQuickLinkFrame3;
         renderLink(name, link, frame);
     }));
 }
