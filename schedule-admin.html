@@ -1372,7 +1372,22 @@ async function addMember(store,empId){closePop();(MEMBERS[store]=MEMBERS[store]|
   var r=await sb.from('schedule_membership').insert({store:store,staff_id:empId});if(r.error)toast(r.error.message,true);else{var e=empById(empId);toast((e?e.display_name.split(' ')[0]:'')+' added to '+shortStore(store));}}
 async function removeMember(store,empId){MEMBERS[store]=(MEMBERS[store]||[]).filter(function(x){return x!==empId;});render();
   var r=await sb.from('schedule_membership').delete().eq('store',store).eq('staff_id',empId);if(r.error)toast(r.error.message,true);}
-async function decide(id,status){var r=REQS.filter(function(x){return x.id===id;})[0];if(!r)return;var prev=r.status;r.status=status;render();
+async function decide(id,status){var r=REQS.filter(function(x){return x.id===id;})[0];if(!r)return;
+  /* Schedule Admin is a SECOND path to the same time_off_requests write that
+     time-off.html guards at :295-296, and it carried neither guard — so a
+     manager could approve their own paid time off here, which the product
+     explicitly forbids. This mirrors time-off.html's self-approval check:
+     owners may decide their own, everyone else needs another manager.
+     Reopening to 'pending' stays allowed, since that withdraws a decision
+     rather than granting one.
+     NOTE: time-off.html ALSO gates on canApprove() (the timeoff.approve
+     permission). That check is not added here because this page has no
+     canApprove() and no resolved CPRPerms at this point; it is written up for
+     review rather than guessed at. The durable fix is server-side — RLS
+     currently allows any employee to update their own request's status. */
+  if(AUTH&&AUTH.role!=='owner'&&Number(r.staff_id)===Number(AUTH.id)&&status!=='pending'){
+    toast('You can’t decide your own request — another manager has to.',true);return;}
+  var prev=r.status;r.status=status;render();
   var patch={status:status,decided_by:AUTH.id,decided_at:new Date().toISOString()};if(status==='pending'){patch.decided_by=null;patch.decided_at=null;}
   var res=await sb.from('time_off_requests').update(patch).eq('id',id);
   if(res.error){r.status=prev;render();toast(res.error.message,true);}else{var e=empById(r.staff_id);toast((status==='approved'?'Approved':status==='denied'?'Denied':'Reopened')+(e?' · '+e.display_name.split(' ')[0]:''));}}
