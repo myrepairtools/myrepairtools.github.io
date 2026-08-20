@@ -564,6 +564,44 @@ cache in localStorage (`cprExpQbo`, 1h) for instant paint. Note: elements hidden
 CSS class rule need `style.display='block'` to show — `display=''` falls back to the
 stylesheet's `display:none`. Schema: docs/sql/expenses-schema.sql (+ `qbo_config`).
 
+**Receipts (manager receipt drop → owner review → QBO):** `receipts.html`
+(PRIVILEGED nav 'Receipts', permission key `receipts.submit`, owner+admin) —
+the simple sibling of Expenses for managers who shouldn't categorize. One page,
+two roles: a MANAGER gets photo (camera/photos/files, PDFs page-1-to-JPEG via
+pdf.js) → `extract_receipt` autofill (amount/date/card; vendor stored silently)
+→ Paid With → required Note → Submit; rows land in the SAME `expense_receipts`
+table as status **'review'** with `submitted_by`/`source:'page'` (their My
+Receipts list shows In Review/Booked). The OWNER gets the review log instead:
+To Review queue (+ Booked), a modal with the photo (120s signed URL; `.pdf`
+paths render in an iframe), editable fields, the FULL expense-account combobox
++ class, then **⬆ Book in QBO** = update the row + the same `create_expense`
+pipeline Expenses uses (idempotent DocNumber; the attachment is now typed by
+the file's real extension). Managers never see the chart of accounts: the qbo
+fn's **`pay_accounts`** action (manager+ JWT, or NOTIFY_SECRET server-to-server)
+returns only the Settings-allowlisted cards + Apple Pay pairings + card→class
+map; `extract_receipt` is manager+ too. RLS: managers insert only
+`status='review'` rows as themselves and read only their own; the receipts
+bucket gained manager INSERT (reads stay owner-only);
+`expense_receipts.expense_account_id`/`payment_account_id` went nullable (a
+submission has no category yet — `create_expense` still refuses to post without
+them; the live table carried a SECOND status check `_chk` that also had to
+drop). **Email intake:** forwarding a receipt to the receipts address files it
+automatically — Resend inbound (`email.received` webhook) POSTs to the
+**`receipts-inbound`** edge function (`?s=RECEIPTS_INBOUND_SECRET`): each
+PDF/image attachment is fetched (Resend attachments API, or inline
+`content_b64` so a Zapier email parser can POST the same shape), stored in the
+receipts bucket keeping its extension, AI-read (haiku, sonnet fallback; PDFs
+via document block), card-matched through `pay_accounts`, and inserted as its
+own review row — subject = the note, sender matched to staff by
+`staff_profiles.personal_email`, unreadable amounts land as $0 for the owner to
+fill. Idempotent on `source_ref` `email:<email_id>:<attachment_id>` (Resend
+retries file nothing twice). The owner's queue lists rows where `source` IS NOT
+NULL ('page'/'email'), so the owner's own Expenses rows never appear in it.
+Resend side (one-time, dashboard): inbound MX on a SUBDOMAIN (e.g.
+in.myrepairtools.com — never the root, it would hijack real mail), an inbound
+address, and an email.received webhook pointing at the function URL with `?s=`.
+Schema: docs/sql/receipts-submissions.sql.
+
 **Brand Assets (print collateral library):** `brand_assets` (title, category
 poster|flyer|sale_sheet|business_card|logo|other, file_path, file_name/ext/mime,
 file_size, thumb_path, width/height, tags[], note, active, uploaded_by/_name; RLS

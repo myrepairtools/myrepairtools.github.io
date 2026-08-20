@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Receipts — CPR</title>
+<link rel="icon" type="image/svg+xml" href="assets/images/myrepairtools-favicon.svg">
+<link rel="stylesheet" href="assets/fonts.css">
+<style>
+:root{--red:#DC282E;--dark:#2D2D3B;--blue:#4FB0E3;--grey:#B9BDCB;--light-grey:#F3F2F2;
+--dark-grey:#4E4E50;--border:#E0E2EA;--green:#2E9E5B;--amber:#C98A00;--white:#fff;
+--ring:0 0 0 3px rgba(79,176,227,.15);--shadow:0 1px 3px rgba(45,45,59,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+@media (display-mode: standalone){
+  html:root{--cpr-top-h:calc(52px + env(safe-area-inset-top))}
+  .cpr-topbar{padding-top:env(safe-area-inset-top)}
+}
+html.mrt-standalone{--cpr-top-h:calc(52px + env(safe-area-inset-top))}
+html.mrt-standalone .cpr-topbar{padding-top:env(safe-area-inset-top)}
+body{font-family:'Nunito Sans','Segoe UI',sans-serif;background:var(--light-grey);color:var(--dark)}
+main{max-width:560px;margin:0 auto;padding:16px 16px 118px}
+body.owner main{max-width:760px;padding-bottom:40px}
+.titlerow{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.45rem;display:flex;align-items:center;gap:9px}
+h1 svg{width:24px;height:24px;color:var(--red)}
+.empty{padding:60px 20px;text-align:center;color:var(--grey);font-weight:700}
+.empty.err{color:var(--dark-grey)}
+.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
+.fldl{font-family:'Nunito',sans-serif;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;
+color:var(--dark-grey);margin:12px 0 5px}
+.fldl:first-child{margin-top:0}
+input[type=text],input[type=date],select,.combobox input{
+width:100%;min-width:0;max-width:100%;min-height:48px;padding:10px 13px;border:1.5px solid var(--border);border-radius:12px;background:#fff;
+font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:16px;color:var(--dark)}
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;text-align:left}
+.row2{display:grid;grid-template-columns:1.1fr 1fr;gap:0 10px;margin-top:12px}
+.row2 .fldl{margin-top:0}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+select{cursor:pointer;-webkit-appearance:none;appearance:none;
+background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234E4E50' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+
+/* receipt intents */
+.shotrow{display:flex;gap:8px}
+.shot{flex:1;min-width:0;min-height:74px;border:2px dashed var(--grey);border-radius:14px;background:#FAFAFB;
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;
+font-family:'Nunito',sans-serif;font-weight:800;font-size:.82rem;color:var(--dark-grey)}
+.shot svg{width:22px;height:22px;display:block}
+.shot:active{border-color:var(--blue);color:var(--blue)}
+.thumbwrap{position:relative;display:none}
+.thumbwrap img{width:100%;max-height:240px;object-fit:contain;border:1.5px solid var(--border);border-radius:14px;background:#fff;display:block}
+.thumbx{position:absolute;top:8px;right:8px;width:44px;height:44px;border:none;border-radius:50%;
+background:rgba(45,45,59,.82);color:#fff;font-size:1rem;font-weight:800;cursor:pointer;line-height:1}
+.aistat{display:none;margin-top:8px;font-size:.8rem;font-weight:800;color:var(--dark-grey);align-items:center;gap:7px}
+.aistat.on{display:flex}
+.aispin{width:14px;height:14px;flex:none;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;
+animation:mrtspin .8s linear infinite}
+@keyframes mrtspin{to{transform:rotate(360deg)}}
+
+.iwrap{position:relative;display:block}
+.iwrap .dol{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--grey);font-weight:800;
+font-size:1.2rem;pointer-events:none}
+#amt,#rvAmt{padding-left:32px;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.4rem;min-height:56px}
+
+/* fixed save bar (manager) */
+.savebar{position:fixed;left:0;right:0;bottom:var(--cpr-bb-h,0px);z-index:900;background:#fff;border-top:1.5px solid var(--border);
+padding:10px 16px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -6px 18px rgba(45,45,59,.06)}
+@media(max-width:859px){.savebar{padding-bottom:10px}}
+html.mrt-kb .savebar{display:none}
+.savebar .in{max-width:528px;margin:0 auto}
+.cpra-fab{bottom:calc(var(--cpr-bb-h,0px) + 86px) !important}
+#subBtn{width:100%;height:54px;border:none;border-radius:14px;background:var(--red);color:#fff;
+font-family:'Nunito',sans-serif;font-weight:900;font-size:1.08rem;cursor:pointer;
+box-shadow:0 6px 18px rgba(220,40,46,.28)}
+#subBtn:disabled{opacity:.65;cursor:default}
+
+/* lists */
+.rhead{font-family:'Nunito',sans-serif;font-weight:900;font-size:.95rem;margin:14px 0 8px}
+.rrow{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:12px;
+padding:10px 12px;margin-bottom:7px;box-shadow:var(--shadow)}
+.rrow.click{cursor:pointer}
+.rrow.click:hover{border-color:var(--blue)}
+.rrow .d{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;color:var(--dark-grey);white-space:nowrap}
+.rrow .who{flex:1;min-width:0;font-size:.86rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow .who .sub{display:block;font-size:.74rem;font-weight:700;color:var(--grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow .amt{font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;white-space:nowrap}
+.stchip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.7rem;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.stchip.ok{background:#E9F6EE;color:var(--green)}
+.stchip.bad{background:#FBE9E9;color:var(--red)}
+.stchip.wait{background:#FDF6E3;color:#9A6B00}
+
+/* owner review modal */
+.mback{display:none;position:fixed;inset:0;z-index:1100;background:rgba(45,45,59,.45)}
+.mback.on{display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto}
+.modal{background:#fff;border-radius:16px;max-width:560px;width:100%;padding:16px;margin-bottom:24px}
+.mhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.mhd h3{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem}
+.mx{width:40px;height:40px;border:none;border-radius:10px;background:var(--light-grey);color:var(--dark-grey);
+font-size:1rem;font-weight:800;cursor:pointer}
+.rvphoto{display:block;width:100%;max-height:300px;object-fit:contain;border:1.5px solid var(--border);
+border-radius:12px;background:#F7F7F9;cursor:zoom-in;margin-bottom:4px}
+.rvframe{display:none;width:100%;height:320px;border:1.5px solid var(--border);border-radius:12px;background:#F7F7F9;margin-bottom:4px}
+.rvmeta{font-size:.8rem;font-weight:700;color:var(--dark-grey);margin-bottom:2px}
+.mfoot{display:flex;gap:10px;align-items:center;margin-top:16px}
+#bookBtn{flex:1;height:50px;border:none;border-radius:12px;background:var(--red);color:#fff;
+font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;cursor:pointer}
+#bookBtn:disabled{opacity:.65;cursor:default}
+.delbtn{min-height:50px;padding:0 16px;border:1.5px solid var(--border);border-radius:12px;background:#fff;
+color:var(--red);font-family:'Nunito',sans-serif;font-weight:800;font-size:.88rem;cursor:pointer}
+.rverr{display:none;background:#FBE9E9;border:1px solid #F6C9CA;border-radius:10px;padding:10px 12px;
+font-size:.82rem;font-weight:700;color:var(--red);margin-top:12px}
+
+/* combobox (owner category) */
+.combobox{position:relative}
+.acclist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:1200;background:#fff;border:1.5px solid var(--border);
+border-radius:12px;box-shadow:0 10px 30px rgba(45,45,59,.16);max-height:240px;overflow:auto;display:none}
+.accrow{padding:11px 13px;font-size:.95rem;font-weight:700;cursor:pointer;border-top:1px solid var(--light-grey)}
+.accrow:first-child{border-top:none}
+.accrow:active,.accrow:hover{background:rgba(79,176,227,.08)}
+.accrow .hint{display:block;font-size:.72rem;font-weight:600;color:var(--grey)}
+.accrow .par{color:var(--grey);font-weight:700}
+.accrow.none{color:var(--grey);cursor:default}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.chip{font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;border:1.5px solid var(--border);border-radius:999px;
+background:#fff;color:var(--dark-grey);padding:9px 13px;min-height:40px;cursor:pointer;max-width:100%;overflow:hidden;
+text-overflow:ellipsis;white-space:nowrap}
+.chip:active{border-color:var(--blue);color:var(--blue)}
+
+/* success state (manager) */
+.donewrap{position:fixed;inset:0;z-index:970;background:var(--light-grey);display:none;
+flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center}
+.donewrap .big{font-size:4rem;line-height:1;color:var(--green)}
+.donewrap h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.35rem}
+.donewrap .ds{color:var(--dark-grey);font-weight:700;font-size:.92rem;max-width:340px}
+#newBtn{margin-top:14px;width:min(320px,100%);height:54px;border:none;border-radius:14px;background:var(--dark);
+color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.05rem;cursor:pointer}
+
+.toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;
+padding:12px 18px;border-radius:12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.85rem;
+opacity:0;pointer-events:none;transition:opacity .18s;z-index:1300;max-width:92vw}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<main>
+  <div class="titlerow"><h1><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Receipts</h1></div>
+
+  <div class="empty" id="gate" style="display:none"></div>
+
+  <!-- =================== manager: submit =================== -->
+  <form id="form" autocomplete="off" style="display:none">
+    <div class="card">
+      <div class="fldl">Receipt</div>
+      <div class="shotrow" id="shotRow">
+        <button type="button" class="shot" id="shotCam" aria-label="Take a photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+          <span>Camera</span></button>
+        <button type="button" class="shot" id="shotLib" aria-label="Pick from Photos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18"/><circle cx="12" cy="8" r="2"/><rect width="16" height="16" x="6" y="2" rx="2"/></svg>
+          <span>Photos</span></button>
+        <button type="button" class="shot" id="shotDoc" aria-label="Pick a file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
+          <span>Files</span></button>
+      </div>
+      <div class="thumbwrap" id="thumbWrap">
+        <img id="thumb" alt="Receipt preview">
+        <button type="button" class="thumbx" id="thumbX" title="Retake">✕</button>
+      </div>
+      <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="fileLib" accept="image/*" hidden>
+      <input type="file" id="fileDoc" accept="image/*,application/pdf,.pdf" hidden>
+      <div class="aistat" id="aiStat"></div>
+
+      <div class="row2">
+        <div>
+          <div class="fldl">Amount</div>
+          <span class="iwrap"><span class="dol">$</span>
+            <input type="text" id="amt" inputmode="decimal" placeholder="0.00" aria-label="Amount"></span>
+        </div>
+        <div>
+          <div class="fldl">Date</div>
+          <input type="date" id="date" aria-label="Receipt date">
+        </div>
+      </div>
+
+      <div class="fldl">Paid With</div>
+      <select id="paySel" aria-label="Card"><option value="">Loading cards…</option></select>
+
+      <div class="fldl">Note</div>
+      <input type="text" id="note" maxlength="300" placeholder="What it was for">
+    </div>
+
+    <div class="savebar"><div class="in"><button type="submit" id="subBtn">Submit Receipt</button></div></div>
+  </form>
+
+  <div id="mine" style="display:none">
+    <div class="rhead">My Receipts</div>
+    <div id="mineList"></div>
+  </div>
+
+  <!-- =================== owner: review log =================== -->
+  <div id="review" style="display:none">
+    <div class="rhead">To Review</div>
+    <div id="queueList"></div>
+    <div class="rhead" id="bookedHead" style="display:none">Booked</div>
+    <div id="bookedList"></div>
+  </div>
+</main>
+
+<!-- owner review modal -->
+<div class="mback" id="rvBack">
+  <div class="modal">
+    <div class="mhd"><h3 id="rvTitle">Review Receipt</h3><button type="button" class="mx" id="rvX">✕</button></div>
+    <img class="rvphoto" id="rvPhoto" alt="Receipt" style="display:none">
+    <iframe class="rvframe" id="rvFrame" title="Receipt"></iframe>
+    <div class="rvmeta" id="rvMeta"></div>
+    <div class="row2">
+      <div>
+        <div class="fldl">Amount</div>
+        <span class="iwrap"><span class="dol">$</span>
+          <input type="text" id="rvAmt" inputmode="decimal" placeholder="0.00" aria-label="Amount"></span>
+      </div>
+      <div>
+        <div class="fldl">Date</div>
+        <input type="date" id="rvDate" aria-label="Receipt date">
+      </div>
+    </div>
+    <div class="fldl">Paid With</div>
+    <select id="rvPay" aria-label="Payment account"></select>
+    <div class="fldl">Expense Account</div>
+    <div class="chips" id="rvChips"></div>
+    <div class="combobox">
+      <input type="text" id="rvAcc" placeholder="Type to search accounts…" aria-label="Expense account">
+      <div class="acclist" id="rvAccList"></div>
+    </div>
+    <div class="fldl">Class</div>
+    <select id="rvCls" aria-label="Class"></select>
+    <div class="fldl">Vendor</div>
+    <input type="text" id="rvVend" maxlength="120" autocapitalize="words">
+    <div class="fldl">Note</div>
+    <input type="text" id="rvNote" maxlength="300">
+    <div class="rverr" id="rvErr"></div>
+    <div class="mfoot">
+      <button type="button" id="bookBtn">⬆ Book in QBO</button>
+      <button type="button" class="delbtn" id="delBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="donewrap" id="doneWrap">
+  <div class="big">✓</div>
+  <h2>Sent for Review</h2>
+  <div class="ds" id="doneSub"></div>
+  <button id="newBtn">＋ New Receipt</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/locations.js"></script>
+<script src="assets/pin-gate.js"></script>
+<script src="assets/nav.js" data-section="admin"></script>
+<script type="module">
+import { createClient } from "/assets/supabase-js.js";
+/* ============================================================
+   Receipts — the manager receipt drop. Photo + AI read + note →
+   expense_receipts (status 'review', submitted_by = the manager),
+   photo into the private 'receipts' bucket. The owner's view on
+   this same page is the review log: fill the category, adjust
+   the class, ⬆ Book in QBO through the same create_expense
+   pipeline Expenses uses. Managers never see the chart of
+   accounts — pay_accounts serves only the allowlisted cards.
+   ============================================================ */
+var $=function(s,c){return (c||document).querySelector(s);};
+var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
+var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
+var sb=createClient(SB_URL,ANON);
+var QBO_FN=SB_URL+'/functions/v1/qbo';
+var LS_PAYCARDS='cprRcptPay';   // {ts,accounts,applepay,cls,classes} — manager card list
+var LS_QBO='cprExpQbo';         // shared with expenses.html — owner chart-of-accounts cache
+var LS_RECENT='cprExpRecent';   // shared recent expense accounts
+var LS_LASTCARD='cprRcptCard';  // manager's last-used card
+
+if(navigator.standalone)document.documentElement.classList.add('mrt-standalone');
+
+var ME=null;              // {uid, role, name}
+var PHOTO=null;           // {blob,url}
+var AIV=null;             // vendor read off the receipt (stored silently)
+var PAY_TOUCHED=false;
+var BUSY=false;
+var CARDS={accounts:[],applepay:{},cls:{},classes:[]};   // manager card list (pay_accounts)
+var ACCTS=[],CLASSES=[];  // owner chart of accounts (qbo ?action=accounts/classes)
+var PAYALLOW=null,PAYAP={};
+var RV=null;              // row open in the review modal
+var RVEXP=null;           // owner-picked expense account
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(m,err){var t=$('#toast');t.textContent=m;t.className='toast show'+(err?' err':'');clearTimeout(toast._t);toast._t=setTimeout(function(){t.className='toast';},2600);}
+function money2(n){if(n==null||isNaN(n))return '—';var neg=n<-0.004,a=Math.abs(n);
+  return (neg?'-$':'$')+a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function todayLocal(){var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function amtOf(el){var v=parseFloat(String(el.value).replace(/[$,\s]/g,''));return (isFinite(v)&&v>0)?Math.round(v*100)/100:null;}
+function squash(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function selectAllOnFocus(el){
+  function all(){try{el.setSelectionRange(0,el.value.length);}catch(e){}}
+  el.addEventListener('focus',function(){setTimeout(all,0);});
+  el.addEventListener('touchend',function(){setTimeout(all,0);});
+  el.addEventListener('mouseup',function(e){if(el.selectionStart===el.selectionEnd){e.preventDefault();all();}});
+}
+
+async function ensureSession(){
+  try{
+    var s=(await sb.auth.getSession()).data.session; if(s)return s;
+    var raw=localStorage.getItem('sb-xuvsehrevxackuhmbmry-auth-token'); if(!raw)return null;
+    var o=JSON.parse(raw);
+    var at=o.access_token||(o.currentSession&&o.currentSession.access_token);
+    var rt=o.refresh_token||(o.currentSession&&o.currentSession.refresh_token);
+    if(at&&rt){await sb.auth.setSession({access_token:at,refresh_token:rt});return (await sb.auth.getSession()).data.session;}
+  }catch(e){}
+  return null;
+}
+async function fnGet(action,sess){
+  var res=await fetch(QBO_FN+'?action='+action,{headers:{'Authorization':'Bearer '+sess.access_token,'apikey':ANON}});
+  var d={};try{d=await res.json();}catch(e){}
+  if(!res.ok)throw {code:d.error||('http_'+res.status),detail:d.detail};
+  return d;
+}
+async function fnPost(body,sess){
+  var res=await fetch(QBO_FN,{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+sess.access_token,'apikey':ANON},
+    body:JSON.stringify(body)});
+  var d={};try{d=await res.json();}catch(e){}
+  return {res:res,d:d};
+}
+
+/* ------------- shared: photo processing (downscale to ≤1600px JPEG) ------------- */
+async function processPdf(file){
+  var lib=await import('/assets/pdfjs/pdf.min.mjs');
+  lib.GlobalWorkerOptions.workerSrc='/assets/pdfjs/pdf.worker.min.mjs';
+  var pdf=await lib.getDocument({data:await file.arrayBuffer()}).promise;
+  var page=await pdf.getPage(1);
+  var vp=page.getViewport({scale:1});
+  var sc=Math.min(4,1600/Math.max(vp.width,vp.height));
+  vp=page.getViewport({scale:sc});
+  var c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+  var ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+  await page.render({canvasContext:ctx,viewport:vp}).promise;
+  var blob=await new Promise(function(ok){c.toBlob(ok,'image/jpeg',0.8);});
+  if(!blob)throw new Error('could not read the PDF');
+  return {blob:blob,url:c.toDataURL('image/jpeg',0.6)};
+}
+async function processPhoto(file){
+  if(file&&(file.type==='application/pdf'||/\.pdf$/i.test(file.name||'')))return processPdf(file);
+  var img=null;
+  try{img=await createImageBitmap(file);}catch(e){}
+  if(!img){
+    img=await new Promise(function(ok,bad){
+      var u=URL.createObjectURL(file),i=new Image();
+      i.onload=function(){ok(i);};i.onerror=function(){URL.revokeObjectURL(u);bad(new Error('unreadable image'));};
+      i.src=u;
+    });
+  }
+  var w=img.width,h=img.height;
+  if(!w||!h)throw new Error('unreadable image');
+  var sc=Math.min(1,1600/Math.max(w,h));
+  var cw=Math.max(1,Math.round(w*sc)),ch=Math.max(1,Math.round(h*sc));
+  var c=document.createElement('canvas');c.width=cw;c.height=ch;
+  c.getContext('2d').drawImage(img,0,0,cw,ch);
+  if(img.close)try{img.close();}catch(e){}
+  var blob=await new Promise(function(ok){c.toBlob(ok,'image/jpeg',0.8);});
+  if(!blob)throw new Error('could not encode the photo');
+  return {blob:blob,url:c.toDataURL('image/jpeg',0.6)};
+}
+var SHOT_INPUTS=['fileCam','fileLib','fileDoc'];
+function setPhoto(p){
+  PHOTO=p;
+  $('#shotRow').style.display=p?'none':'flex';
+  $('#thumbWrap').style.display=p?'block':'none';
+  if(p)$('#thumb').src=p.url;else $('#thumb').removeAttribute('src');
+}
+$('#shotCam').addEventListener('click',function(){$('#fileCam').click();});
+$('#shotLib').addEventListener('click',function(){$('#fileLib').click();});
+$('#shotDoc').addEventListener('click',function(){$('#fileDoc').click();});
+$('#thumbX').addEventListener('click',function(){
+  setPhoto(null);
+  SHOT_INPUTS.forEach(function(id){$('#'+id).value='';});
+  aiStat('');EXTRACT_SEQ++;AIV=null;
+});
+SHOT_INPUTS.forEach(function(id){
+  $('#'+id).addEventListener('change',async function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    try{
+      var p=await processPhoto(f);
+      setPhoto(p);
+      extractFromPhoto(p.blob);
+    }
+    catch(e){toast('Photo failed — '+(e&&e.message||'try again'),true);this.value='';}
+  });
+});
+
+/* ------------- ✨ receipt reader ------------- */
+function aiStat(html){var el=$('#aiStat');el.className='aistat'+(html?' on':'');el.innerHTML=html||'';}
+function blobB64(blob){
+  return new Promise(function(ok,bad){
+    var fr=new FileReader();
+    fr.onload=function(){ok(String(fr.result).split(',')[1]||'');};
+    fr.onerror=function(){bad(new Error('could not read the photo'));};
+    fr.readAsDataURL(blob);
+  });
+}
+/* the receipt's four digits → exactly one allowlisted card (account-name digits
+   for a dipped card, the Settings Apple Pay pairing for a device number) */
+function matchCard(last4){
+  if(!/^\d{4}$/.test(String(last4||'')))return null;
+  var hits=CARDS.accounts.filter(function(a){
+    if(CARDS.applepay[a.id]===last4)return true;
+    var digits=String(a.name||'').match(/\d{4}/g)||[];
+    return digits.indexOf(last4)>-1;
+  });
+  return hits.length===1?hits[0]:null;
+}
+var EXTRACT_SEQ=0;
+async function extractFromPhoto(blob){
+  var seq=++EXTRACT_SEQ;
+  aiStat('<span class="aispin"></span>Reading the receipt…');
+  try{
+    var sess=await ensureSession();if(!sess)throw new Error('no session');
+    var b64=await blobB64(blob);
+    var out=await fnPost({action:'extract_receipt',image_b64:b64,media_type:'image/jpeg'},sess);
+    if(seq!==EXTRACT_SEQ)return;
+    if(!out.res.ok||!out.d.ok)throw new Error(out.d.detail||out.d.error||('HTTP '+out.res.status));
+    var d=out.d,used=[];
+    if(d.amount!=null&&amtOf($('#amt'))==null){$('#amt').value=d.amount.toFixed(2);used.push('amount');}
+    if(d.date&&$('#date').value===todayLocal()&&d.date!==$('#date').value){
+      var rd=new Date(d.date+'T12:00:00'),days=(new Date()-rd)/86400000;
+      if(days>=-1.5&&days<=550){$('#date').value=d.date;used.push('date');}
+    }
+    if(d.vendor)AIV=d.vendor;
+    if(d.card_last4&&!PAY_TOUCHED){
+      var pm=matchCard(d.card_last4);
+      if(pm){$('#paySel').value=pm.id;used.push('card ····'+d.card_last4);}
+    }
+    aiStat(used.length?'✨ Filled '+used.join(' + ')+' from the receipt — double-check, then submit.'
+                      :'✨ Receipt read — your entries were left as typed.');
+  }catch(e){
+    if(seq!==EXTRACT_SEQ)return;
+    aiStat('Couldn’t read the receipt — enter it manually.');
+  }
+}
+
+/* ------------- manager: card list + submit ------------- */
+function paintCards(){
+  var last='';try{last=localStorage.getItem(LS_LASTCARD)||'';}catch(e){}
+  var cur=$('#paySel').value||last;
+  $('#paySel').innerHTML='<option value="">Choose card…</option>'+CARDS.accounts.map(function(a){
+    var ap=CARDS.applepay[a.id];
+    return '<option value="'+esc(a.id)+'"'+(a.id===cur?' selected':'')+'>'+esc(a.name)
+      +(ap?(' · Apple Pay '+esc(ap)):'')+'</option>';
+  }).join('');
+}
+async function loadCards(sess){
+  var cache=null;
+  try{cache=JSON.parse(localStorage.getItem(LS_PAYCARDS)||'null');}catch(e){}
+  if(cache&&cache.accounts&&cache.accounts.length){CARDS=cache;paintCards();}
+  if(cache&&cache.ts&&(Date.now()-cache.ts<3600e3))return;
+  try{
+    var d=await fnGet('pay_accounts',sess);
+    CARDS={ts:Date.now(),accounts:d.accounts||[],applepay:d.applepay||{},cls:d.cls||{},classes:d.classes||[]};
+    try{localStorage.setItem(LS_PAYCARDS,JSON.stringify(CARDS));}catch(e){}
+    paintCards();
+  }catch(e){
+    if(!CARDS.accounts.length)$('#paySel').innerHTML='<option value="">Cards unavailable — '+esc(e.detail||e.code||'error')+'</option>';
+  }
+}
+$('#paySel').addEventListener('change',function(){PAY_TOUCHED=true;});
+selectAllOnFocus($('#amt'));
+
+function setBtn(t,busy){var b=$('#subBtn');b.textContent=t;b.disabled=!!busy;}
+$('#form').addEventListener('submit',async function(ev){
+  ev.preventDefault();
+  if(BUSY)return;
+  if(!PHOTO||!PHOTO.blob){toast('Take a photo of the receipt',true);return;}
+  var amount=amtOf($('#amt'));
+  if(amount==null){toast('Enter the amount',true);$('#amt').focus();return;}
+  var date=$('#date').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('Pick the date',true);return;}
+  var payId=$('#paySel').value;
+  if(!payId){toast('Choose the card',true);return;}
+  var note=$('#note').value.trim();
+  if(!note){toast('Add a note — what it was for',true);$('#note').focus();return;}
+  var pay=CARDS.accounts.filter(function(a){return a.id===payId;})[0]||{id:payId,name:'',type:null};
+  /* the card's home store fills the class silently — the owner adjusts at review */
+  var clsId=CARDS.cls[payId]?String(CARDS.cls[payId]):null;
+  var cls=clsId?(CARDS.classes.filter(function(c){return String(c.id)===clsId;})[0]||null):null;
+
+  BUSY=true;
+  var sess=await ensureSession();
+  if(!sess){BUSY=false;setBtn('Submit Receipt');toast('Sign in with your PIN first',true);return;}
+
+  setBtn('Uploading Photo…',true);
+  var path=date.slice(0,4)+'/'+date.slice(5,7)+'/'+crypto.randomUUID()+'.jpg';
+  var up=await sb.storage.from('receipts').upload(path,PHOTO.blob,{contentType:'image/jpeg'});
+  if(up.error){BUSY=false;setBtn('Submit Receipt');toast('Photo upload failed — '+(up.error.message||'error'),true);return;}
+
+  setBtn('Submitting…',true);
+  var ins=await sb.from('expense_receipts').insert({
+    txn_date:date,amount:amount,
+    vendor:AIV||null,
+    memo:note,
+    payment_account_id:pay.id,payment_account_name:pay.name||null,payment_account_type:pay.type||null,
+    class_id:cls?cls.id:null,class_name:cls?cls.name:null,
+    receipt_path:path,
+    status:'review',source:'page',
+    created_by:window.CPRNavName||ME.name||null,
+    submitted_by:ME.uid
+  }).select('id').single();
+  BUSY=false;setBtn('Submit Receipt');
+  if(ins.error){toast('Submit failed — '+ins.error.message,true);return;}
+  try{localStorage.setItem(LS_LASTCARD,pay.id);}catch(e){}
+  $('#doneSub').textContent=money2(amount)+' — '+note;
+  $('#doneWrap').style.display='flex';
+  loadMine();
+});
+$('#newBtn').addEventListener('click',function(){
+  $('#doneWrap').style.display='none';
+  setPhoto(null);SHOT_INPUTS.forEach(function(id){$('#'+id).value='';});aiStat('');EXTRACT_SEQ++;AIV=null;
+  $('#amt').value='';$('#date').value=todayLocal();$('#note').value='';
+  PAY_TOUCHED=false;
+  window.scrollTo({top:0});
+});
+
+async function loadMine(){
+  var r=await sb.from('expense_receipts')
+    .select('id,txn_date,amount,vendor,memo,status')
+    .eq('submitted_by',ME.uid)
+    .order('created_at',{ascending:false}).limit(10);
+  if(r.error||!r.data||!r.data.length){$('#mine').style.display='none';return;}
+  $('#mine').style.display='';
+  $('#mineList').innerHTML=r.data.map(function(row){
+    var d=row.txn_date?(+row.txn_date.slice(5,7))+'/'+(+row.txn_date.slice(8,10)):'—';
+    var chip=row.status==='posted'?'<span class="stchip ok">✓ Booked</span>':'<span class="stchip wait">In Review</span>';
+    return '<div class="rrow"><span class="d">'+esc(d)+'</span>'
+      +'<span class="who">'+esc(row.memo||row.vendor||'—')+'</span>'
+      +'<span class="amt">'+esc(money2(+row.amount))+'</span>'+chip+'</div>';
+  }).join('');
+}
+
+/* ------------- owner: chart of accounts (shared cache with expenses.html) ------------- */
+function expAccounts(){return ACCTS.filter(function(a){return /expense|cost of goods sold/i.test(a.type||'');});}
+function payAccounts(){
+  var pays=ACCTS.filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
+  if(PAYALLOW&&PAYALLOW.length)pays=pays.filter(function(a){return PAYALLOW.indexOf(a.id)>-1;});
+  return pays;
+}
+function accPath(a){return a.fqn||a.name||'';}
+function accParts(a){
+  var p=accPath(a).split(':').map(function(x){return x.trim();});
+  return {lead:p.slice(0,-1).join(' › '),leaf:p[p.length-1]||accPath(a)};
+}
+async function loadQbo(sess){
+  var cache=null;
+  try{cache=JSON.parse(localStorage.getItem(LS_QBO)||'null');}catch(e){}
+  if(cache&&cache.accounts&&cache.accounts.length&&cache.accounts[0]&&Object.prototype.hasOwnProperty.call(cache.accounts[0],'fqn')){
+    ACCTS=cache.accounts;CLASSES=cache.classes||[];
+    PAYALLOW=Array.isArray(cache.paywith)?cache.paywith:null;
+    PAYAP=(cache.applepay&&typeof cache.applepay==='object')?cache.applepay:{};
+    if(cache.ts&&(Date.now()-cache.ts<3600e3))return;
+  }
+  try{
+    var a=await fnGet('accounts',sess);
+    var c=await fnGet('classes',sess);
+    ACCTS=a.accounts||[];CLASSES=c.classes||[];
+    var pw=await sb.from('qbo_config').select('value').eq('key','paywith').maybeSingle();
+    var v=(pw.data&&pw.data.value)||{};
+    PAYALLOW=Array.isArray(v.ids)?v.ids:null;
+    PAYAP=(v.applepay&&typeof v.applepay==='object')?v.applepay:{};
+    try{localStorage.setItem(LS_QBO,JSON.stringify({ts:Date.now(),accounts:ACCTS,classes:CLASSES,
+      vendors:(cache&&cache.vendors)||[],paywith:PAYALLOW,applepay:PAYAP,paycls:(cache&&cache.paycls)||{}}));}catch(e){}
+  }catch(e){
+    if(!ACCTS.length)toast('Could not load QBO accounts — '+(e&&(e.detail||e.code)||'error'),true);
+  }
+}
+
+/* ------------- owner: review log ------------- */
+function rowHtml(row,click){
+  var d=row.txn_date?(+row.txn_date.slice(5,7))+'/'+(+row.txn_date.slice(8,10)):'—';
+  var chip=row.status==='posted'?'<span class="stchip ok">✓ Booked</span>'
+    :row.status==='failed'?'<span class="stchip bad">⚠ Failed</span>'
+    :'<span class="stchip wait">Review</span>';
+  return '<div class="rrow'+(click?' click':'')+'" data-id="'+esc(row.id)+'">'
+    +'<span class="d">'+esc(d)+'</span>'
+    +'<span class="who">'+esc(row.memo||row.vendor||'—')
+    +'<span class="sub">'+esc((row.created_by||'—')+(row.vendor&&row.memo?' · '+row.vendor:''))+'</span></span>'
+    +'<span class="amt">'+esc(money2(+row.amount))+'</span>'+chip+'</div>';
+}
+var QUEUE=[];
+async function loadReview(){
+  var q=await sb.from('expense_receipts').select('*')
+    .not('source','is',null).neq('status','posted')
+    .order('created_at',{ascending:false}).limit(50);
+  QUEUE=q.data||[];
+  $('#queueList').innerHTML=QUEUE.length?QUEUE.map(function(r){return rowHtml(r,true);}).join('')
+    :'<div class="empty">Nothing to review</div>';
+  $('#queueList').querySelectorAll('.rrow.click').forEach(function(el){
+    el.addEventListener('click',function(){
+      var row=QUEUE.filter(function(r){return r.id===el.getAttribute('data-id');})[0];
+      if(row)openReview(row);
+    });
+  });
+  var b=await sb.from('expense_receipts').select('id,txn_date,amount,vendor,memo,status,created_by')
+    .not('source','is',null).eq('status','posted')
+    .order('created_at',{ascending:false}).limit(15);
+  var booked=b.data||[];
+  $('#bookedHead').style.display=booked.length?'':'none';
+  $('#bookedList').innerHTML=booked.map(function(r){return rowHtml(r,false);}).join('');
+}
+
+function recents(){
+  try{var r=JSON.parse(localStorage.getItem(LS_RECENT)||'[]');return Array.isArray(r)?r:[];}catch(e){return [];}
+}
+function pushRecent(a){
+  var r=recents().filter(function(x){return x.id!==a.id;});
+  r.unshift({id:a.id,name:accPath(a)||a.name,fqn:a.fqn||null,subtype:a.subtype||null});
+  try{localStorage.setItem(LS_RECENT,JSON.stringify(r.slice(0,5)));}catch(e){}
+}
+function renderRvChips(){
+  var wrap=$('#rvChips'),r=recents();
+  wrap.innerHTML=r.map(function(a,i){
+    return '<button type="button" class="chip" data-i="'+i+'" title="'+esc(a.name)+'">'+esc(a.name)+'</button>';
+  }).join('');
+  wrap.querySelectorAll('.chip').forEach(function(b){
+    b.addEventListener('click',function(){pickRvExp(r[+b.getAttribute('data-i')]);});
+  });
+}
+function pickRvExp(a){
+  RVEXP={id:a.id,name:accPath(a)||a.name,fqn:a.fqn||null,subtype:a.subtype||null};
+  $('#rvAcc').value=RVEXP.name;
+  $('#rvAccList').style.display='none';
+}
+function renderRvAccList(){
+  var el=$('#rvAccList'),q=$('#rvAcc').value.trim().toLowerCase();
+  var list=expAccounts().filter(function(a){
+    if(!q)return true;
+    return accPath(a).toLowerCase().indexOf(q)>=0
+      || (a.name||'').toLowerCase().indexOf(q)>=0
+      || (a.subtype||'').toLowerCase().indexOf(q)>=0;
+  }).slice(0,40);
+  if(!list.length){el.innerHTML='<div class="accrow none">'+(ACCTS.length?'No matching accounts':'Accounts not loaded yet')+'</div>';}
+  else el.innerHTML=list.map(function(a,i){
+    var p=accParts(a);
+    return '<div class="accrow" data-i="'+i+'">'
+      +(p.lead?'<span class="par">'+esc(p.lead)+' › </span>':'')+esc(p.leaf)
+      +(a.subtype?'<span class="hint">'+esc(a.subtype)+'</span>':'')+'</div>';
+  }).join('');
+  el.querySelectorAll('.accrow[data-i]').forEach(function(row){
+    row.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      var a=list[+row.getAttribute('data-i')];
+      pickRvExp(a);pushRecent(a);renderRvChips();
+    });
+  });
+  el.style.display='block';
+}
+$('#rvAcc').addEventListener('focus',renderRvAccList);
+$('#rvAcc').addEventListener('input',function(){RVEXP=null;renderRvAccList();});
+$('#rvAcc').addEventListener('blur',function(){setTimeout(function(){$('#rvAccList').style.display='none';},150);});
+selectAllOnFocus($('#rvAmt'));
+
+function rvErr(html){var el=$('#rvErr');el.innerHTML=html||'';el.style.display=html?'block':'none';}
+async function openReview(row){
+  RV=row;RVEXP=null;rvErr('');
+  $('#rvTitle').textContent='Review — '+(row.created_by||'—');
+  $('#rvMeta').textContent='Submitted '+new Date(row.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  $('#rvAmt').value=(+row.amount).toFixed(2);
+  $('#rvDate').value=row.txn_date||todayLocal();
+  $('#rvVend').value=row.vendor||'';
+  $('#rvNote').value=row.memo||'';
+  var pays=payAccounts();
+  $('#rvPay').innerHTML='<option value="">Choose account…</option>'+pays.map(function(a){
+    var ap=PAYAP[a.id];
+    return '<option value="'+esc(a.id)+'"'+(a.id===row.payment_account_id?' selected':'')+'>'+esc(a.name)
+      +(ap?(' · Apple Pay '+esc(ap)):(' · '+esc(a.type)))+'</option>';
+  }).join('');
+  /* a submission's card may sit outside the current allowlist — keep it pickable */
+  if(row.payment_account_id&&!pays.some(function(a){return a.id===row.payment_account_id;}))
+    $('#rvPay').insertAdjacentHTML('beforeend','<option value="'+esc(row.payment_account_id)+'" selected>'+esc(row.payment_account_name||row.payment_account_id)+'</option>');
+  $('#rvCls').innerHTML='<option value="">— No Class —</option>'+CLASSES.map(function(c){
+    return '<option value="'+esc(c.id)+'"'+(String(c.id)===String(row.class_id)?' selected':'')+'>'+esc(c.name)+'</option>';
+  }).join('');
+  if(row.expense_account_id){
+    var known=ACCTS.filter(function(a){return a.id===String(row.expense_account_id);})[0];
+    RVEXP=known?{id:known.id,name:accPath(known),fqn:known.fqn||null,subtype:known.subtype||null}
+              :{id:String(row.expense_account_id),name:row.expense_account_name||String(row.expense_account_id)};
+    $('#rvAcc').value=RVEXP.name;
+  }else $('#rvAcc').value='';
+  renderRvChips();
+  var ph=$('#rvPhoto'),fr=$('#rvFrame');
+  ph.style.display='none';ph.removeAttribute('src');ph.onclick=null;
+  fr.style.display='none';fr.removeAttribute('src');
+  if(row.receipt_path){
+    var isPdf=/\.pdf$/i.test(row.receipt_path);
+    var su=await sb.storage.from('receipts').createSignedUrl(row.receipt_path,120);
+    if(su.data&&su.data.signedUrl){
+      if(isPdf){fr.src=su.data.signedUrl;fr.style.display='block';}
+      else{
+        ph.src=su.data.signedUrl;ph.style.display='block';
+        ph.onclick=async function(){
+          var s2=await sb.storage.from('receipts').createSignedUrl(row.receipt_path,120);
+          if(s2.data&&s2.data.signedUrl)window.open(s2.data.signedUrl,'_blank');
+        };
+      }
+    }
+  }
+  if(row.status==='failed'&&row.error)rvErr('Last attempt failed — '+esc(row.error));
+  $('#rvBack').classList.add('on');
+}
+function closeReview(){$('#rvBack').classList.remove('on');RV=null;}
+$('#rvX').addEventListener('click',closeReview);
+$('#rvBack').addEventListener('click',function(e){if(e.target===this)closeReview();});
+
+$('#bookBtn').addEventListener('click',async function(){
+  if(!RV||BUSY)return;
+  rvErr('');
+  var amount=amtOf($('#rvAmt'));
+  if(amount==null){toast('Enter the amount',true);return;}
+  var date=$('#rvDate').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('Pick the date',true);return;}
+  var payId=$('#rvPay').value;
+  if(!payId){toast('Choose the payment account',true);return;}
+  if(!RVEXP||!RVEXP.id){toast('Choose the expense account',true);$('#rvAcc').focus();return;}
+  var pay=payAccounts().filter(function(a){return a.id===payId;})[0]
+    ||{id:payId,name:RV.payment_account_name||'',type:RV.payment_account_type||null};
+  var clsId=$('#rvCls').value;
+  var cls=clsId?CLASSES.filter(function(c){return String(c.id)===clsId;})[0]:null;
+
+  BUSY=true;
+  var b=$('#bookBtn');b.disabled=true;b.textContent='Booking…';
+  var sess=await ensureSession();
+  if(!sess){BUSY=false;b.disabled=false;b.textContent='⬆ Book in QBO';toast('Sign in with your PIN first',true);return;}
+  var upd=await sb.from('expense_receipts').update({
+    txn_date:date,amount:amount,
+    vendor:$('#rvVend').value.trim()||null,
+    memo:$('#rvNote').value.trim()||null,
+    payment_account_id:pay.id,payment_account_name:pay.name||null,payment_account_type:pay.type||null,
+    expense_account_id:RVEXP.id,expense_account_name:RVEXP.name||null,
+    class_id:cls?cls.id:null,class_name:cls?cls.name:null,
+    status:'pending',error:null
+  }).eq('id',RV.id);
+  if(upd.error){
+    BUSY=false;b.disabled=false;b.textContent='⬆ Book in QBO';
+    rvErr('Save failed — '+esc(upd.error.message));
+    return;
+  }
+  var out=await fnPost({action:'create_expense',receipt_id:RV.id},sess).catch(function(e){return {res:null,d:{error:'network',detail:String(e&&e.message||e)}};});
+  BUSY=false;b.disabled=false;b.textContent='⬆ Book in QBO';
+  if(out.res&&((out.res.ok&&out.d.ok)||(out.res.status===409&&out.d.error==='already_posted'))){
+    toast('Booked in QBO — '+money2(amount)+(out.d.warn?' · '+out.d.warn:''));
+    closeReview();
+    loadReview();
+  }else{
+    rvErr('QBO booking failed — '+esc(out.d.detail||out.d.error||('HTTP '+(out.res?out.res.status:'?'))));
+    loadReview();
+  }
+});
+$('#delBtn').addEventListener('click',async function(){
+  if(!RV||BUSY)return;
+  if(!confirm('Delete this receipt? The photo goes with it.'))return;
+  BUSY=true;
+  var path=RV.receipt_path;
+  var del=await sb.from('expense_receipts').delete().eq('id',RV.id).is('qbo_purchase_id',null);
+  BUSY=false;
+  if(del.error){toast('Delete failed — '+del.error.message,true);return;}
+  if(path)sb.storage.from('receipts').remove([path]).then(function(){},function(){});
+  toast('Deleted');
+  closeReview();
+  loadReview();
+});
+
+/* ------------- boot ------------- */
+async function boot(){
+  $('#date').value=todayLocal();
+  var sess=await ensureSession();
+  if(!sess){
+    var g=$('#gate');g.style.display='';g.classList.add('err');
+    g.textContent='Sign in with your PIN from any page, then reload.';
+    return;
+  }
+  var st=await sb.from('staff').select('role,display_name').eq('auth_uid',sess.user.id).eq('active',true).maybeSingle();
+  var role=st.data&&st.data.role;
+  if(!st.data||['owner','admin','manager'].indexOf(String(role))<0){
+    var g2=$('#gate');g2.style.display='';g2.classList.add('err');
+    g2.textContent='Managers Only';
+    return;
+  }
+  ME={uid:sess.user.id,role:role,name:st.data.display_name||''};
+  if(role==='owner'){
+    document.body.classList.add('owner');
+    $('#review').style.display='';
+    loadQbo(sess);
+    loadReview();
+  }else{
+    $('#form').style.display='';
+    loadCards(sess);
+    loadMine();
+  }
+}
+boot();
+</script>
+</body>
+</html>

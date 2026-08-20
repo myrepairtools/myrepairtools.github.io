@@ -13,9 +13,12 @@
 //   GET  ?action=accounts       (owner JWT)  -> { accounts:[{id,name,type,subtype}] } — active chart of accounts
 //   GET  ?action=classes        (owner JWT)  -> { classes:[{id,name}] } — active classes (P&L by store)
 //   GET  ?action=vendors        (owner JWT)  -> { vendors:[{id,name}] } — active QBO vendors (Expenses vendor link)
-//   POST { action:'extract_receipt', image_b64, media_type }  (owner JWT)
+//   POST { action:'extract_receipt', image_b64, media_type }  (manager+ JWT)
 //        -> Claude vision reads the receipt photo -> { ok, vendor, date, amount, card_last4 }
-//           (nulls where unreadable). Powers the Expenses page's auto-fill.
+//           (nulls where unreadable). Powers the Expenses + Receipts pages' auto-fill.
+//   GET  ?action=pay_accounts    (manager+ JWT) -> { accounts, applepay, cls, classes } —
+//        ONLY the Settings-allowlisted Paid With cards (+ Apple Pay pairings and the
+//        card→class map) for the Receipts page; managers never see the full chart.
 //   POST { action:'post_je', store, month, force }  (owner JWT)
 //        -> post the month-end cash journal entry (debit cash / credit revenue) for
 //           (store, 'YYYY-MM') from cash_journal, stamp the row + qbo_post_log, and
@@ -695,15 +698,21 @@ async function createExpense(body: Record<string, unknown>, staff: { display_nam
     if (dl.error || !dl.data) {
       warns.push(`Receipt image download failed (${dl.error?.message || "no data"}) — expense posted without the attachment.`);
     } else {
-      const fileName = `receipt-${row.txn_date}-${receipt_id.slice(0, 8)}.jpg`;
+      // email-forwarded receipts arrive as PDFs and keep their extension —
+      // attach with the real content type or QBO shows a broken preview
+      const ext = (String(row.receipt_path).match(/\.(pdf|png|webp|jpe?g)$/i) || [, "jpg"])[1].toLowerCase();
+      const contentType = ext === "pdf" ? "application/pdf"
+        : ext === "png" ? "image/png"
+        : ext === "webp" ? "image/webp" : "image/jpeg";
+      const fileName = `receipt-${row.txn_date}-${receipt_id.slice(0, 8)}.${ext === "jpeg" ? "jpg" : ext}`;
       const meta = {
         AttachableRef: [{ EntityRef: { type: "Purchase", value: purchase_id } }],
         FileName: fileName,
-        ContentType: "image/jpeg",
+        ContentType: contentType,
       };
       const form = new FormData();
       form.append("file_metadata_01", new Blob([JSON.stringify(meta)], { type: "application/json" }));
-      form.append("file_content_01", dl.data, fileName);
+      form.append("file_content_01", new Blob([await dl.data.arrayBuffer()], { type: contentType }), fileName);
       try {
         // No Content-Type header here — fetch sets the multipart boundary itself.
         const ur = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/upload?minorversion=${MINORVERSION}`, {
@@ -885,6 +894,50 @@ Deno.serve(async (req) => {
     }).filter((e) => e.score > 0).sort((a, b) => b.score - a.score || Number(b.active) - Number(a.active));
     return json({ matches: rows.slice(0, 10), total_employees: (d?.QueryResponse?.Employee || []).length });
   }
+  // ---- manager-level: the Receipts page (managers submit; the owner reviews) ----
+  // pay_accounts also answers the receipts-inbound function (server-to-server,
+  // NOTIFY_SECRET) so the email intake can match a card without touching the
+  // QBO token machinery — the single-flight refresh stays in this function only.
+  if (action === "extract_receipt" || action === "pay_accounts") {
+    const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
+    const machine = action === "pay_accounts" && NOTIFY && String(body.secret || "") === NOTIFY;
+    if (!machine) {
+      const who = await getStaff(req);
+      if (!who || !["owner", "admin", "manager"].includes(String(who.role))) return json({ error: "forbidden" }, 403);
+    }
+    if (action === "extract_receipt") return await extractReceipt(body);
+    // pay_accounts: just the curated Paid With cards + their class autofill.
+    // Deliberately NOT the full chart of accounts — categorizing is the owner's
+    // review step, so managers only ever see the cards Settings allowlisted.
+    const { data: pw } = await admin.from("qbo_config").select("value").eq("key", "paywith").maybeSingle();
+    const v = (pw?.value || {}) as Record<string, unknown>;
+    const ids = Array.isArray(v.ids) ? (v.ids as unknown[]).map(String) : null;
+    const applepay = (v.applepay && typeof v.applepay === "object") ? v.applepay : {};
+    const cls = (v.cls && typeof v.cls === "object") ? v.cls : {};
+    const tok = await getToken();
+    if (!tok) return json({ error: "not_connected", detail: "QuickBooks Online is not connected." }, 503);
+    const aq = "select Id, Name, AccountType from Account where Active = true maxresults 1000";
+    const ar = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(aq)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const ad = await ar.json().catch(() => ({}));
+    if (!ar.ok) return json({ error: "qbo_error", detail: faultDetail(ad), intuit_tid: tid(ar) }, 502);
+    const accounts = ((ad?.QueryResponse?.Account || []) as Array<Record<string, unknown>>)
+      .filter((a) => a.AccountType === "Bank" || a.AccountType === "Credit Card")
+      .filter((a) => !ids || !ids.length || ids.indexOf(String(a.Id)) > -1)
+      .map((a) => ({ id: String(a.Id), name: (a.Name as string) || "", type: (a.AccountType as string) || null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const cq = "select Id, Name, FullyQualifiedName from Class where Active = true maxresults 1000";
+    const cr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/query?query=${encodeURIComponent(cq)}&minorversion=${MINORVERSION}`,
+      { headers: qboHeaders(tok.access_token) });
+    const cd = await cr.json().catch(() => ({}));
+    const classes = cr.ok
+      ? ((cd?.QueryResponse?.Class || []) as Array<Record<string, unknown>>)
+        .map((c) => ({ id: String(c.Id), name: (c.FullyQualifiedName as string) || (c.Name as string) || "" }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      : [];
+    return json({ accounts, applepay, cls, classes });
+  }
+
   // ---- owner-only from here down ----
   const staff = await getStaff(req);
   if (!staff || staff.role !== "owner") return json({ error: "forbidden", detail: "Owner only." }, 403);
@@ -1017,9 +1070,6 @@ Deno.serve(async (req) => {
         start: t.StartTime || null, end: t.EndTime || null, description: t.Description || null,
       }));
     return json({ start, count: rows.length, rows });
-  }
-  if (action === "extract_receipt") {
-    return await extractReceipt(body);
   }
   if (action === "extract_phone_bill") {
     return await extractPhoneBill(body);
