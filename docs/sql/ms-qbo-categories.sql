@@ -177,6 +177,10 @@ revoke execute on function public.ms_order_split(text)          from anon;
 --   Salem    Amex 4769     backup card, 3 orders on 7/15 only. NOT a Smartly
 --                          card and has no QBO account -- those orders cannot
 --                          post until one exists.
+--   Clackamas 0315 -> 8123 Sam's old manager card on the Spark - Clackamas
+--                          account (acct 192). 56 transactions in the QBO
+--                          history under "MOBILESENTRIX - 0315"; the account
+--                          name carries 8123, so 0315 only resolves by alias.
 --   Eugene   3988         Ben's card, on the Spark - Eugene account (acct
 --                          309). Aliased PRE-EMPTIVELY -- it has never placed
 --                          a MobileSentrix order, so this is only so the first
