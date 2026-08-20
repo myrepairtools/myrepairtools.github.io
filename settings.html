@@ -1497,8 +1497,16 @@ var QBO_PAY_AP={};
    things — so picking the payment account in Expenses fills the class too.
    {accountId: classId}; a card that spans stores just stays unset. */
 var QBO_PAY_CLS={};
+/* Everything else already in the paywith row. This editor only knows about
+   ids/applepay/cls, and saving used to write just those three back — which
+   silently DELETED any other key. `alias` (retired and second card numbers
+   mapped onto their account) is edited by hand, so a single visit to this tab
+   wiped it and every order on an aliased card stopped resolving. Keep the
+   loaded row and merge on save. */
+var QBO_PAY_RAW={};
 function qboPayHtml(val){
   var chosen=(val&&Array.isArray(val.ids))?val.ids:[];
+  QBO_PAY_RAW=(val&&typeof val==='object')?val:{};
   QBO_PAY_AP=(val&&val.applepay&&typeof val.applepay==='object')?val.applepay:{};
   QBO_PAY_CLS=(val&&val.cls&&typeof val.cls==='object')?val.cls:{};
   var accts=(QBO_ACCOUNTS||[]).filter(function(a){return a.type==='Bank'||a.type==='Credit Card';});
@@ -1587,7 +1595,7 @@ async function qboSavePaywith(){
   var ap={},cl={};
   ids.forEach(function(id){if(QBO_PAY_AP[id])ap[id]=QBO_PAY_AP[id];if(QBO_PAY_CLS[id])cl[id]=QBO_PAY_CLS[id];});
   var r=await sb.from('qbo_config').upsert({
-    key:'paywith', value:{ids:ids,applepay:ap,cls:cl},
+    key:'paywith', value:Object.assign({},QBO_PAY_RAW,{ids:ids,applepay:ap,cls:cl}),
     updated_by:(AUTH&&AUTH.name)||'owner', updated_at:new Date().toISOString()
   },{onConflict:'key'});
   if(r.error)toast('Save failed — '+r.error.message,true);

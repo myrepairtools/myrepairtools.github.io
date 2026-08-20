@@ -196,3 +196,10 @@ revoke execute on function public.ms_order_split(text)          from anon;
 -- An alias asserts that two card numbers settle to one statement. Guessing
 -- books real spend against the wrong card, so only add one the owner has
 -- confirmed.
+--
+-- The alias map is edited BY HAND -- Settings has no UI for it. Saving the
+-- Paid With list there used to write {ids, applepay, cls} over the whole
+-- paywith row, which deleted it: adding the Amex on 2026-08-20 wiped every
+-- alias and would have made all 12 orders on the 8590 card refuse to post.
+-- settings.html now merges onto the loaded row instead of replacing it.
+-- Anything else stored under paywith is protected by the same fix.
