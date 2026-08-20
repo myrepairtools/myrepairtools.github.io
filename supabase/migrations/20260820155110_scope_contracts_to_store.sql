@@ -1,0 +1,45 @@
+-- contracts: scope read, write and insert to the contract's own store.
+--
+-- WAS:  mc_sel  SELECT USING (true)
+--       mc_upd  UPDATE USING (true)          <- no WITH CHECK at all
+--       mc_ins  INSERT WITH CHECK (true)
+--
+-- WHY. mc_upd is the serious one: USING(true) with no WITH CHECK let ANY
+-- signed-in person rewrite ANY row of a signed legal/financial document --
+-- price, collect, diag_fee, status, paid_at, paid_amount, and the stored
+-- signature and signed_name. mc_sel additionally exposed customer_name/email/
+-- phone for every store, AND `token` -- the capability URL that IS the
+-- customer's credential on the public signing page.
+--
+-- SCOPE BY STORE, NOT BY ROLE. contracts.html is an any-staff tool (nav gate is
+-- `contracts.view`, which ordinary techs hold). An is_admin() policy would take
+-- the tool away from every tech. can_see_store() also normalizes store names
+-- through norm_store(), which is_admin() does not.
+--
+-- BLAST RADIUS: none. contracts.store is NOT NULL at the schema level, so no
+-- null-store widening trap. All four browser call sites are in contracts.html:
+--   :176 select('*')  :241 status='paid'  :249 status='void'  :508 insert
+-- The insert's store comes from #ncStore, whose options are built at :301-303
+-- from ME.home_store + ME.authorized_stores (all stores for an owner) -- exactly
+-- can_see_store() semantics, so WITH CHECK cannot refuse a store the UI offered.
+-- contract-sign.html never queries this table; the customer side (view/sign/
+-- paystatus/send) runs service-role in the contracts edge function.
+--
+-- RESIDUAL, not solved here: RLS is row-level, not column-level. A tech at that
+-- store can still craft a request editing price or signature on their own
+-- store's contract. Closing that means moving the paid/void flip into the edge
+-- function, or a trigger restricting mutable columns.
+--
+-- NOT THIS FIX: the review's H3 is about the edge function's `send` action,
+-- which runs service-role and is NOT constrained by any policy here.
+--
+-- VERIFIED as codextest (team_member, CPR Eugene) over REST:
+--   SELECT                      -> 1 row, own store only
+--   INSERT store='CPR Salem NE' -> 42501, new row violates RLS   (BLOCKED)
+--   INSERT store='CPR Eugene'   -> created                       (no regression)
+--   PATCH  own-store row        -> HTTP 204                      (Paid/Void works)
+-- Test rows removed; table back to 1 row in its original state.
+alter policy mc_sel on public.contracts using ( can_see_store(store) );
+alter policy mc_upd on public.contracts
+  using ( can_see_store(store) ) with check ( can_see_store(store) );
+alter policy mc_ins on public.contracts with check ( can_see_store(store) );

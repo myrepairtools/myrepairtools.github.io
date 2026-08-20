@@ -1,0 +1,28 @@
+-- digest_raw: gate the Daily Digest data on the permission that names it.
+--
+-- WAS: digest_raw_read SELECT USING (true)   -- 341 rows
+--
+-- Per-store revenue, gross profit, ticket counts and per-rep sales for every
+-- store, readable by every authenticated role -- including `candidate`, a role
+-- deliberately scoped to schedule.view and nothing else.
+--
+-- USE has_perm('reports.digest'), NOT is_admin(). This is the trap that nearly
+-- shipped: is_admin() requires role in (manager, admin, owner), but
+-- reports.digest is granted to owner, admin AND **team_member** (verified live
+-- against role_permissions). An is_admin() policy would have locked out every
+-- team member who legitimately holds the permission, while looking like a
+-- tightening. Check the grant before choosing the helper -- every time.
+--
+-- has_perm() is SECURITY DEFINER, already maps manager->admin and
+-- employee->team_member, and short-circuits for owner, so this policy tracks
+-- whatever Settings > Roles & Permissions says instead of hard-coding a second
+-- notion of who may look.
+--
+-- BLAST RADIUS: daily-digest.html and assets/digest-summary.js, both already
+-- permission-gated in the client. Writes are service-role (repairq-query sync).
+--
+-- VERIFIED as codextest (team_member who HOLDS reports.digest): 341 rows before,
+-- 341 rows after. That is the regression check and the proof the helper choice
+-- was right -- is_admin() would have returned 0 here.
+alter policy digest_raw_read on public.digest_raw
+  using ( has_perm('reports.digest') );

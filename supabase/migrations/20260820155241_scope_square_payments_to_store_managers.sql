@@ -1,0 +1,24 @@
+-- square_payments: stop exposing customer PII and payment records to every employee.
+--
+-- WAS: sqp_read SELECT USING (true)
+--
+-- Holds customer_name, customer_phone, customer_email, amount_cents, ticket_no,
+-- payment_link_url and the Square checkout/payment/order ids for every store --
+-- all readable by any signed-in employee.
+--
+-- BLAST RADIUS: NONE. Nothing in the browser reads this table -- grep for
+-- "square_payments" across every *.html and *.js returns ZERO hits. It is
+-- written by the square-pay edge function under the service role, which
+-- bypasses RLS. The cheapest real win on the list.
+--
+-- is_admin() rather than can_see_store(): no employee-facing surface to
+-- preserve, and a payment log with customer contact details is manager
+-- material. norm_store() wraps the argument because is_admin() compares store
+-- names by RAW equality while this database also carries RepairQ spellings.
+--
+-- Passing the store is load-bearing: a bare is_admin() means "a manager
+-- ANYWHERE", which would let a Salem manager read Clackamas payment records.
+--
+-- VERIFIED as codextest (team_member): 4 rows -> 0. Not a manager, correctly denied.
+alter policy sqp_read on public.square_payments
+  using ( is_admin(norm_store(store)) );
