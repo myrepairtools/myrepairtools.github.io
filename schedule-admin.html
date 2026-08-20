@@ -17,17 +17,9 @@ body{background:var(--light-grey);font-family:'Nunito Sans',sans-serif;color:var
 main{max-width:none;margin:0;padding:24px 28px 60px;overflow-x:auto}
 h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.4px}
 .hide{display:none}
-/* lock */
-.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;align-items:center;justify-content:center;z-index:2000}
-.lock.hide{display:none}
-.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
-.lock-box .ic{font-size:30px;margin-bottom:14px}
-.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
-.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
-.lock-box input{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px;text-align:center;letter-spacing:4px}
-.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
-.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
-.app{display:none}.app.show{display:block}
+/* The page-local PIN overlay lived here, with `.app{display:none}.app.show{...}`.
+   Both gone: pin-gate.js is the one gate and now loads in <head>.
+   NOTE .toast.show at line 118 is a DIFFERENT rule and must survive. */
 /* hub */
 .hubbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .adminbtn{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--dark-grey);padding:8px 13px;font-size:.76rem;cursor:pointer;text-decoration:none;white-space:nowrap}
@@ -189,18 +181,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue) !i
 <script src="assets/pin-gate.js"></script>
 </head>
 <body>
-<div id="lockScreen" class="lock">
-  <div class="lock-box">
-    <div class="ic">🗓️</div>
-    <h2>Schedule Admin</h2>
-    <p>Enter your admin PIN to manage schedules.</p>
-    <input id="lkPin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
-    <button id="lkGo">Unlock</button>
-    <div id="lkErr" class="lock-err"></div>
-  </div>
-</div>
-
-<div id="app" class="app">
+<div id="app">
   <main>
     <div class="hubbar"><h1>Schedule Admin</h1><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><a class="adminbtn" href="my-schedule.html" title="Back to My Time">🗓️ My Time</a><select id="locSel" class="locdd" title="Filter by location"></select><div class="hub" id="hub"></div></div></div>
     <div id="view"></div>
@@ -242,39 +223,29 @@ function isMgr(role){return ['owner','admin','manager'].indexOf(role)>-1;}
 function lsGet(k,d){try{return localStorage.getItem(k)||d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
-/* ===== auth (admin PIN lock) ===== */
-/* Installed home-screen apps must never idle-sign-out — see pin-gate's armIdle().
-   This page's own timer called signOut() on the SHARED session and undid that. */
-var STANDALONE=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
-var IDLE_MS=10*60*1000, idleTimer=null;
-function fn(body,tok){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(tok||ANON),'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
-function lockErr(t){$('#lkErr').textContent=t||'';}
-function showLock(){$('#app').classList.remove('show');$('#lockScreen').classList.remove('hide');$('#lkPin').value='';}
-function resetIdle(){clearTimeout(idleTimer);if(!STANDALONE)idleTimer=setTimeout(relock,IDLE_MS);}
-function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;showLock();}
-function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();load();}
-function isAdminRole(r){return ['admin','manager','owner'].indexOf(r)>-1;}
-async function doLogin(){
-  var pin=$('#lkPin').value||'';if(!pin){lockErr('Enter your PIN');return;}
-  $('#lkGo').disabled=true;lockErr('Signing in…');
-  try{
-    var r=await fn({action:'login',pin:pin,device_id:DEVICE_ID});
-    if(r.status!==200){var d=r.data||{};lockErr(d.error==='invalid'?('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' left.'):'')):(d.error||'Login failed.'));$('#lkGo').disabled=false;return;}
-    var st=r.data.staff||{};
-    if(!isAdminRole(st.role)){lockErr('That account doesn\'t have admin access.');$('#lkGo').disabled=false;return;}
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-    AUTH={id:st.id,name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
-    $('#lkGo').disabled=false;lockErr('');unlockUI();
-  }catch(e){$('#lkGo').disabled=false;lockErr(String(e&&e.message||e));}
+/* Identity resolved -> render. Not resolved -> say so. pin-gate FAILS OPEN when
+   it cannot read a staff row, so without this branch Schedule Admin would render
+   fully chromed with AUTH null — an empty grid, which on a scheduling tool reads
+   as "nobody is scheduled" rather than "we could not load you".
+   No role check remains here: PAGEACC now gates this page on schedule.admin
+   (granted to admin + owner, and manager aliases to admin), the same bar the old
+   isAdminRole() set. That entry was added in the same commit — without it,
+   deleting this block would have widened the page to any signed-in person. */
+function bootAuth(){
+  if(!window.CPRAuth){ bootFailed('The sign-in script did not load.'); return; }
+  window.CPRAuth.ready.then(function(me){
+    AUTH={id:me.id,name:me.name,role:me.role,home_store:me.home_store,authorized_stores:me.authorized_stores||[]};
+    load();
+  }, function(){ bootFailed('We could not load your profile.'); });
 }
-async function initAuth(){
-  $('#lkGo').onclick=doLogin;
-  $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});$('#lkPin').focus();
-  ['click','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
-  var sess=(await sb.auth.getSession()).data.session;
-  if(sess){var sr=await sb.from('staff').select('id,display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data&&isAdminRole(sr.data.role)){AUTH={id:sr.data.id,name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}}
-  showLock();
+function bootFailed(msg){
+  var m=document.querySelector('#app main')||document.querySelector('#app');
+  if(!m)return;
+  m.innerHTML='<div style="max-width:520px;margin:48px auto;padding:26px;text-align:center;'
+    +'background:#fff;border:1.5px solid var(--border);border-radius:12px">'
+    +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:6px">'+esc(msg)+'</div>'
+    +'<div style="font-size:.88rem;color:var(--dark-grey);font-weight:600">Reload the page. If it keeps happening, tell a manager.</div>'
+    +'</div>';
 }
 
 /* ===== data ===== */
@@ -1653,7 +1624,7 @@ async function sedCopyLoc(id,store){
   SED_DIRTY=true;toast('Copied to all locations');sedRe();
 }
 
-initAuth();
+bootAuth();
 </script>
 </body>
 </html>

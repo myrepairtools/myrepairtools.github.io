@@ -131,6 +131,7 @@
        SELFONLY, and the data by RLS — staff_self_read, staff_documents_read,
        staff_pips_read and alert_prefs all scope a team member to their own row. */
     'settings.html':'staff.manage',
+    'schedule-admin.html':'schedule.admin',
     'daily-digest.html':'reports.digest',
     'claim-payouts.html':'claims.view', 'claim-ledger.html':'claims.view', 'commission-calculator.html':'commission.view',
     'commission-dashboard.html':'commission.dashboard',
