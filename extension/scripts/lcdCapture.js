@@ -44,7 +44,15 @@
     /* ---------------- page context ---------------- */
 
     function ticketNo() {
-        var m = location.pathname.match(/\/ticket\/(?:view|edit)\/(\d+)/);
+        // RepairQ's real view URL is /ticket/<id> — there is NO /view/ segment.
+        // Demanding view|edit made this return null on every ticket VIEW page,
+        // which silently broke the whole subsystem there: loadExisting() bailed
+        // so we re-asked about pulls already graded, record() stashed instead of
+        // sending, and the stash then flushed onto whatever ticket opened next.
+        // Same shape as the bug that disabled New Contract until 2.7.4. Keep this
+        // identical to followUp.js:47 / readyText.js:120 — one pattern, one place
+        // to be wrong.
+        var m = location.pathname.match(/\/ticket\/(?:edit\/|view\/)?(\d+)\b/);
         return m ? m[1] : null;
     }
 
