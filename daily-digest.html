@@ -632,7 +632,13 @@ function ready(rows){
 function roleRank(){ var R={none:0,employee:1,team_member:1,manager:2,admin:2,owner:3}; return R[window.CPRNavRole]||0; }
 /* viewing the digest is a granted permission; Force update stays manager-only
    because repairq-query checks the manager's own JWT server-side anyway */
-function canDigest(){ var p=window.CPRPerms; return !p ? roleRank()>=1 : (p.indexOf('reports.digest')>-1); }
+/* Takes the role explicitly: window.CPRNavRole is published asynchronously by
+   nav.js, so roleRank() can still read 'none' at boot and false-deny a real
+   manager. Callers pass the role they read off `staff` themselves. Mirrors
+   canPage(k,role) in google-traffic.html. */
+function canDigest(role){ var p=window.CPRPerms;
+  return p ? p.indexOf('reports.digest')>-1
+           : ['employee','team_member','manager','admin','owner'].indexOf(role)>-1; }
 
 async function boot(){
   if(DEMO){ ready(demoRows()); return; }
@@ -653,17 +659,29 @@ async function boot(){
     }catch(e){}
   }
   if(!sess){ gate('user','Sign In First','Sign in with your PIN from any page, then reload.'); return; }
+  /* Check the permission BEFORE reading digest_raw. canDigest() used to be
+     reachable only from the empty-result branch below, so any query that came
+     back with rows fell straight through to ready() and rendered the whole
+     digest — store revenue, GP, the per-rep leaderboard — without the
+     permission ever being consulted. That was masked while digest_raw's RLS
+     was is_admin(), because the server returned zero rows to everyone else and
+     pushed them into the empty branch; once the policy was opened to
+     `authenticated using (true)` the mask came off and the client gate was
+     doing nothing. Read the role off `staff` rather than trusting
+     window.CPRNavRole, which may not be published yet. */
+  var role=null;
+  try{ var sr=await sb.from('staff').select('role').eq('auth_uid',sess.user.id).maybeSingle();
+       if(sr&&sr.data) role=sr.data.role; }catch(e){}
+  if(!canDigest(role)){ gate('lock','No Access','Ask an owner if you think you should have access to the Daily Digest.'); return; }
   var since=new Date(Date.now()-8*864e5).toLocaleDateString('en-CA',{timeZone:TZ});
   var q=await sb.from('digest_raw').select('capture_date,tile_key,rows,row_count,captured_at')
     .gte('capture_date',since).order('capture_date',{ascending:false}).limit(60);
   if(q.error){ gate('inbox','Couldn\u2019t Load The Digest','Refresh to retry.'); return; }
+  /* Access is settled above, so this branch is now only ever "no data yet" \u2014
+     it no longer has to guess between no-access and no-capture, and the
+     cprnav:auth re-check it used to need is gone with it. */
   if(!q.data||!q.data.length){
-    var check=function(){
-      if(canDigest())gate('inbox','No Capture Yet','The sync runs every four hours \u2014 the first snapshot of the day lands early morning.');
-      else gate('lock','No Access','Ask an owner if you think you should have access to the Daily Digest.');
-    };
-    check();
-    window.addEventListener('cprnav:auth',check);
+    gate('inbox','No Capture Yet','The sync runs every four hours \u2014 the first snapshot of the day lands early morning.');
     return;
   }
   ready(q.data);
