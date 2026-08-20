@@ -34,6 +34,16 @@ on conflict (category) do nothing;
 -- Per-SKU manual override. The rules below are good but never perfect (a
 -- "PS5 HDMI Port (Soldering)" reads like a tool and is a part); this is where a
 -- human corrects one without touching the rules or waiting on a deploy.
+-- Seeded 2026-08-20 from the 14 SKUs that were blocking 10 card orders, plus
+-- one the wider Repair Tools rule surfaced. The judgment calls worth keeping:
+--   107082059047  Apple USB-C cable, 10-PACK -> Repair Tools. A single cable
+--                 is a resale accessory; the pack stocks the workstations. The
+--                 pack is its own SKU, so overriding it cannot mis-hit singles.
+--   107082854870  Barcode scanner -> Repair Tools. Store equipment.
+--   685642649370  Tempered Glass Gap Bubble Solution -> Repair Consumables.
+--                 A liquid that gets used up: the name rules called it an
+--                 accessory ("tempered glass") and the catalog type called it
+--                 a tool. Neither was right.
 create table if not exists public.ms_sku_category (
   sku         text primary key,
   category    text not null references public.ms_category_map(category),
@@ -65,6 +75,12 @@ returns text language sql stable as $$
                                                                       then 'Repair Tools'
       when p_type ~* 'Repair Tools - (Cleaning|Adhesive|Glue Removal|Cosmetic|Polish)'
                                                                       then 'Repair Consumables'
+      -- Any OTHER Repair Tools sub-type. The branches above name about a dozen
+      -- by hand and MobileSentrix has many more (Fume Extractors, Pliers and
+      -- Cutters, Testing Devices, Programmers and Boards, Others...); an
+      -- unlisted one used to drop past the catalog rules into the NAME rules,
+      -- where a fume extractor matches nothing and the line went uncategorized.
+      when p_type ilike 'Repair Tools - %'                            then 'Repair Tools'
       -- no catalog row: fall back to the item name
       when p_name ~* 'screwdriver|pry tool|tape dispenser|tweezer|spudger|heat gun|separator machine'
                                                                       then 'Repair Tools'
@@ -72,7 +88,10 @@ returns text language sql stable as $$
                                                                       then 'Repair Consumables'
       when p_name ~* 'tempered glass|screen protector|phone case|wall adapter|car charger|power bank|earbud|headphone|charging cable'
                                                                       then 'COGS - Accessories'
-      when p_name ~* 'oled|lcd|assembly|digitizer|back glass|back cover|batter|charging port|camera|flex|housing|frame|speaker|microphone|adhesive tape|button|antenna|sim tray|vibrat|disc drive|cooling fan|heatsink|power supply|logic board|keyboard|hinge|port'
+      -- Bare 'adhesive' is a PART (display / back-cover adhesive with a rework
+      -- kit). Safe here only because the consumables branch above already
+      -- claimed adhesive and glue REMOVER.
+      when p_name ~* 'oled|lcd|assembly|digitizer|back glass|back cover|batter|charging port|camera|flex|housing|frame|speaker|microphone|adhesive|button|antenna|sim tray|vibrat|disc drive|cooling fan|heatsink|power supply|logic board|keyboard|hinge|port'
                                                                       then 'COGS - Parts'
     end);
 $$;
