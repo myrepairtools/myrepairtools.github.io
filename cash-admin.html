@@ -520,18 +520,29 @@ function loadData(){
    the month at last month's ending float, and a deposited safe opens at ~$0). */
 async function loadOpeningSeed(){
   var store=STATE.store, pstart=(STATE.period||thisPeriod())+'-01';
-  STATE.openingByLoc={};
+  STATE.openingByLoc={}; STATE.openingSeedErr=null;
   try{
     var a=await sb.from('cash_audits').select('id,period_end').eq('store',store).eq('status','closed')
       .lt('period_end',pstart).order('period_end',{ascending:false}).limit(1);
+    if(a.error)throw a.error;
     var prior=a.data&&a.data[0];
-    if(!prior){ renderCards(); return; }
+    if(!prior){ renderCards(); return; }          // genuinely no prior audit — a real, expected state
     var pl=await sb.from('cash_audit_locations').select('location,counted,carry_forward').eq('audit_id',prior.id);
+    if(pl.error)throw pl.error;
     var m={}; (pl.data||[]).forEach(function(r){ m[r.location]=num(r.carry_forward!=null?r.carry_forward:r.counted); });
     if(store!==STATE.store) return;               // store changed while loading — drop
     STATE.openingByLoc=m; renderCards();
     if(!$('#tab-balances').classList.contains('hide')) renderLog();
-  }catch(e){}
+  }catch(e){
+    /* "No prior audit" and "the query failed" both used to land here as an
+       empty seed with an empty catch, so a network failure silently opened the
+       month at the Settings fallback instead of last month's carry-forward —
+       and cash work carried on against a wrong starting balance. They are not
+       the same state; only the first one is legitimate. */
+    STATE.openingSeedErr=String(e&&e.message||e);
+    renderCards();
+    toast('Opening balances could not be loaded — '+STATE.openingSeedErr+'. These figures are NOT seeded from last month. Reload before counting.',true);
+  }
 }
 
 /* ===== AUDIT =====
