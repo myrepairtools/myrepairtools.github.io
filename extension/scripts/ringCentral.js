@@ -411,17 +411,45 @@
         }).join('') : '<div class="mrt-rc-empty">No messages yet — say hi.</div>';
         box.scrollTop = box.scrollHeight;
     }
+    /* Messages we have sent that RingCentral's message-store has not echoed back
+       yet. The store indexes a send a beat AFTER the send API returns, so any
+       repaint landing inside that window would otherwise drop the message the
+       tech just watched leave — which is how a working send reads as a failed
+       one (staff report #3105, "not actually sending through"). Keyed by thread,
+       pruned the moment the server's own copy carries the same id, and expiring
+       on its own after 5 minutes so nothing can linger as a phantom. */
+    var PENDOUT = {};
+    var PENDOUT_TTL = 5 * 60000;
+    function pendPrune(key, serverMsgs) {              // only ever prune against the SERVER's copy
+        var pend = PENDOUT[key]; if (!pend || !pend.length) return;
+        var have = {};
+        (serverMsgs || []).forEach(function (m) { if (m.id) have[String(m.id)] = 1; });
+        var now = Date.now();
+        PENDOUT[key] = pend.filter(function (p) {
+            return !have[String(p.id)] && (now - Date.parse(p.time)) < PENDOUT_TTL;
+        });
+    }
+    function withPending(key, msgs) {                  // overlay, never mutates PENDOUT
+        var pend = PENDOUT[key]; if (!pend || !pend.length) return msgs;
+        var have = {};
+        (msgs || []).forEach(function (m) { if (m.id) have[String(m.id)] = 1; });
+        var extra = pend.filter(function (p) { return !have[String(p.id)]; });
+        if (!extra.length) return msgs;
+        return (msgs || []).concat(extra).sort(function (x, y) { return String(x.time).localeCompare(String(y.time)); });
+    }
+
     function loadMsgs() {
         var num = S.thread.number, key = threadKey(num), cached = MEM.thread[key];
-        if (cached) { paintMsgs(cached); }                       // instant from memory
-        else lget(key).then(function (v) { if (v && S.thread && S.thread.number === num && q('#mrt-rc-msgs')) paintMsgs(v); });
+        if (cached) { paintMsgs(withPending(key, cached)); }     // instant from memory
+        else lget(key).then(function (v) { if (v && S.thread && S.thread.number === num && q('#mrt-rc-msgs')) paintMsgs(withPending(key, v)); });
         fn('thread', { store: S.store, number: num, days: 60 }).then(function (r) {   // refresh in background
             if (!S.thread || S.thread.number !== num) return;    // user navigated away
             var box = q('#mrt-rc-msgs'); if (!box) return;
             if (!r || !r.ok) { if (!cached && !MEM.thread[key]) box.innerHTML = '<div class="mrt-rc-err">' + esc((r && r.error) || 'Could not load messages') + '</div>'; return; }
             var msgs = r.messages || [];
-            MEM.thread[key] = msgs; lset(key, msgs);
-            paintMsgs(msgs);
+            MEM.thread[key] = msgs; lset(key, msgs);             // cache the server's truth, overlay at paint
+            pendPrune(key, msgs);
+            paintMsgs(withPending(key, msgs));
             // Opening a thread = reading it. Flip it to Read in RingCentral
             // (Edit Messages scope) so the badge clears here AND in RC's apps.
             fn('thread_read', { store: S.store, number: num }).then(function (m) {
@@ -454,6 +482,17 @@
                 return;
             }
             cstatus('ok', '✓ Sent'); setTimeout(function () { cstatus('', ''); }, 1500);
+            // Hold our own copy until the message-store echoes this id back, so
+            // the reconcile below cannot repaint the thread without the message
+            // that just went out. Without the id we simply skip the overlay
+            // rather than guess — a wrong dedupe would hide a real message.
+            if (r.id) {
+                var key = threadKey(num);
+                (PENDOUT[key] = PENDOUT[key] || []).push({
+                    id: String(r.id), dir: 'out', text: text,
+                    time: new Date().toISOString(), status: 'Queued',
+                });
+            }
             loadMsgs();   // reconcile with the server copy (and refresh the cache)
         });
     }
