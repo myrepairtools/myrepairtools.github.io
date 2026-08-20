@@ -1830,28 +1830,24 @@ async function openQuizEditor(a){
   paint();
 }
 
-/* ---------- publish → Communications + alerts (unchanged behavior) ---------- */
+/* ---------- publish → personal alert, never a feed broadcast ----------
+   Required reading fires the muteable 'kb' alert — that's the half someone has
+   to act on. A new OPTIONAL article announces nothing: the dashboard Knowledge
+   widget already lists freshly published articles, so the feed post was a
+   second copy of a notice nobody had to do anything about. A manager who wants
+   to make noise about one can hand-post it to Communications in a click.
+   (Standing directive: automated events are personal alerts, not all-staff
+   posts — and never both for the same event.) */
 async function announcePublish(a,isNew){
+  if(!a.require_ack)return;
   try{
-    const req=a.require_ack;
-    await sb.from('communications').insert({
-      kind:req?'training':'announcement',
-      title:(req?'🎓 Required reading: ':'📚 New in the Knowledge Base: ')+a.title,
-      body:(a.summary?a.summary+'\n\n':'')
-        +(req?'This one needs a read **and** an acknowledgment — it\'s tracked.\n\n':'')
-        +'Read it here: https://myrepairtools.com/knowledge.html#a='+(a.slug||''),
-      source_key:'kb:'+a.id+':'+(isNew?'publish':'recert-'+a.version),
-      created_by:AUTH.id
-    });
-    if(req){
-      const s=(await sb.auth.getSession()).data.session;
-      if(s)fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.access_token,'apikey':ANON},
-        body:JSON.stringify({action:'send',kind:'kb',all_active:true,
-          title:'Required reading: '+a.title,
-          body:(a.summary||'New policy article — read and acknowledge it.').slice(0,300),
-          link:'knowledge.html#a='+(a.slug||'')})}).catch(()=>{});
-    }
+    const s=(await sb.auth.getSession()).data.session; if(!s)return;
+    await fetch(SB_URL+'/functions/v1/alerts',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.access_token,'apikey':ANON},
+      body:JSON.stringify({action:'send',kind:'kb',all_active:true,
+        title:'Required reading: '+a.title,
+        body:(a.summary||'New policy article — read and acknowledge it.').slice(0,300),
+        link:'knowledge.html#a='+(a.slug||'')})});
   }catch(e){ /* best-effort */ }
 }
 
