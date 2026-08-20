@@ -864,7 +864,17 @@ async function saveTemplate(){
     toast(EDIT_ID?'Task updated':'Task created');
     // regenerate + refresh so today's instance appears right away
     const sess=(await sb.auth.getSession()).data.session;
-    if(sess)await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}}).catch(()=>{});
+    /* Same as task-admin: the task is saved and the toast has fired, so a
+       silent generation failure just makes today's work vanish. fetch() does
+       not reject on 4xx/5xx, so check the status as well as the throw. */
+    if(sess){
+      try{
+        const g=await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}});
+        if(!g.ok)throw new Error('HTTP '+g.status);
+      }catch(ge){
+        toast('Task saved, but generating today’s instances failed ('+String(ge&&ge.message||ge)+') — today’s list may not show it yet. Reload to retry; it also regenerates on the daily run.',true);
+      }
+    }
     await loadData();render();
   }catch(e){toast(String(e.message||e),true);}
 }

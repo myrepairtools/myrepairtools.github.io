@@ -940,7 +940,17 @@ async function saveTemplate(){
     }
     closeModal();toast(EDIT_ID?(locs.length>1?'Saved · '+locs.length+' stores':'Template updated'):(locs.length>1?locs.length+' templates created — one per location':'Template created'));
     const sess=(await sb.auth.getSession()).data.session;
-    if(sess)await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}}).catch(()=>{});
+    /* The template is already saved and the toast has fired, so a generation
+       failure must not be silent: staff would simply find the work missing.
+       fetch() does not reject on 4xx/5xx, so the status needs checking too. */
+    if(sess){
+      try{
+        const g=await fetch(SB_URL+'/functions/v1/tasks?action=generate',{headers:{'Authorization':'Bearer '+sess.access_token}});
+        if(!g.ok)throw new Error('HTTP '+g.status);
+      }catch(ge){
+        toast('Template saved, but generating today’s instances failed ('+String(ge&&ge.message||ge)+') — today’s list may not show it yet. Reload to retry; it also regenerates on the daily run.',true);
+      }
+    }
     await loadCore();await loadReport();render();
   }catch(e){toast(String(e.message||e),true);}
 }
