@@ -15,18 +15,10 @@ h1{font-family:'Nunito',sans-serif;font-weight:900;font-size:1.5rem;letter-spaci
 .sub{color:var(--grey);margin-bottom:18px;font-size:.82rem;font-weight:600}
 .adminbtn{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-weight:800;border-radius:9px;border:1px solid var(--border);background:var(--white);color:var(--dark-grey);padding:8px 13px;font-size:.76rem;cursor:pointer;text-decoration:none;white-space:nowrap}
 .adminbtn:hover{border-color:var(--blue);color:var(--blue)}
-/* lock */
-.lock{position:fixed;inset:0;width:100vw;height:100vh;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2000}
-.lock.hide{display:none}
-.lock-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:34px 38px;text-align:center;width:100%;max-width:330px}
-.lock-box .ic{font-size:30px;margin-bottom:14px}
-.lock-box h2{font-family:'Nunito',sans-serif;font-weight:900;font-size:17px;color:#fff;margin-bottom:4px}
-.lock-box p{font-size:12px;color:rgba(255,255,255,.4);font-weight:600;margin-bottom:22px}
-.lock-box input,.lock-box select{width:100%;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:12px 14px;font-size:16px;color:#fff;margin-bottom:12px}
-.lock-box select option{color:#000}
-.lock-box button{width:100%;background:var(--red);border:none;border-radius:8px;padding:12px;font-family:'Nunito',sans-serif;font-weight:800;color:#fff;cursor:pointer}
-.lock-err{color:#ef4444;font-size:12px;font-weight:700;min-height:16px;margin-top:8px}
-.app{display:none}.app.show{display:block}
+/* The page-local PIN overlay lived here (.lock / .lock-box / .lock-err) with
+   `.app{display:none}.app.show{display:block}`. Both gone: pin-gate.js is the one
+   gate and now loads in <head>, so it covers the page before any content paints.
+   NOTE .toast.show at line 77 is a DIFFERENT rule and must survive. */
 .bar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
 .tabs{display:flex;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:3px}
 .tab{padding:8px 15px;font-family:'Nunito',sans-serif;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--grey);background:transparent;border:none;border-radius:5px;cursor:pointer}
@@ -150,18 +142,7 @@ tr.aurow-clk:hover td{background:#f8fafd}
 </head>
 <body>
 
-<div class="lock" id="lockScreen">
-  <div class="lock-box">
-    <div class="ic">🔒</div>
-    <h2>Cash Admin</h2>
-    <p>Manager / owner sign-in</p>
-    <input id="lkPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
-    <button id="lkGo">Unlock admin tools</button>
-    <div class="lock-err" id="lkErr"></div>
-  </div>
-</div>
-
-<div class="app" id="app">
+<div id="app">
 <script src="assets/nav.js" data-section="admin"></script>
 <script src="assets/locations.js"></script>
 <main>
@@ -351,11 +332,9 @@ import { createClient } from "/assets/supabase-js.js";
 /* ===== SUPABASE ===== */
 var SB_URL='https://xuvsehrevxackuhmbmry.supabase.co';
 var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dnNlaHJldnhhY2t1aG1ibXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2OTY4NjEsImV4cCI6MjA5NzI3Mjg2MX0.pURipAPZoVKFe3wdMQHBsw4Bd2mgG8OdzxaCJKGIqyY';
-var FN=SB_URL+'/functions/v1/cpr-auth';
 var sb=createClient(SB_URL,ANON);
 /* ==================== */
 var AUTH=null;       /* logged-in staff: {name, role, home_store, authorized_stores} */
-var DEVICE_ID=localStorage.getItem('cpr_device_id')||(function(){var d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('cpr_device_id',d);return d;})();
 
 var $=function(s){return document.querySelector(s);};
 var $all=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
@@ -415,61 +394,46 @@ function fetchEntries(store,period){
   return sb.from('cash_entries').select('*').eq('store',store).eq('period',period).then(function(r){if(r.error)throw r.error;return (r.data||[]).map(rowFromDb);});
 }
 
-/* ===== auth: name + PIN via cpr-auth, Supabase session, 5-min idle relock ===== */
-/* An installed home-screen app is a personal device whose lock screen IS the
-   security boundary, so it must never idle-sign-out — that is pin-gate's policy
-   (armIdle() returns early when STANDALONE) and the reason "keep me signed in"
-   exists at all. This page kept its OWN timer, which called signOut() on the
-   SHARED session and undid that from the outside: install the app, open Cash
-   Admin, leave it five minutes, and you are signed out of everything. Matches
-   the guard settings.html:756 already had. */
-var STANDALONE=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;
-var IDLE_MS=5*60*1000, idleTimer=null, lastTouch=0, NAME2USER={};
-function fn(body){return fetch(FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ANON,'apikey':ANON},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {status:r.status,data:d};},function(){return {status:r.status,data:{}};});});}
-function lockErr(t){var e=$('#lkErr');if(e)e.textContent=t||'';}
-function showLock(){$('#app').classList.remove('show');var lk=$('#lockScreen');if(lk)lk.classList.remove('hide');var pin=$('#lkPin');if(pin)pin.value='';}
-function idleExpired(){var t=+localStorage.getItem('cash_admin_last_active')||0;return Date.now()-t>IDLE_MS;}
-function resetIdle(){var now=Date.now();clearTimeout(idleTimer);if(!STANDALONE)idleTimer=setTimeout(relock,IDLE_MS);if(now-lastTouch>3000){lastTouch=now;localStorage.setItem('cash_admin_last_active',String(now));}}
-function relock(){clearTimeout(idleTimer);sb.auth.signOut();AUTH=null;booted=false;showLock();}
-function unlockUI(){$('#lockScreen').classList.add('hide');$('#app').classList.add('show');resetIdle();boot();}
-async function populateLockNames(){
-  var r=await sb.from('staff_roster').select('display_name,username,role,active').eq('active',true);
-  var rows=(r.error?[]:(r.data||[])).filter(function(s){return ['admin','manager','owner'].indexOf(s.role)>-1;});
-  rows.sort(function(a,b){return String(a.username).localeCompare(String(b.username));});
-  NAME2USER={};rows.forEach(function(s){NAME2USER[s.username]=s.username;});
-  var sel=$('#lkName');if(sel)sel.innerHTML='<option value="">Select your username…</option>'+rows.map(function(s){return '<option>'+s.username+'</option>';}).join('');
+/* ===== auth — one shared gate =====
+   This page carried its own doLogin / showLock / getSession and a 5-minute idle
+   sign-out. Two problems, both reported by the owner:
+
+   1. THE DOUBLE PIN. On a cold open the page's getSession() returned null before
+      pin-gate had finished restoring the session, so it painted its own 🔒
+      "Cash Admin" card over a page pin-gate was already unlocking. Refreshing
+      "fixed" it because restoration had completed by then.
+   2. THE MOBILE SIGN-OUT. relock() called sb.auth.signOut() on the SHARED
+      session, so an installed home-screen app that sat here five minutes was
+      signed out of the whole site — undoing pin-gate's standalone exemption
+      from the outside. The guard added in fdb7f94 is superseded by this.
+
+   Deleting is not enough on its own: unlockUI() was also the ONLY caller of
+   boot(), this page's loader. Both jobs move to CPRAuth.ready, which pin-gate
+   settles once identity is known. AUTH must be assigned BEFORE boot() runs —
+   cacheUser() namespaces every localStorage key on AUTH.name|AUTH.role and
+   boot() reads that cache immediately.
+
+   No role check here any more: pin-gate gates this page on the cash.admin
+   permission via its PAGEACC entry, which is the same bar isAdminRole() set. */
+function bootAuth(){
+  if(!window.CPRAuth){ bootFailed('The sign-in script did not load.'); return; }
+  window.CPRAuth.ready.then(function(me){
+    AUTH={name:me.name,role:me.role,home_store:me.home_store,authorized_stores:me.authorized_stores||[]};
+    boot();
+  }, function(){ bootFailed('We could not load your profile.'); });
 }
-function isAdminRole(role){return ['admin','manager','owner'].indexOf(role)>-1;}
-async function doLogin(){
-  var pin=($('#lkPin')&&$('#lkPin').value)||'';
-  if(!pin){lockErr('Enter your PIN');return;}
-  $('#lkGo').disabled=true; lockErr('Signing in…');
-  try{
-    var r=await fn({action:'login',pin:pin,device_id:DEVICE_ID});
-    if(r.status!==200){var d=r.data||{};
-      if(r.status===423||d.locked) lockErr('Locked after too many tries — an owner must reset this device.');
-      else if(d.error==='invalid') lockErr('Wrong PIN.'+(d.remaining!=null?(' '+d.remaining+' attempt(s) left.'):''));
-      else lockErr(d.error||'Login failed.');
-      $('#lkGo').disabled=false; return;
-    }
-    var st=r.data.staff||{};
-    if(!isAdminRole(st.role)){ lockErr('That account doesn\'t have admin access.'); $('#lkGo').disabled=false; return; }
-    await sb.auth.setSession({access_token:r.data.access_token,refresh_token:r.data.refresh_token});
-    AUTH={name:st.display_name,role:st.role,home_store:st.home_store,authorized_stores:st.authorized_stores||[]};
-    $('#lkGo').disabled=false; lockErr('');
-    unlockUI();
-  }catch(e){$('#lkGo').disabled=false; lockErr(String(e&&e.message||e));}
-}
-async function initAuth(){
-  if($('#lkGo')) $('#lkGo').onclick=doLogin;
-  if($('#lkPin')){ $('#lkPin').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();}); $('#lkPin').focus(); }
-  ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){document.addEventListener(ev,function(){if(AUTH)resetIdle();});});
-  var sess=(await sb.auth.getSession()).data.session;
-  if(sess){   // SSO: a valid shared session unlocks; idle relock still applies while on the page
-    var sr=await sb.from('staff').select('display_name,role,home_store,authorized_stores').eq('auth_uid',sess.user.id).maybeSingle();
-    if(sr.data && isAdminRole(sr.data.role)){AUTH={name:sr.data.display_name,role:sr.data.role,home_store:sr.data.home_store,authorized_stores:sr.data.authorized_stores||[]};unlockUI();return;}
-  }
-  showLock();   // no session (or not admin) -> require admin PIN here
+/* pin-gate FAILS OPEN when it cannot resolve a staff row — it reveals and lets
+   RLS govern. Without this the page would render fully chromed with AUTH null:
+   every cash figure blank, which on a page used to count a drawer reads as
+   "the safe is empty" rather than "we could not load you". */
+function bootFailed(msg){
+  var m=document.querySelector('#app main')||document.querySelector('#app');
+  if(!m)return;
+  m.innerHTML='<div style="max-width:520px;margin:48px auto;padding:26px;text-align:center;'
+    +'background:#fff;border:1.5px solid var(--border);border-radius:12px">'
+    +'<div style="font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;margin-bottom:6px">'+esc(msg)+'</div>'
+    +'<div style="font-size:.88rem;color:var(--dark-grey);font-weight:600">Reload the page. If it keeps happening, tell a manager.</div>'
+    +'</div>';
 }
 
 /* ===== BROWSER CACHE (stale-while-revalidate) =====
@@ -1645,7 +1609,7 @@ function renderSettings(){
 }
 $('#testConn').onclick=function(){$('#connStatus').textContent='Testing…';sb.from('cash_setup').select('id').limit(1).then(function(r){$('#connStatus').textContent=r.error?('✗ '+r.error.message):'✓ Connected';}).catch(function(e){$('#connStatus').textContent='✗ '+(e&&e.message||e);});};
 
-initAuth();
+bootAuth();
 </script>
 </body>
 </html>
