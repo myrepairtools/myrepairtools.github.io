@@ -946,12 +946,18 @@ async function saveDraft(){
     var days=collectEnvDays();
     var up=await sb.from('cash_audits').update({repairq_sales:($('#auRQ').value===''?null:num($('#auRQ').value)),petty_cash:num($('#auPetty').value),auditor:(AUTH?AUTH.name:row.auditor)}).eq('id',row.id);
     if(up.error)throw up.error;
-    await sb.from('cash_audit_locations').delete().eq('audit_id',row.id);
-    await sb.from('cash_audit_days').delete().eq('audit_id',row.id);
+    /* Supabase resolves with {error} rather than rejecting, so an unchecked
+       delete fails INVISIBLY and the inserts below then mix fresh rows in with
+       the stale ones — leaving the drawer count wrong while the UI says
+       "Autosaved". Check both before inserting anything. */
+    var dl=await sb.from('cash_audit_locations').delete().eq('audit_id',row.id);
+    if(dl.error)throw dl.error;
+    var dd=await sb.from('cash_audit_days').delete().eq('audit_id',row.id);
+    if(dd.error)throw dd.error;
     if(rows.length){var il=await sb.from('cash_audit_locations').insert(rows);if(il.error)throw il.error;}
     if(days.length){var id2=await sb.from('cash_audit_days').insert(days.map(function(r){return {audit_id:row.id,store:STATE.store,period:row.period,day:(r.day==='__SMALL__'?null:r.day),location:r.location,c100:num(r.C100),c50:num(r.C50),c20:num(r.C20),c10:num(r.C10),c5:num(r.C5),c2:0,c1:num(r.C1),total:r.total};}));if(id2.error)throw id2.error;}
     $('#auSaved').textContent='Autosaved '+new Date().toLocaleTimeString();
-  }catch(e){ $('#auSaved').textContent='Autosave failed'; }
+  }catch(e){ $('#auSaved').textContent='Autosave failed — '+String(e&&e.message||e)+' (your counts are NOT saved)'; }
   AUDIT.saving=false;
   if(AUDIT.saveQueued){AUDIT.saveQueued=false;saveDraft();}
 }
@@ -1048,8 +1054,12 @@ async function finalizeAudit(counts,depBank,depSB,depSL){
     bank_deposit:depBank,small_to_bank:depSB,small_to_large:depSL,
     repairq_sales:num($('#auRQ').value),petty_cash:num($('#auPetty').value)}).eq('id',row.id);
   if(up.error)throw up.error;
-  await sb.from('cash_audit_locations').delete().eq('audit_id',row.id);
-  await sb.from('cash_audit_days').delete().eq('audit_id',row.id);
+  /* Same unchecked-delete defect as saveDraft, but on the CLOSE path, where it
+     freezes a closed audit around a half-replaced set of detail rows. */
+  var dl=await sb.from('cash_audit_locations').delete().eq('audit_id',row.id);
+  if(dl.error)throw dl.error;
+  var dd=await sb.from('cash_audit_days').delete().eq('audit_id',row.id);
+  if(dd.error)throw dd.error;
   var il=await sb.from('cash_audit_locations').insert(rows.map(function(r){return {audit_id:row.id,store:STATE.store,location:r.location,tracked:r.tracked,counted:r.counted,over_short:r.over_short,carry_forward:r.carry};}));
   if(il.error)throw il.error;
   if(days.length){var id2=await sb.from('cash_audit_days').insert(days.map(function(r){return {audit_id:row.id,store:STATE.store,period:row.period,day:(r.day==='__SMALL__'?null:r.day),location:r.location,c100:num(r.C100),c50:num(r.C50),c20:num(r.C20),c10:num(r.C10),c5:num(r.C5),c2:0,c1:num(r.C1),total:r.total};}));if(id2.error)throw id2.error;}
