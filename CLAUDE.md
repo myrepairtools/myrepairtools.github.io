@@ -1241,7 +1241,10 @@ against the ticket page's own customer block before flushing (note
 `suggestedPhones()` returns `{num,tag}` objects, not strings); a stash with no
 contact data (return/skip) rides only the fresh post-save landing
 (`mrt_fu_checkin`, consumed once); TTL is 15 min. A non-matching stash stays
-put for its own ticket. Test: scratchpad fu_leak.mjs (mock pages must mirror
+put for its own ticket. Tests: `extension/test/` — `followup-ownership.test.mjs` (node+jsdom, boots
+the real script and asserts what reaches contact_set; verified against the
+pre-fix source so it demonstrably detects the bug) and `boot-smoke.test.mjs`.
+See that folder's README to run them. Mock pages must mirror
 RepairQ's real sidebar — `.sub-head h3` "Customer" + sibling `.block-content`,
 ≤480px wide — or `customerAnchor()` finds nothing and boot stalls in
 `whenSummaryReady`).
