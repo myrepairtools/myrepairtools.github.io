@@ -785,11 +785,20 @@ async function engine() {
         const perStore: Record<string, number> = {};
         for (const a of autos) perStore[a.store] = (perStore[a.store] || 0) + 1;
         const lines = Object.keys(perStore).sort().map((s) => `${shortName(s)}: ${perStore[s]}`).join(" · ");
-        await admin.from("communications").upsert([{
-          source_key: wk, kind: "gbp",
-          title: `🤖 ${autos.length} review repl${autos.length === 1 ? "y" : "ies"} auto-posted last week`,
-          body: `${lines}. Every reply is in the Google Reviews feed with an AUTO label.`,
-        }], { onConflict: "source_key", ignoreDuplicates: true });
+        // The Communications post that used to go here is GONE (owner's call,
+        // 2026-08-20): "employees don't need to see the 8 review replies posted
+        // this week, neither do managers, and really I don't either."
+        //
+        // Communications is an all-staff feed nobody can opt out of, so a weekly
+        // robot-status line pushed an unread badge onto every employee for
+        // something none of them act on — and it crowded out the posts that do
+        // matter. The information is not lost: every auto-reply is already in
+        // google-reviews.html with an AUTO label, which is where someone who
+        // cares goes to look.
+        //
+        // The opt-in alert below stays. It only reaches people who deliberately
+        // ticked auto_digest in google-reviews.html's ⚙ notification settings,
+        // and they can untick it there.
         const subs = prefs.filter((p) => p.triggers.auto_digest === true);
         await fanoutAlert(subs.map((p) => p.staff_id),
           `🤖 Auto-replies last week: ${autos.length}`, lines, "google-reviews.html");

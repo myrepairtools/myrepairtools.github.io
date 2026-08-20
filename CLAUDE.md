@@ -36,6 +36,37 @@ re-requested:
 - When adding a feature, ask "how would the assistant see or do this?" and leave the
   data model and permissions in a state that answers it.
 
+## Standing directive: notifications are personal, not broadcast
+
+**Default every automated notification to a PERSONAL alert the recipient can
+manage. The Communications feed is an all-staff broadcast nobody can opt out
+of — use it only where the owner has explicitly asked for one.** Apply this by
+default; it does not need to be re-requested.
+
+- **Personal alert** — the `alerts` fanout (`{action:'send', kind, staff_ids}`),
+  which honours `alert_prefs` and is muteable per kind in profile.html. This is
+  the default for anything a cron or an edge function raises.
+- **Communications** (`communications` table) — something a human deliberately
+  wrote for everyone, or an automated post the owner has explicitly sanctioned.
+  The sanctioned example is **Schedule Admin's 📣 Notify staff button**: a
+  manager choosing, in the moment, to tell the team. That is a person deciding
+  to broadcast, not a robot deciding for them.
+- **Never both for the same event.** A goal hit that alerts the person AND posts
+  to the feed bills one event twice.
+
+**Why:** every Communications row pushes an unread badge onto every employee.
+Automated status lines in a feed nobody can mute crowd out the posts that
+matter and train people to ignore the badge entirely. The GBP weekly digest
+("🤖 8 review replies auto-posted last week") was deleted from `gbp-sync` for
+exactly this on 2026-08-20 — owner's words: *"Employees don't need to see the 8
+review replies posted this week. Neither do managers and really I don't
+either."* The data was never lost: every auto-reply is in google-reviews.html
+with an AUTO label, which is where someone who cares goes to look.
+
+**When adding a notification, ask who ACTS on it** and route it to them. If the
+honest answer is "nobody acts on it, it's just status," it belongs on the page
+that owns the data — not in anyone's feed.
+
 ## Standing directive: build like a future product
 
 **The long-term aim is to turn these tools into a real product other CPR franchisees (and

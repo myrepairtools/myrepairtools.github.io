@@ -1,6 +1,6 @@
-# AGENTS.md
+# CLAUDE.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
 
@@ -27,7 +27,7 @@ re-requested:
 - **The AI proxy is the `cpr-assistant` Supabase edge function** (holds
   `ANTHROPIC_API_KEY` as a secret; the key must never ship to the browser). The chat
   widget is `assets/cpr-assistant.js`, injected site-wide by `nav.js` and openable via
-  `window.CPRAssistant.open()`. Default model `Codex-opus-4-8`; the Anthropic Messages
+  `window.CPRAssistant.open()`. Default model `claude-opus-4-8`; the Anthropic Messages
   API is streamed back as SSE.
 - **Reads before writes.** Data-access "tools" the assistant can call are scoped query
   functions defined in the edge function, gated by the existing `permissions` /
@@ -35,6 +35,37 @@ re-requested:
   confirm-gated** (read → propose → human confirms → write → audit-log) — never raw SQL.
 - When adding a feature, ask "how would the assistant see or do this?" and leave the
   data model and permissions in a state that answers it.
+
+## Standing directive: notifications are personal, not broadcast
+
+**Default every automated notification to a PERSONAL alert the recipient can
+manage. The Communications feed is an all-staff broadcast nobody can opt out
+of — use it only where the owner has explicitly asked for one.** Apply this by
+default; it does not need to be re-requested.
+
+- **Personal alert** — the `alerts` fanout (`{action:'send', kind, staff_ids}`),
+  which honours `alert_prefs` and is muteable per kind in profile.html. This is
+  the default for anything a cron or an edge function raises.
+- **Communications** (`communications` table) — something a human deliberately
+  wrote for everyone, or an automated post the owner has explicitly sanctioned.
+  The sanctioned example is **Schedule Admin's 📣 Notify staff button**: a
+  manager choosing, in the moment, to tell the team. That is a person deciding
+  to broadcast, not a robot deciding for them.
+- **Never both for the same event.** A goal hit that alerts the person AND posts
+  to the feed bills one event twice.
+
+**Why:** every Communications row pushes an unread badge onto every employee.
+Automated status lines in a feed nobody can mute crowd out the posts that
+matter and train people to ignore the badge entirely. The GBP weekly digest
+("🤖 8 review replies auto-posted last week") was deleted from `gbp-sync` for
+exactly this on 2026-08-20 — owner's words: *"Employees don't need to see the 8
+review replies posted this week. Neither do managers and really I don't
+either."* The data was never lost: every auto-reply is in google-reviews.html
+with an AUTO label, which is where someone who cares goes to look.
+
+**When adding a notification, ask who ACTS on it** and route it to them. If the
+honest answer is "nobody acts on it, it's just status," it belongs on the page
+that owns the data — not in anyone's feed.
 
 ## Standing directive: build like a future product
 
@@ -388,8 +419,8 @@ line labels, `default_lines` = the recurring per-line amounts) + `bill_path`
 **Drop a bill:** dragging the carrier PDF anywhere on the page (or the Drop a
 Bill button) uploads it, then the **`qbo` function's `extract_phone_bill`**
 action (owner JWT like every qbo action) downloads it service-side and reads
-it with Codex via a base64 `document` block — `Codex-opus-5` with retries
-then a `Codex-sonnet-5` fallback (a 529 overload on a 40-page document must
+it with Claude via a base64 `document` block — `claude-opus-5` with retries
+then a `claude-sonnet-5` fallback (a 529 overload on a 40-page document must
 not make the owner re-drop the file), ~11s for a 40-page Verizon bill — returning service period, due date, bill total, and
 EVERY line (owner · last-4 · device · amount), including the ones the summary
 folds into "Remaining N lines" (their details live in the later charges-by-line
@@ -517,7 +548,7 @@ QuickBooks receipt app, designed to be Added to Home Screen (`assets/expenses-ma
 root-relative; standalone mode grows `--cpr-top-h` by `env(safe-area-inset-top)` so the
 iOS status bar doesn't cram the nav top bar). Flow: snap/pick a receipt photo
 (canvas-downscaled to ≤1600px JPEG) — **the `qbo` function's `extract_receipt` action
-(Codex vision, haiku) then reads it and prefills amount/date/vendor/card_last4
+(Claude vision, haiku) then reads it and prefills amount/date/vendor/card_last4
 — the four card digits printed on the slip pick the Paid With account by
 `matchPayAccount()`: the digits already in the account NAME ("Spark - Clackamas
 (8123)") cover a dipped card, the Settings `applepay` pairing covers an Apple
@@ -1357,7 +1388,7 @@ prompt with citation rules (`from: [title](link)`); the assistant must never sta
 CPR-specific policy that isn't in the KB. cpr-assistant's source now lives in
 `supabase/functions/cpr-assistant/` (recovered from the deployed eszip — keep it
 committed). Nag reminders for unacknowledged required reading are deliberately deferred
-to the notifications project. Importing existing docs: give them to Codex in a session —
+to the notifications project. Importing existing docs: give them to Claude in a session —
 it converts and inserts articles directly.
 
 **KB v2 — onboarding & quizzes (design-handoff rebuild):** knowledge.html is now the
@@ -1919,8 +1950,8 @@ entries behind it. **🖨 Print** in the detail header + `@media print` CSS that
 strips the app chrome and prints the detail as a report. writeCloseDeposits
 failures now toast (they used to console.warn only — that's why pre-Aug-2026
 audits have no [ac:] deposit ledger entries; only audit 12 was backfilled).
-**✨ Codex Audit** (detail header, next to Print): downloads a zip a future
-Codex session can reconcile the month from — INSTRUCTIONS.md (the playbook:
+**✨ Claude Audit** (detail header, next to Print): downloads a zip a future
+Claude session can reconcile the month from — INSTRUCTIONS.md (the playbook:
 the two metrics, Open/Close-SET-balance semantics, skip `[ac:` rows, envelope
 math, match unlogged pulls to RQ payouts), audit.json (audit row + per-location
 results + month-start carry + prior audit), entries.csv (full window incl. the
@@ -1942,7 +1973,7 @@ data, not an error. The zip itself is built by a ~40-line stored
 **The results come BACK into MRT:** `cash_audit_reports` (audit_id FK, title,
 summary, html, created_by; docs/sql/cash-audit-reports.sql — browser READ-only
 via the parent audit's `is_admin(store)`, delete `is_owner()`; writes are
-service-role only). The zip's INSTRUCTIONS.md tells the auditing Codex
+service-role only). The zip's INSTRUCTIONS.md tells the auditing Claude
 session to write its finished report as ONE self-contained brand-styled HTML
 file (Nunito/Nunito Sans, light+dark, **every dollar traced to a ticket
 linked as `https://cpr.repairq.io/ticket/<id>`**) and insert it here; the
@@ -1980,7 +2011,7 @@ When changing a tool's data layer, check which generation it uses first — they
   radius 8, Nunito Sans 700 .92rem, blue focus ring `0 0 0 3px rgba(79,176,227,.15)`),
   values = canonical `CPRLocations.names()`, labels = `'CPR ' + display(name)`. Converted
   so far: cash-journal, checklist; convert other pages' pills when touching them. (The
-  design project's AGENTS.md + `@myrepairtools/design-system` record the same rule —
+  design project's CLAUDE.md + `@myrepairtools/design-system` record the same rule —
   StorePills is deprecated for location switching.)
 - **`my-schedule.html` is full-width on desktop** (`body.web main{max-width:none}`),
   like Schedule Admin and Checklist. Watch for stray `<style id="__om-edit-overrides">`
