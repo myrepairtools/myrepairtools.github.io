@@ -63,6 +63,44 @@ const json = (b: unknown, status = 200) =>
 
 const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
 
+/* ---------------- short-TTL read cache (rc_cache) ----------------
+   The badge poller asks for 30 days of conversations every 2 minutes from every
+   open RepairQ tab, panel open or not — so upstream load scales with TAB COUNT,
+   and RingCentral rate-limits per (user, application). Eugene, with the most
+   tabs and the most records, exhausted its own budget and the Message Center
+   went down with "Request rate exceeded" while the other two stores were fine.
+
+   Caching per store collapses N tabs into ~1 upstream read per TTL, which
+   removes the tab-count dependency rather than merely reducing it. Shared
+   through Postgres because each edge isolate starts with an empty memory cache
+   and there are several of them. Best-effort throughout: a cache problem must
+   never take down messaging. */
+const memCache = new Map<string, { payload: any; exp: number }>();
+
+async function cacheGet(key: string): Promise<any | null> {
+  const hit = memCache.get(key);
+  if (hit && Date.now() < hit.exp) return hit.payload;
+  try {
+    const { data } = await admin.from("rc_cache").select("payload, exp").eq("cache_key", key).maybeSingle();
+    if (data && new Date(data.exp).getTime() > Date.now()) {
+      memCache.set(key, { payload: data.payload, exp: new Date(data.exp).getTime() });
+      return data.payload;
+    }
+  } catch { /* cache optional */ }
+  return null;
+}
+
+async function cacheSet(key: string, payload: any, ttlMs: number): Promise<void> {
+  const exp = Date.now() + ttlMs;
+  memCache.set(key, { payload, exp });
+  try {
+    await admin.from("rc_cache").upsert(
+      { cache_key: key, payload, exp: new Date(exp).toISOString(), updated_at: new Date().toISOString() },
+      { onConflict: "cache_key" },
+    );
+  } catch { /* cache optional */ }
+}
+
 /* ---------------- store lines (store → number + JWT) ---------------- */
 
 type StoreLine = {
@@ -210,17 +248,36 @@ async function rcGet(path: string, jwt?: string, appKey?: string, appSecret?: st
    than reaching for a larger value we have not verified this account accepts;
    the ceiling exists so one very busy store can never hang the call, and when it
    bites we say so instead of quietly returning a short list. */
-const RC_PAGE = 250;
-const RC_MAX_PAGES = 8;                      // 2000 records — ~3 months at Eugene's rate
+// perPage is the RingCentral message-store MAXIMUM (1000), not a guess. The
+// first version of this paged at 250 and cost five round-trips at Eugene, our
+// busiest line, which pushed that extension over its rate limit and took the
+// store's Message Center down with "Request rate exceeded" (2026-08-21). At
+// 1000 the same window is two calls.
+//
+// Rate limits are per (user, application), so a busy store exhausts its own
+// budget without touching the others — which is exactly the shape of the
+// failure we saw: Eugene down, Salem and Clackamas fine.
+//
+// On 429 we STOP. RingCentral's own guidance is that any request sent during
+// the penalty interval RESETS it, so a retry loop turns a one-minute throttle
+// into an open-ended lockout. We return what we already have and say it is
+// truncated rather than digging deeper.
+const RC_PAGE = 1000;
+const RC_MAX_PAGES = 4;                      // 4000 records — months at Eugene's rate
 async function rcGetPaged(
   base: string,
   a: { jwt?: string; appKey?: string; appSecret?: string },
   maxPages = RC_MAX_PAGES,
-): Promise<{ ok: boolean; status: number; data?: any; records: any[]; truncated: boolean }> {
+): Promise<{ ok: boolean; status: number; data?: any; records: any[]; truncated: boolean; throttled?: boolean }> {
   const records: any[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const sep = base.includes("?") ? "&" : "?";
     const r = await rcGet(`${base}${sep}perPage=${RC_PAGE}&page=${page}`, a.jwt, a.appKey, a.appSecret);
+    if (r.status === 429) {
+      // Never request again inside the penalty window.
+      if (records.length) return { ok: true, status: 429, data: r.data, records, truncated: true, throttled: true };
+      return { ok: false, status: 429, data: r.data, records, truncated: false, throttled: true };
+    }
     if (!r.ok) return { ok: false, status: r.status, data: r.data, records, truncated: records.length > 0 };
     const recs = r.data?.records || [];
     records.push(...recs);
@@ -547,11 +604,18 @@ function prettyNum(n: string): string {
 }
 
 // SMS conversations — newest message per counterparty, with unread counts.
+const CONV_TTL_MS = 90_000;   // ~1.5x the 2-minute badge poll, so tabs coalesce
+
 async function actionConversations(payload: any) {
   const line = await lineForStore(payload?.store);
   const a = lineAuth(line);
   if (!a.jwt) return json({ ok: false, error: "No line configured for this store" }, 400);
   const days = Math.max(1, Math.min(90, Number(payload?.days) || 30));
+  const ck = `conv:${line?.store || a.store || payload?.store || "?"}:${days}`;
+  if (!payload?.fresh) {
+    const cached = await cacheGet(ck);
+    if (cached) return json({ ...cached, cached: true });
+  }
   const dateFrom = new Date(Date.now() - days * 864e5).toISOString();
   const g = await rcGetPaged(`/restapi/v1.0/account/~/extension/~/message-store?messageType=SMS&dateFrom=${dateFrom}`, a);
   if (!g.ok) return json({ ok: false, error: g.data?.message || `HTTP ${g.status}`, status: g.status });
@@ -576,7 +640,10 @@ async function actionConversations(payload: any) {
     .filter((t: any) => !internal.has(t.number))
     .sort((x: any, y: any) => String(y.last_time).localeCompare(String(x.last_time)));
   // Report a hit ceiling rather than returning a short list as if it were whole.
-  return json({ ok: true, store: line?.store || a.store, conversations: list, scanned: g.records.length, truncated: g.truncated });
+  const body = { ok: true, store: line?.store || a.store, conversations: list, scanned: g.records.length, truncated: g.truncated };
+  // Don't cache a throttled/partial read as though it were the whole picture.
+  if (!g.truncated) await cacheSet(ck, body, CONV_TTL_MS);
+  return json(body);
 }
 
 let internalCache: { nums: Set<string>; exp: number } | null = null;
