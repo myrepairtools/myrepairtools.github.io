@@ -1062,6 +1062,120 @@ async function msPostSweep(body: Record<string, unknown>, actor: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Daily receipt: everything the sweep booked, and everything it refused.
+//
+// The pipeline writes to real books unattended, so it owes a daily account of
+// itself. Two things this email exists to answer:
+//
+//   1. What did it post yesterday, split how, on which card. Cross-checkable
+//      against the bank feed in a couple of minutes.
+//   2. Did it reach BACKWARDS. The cutoff is what stops the tool re-posting
+//      history that was reconciled by hand, so the report counts anything
+//      booked with an order date before it and says so LOUDLY. That number
+//      should be zero forever; if it is ever not, something changed the cutoff.
+//
+// Sent even on a quiet day. A report that only arrives when there is news is
+// indistinguishable from a job that has silently died.
+async function msPostReport(body: Record<string, unknown>) {
+  const { data: cfgRow } = await admin.from("qbo_config").select("value").eq("key", "ms_post").maybeSingle();
+  const cfg = (cfgRow?.value ?? {}) as Record<string, unknown>;
+  const cutoff = String(cfg.cutoff || "");
+  const to = String(body.to || cfg.email || "").trim();
+  const hours = Math.max(1, Math.min(Number(body.hours) || 24, 168));
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+
+  const { data: posted } = await admin.from("ms_orders")
+    .select("increment_id, store, ordered_at, cc_last4, qbo_amount, qbo_doc_number, qbo_posted_at, subtotal, shipping_amount")
+    .not("qbo_purchase_id", "is", null).gte("qbo_posted_at", since)
+    .order("qbo_posted_at", { ascending: true });
+
+  const { data: queued } = await admin.from("ms_orders")
+    .select("increment_id, store, ordered_at, qbo_error, subtotal, shipping_amount")
+    .is("qbo_purchase_id", null).not("qbo_error", "is", null)
+    .gte("ordered_at", cutoff || "1970-01-01")
+    .order("ordered_at", { ascending: true });
+
+  // The guard, checked rather than assumed.
+  //
+  // Only breaches SINCE the cutoff was agreed count. History posted before
+  // that -- the backfills done deliberately, order by order, against bank rows
+  // the owner supplied -- is not the tool reaching backwards, and an alarm that
+  // is permanently red is worse than no alarm at all: it trains you to ignore
+  // the one day it means something.
+  const watchFrom = String(cfg.cutoff_since || "");
+  const breach = admin.from("ms_orders")
+    .select("increment_id", { count: "exact", head: true })
+    .not("qbo_purchase_id", "is", null).lt("ordered_at", cutoff || "1970-01-01");
+  const { count: behindCutoff } = await (watchFrom ? breach.gt("qbo_posted_at", watchFrom) : breach);
+
+  // Same query without the time bound: context, not an alarm.
+  const { count: backfilled } = await admin.from("ms_orders")
+    .select("increment_id", { count: "exact", head: true })
+    .not("qbo_purchase_id", "is", null).lt("ordered_at", cutoff || "1970-01-01");
+
+  const rows = posted || [];
+  const total = Math.round(rows.reduce((t, r) => t + Number(r.qbo_amount || 0), 0) * 100) / 100;
+
+  // Per-category totals, straight from the same splitter that posted them.
+  const cats = new Map<string, number>();
+  for (const r of rows) {
+    const { data: sp } = await admin.rpc("ms_order_split", { p_increment_id: r.increment_id });
+    for (const l of (sp || []) as Array<{ category: string; amount: string }>) {
+      cats.set(l.category, Math.round(((cats.get(l.category) || 0) + Number(l.amount)) * 100) / 100);
+    }
+  }
+
+  const L: string[] = [];
+  L.push(`MobileSentrix -> QuickBooks, last ${hours} hours`, "");
+  if (behindCutoff && behindCutoff > 0) {
+    L.push(`*** ${behindCutoff} expense(s) booked SINCE ${watchFrom} for orders dated before the`,
+           `*** ${cutoff} cutoff. The tool should never reach back on its own.`,
+           `*** Check qbo_config.ms_post.cutoff — something moved it.`, "");
+  } else {
+    L.push(`Backfill guard: OK — nothing has reached back past the ${cutoff} cutoff.`,
+           `  (${backfilled || 0} older expense(s) exist from the backfill done by hand before this was armed.)`, "");
+  }
+  if (!rows.length) {
+    L.push("Posted: nothing.");
+  } else {
+    L.push(`Posted: ${rows.length} expense(s), ${usd(total)}`, "");
+    for (const r of rows) {
+      L.push(`  ${r.qbo_doc_number}  ${String(r.ordered_at).slice(0, 10)}  ${r.store}  card ${r.cc_last4}  ${usd(Number(r.qbo_amount))}`);
+    }
+    L.push("", "By category:");
+    for (const [c, v] of [...cats.entries()].sort((a, b) => b[1] - a[1])) L.push(`  ${c.padEnd(24)} ${usd(v)}`);
+  }
+  if (queued?.length) {
+    L.push("", `Waiting on you: ${queued.length} order(s) the tool refused to book`, "");
+    for (const q of queued) {
+      L.push(`  ${q.increment_id}  ${String(q.ordered_at).slice(0, 10)}  ${q.store}  ${usd(Number(q.subtotal) + Number(q.shipping_amount || 0))}`);
+      L.push(`      ${q.qbo_error}`);
+    }
+    L.push("", "These retry automatically every hour, so fixing the cause is the whole fix.");
+  }
+  const text = L.join("\n");
+
+  if (!to) return json({ ok: false, error: "no_recipient", detail: "Set qbo_config.ms_post.email.", preview: text });
+  const key = Deno.env.get("RESEND_API_KEY") || "";
+  if (!key) return json({ ok: false, error: "no_resend_key", preview: text });
+  const from = Deno.env.get("NOTIFY_FROM") || "CPR Tools <onboarding@resend.dev>";
+  const subject = rows.length
+    ? `MobileSentrix -> QBO: ${rows.length} expense(s), ${usd(total)}`
+    : "MobileSentrix -> QBO: nothing posted";
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [to], subject, text,
+      html: `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#2D2D3B">${
+        text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</pre>` }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) return json({ ok: false, error: "resend_failed", detail: (d as any)?.message || r.status, preview: text }, 502);
+  return json({ ok: true, to, posted: rows.length, total, queued: queued?.length || 0,
+    breaches_since_armed: behindCutoff || 0, historical_backfill: backfilled || 0 });
+}
+
+// ---------------------------------------------------------------------------
 // Rewrite an already-posted Purchase's LINES from the current split.
 //
 // The split is not frozen at posting time: a SKU gets categorised, a rule is
@@ -1368,7 +1482,7 @@ Deno.serve(async (req) => {
   // secret, a person with their own JWT. Manager-level, because coding a
   // vendor purchase is bookkeeping, not an ownership decision -- and dry_run
   // (the default) posts nothing at all.
-  if (action === "ms_post" || action === "ms_post_sweep" || action === "ms_resync") {
+  if (action === "ms_post" || action === "ms_post_sweep" || action === "ms_resync" || action === "ms_post_report") {
     const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
     let actor = "";
     if (NOTIFY && String(body.secret || "") === NOTIFY) {
@@ -1380,7 +1494,8 @@ Deno.serve(async (req) => {
       }
       actor = who.display_name;
     }
-    if (action === "ms_post_sweep") return await msPostSweep(body, actor);
+    if (action === "ms_post_sweep")  return await msPostSweep(body, actor);
+    if (action === "ms_post_report") return await msPostReport(body);
     if (action === "ms_resync")     return await resyncMsPurchase(body, actor);
     return await postMsOrder(body, actor);
   }
