@@ -34,7 +34,37 @@
     devices: null, deviceId: null, config: null,
     active: null,           // { id, mode } payment in flight (polling)
     pollTimer: null, card: null, cardLocation: null,
+    op: null,               // { sig, id } — the current charge intent, see opFor()
   };
+
+  /* One intent, one charge.
+
+     square-pay's reserveRow() refuses to make a second Square call for a
+     client_op_id it has already recorded — but that only protects anyone if the
+     BROWSER sends the same id when the same intent is retried. A fresh id per
+     click is a fresh charge, which is exactly the double-tap the guard exists to
+     stop, so it sat dormant until this shipped.
+
+     Keyed on the same three things the server compares in sameIntent() (mode,
+     store, amount). Change the amount and it is correctly a NEW intent;
+     double-tap Send, or retry after the network drops, and it is not. Cleared
+     when an attempt settles so the next customer starts clean. */
+  function uuid() {
+    try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    try {
+      var b = new Uint8Array(16); crypto.getRandomValues(b);
+      b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+      var h = Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+      return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+    } catch (e) {}
+    return 'op-' + String(Date.now()) + '-' + String(Math.round(performance.now() * 1000));
+  }
+  function opFor(mode, amountCents) {
+    var sig = mode + '|' + String(S.store || '') + '|' + String(amountCents);
+    if (!S.op || S.op.sig !== sig) S.op = { sig: sig, id: uuid() };
+    return S.op.id;
+  }
+  function clearOp() { S.op = null; }
 
   function token() {
     try {
@@ -289,6 +319,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     var btn = q('#sqSend'); btn.disabled = true;
     status('wait', 'Sending ' + dollars(amt) + ' to the terminal…');
     call('terminal_create', {
+      client_op_id: opFor('terminal', amt),
       store: S.store, amount_cents: amt, device_id: S.deviceId,
       device_name: (S.devices.find(function (x) { return x.device_id === S.deviceId; }) || {}).name,
       ticket_no: (q('#sqTicket') || {}).value, note: (q('#sqNote') || {}).value,
@@ -302,7 +333,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
   }
   function terminalCancel() {
     if (!S.active) return;
-    call('terminal_cancel', { id: S.active.id }).then(function () { stopPoll(); S.active = null; status('err', 'Canceled'); var b = q('#sqSend'); if (b) b.disabled = false; });
+    call('terminal_cancel', { id: S.active.id }).then(function () { stopPoll(); S.active = null; clearOp(); status('err', 'Canceled'); var b = q('#sqSend'); if (b) b.disabled = false; });
   }
   function poll() {
     stopPoll();
@@ -312,7 +343,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
         if (!r.ok) return;
         if (S.active && S.active.mode === 'terminal') {
           if (r.status === 'completed') { done('✅ Paid — ' + dollars(amountCents() || 0)); }
-          else if (r.status === 'canceled') { stopPoll(); S.active = null; status('err', 'Canceled on the terminal' + (r.cancel_reason ? ' (' + esc(r.cancel_reason) + ')' : '')); var b = q('#sqSend'); if (b) b.disabled = false; }
+          else if (r.status === 'canceled') { stopPoll(); S.active = null; clearOp(); status('err', 'Canceled on the terminal' + (r.cancel_reason ? ' (' + esc(r.cancel_reason) + ')' : '')); var b = q('#sqSend'); if (b) b.disabled = false; }
         } else if (S.active && r.paid) { done('✅ Link paid'); }
       });
     }, 3000);
@@ -320,6 +351,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
   function stopPoll() { if (S.pollTimer) { clearInterval(S.pollTimer); S.pollTimer = null; } }
   function done(msg) {
     stopPoll(); S.active = null;
+    clearOp();   // this attempt is settled — the next charge is a new intent
     status('ok', msg + ' <button class="alt2" id="sqAgain">Start another payment</button>');
     try { sessionStorage.removeItem(DRAFT_KEY); } catch (e) { }
     var a = q('#sqAgain'); if (a) a.addEventListener('click', function () { ['sqAmount', 'sqTicket', 'sqName', 'sqNote'].forEach(function (id) { var el = q('#' + id); if (el) el.value = ''; }); status('', ''); var b = q('#sqSend'); if (b) b.disabled = false; renderRecent(true); });
@@ -338,6 +370,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     var btn = q('#sqLink'); btn.disabled = true;
     status('wait', 'Creating the payment link…');
     call('link_create', {
+      client_op_id: opFor('link', amt),
       store: S.store, amount_cents: amt, ticket_no: (q('#sqTicket') || {}).value,
       note: (q('#sqNote') || {}).value, customer_name: (q('#sqName') || {}).value, customer_phone: phone || null,
     }).then(function (r) {
@@ -429,6 +462,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
         return;
       }
       call('keyed_charge', {
+        client_op_id: opFor('keyed', amt),
         store: S.store, amount_cents: amt, source_id: res.token,
         ticket_no: (q('#sqTicket') || {}).value, note: (q('#sqNote') || {}).value,
         customer_name: (q('#sqName') || {}).value,
