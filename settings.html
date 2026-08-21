@@ -633,6 +633,31 @@ tbody tr.pinrow td:first-child{box-shadow:inset 3px 0 0 var(--red)}
           <div id="msStores" style="margin-top:12px;font-family:'Nunito Sans',sans-serif;font-size:.84rem;color:var(--grey)">Loading…</div>
           <div id="msHint" style="font-family:'Nunito Sans',sans-serif;font-size:.78rem;color:var(--grey);margin-top:12px"></div>
         </div>
+
+        <!-- QuickBooks Expenses -->
+        <div style="max-width:640px;margin-top:16px;padding:20px 22px;border:1px solid var(--border);border-radius:14px;background:#fff">
+          <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem">QuickBooks Expenses</div>
+
+          <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--border);margin-top:12px">
+            <div style="flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:var(--dark)">Post Orders Automatically</div>
+            <span id="msPostState" style="font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;color:var(--grey)"></span>
+            <button class="toggle" id="msPostToggle" aria-label="Post orders automatically"></button>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--border)">
+            <div style="flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:var(--dark)">Daily Email</div>
+            <span id="msMailState" style="font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.78rem;color:var(--grey)"></span>
+            <button class="toggle" id="msMailToggle" aria-label="Daily email"></button>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--border)">
+            <label for="msMailTo" style="flex:0 0 90px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.9rem;color:var(--dark)">Send To</label>
+            <input id="msMailTo" type="email" autocomplete="email"
+              style="flex:1;min-width:0;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Nunito Sans',sans-serif;font-weight:700;font-size:.88rem;color:var(--dark)">
+            <button class="btn alt sm" id="msMailSave">Save</button>
+            <button class="btn alt sm" id="msMailTest">Send Now</button>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1228,7 +1253,7 @@ function renderInteg(){
   $all('.integ-page').forEach(function(p){ p.classList.add('hide'); });
   if(open){ var pg=$('#integ-'+open); if(pg)pg.classList.remove('hide'); }
 }
-function integStatus(key){ if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); if(key==='mobilesentrix')msRenderStatus(); }
+function integStatus(key){ if(key==='qbtime')qbtRenderStatus(); if(key==='ringcentral')rcRenderStatus(); if(key==='qbo')qboRenderStatus(); if(key==='mobilesentrix'){msRenderStatus();msPostLoad();msPostWire();} }
 function integHash(){ try{history.replaceState(null,'','#integ'+(INTEG_OPEN?('/'+INTEG_OPEN):''));}catch(e){} }
 function integOpen(key){ INTEG_OPEN=key; integHash(); renderInteg(); integStatus(key); }
 function integClose(){ INTEG_OPEN=null; integHash(); renderInteg(); }
@@ -1679,6 +1704,68 @@ async function msRenderStatus(){
       var hint=$('#msHint'); if(hint)hint.textContent='Sign in with that store’s cpr.parts account in the new tab, then come back and refresh this page.';
     };
   });
+}
+
+/* --- MobileSentrix -> QBO posting: the two switches + who gets the receipt.
+   Both live in qbo_config 'ms_post', which also holds the backfill `cutoff`
+   and `cutoff_since`. Read-merge-write, NEVER a bare upsert of the three
+   fields this card knows about: that is exactly how the Paid With editor
+   silently deleted the card alias map. --- */
+var MSPOST={};
+async function msPostLoad(){
+  var r=await sb.from('qbo_config').select('value').eq('key','ms_post').maybeSingle();
+  MSPOST=(r.data&&r.data.value)||{};
+  msPostPaint();
+}
+function msPostPaint(){
+  var posting=MSPOST.enabled!==false, mailing=MSPOST.email_enabled!==false;
+  var t=$('#msPostToggle'); if(t)t.classList.toggle('on',posting);
+  var m=$('#msMailToggle'); if(m)m.classList.toggle('on',mailing);
+  var ps=$('#msPostState'); if(ps)ps.textContent=posting?('From '+(MSPOST.cutoff||'—')):'Paused';
+  var ms=$('#msMailState'); if(ms)ms.textContent=mailing?'8:00 AM daily':'Off';
+  var to=$('#msMailTo'); if(to&&document.activeElement!==to)to.value=MSPOST.email||'';
+}
+async function msPostSave(patch,msg){
+  if(!(AUTH&&AUTH.role==='owner')){toast('Owner only',true);return false;}
+  var merged=Object.assign({},MSPOST,patch);
+  var r=await sb.from('qbo_config').upsert({key:'ms_post',value:merged,
+    updated_by:(AUTH&&AUTH.name)||'owner',updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(r.error){toast(r.error.message||'Could not save',true);return false;}
+  MSPOST=merged; msPostPaint(); if(msg)toast(msg);
+  return true;
+}
+function msPostWire(){
+  var t=$('#msPostToggle');
+  if(t)t.onclick=function(){
+    var next=!(MSPOST.enabled!==false);
+    msPostSave({enabled:next},next?'Orders will post automatically':'Posting paused — nothing will be sent to QuickBooks');
+  };
+  var m=$('#msMailToggle');
+  if(m)m.onclick=function(){
+    var next=!(MSPOST.email_enabled!==false);
+    msPostSave({email_enabled:next},next?'Daily email on':'Daily email off');
+  };
+  var sv=$('#msMailSave');
+  if(sv)sv.onclick=function(){
+    var v=($('#msMailTo').value||'').trim();
+    if(v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){toast('That is not a valid email address',true);return;}
+    msPostSave({email:v},v?('Receipt goes to '+v):'No recipient set');
+  };
+  var tb=$('#msMailTest');
+  if(tb)tb.onclick=async function(){
+    var v=($('#msMailTo').value||'').trim();
+    if(!v){toast('Enter an address first',true);return;}
+    tb.disabled=true; var was=tb.textContent; tb.textContent='Sending…';
+    try{
+      var tok=await sessionToken();
+      var d=await fetch(SB_URL+'/functions/v1/qbo',{method:'POST',
+        headers:{'Authorization':'Bearer '+tok,'apikey':ANON,'Content-Type':'application/json'},
+        body:JSON.stringify({action:'ms_post_report',hours:24,to:v,force:true})})
+        .then(function(x){return x.json();});
+      toast(d&&d.ok?('Sent to '+v):((d&&(d.detail||d.error))||'Could not send'),!(d&&d.ok));
+    }catch(e){toast('Could not send',true);}
+    tb.disabled=false; tb.textContent=was;
+  };
 }
 
 /* ===================== RingCentral SMS (integrations) ===================== */

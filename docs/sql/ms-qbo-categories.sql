@@ -211,7 +211,18 @@ revoke execute on function public.ms_order_split(text)          from anon;
 -- ---------------------------------------------------------------------------
 -- Go-forward posting: qbo_config key 'ms_post'.
 --
---   { "cutoff": "2026-08-20", "enabled": true }
+--   { "cutoff": "2026-08-20",          -- nothing older than this ever posts
+--     "cutoff_since": "<timestamp>",  -- when that guard was armed
+--     "enabled": true,                -- Settings toggle: post automatically
+--     "email_enabled": true,          -- Settings toggle: daily receipt
+--     "email": "..." }                -- who gets it
+--
+-- Both toggles live in Settings -> Integrations -> MobileSentrix, and the
+-- edge function re-reads this row on every run, so flipping one takes effect
+-- immediately with no deploy. The page MERGES into the row rather than
+-- upserting the fields it knows about -- a bare upsert here would delete
+-- cutoff and cutoff_since, which is exactly how the Paid With editor once
+-- deleted the card alias map.
 --
 -- The 253 card orders before the cutoff were reconciled and categorised BY
 -- HAND, so the tool must never see them. The cutoff is enforced inside the

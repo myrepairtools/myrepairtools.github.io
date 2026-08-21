@@ -1081,6 +1081,11 @@ async function msPostReport(body: Record<string, unknown>) {
   const cfg = (cfgRow?.value ?? {}) as Record<string, unknown>;
   const cutoff = String(cfg.cutoff || "");
   const to = String(body.to || cfg.email || "").trim();
+  // The switch in Settings. `force` is the "Send Now" button, which has to work
+  // while the daily email is off -- that is how you test the address.
+  if (cfg.email_enabled === false && body.force !== true) {
+    return json({ ok: true, skipped: "email_off", detail: "Daily email is off in Settings." });
+  }
   const hours = Math.max(1, Math.min(Number(body.hours) || 24, 168));
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
 
