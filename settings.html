@@ -1748,7 +1748,9 @@ function msPostWire(){
   var sv=$('#msMailSave');
   if(sv)sv.onclick=function(){
     var v=($('#msMailTo').value||'').trim();
-    if(v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){toast('That is not a valid email address',true);return;}
+    var bad=v.split(/[,;]/).map(function(x){return x.trim();}).filter(Boolean)
+             .filter(function(x){return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);});
+    if(bad.length){toast('Not a valid email address: '+bad[0],true);return;}
     msPostSave({email:v},v?('Receipt goes to '+v):'No recipient set');
   };
   var tb=$('#msMailTest');

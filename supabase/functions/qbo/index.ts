@@ -1160,7 +1160,10 @@ async function msPostReport(body: Record<string, unknown>) {
   }
   const text = L.join("\n");
 
-  if (!to) return json({ ok: false, error: "no_recipient", detail: "Set qbo_config.ms_post.email.", preview: text });
+  // Comma- or semicolon-separated, so the receipt can go to a personal inbox
+  // and the business one at the same time.
+  const recipients = to.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+  if (!recipients.length) return json({ ok: false, error: "no_recipient", detail: "Set qbo_config.ms_post.email.", preview: text });
   const key = Deno.env.get("RESEND_API_KEY") || "";
   if (!key) return json({ ok: false, error: "no_resend_key", preview: text });
   const from = Deno.env.get("NOTIFY_FROM") || "CPR Tools <onboarding@resend.dev>";
@@ -1170,13 +1173,13 @@ async function msPostReport(body: Record<string, unknown>) {
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject, text,
+    body: JSON.stringify({ from, to: recipients, subject, text,
       html: `<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#2D2D3B">${
         text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</pre>` }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) return json({ ok: false, error: "resend_failed", detail: (d as any)?.message || r.status, preview: text }, 502);
-  return json({ ok: true, to, posted: rows.length, total, queued: queued?.length || 0,
+  return json({ ok: true, to: recipients, posted: rows.length, total, queued: queued?.length || 0,
     breaches_since_armed: behindCutoff || 0, historical_backfill: backfilled || 0 });
 }
 
