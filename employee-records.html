@@ -763,6 +763,22 @@ function discussedLine(x){
   if(x.discussed)return 'Discussed with employee'+(x.discussedAt?(' on '+fmt(x.discussedAt)):' (date not recorded)');
   return 'No conversation with the employee has been logged';
 }
+/* The free-text reason on a time-off request is owner/manager material. The
+   DATES stay visible to everyone on purpose — people plan around each other —
+   but "why" is not the team's business. A column-level revoke enforces that
+   split, and the note comes back through time_off_notes(), which hands it only
+   to a manager over that store or to the person who wrote it. Fail-closed: if
+   the call errors we show no note rather than guessing. */
+async function fillNotes(rows){
+  try{
+    const ids=(rows||[]).map(r=>r.id).filter(Boolean);
+    if(!ids.length)return;
+    const r=await sb.rpc('time_off_notes',{p_ids:ids});
+    if(r.error||!r.data)return;
+    const m={}; r.data.forEach(x=>{m[x.id]=x.note;});
+    rows.forEach(x=>{ if(m[x.id]!==undefined) x.note=m[x.id]; });
+  }catch(e){ /* no note is the safe outcome */ }
+}
 async function load(){
   const tsFrom=isoOf(new Date(Date.now()-1000*60*60*24*42)); // last 6 weeks of time entries
   const [stRes,enRes,piRes,qbRes,jcRes,tsRes,torRes,soRes,spRes,dcRes]=await Promise.all([
@@ -772,12 +788,13 @@ async function load(){
     sb.from('qbtime_users').select('qbt_id,staff_id,first_name,last_name,username,active,raw,last_synced'),
     sb.from('qbtime_jobcodes').select('qbt_id,name,type'),
     sb.from('qbtime_timesheets').select('staff_id,biz_date,seconds,off_seconds,on_the_clock').gte('biz_date',tsFrom),
-    sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,note,submitted_at'),
+    sb.from('time_off_requests').select('id,staff_id,type,start_date,end_date,status,submitted_at'),
     sb.from('stores').select('store,display_order,active').order('display_order'),
     sb.from('staff_profiles').select('staff_id,phone,personal_email,photo_path,availability'),
     sb.from('staff_documents').select('*').eq('deleted',false).order('created_at',{ascending:false}),
   ]);
   if(stRes.error){toast('Could not load staff: '+stRes.error.message,true);return;}
+  await fillNotes((torRes&&torRes.data)||[]);
   /* A failed side query used to render as an empty tab — the 400 above read as
      "no clocked time in the last 6 weeks" on every profile for weeks. Say so. */
   if(tsRes&&tsRes.error)toast('Could not load time entries: '+tsRes.error.message,true);

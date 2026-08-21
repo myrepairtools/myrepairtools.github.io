@@ -1194,7 +1194,13 @@ async function wizSubmit(){
     status:isOwner?'approved':'pending',
     decided_by:isOwner?ME.id:null,decided_at:isOwner?new Date().toISOString():null};
   w.saving=true;drawWiz();
-  var r=await sb.from('time_off_requests').insert(row).select().single();
+  /* Explicit columns, not RETURNING * — `note` is column-revoked from
+     authenticated, and a bare select() would take the whole insert down
+     with a permission error on a column this page never renders. */
+  var r=await sb.from('time_off_requests')
+    .insert(row)
+    .select('id,staff_id,store,type,start_date,end_date,status,hours,paid,day_hours,partial_days')
+    .single();
   if(r.error){w.saving=false;drawWiz();var e=document.getElementById('wzErr');if(e)e.textContent=r.error.message;return;}
   if(!isOwner){try{var ss=(await sb.auth.getSession()).data.session;
     if(ss)fetch(SB_URL+'/functions/v1/notify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ss.access_token,'apikey':ANON},

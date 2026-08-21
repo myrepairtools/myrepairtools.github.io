@@ -166,12 +166,29 @@ async function load(){
   if(!AUTH||!isMgr(AUTH.role)){$('#gate').hidden=false;$('#view').innerHTML='';return;}
   const [stR,rqR]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,role,avatar,avatar_color,active'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,paid,start_date,end_date,status,note,submitted_at,hours,day_hours,partial_days')
+    sb.from('time_off_requests').select('id,staff_id,store,type,paid,start_date,end_date,status,submitted_at,hours,day_hours,partial_days')
   ]);
   STAFF=(stR.data||[]); REQS=(rqR.data||[]);
+  await fillNotes(REQS);
   render();
 }
 
+/* The free-text reason on a time-off request is owner/manager material. The
+   DATES stay visible to everyone on purpose — people plan around each other —
+   but "why" is not the team's business. A column-level revoke enforces that
+   split, and the note comes back through time_off_notes(), which hands it only
+   to a manager over that store or to the person who wrote it. Fail-closed: if
+   the call errors we show no note rather than guessing. */
+async function fillNotes(rows){
+  try{
+    const ids=(rows||[]).map(r=>r.id).filter(Boolean);
+    if(!ids.length)return;
+    const r=await sb.rpc('time_off_notes',{p_ids:ids});
+    if(r.error||!r.data)return;
+    const m={}; r.data.forEach(x=>{m[x.id]=x.note;});
+    rows.forEach(x=>{ if(m[x.id]!==undefined) x.note=m[x.id]; });
+  }catch(e){ /* no note is the safe outcome */ }
+}
 function addFormHtml(){
   const emps=STAFF.slice().sort((a,b)=>String(a.display_name).localeCompare(String(b.display_name)));
   const types=['Vacation','Personal','Sick','Unpaid'];
@@ -255,7 +272,12 @@ async function addRequest(){
     status:self?'pending':'approved',
     decided_by:self?null:((AUTH&&AUTH.id)||null),
     decided_at:self?null:new Date().toISOString()};
-  const res=await sb.from('time_off_requests').insert(row).select().single();
+  /* Explicit columns, not RETURNING * — `note` is column-revoked from
+     authenticated, so a bare select() would fail the whole insert. */
+  const res=await sb.from('time_off_requests')
+    .insert(row)
+    .select('id,staff_id,store,type,paid,start_date,end_date,status,submitted_at,hours,day_hours,partial_days')
+    .single();
   if(res.error){toast(res.error.message||'Could not add',true);return;}
   if(self){toast('Added as PENDING — approval needed');
     try{const ss=(await sb.auth.getSession()).data.session;
@@ -263,6 +285,8 @@ async function addRequest(){
         body:JSON.stringify({action:'send',event_key:'timeoff.requested',
           subject:'Time-off request: '+(e?e.display_name:'')+' · '+start+' to '+end,
           text:type+(note?' · '+note:'')+' — review in Time Off.'})}).catch(()=>{});}catch(e3){}}
+  // the submitter wrote this note a second ago — no need to fetch it back
+  if(res.data && note) res.data.note = note;
   REQS.push(res.data); ADDING=false; AFORM={staff_id:'',type:'Vacation',start:'',end:'',note:''};
   toast('Time off added'+(e?' · '+e.display_name.split(' ')[0]:'')); render();
 }

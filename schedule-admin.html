@@ -347,6 +347,22 @@ function availFor(empId,wd){
   if(a.mode==='all')return {off:false,text:'Any time'};
   return {off:false,text:[a.from,a.to].filter(Boolean).join('–')};
 }
+/* The free-text reason on a time-off request is owner/manager material. The
+   DATES stay visible to everyone on purpose — people plan around each other —
+   but "why" is not the team's business. A column-level revoke enforces that
+   split, and the note comes back through time_off_notes(), which hands it only
+   to a manager over that store or to the person who wrote it. Fail-closed: if
+   the call errors we show no note rather than guessing. */
+async function fillNotes(rows){
+  try{
+    var ids=(rows||[]).map(function(r){return r.id;}).filter(Boolean);
+    if(!ids.length)return;
+    var r=await sb.rpc('time_off_notes',{p_ids:ids});
+    if(r.error||!r.data)return;
+    var m={}; r.data.forEach(function(x){m[x.id]=x.note;});
+    rows.forEach(function(x){ if(m[x.id]!==undefined) x.note=m[x.id]; });
+  }catch(e){ /* no note is the safe outcome */ }
+}
 async function load(){
   var [st,so,sh,hr,sc,pf,rq,mm,ov,hol,holh,hc,dr]=await Promise.all([
     sb.from('staff').select('id,display_name,home_store,authorized_stores,active,role,start_date,avatar,avatar_color,hide_from_recurring').eq('active',true),
@@ -355,7 +371,7 @@ async function load(){
     sb.from('shift_hours').select('shift_id,store,weekday,start_min,end_min,closed,enabled'),
     sb.from('staff_schedule').select('staff_id,store,shifts'),
     sb.from('staff_profiles').select('staff_id,availability'),
-    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,note,submitted_at,hours,day_hours,partial_days'),
+    sb.from('time_off_requests').select('id,staff_id,store,type,start_date,end_date,status,submitted_at,hours,day_hours,partial_days'),
     sb.from('schedule_membership').select('store,staff_id'),
     sb.from('schedule_overrides').select('staff_id,ovr_date,is_off,store,shift_id'),
     sb.from('holidays').select('id,name,holiday_date,is_federal,hours_confirmed,catalog_id').order('holiday_date'),
@@ -384,6 +400,7 @@ async function load(){
     DRAFT[r.staff_id]={arr:parseShifts(r.shifts),store:r.store||SCHED[r.staff_id].store};
   });
   REQS=(rq.data||[]);
+  await fillNotes(REQS);
   MEMBERS={};(mm.data||[]).forEach(function(r){(MEMBERS[r.store]=MEMBERS[r.store]||[]).push(r.staff_id);});
   OVR={};(ov&&ov.data||[]).forEach(function(r){OVR[r.staff_id+'|'+String(r.ovr_date).slice(0,10)]=r;});   // per-week schedule changes
   CATOBS={};((hc&&hc.data)||[]).forEach(function(c){CATOBS[c.id]=c.observed!==false;});
