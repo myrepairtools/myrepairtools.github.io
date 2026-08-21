@@ -645,9 +645,9 @@
                     '<span class="mrt-rc-tix-tag ' + cls + '">' + kind + '</span>' +
                     '<span class="mrt-rc-tix-no">#' + esc(t.no) + '</span></a>';
             }
-            leads.slice(0, 3).forEach(function (t) { rows.push(row('lead', 'lead', t)); });
-            open.slice(0, 6).forEach(function (t) { rows.push(row('open', 'open', t)); });
-            if (closed[0]) rows.push(row('last closed', 'last', closed[0]));
+            leads.slice(0, 3).forEach(function (t) { rows.push(row('lead', 'mrt-lead', t)); });
+            open.slice(0, 6).forEach(function (t) { rows.push(row('open', 'mrt-open', t)); });
+            if (closed[0]) rows.push(row('last closed', 'mrt-last', closed[0]));
             box.innerHTML = '<div class="mrt-rc-tixhd">Their RepairQ tickets</div>' + rows.join('');
         });
     }
