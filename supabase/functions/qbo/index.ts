@@ -714,6 +714,20 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   // leaves a bank line nobody can ever match. Only a caller who has SEEN that
   // charge passes this flag -- the sweep never does, because it cannot read a
   // statement.
+  // Part-paid with STORE CREDIT. payment_info.name reads "Credit Card +
+  // Internal Credit" and MobileSentrix never says how much credit was applied,
+  // so subtotal + shipping OVERSTATES what the card was charged -- 1500410480
+  // billed $1,506.45 against line items of $1,715.03, the missing $208.58
+  // being credit from an order they had canceled four days earlier.
+  //
+  // There is no way to derive the split from the order, so this refuses rather
+  // than guessing. The amount is knowable from ONE place, the statement, so a
+  // caller who has the bank row passes `charged` and the difference books as
+  // its own line.
+  const internalCredit = String((o.raw as Record<string, any>)?.payment_info?.name || "").includes("Internal Credit");
+  const charged = Number(body.charged);
+  const haveCharged = Number.isFinite(charged) && charged > 0;
+
   const allowCanceled = body.allow_canceled === true && String(o.status || "") === "Canceled";
   if (String(o.status || "") !== "Shipped" && !allowCanceled)
     problems.push(`Order is "${o.status || "(none)"}", not Shipped — the amount is not final yet.`);
@@ -727,7 +741,29 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   // returns that field WITHOUT shipping (proven against 16 of their own PDF
   // invoices), so trusting it understates every order that paid freight and
   // the bank feed then refuses to match the Purchase.
-  const amount = Math.round((Number(o.subtotal) + Number(o.shipping_amount || 0)) * 100) / 100;
+  let amount = Math.round((Number(o.subtotal) + Number(o.shipping_amount || 0)) * 100) / 100;
+  let creditApplied = 0;
+  if (internalCredit) {
+    if (!haveCharged) {
+      problems.push(`Part-paid with store credit ("${String((o.raw as Record<string, any>)?.payment_info?.name)}"). MobileSentrix does not report how much credit was applied, so the card was charged LESS than ${usd(amount)}. Pass the amount from the statement as \`charged\` to book it.`);
+    } else if (charged > amount + 0.011) {
+      problems.push(`charged ${usd(charged)} is more than the order's ${usd(amount)} — that is not a store-credit order.`);
+    } else {
+      creditApplied = Math.round((amount - charged) * 100) / 100;
+      amount = Math.round(charged * 100) / 100;
+    }
+  } else if (haveCharged && Math.abs(charged - amount) > 0.011) {
+    problems.push(`charged ${usd(charged)} does not match the order's ${usd(amount)}, and this order was not part-paid with store credit.`);
+  }
+  // The credit rides as its own NEGATIVE line against the biggest category, so
+  // the Purchase totals what the card paid (the bank feed will only match that)
+  // while the goods still land in the right accounts. Netting it off the lines
+  // would hide it; a separate line says on the face of the expense that store
+  // credit covered part of this order.
+  if (creditApplied > 0) {
+    const biggest = rows.reduce((a, b) => (Number(b.amount) > Number(a.amount) ? b : a), rows[0]);
+    rows.push({ category: biggest?.category || "COGS - Parts", amount: String(-creditApplied) });
+  }
   const splitSum = Math.round(rows.reduce((t, r) => t + Number(r.amount), 0) * 100) / 100;
   if (Math.abs(splitSum - amount) > 0.011)
     problems.push(`Split totals ${usd(splitSum)} but the card was charged ${usd(amount)}.`);
@@ -736,7 +772,8 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
       problems.push(`${usd(r.amount)} could not be categorised — add the SKU to ms_sku_category.`);
     if (r.category === "Discount")
       problems.push(`Order carries a ${usd(r.amount)} discount; discounts are not handled yet.`);
-    if (Number(r.amount) <= 0 && r.category !== "Discount")
+    // A negative line is the store-credit offset we just added on purpose.
+    if (Number(r.amount) <= 0 && r.category !== "Discount" && !(creditApplied > 0 && Math.abs(Number(r.amount) + creditApplied) < 0.011))
       problems.push(`${r.category} line is not positive (${usd(r.amount)}).`);
   }
 
@@ -793,7 +830,9 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
       lines.push({
         DetailType: "AccountBasedExpenseLineDetail",
         Amount: Math.round(Number(r.amount) * 100) / 100,
-        Description: `${r.category} — MobileSentrix ${incrementId}`,
+        Description: Number(r.amount) < 0
+          ? `Internal credit applied — MobileSentrix ${incrementId}`
+          : `${r.category} — MobileSentrix ${incrementId}`,
         AccountBasedExpenseLineDetail: { AccountRef: { value: id, ...(nm ? { name: nm } : {}) }, ...classRef },
       });
     }
