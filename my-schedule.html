@@ -137,7 +137,10 @@ body.web main{max-width:none;margin:0;padding:24px 28px 60px}
 .side{display:flex;flex-direction:column;gap:16px;position:sticky;top:24px}
 /* planner modal */
 .pl-back{position:fixed;inset:0;z-index:2000;background:rgba(45,45,59,.45);display:flex;align-items:center;justify-content:center;padding:24px}
-.pl{position:relative;width:820px;max-width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.32)}
+/* The modal must never be taller than the screen. Without a cap it grew past
+   the viewport and overflow:hidden made the footer — the Next button —
+   unreachable. dvh second so mobile browsers use the honest height. */
+.pl{position:relative;width:820px;max-width:100%;background:#fff;border-radius:16px;max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px);overflow:auto;overscroll-behavior:contain;box-shadow:0 24px 60px rgba(0,0,0,.32)}
 .pl-hd{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 58px 13px 18px;border-bottom:1px solid var(--border);background:var(--light-grey)}
 .pl-hd .t{font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;color:var(--dark)}
 .pl-grid{display:grid;grid-template-columns:repeat(7,1fr)}
@@ -152,7 +155,12 @@ body.web main{max-width:none;margin:0;padding:24px 28px 60px}
   .pl-hd #plx{top:14px;transform:none}
 }
 @media(min-width:561px){
-  .pl-cell{min-height:96px;padding:9px 11px}
+  /* Was a flat 96px. Six rows of that is 576px of grid before the header,
+     type chips, weekday strip and footer — which overflowed a laptop even
+     though the rule is keyed on WIDTH. Scale with viewport height so it
+     fits without scrolling on a normal screen, and stays generous on a
+     tall one. */
+  .pl-cell{min-height:clamp(56px,9.2vh,96px);padding:9px 11px}
   .pl-cell span:first-child{font-size:.92rem !important}
   .pl-ini{width:21px;height:21px;font-size:.56rem}
 }
