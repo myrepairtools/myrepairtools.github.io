@@ -692,7 +692,13 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   if (!o.cc_last4) problems.push("No card on the order — only card-paid orders are booked.");
   if (!["0", "10"].includes(orderType))
     problems.push(`Order type ${orderType || "(none)"} is not a Sales or Battery order.`);
-  if (o.qbo_purchase_id) return json({ error: "already_posted", purchase_id: String(o.qbo_purchase_id) }, 409);
+  // A resync deliberately asks about an order that IS posted, and about one
+  // older than the cutoff, because it rewrites what is already in the books
+  // rather than adding anything. It never creates a Purchase -- resyncMsPurchase
+  // only ever calls this dry-run.
+  const isResync = body._resync === true && body.dry_run === true;
+  if (o.qbo_purchase_id && !isResync)
+    return json({ error: "already_posted", purchase_id: String(o.qbo_purchase_id) }, 409);
 
   // The books before the cutoff were done by hand. Enforced HERE rather than in
   // the sweep's query so no caller -- cron, page, or curl -- can reach back and
@@ -701,7 +707,7 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   const { data: msCfgRow } = await admin.from("qbo_config").select("value").eq("key", "ms_post").maybeSingle();
   const msCfg = (msCfgRow?.value ?? {}) as Record<string, unknown>;
   const cutoff = String(msCfg.cutoff || "");
-  if (cutoff && String(o.ordered_at || "") < cutoff)
+  if (cutoff && !isResync && String(o.ordered_at || "") < cutoff)
     problems.push(`Ordered ${String(o.ordered_at).slice(0, 10)}, before the ${cutoff} cutoff — those books were done by hand.`);
 
   // Only a SHIPPED order is final. One still Processing can still gain or lose
@@ -729,7 +735,7 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   const haveCharged = Number.isFinite(charged) && charged > 0;
 
   const allowCanceled = body.allow_canceled === true && String(o.status || "") === "Canceled";
-  if (String(o.status || "") !== "Shipped" && !allowCanceled)
+  if (String(o.status || "") !== "Shipped" && !allowCanceled && !isResync)
     problems.push(`Order is "${o.status || "(none)"}", not Shipped — the amount is not final yet.`);
 
   // ---- the split (categories + amounts), computed in Postgres ----
@@ -755,14 +761,14 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
   } else if (haveCharged && Math.abs(charged - amount) > 0.011) {
     problems.push(`charged ${usd(charged)} does not match the order's ${usd(amount)}, and this order was not part-paid with store credit.`);
   }
-  // The credit rides as its own NEGATIVE line against the biggest category, so
-  // the Purchase totals what the card paid (the bank feed will only match that)
-  // while the goods still land in the right accounts. Netting it off the lines
-  // would hide it; a separate line says on the face of the expense that store
-  // credit covered part of this order.
-  if (creditApplied > 0) {
+  // The credit comes OFF the biggest category rather than riding as its own
+  // negative line: two rows on the same account that net to the charge read as
+  // noise on the expense (owner call). The Purchase still totals what the card
+  // paid, which is all the bank feed can match against, and `credit_applied`
+  // in the response records what was taken off.
+  if (creditApplied > 0 && rows.length) {
     const biggest = rows.reduce((a, b) => (Number(b.amount) > Number(a.amount) ? b : a), rows[0]);
-    rows.push({ category: biggest?.category || "COGS - Parts", amount: String(-creditApplied) });
+    biggest.amount = String(Math.round((Number(biggest.amount) - creditApplied) * 100) / 100);
   }
   const splitSum = Math.round(rows.reduce((t, r) => t + Number(r.amount), 0) * 100) / 100;
   if (Math.abs(splitSum - amount) > 0.011)
@@ -772,8 +778,7 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
       problems.push(`${usd(r.amount)} could not be categorised — add the SKU to ms_sku_category.`);
     if (r.category === "Discount")
       problems.push(`Order carries a ${usd(r.amount)} discount; discounts are not handled yet.`);
-    // A negative line is the store-credit offset we just added on purpose.
-    if (Number(r.amount) <= 0 && r.category !== "Discount" && !(creditApplied > 0 && Math.abs(Number(r.amount) + creditApplied) < 0.011))
+    if (Number(r.amount) <= 0 && r.category !== "Discount")
       problems.push(`${r.category} line is not positive (${usd(r.amount)}).`);
   }
 
@@ -830,9 +835,7 @@ async function postMsOrder(body: Record<string, unknown>, actor: string) {
       lines.push({
         DetailType: "AccountBasedExpenseLineDetail",
         Amount: Math.round(Number(r.amount) * 100) / 100,
-        Description: Number(r.amount) < 0
-          ? `Internal credit applied — MobileSentrix ${incrementId}`
-          : `${r.category} — MobileSentrix ${incrementId}`,
+        Description: `${r.category} — MobileSentrix ${incrementId}`,
         AccountBasedExpenseLineDetail: { AccountRef: { value: id, ...(nm ? { name: nm } : {}) }, ...classRef },
       });
     }
@@ -1056,6 +1059,71 @@ async function msPostSweep(body: Record<string, unknown>, actor: string) {
     posted_total: Math.round(posted.reduce((t, p) => t + Number(p.charged), 0) * 100) / 100,
     posted, queued, failed,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Rewrite an already-posted Purchase's LINES from the current split.
+//
+// The split is not frozen at posting time: a SKU gets categorised, a rule is
+// widened, the credit handling changes. Deleting and re-creating would burn the
+// DocNumber that makes posting idempotent and would drop any match the bank
+// feed had already made, so this edits the existing Purchase in place and
+// leaves its Id, DocNumber, date, vendor and pay account alone.
+//
+// Refuses if the new lines do not total the SAME amount as the Purchase: a
+// re-split may move money BETWEEN accounts, never change what was paid.
+async function resyncMsPurchase(body: Record<string, unknown>, actor: string) {
+  const incrementId = String(body.increment_id || "").trim();
+  const dryRun = body.dry_run !== false;
+  if (!incrementId) return json({ error: "bad_request", detail: "increment_id is required." }, 400);
+
+  // Re-run the poster in dry-run to get today's lines, using the same overrides.
+  const preview = await (await postMsOrder(
+    { ...body, increment_id: incrementId, dry_run: true, _resync: true }, actor)).json();
+  if (!preview.would_post) {
+    return json({ error: "cannot_split", problems: preview.problems || null, detail: preview.detail || null }, 400);
+  }
+
+  const { data: o } = await admin.from("ms_orders").select("qbo_purchase_id").eq("increment_id", incrementId).maybeSingle();
+  const id = String(o?.qbo_purchase_id || "");
+  if (!id) return json({ error: "not_posted", detail: `${incrementId} has no QBO Purchase to rewrite.` }, 404);
+
+  const tok = await getToken();
+  if (!tok) return json({ error: "not_connected" }, 503);
+  const gr = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/purchase/${id}?minorversion=${MINORVERSION}`,
+    { headers: qboHeaders(tok.access_token) });
+  const gd = await gr.json().catch(() => ({}));
+  const pur = gd?.Purchase;
+  if (!gr.ok || !pur) return json({ error: "qbo_error", detail: faultDetail(gd), intuit_tid: tid(gr) }, 502);
+
+  const oldTotal = Math.round(Number(pur.TotalAmt) * 100) / 100;
+  const newTotal = Math.round((preview.lines || []).reduce((t: number, l: any) => t + Number(l.amount), 0) * 100) / 100;
+  if (Math.abs(oldTotal - newTotal) > 0.011) {
+    return json({ error: "total_changed", detail: `Purchase is ${usd(oldTotal)} but the new split totals ${usd(newTotal)}. A rewrite may move money between accounts, never change the amount paid.` }, 409);
+  }
+
+  // Carry each existing line's class forward; only the account and amount move.
+  const cls = (pur.Line || []).find((l: any) => l.AccountBasedExpenseLineDetail?.ClassRef)
+    ?.AccountBasedExpenseLineDetail?.ClassRef;
+  const Line = (preview.lines || []).map((l: any) => ({
+    DetailType: "AccountBasedExpenseLineDetail",
+    Amount: Number(l.amount),
+    Description: `${l.account?.name || ""} — MobileSentrix ${incrementId}`.trim(),
+    AccountBasedExpenseLineDetail: { AccountRef: l.account, ...(cls ? { ClassRef: cls } : {}) },
+  }));
+
+  const before = (pur.Line || []).map((l: any) => ({ account: l.AccountBasedExpenseLineDetail?.AccountRef?.name, amount: Number(l.Amount) }));
+  const after  = Line.map((l: any) => ({ account: l.AccountBasedExpenseLineDetail?.AccountRef?.name, amount: l.Amount }));
+  const summary = { increment_id: incrementId, purchase_id: id, doc_number: pur.DocNumber, total: oldTotal, before, after };
+  if (dryRun) return json({ ok: true, dry_run: true, ...summary });
+
+  const ur = await fetch(`${API_BASE}/v3/company/${tok.realm_id}/purchase?minorversion=${MINORVERSION}`, {
+    method: "POST", headers: qboHeaders(tok.access_token),
+    body: JSON.stringify({ ...pur, sparse: false, Line }),
+  });
+  const ud = await ur.json().catch(() => ({}));
+  if (!ur.ok || !ud?.Purchase) return json({ error: "qbo_error", detail: faultDetail(ud), intuit_tid: tid(ur) }, 502);
+  return json({ ok: true, ...summary, note: `Lines rewritten by ${actor}.` });
 }
 
 // ---------------------------------------------------------------------------
@@ -1300,7 +1368,7 @@ Deno.serve(async (req) => {
   // secret, a person with their own JWT. Manager-level, because coding a
   // vendor purchase is bookkeeping, not an ownership decision -- and dry_run
   // (the default) posts nothing at all.
-  if (action === "ms_post" || action === "ms_post_sweep") {
+  if (action === "ms_post" || action === "ms_post_sweep" || action === "ms_resync") {
     const NOTIFY = Deno.env.get("NOTIFY_SECRET") || "";
     let actor = "";
     if (NOTIFY && String(body.secret || "") === NOTIFY) {
@@ -1312,9 +1380,9 @@ Deno.serve(async (req) => {
       }
       actor = who.display_name;
     }
-    return action === "ms_post_sweep"
-      ? await msPostSweep(body, actor)
-      : await postMsOrder(body, actor);
+    if (action === "ms_post_sweep") return await msPostSweep(body, actor);
+    if (action === "ms_resync")     return await resyncMsPurchase(body, actor);
+    return await postMsOrder(body, actor);
   }
 
   // ---- read / re-class existing Purchases (owner only: edits real books) ----
