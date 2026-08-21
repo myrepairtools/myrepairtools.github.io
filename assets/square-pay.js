@@ -107,48 +107,48 @@
   css.textContent = '\
 #cprSqPanel{position:fixed;top:56px;right:10px;width:380px;max-width:calc(100vw - 20px);z-index:99990;\
 background:#fff;border:1px solid #E0E2EA;border-radius:16px;box-shadow:0 22px 60px rgba(45,45,59,.4);\
-font-family:"Nunito Sans","Segoe UI",sans-serif;color:#2D2D3B;display:none;overflow:hidden}\
+font-family:var(--font-sans);color:#2D2D3B;display:none;overflow:hidden}\
 #cprSqPanel.show{display:block;animation:cprSqPop .15s ease-out}\
 @keyframes cprSqPop{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}\
 #cprSqPanel .hd{display:flex;align-items:center;gap:9px;background:#2D2D3B;color:#fff;padding:11px 14px}\
-#cprSqPanel .hd b{font-family:Nunito,sans-serif;font-weight:800;font-size:.92rem}\
-#cprSqPanel .hd .st{font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;background:rgba(255,255,255,.14);\
+#cprSqPanel .hd b{font-family:var(--font-sans);font-weight:600;font-size:.92rem}\
+#cprSqPanel .hd .st{font-family:var(--font-sans);font-weight:600;font-size:.66rem;background:rgba(255,255,255,.14);\
 border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:3px 10px;cursor:pointer;color:#fff}\
 #cprSqPanel .hd .x{margin-left:auto;background:none;border:none;color:#fff;font-size:1rem;cursor:pointer;opacity:.8;padding:2px 6px}\
 #cprSqPanel .hd .x:hover{opacity:1}\
 #cprSqPanel .tabs{display:flex;border-bottom:1px solid #E0E2EA}\
 #cprSqPanel .tabs button{flex:1;border:none;background:#F7F7F9;padding:10px 4px;cursor:pointer;\
-font-family:Nunito,sans-serif;font-weight:800;font-size:.76rem;color:#8A8FA3}\
+font-family:var(--font-sans);font-weight:600;font-size:.76rem;color:#8A8FA3}\
 #cprSqPanel .tabs button.on{background:#fff;color:#2D2D3B;box-shadow:inset 0 -2px 0 #DC282E}\
 #cprSqPanel .tabs button:disabled{opacity:.45;cursor:default}\
 #cprSqPanel .bd{padding:14px 16px 16px;max-height:min(560px,calc(100vh - 130px));overflow-y:auto}\
 #cprSqPanel label{display:block;margin-bottom:10px}\
-#cprSqPanel label span{display:block;font-family:Nunito,sans-serif;font-weight:800;font-size:.64rem;\
+#cprSqPanel label span{display:block;font-family:var(--font-sans);font-weight:700;font-size:.64rem;\
 text-transform:uppercase;letter-spacing:.4px;color:#8A8FA3;margin-bottom:4px}\
 #cprSqPanel input,#cprSqPanel textarea{width:100%;box-sizing:border-box;border:1.5px solid #E0E2EA;border-radius:10px;\
-padding:9px 11px;font-family:"Nunito Sans",sans-serif;font-weight:700;font-size:.92rem;color:#2D2D3B;outline:none}\
+padding:9px 11px;font-family:var(--font-sans);font-weight:500;font-size:.92rem;color:#2D2D3B;outline:none}\
 #cprSqPanel input:focus,#cprSqPanel textarea:focus{border-color:#4FB0E3}\
-#cprSqPanel #sqAmount{font-size:1.35rem;font-family:Nunito,sans-serif;font-weight:900;text-align:center}\
+#cprSqPanel #sqAmount{font-size:1.35rem;font-family:var(--font-sans);font-weight:700;text-align:center}\
 #cprSqPanel .dev{display:flex;align-items:center;gap:8px;border:1.5px solid #E0E2EA;border-radius:10px;\
-padding:9px 11px;margin-bottom:7px;cursor:pointer;font-weight:700;font-size:.85rem}\
+padding:9px 11px;margin-bottom:7px;cursor:pointer;font-weight:500;font-size:.85rem}\
 #cprSqPanel .dev.on{border-color:#4FB0E3;background:#EAF6FD}\
 #cprSqPanel .go{width:100%;border:none;border-radius:11px;padding:12px;cursor:pointer;background:#DC282E;color:#fff;\
-font-family:Nunito,sans-serif;font-weight:800;font-size:.95rem;margin-top:4px}\
+font-family:var(--font-sans);font-weight:600;font-size:.95rem;margin-top:4px}\
 #cprSqPanel .go:hover{background:#c31f24}#cprSqPanel .go:disabled{opacity:.5;cursor:default}\
 #cprSqPanel .alt2{width:100%;border:1.5px solid #E0E2EA;background:#fff;border-radius:11px;padding:10px;cursor:pointer;\
-font-family:Nunito,sans-serif;font-weight:800;font-size:.85rem;color:#2D2D3B;margin-top:8px}\
-#cprSqPanel .status{border-radius:12px;padding:14px;text-align:center;font-family:Nunito,sans-serif;font-weight:800;margin-top:4px}\
+font-family:var(--font-sans);font-weight:600;font-size:.85rem;color:#2D2D3B;margin-top:8px}\
+#cprSqPanel .status{border-radius:12px;padding:14px;text-align:center;font-family:var(--font-sans);font-weight:600;margin-top:4px}\
 #cprSqPanel .status.wait{background:#FBF1DC;color:#7A5B10}\
 #cprSqPanel .status.ok{background:#E9F6EE;color:#1E9E5B}\
 #cprSqPanel .status.err{background:#FBE9E9;color:#DC282E}\
-#cprSqPanel .hint{font-size:.74rem;color:#8A8FA3;font-weight:700;margin-top:8px;line-height:1.4}\
+#cprSqPanel .hint{font-size:.74rem;color:#8A8FA3;font-weight:500;margin-top:8px;line-height:1.4}\
 #cprSqPanel .pickstore button{display:block;width:100%;text-align:left;border:1.5px solid #E0E2EA;background:#fff;\
-border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;font-size:.92rem}\
+border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:var(--font-sans);font-weight:600;font-size:.92rem}\
 #cprSqPanel .pickstore button:hover{border-color:#4FB0E3;background:#EAF6FD}\
 #cprSqPanel .recent{border-top:1px solid #F0F1F4;margin-top:14px;padding-top:10px}\
-#cprSqPanel .recent .r{display:flex;gap:8px;font-size:.76rem;font-weight:700;color:#6B6F80;padding:4px 0}\
+#cprSqPanel .recent .r{display:flex;gap:8px;font-size:.76rem;font-weight:500;color:#6B6F80;padding:4px 0}\
 #cprSqPanel .recent .r b{color:#2D2D3B}\
-#cprSqPanel .recent .r .st2{margin-left:auto;font-family:Nunito,sans-serif;font-weight:800;font-size:.62rem;text-transform:uppercase}\
+#cprSqPanel .recent .r .st2{margin-left:auto;font-family:var(--font-sans);font-weight:700;font-size:.62rem;text-transform:uppercase}\
 #cprSqCard{border:1.5px solid #E0E2EA;border-radius:10px;padding:10px;margin-bottom:10px}';
   document.head.appendChild(css);
 
@@ -183,7 +183,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
       + '<button class="x" id="sqClose" title="Close">✕</button></div>';
 
     if (!S.store) {
-      panel.innerHTML = hd + '<div class="bd"><div style="font-family:Nunito,sans-serif;font-weight:800;margin-bottom:10px">Taking a payment for…</div>'
+      panel.innerHTML = hd + '<div class="bd"><div style="font-family:var(--font-sans);font-weight:600;margin-bottom:10px">Taking a payment for…</div>'
         + '<div class="pickstore">' + stores().map(function (s) { return '<button data-s="' + esc(s) + '">' + esc(shortStore(s)) + '</button>'; }).join('') + '</div></div>';
       wireCommon();
       panel.querySelectorAll('.pickstore button').forEach(function (b) {
@@ -445,7 +445,7 @@ border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-famil
     var el = q('#sqRecent'); if (!el) return;
     call('recent', { store: S.store }).then(function (r) {
       if (!r.ok || !(r.rows || []).length) { el.innerHTML = ''; return; }
-      el.innerHTML = '<div style="font-family:Nunito,sans-serif;font-weight:800;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:#8A8FA3;margin-bottom:4px">Recent</div>'
+      el.innerHTML = '<div style="font-family:var(--font-sans);font-weight:700;font-size:.66rem;text-transform:uppercase;letter-spacing:.4px;color:#8A8FA3;margin-bottom:4px">Recent</div>'
         + r.rows.slice(0, 5).map(function (p) {
           var col = p.status === 'completed' ? '#1E9E5B' : (p.status === 'failed' || p.status === 'canceled') ? '#DC282E' : '#C98A00';
           return '<div class="r"><b>' + dollars(p.amount_cents) + '</b>'

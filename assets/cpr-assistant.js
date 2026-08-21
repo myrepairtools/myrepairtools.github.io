@@ -39,7 +39,7 @@
     function inline(s) {
       return esc(s)
         .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
-          '<a href="$2" target="_blank" rel="noopener" style="color:#4FB0E3;font-weight:700">$1</a>')
+          '<a href="$2" target="_blank" rel="noopener" style="color:#4FB0E3;font-weight:500">$1</a>')
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(/`([^`]+)`/g, '<code>$1</code>');
     }
@@ -61,15 +61,15 @@
   var STYLE = '' +
     '.cpra-fab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;background:#DC282E;color:#fff;box-shadow:0 6px 20px rgba(45,45,59,.28);z-index:4000;display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .12s}' +
     '.cpra-fab:hover{transform:translateY(-2px)}' +
-    '.cpra-panel{position:fixed;right:20px;bottom:20px;width:380px;max-width:calc(100vw - 32px);height:min(620px,80vh);background:#fff;border:1px solid #E0E2EA;border-radius:16px;box-shadow:0 18px 50px rgba(45,45,59,.30);z-index:4001;display:none;flex-direction:column;overflow:hidden;font-family:"Nunito Sans",system-ui,sans-serif;color:#2D2D3B}' +
+    '.cpra-panel{position:fixed;right:20px;bottom:20px;width:380px;max-width:calc(100vw - 32px);height:min(620px,80vh);background:#fff;border:1px solid #E0E2EA;border-radius:16px;box-shadow:0 18px 50px rgba(45,45,59,.30);z-index:4001;display:none;flex-direction:column;overflow:hidden;font-family:var(--font-sans);color:#2D2D3B}' +
     '.cpra-panel.open{display:flex}' +
     '.cpra-hd{display:flex;align-items:center;gap:10px;padding:13px 15px;background:#2D2D3B;color:#fff;flex:none}' +
     '.cpra-hd .ic{width:30px;height:30px;border-radius:8px;background:#DC282E;display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}' +
-    '.cpra-hd .t{font-family:"Nunito",system-ui,sans-serif;font-weight:900;font-size:.95rem;line-height:1.1}' +
-    '.cpra-hd .s{font-size:.62rem;color:rgba(255,255,255,.6);font-weight:700;margin-top:1px}' +
-    '.cpra-hd .cpra-write{margin-left:auto;background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-family:"Nunito",sans-serif;font-size:.72rem;font-weight:800;white-space:nowrap}' +
+    '.cpra-hd .t{font-family:var(--font-sans);font-weight:700;font-size:.95rem;line-height:1.1}' +
+    '.cpra-hd .s{font-size:.62rem;color:rgba(255,255,255,.6);font-weight:500;margin-top:1px}' +
+    '.cpra-hd .cpra-write{margin-left:auto;background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 10px;border-radius:8px;cursor:pointer;font-family:var(--font-sans);font-size:.72rem;font-weight:600;white-space:nowrap}' +
     '.cpra-hd .cpra-write:hover{background:rgba(255,255,255,.22)}' +
-    '.cpra-hd .x{background:rgba(255,255,255,.12);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:800}' +
+    '.cpra-hd .x{background:rgba(255,255,255,.12);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600}' +
     '.cpra-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;background:#F7F7F9}' +
     '.cpra-msg{max-width:88%;padding:9px 12px;border-radius:13px;font-size:.86rem;line-height:1.45}' +
     '.cpra-msg p{margin:0 0 6px}.cpra-msg p:last-child{margin:0}.cpra-msg ul{margin:4px 0 6px;padding-left:18px}.cpra-msg li{margin:1px 0}' +
@@ -85,7 +85,7 @@
     '.cpra-foot{flex:none;border-top:1px solid #EEF0F4;padding:10px;display:flex;gap:8px;align-items:flex-end;background:#fff}' +
     '.cpra-foot textarea{flex:1;resize:none;border:1.5px solid #E0E2EA;border-radius:11px;padding:9px 11px;font-family:inherit;font-size:.86rem;max-height:120px;outline:none}' +
     '.cpra-foot textarea:focus{border-color:#4FB0E3}' +
-    '.cpra-send{flex:none;width:40px;height:40px;border:none;border-radius:11px;background:#DC282E;color:#fff;cursor:pointer;font-size:17px;font-weight:800}' +
+    '.cpra-send{flex:none;width:40px;height:40px;border:none;border-radius:11px;background:#DC282E;color:#fff;cursor:pointer;font-size:17px;font-weight:600}' +
     '.cpra-send:disabled{background:#E4A6A8;cursor:default}' +
     /* mobile: a true full-screen sheet — safe-area padded, 16px input so iOS
        doesn't zoom, and JS pins the height to the visual viewport when the
@@ -104,7 +104,7 @@
     'body.cpra-embed .cpra-panel{right:0;bottom:0;top:0;left:0;width:100%;height:100%;max-width:none;border:none;border-radius:0;box-shadow:none}' +
     'body.cpra-embed .cpra-panel .x{display:none}' +
     'body.cpra-embed .cpra-hd{display:none}' +
-    '.cpra-ctx{margin:8px 12px 0;padding:7px 11px;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:9px;font-size:.74rem;font-weight:700;color:#1E7AA8}';
+    '.cpra-ctx{margin:8px 12px 0;padding:7px 11px;background:#EAF6FD;border:1px solid #CDEAF8;border-radius:9px;font-size:.74rem;font-weight:500;color:#1E7AA8}';
 
   var MSGS = [];        // {role, content}
   var CTX = null, CTX_SENT = false;   // RepairQ page context (embed mode)

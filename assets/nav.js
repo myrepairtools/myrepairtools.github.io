@@ -305,7 +305,7 @@
   }
   function toastNav(msg, err){
     var t = document.createElement('div'); t.textContent = msg;
-    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:3000;background:' + (err ? '#DC282E' : '#2D2D3B') + ';color:#fff;padding:10px 18px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.82rem;box-shadow:0 8px 24px rgba(0,0,0,.2)';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:3000;background:' + (err ? '#DC282E' : '#2D2D3B') + ';color:#fff;padding:10px 18px;border-radius:10px;font-family:var(--font-sans);font-weight:600;font-size:.82rem;box-shadow:0 8px 24px rgba(0,0,0,.2)';
     document.body.appendChild(t);
     setTimeout(function(){ t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 2200);
   }
@@ -351,7 +351,7 @@
 
   :root{ --cpr-rail-w:${RAIL_W}px; --cpr-pane-w:${PANE_W}px; --cpr-nav-w:${RAIL_EXP_W}px; --cpr-top-h:52px;
     --cpr-blue-dark:#2D2D3B; --cpr-blue:#4FB0E3; --cpr-red:#DC282E; }
-  .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:'Nunito','Nunito Sans',sans-serif; }
+  .cpr-rail,.cpr-pane,.cpr-rail *,.cpr-pane *{ box-sizing:border-box; font-family:var(--font-sans); }
 
   /* the rail — CPR Blue Dark. EXPANDED (default): wide, icon left + section
      name right; tools reach the page via the hover flyout (owner call
@@ -364,7 +364,7 @@
   .cpr-rail .cpr-areabtn{ width:100%; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:flex-start; gap:12px; padding:0 11px;
     font-size:1.15rem; cursor:pointer; color:#fff; border:none; background:none; text-decoration:none; }
   .cpr-rail .cpr-areabtn svg{ flex:none; }
-  .cpr-rail .rlbl{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.84rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cpr-rail .rlbl{ font-family:var(--font-sans); font-weight:600; font-size:.84rem; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .cpr-rail .cpr-areabtn:hover{ background:rgba(255,255,255,.12); }
   .cpr-rail .cpr-areabtn.active{ background:var(--cpr-blue); color:#fff; }
   .cpr-rail .cpr-railsp{ flex:1; }
@@ -377,13 +377,13 @@
   body.cpr-nav-collapsed .cpr-rail .cpr-railgear{ width:40px; justify-content:center; gap:0; padding:0; }
   .cpr-rail .cpr-railgear:hover{ background:rgba(255,255,255,.12); opacity:1; }
   .cpr-rail .cpr-railgear.active{ background:var(--cpr-blue); opacity:1; }
-  .cpr-usermenu{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:'Nunito Sans',sans-serif; }
+  .cpr-usermenu{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:206px; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 16px 38px rgba(45,45,59,.24); z-index:1003; padding:6px; display:none; font-family:var(--font-sans); }
   .cpr-usermenu.show{ display:block; }
   .cpr-usermenu .who{ padding:9px 10px 8px; }
-  .cpr-usermenu .who .nm{ font-family:'Nunito'; font-weight:800; font-size:.86rem; color:#2D2D3B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .cpr-usermenu .who .rl{ font-size:.62rem; font-weight:800; color:#4FB0E3; text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
+  .cpr-usermenu .who .nm{ font-family:var(--font-sans); font-weight:600; font-size:.86rem; color:#2D2D3B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cpr-usermenu .who .rl{ font-size:.62rem; font-weight:700; color:#4FB0E3; text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
   .cpr-usermenu .umdiv{ height:1px; background:#E0E2EA; margin:4px 6px 5px; }
-  .cpr-usermenu button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; font-family:'Nunito'; font-weight:700; font-size:.82rem; color:#4E4E50; padding:9px 10px; border-radius:8px; cursor:pointer; }
+  .cpr-usermenu button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; font-family:var(--font-sans); font-weight:500; font-size:.82rem; color:#4E4E50; padding:9px 10px; border-radius:8px; cursor:pointer; }
   .cpr-usermenu button .umic{ width:16px; text-align:center; flex:none; opacity:.85; }
   .cpr-usermenu button:hover{ background:#F3F2F2; color:#2D2D3B; }
   .cpr-usermenu button.danger:hover{ color:#DC282E; background:#FFF1F1; }
@@ -396,7 +396,7 @@
     border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 14px 34px rgba(45,45,59,.20);
     z-index:1002; padding:6px 0; display:none; }
   .cpr-flyout.show{ display:block; }
-  .cpr-flyout .cpr-fly-hd{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:9px 16px 5px; }
+  .cpr-flyout .cpr-fly-hd{ font-family:var(--font-sans); font-weight:700; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:9px 16px 5px; }
   .cpr-flyout .cpr-fly-lock{ display:flex; gap:9px; align-items:flex-start; padding:4px 14px 6px; font-size:.74rem; color:#4E4E50; line-height:1.35; }
   .cpr-flyout .cpr-fly-lock .pad{ font-size:.95rem; line-height:1; }
   @media(max-width:859px){ .cpr-flyout{ display:none !important; } }
@@ -405,45 +405,45 @@
   .cpr-pane{ position:fixed; top:var(--cpr-top-h); left:var(--cpr-rail-w); bottom:var(--cpr-bb-h,0px); width:var(--cpr-pane-w);
     background:#fff; border-right:1.5px solid #E0E2EA; z-index:1000; overflow-y:auto; display:flex; flex-direction:column; transition:transform .2s ease; }
   .cpr-pane a{ text-decoration:none; }
-  .cpr-grp{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:14px 18px 6px; }
-  .cpr-link{ display:flex; align-items:center; gap:11px; padding:10px 18px; font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem; color:#4E4E50; border-left:3px solid transparent; cursor:pointer; }
+  .cpr-grp{ font-family:var(--font-sans); font-weight:700; font-size:.6rem; text-transform:uppercase; letter-spacing:.9px; color:#B9BDCB; padding:14px 18px 6px; }
+  .cpr-link{ display:flex; align-items:center; gap:11px; padding:10px 18px; font-family:var(--font-sans); font-weight:500; font-size:.88rem; color:#4E4E50; border-left:3px solid transparent; cursor:pointer; }
   .cpr-link .ic{ width:21px; text-align:center; font-size:1rem; flex:none; }
   .cpr-link .ic img{ width:18px; height:18px; object-fit:contain; display:block; margin:0 auto; }
   /* centring for the nav's own fixed-width icon slots (the inline style used to
      do this, but it broke page headings — see navIcon) */
   .cpr-link .ic svg, .cpr-rail .ic svg, .cpr-bb-tab .i svg, .cpr-usermenu .umic svg{ margin:0 auto; }
   .cpr-link:hover{ background:#F3F2F2; color:#2D2D3B; }
-  .cpr-link.active{ background:#EAF6FD; border-left-color:var(--cpr-blue); color:#2D2D3B; font-weight:800; }
-  .cpr-link .tag{ margin-left:auto; font-family:'Nunito',sans-serif; font-weight:800; font-size:.5rem; letter-spacing:.4px; text-transform:uppercase; color:#B9BDCB; border:1px solid #E0E2EA; border-radius:5px; padding:1px 5px; }
+  .cpr-link.active{ background:#EAF6FD; border-left-color:var(--cpr-blue); color:#2D2D3B; font-weight:700; }
+  .cpr-link .tag{ margin-left:auto; font-family:var(--font-sans); font-weight:700; font-size:.5rem; letter-spacing:.4px; text-transform:uppercase; color:#B9BDCB; border:1px solid #E0E2EA; border-radius:5px; padding:1px 5px; }
   .cpr-link .tag.owner{ color:#DC282E; border-color:#F6C9CA; background:#FFF1F1; }
   .cpr-div{ height:1px; background:#E0E2EA; margin:10px 16px; }
   .cpr-spacer{ flex:1; }
   /* mobile menu profile header */
   .cpr-mhd{ display:flex; align-items:center; gap:11px; padding:15px 18px 12px; border-bottom:1px solid #EEF0F4; }
-  .cpr-mhd .cpr-mav{ width:38px; height:38px; border-radius:50%; background:var(--cpr-red); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Nunito',sans-serif; font-weight:900; font-size:.82rem; flex:none; }
-  .cpr-mhd .nm{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.92rem; color:#2D2D3B; }
-  .cpr-mhd .rl{ font-size:.62rem; font-weight:800; color:var(--cpr-blue); text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
+  .cpr-mhd .cpr-mav{ width:38px; height:38px; border-radius:50%; background:var(--cpr-red); color:#fff; display:flex; align-items:center; justify-content:center; font-family:var(--font-sans); font-weight:700; font-size:.82rem; flex:none; }
+  .cpr-mhd .nm{ font-family:var(--font-sans); font-weight:700; font-size:.92rem; color:#2D2D3B; }
+  .cpr-mhd .rl{ font-size:.62rem; font-weight:700; color:var(--cpr-blue); text-transform:uppercase; letter-spacing:.5px; margin-top:1px; }
   .cpr-foot{ padding:10px 18px 16px; font-size:.58rem; color:#B9BDCB; }
 
   /* admin lock card */
   .cpr-lock{ margin:6px 14px 14px; background:#F3F2F2; border:1px solid #E0E2EA; border-radius:12px; padding:13px; }
-  .cpr-lock .hd{ display:flex; align-items:center; gap:9px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.84rem; color:#2D2D3B; }
+  .cpr-lock .hd{ display:flex; align-items:center; gap:9px; font-family:var(--font-sans); font-weight:600; font-size:.84rem; color:#2D2D3B; }
   .cpr-lock .hd .pad{ width:28px; height:28px; border-radius:8px; background:#fff; border:1px solid #E0E2EA; display:flex; align-items:center; justify-content:center; font-size:.9rem; }
   .cpr-lock p{ font-size:.72rem; color:#4E4E50; margin:8px 0 10px; line-height:1.4; }
-  .cpr-btn{ font-family:'Nunito',sans-serif; font-weight:800; border:none; border-radius:9px; cursor:pointer; font-size:.82rem; padding:9px 12px; width:100%; }
+  .cpr-btn{ font-family:var(--font-sans); font-weight:600; border:none; border-radius:9px; cursor:pointer; font-size:.82rem; padding:9px 12px; width:100%; }
   .cpr-btn.red{ background:#DC282E; color:#fff; }
   .cpr-passwrap{ display:none; margin-top:9px; }
   .cpr-passwrap.show{ display:block; }
-  .cpr-passwrap input{ width:100%; font-family:'Nunito Sans',sans-serif; font-size:.9rem; padding:9px; border:1.5px solid #E0E2EA; border-radius:9px; }
+  .cpr-passwrap input{ width:100%; font-family:var(--font-sans); font-size:.9rem; padding:9px; border:1.5px solid #E0E2EA; border-radius:9px; }
   .cpr-passwrap input:focus{ outline:none; border-color:#4FB0E3; box-shadow:0 0 0 3px rgba(79,176,227,.15); }
   .cpr-err{ display:none; color:#DC282E; font-size:.72rem; font-weight:700; margin-top:7px; }
   .cpr-err.show{ display:block; }
   .cpr-unlocked-hd{ display:flex; align-items:center; gap:7px; padding:0 18px 6px; }
-  .cpr-pill{ display:inline-flex; align-items:center; gap:6px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.64rem; color:#23A62F; }
+  .cpr-pill{ display:inline-flex; align-items:center; gap:6px; font-family:var(--font-sans); font-weight:700; font-size:.64rem; color:#23A62F; }
   .cpr-pill .dot{ width:7px; height:7px; border-radius:50%; background:#23A62F; }
-  .cpr-lockbtn{ margin-left:auto; font-family:'Nunito',sans-serif; font-weight:800; font-size:.62rem; color:#4E4E50; background:none; border:none; cursor:pointer; text-transform:uppercase; letter-spacing:.5px; }
+  .cpr-lockbtn{ margin-left:auto; font-family:var(--font-sans); font-weight:700; font-size:.62rem; color:#4E4E50; background:none; border:none; cursor:pointer; text-transform:uppercase; letter-spacing:.5px; }
   .cpr-lockbtn:hover{ color:#DC282E; }
-  .cpr-gear{ display:flex; align-items:center; gap:10px; padding:11px 18px; margin:6px 0; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem; color:#4E4E50; border-top:1px solid #E0E2EA; }
+  .cpr-gear{ display:flex; align-items:center; gap:10px; padding:11px 18px; margin:6px 0; cursor:pointer; font-family:var(--font-sans); font-weight:500; font-size:.84rem; color:#4E4E50; border-top:1px solid #E0E2EA; }
   .cpr-gear:hover{ background:#F3F2F2; color:#2D2D3B; }
 
   /* top bar — persistent app-shell header: spans the full width on top of the rail,
@@ -458,8 +458,8 @@
   .cpr-tb-brand .cpr-tb-wm{ display:flex; }                 /* full <> myRepairTools wordmark */
   .cpr-tb-brand .cpr-tb-ico{ display:none; }                /* chevron-only, mobile */
   .cpr-tb-sp{ flex:1; }
-  .cpr-tb-chip{ display:inline-flex; align-items:center; gap:6px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.7rem; color:rgba(255,255,255,.55); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
-  .cpr-tb-clock{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.74rem; color:#fff; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); padding:6px 12px; border-radius:999px; white-space:nowrap; cursor:pointer; -webkit-user-select:none; user-select:none; }
+  .cpr-tb-chip{ display:inline-flex; align-items:center; gap:6px; font-family:var(--font-sans); font-weight:700; font-size:.7rem; color:rgba(255,255,255,.55); background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.10); padding:5px 10px; border-radius:999px; white-space:nowrap; cursor:default; }
+  .cpr-tb-clock{ display:inline-flex; align-items:center; gap:7px; font-family:var(--font-sans); font-weight:600; font-size:.74rem; color:#fff; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); padding:6px 12px; border-radius:999px; white-space:nowrap; cursor:pointer; -webkit-user-select:none; user-select:none; }
   .cpr-tb-clock:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-clock.on{ background:rgba(46,158,91,.22); border-color:rgba(46,158,91,.5); }
   .cpr-tb-clock.busy{ opacity:.55; cursor:default; }
@@ -467,8 +467,8 @@
   .cpr-tb-clock.on .dot{ background:#39d98a; animation:cprpulse 2s infinite; }
   @keyframes cprpulse{0%{box-shadow:0 0 0 0 rgba(57,217,138,.5)}70%{box-shadow:0 0 0 6px rgba(57,217,138,0)}100%{box-shadow:0 0 0 0 rgba(57,217,138,0)}}
   .cpr-clockpop{ position:fixed; z-index:1400; background:#fff; border:1px solid #E0E2EA; border-radius:12px; box-shadow:0 14px 34px rgba(45,45,59,.24); padding:6px; min-width:186px; }
-  .cpr-clockpop .h{ font-family:'Nunito',sans-serif; font-weight:800; font-size:.58rem; letter-spacing:.6px; text-transform:uppercase; color:#B9BDCB; padding:8px 12px 5px; }
-  .cpr-clockpop button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; padding:9px 12px; border-radius:8px; cursor:pointer; font-family:'Nunito',sans-serif; font-weight:800; font-size:.82rem; color:#2D2D3B; }
+  .cpr-clockpop .h{ font-family:var(--font-sans); font-weight:700; font-size:.58rem; letter-spacing:.6px; text-transform:uppercase; color:#B9BDCB; padding:8px 12px 5px; }
+  .cpr-clockpop button{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:none; background:none; padding:9px 12px; border-radius:8px; cursor:pointer; font-family:var(--font-sans); font-weight:600; font-size:.82rem; color:#2D2D3B; }
   .cpr-clockpop button:hover{ background:#F3F2F2; }
   .cpr-clockpop .sdot{ width:9px; height:9px; border-radius:50%; flex:none; }
   .cpr-tb-sq{ position:relative; width:34px; height:34px; border:none; border-radius:9px; background:rgba(255,255,255,.08); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
@@ -480,17 +480,17 @@
   .cpr-tb-bell:hover{ background:rgba(255,255,255,.16); }
   .cpr-tb-bell .bdg{ position:absolute; top:1px; right:1px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
     background:var(--cpr-red); border:2px solid var(--cpr-blue-dark); display:none; align-items:center; justify-content:center;
-    font-family:'Nunito',sans-serif; font-weight:900; font-size:.56rem; color:#fff; line-height:1; }
-  .cpr-tb-role{ display:inline-flex; align-items:center; gap:7px; font-family:'Nunito',sans-serif; font-weight:800; font-size:.78rem; color:#fff; white-space:nowrap; cursor:pointer; border:none; background:none; padding:6px 8px; border-radius:9px; }
+    font-family:var(--font-sans); font-weight:700; font-size:.56rem; color:#fff; line-height:1; }
+  .cpr-tb-role{ display:inline-flex; align-items:center; gap:7px; font-family:var(--font-sans); font-weight:600; font-size:.78rem; color:#fff; white-space:nowrap; cursor:pointer; border:none; background:none; padding:6px 8px; border-radius:9px; }
   .cpr-tb-role:hover{ background:rgba(255,255,255,.10); }
   .cpr-tb-role .dot{ width:7px; height:7px; border-radius:50%; background:#2E9E5B; flex:none; }
-  .cpr-tb-role .nm-ini{ display:none; width:26px; height:26px; border-radius:50%; background:var(--cpr-red); color:#fff; font-size:.68rem; font-weight:900; align-items:center; justify-content:center; flex:none; }
+  .cpr-tb-role .nm-ini{ display:none; width:26px; height:26px; border-radius:50%; background:var(--cpr-red); color:#fff; font-size:.68rem; font-weight:700; align-items:center; justify-content:center; flex:none; }
   .cpr-tb-role img.nm-ini{ display:inline-block; object-fit:cover; }   /* a real photo is worth showing at every width */
   .cpr-mhd img.cpr-mav{ object-fit:cover; }
   .cpr-belldd{ position:fixed; top:calc(var(--cpr-top-h) + 6px); right:14px; width:300px; background:#fff; border:1px solid #E0E2EA; border-radius:13px; box-shadow:0 16px 44px rgba(45,45,59,.22); z-index:1004; display:none; overflow:hidden; }
   .cpr-belldd.show{ display:block; }
-  .cpr-belldd .h{ padding:12px 14px; font-family:'Nunito',sans-serif; font-weight:900; font-size:.84rem; color:#2D2D3B; border-bottom:1px solid #EEF0F4; }
-  .cpr-belldd .empty{ padding:20px 14px; font-family:'Nunito Sans',sans-serif; font-size:.82rem; color:#9aa0b0; text-align:center; line-height:1.5; }
+  .cpr-belldd .h{ padding:12px 14px; font-family:var(--font-sans); font-weight:700; font-size:.84rem; color:#2D2D3B; border-bottom:1px solid #EEF0F4; }
+  .cpr-belldd .empty{ padding:20px 14px; font-family:var(--font-sans); font-size:.82rem; color:#9aa0b0; text-align:center; line-height:1.5; }
   @media(max-width:560px){
     .cpr-tb-chip{ display:none; }
     .cpr-tb-role .nm-full, .cpr-tb-role .dot, .cpr-tb-role .nm-role{ display:none; }
@@ -546,7 +546,7 @@
     .cpra-fab{ bottom:calc(var(--cpr-bb-h) + 12px) !important; }  /* assistant ✨ sits above the tab bar */
   }
   .cpr-bb-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; border:none; background:none;
-    font-family:'Nunito',sans-serif; font-weight:800; font-size:.6rem; color:var(--cpr-blue-dark); cursor:pointer;
+    font-family:var(--font-sans); font-weight:600; font-size:.6rem; color:var(--cpr-blue-dark); cursor:pointer;
     text-decoration:none; padding:2px 0; min-width:0; }
   .cpr-bb-tab .i{ font-size:1.3rem; line-height:1.1; }
   .cpr-bb-tab.on{ color:var(--cpr-blue); }
@@ -734,7 +734,7 @@
   function navCntHtml(key){
     var n = NAVCNT[key];
     return '<span data-navcnt="'+key+'" style="'+(n?'':'display:none;')
-      +'margin-left:6px;background:#DC282E;color:#fff;font-size:.6rem;font-weight:900;border-radius:999px;padding:1px 7px;line-height:1.5;vertical-align:1px">'
+      +'margin-left:6px;background:#DC282E;color:#fff;font-size:.6rem;font-weight:700;border-radius:999px;padding:1px 7px;line-height:1.5;vertical-align:1px">'
       +(n ? (n>9?'9+':n) : '')+'</span>';
   }
   function applyNavCnt(){
@@ -837,7 +837,17 @@
   function navLogoTop(){
     var wm = '<span class="cpr-tb-wm"><svg viewBox="0 0 308 64" width="148" height="31" style="display:block" xmlns="http://www.w3.org/2000/svg" fill="none" role="img" aria-label="myRepairTools">'
       + '<path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path>'
-      + '<text x="74" y="44" font-family="\'Nunito\',sans-serif" font-size="30" font-weight="800"><tspan fill="#fff">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
+      // SVG presentation attributes don't take var() dependably, so the stack is
+      // spelled out here. This is the one spot where the type change is a BRAND
+      // shift rather than a UI one — the wordmark now renders in each platform's
+      // UI font. If that ever matters, the fix is a real SVG path or an image.
+      // textLength pins the wordmark to the viewBox. The type stack is now
+      // per-platform (Segoe UI / San Francisco / Roboto), and each is wider than
+      // Nunito was — at a fixed font-size the final "s" clipped. Pinning the
+      // length also makes the mark measure identically on every OS, which is
+      // what you want from a logo.
+      + '<text x="74" y="44" textLength="228" lengthAdjust="spacingAndGlyphs"'
+      + ' font-family="ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,\'Helvetica Neue\',Arial,sans-serif" font-size="30" font-weight="700"><tspan fill="#fff">myRepair</tspan><tspan fill="#DC282E">Tools</tspan></text>'
       + '</svg></span>';
     var ico = '<span class="cpr-tb-ico"><svg viewBox="13 8 48 48" width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M30 18 18 32l12 14M44 18l12 14-12 14" stroke="#DC282E" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
     return wm + ico;
@@ -1069,7 +1079,7 @@
 
   // inner content of the top-bar identity slot (the [data-roleslot] span)
   function roleSlotHtml(){
-    if (!currentRole() && !NAV_NAME) return '<span class="nm-full" style="color:rgba(255,255,255,.5);font-weight:700">Not signed in</span>';
+    if (!currentRole() && !NAV_NAME) return '<span class="nm-full" style="color:rgba(255,255,255,.5);font-weight:500">Not signed in</span>';
     return '<span class="dot"></span><span class="nm-full">'+(NAV_NAME?esc(NAV_NAME):'Signed in')+'</span>'
       + avatarHtml('nm-ini');
   }
@@ -1308,15 +1318,15 @@
       var ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;inset:0;background:rgba(45,45,59,.5);z-index:4000;display:flex;align-items:center;justify-content:center;padding:16px';
       ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px 22px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
-        + '<div style="display:flex;align-items:center;gap:9px;font-family:Nunito,sans-serif;font-weight:900;font-size:1.05rem;color:#2D2D3B;margin-bottom:4px">'
+        + '<div style="display:flex;align-items:center;gap:9px;font-family:var(--font-sans);font-weight:700;font-size:1.05rem;color:#2D2D3B;margin-bottom:4px">'
         +   navIcon(isFeat ? 'lightbulb' : 'bug', 19) + (isFeat ? 'Suggest a Feature' : 'Report an Issue') + '</div>'
-        + '<div style="font-size:.76rem;font-weight:700;color:#8A8FA0;margin-bottom:10px">'
+        + '<div style="font-size:.76rem;font-weight:500;color:#8A8FA0;margin-bottom:10px">'
         +   (isFeat ? 'What should myRepairTools do next? Goes straight to the owner\'s list.'
                     : 'What went wrong? Your name and this page are attached automatically.') + '</div>'
-        + '<textarea data-fbmsg style="width:100%;box-sizing:border-box;min-height:110px;padding:10px 12px;border:1.5px solid #E0E2EA;border-radius:10px;font-family:\'Nunito Sans\',sans-serif;font-weight:600;font-size:.88rem;resize:vertical;color:#2D2D3B" placeholder="' + (isFeat ? 'It would be great if…' : 'Describe what happened — which page, what you expected…') + '"></textarea>'
+        + '<textarea data-fbmsg style="width:100%;box-sizing:border-box;min-height:110px;padding:10px 12px;border:1.5px solid #E0E2EA;border-radius:10px;font-family:var(--font-sans);font-weight:600;font-size:.88rem;resize:vertical;color:#2D2D3B" placeholder="' + (isFeat ? 'It would be great if…' : 'Describe what happened — which page, what you expected…') + '"></textarea>'
         + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">'
-        + '<button data-fbx style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:1.5px solid #E0E2EA;background:#fff;color:#2D2D3B;border-radius:10px;cursor:pointer">Cancel</button>'
-        + '<button data-fbgo style="font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;padding:9px 16px;border:none;background:#DC282E;color:#fff;border-radius:10px;cursor:pointer">Send</button>'
+        + '<button data-fbx style="font-family:var(--font-sans);font-weight:600;font-size:.8rem;padding:9px 16px;border:1.5px solid #E0E2EA;background:#fff;color:#2D2D3B;border-radius:10px;cursor:pointer">Cancel</button>'
+        + '<button data-fbgo style="font-family:var(--font-sans);font-weight:600;font-size:.8rem;padding:9px 16px;border:none;background:#DC282E;color:#fff;border-radius:10px;cursor:pointer">Send</button>'
         + '</div></div>';
       document.body.appendChild(ov);
       var ta = ov.querySelector('[data-fbmsg]'); ta.focus();

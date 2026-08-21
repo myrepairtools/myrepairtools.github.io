@@ -1,11 +1,44 @@
-/* Self-hosted brand fonts (Nunito, Nunito Sans — SIL Open Font License 1.1).
-   Vendored on 2026-08-14 like supabase-js/pdf.js: the Google Fonts CDN is a
-   third-party request that can be slow or blocked, and when it failed the
-   pages fell back to the browser default — which is why the iPhone showed
-   Times on some screens while the Mac showed Nunito. Local files render the
-   same on every device and work offline in the installed app.
-   Variable weight 400-900 (Nunito) / 400-700 (Nunito Sans), latin + latin-ext. */
+/* Site type stack — the platform's own UI font, no webfonts (2026-08-21).
+   Replaces the self-hosted Nunito / Nunito Sans pair. Nothing is downloaded for
+   type any more: zero font payload, the OS's own hinting, and text that cannot
+   fall back to Times when a font request fails (the iPhone bug that made us
+   vendor the files in the first place is gone by construction).
 
+   This is the stack RepairQ v2 runs (Tailwind's font-sans), so our tools and
+   RepairQ render identically on the same machine. Type stays native per
+   platform rather than one font everywhere:
+     Windows -> Segoe UI · macOS/iOS -> San Francisco
+     Android -> Roboto  · Linux -> Noto Sans / distro default
+
+   The two smoothing declarations are load-bearing, not polish: without them the
+   stack renders noticeably heavier than Nunito did.
+
+   Every page links this file, so --font-sans is available everywhere. Page CSS
+   should use var(--font-sans) rather than naming a family. */
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+               'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------------------------------------------------------------------------
+   TEMPORARY — remove when the page-by-page migration is finished.
+
+   The pages still carrying font-family:'Nunito' need these to keep rendering
+   correctly while the rollout is in progress. Deleting the @font-face blocks
+   before the last page is migrated would drop those pages to the browser
+   default — the Times-on-iPhone bug that made us vendor these files in 2026-08.
+   Migrated pages use var(--font-sans) and never touch them.
+
+   Final step: delete everything below this line, plus assets/fonts/*.woff2.
+   --------------------------------------------------------------------------- */
 /* Nunito — latin-ext */
 @font-face {
   font-family: 'Nunito';
